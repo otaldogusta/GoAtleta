@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "CoachPeriod",
+    "slug": "coachperiod",
+    "version": "1.0.0",
+    "scheme": "coachperiod",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
+    "jsEngine": "hermes",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "plugins": ["expo-router"],
+    "extra": {
+      "eas": {
+        "projectId": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  }
+}
