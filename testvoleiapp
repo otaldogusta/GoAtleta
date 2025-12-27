@@ -1,0 +1,634 @@
+// CoachPeriod — Expo + React Native (TypeScript) + Expo Router + SQLite
+//
+// Este documento NÃO é um arquivo executável no browser. Ele é um manifest de arquivos.
+// Para evitar erros de "fs" em ambientes sandboxed (sem Node), você deve:
+// - Copiar o conteúdo de cada FILE: para o arquivo correspondente no seu projeto Expo
+// - OU rodar um gerador (bootstrap) em ambiente Node local.
+//
+// Abaixo segue o projeto em formato de arquivos, sem dependência de fs/path.
+
+// ------------------------------------------------------------
+// FILE: babel.config.js
+// ------------------------------------------------------------
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ["babel-preset-expo"],
+    plugins: ["expo-router/babel"],
+  };
+};
+
+// ------------------------------------------------------------
+// FILE: jest.config.js
+// ------------------------------------------------------------
+module.exports = {
+  preset: "jest-expo",
+  testMatch: ["**/__tests__/**/*.test.ts"],
+  transformIgnorePatterns: [
+    "node_modules/(?!(jest-)?react-native|@react-native|react-clone-referenced-element|@expo|expo(nent)?|expo-router|@react-navigation/.*)",
+  ],
+};
+
+// ------------------------------------------------------------
+// FILE: app/_layout.tsx
+// ------------------------------------------------------------
+import { Stack } from "expo-router";
+
+export default function RootLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerTitleAlign: "center",
+      }}
+    />
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: app/index.tsx
+// ------------------------------------------------------------
+import { useEffect, useState } from "react";
+import { FlatList } from "react-native";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { seedIfEmpty, getClasses } from "../src/db/seed";
+import type { ClassGroup } from "../src/core/models";
+import { Card } from "../src/ui/Card";
+import { Typography } from "../src/ui/Typography";
+
+export default function Home() {
+  const router = useRouter();
+  const [classes, setClasses] = useState<ClassGroup[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      await seedIfEmpty();
+      const data = await getClasses();
+      if (alive) setClasses(data);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return (
+    <SafeAreaView style={{ flex: 1, padding: 16 }}>
+      <Typography variant="title">Agenda</Typography>
+      <Typography variant="subtitle">Turmas de hoje</Typography>
+
+      <FlatList
+        data={classes}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingVertical: 12, gap: 12 }}
+        renderItem={({ item }) => (
+          <Card
+            title={item.name + " (" + item.ageBand + ")"}
+            subtitle={
+              item.daysPerWeek + "x/sem • " + item.goal + " • " + item.equipment
+            }
+            onPress={() => router.push("/class/" + item.id)}
+          />
+        )}
+      />
+    </SafeAreaView>
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: app/class/[id].tsx
+// ------------------------------------------------------------
+import { useEffect, useState } from "react";
+import { View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { getClassById } from "../../src/db/seed";
+import type { ClassGroup } from "../../src/core/models";
+import { Button } from "../../src/ui/Button";
+import { Typography } from "../../src/ui/Typography";
+
+export default function ClassDetails() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const [cls, setCls] = useState<ClassGroup | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const data = await getClassById(id);
+      if (alive) setCls(data);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  if (!cls) return null;
+
+  return (
+    <SafeAreaView style={{ flex: 1, padding: 16 }}>
+      <Typography variant="title">{cls.name}</Typography>
+      <Typography variant="subtitle">Faixa: {cls.ageBand}</Typography>
+      <Typography variant="body">
+        Frequência: {cls.daysPerWeek}x/sem • Objetivo: {cls.goal}
+      </Typography>
+
+      <View style={{ marginTop: 20, gap: 12 }}>
+        <Button
+          label="Ver aula do dia"
+          onPress={() => router.push("/class/" + id + "/session")}
+        />
+        <Button
+          label="Registrar pós-aula"
+          onPress={() => router.push("/class/" + id + "/log")}
+          variant="secondary"
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: app/class/[id]/session.tsx
+// ------------------------------------------------------------
+import { useEffect, useMemo, useState } from "react";
+import { ScrollView } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { getClassById } from "../../../src/db/seed";
+import type { ClassGroup } from "../../../src/core/models";
+import { generateSession } from "../../../src/core/sessionGenerator";
+import { Typography } from "../../../src/ui/Typography";
+import { Card } from "../../../src/ui/Card";
+
+export default function SessionScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [cls, setCls] = useState<ClassGroup | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const data = await getClassById(id);
+      if (alive) setCls(data);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  const session = useMemo(() => {
+    if (!cls) return null;
+    return generateSession(cls);
+  }, [cls]);
+
+  if (!cls || !session) return null;
+
+  return (
+    <SafeAreaView style={{ flex: 1, padding: 16 }}>
+      <Typography variant="title">Aula do dia</Typography>
+      <Typography variant="subtitle">
+        {cls.name} • {session.block}
+      </Typography>
+
+      <ScrollView contentContainerStyle={{ paddingVertical: 12, gap: 12 }}>
+        <Card title="Aquecimento (10 min)" subtitle={session.warmup.join(" • ")} />
+        <Card title="Parte principal (45 min)" subtitle={session.main.join(" • ")} />
+        <Card title="Volta à calma (5 min)" subtitle={session.cooldown.join(" • ")} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: app/class/[id]/log.tsx
+// ------------------------------------------------------------
+import { useState } from "react";
+import { View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { saveSessionLog } from "../../../src/db/seed";
+import { Button } from "../../../src/ui/Button";
+import { Typography } from "../../../src/ui/Typography";
+
+export default function LogScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+
+  const [rpe, setRpe] = useState<number>(7);
+  const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
+  const [attendance, setAttendance] = useState<number>(100);
+
+  async function handleSave() {
+    await saveSessionLog({
+      classId: id,
+      rpe,
+      technique,
+      attendance,
+      createdAt: new Date().toISOString(),
+    });
+    router.replace("/");
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1, padding: 16 }}>
+      <Typography variant="title">Registro pós-aula</Typography>
+
+      <Typography variant="body">RPE (1–10): {rpe}</Typography>
+      <View style={{ flexDirection: "row", gap: 8, marginVertical: 8 }}>
+        {[5, 6, 7, 8, 9].map((n) => (
+          <Button
+            key={n}
+            label={String(n)}
+            onPress={() => setRpe(n)}
+            variant={rpe === n ? "primary" : "secondary"}
+          />
+        ))}
+      </View>
+
+      <Typography variant="body">Técnica geral: {technique}</Typography>
+      <View style={{ flexDirection: "row", gap: 8, marginVertical: 8 }}>
+        {(["boa", "ok", "ruim"] as const).map((t) => (
+          <Button
+            key={t}
+            label={t}
+            onPress={() => setTechnique(t)}
+            variant={technique === t ? "primary" : "secondary"}
+          />
+        ))}
+      </View>
+
+      <Typography variant="body">Presença (%): {attendance}</Typography>
+      <View style={{ flexDirection: "row", gap: 8, marginVertical: 8 }}>
+        {[60, 80, 100].map((n) => (
+          <Button
+            key={n}
+            label={String(n)}
+            onPress={() => setAttendance(n)}
+            variant={attendance === n ? "primary" : "secondary"}
+          />
+        ))}
+      </View>
+
+      <View style={{ marginTop: 16 }}>
+        <Button label="Salvar" onPress={handleSave} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: src/core/models.ts
+// ------------------------------------------------------------
+export type AgeBand = "8-9" | "10-12" | "13-15";
+export type Goal =
+  | "Fundamentos"
+  | "Força Geral"
+  | "Potência/Agilidade"
+  | "Força+Potência";
+export type Equipment = "quadra" | "funcional" | "academia" | "misto";
+
+export type ClassGroup = {
+  id: string;
+  name: string;
+  ageBand: AgeBand;
+  daysPerWeek: number;
+  goal: Goal;
+  equipment: Equipment;
+  level: 1 | 2 | 3;
+};
+
+export type SessionPlan = {
+  block: string;
+  warmup: string[];
+  main: string[];
+  cooldown: string[];
+};
+
+export type SessionLog = {
+  classId: string;
+  rpe: number;
+  technique: "boa" | "ok" | "ruim";
+  attendance: number;
+  createdAt: string;
+};
+
+// ------------------------------------------------------------
+// FILE: src/core/periodization.ts
+// ------------------------------------------------------------
+import { ClassGroup } from "./models";
+
+export function getBlockForToday(cls: ClassGroup): string {
+  switch (cls.goal) {
+    case "Fundamentos":
+      return "Meso A — Fundamentos/Técnica";
+    case "Força Geral":
+      return "Meso B — Força Geral";
+    case "Potência/Agilidade":
+      return "Meso C — Potência/Agilidade";
+    case "Força+Potência":
+      return "Meso B/C — Força + Potência";
+    default:
+      return "Meso A — Fundamentos/Técnica";
+  }
+}
+
+// ------------------------------------------------------------
+// FILE: src/core/sessionGenerator.ts
+// ------------------------------------------------------------
+import { ClassGroup, SessionPlan } from "./models";
+import { getBlockForToday } from "./periodization";
+
+export function generateSession(cls: ClassGroup): SessionPlan {
+  const block = getBlockForToday(cls);
+
+  const warmup = ["Mobilidade dinâmica", "Ativação leve", "Jogo curto"];
+
+  const main = getMainByAgeBand(cls.ageBand);
+
+  const cooldown = [
+    "Caminhada + respiração (2min)",
+    "Mobilidade leve (2min)",
+    "RPE + técnica (1min)",
+  ];
+
+  return { block, warmup, main, cooldown };
+}
+
+function getMainByAgeBand(ageBand: ClassGroup["ageBand"]): string[] {
+  if (ageBand === "8-9") {
+    return [
+      "Circuito 8 estações (25s ON / 35s OFF) x2–3",
+      "Estações: agachar • empurrar • puxar • equilíbrio • zigue-zague • salto • arremesso • prancha",
+      "Mini jogo técnico (15min)",
+    ];
+  }
+
+  if (ageBand === "10-12") {
+    return [
+      "Força técnica (25min): goblet squat 2–3x8–10 • remada 2–3x8–10 • hinge 2x6–8",
+      "Circuito atlético (15min): saltos 3x5 • sprint 10m 4–6x • core",
+      "Jogo curto (5min)",
+    ];
+  }
+
+  return [
+    "Força (30min): agachar 3x6–10 • empurrar 3x6–10 • puxar 3x8–12",
+    "Potência/sprint (10min): saltos 3x4–6 • sprint 10–20m 4–6x",
+    "Core (5min): anti-rotação + prancha lateral",
+  ];
+}
+
+// ------------------------------------------------------------
+// FILE: src/db/sqlite.ts
+// ------------------------------------------------------------
+import * as SQLite from "expo-sqlite";
+
+export const db = SQLite.openDatabaseSync("coachperiod.db");
+
+export function initDb() {
+  db.execSync(
+    `
+    CREATE TABLE IF NOT EXISTS classes (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      ageBand TEXT NOT NULL,
+      daysPerWeek INTEGER NOT NULL,
+      goal TEXT NOT NULL,
+      equipment TEXT NOT NULL,
+      level INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS session_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      classId TEXT NOT NULL,
+      rpe INTEGER NOT NULL,
+      technique TEXT NOT NULL,
+      attendance INTEGER NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+  `
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: src/db/seed.ts
+// ------------------------------------------------------------
+import { db, initDb } from "./sqlite";
+import type { ClassGroup, SessionLog } from "../core/models";
+
+export async function seedIfEmpty() {
+  initDb();
+
+  const res = db.getFirstSync<{ count: number }>(
+    "SELECT COUNT(*) as count FROM classes"
+  );
+  if (res?.count && res.count > 0) return;
+
+  const classes: ClassGroup[] = [
+    {
+      id: "c1",
+      name: "Turma 8–9",
+      ageBand: "8-9",
+      daysPerWeek: 3,
+      goal: "Fundamentos",
+      equipment: "misto",
+      level: 1,
+    },
+    {
+      id: "c2",
+      name: "Turma 10–12",
+      ageBand: "10-12",
+      daysPerWeek: 3,
+      goal: "Força Geral",
+      equipment: "misto",
+      level: 2,
+    },
+    {
+      id: "c3",
+      name: "Turma 13–15",
+      ageBand: "13-15",
+      daysPerWeek: 3,
+      goal: "Força+Potência",
+      equipment: "misto",
+      level: 2,
+    },
+  ];
+
+  db.execSync("BEGIN TRANSACTION");
+  try {
+    for (const c of classes) {
+      db.runSync(
+        `INSERT INTO classes (id, name, ageBand, daysPerWeek, goal, equipment, level)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [c.id, c.name, c.ageBand, c.daysPerWeek, c.goal, c.equipment, c.level]
+      );
+    }
+    db.execSync("COMMIT");
+  } catch (e) {
+    db.execSync("ROLLBACK");
+    throw e;
+  }
+}
+
+export async function getClasses(): Promise<ClassGroup[]> {
+  return db.getAllSync<ClassGroup>("SELECT * FROM classes ORDER BY name ASC");
+}
+
+export async function getClassById(id: string): Promise<ClassGroup | null> {
+  const res = db.getFirstSync<ClassGroup>(
+    "SELECT * FROM classes WHERE id = ?",
+    [id]
+  );
+  return res ?? null;
+}
+
+export async function saveSessionLog(log: SessionLog) {
+  db.runSync(
+    `INSERT INTO session_logs (classId, rpe, technique, attendance, createdAt)
+     VALUES (?, ?, ?, ?, ?)`,
+    [log.classId, log.rpe, log.technique, log.attendance, log.createdAt]
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: src/ui/Typography.tsx
+// ------------------------------------------------------------
+import { Text } from "react-native";
+
+export function Typography({
+  variant,
+  children,
+}: {
+  variant: "title" | "subtitle" | "body";
+  children: any;
+}) {
+  const style =
+    variant === "title"
+      ? { fontSize: 26, fontWeight: "700", marginBottom: 8, color: "#111" }
+      : variant === "subtitle"
+      ? { fontSize: 16, opacity: 0.7, marginBottom:  10, color: "#111" }
+      : { fontSize: 15, lineHeight: 22, color: "#111" };
+
+  return <Text style={style}>{children}</Text>;
+}
+
+// ------------------------------------------------------------
+// FILE: src/ui/Card.tsx
+// ------------------------------------------------------------
+import { Pressable, Text } from "react-native";
+
+export function Card({
+  title,
+  subtitle,
+  onPress,
+}: {
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        padding: 14,
+        borderRadius: 16,
+        backgroundColor: "#111",
+      }}
+    >
+      <Text style={{ fontSize: 16, fontWeight: "700", color: "#fff" }}>
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text style={{ color: "#aaa", marginTop: 6 }}>{subtitle}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: src/ui/Button.tsx
+// ------------------------------------------------------------
+import { Pressable, Text } from "react-native";
+
+export function Button({
+  label,
+  onPress,
+  variant = "primary",
+}: {
+  label: string;
+  onPress: () => void;
+  variant?: "primary" | "secondary";
+}) {
+  const bg = variant === "primary" ? "#2563eb" : "#333";
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        backgroundColor: bg,
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ color: "#fff", fontWeight: "700" }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// ------------------------------------------------------------
+// FILE: src/core/__tests__/sessionGenerator.test.ts
+// ------------------------------------------------------------
+import { generateSession } from "../sessionGenerator";
+
+const mk = (ageBand: any) => ({
+  id: "t",
+  name: "Turma",
+  ageBand,
+  daysPerWeek: 3,
+  goal: "Fundamentos",
+  equipment: "misto",
+  level: 1,
+});
+
+test("gera sessão para 8-9", () => {
+  const s = generateSession(mk("8-9"));
+  expect(s.warmup.length).toBeGreaterThan(0);
+  expect(s.main.join(" ")).toContain("Circuito");
+  expect(s.cooldown.join(" ")).toContain("RPE");
+});
+
+test("gera sessão para 10-12", () => {
+  const s = generateSession(mk("10-12"));
+  expect(s.main.join(" ")).toContain("Força técnica");
+});
+
+test("gera sessão para 13-15", () => {
+  const s = generateSession(mk("13-15"));
+  expect(s.main.join(" ")).toContain("Força");
+});
+
+test("sessão sempre tem cooldown com 3 itens", () => {
+  const s = generateSession(mk("8-9"));
+  expect(s.cooldown).toHaveLength(3);
+});
+
+test("session.block é string", () => {
+  const s = generateSession(mk("8-9"));
+  expect(typeof s.block).toBe("string");
+});
+
+test("main tem pelo menos 2 itens", () => {
+  const s = generateSession(mk("8-9"));
+  expect(s.main.length).toBeGreaterThanOrEqual(2);
+});
+
+test("warmup tem 3 itens", () => {
+  const s = generateSession(mk("8-9"));
+  expect(s.warmup).toHaveLength(3);
+});
