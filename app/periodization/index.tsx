@@ -477,7 +477,7 @@ export default function PeriodizationScreen() {
             Periodizacao
           </Text>
           <Text style={{ color: colors.muted }}>
-            Estrutura do ciclo, cargas e foco semanal
+            Estrutura do ciclo, cargas e foco semanal (teste)
           </Text>
         </View>
 
