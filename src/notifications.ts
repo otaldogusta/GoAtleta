@@ -57,10 +57,18 @@ export const notifyTrainingCreated = async () => {
     "Treino criado",
     "O assistente gerou um treino para voce."
   );
-  await sendLocalNotification("Treino criado", "O assistente gerou um treino para voce.");
 };
 
 export const notifyTrainingSaved = async () => {
   await addNotification("Treino salvo", "Treino salvo com sucesso.");
-  await sendLocalNotification("Treino salvo", "Treino salvo com sucesso.");
+};
+
+export const notifyBirthdays = async (names: string[]) => {
+  if (!names.length) return;
+  const preview = names.slice(0, 3).join(", ");
+  const extra =
+    names.length > 3 ? ` e mais ${names.length - 3}` : "";
+  const body = `Aniversariantes de hoje: ${preview}${extra}.`;
+  await addNotification("Aniversariantes do dia", body);
+  await sendLocalNotification("Aniversariantes do dia", body);
 };

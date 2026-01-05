@@ -68,7 +68,8 @@ export const markAllRead = async () => {
 };
 
 export const clearNotifications = async () => {
-  await writeAll([]);
+  await AsyncStorage.removeItem(STORAGE_KEY);
+  emit([]);
 };
 
 export const getUnreadCount = async () => {

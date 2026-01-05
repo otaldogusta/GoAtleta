@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
   Linking,
   Image,
-  Pressable,
   ScrollView,
   Share,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
+import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -24,6 +29,8 @@ import {
 import type { Exercise } from "../../src/core/models";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 
 const getYoutubeId = (url: string) => {
   const match =
@@ -43,6 +50,8 @@ const getThumbnail = (url: string) => {
 
 export default function ExercisesScreen() {
   const { colors } = useAppTheme();
+  const { confirm } = useConfirmUndo();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const [items, setItems] = useState<Exercise[]>([]);
   const [title, setTitle] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
@@ -98,6 +107,15 @@ export default function ExercisesScreen() {
     setEditingCreatedAt(null);
     setMetaStatus("");
   };
+
+  const isFormDirty =
+    title.trim() ||
+    videoUrl.trim() ||
+    source.trim() ||
+    notes.trim() ||
+    description.trim() ||
+    publishedAt.trim() ||
+    editingId;
 
   const save = async () => {
     if (metaLoading) {
@@ -206,35 +224,31 @@ export default function ExercisesScreen() {
     await Share.share({ message: `${title}\n${normalized}` });
   };
 
-  const confirmDelete = async (exerciseId: string) => {
-    const remove = async () => {
-      try {
-        await deleteExercise(exerciseId);
-        await load();
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Erro desconhecido.";
-        if (Platform.OS === "web") {
-          alert("Nao foi possivel excluir. " + message);
-        } else {
+  const confirmDelete = (exercise: Exercise) => {
+    confirm({
+      title: "Excluir exercicio?",
+      message: exercise.title
+        ? `Deseja remover ${exercise.title}?`
+        : "Deseja remover este exercicio?",
+      confirmLabel: "Excluir",
+      undoMessage: "Exercicio excluido. Deseja desfazer?",
+      onOptimistic: () => {
+        setItems((prev) => prev.filter((item) => item.id !== exercise.id));
+      },
+      onConfirm: async () => {
+        try {
+          await deleteExercise(exercise.id);
+          await load();
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Erro desconhecido.";
           Alert.alert("Nao foi possivel excluir", message);
         }
-      }
-    };
-    if (Platform.OS === "web") {
-      if (confirm("Deseja remover este exercicio?")) {
-        await remove();
-      }
-      return;
-    }
-    Alert.alert(
-      "Excluir exercicio",
-      "Deseja remover este exercicio?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Excluir", style: "destructive", onPress: remove },
-      ]
-    );
+      },
+      onUndo: async () => {
+        await load();
+      },
+    });
   };
 
   return (
@@ -331,6 +345,18 @@ export default function ExercisesScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
+                  if (isFormDirty) {
+                    confirmDialog({
+                      title: "Sair sem salvar?",
+                      message: "Voce tem alteracoes nao salvas.",
+                      confirmLabel: "Descartar",
+                      cancelLabel: "Continuar",
+                      onConfirm: () => {
+                        clearForm();
+                      },
+                    });
+                    return;
+                  }
                   clearForm();
                 }}
                 style={{
@@ -488,7 +514,7 @@ export default function ExercisesScreen() {
                       </Text>
                     </Pressable>
                     <Pressable
-                      onPress={() => confirmDelete(item.id)}
+                      onPress={() => confirmDelete(item)}
                       style={{
                         flex: 1,
                         paddingVertical: 8,

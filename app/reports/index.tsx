@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import {
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -8,7 +13,6 @@ import {
   getStudents,
 } from "../../src/db/seed";
 import type { AttendanceRecord, ClassGroup, Student } from "../../src/core/models";
-import { Button } from "../../src/ui/Button";
 import { useAppTheme } from "../../src/ui/app-theme";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
@@ -203,22 +207,53 @@ export default function ReportsScreen() {
     }
   };
 
+  const weeklySummary = useMemo(() => {
+    const weeks = Array.from({ length: 5 }).map(() => ({ total: 0, present: 0 }));
+    monthAttendance.forEach((record) => {
+      const day = Number(record.date.slice(8, 10));
+      const weekIndex = Math.min(Math.floor((day - 1) / 7), weeks.length - 1);
+      weeks[weekIndex].total += 1;
+      if (record.status === "presente") weeks[weekIndex].present += 1;
+    });
+    return weeks
+      .map((week, index) => {
+        const percent = week.total
+          ? Math.round((week.present / week.total) * 100)
+          : 0;
+        return { label: `S${index + 1}`, percent, total: week.total };
+      })
+      .filter((week) => week.total > 0);
+  }, [monthAttendance]);
+
+  const topStudents = useMemo(() => {
+    return [...studentRows]
+      .sort((a, b) => b.percent - a.percent)
+      .slice(0, 5);
+  }, [studentRows]);
+
+  const statCards = [
+    { label: "Presencas", value: String(summary.present), color: colors.primaryBg },
+    { label: "Faltas", value: String(summary.absent), color: colors.dangerSolidBg },
+    { label: "Aulas", value: String(summary.total), color: colors.infoBg },
+    { label: "Turmas", value: String(classes.length), color: colors.secondaryBg },
+  ];
+
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <View style={{ marginBottom: 12 }}>
-        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-          Relatorios
-        </Text>
-        <Text style={{ color: colors.muted, marginTop: 4 }}>
-          Presenca por turma e aluno
-        </Text>
-      </View>
-
       <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+            Relatorios
+          </Text>
+          <Text style={{ color: colors.muted }}>
+            Dashboard de presenca e desempenho
+          </Text>
+        </View>
+
         <View
           style={{
             padding: 16,
-            borderRadius: 20,
+            borderRadius: 22,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
@@ -230,9 +265,30 @@ export default function ReportsScreen() {
             gap: 12,
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Mes atual
-          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              Mes atual
+            </Text>
+            <Pressable
+              onPress={exportCsv}
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                Exportar CSV
+              </Text>
+            </Pressable>
+          </View>
           <View
             style={{
               flexDirection: "row",
@@ -256,47 +312,80 @@ export default function ReportsScreen() {
               <Text style={{ fontSize: 18, color: colors.text }}>{">"}</Text>
             </Pressable>
           </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              onPress={exportCsv}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.primaryBg,
-              }}
-            >
-              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                Exportar CSV
-              </Text>
-            </Pressable>
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            {statCards.map((card) => (
+              <View
+                key={card.label}
+                style={{
+                  flexBasis: "48%",
+                  padding: 14,
+                  borderRadius: 16,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 6,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {card.label}
+                </Text>
+                <Text style={{ color: colors.text, fontSize: 22, fontWeight: "700" }}>
+                  {card.value}
+                </Text>
+              </View>
+            ))}
           </View>
+
           <View
             style={{
-              borderRadius: 16,
-              padding: 12,
+              padding: 16,
+              borderRadius: 18,
               backgroundColor: colors.inputBg,
               borderWidth: 1,
-            borderColor: colors.border,
-            gap: 6,
-          }}
-        >
-            <Text style={{ fontWeight: "700", fontSize: 16, color: colors.text }}>
-              Resumo do mes
+              borderColor: colors.border,
+              gap: 10,
+            }}
+          >
+            <Text style={{ fontWeight: "700", color: colors.text }}>
+              Presenca geral
             </Text>
-            <Text style={{ color: colors.text }}>
-              Presencas: {summary.present} | Faltas: {summary.absent}
-            </Text>
-            <Text style={{ color: colors.text }}>
-              Total: {summary.total} | {summary.percent}%
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+              <View
+                style={{
+                  width: 88,
+                  height: 88,
+                  borderRadius: 44,
+                  borderWidth: 8,
+                  borderColor: colors.primaryBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.card,
+                }}
+              >
+                <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
+                  {summary.percent}%
+                </Text>
+              </View>
+              <View style={{ gap: 6, flex: 1 }}>
+                <Text style={{ color: colors.text }}>
+                  Presencas: {summary.present}
+                </Text>
+                <Text style={{ color: colors.text }}>
+                  Faltas: {summary.absent}
+                </Text>
+                <Text style={{ color: colors.muted }}>
+                  Total registrado: {summary.total}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
         <View
           style={{
             padding: 16,
-            borderRadius: 20,
+            borderRadius: 22,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
@@ -305,11 +394,59 @@ export default function ReportsScreen() {
             shadowRadius: 12,
             shadowOffset: { width: 0, height: 6 },
             elevation: 3,
-            gap: 10,
+            gap: 12,
           }}
         >
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Indicadores
+            Evolucao semanal
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
+            {weeklySummary.map((week) => (
+              <View key={week.label} style={{ alignItems: "center", gap: 6 }}>
+                <View
+                  style={{
+                    width: 22,
+                    height: 80,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      width: "100%",
+                      height: `${week.percent}%`,
+                      backgroundColor: colors.primaryBg,
+                    }}
+                  />
+                </View>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {week.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 22,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            shadowColor: "#000",
+            shadowOpacity: 0.06,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: 3,
+            gap: 12,
+          }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            Alertas rapidos
           </Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View
@@ -318,6 +455,8 @@ export default function ReportsScreen() {
                 padding: 12,
                 borderRadius: 14,
                 backgroundColor: colors.dangerBg,
+                borderWidth: 1,
+                borderColor: colors.dangerBorder,
               }}
             >
               <Text style={{ fontWeight: "700", color: colors.dangerText }}>
@@ -333,6 +472,8 @@ export default function ReportsScreen() {
                 padding: 12,
                 borderRadius: 14,
                 backgroundColor: colors.warningBg,
+                borderWidth: 1,
+                borderColor: colors.warningBg,
               }}
             >
               <Text style={{ fontWeight: "700", color: colors.warningText }}>
@@ -343,82 +484,12 @@ export default function ReportsScreen() {
               </Text>
             </View>
           </View>
-
-          {indicators.consecutiveAbsences.length === 0 &&
-          indicators.inactive.length === 0 ? (
-            <Text style={{ color: colors.muted }}>Sem alertas no momento</Text>
-          ) : null}
-
-          {indicators.consecutiveAbsences.length > 0 ? (
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Ausencias seguidas
-              </Text>
-              {indicators.consecutiveAbsences.map((item) => (
-                <View
-                  key={item.student.id + "_streak"}
-                  style={{
-                    borderRadius: 14,
-                    padding: 12,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.dangerBorder,
-                  }}
-                >
-                  <Text style={{ fontWeight: "700", color: colors.text }}>
-                    {item.student.name}
-                  </Text>
-                  <Text style={{ color: colors.muted, marginTop: 4 }}>
-                    {"Ausencias seguidas: " +
-                      item.streak +
-                      " - " +
-                      item.className}
-                  </Text>
-                  {item.lastDate ? (
-                    <Text style={{ color: colors.muted }}>
-                      {"Ultima chamada: " + item.lastDate}
-                    </Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          {indicators.inactive.length > 0 ? (
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontWeight: "700", color: colors.text }}>Inativos</Text>
-              {indicators.inactive.map((item) => (
-                <View
-                  key={item.student.id + "_inactive"}
-                  style={{
-                    borderRadius: 14,
-                    padding: 12,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.warningBg,
-                  }}
-                >
-                  <Text style={{ fontWeight: "700", color: colors.text }}>
-                    {item.student.name}
-                  </Text>
-                  <Text style={{ color: colors.muted, marginTop: 4 }}>
-                    {"Aluno inativo - " + item.className}
-                  </Text>
-                  {item.inactiveDays !== null ? (
-                    <Text style={{ color: colors.muted }}>
-                      {"Sem chamada ha " + item.inactiveDays + " dias"}
-                    </Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          ) : null}
         </View>
 
         <View
           style={{
             padding: 16,
-            borderRadius: 20,
+            borderRadius: 22,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
@@ -427,29 +498,49 @@ export default function ReportsScreen() {
             shadowRadius: 12,
             shadowOffset: { width: 0, height: 6 },
             elevation: 3,
-            gap: 10,
+            gap: 12,
           }}
         >
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Turmas (mes atual)
           </Text>
-          <View style={{ gap: 8 }}>
+          <View style={{ gap: 10 }}>
             {classRows.map((row) => (
               <View
                 key={row.cls.id}
                 style={{
-                  borderRadius: 14,
                   padding: 12,
+                  borderRadius: 14,
                   backgroundColor: colors.inputBg,
                   borderWidth: 1,
                   borderColor: colors.border,
+                  gap: 6,
                 }}
               >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  {row.cls.name}
-                </Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontWeight: "700", color: colors.text }}>
+                    {row.cls.name}
+                  </Text>
+                  <Text style={{ color: colors.muted }}>{row.percent}%</Text>
+                </View>
+                <View
+                  style={{
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View
+                    style={{
+                      height: "100%",
+                      width: `${row.percent}%`,
+                      backgroundColor: colors.primaryBg,
+                    }}
+                  />
+                </View>
                 <Text style={{ color: colors.muted }}>
-                  Presencas: {row.present} | Total: {row.total} | {row.percent}%
+                  Presencas: {row.present} • Total: {row.total}
                 </Text>
               </View>
             ))}
@@ -459,7 +550,7 @@ export default function ReportsScreen() {
         <View
           style={{
             padding: 16,
-            borderRadius: 20,
+            borderRadius: 22,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
@@ -468,11 +559,11 @@ export default function ReportsScreen() {
             shadowRadius: 12,
             shadowOffset: { width: 0, height: 6 },
             elevation: 3,
-            gap: 10,
+            gap: 12,
           }}
         >
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Alunos (mes atual)
+            Alunos destaque
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <Pressable
@@ -506,23 +597,43 @@ export default function ReportsScreen() {
             ))}
           </View>
 
-          <View style={{ gap: 8 }}>
-            {studentRows.map((row) => (
+          <View style={{ gap: 10 }}>
+            {topStudents.map((row) => (
               <View
                 key={row.student.id}
                 style={{
-                  borderRadius: 14,
                   padding: 12,
+                  borderRadius: 14,
                   backgroundColor: colors.inputBg,
                   borderWidth: 1,
                   borderColor: colors.border,
+                  gap: 6,
                 }}
               >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  {row.student.name}
-                </Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ fontWeight: "700", color: colors.text }}>
+                    {row.student.name}
+                  </Text>
+                  <Text style={{ color: colors.muted }}>{row.percent}%</Text>
+                </View>
+                <View
+                  style={{
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View
+                    style={{
+                      height: "100%",
+                      width: `${row.percent}%`,
+                      backgroundColor: colors.primaryBg,
+                    }}
+                  />
+                </View>
                 <Text style={{ color: colors.muted }}>
-                  Presencas: {row.present} | Total: {row.total} | {row.percent}%
+                  Presencas: {row.present} • Total: {row.total}
                 </Text>
               </View>
             ))}
@@ -532,7 +643,4 @@ export default function ReportsScreen() {
     </SafeAreaView>
   );
 }
-
-
-
 

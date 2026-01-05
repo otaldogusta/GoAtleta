@@ -73,6 +73,7 @@ export type Student = {
   classId: string;
   age: number;
   phone: string;
+  birthDate?: string;
   createdAt: string;
 };
 

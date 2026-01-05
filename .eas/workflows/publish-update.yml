@@ -1,0 +1,13 @@
+name: Publish update
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  update:
+    name: Update
+    type: update
+    params:
+      branch: main
+      message: "update automatico"

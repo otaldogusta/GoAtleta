@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useState } from "react";
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
-  Pressable,
   Text,
-  TextInput,
-  View,
+  View
 } from "react-native";
+import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
@@ -14,35 +16,23 @@ import * as Notifications from "expo-notifications";
 import { Typography } from "../../src/ui/Typography";
 import { Button } from "../../src/ui/Button";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useAuth } from "../../src/auth/auth";
 
 const STORAGE_KEY = "notify_settings_v1";
-
-const dayOptions = [
-  { label: "Dom", value: 1 },
-  { label: "Seg", value: 2 },
-  { label: "Ter", value: 3 },
-  { label: "Qua", value: 4 },
-  { label: "Qui", value: 5 },
-  { label: "Sex", value: 6 },
-  { label: "Sab", value: 7 },
-];
-
-const parseTime = (value: string) => {
-  const match = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-  return { hour, minute };
-};
+const UPDATE_CHANNEL = "main";
+const UPDATE_URL =
+  "https://u.expo.dev/a5b1cd35-0ae7-4c50-a12e-df9741e0dfca?channel-name=" +
+  UPDATE_CHANNEL;
+const UPDATE_DEEPLINK =
+  "meuapp://expo-development-client/?url=" +
+  encodeURIComponent(UPDATE_URL);
 
 const isWeb = Platform.OS === "web";
 
 export default function NotificationsScreen() {
-  const { colors } = useAppTheme();
+  const { colors, mode, toggleMode } = useAppTheme();
+  const { signOut } = useAuth();
   const [enabled, setEnabled] = useState(false);
-  const [time, setTime] = useState("13:30");
-  const [days, setDays] = useState<number[]>([3, 5]);
   const [status, setStatus] = useState<string>("");
 
   useEffect(() => {
@@ -52,25 +42,14 @@ export default function NotificationsScreen() {
       if (!raw || !alive) return;
       const data = JSON.parse(raw) as {
         enabled: boolean;
-        time: string;
-        days: number[];
       };
       setEnabled(Boolean(data.enabled));
-      setTime(data.time || "13:30");
-      setDays(Array.isArray(data.days) ? data.days : [3, 5]);
     })();
     return () => {
       alive = false;
     };
   }, []);
 
-  const sortedDays = useMemo(() => [...days].sort(), [days]);
-
-  const toggleDay = (value: number) => {
-    setDays((prev) =>
-      prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]
-    );
-  };
 
   const requestPermissions = async () => {
     if (isWeb) return false;
@@ -78,43 +57,6 @@ export default function NotificationsScreen() {
     if (status === "granted") return true;
     const result = await Notifications.requestPermissionsAsync();
     return result.status === "granted";
-  };
-
-  const scheduleNotifications = async () => {
-    if (isWeb) {
-      setStatus("Notificacoes nao sao suportadas no navegador.");
-      return;
-    }
-    const parsed = parseTime(time);
-    if (!parsed) {
-      setStatus("Horario invalido. Use HH:MM.");
-      return;
-    }
-
-    const ok = await requestPermissions();
-    if (!ok) {
-      setStatus("Permissao negada.");
-      return;
-    }
-
-    await Notifications.cancelAllScheduledNotificationsAsync();
-
-    for (const weekday of sortedDays) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Lembrete de aula",
-          body: "Confira a chamada e o treino do dia.",
-        },
-        trigger: {
-          weekday,
-          hour: parsed.hour,
-          minute: parsed.minute,
-          repeats: true,
-        },
-      });
-    }
-
-    setStatus("Lembretes agendados.");
   };
 
   const disableNotifications = async () => {
@@ -126,18 +68,23 @@ export default function NotificationsScreen() {
     setStatus("Lembretes removidos.");
   };
 
-  const saveSettings = async () => {
+  const saveSettings = async (nextEnabled: boolean) => {
     await AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ enabled, time, days: sortedDays })
+      JSON.stringify({ enabled: nextEnabled })
     );
   };
 
-  const apply = async () => {
+  const apply = async (nextEnabled: boolean) => {
     setStatus("");
-    await saveSettings();
-    if (enabled) {
-      await scheduleNotifications();
+    await saveSettings(nextEnabled);
+    if (nextEnabled) {
+      const ok = await requestPermissions();
+      if (ok) {
+        setStatus("Notificacoes ativadas.");
+      } else {
+        setStatus("Permissao negada.");
+      }
     } else {
       await disableNotifications();
     }
@@ -151,69 +98,201 @@ export default function NotificationsScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <Typography variant="title">Notificacoes</Typography>
-      <Typography variant="subtitle">Lembrete geral de aula</Typography>
+      <Typography variant="title">Configuracoes</Typography>
 
       <View style={{ marginTop: 16, gap: 12 }}>
-        <Pressable
-          onPress={() => setEnabled((prev) => !prev)}
+        <View
           style={{
-            paddingVertical: 10,
-            paddingHorizontal: 12,
-            borderRadius: 10,
-            backgroundColor: enabled ? colors.primaryBg : colors.secondaryBg,
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
           }}
         >
-          <Text style={{ color: enabled ? colors.primaryText : colors.text, fontWeight: "700" }}>
-            {enabled ? "Lembrete ligado" : "Lembrete desligado"}
+          <Typography variant="body">Tema</Typography>
+          <Pressable
+            onPress={toggleMode}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              {mode === "dark" ? "Claro" : "Escuro"}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
+          }}
+        >
+          <Typography variant="body">Notificacoes</Typography>
+          <Pressable
+            onPress={() => {
+              setEnabled((prev) => !prev);
+            }}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+              backgroundColor: enabled ? colors.primaryBg : colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text
+              style={{
+                color: enabled ? colors.primaryText : colors.text,
+                fontWeight: "700",
+              }}
+            >
+              {enabled ? "Lembrete ligado" : "Lembrete desligado"}
+            </Text>
+          </Pressable>
+          {status ? (
+            <Text style={{ color: colors.muted }}>{status}</Text>
+          ) : null}
+        </View>
+
+        <View
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
+          }}
+        >
+          <Typography variant="body">Atualizacoes</Typography>
+          <Pressable
+            onPress={() => Linking.openURL(UPDATE_DEEPLINK)}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Carregar update (main)
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              Linking.openURL(
+                "https://qr.expo.dev/development-client?appScheme=" +
+                  encodeURIComponent("meuapp") +
+                  "&url=" +
+                  encodeURIComponent(UPDATE_URL)
+              )
+            }
+            style={{
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Abrir QR do update
+            </Text>
+          </Pressable>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Use o update quando mudar apenas telas e textos.
+          </Text>
+        </View>
+
+        <View
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
+          }}
+        >
+          <Typography variant="body">Diagnostico</Typography>
+          <Pressable
+            onPress={() => {
+              throw new Error("Erro de teste do inbox");
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Gerar erro de teste
+            </Text>
+          </Pressable>
+        </View>
+
+        <View
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
+          }}
+        >
+          <Typography variant="body">Conta</Typography>
+          <Pressable
+            onPress={async () => {
+              await signOut();
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Sair
+            </Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          onPress={() => void apply(enabled)}
+          style={{
+            paddingVertical: 12,
+            borderRadius: 14,
+            backgroundColor: colors.primaryBg,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+            Salvar alteracoes
           </Text>
         </Pressable>
-
-        <View>
-          <Typography variant="body">Dias da semana</Typography>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-            {dayOptions.map((day) => {
-              const active = days.includes(day.value);
-              return (
-                <Pressable
-                  key={day.value}
-                  onPress={() => toggleDay(day.value)}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: 10,
-                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                    {day.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View>
-          <Typography variant="body">Horario (HH:MM)</Typography>
-          <TextInput
-            value={time}
-            onChangeText={setTime}
-            placeholder="13:30"
-            style={{
-              borderWidth: 1,
-              borderColor: "#ddd",
-              padding: 10,
-              borderRadius: 10,
-              marginTop: 8,
-            }}
-          />
-        </View>
-
-        <Button label="Aplicar" onPress={apply} />
-        {status ? (
-          <Text style={{ color: colors.text, marginTop: 6 }}>{status}</Text>
-        ) : null}
       </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

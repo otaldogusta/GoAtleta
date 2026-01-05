@@ -1,4 +1,5 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import { getValidAccessToken } from "../auth/session";
 import type {
   ClassGroup,
   SessionLog,
@@ -12,14 +13,17 @@ import type {
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
 
-const headers = () => ({
-  apikey: SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  "Content-Type": "application/json",
-});
+const headers = async () => {
+  const token = await getValidAccessToken();
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+  };
+};
 
 const supabaseGet = async <T>(path: string) => {
-  const res = await fetch(REST_BASE + path, { headers: headers() });
+  const res = await fetch(REST_BASE + path, { headers: await headers() });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Supabase GET error: ${res.status} ${text}`);
@@ -30,7 +34,7 @@ const supabaseGet = async <T>(path: string) => {
 const supabasePost = async <T>(path: string, body: unknown) => {
   const res = await fetch(REST_BASE + path, {
     method: "POST",
-    headers: headers(),
+    headers: await headers(),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -45,7 +49,7 @@ const supabasePost = async <T>(path: string, body: unknown) => {
 const supabasePatch = async <T>(path: string, body: unknown) => {
   const res = await fetch(REST_BASE + path, {
     method: "PATCH",
-    headers: headers(),
+    headers: await headers(),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Supabase PATCH error: ${res.status}`);
@@ -57,7 +61,7 @@ const supabasePatch = async <T>(path: string, body: unknown) => {
 const supabaseDelete = async (path: string) => {
   const res = await fetch(REST_BASE + path, {
     method: "DELETE",
-    headers: headers(),
+    headers: await headers(),
   });
   if (!res.ok) throw new Error(`Supabase DELETE error: ${res.status}`);
 };
@@ -118,6 +122,7 @@ type StudentRow = {
   classid: string;
   age: number;
   phone: string;
+  birthdate?: string | null;
   createdat: string;
 };
 
@@ -128,6 +133,15 @@ type AttendanceRow = {
   date: string;
   status: string;
   note: string;
+  createdat: string;
+};
+
+type SessionLogRow = {
+  id: string;
+  classid: string;
+  rpe: number;
+  technique: string;
+  attendance: number;
   createdat: string;
 };
 
@@ -192,6 +206,99 @@ export async function seedIfEmpty() {
   ];
 
   await supabasePost("/classes", classes);
+}
+
+const calculateAge = (birthDate: string) => {
+  const date = new Date(birthDate);
+  if (Number.isNaN(date.getTime())) return 0;
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDiff = today.getMonth() - date.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+  return Math.max(age, 0);
+};
+
+const parseAgeBand = (value: string) => {
+  const match = value.match(/^(\d{1,2})-(\d{1,2})$/);
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  return { start, end };
+};
+
+export async function seedStudentsIfEmpty() {
+  const existing = await supabaseGet<StudentRow[]>(
+    "/students?select=id&limit=1"
+  );
+  if (existing.length > 0) return;
+
+  const classes = await getClasses();
+  if (!classes.length) return;
+
+  const firstNames = [
+    "Gustavo",
+    "Mariana",
+    "Lucas",
+    "Ana",
+    "Pedro",
+    "Beatriz",
+    "Joao",
+    "Julia",
+    "Rafael",
+    "Camila",
+  ];
+  const lastNames = [
+    "Silva",
+    "Souza",
+    "Oliveira",
+    "Pereira",
+    "Costa",
+    "Santos",
+    "Almeida",
+    "Ferreira",
+    "Gomes",
+    "Ribeiro",
+  ];
+
+  const rows: StudentRow[] = [];
+  const nowIso = new Date().toISOString();
+  const currentYear = new Date().getFullYear();
+
+  for (let i = 0; i < 20; i += 1) {
+    const cls = classes[i % classes.length];
+    const band = parseAgeBand(cls.ageBand);
+    const age =
+      band ? Math.round((band.start + band.end) / 2) : 12 + (i % 5);
+    const year = currentYear - age;
+    const month = String((i % 12) + 1).padStart(2, "0");
+    const day = String((i % 28) + 1).padStart(2, "0");
+    const birthDate = `${year}-${month}-${day}`;
+    const phone = `(41) 9${String(8000 + i).padStart(4, "0")}-${String(
+      1000 + i
+    ).padStart(4, "0")}`;
+    const name =
+      firstNames[i % firstNames.length] +
+      " " +
+      lastNames[i % lastNames.length];
+
+    rows.push({
+      id: "s_" + (Date.now() + i),
+      name,
+      classid: cls.id,
+      age: calculateAge(birthDate),
+      phone,
+      birthdate: birthDate,
+      createdat: nowIso,
+    });
+  }
+
+  await supabasePost("/students", rows);
 }
 
 export async function getClasses(): Promise<ClassGroup[]> {
@@ -338,6 +445,52 @@ export async function saveSessionLog(log: SessionLog) {
       createdat: log.createdAt,
     },
   ]);
+}
+
+export async function getSessionLogByDate(
+  classId: string,
+  date: string
+): Promise<SessionLog | null> {
+  const start = `${date}T00:00:00.000Z`;
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  const rows = await supabaseGet<SessionLogRow[]>(
+    "/session_logs?select=*&classid=eq." +
+      encodeURIComponent(classId) +
+      "&createdat=gte." +
+      encodeURIComponent(start) +
+      "&createdat=lt." +
+      encodeURIComponent(end.toISOString()) +
+      "&order=createdat.desc&limit=1"
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    classId: row.classid,
+    rpe: row.rpe,
+    technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
+    attendance: row.attendance,
+    createdAt: row.createdat,
+  };
+}
+
+export async function getSessionLogsByRange(
+  startIso: string,
+  endIso: string
+): Promise<SessionLog[]> {
+  const rows = await supabaseGet<SessionLogRow[]>(
+    "/session_logs?select=*&createdat=gte." +
+      encodeURIComponent(startIso) +
+      "&createdat=lt." +
+      encodeURIComponent(endIso)
+  );
+  return rows.map((row) => ({
+    classId: row.classid,
+    rpe: row.rpe,
+    technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
+    attendance: row.attendance,
+    createdAt: row.createdat,
+  }));
 }
 
 export async function getTrainingPlans(): Promise<TrainingPlan[]> {
@@ -585,6 +738,7 @@ export async function getStudents(): Promise<Student[]> {
     classId: row.classid,
     age: row.age,
     phone: row.phone,
+    birthDate: row.birthdate ?? "",
     createdAt: row.createdat,
   }));
 }
@@ -599,6 +753,7 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
     classId: row.classid,
     age: row.age,
     phone: row.phone,
+    birthDate: row.birthdate ?? "",
     createdAt: row.createdat,
   }));
 }
@@ -615,6 +770,7 @@ export async function getStudentById(id: string): Promise<Student | null> {
     classId: row.classid,
     age: row.age,
     phone: row.phone,
+    birthDate: row.birthdate ?? "",
     createdAt: row.createdat,
   };
 }
@@ -627,6 +783,7 @@ export async function saveStudent(student: Student) {
       classid: student.classId,
       age: student.age,
       phone: student.phone,
+      birthdate: student.birthDate ? student.birthDate : null,
       createdat: student.createdAt,
     },
   ]);
@@ -640,6 +797,7 @@ export async function updateStudent(student: Student) {
       classid: student.classId,
       age: student.age,
       phone: student.phone,
+      birthdate: student.birthDate ? student.birthDate : null,
       createdat: student.createdAt,
     }
   );

@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
+import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getClasses } from "../../src/db/seed";
 import type { ClassGroup } from "../../src/core/models";
 import { Button } from "../../src/ui/Button";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -91,6 +95,10 @@ export default function AgendaScreen() {
   const [month, setMonth] = useState(new Date());
   const [selected, setSelected] = useState(formatDate(new Date()));
   const [icsPreview, setIcsPreview] = useState("");
+  const [viewMode, setViewMode] = useState<"day" | "month" | "year">("day");
+  const [yearPageStart, setYearPageStart] = useState(
+    Math.floor(new Date().getFullYear() / 12) * 12
+  );
 
   useEffect(() => {
     let alive = true;
@@ -194,18 +202,10 @@ export default function AgendaScreen() {
       </View>
 
       <View
-        style={{
-          padding: 16,
-          borderRadius: 20,
-          backgroundColor: colors.card,
-          borderWidth: 1,
-          borderColor: colors.border,
-          shadowColor: "#000",
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 3,
-        }}
+        style={[
+          getSectionCardStyle(colors, "info", { padding: 16, radius: 20 }),
+          { gap: 0 },
+        ]}
       >
         <View
           style={{
@@ -214,79 +214,192 @@ export default function AgendaScreen() {
             justifyContent: "space-between",
           }}
         >
+          {viewMode === "day" ? (
+            <Pressable
+              onPress={() =>
+                setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
+              }
+              style={{ padding: 8 }}
+            >
+              <Text style={{ fontSize: 18 }}>{"<"}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => {
+                if (viewMode === "month") {
+                  setMonth(new Date(month.getFullYear() - 1, month.getMonth(), 1));
+                } else {
+                  setYearPageStart((prev) => prev - 12);
+                }
+              }}
+              style={{ padding: 8 }}
+            >
+              <Text style={{ fontSize: 18 }}>{"<"}</Text>
+            </Pressable>
+          )}
           <Pressable
-            onPress={() =>
-              setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
-            }
-            style={{ padding: 8 }}
+            onPress={() => {
+              setViewMode((prev) =>
+                prev === "day" ? "month" : prev === "month" ? "year" : "month"
+              );
+            }}
+            style={{ paddingVertical: 4, paddingHorizontal: 8 }}
           >
-            <Text style={{ fontSize: 18 }}>{"<"}</Text>
-          </Pressable>
-          <Text style={{ fontSize: 16, fontWeight: "700" }}>
-            {monthNames[month.getMonth()]} {month.getFullYear()}
-          </Text>
-          <Pressable
-            onPress={() =>
-              setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
-            }
-            style={{ padding: 8 }}
-          >
-            <Text style={{ fontSize: 18 }}>{">"}</Text>
-          </Pressable>
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginTop: 8,
-          }}
-        >
-          {["D", "S", "T", "Q", "Q", "S", "S"].map((d) => (
-            <Text key={d} style={{ width: "14%", textAlign: "center" }}>
-              {d}
+            <Text style={{ fontSize: 16, fontWeight: "700" }}>
+              {viewMode === "year"
+                ? `${yearPageStart} - ${yearPageStart + 11}`
+                : `${monthNames[month.getMonth()]} ${month.getFullYear()}`}
             </Text>
-          ))}
+          </Pressable>
+          {viewMode === "day" ? (
+            <Pressable
+              onPress={() =>
+                setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
+              }
+              style={{ padding: 8 }}
+            >
+              <Text style={{ fontSize: 18 }}>{">"}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => {
+                if (viewMode === "month") {
+                  setMonth(new Date(month.getFullYear() + 1, month.getMonth(), 1));
+                } else {
+                  setYearPageStart((prev) => prev + 12);
+                }
+              }}
+              style={{ padding: 8 }}
+            >
+              <Text style={{ fontSize: 18 }}>{">"}</Text>
+            </Pressable>
+          )}
         </View>
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 6 }}>
-          {grid.map((cell, index) => {
-            const isSelected = cell && formatDate(cell) === selected;
-            const hasClass = cell && isClassDay(cell, classes);
-            return (
-              <Pressable
-                key={index}
-                disabled={!cell}
-                onPress={() => {
-                  if (!cell) return;
-                  setSelected(formatDate(cell));
-                }}
-                style={{
-                  width: "14%",
-                  alignItems: "center",
-                  paddingVertical: 8,
-                }}
-              >
-                <View
+        {viewMode === "day" ? (
+          <>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginTop: 8,
+              }}
+            >
+              {["D", "S", "T", "Q", "Q", "S", "S"].map((d) => (
+                <Text key={d} style={{ width: "14%", textAlign: "center" }}>
+                  {d}
+                </Text>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 6 }}>
+              {grid.map((cell, index) => {
+                const isSelected = cell && formatDate(cell) === selected;
+                const hasClass = cell && isClassDay(cell, classes);
+                return (
+                  <Pressable
+                    key={index}
+                    disabled={!cell}
+                    onPress={() => {
+                      if (!cell) return;
+                      setSelected(formatDate(cell));
+                    }}
+                    style={{
+                      width: "14%",
+                      alignItems: "center",
+                      paddingVertical: 8,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: isSelected ? colors.primaryBg : "transparent",
+                        borderWidth: hasClass ? 1 : 0,
+                        borderColor: colors.primaryBg,
+                      }}
+                    >
+                      <Text style={{ color: isSelected ? colors.primaryText : colors.text }}>
+                        {cell ? cell.getDate() : ""}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        ) : viewMode === "month" ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 12 }}>
+            {monthNames.map((name, index) => {
+              const active = index === month.getMonth();
+              return (
+                <Pressable
+                  key={name}
+                  onPress={() => {
+                    setMonth(new Date(month.getFullYear(), index, 1));
+                    setViewMode("day");
+                  }}
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
+                    width: "33.333%",
+                    paddingVertical: 10,
                     alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: isSelected ? colors.primaryBg : "transparent",
-                    borderWidth: hasClass ? 1 : 0,
-                    borderColor: colors.primaryBg,
                   }}
                 >
-                  <Text style={{ color: isSelected ? colors.primaryText : colors.text }}>
-                    {cell ? cell.getDate() : ""}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+                  <View
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                      {name.slice(0, 3)}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 12 }}>
+            {Array.from({ length: 12 }, (_, idx) => yearPageStart + idx).map(
+              (year) => {
+                const active = year === month.getFullYear();
+                return (
+                  <Pressable
+                    key={year}
+                    onPress={() => {
+                      setMonth(new Date(year, month.getMonth(), 1));
+                      setViewMode("month");
+                    }}
+                    style={{
+                      width: "33.333%",
+                      paddingVertical: 10,
+                      alignItems: "center",
+                    }}
+                  >
+                    <View
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 10,
+                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                        {year}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              }
+            )}
+          </View>
+        )}
       </View>
 
       <View style={{ marginTop: 12 }}>
@@ -300,18 +413,15 @@ export default function AgendaScreen() {
             dayEvents.map((event) => (
               <View
                 key={event.id}
-                style={{
-                  borderRadius: 16,
-                  padding: 12,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.04,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 6 },
-                  elevation: 2,
-                }}
+                style={[
+                  getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
+                  {
+                    shadowOpacity: 0.04,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 2,
+                  },
+                ]}
               >
                 <Text style={{ fontWeight: "700" }}>{event.title}</Text>
                 <Text>

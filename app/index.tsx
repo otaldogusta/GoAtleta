@@ -1,16 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
 import {
   Animated,
   Alert,
   Dimensions,
   PanResponder,
-  Pressable,
+  Platform,
+  RefreshControl,
   ScrollView,
   Text,
-  View,
+  View
 } from "react-native";
+import { Pressable } from "../src/ui/Pressable";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Clipboard from "expo-clipboard";
+import * as Updates from "expo-updates";
 
 import { seedIfEmpty } from "../src/db/seed";
 import { Card } from "../src/ui/Card";
@@ -26,9 +34,16 @@ import { requestNotificationPermission } from "../src/notifications";
 
 export default function Home() {
   const router = useRouter();
-  const { colors, mode, toggleMode } = useAppTheme();
+  const { colors, mode } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [inbox, setInbox] = useState<AppNotification[]>([]);
   const [showInbox, setShowInbox] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "info" | "success" | "error";
+  } | null>(null);
   const screenWidth = Dimensions.get("window").width;
   const panelWidth = Math.min(screenWidth * 0.85, 360);
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
@@ -116,11 +131,51 @@ export default function Home() {
     });
   };
 
+  const truncateBody = (value: string, max = 140) => {
+    if (value.length <= max) return value;
+    return value.slice(0, max).trimEnd() + "...";
+  };
+
+  const showToast = (message: string, type: "info" | "success" | "error") => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const onRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        showToast("Atualizacao encontrada. Reiniciando...", "success");
+        await Updates.reloadAsync();
+        return;
+      }
+      showToast("Sem atualizacoes novas.", "info");
+    } catch (error) {
+      showToast("Nao foi possivel buscar atualizacoes agora.", "error");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <SafeAreaView
-      style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
-      <View
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 14 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <View
         style={{
           flexDirection: "row",
           alignItems: "center",
@@ -138,7 +193,7 @@ export default function Home() {
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Pressable
-            onPress={toggleMode}
+            onPress={() => router.push({ pathname: "/notifications" })}
             style={{
               paddingHorizontal: 10,
               paddingVertical: 8,
@@ -148,8 +203,8 @@ export default function Home() {
               borderColor: colors.border,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-              {mode === "dark" ? "Claro" : "Escuro"}
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+              {"\u2699"}
             </Text>
           </Pressable>
           <Pressable
@@ -189,9 +244,8 @@ export default function Home() {
         </View>
       </View>
 
-      <View style={{ gap: 14 }}>
-        <Pressable
-          onPress={() => router.push({ pathname: "/classes" })}
+        <View style={{ gap: 14 }}>
+        <View
           style={{
             padding: 16,
             borderRadius: 20,
@@ -243,7 +297,7 @@ export default function Home() {
               </Text>
             </Pressable>
           </View>
-        </Pressable>
+        </View>
 
         <View style={{ gap: 10 }}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
@@ -267,10 +321,10 @@ export default function Home() {
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Treinos
+                Planejamento
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Modelos e planejamento
+                Modelos e treinos
               </Text>
             </Pressable>
             <Pressable
@@ -342,6 +396,29 @@ export default function Home() {
                 Biblioteca com videos
               </Text>
             </Pressable>
+            <Pressable
+              onPress={() => router.push({ pathname: "/periodization" })}
+              style={{
+                flexBasis: "48%",
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 3,
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                Periodizacao
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Ciclos e cargas
+              </Text>
+            </Pressable>
           </View>
         </View>
 
@@ -350,7 +427,8 @@ export default function Home() {
           subtitle="Videos e links organizados"
           onPress={() => router.push({ pathname: "/exercises" })}
         />
-      </View>
+        </View>
+      </ScrollView>
 
       <View
         {...openSwipe.panHandlers}
@@ -395,7 +473,7 @@ export default function Home() {
             right: 0,
             bottom: 0,
             left: 0,
-            backgroundColor: "rgba(0,0,0,0.4)",
+            backgroundColor: "rgba(0,0,0,0.5)",
           }}
         >
           <Pressable style={{ flex: 1 }} onPress={closeInbox} />
@@ -409,122 +487,260 @@ export default function Home() {
               width: panelWidth,
               transform: [{ translateX: inboxX }],
               backgroundColor: colors.card,
-              padding: 12,
-              borderTopLeftRadius: 20,
-              borderBottomLeftRadius: 20,
+              padding: 14,
+              borderTopLeftRadius: 22,
+              borderBottomLeftRadius: 22,
               shadowColor: "#000",
               shadowOpacity: 0.2,
               shadowRadius: 12,
               shadowOffset: { width: -6, height: 0 },
               elevation: 6,
               gap: 12,
+              paddingTop: insets.top + 12,
             }}
             >
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <View>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    Notificacoes
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {inbox.length} total
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", gap: 6 }}>
-                <Pressable
-                  onPress={() => {
-                    Alert.alert(
-                      "Limpar notificacoes?",
-                      "Isso remove todas as notificacoes do inbox.",
-                      [
-                        { text: "Cancelar", style: "cancel" },
-                        {
-                          text: "Limpar",
-                          style: "destructive",
-                          onPress: async () => {
-                            await clearNotifications();
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  Notificacoes
+                </Text>
+              </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => {
+                      const handleClear = async () => {
+                        await clearNotifications();
+                        const items = await getNotifications();
+                        setInbox(items);
+                        setExpandedId(null);
+                      };
+                      if (Platform.OS === "web") {
+                        void handleClear();
+                        return;
+                      }
+                      Alert.alert(
+                        "Limpar notificacoes?",
+                        "Isso remove todas as notificacoes do inbox.",
+                        [
+                          { text: "Cancelar", style: "cancel" },
+                          {
+                            text: "Limpar",
+                            style: "destructive",
+                            onPress: async () => {
+                              await handleClear();
+                            },
                           },
-                        },
-                      ]
-                    );
-                  }}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ fontWeight: "700", fontSize: 12, color: colors.secondaryText }}>
-                    Limpar
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={closeInbox}
-                  style={{
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    backgroundColor: colors.primaryBg,
-                  }}
-                >
-                  <Text
+                        ]
+                      );
+                    }}
                     style={{
-                      fontWeight: "700",
-                      color: colors.primaryText,
-                      fontSize: 12,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: colors.secondaryBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: colors.border,
                     }}
                   >
-                    Fechar
-                  </Text>
-                </Pressable>
+                    <View
+                      style={{
+                        width: 14,
+                        height: 12,
+                        borderWidth: 2,
+                        borderColor: colors.secondaryText,
+                        borderRadius: 2,
+                        position: "relative",
+                      }}
+                    >
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: -6,
+                          left: -2,
+                          right: -2,
+                          height: 3,
+                          borderRadius: 2,
+                          backgroundColor: colors.secondaryText,
+                        }}
+                      />
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: -8,
+                          left: 4,
+                          width: 6,
+                          height: 2,
+                          borderRadius: 2,
+                          backgroundColor: colors.secondaryText,
+                        }}
+                      />
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    onPress={closeInbox}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: colors.primaryBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 12,
+                        height: 12,
+                        position: "relative",
+                      }}
+                    >
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 5,
+                          left: -1,
+                          right: -1,
+                          height: 2,
+                          borderRadius: 2,
+                          backgroundColor: colors.primaryText,
+                          transform: [{ rotate: "45deg" }],
+                        }}
+                      />
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 5,
+                          left: -1,
+                          right: -1,
+                          height: 2,
+                          borderRadius: 2,
+                          backgroundColor: colors.primaryText,
+                          transform: [{ rotate: "-45deg" }],
+                        }}
+                      />
+                    </View>
+                  </Pressable>
+                </View>
               </View>
-            </View>
+              <View style={{ height: 1, backgroundColor: colors.border }} />
             {inbox.length === 0 ? (
               <Text style={{ color: colors.muted }}>Sem notificacoes.</Text>
             ) : (
               <View style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 16 }}>
-                  {inbox.map((item) => (
-                    <View
-                      key={item.id}
-                      style={{
-                        padding: 10,
-                        borderRadius: 12,
-                        backgroundColor: item.read
-                          ? colors.inputBg
-                          : mode === "dark"
-                          ? "#1e293b"
-                          : (colors.background === "#0b1220" ? "#1e293b" : "#eef2ff"),
-                        borderWidth: 1,
-                        borderColor: item.read
-                          ? colors.border
-                          : mode === "dark"
-                          ? "#334155"
-                          : (colors.background === "#0b1220" ? "#334155" : "#c7d2fe"),
-                        gap: 4,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontWeight: "700",
-                          color: colors.text,
-                          fontSize: 14,
-                        }}
-                      >
-                        {item.title}
-                      </Text>
-                      <Text style={{ color: colors.text, fontSize: 13 }}>
-                        {item.body}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        {formatTime(item.createdAt)}
-                      </Text>
-                    </View>
-                  ))}
+                  {inbox.map((item) => {
+                    const isExpanded = expandedId === item.id;
+                    const preview = truncateBody(item.body, 160);
+                    const showMore = !isExpanded && preview !== item.body;
+                    return (
+                      <View key={item.id}>
+                        <Pressable
+                          onPress={() =>
+                            setExpandedId((prev) => (prev === item.id ? null : item.id))
+                          }
+                          onLongPress={async () => {
+                            await Clipboard.setStringAsync(item.body);
+                          }}
+                          style={{
+                            padding: 10,
+                            borderRadius: 12,
+                            backgroundColor: item.read
+                              ? colors.inputBg
+                              : mode === "dark"
+                              ? "#1e293b"
+                              : (colors.background === "#0b1220" ? "#1e293b" : "#eef2ff"),
+                            borderWidth: 1,
+                            borderColor: item.read
+                              ? colors.border
+                              : mode === "dark"
+                              ? "#334155"
+                              : (colors.background === "#0b1220" ? "#334155" : "#c7d2fe"),
+                            gap: 4,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontWeight: "700",
+                              color: colors.text,
+                              fontSize: 14,
+                            }}
+                          >
+                            {item.title}
+                          </Text>
+                          <Text style={{ color: colors.text, fontSize: 13 }}>
+                            {isExpanded ? item.body : preview}
+                          </Text>
+                          {showMore ? (
+                            <Text style={{ color: colors.muted, fontSize: 12 }}>
+                              Ler mais
+                            </Text>
+                          ) : null}
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            {formatTime(item.createdAt)}
+                          </Text>
+                        </Pressable>
+                        <View
+                          style={{
+                            height: 1,
+                            backgroundColor: colors.border,
+                            marginTop: 10,
+                          }}
+                        />
+                      </View>
+                    );
+                  })}
                 </ScrollView>
               </View>
             )}
           </Animated.View>
+        </View>
+      ) : null}
+
+      {toast ? (
+        <View
+          style={{
+            position: "absolute",
+            left: 16,
+            right: 16,
+            bottom: 96,
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 14,
+            backgroundColor:
+              toast.type === "success"
+                ? colors.successBg
+                : toast.type === "error"
+                ? colors.dangerBg
+                : colors.card,
+            borderWidth: 1,
+            borderColor:
+              toast.type === "success"
+                ? colors.successBg
+                : toast.type === "error"
+                ? colors.dangerBorder
+                : colors.border,
+            shadowColor: "#000",
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: 4,
+          }}
+        >
+          <Text
+            style={{
+              color:
+                toast.type === "success"
+                  ? colors.successText
+                  : toast.type === "error"
+                  ? colors.dangerText
+                  : colors.text,
+              fontWeight: "600",
+            }}
+          >
+            {toast.message}
+          </Text>
         </View>
       ) : null}
     </SafeAreaView>

@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   useCallback,
@@ -8,10 +7,12 @@ import {
   useState,
 } from "react";
 import { useColorScheme as useSystemColorScheme } from "react-native";
+import { figmaColors } from "./figma-colors";
+import { usePersistedState } from "./use-persisted-state";
 
 type ThemeMode = "light" | "dark";
 
-type ThemeColors = {
+export type ThemeColors = {
   background: string;
   card: string;
   border: string;
@@ -46,11 +47,9 @@ type AppThemeContextValue = {
   toggleMode: () => void;
 };
 
-const STORAGE_KEY = "app_theme_mode";
-
 export const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
-const lightColors: ThemeColors = {
+const baseLightColors: ThemeColors = {
   background: "#f3f4f6",
   card: "#ffffff",
   border: "#e2e8f0",
@@ -78,7 +77,7 @@ const lightColors: ThemeColors = {
   infoText: "#1e293b",
 };
 
-const darkColors: ThemeColors = {
+const baseDarkColors: ThemeColors = {
   background: "#0b1220",
   card: "#111a2d",
   border: "#23304a",
@@ -106,27 +105,34 @@ const darkColors: ThemeColors = {
   infoText: "#e2e8f0",
 };
 
+const lightColors: ThemeColors = {
+  ...baseLightColors,
+  ...figmaColors.light,
+};
+
+const darkColors: ThemeColors = {
+  ...baseDarkColors,
+  ...figmaColors.dark,
+};
+
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useSystemColorScheme() === "dark" ? "dark" : "light";
+  const [overrideMode, setOverrideMode, overrideLoaded] =
+    usePersistedState<ThemeMode | null>("theme_override_v1", null);
   const [mode, setModeState] = useState<ThemeMode>(systemScheme);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!active || !stored) return;
-      if (stored === "light" || stored === "dark") {
-        setModeState(stored);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (!overrideLoaded) return;
+    if (overrideMode) {
+      setModeState(overrideMode);
+      return;
+    }
+    setModeState(systemScheme);
+  }, [overrideLoaded, overrideMode, systemScheme]);
 
   const setMode = useCallback(async (next: ThemeMode) => {
     setModeState(next);
-    await AsyncStorage.setItem(STORAGE_KEY, next);
+    setOverrideMode(next);
   }, []);
 
   const toggleMode = useCallback(() => {

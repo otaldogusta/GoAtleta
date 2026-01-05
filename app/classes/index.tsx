@@ -1,33 +1,58 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
   View,
   Vibration,
 } from "react-native";
+import { Pressable } from "../../src/ui/Pressable";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { getClasses, saveClass } from "../../src/db/seed";
 import type { ClassGroup } from "../../src/core/models";
+import { animateLayout } from "../../src/ui/animate-layout";
+import { Button } from "../../src/ui/Button";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
+import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { getUnitPalette } from "../../src/ui/unit-colors";
+import { ModalSheet } from "../../src/ui/ModalSheet";
+import { updateClass } from "../../src/db/seed";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 export default function ClassesScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
 
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
   const formatDays = (days: number[]) =>
     days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
+  const formatIsoDate = (value: Date) => {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
 
-  const [showNew, setShowNew] = useState(false);
+  const [showNew, setShowNew] = usePersistedState<boolean>(
+    "classes_show_new_v1",
+    false
+  );
+  const {
+    animatedStyle: newFormAnimStyle,
+    isVisible: showNewContent,
+  } = useCollapsibleAnimation(showNew);
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");
   const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
@@ -37,9 +62,48 @@ export default function ClassesScreen() {
   const [newDays, setNewDays] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
-  const [showCustomDuration, setShowCustomDuration] = useState(false);
-  const [showAllGoals, setShowAllGoals] = useState(false);
-  const [showAllAges, setShowAllAges] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editUnit, setEditUnit] = useState("");
+  const [editAgeBand, setEditAgeBand] = useState<ClassGroup["ageBand"]>("8-9");
+  const [editGoal, setEditGoal] = useState<ClassGroup["goal"]>("Fundamentos");
+  const [editStartTime, setEditStartTime] = useState("14:00");
+  const [editDuration, setEditDuration] = useState("60");
+  const [editDays, setEditDays] = useState<number[]>([]);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFormError, setEditFormError] = useState("");
+  const [editShowCustomDuration, setEditShowCustomDuration] = useState(false);
+  const [editShowAllAges, setEditShowAllAges] = useState(false);
+  const [editShowAllGoals, setEditShowAllGoals] = useState(false);
+  const editModalCardStyle = useModalCardStyle({
+    maxHeight: Platform.OS === "web" ? "85%" : "100%",
+  });
+  const [suppressNextPress, setSuppressNextPress] = useState(false);
+  const [showCustomDuration, setShowCustomDuration] = usePersistedState<boolean>(
+    "classes_show_custom_duration_v1",
+    false
+  );
+  const {
+    animatedStyle: customDurationAnimStyle,
+    isVisible: showCustomDurationContent,
+  } = useCollapsibleAnimation(showCustomDuration, { translateY: -6 });
+  const [showAllGoals, setShowAllGoals] = usePersistedState<boolean>(
+    "classes_show_all_goals_v1",
+    false
+  );
+  const {
+    animatedStyle: allGoalsAnimStyle,
+    isVisible: showAllGoalsContent,
+  } = useCollapsibleAnimation(showAllGoals, { translateY: -6 });
+  const [showAllAges, setShowAllAges] = usePersistedState<boolean>(
+    "classes_show_all_ages_v1",
+    false
+  );
+  const {
+    animatedStyle: allAgesAnimStyle,
+    isVisible: showAllAgesContent,
+  } = useCollapsibleAnimation(showAllAges, { translateY: -6 });
   const ageBandOptions = ["8-9", "10-12", "13-15", "16-18"];
   const goals: ClassGroup["goal"][] = [
     "Fundamentos",
@@ -64,6 +128,23 @@ export default function ClassesScreen() {
     return ["Todas", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [classes]);
   const [unitFilter, setUnitFilter] = useState("Todas");
+  const getChipStyle = (
+    active: boolean,
+    palette?: { bg: string; text: string }
+  ) => ({
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: active ? palette?.bg ?? colors.primaryBg : colors.secondaryBg,
+  });
+  const getChipTextStyle = (
+    active: boolean,
+    palette?: { bg: string; text: string }
+  ) => ({
+    color: active ? palette?.text ?? colors.primaryText : colors.text,
+    fontWeight: "600" as const,
+    fontSize: 12,
+  });
 
   const filteredClasses = useMemo(() => {
     if (unitFilter === "Todas") return classes;
@@ -87,6 +168,23 @@ export default function ClassesScreen() {
       .filter((goal) => goal && !goals.includes(goal))
       .slice(0, 4);
   }, [classes, goals, newAgeBand, newUnit]);
+  const editGoalSuggestions = useMemo(() => {
+    const key = editUnit.trim();
+    const matches = classes.filter((item) => {
+      if (key) return item.unit === key;
+      if (editAgeBand) return item.ageBand === editAgeBand;
+      return false;
+    });
+    const counts = new Map<string, number>();
+    matches.forEach((item) => {
+      counts.set(item.goal, (counts.get(item.goal) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([goal]) => goal)
+      .filter((goal) => goal && !goals.includes(goal))
+      .slice(0, 4);
+  }, [classes, editAgeBand, editUnit, goals]);
 
   const normalizeTimeInput = (value: string) => {
     const digits = value.replace(/[^\d]/g, "").slice(0, 4);
@@ -112,6 +210,21 @@ export default function ClassesScreen() {
     const minutes = Number(value);
     if (!Number.isFinite(minutes)) return null;
     return minutes >= 30 && minutes <= 180 ? minutes : null;
+  };
+
+  const parseTime = (value: string) => {
+    const match = value.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    return { hour: Number(match[1]), minute: Number(match[2]) };
+  };
+
+  const formatTimeRange = (hour: number, minute: number, duration: number) => {
+    const start = hour * 60 + minute;
+    const end = start + duration;
+    const endHour = Math.floor(end / 60) % 24;
+    const endMinute = end % 60;
+    const pad = (val: number) => String(val).padStart(2, "0");
+    return `${pad(hour)}:${pad(minute)} - ${pad(endHour)}:${pad(endMinute)}`;
   };
 
   const conflictsById = useMemo(() => {
@@ -151,7 +264,19 @@ export default function ClassesScreen() {
       if (!map[key]) map[key] = [];
       map[key].push(item);
     });
-    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedEntries = Object.entries(map).map(([unit, items]) => {
+      const sortedItems = [...items].sort((a, b) => {
+        const aDay = a.daysOfWeek.length ? Math.min(...a.daysOfWeek) : 7;
+        const bDay = b.daysOfWeek.length ? Math.min(...b.daysOfWeek) : 7;
+        if (aDay !== bDay) return aDay - bDay;
+        const aStart = toMinutes(a.startTime || "") ?? 9999;
+        const bStart = toMinutes(b.startTime || "") ?? 9999;
+        if (aStart !== bStart) return aStart - bStart;
+        return a.name.localeCompare(b.name);
+      });
+      return [unit, sortedItems] as [string, ClassGroup[]];
+    });
+    return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredClasses]);
 
   const loadClasses = useCallback(async (alive?: { current: boolean }) => {
@@ -217,6 +342,63 @@ export default function ClassesScreen() {
     }
   };
 
+  const openEditModal = (item: ClassGroup) => {
+    setEditingClass(item);
+    setEditName(item.name ?? "");
+    setEditUnit(item.unit ?? "");
+    setEditAgeBand(item.ageBand ?? "8-9");
+    setEditGoal(item.goal ?? "Fundamentos");
+    setEditStartTime(item.startTime ?? "14:00");
+    setEditDuration(String(item.durationMinutes ?? 60));
+    setEditDays(item.daysOfWeek ?? []);
+    setEditFormError("");
+    setEditShowCustomDuration(false);
+    setEditShowAllAges(false);
+    setEditShowAllGoals(false);
+    setShowEditModal(true);
+  };
+
+  const toggleEditDay = (value: number) => {
+    setEditDays((prev) =>
+      prev.includes(value) ? prev.filter((day) => day !== value) : [...prev, value]
+    );
+  };
+
+  const saveEditClass = async () => {
+    if (!editingClass) return;
+    if (!editName.trim()) return;
+    const timeValue = editStartTime.trim();
+    if (!isValidTime(timeValue)) {
+      setEditFormError("Horario invalido. Use HH:MM.");
+      Vibration.vibrate(40);
+      return;
+    }
+    const durationValue = parseDuration(editDuration.trim());
+    if (!durationValue) {
+      setEditFormError("Duracao invalida. Use minutos entre 30 e 180.");
+      Vibration.vibrate(40);
+      return;
+    }
+    setEditFormError("");
+    setEditSaving(true);
+    try {
+      await updateClass(editingClass.id, {
+        name: editName.trim(),
+        unit: editUnit.trim() || "Sem unidade",
+        ageBand: editAgeBand,
+        daysOfWeek: editDays,
+        goal: editGoal,
+        startTime: timeValue,
+        durationMinutes: durationValue,
+      });
+      await loadClasses();
+      setShowEditModal(false);
+      setEditingClass(null);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const isDirty =
     newName.trim() ||
     newUnit.trim() ||
@@ -231,15 +413,13 @@ export default function ClassesScreen() {
       setShowNew(false);
       return;
     }
-    Alert.alert(
-      "Deseja sair sem salvar?",
-      "Voce tem alteracoes nao salvas.",
-      [
-        { text: "Salvar", onPress: saveNewClass },
-        { text: "Sair mesmo", style: "destructive", onPress: () => setShowNew(false) },
-        { text: "Cancelar", style: "cancel" },
-      ]
-    );
+    confirmDialog({
+      title: "Sair sem salvar?",
+      message: "Voce tem alteracoes nao salvas.",
+      confirmLabel: "Descartar",
+      cancelLabel: "Continuar",
+      onConfirm: () => setShowNew(false),
+    });
   };
 
   return (
@@ -262,39 +442,45 @@ export default function ClassesScreen() {
           <Text style={{ color: colors.muted, marginTop: 4 }}>Lista completa</Text>
         </View>
 
-        <View style={{ gap: 8 }}>
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral"),
+            { borderLeftWidth: 3, borderLeftColor: "#ffffff" },
+          ]}
+        >
           <Pressable
             onPress={() => (showNew ? confirmCloseForm() : setShowNew(true))}
             style={{
-              width: "100%",
               paddingVertical: 12,
-              paddingHorizontal: 16,
-              borderRadius: 16,
-              backgroundColor: colors.primaryBg,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              backgroundColor: showNew ? colors.secondaryBg : colors.primaryBg,
+              borderWidth: showNew ? 1 : 0,
+              borderColor: colors.border,
             }}
           >
             <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 16 }}>
+              <Text
+                style={{
+                  color: showNew ? colors.text : colors.primaryText,
+                  fontWeight: "700",
+                  fontSize: 16,
+                }}
+              >
                 {showNew ? "Fechar cadastro" : "+ Nova turma"}
               </Text>
-              <Text style={{ color: colors.primaryText, fontSize: 12, opacity: 0.85 }}>
-                {showNew
-                  ? "Voltar para a lista"
-                  : "Cadastre uma nova turma agora"}
+              <Text
+                style={{
+                  color: showNew ? colors.muted : colors.primaryText,
+                  fontSize: 12,
+                }}
+              >
+                {showNew ? "Voltar para a lista" : "Cadastre uma nova turma agora"}
               </Text>
             </View>
           </Pressable>
-          {showNew ? (
-            <View
-              style={{
-                padding: 14,
-                borderRadius: 18,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 10,
-              }}
-            >
+          {showNewContent ? (
+            <Animated.View style={[newFormAnimStyle, { gap: 12 }]}>
               <TextInput
                 placeholder="Nome da turma"
                 value={newName}
@@ -351,47 +537,51 @@ export default function ClassesScreen() {
                         setNewDuration(item);
                         setShowCustomDuration(false);
                       }}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
+                      style={getChipStyle(active)}
                     >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                      <Text style={getChipTextStyle(active)}>
                         {item + " min"}
                       </Text>
                     </Pressable>
                   );
                 })}
-              </View>
-              <Pressable
-                onPress={() => setShowCustomDuration((prev) => !prev)}
-                style={{
-                  alignSelf: "flex-start",
-                  paddingVertical: 4,
-                }}
-              >
-                <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                  {showCustomDuration ? "Ocultar duracao" : "Personalizar duracao"}
-                </Text>
-              </Pressable>
-              {showCustomDuration ? (
-                <TextInput
-                  placeholder="Duracao (min)"
-                  value={newDuration}
-                  onChangeText={setNewDuration}
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
+                <Pressable
+                  onPress={() => {
+                    animateLayout();
+                    setShowCustomDuration((prev) => !prev);
                   }}
-                />
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    {showCustomDuration ? "−" : "+"}
+                  </Text>
+                </Pressable>
+              </View>
+              {showCustomDurationContent ? (
+                <Animated.View style={customDurationAnimStyle}>
+                  <TextInput
+                    placeholder="Duracao (min)"
+                    value={newDuration}
+                    onChangeText={setNewDuration}
+                    keyboardType="numeric"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </Animated.View>
               ) : null}
               <Text style={{ fontSize: 13, color: colors.muted }}>Faixa etaria</Text>
               {showAllAges ? (
@@ -402,19 +592,32 @@ export default function ClassesScreen() {
                       <Pressable
                         key={band}
                         onPress={() => setNewAgeBand(band)}
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
-                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        }}
+                        style={getChipStyle(active)}
                       >
-                        <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                        <Text style={getChipTextStyle(active)}>
                           {band}
                         </Text>
                       </Pressable>
                     );
                   })}
+                  <Pressable
+                    onPress={() => {
+                      animateLayout();
+                      setShowAllAges((prev) => !prev);
+                    }}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 13,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {showAllAges ? "−" : "+"}
+                    </Text>
+                  </Pressable>
                 </View>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -425,48 +628,52 @@ export default function ClassesScreen() {
                         <Pressable
                           key={band}
                           onPress={() => setNewAgeBand(band)}
-                          style={{
-                            paddingVertical: 6,
-                            paddingHorizontal: 10,
-                            borderRadius: 10,
-                            backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                          }}
+                          style={getChipStyle(active)}
                         >
-                          <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                          <Text style={getChipTextStyle(active)}>
                             {band}
                           </Text>
                         </Pressable>
                       );
                     })}
+                    <Pressable
+                      onPress={() => {
+                        animateLayout();
+                        setShowAllAges((prev) => !prev);
+                      }}
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 13,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {showAllAges ? "−" : "+"}
+                      </Text>
+                    </Pressable>
                   </View>
                 </ScrollView>
               )}
-              <Pressable
-                onPress={() => setShowAllAges((prev) => !prev)}
-                style={{
-                  alignSelf: "flex-start",
-                  paddingVertical: 4,
-                }}
-              >
-                <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                  {showAllAges ? "Ver menos" : "Ver mais idades"}
-                </Text>
-              </Pressable>
-              {showAllAges ? (
-                <TextInput
-                  placeholder="Faixa etaria (ex: 14-16)"
-                  value={newAgeBand}
-                  onChangeText={setNewAgeBand}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                  }}
-                />
+              {showAllAgesContent ? (
+                <Animated.View style={allAgesAnimStyle}>
+                  <TextInput
+                    placeholder="Faixa etaria (ex: 14-16)"
+                    value={newAgeBand}
+                    onChangeText={setNewAgeBand}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </Animated.View>
               ) : null}
               <Text style={{ fontSize: 13, color: colors.muted }}>Dias da semana</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -476,14 +683,9 @@ export default function ClassesScreen() {
                     <Pressable
                       key={label}
                       onPress={() => toggleDay(index)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
+                      style={getChipStyle(active)}
                     >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                      <Text style={getChipTextStyle(active)}>
                         {label}
                       </Text>
                     </Pressable>
@@ -499,19 +701,32 @@ export default function ClassesScreen() {
                       <Pressable
                         key={item}
                         onPress={() => setNewGoal(item)}
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
-                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        }}
+                        style={getChipStyle(active)}
                       >
-                        <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                        <Text style={getChipTextStyle(active)}>
                           {item}
                         </Text>
                       </Pressable>
                     );
                   })}
+                  <Pressable
+                    onPress={() => {
+                      animateLayout();
+                      setShowAllGoals((prev) => !prev);
+                    }}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 13,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {showAllGoals ? "−" : "+"}
+                    </Text>
+                  </Pressable>
                 </View>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -522,33 +737,35 @@ export default function ClassesScreen() {
                         <Pressable
                           key={item}
                           onPress={() => setNewGoal(item)}
-                          style={{
-                            paddingVertical: 6,
-                            paddingHorizontal: 10,
-                            borderRadius: 10,
-                            backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                          }}
+                          style={getChipStyle(active)}
                         >
-                          <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                          <Text style={getChipTextStyle(active)}>
                             {item}
                           </Text>
                         </Pressable>
                       );
                     })}
+                    <Pressable
+                      onPress={() => {
+                        animateLayout();
+                        setShowAllGoals((prev) => !prev);
+                      }}
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 13,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {showAllGoals ? "−" : "+"}
+                      </Text>
+                    </Pressable>
                   </View>
                 </ScrollView>
               )}
-              <Pressable
-                onPress={() => setShowAllGoals((prev) => !prev)}
-                style={{
-                  alignSelf: "flex-start",
-                  paddingVertical: 4,
-                }}
-              >
-                <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                  {showAllGoals ? "Ver menos" : "Ver mais objetivos"}
-                </Text>
-              </Pressable>
               {goalSuggestions.length ? (
                 <>
                   <Text style={{ fontSize: 13, color: colors.muted }}>
@@ -559,143 +776,173 @@ export default function ClassesScreen() {
                       <Pressable
                         key={item}
                         onPress={() => setNewGoal(item)}
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
-                          backgroundColor: colors.secondaryBg,
-                        }}
+                        style={getChipStyle(false)}
                       >
-                        <Text style={{ color: colors.text }}>{item}</Text>
+                        <Text style={getChipTextStyle(false)}>{item}</Text>
                       </Pressable>
                     ))}
                   </View>
                 </>
               ) : null}
-              {showAllGoals ? (
-                <TextInput
-                  placeholder="Objetivo (ex: Forca, Potencia)"
-                  value={newGoal}
-                  onChangeText={setNewGoal}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                  }}
-                />
+              {showAllGoalsContent ? (
+                <Animated.View style={allGoalsAnimStyle}>
+                  <TextInput
+                    placeholder="Objetivo (ex: Forca, Potencia)"
+                    value={newGoal}
+                    onChangeText={setNewGoal}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </Animated.View>
               ) : null}
               {formError ? (
-            <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-              {formError}
-            </Text>
+                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                  {formError}
+                </Text>
               ) : null}
-            </View>
+            </Animated.View>
           ) : null}
         </View>
 
-        <View
-          style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingBottom: 4 }}
-        >
-          {units.map((unit) => {
-            const active = unitFilter === unit;
-            return (
-              <Pressable
-                key={unit}
-                onPress={() => setUnitFilter(unit)}
-                style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
-                  backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: active ? colors.primaryBg : colors.border,
-                }}
-              >
-                <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                  {unit}
-                </Text>
-              </Pressable>
-            );
-          })}
+        <View style={getSectionCardStyle(colors, "info", { padding: 12 })}>
+          <Text style={{ fontSize: 13, color: colors.muted }}>Unidades</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {units.map((unit) => {
+              const active = unitFilter === unit;
+              const palette =
+                unit === "Todas"
+                  ? { bg: colors.primaryBg, text: colors.primaryText }
+                  : getUnitPalette(unit, colors);
+              return (
+                <Pressable
+                  key={unit}
+                  onPress={() => setUnitFilter(unit)}
+                  style={getChipStyle(active, palette)}
+                >
+                  <Text style={getChipTextStyle(active, palette)}>{unit}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        {grouped.map(([unit, items]) => (
-          <View key={unit} style={{ gap: 10 }}>
-            <View style={{ gap: 4 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {unit}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {"Turmas: " + items.length}
-              </Text>
-            </View>
-            <View style={{ gap: 12 }}>
-              {items.map((item) => (
-                <Pressable
-                  key={item.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/class/[id]",
-                      params: { id: item.id },
-                    })
-                  }
+        {grouped.map(([unit, items]) => {
+          const palette = getUnitPalette(unit, colors);
+          return (
+            <View key={unit} style={{ gap: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View
                   style={{
-                    padding: 14,
-                    borderRadius: 18,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    shadowColor: "#000",
-                    shadowOpacity: 0.05,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 6 },
-                    elevation: 2,
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    backgroundColor: palette.bg,
                   }}
-                >
-                  {conflictsById[item.id]?.length ? (
-                    <View
-                      style={{
-                        alignSelf: "flex-start",
-                        paddingVertical: 2,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: colors.dangerBg,
-                        marginBottom: 6,
-                      }}
-                    >
-                      <Text
+                />
+                <View style={{ gap: 2 }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                    {unit}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {"Turmas: " + items.length}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ gap: 12 }}>
+                {items.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() =>
+                      suppressNextPress
+                        ? setSuppressNextPress(false)
+                        : router.push({
+                            pathname: "/class/[id]",
+                            params: { id: item.id },
+                          })
+                    }
+                    onLongPress={() => {
+                      setSuppressNextPress(true);
+                      openEditModal(item);
+                    }}
+                    delayLongPress={250}
+                    style={[
+                      getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 }),
+                      { borderLeftWidth: 3, borderLeftColor: palette.bg },
+                    ]}
+                  >
+                    {conflictsById[item.id]?.length ? (
+                      <View
                         style={{
-                          color: colors.dangerText,
-                          fontWeight: "700",
-                          fontSize: 11,
+                          alignSelf: "flex-start",
+                          paddingVertical: 2,
+                          paddingHorizontal: 8,
+                          borderRadius: 999,
+                          backgroundColor: colors.dangerBg,
+                          marginBottom: 6,
                         }}
                       >
-                        Conflito de horario
+                        <Text
+                          style={{
+                            color: colors.dangerText,
+                            fontWeight: "700",
+                            fontSize: 11,
+                          }}
+                        >
+                          Conflito de horario
+                        </Text>
+                      </View>
+                    ) : null}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 999,
+                          backgroundColor: palette.bg,
+                        }}
+                      />
+                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                        {(() => {
+                          const parsed = parseTime(item.startTime || "");
+                          const duration = item.durationMinutes || 60;
+                          if (!parsed) return item.name;
+                          return `${formatTimeRange(parsed.hour, parsed.minute, duration)} - ${item.name}`;
+                        })()}
                       </Text>
                     </View>
-                  ) : null}
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    {item.name + " (" + item.ageBand + ")"}
-                  </Text>
-                  <Text style={{ color: colors.muted, marginTop: 6 }}>
-                    {"Dias: " + formatDays(item.daysOfWeek)}
-                  </Text>
-                  <Text style={{ color: colors.muted, marginTop: 2 }}>
-                    {"Horario: " + (item.startTime || "-")}
-                  </Text>
-                  <Text style={{ color: colors.muted, marginTop: 2 }}>
-                    {"Duracao: " + (item.durationMinutes || 60) + " min"}
-                  </Text>
-                  <Text style={{ color: colors.muted, marginTop: 2 }}>
-                    {"Objetivo: " + item.goal}
-                  </Text>
-                  {conflictsById[item.id]?.length ? (
-                    <Text style={{ color: colors.dangerText, marginTop: 6 }}>
-                      {"Conflitos: " +
+                    <Text style={{ color: colors.muted, marginTop: 6, fontSize: 12 }}>
+                      {"Faixa: " + item.ageBand}
+                    </Text>
+                    <Pressable
+                      onPress={(event) => {
+                        event?.stopPropagation?.();
+                        router.push({
+                          pathname: "/class/[id]/attendance",
+                          params: { id: item.id, date: formatIsoDate(new Date()) },
+                        });
+                      }}
+                      style={{
+                        marginTop: 10,
+                        paddingVertical: 8,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        backgroundColor: palette.bg,
+                      }}
+                    >
+                      <Text style={{ color: palette.text, fontWeight: "700", fontSize: 12 }}>
+                        Fazer chamada
+                      </Text>
+                    </Pressable>
+                    {conflictsById[item.id]?.length ? (
+                      <Text style={{ color: colors.dangerText, marginTop: 6 }}>
+                        {"Conflitos: " +
                         conflictsById[item.id]
                           .map(
                             (conflict) =>
@@ -704,11 +951,12 @@ export default function ClassesScreen() {
                           .join(", ")}
                     </Text>
                   ) : null}
-                </Pressable>
-              ))}
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
       </KeyboardAvoidingView>
       {showNew ? (
@@ -718,26 +966,377 @@ export default function ClassesScreen() {
             left: 16,
             right: 16,
             bottom: 16,
-            backgroundColor: "#2563eb",
             borderRadius: 16,
-            paddingVertical: 12,
-            alignItems: "center",
           }}
         >
-          <Pressable onPress={saveNewClass} style={{ width: "100%" }}>
-            <Text
-              style={{
-                color: colors.primaryText,
-                fontWeight: "700",
-                textAlign: "center",
-                fontSize: 16,
-              }}
-            >
-              {saving ? "Salvando..." : "Salvar turma"}
+          <Button
+            label={saving ? "Salvando..." : "Salvar turma"}
+            onPress={saveNewClass}
+            disabled={saving || !newName.trim()}
+          />
+        </View>
+      ) : null}
+      <ModalSheet
+        visible={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingClass(null);
+        }}
+        cardStyle={[editModalCardStyle, { paddingBottom: 12 }]}
+        position="center"
+        backdropOpacity={0.6}
+      >
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+              Editar turma
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {editingClass?.name ?? "Turma"}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              setShowEditModal(false);
+              setEditingClass(null);
+            }}
+            style={{
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+              Fechar
             </Text>
           </Pressable>
         </View>
-      ) : null}
+        <ScrollView
+          contentContainerStyle={{ gap: 10, paddingBottom: 8 }}
+          style={{ maxHeight: "94%" }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          <TextInput
+            placeholder="Nome da turma"
+            value={editName}
+            onChangeText={setEditName}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <TextInput
+              placeholder="Unidade"
+              value={editUnit}
+              onChangeText={setEditUnit}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+            <TextInput
+              placeholder="Horario (HH:MM)"
+              value={editStartTime}
+              onChangeText={(value) => setEditStartTime(normalizeTimeInput(value))}
+              keyboardType="numeric"
+              placeholderTextColor={colors.placeholder}
+              style={{
+                width: 130,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          </View>
+          <Text style={{ fontSize: 13, color: colors.muted }}>Duracao</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {durationOptions.map((item) => {
+              const active = editDuration === item;
+              return (
+                <Pressable
+                  key={item}
+                  onPress={() => setEditDuration(item)}
+                  style={getChipStyle(active)}
+                >
+                  <Text style={getChipTextStyle(active)}>{item + " min"}</Text>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              onPress={() => {
+                animateLayout();
+                setEditShowCustomDuration((prev) => !prev);
+              }}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 13,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                {editShowCustomDuration ? "−" : "+"}
+              </Text>
+            </Pressable>
+          </View>
+          {editShowCustomDuration ? (
+            <TextInput
+              placeholder="Duracao (min)"
+              value={editDuration}
+              onChangeText={setEditDuration}
+              keyboardType="numeric"
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          ) : null}
+          <Text style={{ fontSize: 13, color: colors.muted }}>Faixa etaria</Text>
+          {editShowAllAges ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {ageBandOptions.map((band) => {
+                const active = editAgeBand === band;
+                return (
+                  <Pressable
+                    key={band}
+                    onPress={() => setEditAgeBand(band)}
+                    style={getChipStyle(active)}
+                  >
+                    <Text style={getChipTextStyle(active)}>{band}</Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => {
+                  animateLayout();
+                  setEditShowAllAges((prev) => !prev);
+                }}
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {editShowAllAges ? "−" : "+"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {ageBandOptions.slice(0, 3).map((band) => {
+                  const active = editAgeBand === band;
+                  return (
+                    <Pressable
+                      key={band}
+                      onPress={() => setEditAgeBand(band)}
+                      style={getChipStyle(active)}
+                    >
+                      <Text style={getChipTextStyle(active)}>{band}</Text>
+                    </Pressable>
+                  );
+                })}
+                <Pressable
+                  onPress={() => {
+                    animateLayout();
+                    setEditShowAllAges((prev) => !prev);
+                  }}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    {editShowAllAges ? "−" : "+"}
+                  </Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          )}
+          {editShowAllAges ? (
+            <TextInput
+              placeholder="Faixa etaria (ex: 14-16)"
+              value={editAgeBand}
+              onChangeText={setEditAgeBand}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          ) : null}
+          <Text style={{ fontSize: 13, color: colors.muted }}>Dias da semana</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {dayNames.map((label, index) => {
+              const active = editDays.includes(index);
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => toggleEditDay(index)}
+                  style={getChipStyle(active)}
+                >
+                  <Text style={getChipTextStyle(active)}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={{ fontSize: 13, color: colors.muted }}>Objetivo</Text>
+          {editShowAllGoals ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {goals.map((item) => {
+                const active = editGoal === item;
+                return (
+                  <Pressable
+                    key={item}
+                    onPress={() => setEditGoal(item)}
+                    style={getChipStyle(active)}
+                  >
+                    <Text style={getChipTextStyle(active)}>{item}</Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => {
+                  animateLayout();
+                  setEditShowAllGoals((prev) => !prev);
+                }}
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {editShowAllGoals ? "−" : "+"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {goals.slice(0, 4).map((item) => {
+                  const active = editGoal === item;
+                  return (
+                    <Pressable
+                      key={item}
+                      onPress={() => setEditGoal(item)}
+                      style={getChipStyle(active)}
+                    >
+                      <Text style={getChipTextStyle(active)}>{item}</Text>
+                    </Pressable>
+                  );
+                })}
+                <Pressable
+                  onPress={() => {
+                    animateLayout();
+                    setEditShowAllGoals((prev) => !prev);
+                  }}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    {editShowAllGoals ? "−" : "+"}
+                  </Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          )}
+          {editGoalSuggestions.length ? (
+            <>
+              <Text style={{ fontSize: 13, color: colors.muted }}>
+                Sugestoes da turma
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {editGoalSuggestions.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => setEditGoal(item)}
+                    style={getChipStyle(false)}
+                  >
+                    <Text style={getChipTextStyle(false)}>{item}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
+          {editShowAllGoals ? (
+            <TextInput
+              placeholder="Objetivo (ex: Forca, Potencia)"
+              value={editGoal}
+              onChangeText={setEditGoal}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          ) : null}
+          {editFormError ? (
+            <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+              {editFormError}
+            </Text>
+          ) : null}
+          <View style={{ marginTop: 8 }}>
+            <Button
+              label={editSaving ? "Salvando..." : "Salvar alteracoes"}
+              onPress={saveEditClass}
+              disabled={editSaving || !editName.trim()}
+            />
+          </View>
+        </ScrollView>
+      </ModalSheet>
     </SafeAreaView>
   );
 }

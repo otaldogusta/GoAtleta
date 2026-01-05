@@ -1,17 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
 import {
   Alert,
+  Animated,
+  Keyboard,
   KeyboardAvoidingView,
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
   Share,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
+import { Pressable } from "../../src/ui/Pressable";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Calendar from "expo-calendar";
 
 import {
   saveTrainingPlan,
@@ -35,8 +42,21 @@ import type {
 import { trainingTemplates } from "../../src/core/trainingTemplates";
 import { Button } from "../../src/ui/Button";
 import { Card } from "../../src/ui/Card";
+import { animateLayout } from "../../src/ui/animate-layout";
+import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { DateInput } from "../../src/ui/DateInput";
+import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { notifyTrainingSaved } from "../../src/notifications";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
+import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { useSaveToast } from "../../src/ui/save-toast";
+import { ModalSheet } from "../../src/ui/ModalSheet";
 
 const toLines = (value: string) =>
   value
@@ -51,13 +71,6 @@ const formatDate = (value?: string) => {
   return date.toLocaleDateString("pt-BR");
 };
 
-const formatIsoDate = (value: Date) => {
-  const y = value.getFullYear();
-  const m = String(value.getMonth() + 1).padStart(2, "0");
-  const d = String(value.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
 const formatShortDate = (value?: string) => {
   if (!value) return "";
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -67,6 +80,7 @@ const formatShortDate = (value?: string) => {
   }
   return formatDate(value);
 };
+
 
 const weekdays = [
   { id: 1, label: "Seg" },
@@ -78,40 +92,6 @@ const weekdays = [
   { id: 7, label: "Dom" },
 ];
 
-const monthNames = [
-  "Janeiro",
-  "Fevereiro",
-  "Marco",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
-
-const dayLabels = ["D", "S", "T", "Q", "Q", "S", "S"];
-
-const getCalendarDays = (year: number, month: number) => {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: Array<{ date: Date | null }> = [];
-
-  for (let i = 0; i < 42; i += 1) {
-    const dayNumber = i - firstDay + 1;
-    if (dayNumber < 1 || dayNumber > daysInMonth) {
-      cells.push({ date: null });
-    } else {
-      cells.push({ date: new Date(year, month, dayNumber) });
-    }
-  }
-
-  return cells;
-};
-
 const formatWeekdays = (days?: number[]) => {
   if (!days || !days.length) return "";
   const labels = days
@@ -120,8 +100,176 @@ const formatWeekdays = (days?: number[]) => {
   return labels.join(", ");
 };
 
+const extractKeywords = (value: string) => {
+  const stopwords = new Set([
+    "para",
+    "com",
+    "sem",
+    "uma",
+    "uns",
+    "umas",
+    "ate",
+    "ate",
+    "que",
+    "por",
+    "dos",
+    "das",
+    "e",
+    "de",
+    "do",
+    "da",
+    "em",
+    "no",
+    "na",
+    "nos",
+    "nas",
+  ]);
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .filter((token) => token.length >= 3 && !stopwords.has(token));
+};
+
+const parseAgeBand = (value?: string) => {
+  if (!value) return null;
+  const match = value.match(/(\d+)\s*-\s*(\d+)/);
+  if (match) {
+    return { start: Number(match[1]), end: Number(match[2]) };
+  }
+  const single = value.match(/(\d+)/);
+  if (single) {
+    const age = Number(single[1]);
+    return { start: age, end: age };
+  }
+  return null;
+};
+
+const getPiagetTags = (ageBand?: string) => {
+  const range = parseAgeBand(ageBand);
+  if (!range) return [];
+  const start = range.start;
+  if (start <= 2) {
+    return [
+      "sensorio-motor",
+      "jogo de exercicio",
+      "exploracao sensorial",
+      "permanencia do objeto",
+    ];
+  }
+  if (start <= 7) {
+    return [
+      "pre-operatorio",
+      "jogo simbolico",
+      "faz de conta",
+      "linguagem",
+    ];
+  }
+  if (start <= 11) {
+    return [
+      "operatorio concreto",
+      "jogo de regras",
+      "cooperacao",
+      "logica concreta",
+    ];
+  }
+  return [
+    "operatorio formal",
+    "jogo estrategico",
+    "raciocinio abstrato",
+    "hipotetico-dedutivo",
+  ];
+};
+
+const getMethodologyTags = (ageBand?: string) => {
+  const range = parseAgeBand(ageBand);
+  if (!range) return [];
+  const start = range.start;
+  if (start <= 8) {
+    return [
+      "alfabetizacao motora",
+      "jogo reduzido",
+      "ludico",
+      "coordenacao",
+      "fundamentos basicos",
+      "variedade motora",
+    ];
+  }
+  if (start <= 11) {
+    return [
+      "fundamentos",
+      "tomada de decisao",
+      "jogo de regras",
+      "controle de volume",
+      "core e equilibrio",
+      "volleyveilig",
+    ];
+  }
+  return [
+    "tecnica eficiente",
+    "potencia controlada",
+    "sistemas de jogo",
+    "transicao defesa-ataque",
+    "forca moderada",
+    "prevencao de lesoes",
+  ];
+};
+
+const getMethodologyTips = (ageBand?: string) => {
+  const range = parseAgeBand(ageBand);
+  if (!range) return [];
+  const start = range.start;
+  if (start <= 8) {
+    return [
+      "Sessao curta e ludica (45-60 min)",
+      "Priorize correr, saltar, lancar, receber",
+      "Jogo 1x1 ou 2x2 com bola leve",
+      "Sem carga externa, foco em tecnica",
+    ];
+  }
+  if (start <= 11) {
+    return [
+      "2-3 sessoes/semana com fundamentos",
+      "Aquecimento preventivo simples (core e equilibrio)",
+      "Jogo 2x2 e 3x3 com regras simples",
+      "Controle de saltos e pausas ativas",
+    ];
+  }
+  return [
+    "3 sessoes/semana, 60-90 min",
+    "Volleyveilig 2x/semana + mobilidade",
+    "Forca 50-70% 1RM com progressao leve",
+    "Monitorar saltos e RPE",
+  ];
+};
+
 export default function TrainingList() {
   const { colors } = useAppTheme();
+  const router = useRouter();
+  const { confirm } = useConfirmUndo();
+  const { confirm: confirmDialog } = useConfirmDialog();
+  const { showSaveToast } = useSaveToast();
+  const templateEditorCardStyle = useModalCardStyle({ maxHeight: "100%" });
+  const selectedPlanCardStyle = useModalCardStyle({ maxHeight: "100%" });
+  const applyModalCardStyle = useModalCardStyle({ maxHeight: "100%" });
+  const planActionsCardStyle = useModalCardStyle({ maxHeight: "100%" });
+  const params = useLocalSearchParams();
+  const targetClassId =
+    typeof params.targetClassId === "string" ? params.targetClassId : "";
+  const targetDateRaw =
+    typeof params.targetDate === "string" ? params.targetDate : "";
+  const openForm =
+    typeof params.openForm === "string" ? params.openForm === "1" : false;
+  const applyPlanId =
+    typeof params.applyPlanId === "string" ? params.applyPlanId : "";
+  const viewPlanId =
+    typeof params.viewPlanId === "string" ? params.viewPlanId : "";
+  const targetDate =
+    targetDateRaw && !Number.isNaN(new Date(targetDateRaw).getTime())
+      ? targetDateRaw
+      : "";
   const [title, setTitle] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [warmup, setWarmup] = useState("");
@@ -137,13 +285,38 @@ export default function TrainingList() {
   const [classId, setClassId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [showAllClasses, setShowAllClasses] = useState(false);
+  const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
+    "training_show_templates_v1",
+    false
+  );
+  const {
+    animatedStyle: templatesAnimStyle,
+    isVisible: showTemplatesContent,
+  } = useCollapsibleAnimation(showTemplates);
+  const [showAllClasses, setShowAllClasses] = usePersistedState<boolean>(
+    "training_show_all_classes_v1",
+    false
+  );
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = usePersistedState<boolean>(
+    "training_show_form_v1",
+    false
+  );
+  const [showSavedPlans, setShowSavedPlans] = usePersistedState<boolean>(
+    "training_show_saved_plans_v1",
+    true
+  );
+  const {
+    animatedStyle: savedPlansAnimStyle,
+    isVisible: showSavedPlansContent,
+  } = useCollapsibleAnimation(showSavedPlans);
   const [formY, setFormY] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const [scrollRequested, setScrollRequested] = useState(false);
+  const {
+    animatedStyle: formAnimStyle,
+    isVisible: showFormContent,
+  } = useCollapsibleAnimation(showForm);
   const [templateAgeBand, setTemplateAgeBand] = useState("");
   const [formMode, setFormMode] = useState<"plan" | "template">("plan");
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -155,6 +328,7 @@ export default function TrainingList() {
   const [renameTemplateId, setRenameTemplateId] = useState<string | null>(null);
   const [renameTemplateText, setRenameTemplateText] = useState("");
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [showTemplateCloseConfirm, setShowTemplateCloseConfirm] = useState(false);
   const [templateEditorId, setTemplateEditorId] = useState<string | null>(null);
   const [templateEditorCreatedAt, setTemplateEditorCreatedAt] = useState<string | null>(null);
   const [templateTitle, setTemplateTitle] = useState("");
@@ -166,18 +340,58 @@ export default function TrainingList() {
   const [templateWarmupTime, setTemplateWarmupTime] = useState("");
   const [templateMainTime, setTemplateMainTime] = useState("");
   const [templateCooldownTime, setTemplateCooldownTime] = useState("");
+  const [lastCreatedPlanId, setLastCreatedPlanId] = useState<string | null>(null);
+  const [lastCreatedClassId, setLastCreatedClassId] = useState("");
+  const [templateEditorSnapshot, setTemplateEditorSnapshot] = useState<{
+    title: string;
+    age: string;
+    tags: string;
+    warmup: string;
+    main: string;
+    cooldown: string;
+    warmupTime: string;
+    mainTime: string;
+    cooldownTime: string;
+  } | null>(null);
+  const [pendingPlanCreate, setPendingPlanCreate] = usePersistedState<{
+    classId: string;
+    date: string;
+  } | null>("training_pending_plan_create_v1", null);
+  const [templateEditorComposerHeight, setTemplateEditorComposerHeight] =
+    useState(0);
+  const [templateEditorKeyboardHeight, setTemplateEditorKeyboardHeight] =
+    useState(0);
   const [applyUnit, setApplyUnit] = useState("");
   const [applyClassId, setApplyClassId] = useState("");
   const [showApplyModal, setShowApplyModal] = useState(false);
+  const [showApplyCloseConfirm, setShowApplyCloseConfirm] = useState(false);
   const [applyPlan, setApplyPlan] = useState<TrainingPlan | null>(null);
   const [applyDays, setApplyDays] = useState<number[]>([]);
   const [applyDate, setApplyDate] = useState("");
+  const [handledApplyPlanId, setHandledApplyPlanId] = useState<string | null>(
+    null
+  );
+  const [handledViewPlanId, setHandledViewPlanId] = useState<string | null>(
+    null
+  );
+  const [applySnapshot, setApplySnapshot] = useState<{
+    unit: string;
+    classId: string;
+    days: number[];
+    date: string;
+  } | null>(null);
   const [showApplyCalendar, setShowApplyCalendar] = useState(false);
-  const [applyCalendarMonth, setApplyCalendarMonth] = useState(new Date());
+  const [showPlanActions, setShowPlanActions] = useState(false);
+  const [actionPlan, setActionPlan] = useState<TrainingPlan | null>(null);
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId),
     [classes, classId]
+  );
+
+  const sortedClasses = useMemo(
+    () => sortClassesByAgeBand(classes),
+    [classes]
   );
 
   const unitLabel = (value?: string) =>
@@ -192,33 +406,111 @@ export default function TrainingList() {
   }, [classes]);
 
   const classOptionsForUnit = useMemo(() => {
-    if (!applyUnit) return classes;
-    return classes.filter((item) => unitLabel(item.unit) === applyUnit);
-  }, [classes, applyUnit]);
+    if (!applyUnit) return sortedClasses;
+    return sortedClasses.filter((item) => unitLabel(item.unit) === applyUnit);
+  }, [applyUnit, sortedClasses]);
 
   useEffect(() => {
     if (!applyPlan) return;
-    const currentClass = classes.find((item) => item.id === applyPlan.classId);
-    const nextUnit = unitLabel(currentClass?.unit);
-    setApplyUnit(nextUnit);
-    setApplyClassId(applyPlan.classId);
-    setApplyDays(applyPlan.applyDays ?? []);
-    setApplyDate(applyPlan.applyDate ?? "");
-    if (applyPlan.applyDate) {
-      const parsed = new Date(applyPlan.applyDate);
-      setApplyCalendarMonth(
-        Number.isNaN(parsed.getTime()) ? new Date() : parsed
-      );
-    } else {
-      setApplyCalendarMonth(new Date());
+    const defaultClass = classes.find((item) => item.id === applyPlan.classId);
+    const targetClass = classes.find((item) => item.id === targetClassId);
+    const resolvedClass = targetClass ?? defaultClass;
+    const resolvedClassId = resolvedClass?.id ?? applyPlan.classId;
+    const resolvedUnit = unitLabel(resolvedClass?.unit);
+    const resolvedDate = targetDate || applyPlan.applyDate || "";
+    const isFreshPlan =
+      lastCreatedPlanId && applyPlan.id === lastCreatedPlanId;
+    if (isFreshPlan) {
+      const freshClassId = lastCreatedClassId;
+      const freshClass = classes.find((item) => item.id === freshClassId);
+      const freshUnit = freshClass ? unitLabel(freshClass.unit) : "";
+      setApplyUnit(freshUnit);
+      setApplyClassId(freshClassId || "");
+      setApplyDays([]);
+      setApplyDate("");
+      setApplySnapshot({
+        unit: freshUnit,
+        classId: freshClassId || "",
+        days: [],
+        date: "",
+      });
+      return;
     }
-  }, [applyPlan, classes]);
+    setApplyUnit(resolvedUnit);
+    setApplyClassId(resolvedClassId);
+    setApplyDays(applyPlan.applyDays ?? []);
+    setApplyDate(resolvedDate);
+    setApplySnapshot({
+      unit: resolvedUnit,
+      classId: resolvedClassId,
+      days: (applyPlan.applyDays ?? []).slice().sort((a, b) => a - b),
+      date: resolvedDate,
+    });
+  }, [applyPlan, classes, lastCreatedClassId, lastCreatedPlanId, targetClassId, targetDate]);
 
-  const applyCalendarDays = useMemo(() => {
-    const year = applyCalendarMonth.getFullYear();
-    const month = applyCalendarMonth.getMonth();
-    return getCalendarDays(year, month);
-  }, [applyCalendarMonth]);
+  useEffect(() => {
+    if (!applyPlanId || applyPlanId === handledApplyPlanId) return;
+    const plan = items.find((item) => item.id === applyPlanId);
+    if (!plan) return;
+    setApplyPlan(plan);
+    setShowApplyModal(true);
+    setHandledApplyPlanId(applyPlanId);
+  }, [applyPlanId, handledApplyPlanId, items]);
+
+  useEffect(() => {
+    if (!viewPlanId || viewPlanId === handledViewPlanId) return;
+    const plan = items.find((item) => item.id === viewPlanId);
+    if (!plan) return;
+    setSelectedPlan(plan);
+    setShowSavedPlans(true);
+    setHandledViewPlanId(viewPlanId);
+  }, [handledViewPlanId, items, viewPlanId]);
+
+
+  const parseTimeParts = (value: string) => {
+    const match = value.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    return { hour: Number(match[1]), minute: Number(match[2]) };
+  };
+
+  const getCalendarId = async () => {
+    if (Platform.OS === "web") return null;
+    const permission = await Calendar.requestCalendarPermissionsAsync();
+    if (!permission.granted) return null;
+    if (Platform.OS === "ios") {
+      const defaultCalendar = await Calendar.getDefaultCalendarAsync();
+      if (defaultCalendar?.id) return defaultCalendar.id;
+    }
+    const calendars = await Calendar.getCalendarsAsync(
+      Calendar.EntityTypes.EVENT
+    );
+    const writable = calendars.find((item) => item.allowsModifications);
+    return writable?.id ?? calendars[0]?.id ?? null;
+  };
+
+  const createCalendarEvent = async (plan: TrainingPlan) => {
+    if (Platform.OS === "web") return;
+    if (!plan.applyDate) return;
+    const classItem = classes.find((item) => item.id === plan.classId);
+    if (!classItem?.startTime) return;
+    const time = parseTimeParts(classItem.startTime);
+    if (!time) return;
+    const startDate = new Date(
+      `${plan.applyDate}T${classItem.startTime}:00`
+    );
+    if (Number.isNaN(startDate.getTime())) return;
+    const duration = classItem.durationMinutes || 60;
+    const endDate = new Date(startDate.getTime() + duration * 60000);
+    const calendarId = await getCalendarId();
+    if (!calendarId) return;
+    await Calendar.createEventAsync(calendarId, {
+      title: `${plan.title} - ${classItem.name}`,
+      startDate,
+      endDate,
+      location: classItem.unit || undefined,
+      notes: `Treino aplicado para ${classItem.name}.`,
+    });
+  };
 
   useEffect(() => {
     if (!applyClassId) return;
@@ -238,8 +530,68 @@ export default function TrainingList() {
     trainingTemplates.forEach((template) => {
       template.ageBands.forEach((band) => values.add(band));
     });
-    return Array.from(values).sort((a, b) => a.localeCompare(b));
+    return sortClassesByAgeBand(
+      Array.from(values).map((band) => ({
+        id: band,
+        name: band,
+        ageBand: band as ClassGroup["ageBand"],
+      }))
+    ).map((item) => item.ageBand);
   }, [classes]);
+
+  const isTemplateEditorDirty = useMemo(() => {
+    if (!templateEditorSnapshot) return false;
+    return (
+      templateEditorSnapshot.title !== templateTitle ||
+      templateEditorSnapshot.age !== templateAge ||
+      templateEditorSnapshot.tags !== templateTags ||
+      templateEditorSnapshot.warmup !== templateWarmup ||
+      templateEditorSnapshot.main !== templateMain ||
+      templateEditorSnapshot.cooldown !== templateCooldown ||
+      templateEditorSnapshot.warmupTime !== templateWarmupTime ||
+      templateEditorSnapshot.mainTime !== templateMainTime ||
+      templateEditorSnapshot.cooldownTime !== templateCooldownTime
+    );
+  }, [
+    templateAge,
+    templateCooldown,
+    templateCooldownTime,
+    templateEditorSnapshot,
+    templateMain,
+    templateMainTime,
+    templateTags,
+    templateTitle,
+    templateWarmup,
+    templateWarmupTime,
+  ]);
+
+  const isApplyDirty = useMemo(() => {
+    if (!applySnapshot) return false;
+    const nextDays = applyDays.slice().sort((a, b) => a - b);
+    if (applySnapshot.unit !== applyUnit) return true;
+    if (applySnapshot.classId !== applyClassId) return true;
+    if (applySnapshot.date !== applyDate) return true;
+    if (applySnapshot.days.length !== nextDays.length) return true;
+    return applySnapshot.days.some((value, index) => value !== nextDays[index]);
+  }, [applyClassId, applyDate, applyDays, applySnapshot, applyUnit]);
+
+  const canApply = useMemo(() => {
+    if (!applyPlan) return false;
+    if (!applyClassId) return false;
+    if (!applyDays.length) return false;
+    if (!applyDate) return false;
+    return !Number.isNaN(new Date(applyDate).getTime());
+  }, [applyPlan, applyClassId, applyDays, applyDate]);
+
+  const isSameApply = useMemo(() => {
+    if (!applyPlan) return false;
+    if (applyPlan.classId !== applyClassId) return false;
+    if ((applyPlan.applyDate ?? "") !== applyDate) return false;
+    const currentDays = (applyPlan.applyDays ?? []).slice().sort((a, b) => a - b);
+    const nextDays = applyDays.slice().sort((a, b) => a - b);
+    if (currentDays.length !== nextDays.length) return false;
+    return currentDays.every((value, index) => value === nextDays[index]);
+  }, [applyPlan, applyClassId, applyDate, applyDays]);
 
   const templates = useMemo(() => {
     const combined = [
@@ -294,11 +646,8 @@ export default function TrainingList() {
       ]);
       if (!alive) return;
       setClasses(classList);
-      if (!classId && classList.length > 0) {
+      if (!classId && classList.length > 0 && !showForm) {
         setClassId(classList[0].id);
-      }
-      if (!templateAgeBand && classList.length > 0) {
-        setTemplateAgeBand(classList[0].ageBand);
       }
       setTemplateItems(templatesDb);
       setHiddenTemplates(hidden);
@@ -308,6 +657,23 @@ export default function TrainingList() {
       alive = false;
     };
   }, [classId]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = (event: any) => {
+      const height = event?.endCoordinates?.height ?? 0;
+      setTemplateEditorKeyboardHeight(height);
+    };
+    const onHide = () => setTemplateEditorKeyboardHeight(0);
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
 
   const tagCounts = useMemo(() => {
     const source = items;
@@ -333,12 +699,135 @@ export default function TrainingList() {
       .map((t) => t.toLowerCase());
   }, [tagsText]);
 
+  const templateCurrentTags = useMemo(() => {
+    return templateTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => t.toLowerCase());
+  }, [templateTags]);
+
   const suggestions = useMemo(() => {
-    return tagCounts
+    const planText = [
+      title,
+      warmup,
+      main,
+      cooldown,
+    ].join(" ");
+    const keywords = extractKeywords(planText);
+    const keywordSet = new Set(keywords);
+    const selectedAgeBand =
+      classes.find((item) => item.id === classId)?.ageBand || templateAgeBand;
+    const piagetTags = getPiagetTags(selectedAgeBand);
+    const methodologyTags = getMethodologyTags(selectedAgeBand);
+
+    const fromExistingTags = tagCounts
       .map(([tag]) => tag)
-      .filter((tag) => !currentTags.includes(tag))
-      .slice(0, 6);
-  }, [tagCounts, currentTags]);
+      .filter((tag) => {
+        const normalized = tag.toLowerCase();
+        return (
+          !currentTags.includes(normalized) &&
+          (keywordSet.has(normalized) || keywords.some((word) => normalized.includes(word)))
+        );
+      });
+
+    const keywordCounts = keywords.reduce<Record<string, number>>((acc, token) => {
+      acc[token] = (acc[token] ?? 0) + 1;
+      return acc;
+    }, {});
+    const fromPlanText = Object.entries(keywordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([token]) => token)
+      .filter((token) => !currentTags.includes(token));
+
+    const combined = [
+      ...piagetTags,
+      ...methodologyTags,
+      ...fromExistingTags,
+      ...fromPlanText,
+    ];
+    const seen = new Set<string>();
+    const result: string[] = [];
+    combined.forEach((tag) => {
+      const normalized = tag.toLowerCase();
+      if (seen.has(normalized)) return;
+      seen.add(normalized);
+      result.push(tag);
+    });
+    if (result.length < 6) {
+      tagCounts
+        .map(([tag]) => tag)
+        .forEach((tag) => {
+          const normalized = tag.toLowerCase();
+          if (seen.has(normalized) || currentTags.includes(normalized)) return;
+          seen.add(normalized);
+          result.push(tag);
+        });
+    }
+    return result.slice(0, 8);
+  }, [cooldown, currentTags, main, tagCounts, title, warmup, classId, templateAgeBand, classes]);
+
+  const templateSuggestions = useMemo(() => {
+    const templateText = [
+      templateTitle,
+      templateWarmup,
+      templateMain,
+      templateCooldown,
+    ].join(" ");
+    const keywords = extractKeywords(templateText);
+    const keywordSet = new Set(keywords);
+    const selectedAgeBand = templateAge.trim() || templateAgeBand;
+    const piagetTags = getPiagetTags(selectedAgeBand);
+
+    const fromExistingTags = tagCounts
+      .map(([tag]) => tag)
+      .filter((tag) => {
+        const normalized = tag.toLowerCase();
+        return (
+          !templateCurrentTags.includes(normalized) &&
+          (keywordSet.has(normalized) || keywords.some((word) => normalized.includes(word)))
+        );
+      });
+
+    const keywordCounts = keywords.reduce<Record<string, number>>((acc, token) => {
+      acc[token] = (acc[token] ?? 0) + 1;
+      return acc;
+    }, {});
+    const fromTemplateText = Object.entries(keywordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([token]) => token)
+      .filter((token) => !templateCurrentTags.includes(token));
+
+    const combined = [...piagetTags, ...fromExistingTags, ...fromTemplateText];
+    const seen = new Set<string>();
+    const result: string[] = [];
+    combined.forEach((tag) => {
+      const normalized = tag.toLowerCase();
+      if (seen.has(normalized)) return;
+      seen.add(normalized);
+      result.push(tag);
+    });
+    if (result.length < 6) {
+      tagCounts
+        .map(([tag]) => tag)
+        .forEach((tag) => {
+          const normalized = tag.toLowerCase();
+          if (seen.has(normalized) || templateCurrentTags.includes(normalized)) return;
+          seen.add(normalized);
+          result.push(tag);
+        });
+    }
+    return result.slice(0, 6);
+  }, [
+    tagCounts,
+    templateAge,
+    templateAgeBand,
+    templateCooldown,
+    templateCurrentTags,
+    templateMain,
+    templateTitle,
+    templateWarmup,
+  ]);
 
   const reload = async () => {
     const data = await getTrainingPlans();
@@ -371,9 +860,19 @@ export default function TrainingList() {
       await updateTrainingPlan(plan);
     } else {
       await saveTrainingPlan(plan);
+      setLastCreatedPlanId(plan.id);
+      setLastCreatedClassId(classId);
     }
-    Alert.alert("Treino salvo", "Treino salvo com sucesso.");
     void notifyTrainingSaved();
+    showSaveToast({
+      message: "Plano salvo com sucesso.",
+      actionLabel: "Ver plano",
+      variant: "success",
+      onAction: () => {
+        setSelectedPlan(plan);
+        setShowSavedPlans(true);
+      },
+    });
     setTitle("");
     setTagsText("");
     setWarmup("");
@@ -426,7 +925,7 @@ export default function TrainingList() {
     setEditingTemplateCreatedAt(null);
     setFormMode("plan");
     setShowForm(false);
-    Alert.alert("Modelo salvo", "Agora ele aparece em Modelos prontos.");
+    showSaveToast({ message: "Modelo salvo com sucesso.", variant: "success" });
   };
 
   const onEdit = (plan: TrainingPlan) => {
@@ -446,30 +945,36 @@ export default function TrainingList() {
     setScrollRequested(true);
   };
 
-  const onDelete = async (id: string) => {
-    Alert.alert(
-      "Excluir treino",
-      "Essa acao nao pode ser desfeita. Deseja excluir?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            await deleteTrainingPlan(id);
-            if (editingId === id) {
-              setEditingId(null);
-              setEditingCreatedAt(null);
-            }
-            await reload();
-          },
-        },
-      ]
-    );
+  const onDelete = (plan: TrainingPlan) => {
+    confirm({
+      title: "Excluir treino?",
+      message: "Essa acao pode ser desfeita por alguns segundos.",
+      confirmLabel: "Excluir",
+      undoMessage: "Treino excluido. Deseja desfazer?",
+      onOptimistic: () => {
+        setItems((prev) => prev.filter((item) => item.id !== plan.id));
+        if (editingId === plan.id) {
+          setEditingId(null);
+          setEditingCreatedAt(null);
+        }
+      },
+      onConfirm: async () => {
+        await deleteTrainingPlan(plan.id);
+        await reload();
+      },
+      onUndo: async () => {
+        await reload();
+      },
+    });
   };
 
   const getClassName = (id: string) =>
     classes.find((item) => item.id === id)?.name ?? "Turma";
+
+  const pickClassIdForAgeBand = (band?: string) => {
+    if (!band) return "";
+    return classes.find((item) => item.ageBand === band)?.id ?? "";
+  };
 
   const applyTemplate = (template: {
     id: string;
@@ -514,7 +1019,26 @@ export default function TrainingList() {
     createdAt?: string;
   }) => {
     setFormMode("plan");
+    setClassId(
+      templateAgeBand ? pickClassIdForAgeBand(templateAgeBand) : ""
+    );
     applyTemplate(template);
+  };
+
+  const duplicatePlan = (plan: TrainingPlan) => {
+    useTemplateAsPlan({
+      id: "dup_" + Date.now(),
+      title: plan.title + " (copia)",
+      tags: plan.tags ?? [],
+      warmup: plan.warmup ?? [],
+      main: plan.main ?? [],
+      cooldown: plan.cooldown ?? [],
+      warmupTime: plan.warmupTime ?? "",
+      mainTime: plan.mainTime ?? "",
+      cooldownTime: plan.cooldownTime ?? "",
+      ageBands: ["8-9", "10-12", "13-15", "16-18"],
+      source: "custom",
+    });
   };
 
   const openTemplateForEdit = (template: {
@@ -539,35 +1063,47 @@ export default function TrainingList() {
     if (template.ageBands.length) {
       setTemplateAgeBand(template.ageBands[0]);
     }
+    const band = template.ageBands[0] || templateAgeBand;
+    setClassId(band ? pickClassIdForAgeBand(band) : "");
     applyTemplate(template);
   };
 
-  const deleteTemplateItem = async (
-    id: string,
-    source: "built" | "custom"
-  ) => {
-    Alert.alert(
-      "Excluir modelo",
-      "Essa acao nao pode ser desfeita. Deseja excluir?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            if (source === "custom") {
-              await deleteTrainingTemplate(id);
-              const templatesDb = await getTrainingTemplates();
-              setTemplateItems(templatesDb);
-            } else {
-              await hideTrainingTemplate(id);
-              const hidden = await getHiddenTemplates();
-              setHiddenTemplates(hidden);
-            }
-          },
-        },
-      ]
-    );
+  const deleteTemplateItem = (id: string, source: "built" | "custom") => {
+    confirm({
+      title: "Excluir modelo?",
+      message: "Essa acao pode ser desfeita por alguns segundos.",
+      confirmLabel: "Excluir",
+      undoMessage: "Modelo excluido. Deseja desfazer?",
+      onOptimistic: () => {
+        if (source === "custom") {
+          setTemplateItems((prev) => prev.filter((item) => item.id !== id));
+        } else {
+          setHiddenTemplates((prev) => [
+            ...prev,
+            { id: "hide_" + Date.now(), templateId: id, createdAt: new Date().toISOString() },
+          ]);
+        }
+      },
+      onConfirm: async () => {
+        if (source === "custom") {
+          await deleteTrainingTemplate(id);
+          const templatesDb = await getTrainingTemplates();
+          setTemplateItems(templatesDb);
+        } else {
+          await hideTrainingTemplate(id);
+          const hidden = await getHiddenTemplates();
+          setHiddenTemplates(hidden);
+        }
+      },
+      onUndo: async () => {
+        const [templatesDb, hidden] = await Promise.all([
+          getTrainingTemplates(),
+          getHiddenTemplates(),
+        ]);
+        setTemplateItems(templatesDb);
+        setHiddenTemplates(hidden);
+      },
+    });
   };
 
   const duplicateTemplateFromEditor = async () => {
@@ -613,12 +1149,13 @@ export default function TrainingList() {
     createdAt?: string;
   }) => {
     const isCustom = template.source === "custom";
+    const nextAge = template.ageBands[0] || templateAgeBand;
     setTemplateEditorId(isCustom ? template.id : null);
     setTemplateEditorCreatedAt(isCustom ? template.createdAt ?? null : null);
     setTemplateEditorSource(isCustom ? "custom" : "built");
     setTemplateEditorTemplateId(template.id);
     setTemplateTitle(template.title);
-    setTemplateAge(template.ageBands[0] || templateAgeBand);
+    setTemplateAge(nextAge);
     setTemplateTags(template.tags.join(", "));
     setTemplateWarmup(template.warmup.join("\n"));
     setTemplateMain(template.main.join("\n"));
@@ -626,7 +1163,48 @@ export default function TrainingList() {
     setTemplateWarmupTime(template.warmupTime);
     setTemplateMainTime(template.mainTime);
     setTemplateCooldownTime(template.cooldownTime);
+    setTemplateEditorSnapshot({
+      title: template.title,
+      age: nextAge,
+      tags: template.tags.join(", "),
+      warmup: template.warmup.join("\n"),
+      main: template.main.join("\n"),
+      cooldown: template.cooldown.join("\n"),
+      warmupTime: template.warmupTime,
+      mainTime: template.mainTime,
+      cooldownTime: template.cooldownTime,
+    });
     setShowTemplateEditor(true);
+  };
+
+  const closeTemplateEditor = () => {
+    setShowTemplateEditor(false);
+    setShowTemplateCloseConfirm(false);
+    setTemplateEditorSnapshot(null);
+  };
+
+  const requestCloseTemplateEditor = () => {
+    if (isTemplateEditorDirty) {
+      setShowTemplateCloseConfirm(true);
+      return;
+    }
+    closeTemplateEditor();
+  };
+
+  const closeApplyModal = () => {
+    setShowApplyModal(false);
+    setShowApplyCloseConfirm(false);
+    setApplyPlan(null);
+    setShowApplyCalendar(false);
+    setApplySnapshot(null);
+  };
+
+  const requestCloseApplyModal = () => {
+    if (isApplyDirty) {
+      setShowApplyCloseConfirm(true);
+      return;
+    }
+    closeApplyModal();
   };
 
   const saveTemplateEditor = async () => {
@@ -659,7 +1237,7 @@ export default function TrainingList() {
     }
     const templatesDb = await getTrainingTemplates();
     setTemplateItems(templatesDb);
-    setShowTemplateEditor(false);
+    closeTemplateEditor();
     setTemplateEditorId(null);
     setTemplateEditorCreatedAt(null);
     setTemplateEditorTemplateId(null);
@@ -774,38 +1352,44 @@ export default function TrainingList() {
       cooldownTime.trim()
   );
 
+  const hasTemplateContent = Boolean(
+    templateTitle.trim() ||
+      templateTags.trim() ||
+      templateWarmup.trim() ||
+      templateMain.trim() ||
+      templateCooldown.trim() ||
+      templateWarmupTime.trim() ||
+      templateMainTime.trim() ||
+      templateCooldownTime.trim()
+  );
+
   const confirmCloseForm = () => {
     if (!isFormDirty) {
       setShowForm(false);
       return;
     }
-    Alert.alert(
-      "Descartar treino?",
-      "Voce tem alteracoes nao salvas.",
-      [
-        { text: "Continuar editando", style: "cancel" },
-        {
-          text: "Descartar",
-          style: "destructive",
-          onPress: () => {
-            setShowForm(false);
-            setEditingId(null);
-            setEditingCreatedAt(null);
-            setEditingTemplateId(null);
-            setEditingTemplateCreatedAt(null);
-            setFormMode("plan");
-            setTitle("");
-            setTagsText("");
-            setWarmup("");
-            setMain("");
-            setCooldown("");
-            setWarmupTime("");
-            setMainTime("");
-            setCooldownTime("");
-          },
-        },
-      ]
-    );
+    confirmDialog({
+      title: "Sair sem salvar?",
+      message: "Voce tem alteracoes nao salvas.",
+      confirmLabel: "Descartar",
+      cancelLabel: "Continuar",
+      onConfirm: () => {
+        setShowForm(false);
+        setEditingId(null);
+        setEditingCreatedAt(null);
+        setEditingTemplateId(null);
+        setEditingTemplateCreatedAt(null);
+        setFormMode("plan");
+        setTitle("");
+        setTagsText("");
+        setWarmup("");
+        setMain("");
+        setCooldown("");
+        setWarmupTime("");
+        setMainTime("");
+        setCooldownTime("");
+      },
+    });
   };
 
   const scrollToForm = () => {
@@ -822,6 +1406,51 @@ export default function TrainingList() {
     scrollToForm();
     setScrollRequested(false);
   }, [formY, showForm, scrollRequested]);
+
+  useEffect(() => {
+    if (!openForm) return;
+    setEditingId(null);
+    setEditingCreatedAt(null);
+    setEditingTemplateId(null);
+    setEditingTemplateCreatedAt(null);
+    setFormMode("plan");
+    setTitle("");
+    setTagsText("");
+    setWarmup("");
+    setMain("");
+    setCooldown("");
+    setWarmupTime("");
+    setMainTime("");
+    setCooldownTime("");
+    setShowForm(true);
+    setScrollRequested(true);
+    if (targetClassId) {
+      setClassId(targetClassId);
+    }
+  }, [openForm, targetClassId, setShowForm]);
+
+  useEffect(() => {
+    if (!pendingPlanCreate) return;
+    setEditingId(null);
+    setEditingCreatedAt(null);
+    setEditingTemplateId(null);
+    setEditingTemplateCreatedAt(null);
+    setFormMode("plan");
+    setTitle("");
+    setTagsText("");
+    setWarmup("");
+    setMain("");
+    setCooldown("");
+    setWarmupTime("");
+    setMainTime("");
+    setCooldownTime("");
+    setShowForm(true);
+    setScrollRequested(true);
+    if (pendingPlanCreate.classId) {
+      setClassId(pendingPlanCreate.classId);
+    }
+    setPendingPlanCreate(null);
+  }, [pendingPlanCreate, setPendingPlanCreate, setShowForm]);
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
@@ -844,26 +1473,400 @@ export default function TrainingList() {
         </View>
 
         <View
-          style={{
-            gap: 10,
-            padding: 14,
-            borderRadius: 18,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 3,
-          }}
+          onLayout={(event) => setFormY(event.nativeEvent.layout.y)}
+          style={[
+            getSectionCardStyle(colors, "success"),
+            { borderRadius: 20, borderLeftWidth: 3, borderLeftColor: "#ffffff" },
+          ]}
         >
+          <Pressable
+            onPress={() =>
+              showForm
+                ? confirmCloseForm()
+                : (() => {
+                    setEditingId(null);
+                    setEditingCreatedAt(null);
+                    setEditingTemplateId(null);
+                    setEditingTemplateCreatedAt(null);
+                    setFormMode("plan");
+                    setClassId("");
+                    setTitle("");
+                    setTagsText("");
+                    setWarmup("");
+                    setMain("");
+                    setCooldown("");
+                    setWarmupTime("");
+                    setMainTime("");
+                    setCooldownTime("");
+                    setShowForm(true);
+                  })()
+            }
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              backgroundColor: showForm ? colors.secondaryBg : colors.primaryBg,
+              borderWidth: showForm ? 1 : 0,
+              borderColor: colors.border,
+            }}
+          >
+            <View style={{ gap: 4 }}>
+              <Text
+                style={{
+                  color: showForm ? colors.text : colors.primaryText,
+                  fontWeight: "700",
+                  fontSize: 16,
+                }}
+              >
+                {showForm ? "Fechar plano de aula" : "Criar plano de aula"}
+              </Text>
+              <Text style={{ color: showForm ? colors.muted : colors.primaryText, fontSize: 12 }}>
+                {showForm ? "Ocultar formulario" : "Criar e salvar plano de aula"}
+              </Text>
+            </View>
+          </Pressable>
+          {showFormContent ? (
+            <Animated.View
+              style={[formAnimStyle, { gap: 10 }]}
+            >
+          <Text style={{ color: colors.muted }}>Selecione a turma</Text>
+          {showAllClasses ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {sortedClasses.map((item) => {
+                const active = item.id === classId;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() =>
+                      setClassId((prev) => (prev === item.id ? "" : item.id))
+                    }
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {sortedClasses.slice(0, 5).map((item) => {
+                  const active = item.id === classId;
+                  return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() =>
+                      setClassId((prev) => (prev === item.id ? "" : item.id))
+                    }
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                        borderRadius: 10,
+                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                        {item.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          )}
+          {sortedClasses.length > 5 ? (
+            <Pressable
+              onPress={() => {
+                animateLayout();
+                setShowAllClasses((prev) => !prev);
+              }}
+              style={{ alignSelf: "flex-start", paddingVertical: 4 }}
+            >
+              <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
+                {showAllClasses ? "Ver menos turmas" : "Ver mais turmas"}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <TextInput
+            placeholder="Titulo do treino"
+            value={title}
+            onChangeText={setTitle}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 10,
+              borderRadius: 10,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Tags (opcional, separe por virgula)"
+            value={tagsText}
+            onChangeText={setTagsText}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 10,
+              borderRadius: 10,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          {suggestions.length > 0 && hasFormContent ? (
+            <>
+              <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {suggestions.map((tag) => (
+                    <Pressable
+                      key={tag}
+                      onPress={() =>
+                        setTagsText((prev) =>
+                          prev.trim()
+                            ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
+                            : tag
+                        )
+                      }
+                      style={{
+                        paddingVertical: 4,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text }}>{tag}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </>
+          ) : null}
+          {hasFormContent ? (
+            (() => {
+              const selectedAgeBand =
+                classes.find((item) => item.id === classId)?.ageBand ||
+                templateAgeBand;
+              const tips = getMethodologyTips(selectedAgeBand);
+              if (!tips.length) return null;
+              return (
+                <View
+                  style={{
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    gap: 6,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Dicas da faixa etaria
+                  </Text>
+                  {tips.map((tip) => (
+                    <Text key={tip} style={{ color: colors.muted, fontSize: 12 }}>
+                      {"- " + tip}
+                    </Text>
+                  ))}
+                </View>
+              );
+            })()
+          ) : null}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <TextInput
+              placeholder="Aquecimento (1 por linha)"
+              value={warmup}
+              onChangeText={setWarmup}
+              multiline
+              placeholderTextColor={colors.placeholder}
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 8,
+                paddingVertical: 14,
+                borderRadius: 10,
+                minHeight: 60,
+                backgroundColor: colors.inputBg,
+                textAlignVertical: "center",
+                color: colors.inputText,
+              }}
+            />
+            <TextInput
+              placeholder="Tempo (ex: 10')"
+              value={warmupTime}
+              onChangeText={setWarmupTime}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                width: 110,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 10,
+                borderRadius: 10,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          </View>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <TextInput
+              placeholder="Parte principal (1 por linha)"
+              value={main}
+              onChangeText={setMain}
+              multiline
+              placeholderTextColor={colors.placeholder}
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 8,
+                paddingVertical: 20,
+                borderRadius: 10,
+                minHeight: 80,
+                backgroundColor: colors.inputBg,
+                textAlignVertical: "center",
+                color: colors.inputText,
+              }}
+            />
+            <TextInput
+              placeholder="Tempo (ex: 40')"
+              value={mainTime}
+              onChangeText={setMainTime}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                width: 110,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 10,
+                borderRadius: 10,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          </View>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <TextInput
+              placeholder="Volta a calma (1 por linha)"
+              value={cooldown}
+              onChangeText={setCooldown}
+              multiline
+              placeholderTextColor={colors.placeholder}
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 8,
+                paddingVertical: 14,
+                borderRadius: 10,
+                minHeight: 60,
+                backgroundColor: colors.inputBg,
+                textAlignVertical: "center",
+                color: colors.inputText,
+              }}
+            />
+            <TextInput
+              placeholder="Tempo (ex: 5')"
+              value={cooldownTime}
+              onChangeText={setCooldownTime}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                width: 110,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 10,
+                borderRadius: 10,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          </View>
+          <Pressable
+            onPress={formMode === "template" ? saveTemplate : savePlan}
+            disabled={!hasFormContent}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: hasFormContent
+                ? colors.primaryBg
+                : colors.primaryDisabledBg,
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: hasFormContent ? colors.primaryText : colors.secondaryText,
+                fontWeight: "700",
+              }}
+            >
+              {formMode === "template"
+                ? "Salvar modelo"
+                : editingId
+                  ? "Salvar alteracoes"
+                  : "Salvar treino"}
+            </Text>
+          </Pressable>
+          {editingId ? (
+            <Button
+              label="Cancelar edicao"
+              variant="secondary"
+              onPress={() => {
+                setEditingId(null);
+                setEditingCreatedAt(null);
+                setEditingTemplateId(null);
+                setEditingTemplateCreatedAt(null);
+                setFormMode("plan");
+                setTitle("");
+                setWarmup("");
+                setMain("");
+                setCooldown("");
+                setWarmupTime("");
+                setMainTime("");
+                setCooldownTime("");
+                setShowForm(false);
+              }}
+            />
+              ) : null}
+            </Animated.View>
+          ) : null}
+        </View>
+
+        <View style={getSectionCardStyle(colors, "info")}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Modelos prontos
           </Text>
           <Text style={{ color: colors.muted }}>Escolha a faixa etaria</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={() => setTemplateAgeBand("")}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 8,
+                  borderRadius: 8,
+                  backgroundColor: templateAgeBand
+                    ? colors.secondaryBg
+                    : colors.primaryBg,
+                }}
+              >
+                <Text
+                  style={{
+                    color: templateAgeBand ? colors.text : colors.primaryText,
+                    fontSize: 12,
+                  }}
+                >
+                  Todas
+                </Text>
+              </Pressable>
               {ageBands.map((band) => {
                 const active = band === templateAgeBand;
                 return (
@@ -888,28 +1891,37 @@ export default function TrainingList() {
           <Pressable
             onPress={() => {
               if (!templates.length) return;
+              animateLayout();
               setShowTemplates((prev) => !prev);
             }}
             style={{
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 10,
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderRadius: 14,
               backgroundColor: templates.length ? colors.primaryBg : colors.secondaryBg,
+              alignItems: "center",
             }}
           >
             <Text
               style={{
                 color: templates.length ? colors.primaryText : colors.text,
                 fontWeight: "700",
-                fontSize: 12,
+                fontSize: 14,
               }}
             >
               {showTemplates ? "Esconder modelos" : "Abrir modelos"} (
               {templates.length})
             </Text>
           </Pressable>
-            {showTemplates ? (
-              <View style={{ gap: 8 }}>
+            {showTemplatesContent ? (
+              <Animated.View
+                style={templatesAnimStyle}
+              >
+                <ScrollView
+                  style={{ maxHeight: 280 }}
+                  contentContainerStyle={{ gap: 8 }}
+                  nestedScrollEnabled
+                >
                 {templates.length ? (
                   <>
                     <Text style={{ color: colors.muted }}>Para a faixa selecionada</Text>
@@ -924,7 +1936,10 @@ export default function TrainingList() {
                             borderColor: colors.border,
                           }}
                         >
-                          <Pressable onPress={() => openTemplateEditor(template)}>
+                          <Pressable
+                            onLongPress={() => openTemplateEditor(template)}
+                            delayLongPress={250}
+                          >
                             <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
                               {template.title}
                             </Text>
@@ -937,18 +1952,19 @@ export default function TrainingList() {
                                 : "Fonte: Modelo criado"}
                             </Text>
                           </Pressable>
-                          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                             <Pressable
                               onPress={() => useTemplateAsPlan(template)}
                               style={{
-                                paddingVertical: 4,
-                                paddingHorizontal: 10,
-                                borderRadius: 999,
-                                backgroundColor: "#2563eb",
+                                flex: 1,
+                                paddingVertical: 8,
+                                borderRadius: 12,
+                                backgroundColor: colors.primaryBg,
+                                alignItems: "center",
                               }}
                             >
                               <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                                Usar
+                                Usar modelo
                               </Text>
                             </Pressable>
                             {template.source === "custom" ? (
@@ -958,9 +1974,9 @@ export default function TrainingList() {
                                   setRenameTemplateText(template.title);
                                 }}
                                 style={{
-                                  paddingVertical: 4,
-                                  paddingHorizontal: 10,
-                                  borderRadius: 999,
+                                  paddingVertical: 8,
+                                  paddingHorizontal: 12,
+                                  borderRadius: 12,
                                   backgroundColor: colors.secondaryBg,
                                   borderWidth: 1,
                                   borderColor: colors.border,
@@ -1051,310 +2067,41 @@ export default function TrainingList() {
                   Nenhum modelo para essa faixa etaria.
                 </Text>
               )}
-            </View>
+                </ScrollView>
+              </Animated.View>
           ) : null}
         </View>
 
-        <View
-          onLayout={(event) => setFormY(event.nativeEvent.layout.y)}
-          style={{
-            gap: 10,
-            padding: 14,
-            borderRadius: 20,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 3,
-          }}
-        >
+        <View style={getSectionCardStyle(colors, "warning")}>
           <Pressable
-            onPress={() =>
-              showForm ? confirmCloseForm() : setShowForm(true)
-            }
+            onPress={() => {
+              animateLayout();
+              setShowSavedPlans((prev) => !prev);
+            }}
             style={{
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              backgroundColor: showForm ? colors.secondaryBg : colors.primaryBg,
-              borderWidth: showForm ? 1 : 0,
-              borderColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
             }}
           >
-            <View style={{ gap: 4 }}>
-              <Text
-                style={{
-                  color: showForm ? colors.text : colors.primaryText,
-                  fontWeight: "700",
-                  fontSize: 16,
-                }}
-              >
-                {showForm ? "Fechar treino" : "+ Novo treino"}
-              </Text>
-              <Text style={{ color: showForm ? colors.muted : colors.primaryText, fontSize: 12 }}>
-                {showForm ? "Ocultar formulario" : "Criar e salvar treino"}
-              </Text>
-            </View>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              Treinos salvos
+            </Text>
           </Pressable>
-          {showForm ? (
-            <>
-          <Text style={{ color: colors.muted }}>Selecione a turma</Text>
-          {showAllClasses ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {classes.map((item) => {
-                const active = item.id === classId;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => setClassId(item.id)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                      {item.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {classes.slice(0, 5).map((item) => {
-                  const active = item.id === classId;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => setClassId(item.id)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                        {item.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-          )}
-          {classes.length > 5 ? (
-            <Pressable
-              onPress={() => setShowAllClasses((prev) => !prev)}
-              style={{ alignSelf: "flex-start", paddingVertical: 4 }}
-            >
-              <Text style={{ color: "#2563eb", fontWeight: "700" }}>
-                {showAllClasses ? "Ver menos turmas" : "Ver mais turmas"}
-              </Text>
-            </Pressable>
-          ) : null}
 
-          <TextInput
-            placeholder="Titulo do treino"
-            value={title}
-            onChangeText={setTitle}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <TextInput
-            placeholder="Tags (separe por virgula)"
-            value={tagsText}
-            onChangeText={setTagsText}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          {suggestions.length > 0 ? (
-            <>
-              <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {suggestions.map((tag) => (
-                    <Pressable
-                      key={tag}
-                      onPress={() =>
-                        setTagsText((prev) =>
-                          prev.trim()
-                            ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
-                            : tag
-                        )
-                      }
-                      style={{
-                        paddingVertical: 4,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text }}>{tag}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </>
-          ) : null}
-          <TextInput
-            placeholder="Aquecimento (1 por linha)"
-            value={warmup}
-            onChangeText={setWarmup}
-            multiline
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-              minHeight: 60,
-            }}
-          />
-          <TextInput
-            placeholder="Tempo do aquecimento (ex: 10')"
-            value={warmupTime}
-            onChangeText={setWarmupTime}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-            }}
-          />
-          <TextInput
-            placeholder="Parte principal (1 por linha)"
-            value={main}
-            onChangeText={setMain}
-            multiline
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-              minHeight: 80,
-            }}
-          />
-          <TextInput
-            placeholder="Tempo da parte principal (ex: 40')"
-            value={mainTime}
-            onChangeText={setMainTime}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-            }}
-          />
-          <TextInput
-            placeholder="Volta a calma (1 por linha)"
-            value={cooldown}
-            onChangeText={setCooldown}
-            multiline
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-              minHeight: 60,
-            }}
-          />
-          <TextInput
-            placeholder="Tempo da volta a calma (ex: 5')"
-            value={cooldownTime}
-            onChangeText={setCooldownTime}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 8,
-              borderRadius: 10,
-            }}
-          />
-          {formMode !== "template" ? (
-            <Pressable
-              onPress={saveCurrentAsTemplate}
-              style={{
-                paddingVertical: 8,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Salvar como modelo
-              </Text>
-            </Pressable>
-          ) : null}
-          <View style={{ height: 64 }} />
-          {editingId ? (
-            <Button
-              label="Cancelar edicao"
-              variant="secondary"
-              onPress={() => {
-                setEditingId(null);
-                setEditingCreatedAt(null);
-                setEditingTemplateId(null);
-                setEditingTemplateCreatedAt(null);
-                setFormMode("plan");
-                setTitle("");
-                setWarmup("");
-                setMain("");
-                setCooldown("");
-                setWarmupTime("");
-                setMainTime("");
-                setCooldownTime("");
-                setShowForm(false);
-              }}
-            />
-          ) : null}
-            </>
-          ) : null}
-        </View>
-
-        <View
-          style={{
-            gap: 10,
-            padding: 14,
-            borderRadius: 18,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 5 },
-            elevation: 2,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Treinos salvos
-          </Text>
-
-          {filteredItems
+          {showSavedPlansContent ? (
+            <Animated.View style={savedPlansAnimStyle}>
+              {filteredItems
             .slice()
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map((item) => (
-              <View
+              <Pressable
                 key={item.id}
+                onLongPress={() => {
+                  setActionPlan(item);
+                  setShowPlanActions(true);
+                }}
                 style={{
                   gap: 8,
                   padding: 12,
@@ -1387,22 +2134,6 @@ export default function TrainingList() {
                 </View>
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
-                    onPress={() => setSelectedPlan(item)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      Ver planejamento
-                    </Text>
-                  </Pressable>
-                  <Pressable
                     onPress={() => {
                       setApplyPlan(item);
                       setShowApplyModal(true);
@@ -1419,209 +2150,291 @@ export default function TrainingList() {
                       Aplicar treino
                     </Text>
                   </Pressable>
+                  <Pressable
+                    onPress={() => setSelectedPlan(item)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      Ver planejamento
+                    </Text>
+                  </Pressable>
                 </View>
-              </View>
+              </Pressable>
             ))}
+            </Animated.View>
+          ) : null}
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
-      {showForm && hasFormContent ? (
-        <View
-          style={{
-            position: "absolute",
-            left: 16,
-            right: 16,
-            bottom: 16,
-            backgroundColor: "#2563eb",
-            borderRadius: 16,
-            paddingVertical: 12,
-            alignItems: "center",
+      <ModalSheet
+        visible={showTemplateEditor}
+        onClose={requestCloseTemplateEditor}
+        cardStyle={[templateEditorCardStyle, { paddingBottom: 12 }]}
+        position="center"
+      >
+        <ConfirmCloseOverlay
+          visible={showTemplateCloseConfirm}
+          onCancel={() => setShowTemplateCloseConfirm(false)}
+          onConfirm={() => {
+            setShowTemplateCloseConfirm(false);
+            closeTemplateEditor();
           }}
-        >
+        />
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            Editar modelo
+          </Text>
           <Pressable
-            onPress={formMode === "template" ? saveTemplate : savePlan}
-            style={{ width: "100%" }}
+            onPress={requestCloseTemplateEditor}
+            style={{
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
+            }}
           >
             <Text
-              style={{
-                color: colors.primaryText,
-                fontWeight: "700",
-                textAlign: "center",
-                fontSize: 16,
-              }}
+              style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
             >
-              {formMode === "template"
-                ? "Salvar modelo"
-                : editingId
-                  ? "Salvar alteracoes"
-                  : "Salvar treino"}
+              Fechar
             </Text>
           </Pressable>
         </View>
-      ) : null}
-      <Modal
-        visible={showTemplateEditor}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowTemplateEditor(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            justifyContent: "flex-end",
+        <ScrollView
+          contentContainerStyle={{
+            gap: 10,
+            paddingVertical: 10,
+            paddingBottom:
+              templateEditorComposerHeight +
+              templateEditorKeyboardHeight +
+              12,
           }}
+          style={{ maxHeight: "94%" }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
         >
-          <View
-            style={{
-              maxHeight: "90%",
-              backgroundColor: colors.card,
-              padding: 12,
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-                Editar modelo
-              </Text>
-              <Pressable
-                onPress={() => setShowTemplateEditor(false)}
-                style={{
-                  height: 32,
-                  paddingHorizontal: 12,
-                  borderRadius: 16,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text
-                  style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
-                >
-                  Fechar
-                </Text>
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={{ gap: 8, paddingVertical: 10 }}>
               <TextInput
                 placeholder="Titulo do modelo"
                 value={templateTitle}
                 onChangeText={setTemplateTitle}
+                placeholderTextColor={colors.placeholder}
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  padding: 8,
+                  padding: 10,
                   borderRadius: 10,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
                 }}
               />
               <TextInput
                 placeholder="Faixa etaria (ex: 10-12)"
                 value={templateAge}
                 onChangeText={setTemplateAge}
+                placeholderTextColor={colors.placeholder}
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  padding: 8,
+                  padding: 10,
                   borderRadius: 10,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
                 }}
               />
               <TextInput
-                placeholder="Tags (separe por virgula)"
+                placeholder="Tags (opcional, separe por virgula)"
                 value={templateTags}
                 onChangeText={setTemplateTags}
+                placeholderTextColor={colors.placeholder}
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  padding: 8,
+                  padding: 10,
                   borderRadius: 10,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
                 }}
               />
-              <TextInput
-                placeholder="Aquecimento (1 por linha)"
-                value={templateWarmup}
-                onChangeText={setTemplateWarmup}
-                multiline
+              {templateSuggestions.length > 0 && hasTemplateContent ? (
+                <>
+                  <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {templateSuggestions.map((tag) => (
+                        <Pressable
+                          key={tag}
+                          onPress={() =>
+                            setTemplateTags((prev) =>
+                              prev.trim()
+                                ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
+                                : tag
+                            )
+                          }
+                          style={{
+                            paddingVertical: 4,
+                            paddingHorizontal: 10,
+                            borderRadius: 999,
+                            backgroundColor: colors.secondaryBg,
+                          }}
+                        >
+                          <Text style={{ color: colors.text }}>{tag}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              ) : null}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TextInput
+                  placeholder="Aquecimento (1 por linha)"
+                  value={templateWarmup}
+                  onChangeText={setTemplateWarmup}
+                  multiline
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    paddingHorizontal: 8,
+                    paddingVertical: 14,
+                    borderRadius: 10,
+                    minHeight: 60,
+                    backgroundColor: colors.inputBg,
+                    textAlignVertical: "center",
+                    color: colors.inputText,
+                  }}
+                />
+                <TextInput
+                  placeholder="Tempo (ex: 10')"
+                  value={templateWarmupTime}
+                  onChangeText={setTemplateWarmupTime}
+                  placeholderTextColor={colors.placeholder}
                 style={{
+                  width: 110,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  padding: 8,
+                  padding: 10,
                   borderRadius: 10,
-                  minHeight: 60,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
                 }}
               />
-              <TextInput
-                placeholder="Tempo do aquecimento (ex: 10')"
-                value={templateWarmupTime}
-                onChangeText={setTemplateWarmupTime}
+              </View>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TextInput
+                  placeholder="Parte principal (1 por linha)"
+                  value={templateMain}
+                  onChangeText={setTemplateMain}
+                  multiline
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    paddingHorizontal: 8,
+                    paddingVertical: 20,
+                    borderRadius: 10,
+                    minHeight: 80,
+                    backgroundColor: colors.inputBg,
+                    textAlignVertical: "center",
+                    color: colors.inputText,
+                  }}
+                />
+                <TextInput
+                  placeholder="Tempo (ex: 40')"
+                  value={templateMainTime}
+                  onChangeText={setTemplateMainTime}
+                  placeholderTextColor={colors.placeholder}
                 style={{
+                  width: 110,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  padding: 8,
+                  padding: 10,
                   borderRadius: 10,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
                 }}
               />
-              <TextInput
-                placeholder="Parte principal (1 por linha)"
-                value={templateMain}
-                onChangeText={setTemplateMain}
-                multiline
+              </View>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TextInput
+                  placeholder="Volta a calma (1 por linha)"
+                  value={templateCooldown}
+                  onChangeText={setTemplateCooldown}
+                  multiline
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    paddingHorizontal: 8,
+                    paddingVertical: 14,
+                    borderRadius: 10,
+                    minHeight: 60,
+                    backgroundColor: colors.inputBg,
+                    textAlignVertical: "center",
+                    color: colors.inputText,
+                  }}
+                />
+                <TextInput
+                  placeholder="Tempo (ex: 5')"
+                  value={templateCooldownTime}
+                  onChangeText={setTemplateCooldownTime}
+                  placeholderTextColor={colors.placeholder}
                 style={{
+                  width: 110,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  padding: 8,
+                  padding: 10,
                   borderRadius: 10,
-                  minHeight: 80,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
                 }}
               />
-              <TextInput
-                placeholder="Tempo da parte principal (ex: 40')"
-                value={templateMainTime}
-                onChangeText={setTemplateMainTime}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 8,
-                  borderRadius: 10,
-                }}
-              />
-              <TextInput
-                placeholder="Volta a calma (1 por linha)"
-                value={templateCooldown}
-                onChangeText={setTemplateCooldown}
-                multiline
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 8,
-                  borderRadius: 10,
-                  minHeight: 60,
-                }}
-              />
-              <TextInput
-                placeholder="Tempo da volta a calma (ex: 5')"
-                value={templateCooldownTime}
-                onChangeText={setTemplateCooldownTime}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 8,
-                  borderRadius: 10,
-                }}
-              />
-              <Pressable
-                onPress={saveTemplateEditor}
-                style={{
-                  paddingVertical: 10,
-                  borderRadius: 14,
-                  backgroundColor: colors.primaryBg,
-                  alignItems: "center",
+              </View>
+              <View
+                onLayout={(event) => {
+                  const next = Math.round(event.nativeEvent.layout.height);
+                  if (next !== templateEditorComposerHeight) {
+                    setTemplateEditorComposerHeight(next);
+                  }
                 }}
               >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  Salvar modelo
-                </Text>
-              </Pressable>
+                <Pressable
+                  onPress={saveTemplateEditor}
+                  disabled={!isTemplateEditorDirty}
+                  style={{
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    backgroundColor: isTemplateEditorDirty
+                      ? colors.primaryBg
+                      : colors.primaryDisabledBg,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: isTemplateEditorDirty
+                        ? colors.primaryText
+                        : colors.secondaryText,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Salvar modelo
+                  </Text>
+                </Pressable>
+              </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
                   onPress={duplicateTemplateFromEditor}
@@ -1646,7 +2459,7 @@ export default function TrainingList() {
                       templateEditorTemplateId,
                       templateEditorSource
                     );
-                    setShowTemplateEditor(false);
+                    closeTemplateEditor();
                     setTemplateEditorTemplateId(null);
                     setTemplateEditorSource("custom");
                   }}
@@ -1654,75 +2467,61 @@ export default function TrainingList() {
                     flex: 1,
                     paddingVertical: 10,
                     borderRadius: 12,
-                    backgroundColor: "#fee2e2",
+                    backgroundColor: colors.dangerBg,
                     borderWidth: 1,
-                    borderColor: "#fecaca",
+                    borderColor: colors.dangerBorder,
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ color: "#991b1b", fontWeight: "700" }}>
+                  <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
                     Excluir modelo
                   </Text>
                 </Pressable>
               </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-      <Modal
+        </ScrollView>
+      </ModalSheet>
+      <ModalSheet
         visible={Boolean(selectedPlan)}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          setSelectedPlan(null);
-        }}
+        onClose={() => setSelectedPlan(null)}
+        cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
+        position="center"
       >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <View
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <View style={{ gap: 4, paddingRight: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+              {selectedPlan?.title}
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              {selectedPlan ? getClassName(selectedPlan.classId) : ""}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              setSelectedPlan(null);
+            }}
             style={{
-              maxHeight: "90%",
-              backgroundColor: colors.card,
-              padding: 12,
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
             }}
           >
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <View style={{ gap: 4, paddingRight: 12 }}>
-                <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-                  {selectedPlan?.title}
-                </Text>
-                <Text style={{ color: colors.muted }}>
-                  {selectedPlan ? getClassName(selectedPlan.classId) : ""}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  setSelectedPlan(null);
-                }}
-                style={{
-                  height: 32,
-                  paddingHorizontal: 12,
-                  borderRadius: 16,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text
-                  style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
-                >
-                  Fechar
-                </Text>
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={{ gap: 8, paddingVertical: 10 }}>
+            <Text
+              style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
+            >
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
+          style={{ maxHeight: "94%" }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
               <View
                 style={{
                   padding: 10,
@@ -1802,441 +2601,345 @@ export default function TrainingList() {
                   ))}
                 </View>
               ) : null}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-      <Modal
+        </ScrollView>
+      </ModalSheet>
+      <ModalSheet
         visible={showApplyModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => {
-          setShowApplyModal(false);
-          setApplyPlan(null);
-          setShowApplyCalendar(false);
-        }}
+        onClose={requestCloseApplyModal}
+        cardStyle={[applyModalCardStyle, { paddingBottom: 12 }]}
+        position="center"
       >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            justifyContent: "flex-end",
+        <ConfirmCloseOverlay
+          visible={showApplyCloseConfirm}
+          onCancel={() => setShowApplyCloseConfirm(false)}
+          onConfirm={() => {
+            setShowApplyCloseConfirm(false);
+            closeApplyModal();
           }}
-        >
-          <View
+        />
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+            Aplicar treino
+          </Text>
+          <Pressable
+            onPress={requestCloseApplyModal}
             style={{
-              maxHeight: "70%",
-              backgroundColor: colors.card,
-              padding: 12,
-              borderTopLeftRadius: 18,
-              borderTopRightRadius: 18,
-              gap: 10,
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-                Aplicar treino
-              </Text>
-              <Pressable
-                onPress={() => {
-                  setShowApplyModal(false);
-                  setApplyPlan(null);
-                  setShowApplyCalendar(false);
-                }}
-                style={{
-                  height: 32,
-                  paddingHorizontal: 12,
-                  borderRadius: 16,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text
-                  style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
-                >
-                  Fechar
-                </Text>
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={{ gap: 8 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 6 }}>
-                  {unitOptions.map((unit) => {
-                    const active = applyUnit === unit;
-                    return (
-                      <Pressable
-                        key={unit}
-                        onPress={() => setApplyUnit(unit)}
-                        style={{
-                          paddingVertical: 4,
-                          paddingHorizontal: 8,
-                          borderRadius: 999,
-                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        }}
-                      >
-                        <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                          {unit}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 6 }}>
-                  {classOptionsForUnit.map((item) => {
-                    const active = applyClassId === item.id;
-                    return (
-                      <Pressable
-                        key={item.id}
-                        onPress={() => setApplyClassId(item.id)}
-                        style={{
-                          paddingVertical: 4,
-                          paddingHorizontal: 8,
-                          borderRadius: 999,
-                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        }}
-                      >
-                        <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                          {item.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Dias da semana</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {weekdays.map((day) => {
-                  const active = applyDays.includes(day.id);
-                  return (
-                    <Pressable
-                      key={day.id}
-                      onPress={() =>
-                        setApplyDays((prev) =>
-                          prev.includes(day.id)
-                            ? prev.filter((value) => value !== day.id)
-                            : [...prev, day.id].sort((a, b) => a - b)
-                        )
-                      }
-                      style={{
-                        paddingVertical: 4,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                        {day.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Data especifica</Text>
-              <Pressable
-                onPress={() => setShowApplyCalendar(true)}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.inputBg,
-                }}
-              >
-                <Text style={{ color: applyDate ? colors.text : colors.muted }}>
-                  {applyDate ? formatShortDate(applyDate) : "Selecione a data"}
-                </Text>
-              </Pressable>
-            </ScrollView>
-            <Pressable
-              onPress={async () => {
-                if (!applyPlan || !applyClassId) return;
-                if (!applyDays.length) {
-                  Alert.alert(
-                    "Selecione os dias",
-                    "Escolha pelo menos um dia da semana."
-                  );
-                  return;
-                }
-                if (!applyDate) {
-                  Alert.alert(
-                    "Informe a data",
-                    "Digite a data especifica do treino."
-                  );
-                  return;
-                }
-                if (Number.isNaN(new Date(applyDate).getTime())) {
-                  Alert.alert(
-                    "Data invalida",
-                    "Escolha uma data valida."
-                  );
-                  return;
-                }
-                const updated: TrainingPlan = {
-                  ...applyPlan,
-                  classId: applyClassId,
-                  applyDays,
-                  applyDate,
-                };
-                await updateTrainingPlan(updated);
-                await reload();
-                setShowApplyModal(false);
-                setApplyPlan(null);
-              }}
-              style={{
-                paddingVertical: 10,
-                borderRadius: 12,
-                backgroundColor: colors.primaryBg,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                Aplicar nessa turma
-              </Text>
-            </Pressable>
-            <View style={{ gap: 8 }}>
-              <Pressable
-                onPress={() => {
-                  if (!applyPlan) return;
-                  onEdit(applyPlan);
-                  setShowApplyModal(false);
-                  setApplyPlan(null);
-                }}
-                style={{
-                  paddingVertical: 9,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Editar treino
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={async () => {
-                  if (!applyPlan) return;
-                  await savePlanAsTemplate(applyPlan);
-                }}
-                style={{
-                  paddingVertical: 9,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Salvar como modelo
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (!applyPlan) return;
-                  useTemplateAsPlan({
-                    id: "dup_" + Date.now(),
-                    title: applyPlan.title + " (copia)",
-                    tags: applyPlan.tags ?? [],
-                    warmup: applyPlan.warmup ?? [],
-                    main: applyPlan.main ?? [],
-                    cooldown: applyPlan.cooldown ?? [],
-                    warmupTime: applyPlan.warmupTime ?? "",
-                    mainTime: applyPlan.mainTime ?? "",
-                    cooldownTime: applyPlan.cooldownTime ?? "",
-                    ageBands: ["8-9", "10-12", "13-15", "16-18"],
-                    source: "custom",
-                  });
-                  setShowApplyModal(false);
-                  setApplyPlan(null);
-                }}
-                style={{
-                  paddingVertical: 9,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Duplicar
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (!applyPlan) return;
-                  onDelete(applyPlan.id);
-                  setShowApplyModal(false);
-                  setApplyPlan(null);
-                }}
-                style={{
-                  paddingVertical: 9,
-                  borderRadius: 12,
-                  backgroundColor: "#fee2e2",
-                  borderWidth: 1,
-                  borderColor: "#fecaca",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#991b1b", fontWeight: "700" }}>
-                  Excluir treino
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      <Modal
-        visible={showApplyCalendar}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setShowApplyCalendar(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-        >
-          <View
-            style={{
-              width: "100%",
-              maxWidth: 360,
-              backgroundColor: colors.card,
+              height: 32,
+              paddingHorizontal: 12,
               borderRadius: 16,
-              padding: 12,
-              gap: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
             }}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
+            <Text
+              style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
             >
-              <Pressable
-                onPress={() =>
-                  setApplyCalendarMonth(
-                    (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-                  )
-                }
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 8,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ fontWeight: "700" }}>{"<"}</Text>
-              </Pressable>
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                {monthNames[applyCalendarMonth.getMonth()]}{" "}
-                {applyCalendarMonth.getFullYear()}
-              </Text>
-              <Pressable
-                onPress={() =>
-                  setApplyCalendarMonth(
-                    (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-                  )
-                }
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 8,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ fontWeight: "700" }}>{">"}</Text>
-              </Pressable>
-            </View>
-            <View style={{ flexDirection: "row" }}>
-              {dayLabels.map((label) => (
-                <Text
-                  key={label}
-                  style={{
-                    width: "14.2857%",
-                    textAlign: "center",
-                    fontSize: 12,
-                    color: colors.muted,
-                  }}
-                >
-                  {label}
-                </Text>
-              ))}
-            </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-              {applyCalendarDays.map((cell, index) => {
-                const isSelected =
-                  cell.date && formatIsoDate(cell.date) === applyDate;
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ gap: 10 }}
+          style={{ maxHeight: "94%" }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {unitOptions.map((unit) => {
+                const active = applyUnit === unit;
                 return (
                   <Pressable
-                    key={`${cell.date?.toISOString() ?? "empty"}_${index}`}
-                    disabled={!cell.date}
-                    onPress={() => {
-                      if (!cell.date) return;
-                      setApplyDate(formatIsoDate(cell.date));
-                      setShowApplyCalendar(false);
-                    }}
+                    key={unit}
+                    onPress={() => setApplyUnit(unit)}
                     style={{
-                      width: "14.2857%",
-                      height: 32,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 4,
-                      borderRadius: 16,
-                      backgroundColor: isSelected ? colors.primaryBg : "transparent",
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: cell.date
-                          ? isSelected
-                            ? colors.primaryText
-                            : colors.text
-                          : "transparent",
-                        fontSize: 12,
-                      }}
-                    >
-                      {cell.date ? cell.date.getDate() : ""}
+                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
+                      {unit}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-            <Pressable
-              onPress={() => setShowApplyCalendar(false)}
-              style={{
-                paddingVertical: 8,
-                borderRadius: 10,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
-            </Pressable>
+          </ScrollView>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {classOptionsForUnit.map((item) => {
+                const active = applyClassId === item.id;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() =>
+                      setApplyClassId((prev) =>
+                        prev === item.id ? "" : item.id
+                      )
+                    }
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
+                      {item.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Dias da semana</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {weekdays.map((day) => {
+              const active = applyDays.includes(day.id);
+              return (
+                <Pressable
+                  key={day.id}
+                  onPress={() =>
+                    setApplyDays((prev) =>
+                      prev.includes(day.id)
+                        ? prev.filter((value) => value !== day.id)
+                        : [...prev, day.id].sort((a, b) => a - b)
+                    )
+                  }
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
+                    {day.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Data especifica</Text>
+          <DateInput
+            value={applyDate}
+            onChange={setApplyDate}
+            placeholder="Selecione a data"
+            onOpenCalendar={() => setShowApplyCalendar(true)}
+          />
+        </ScrollView>
+        <Pressable
+          onPress={async () => {
+            if (!applyPlan || !applyClassId) return;
+            if (!applyDays.length) {
+              Alert.alert(
+                "Selecione os dias",
+                "Escolha pelo menos um dia da semana."
+              );
+              return;
+            }
+            if (!applyDate) {
+              Alert.alert(
+                "Informe a data",
+                "Digite a data especifica do treino."
+              );
+              return;
+            }
+            if (Number.isNaN(new Date(applyDate).getTime())) {
+              Alert.alert(
+                "Data invalida",
+                "Escolha uma data valida."
+              );
+              return;
+            }
+            if (isSameApply) {
+              closeApplyModal();
+              showSaveToast({
+                message: "Planejamento ja adicionado.",
+                actionLabel: "Ver aula do dia",
+                variant: "warning",
+                onAction: () => {
+                  router.push({
+                    pathname: "/class/[id]/session",
+                    params: { id: applyClassId, date: applyDate },
+                  });
+                },
+              });
+              return;
+            }
+            const updated: TrainingPlan = {
+              ...applyPlan,
+              classId: applyClassId,
+              applyDays,
+              applyDate,
+            };
+            await updateTrainingPlan(updated);
+            await createCalendarEvent(updated);
+            await reload();
+            closeApplyModal();
+            showSaveToast({
+              message: "Treino aplicado com sucesso.",
+              actionLabel: "Ver aula do dia",
+              variant: "success",
+              onAction: () => {
+                router.push({
+                  pathname: "/class/[id]/session",
+                  params: { id: applyClassId, date: applyDate },
+                });
+              },
+            });
+          }}
+          disabled={!canApply}
+          style={{
+            paddingVertical: 10,
+            borderRadius: 12,
+            backgroundColor: canApply
+              ? colors.primaryBg
+              : colors.primaryDisabledBg,
+            alignItems: "center",
+          }}
+        >
+          <Text
+            style={{
+              color: canApply ? colors.primaryText : colors.secondaryText,
+              fontWeight: "700",
+            }}
+          >
+            Aplicar nessa turma
+          </Text>
+        </Pressable>
+      </ModalSheet>
+      <ModalSheet
+        visible={showPlanActions}
+        onClose={() => {
+          setShowPlanActions(false);
+          setActionPlan(null);
+        }}
+        cardStyle={[planActionsCardStyle, { paddingBottom: 12 }]}
+        position="center"
+      >
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <View style={{ gap: 4, paddingRight: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+              {actionPlan?.title ?? "Treino"}
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              {actionPlan ? getClassName(actionPlan.classId) : ""}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              setShowPlanActions(false);
+              setActionPlan(null);
+            }}
+            style={{
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+              Fechar
+            </Text>
+          </Pressable>
         </View>
-      </Modal>
+        <View style={{ gap: 8 }}>
+          <Pressable
+            onPress={() => {
+              if (!actionPlan) return;
+              onEdit(actionPlan);
+              setShowPlanActions(false);
+              setActionPlan(null);
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.primaryBg,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+              Editar treino
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={async () => {
+              if (!actionPlan) return;
+              await savePlanAsTemplate(actionPlan);
+              setShowPlanActions(false);
+              setActionPlan(null);
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Salvar como modelo
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              if (!actionPlan) return;
+              duplicatePlan(actionPlan);
+              setShowPlanActions(false);
+              setActionPlan(null);
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Duplicar
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              if (!actionPlan) return;
+              onDelete(actionPlan);
+              setShowPlanActions(false);
+              setActionPlan(null);
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.dangerBg,
+              borderWidth: 1,
+              borderColor: colors.dangerBorder,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
+              Excluir treino
+            </Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+      <DatePickerModal
+        visible={showApplyCalendar}
+        value={applyDate}
+        onChange={setApplyDate}
+        onClose={() => setShowApplyCalendar(false)}
+        closeOnSelect
+      />
     </SafeAreaView>
   );
 }
-
-
-
-
-
-
-

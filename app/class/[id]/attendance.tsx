@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
 import {
+  useEffect,
+  useMemo,
+  useState } from "react";
+import {
+  Animated,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
+import { Pressable } from "../../../src/ui/Pressable";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -24,8 +28,13 @@ import type {
   Student,
 } from "../../../src/core/models";
 import { Button } from "../../../src/ui/Button";
+import { animateLayout } from "../../../src/ui/animate-layout";
+import { DatePickerModal } from "../../../src/ui/DatePickerModal";
+import { DateInput } from "../../../src/ui/DateInput";
+import { usePersistedState } from "../../../src/ui/use-persisted-state";
 import { Typography } from "../../../src/ui/Typography";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
@@ -34,43 +43,14 @@ const formatDate = (value: Date) => {
   return `${y}-${m}-${d}`;
 };
 
-const monthNames = [
-  "Janeiro",
-  "Fevereiro",
-  "Marco",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
 
-const dayLabels = ["D", "S", "T", "Q", "Q", "S", "S"];
-
-const getCalendarDays = (year: number, month: number) => {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: Array<{ date: Date | null }> = [];
-
-  for (let i = 0; i < 42; i += 1) {
-    const dayNumber = i - firstDay + 1;
-    if (dayNumber < 1 || dayNumber > daysInMonth) {
-      cells.push({ date: null });
-    } else {
-      cells.push({ date: new Date(year, month, dayNumber) });
-    }
-  }
-
-  return cells;
-};
 
 export default function AttendanceScreen() {
   const { colors } = useAppTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, date: dateParam } = useLocalSearchParams<{
+    id: string;
+    date?: string;
+  }>();
   const router = useRouter();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -80,10 +60,18 @@ export default function AttendanceScreen() {
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [historyFilter, setHistoryFilter] = useState("");
   const [csvPreview, setCsvPreview] = useState("");
-  const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
-  const [showHistory, setShowHistory] = useState(false);
+  const [expandedById, setExpandedById] = usePersistedState<
+    Record<string, boolean>
+  >(id ? `attendance_${id}_expanded_v1` : null, {});
+  const [showHistory, setShowHistory] = usePersistedState<boolean>(
+    id ? `attendance_${id}_show_history_v1` : null,
+    false
+  );
+  const {
+    animatedStyle: historyAnimStyle,
+    isVisible: showHistoryContent,
+  } = useCollapsibleAnimation(showHistory);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
 
   useEffect(() => {
     let alive = true;
@@ -103,6 +91,15 @@ export default function AttendanceScreen() {
   }, [id]);
 
   useEffect(() => {
+    if (!cls) return;
+    if (typeof dateParam !== "string") return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return;
+    const parsed = new Date(dateParam);
+    if (Number.isNaN(parsed.getTime())) return;
+    void loadDate(dateParam);
+  }, [cls, dateParam]);
+
+  useEffect(() => {
     const initial: Record<string, "presente" | "faltou" | undefined> = {};
     students.forEach((student) => {
       initial[student.id] = statusById[student.id];
@@ -120,11 +117,6 @@ export default function AttendanceScreen() {
     [students, statusById, noteById]
   );
 
-  const calendarDays = useMemo(() => {
-    const year = calendarMonth.getFullYear();
-    const month = calendarMonth.getMonth();
-    return getCalendarDays(year, month);
-  }, [calendarMonth]);
 
   const handleSave = async () => {
     if (!cls) return;
@@ -241,18 +233,12 @@ export default function AttendanceScreen() {
         <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
           Data da aula
         </Text>
-        <Pressable
-          onPress={() => setShowCalendar(true)}
-          style={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            padding: 12,
-            borderRadius: 14,
-            backgroundColor: colors.inputBg,
-          }}
-        >
-          <Text style={{ fontSize: 16, color: colors.text }}>{date}</Text>
-        </Pressable>
+        <DateInput
+          value={date}
+          onChange={setDate}
+          placeholder="Selecione a data"
+          onOpenCalendar={() => setShowCalendar(true)}
+        />
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
           <Button label="Carregar data" onPress={() => loadDate(date)} />
           {historyDates.length > 0 ? (
@@ -347,12 +333,13 @@ export default function AttendanceScreen() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() =>
+                  onPress={() => {
+                    animateLayout();
                     setExpandedById((prev) => ({
                       ...prev,
                       [item.student.id]: !prev[item.student.id],
-                    }))
-                  }
+                    }));
+                  }}
                   style={{
                     paddingVertical: 6,
                     paddingHorizontal: 10,
@@ -406,9 +393,13 @@ export default function AttendanceScreen() {
           <Button
             label={showHistory ? "Esconder historico" : "Mostrar historico"}
             variant="secondary"
-            onPress={() => setShowHistory((prev) => !prev)}
+            onPress={() => {
+              animateLayout();
+              setShowHistory((prev) => !prev);
+            }}
           />
-          {showHistory ? (
+          {showHistoryContent ? (
+            <Animated.View style={historyAnimStyle}>
             <View style={{ marginTop: 8 }}>
               <Typography variant="subtitle">Historico por data</Typography>
               <TextInput
@@ -456,157 +447,18 @@ export default function AttendanceScreen() {
                 </View>
               ) : null}
             </View>
+            </Animated.View>
           ) : null}
         </View>
       ) : null}
 
-      {showCalendar ? (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: colors.card,
-              borderRadius: 16,
-              padding: 12,
-              width: "100%",
-              maxWidth: 360,
-              gap: 10,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Pressable
-                onPress={() =>
-                  setCalendarMonth(
-                    new Date(
-                      calendarMonth.getFullYear(),
-                      calendarMonth.getMonth() - 1,
-                      1
-                    )
-                  )
-                }
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 8,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>{"<"}</Text>
-              </Pressable>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {monthNames[calendarMonth.getMonth()]}{" "}
-                {calendarMonth.getFullYear()}
-              </Text>
-              <Pressable
-                onPress={() =>
-                  setCalendarMonth(
-                    new Date(
-                      calendarMonth.getFullYear(),
-                      calendarMonth.getMonth() + 1,
-                      1
-                    )
-                  )
-                }
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 8,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>{">"}</Text>
-              </Pressable>
-            </View>
-
-            <View style={{ flexDirection: "row" }}>
-              {dayLabels.map((d) => (
-                <Text
-                  key={d}
-                  style={{
-                    width: "14.2857%",
-                    textAlign: "center",
-                    fontSize: 12,
-                    color: colors.muted,
-                  }}
-                >
-                  {d}
-                </Text>
-              ))}
-            </View>
-
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-              {calendarDays.map((cell, index) => {
-                const selected =
-                  cell.date && formatDate(cell.date) === date;
-                return (
-                  <Pressable
-                    key={index}
-                    disabled={!cell.date}
-                    onPress={() => {
-                      if (!cell.date) return;
-                      setDate(formatDate(cell.date));
-                      setShowCalendar(false);
-                    }}
-                    style={{
-                      width: "14.2857%",
-                      height: 32,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 4,
-                      borderRadius: 16,
-                      backgroundColor: selected ? colors.primaryBg : "transparent",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: cell.date
-                          ? selected
-                            ? colors.primaryText
-                            : colors.text
-                          : "transparent",
-                        fontSize: 12,
-                      }}
-                    >
-                      {cell.date ? cell.date.getDate() : ""}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <Pressable
-              onPress={() => setShowCalendar(false)}
-              style={{
-                paddingVertical: 8,
-                borderRadius: 10,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
+      <DatePickerModal
+        visible={showCalendar}
+        value={date}
+        onChange={setDate}
+        onClose={() => setShowCalendar(false)}
+        closeOnSelect
+      />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

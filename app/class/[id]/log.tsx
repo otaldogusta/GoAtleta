@@ -8,7 +8,7 @@ import { Button } from "../../../src/ui/Button";
 import { useAppTheme } from "../../../src/ui/app-theme";
 
 export default function LogScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
   const router = useRouter();
   const { colors } = useAppTheme();
 
@@ -17,12 +17,19 @@ export default function LogScreen() {
   const [attendance, setAttendance] = useState<number>(100);
 
   async function handleSave() {
+    const dateValue =
+      typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? date
+        : null;
+    const createdAt = dateValue
+      ? new Date(`${dateValue}T12:00:00`).toISOString()
+      : new Date().toISOString();
     await saveSessionLog({
       classId: id,
       rpe,
       technique,
       attendance,
-      createdAt: new Date().toISOString(),
+      createdAt,
     });
     router.replace("/");
   }

@@ -1,5 +1,7 @@
-import { Pressable, Text } from "react-native";
-
+import {
+  Text
+} from "react-native";
+import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 
 export function Card({

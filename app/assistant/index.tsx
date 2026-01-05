@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
-  View,
+  View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../../src/ui/Pressable";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../src/api/config";
@@ -18,6 +21,7 @@ import type { ClassGroup, TrainingPlan } from "../../src/core/models";
 import { Button } from "../../src/ui/Button";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -73,6 +77,7 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
 export default function AssistantScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classId, setClassId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -81,6 +86,8 @@ export default function AssistantScreen() {
   const [draft, setDraft] = useState<DraftTraining | null>(null);
   const [sources, setSources] = useState<AssistantSource[]>([]);
   const [showSavedLink, setShowSavedLink] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -97,9 +104,30 @@ export default function AssistantScreen() {
     };
   }, [classId]);
 
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const onShow = (event: any) => {
+      const height = event?.endCoordinates?.height ?? 0;
+      setKeyboardHeight(height);
+    };
+    const onHide = () => setKeyboardHeight(0);
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const className = useMemo(
     () => classes.find((item) => item.id === classId)?.name ?? "Turma",
     [classes, classId]
+  );
+
+  const sortedClasses = useMemo(
+    () => sortClassesByAgeBand(classes),
+    [classes]
   );
 
   const sendMessage = async () => {
@@ -144,7 +172,6 @@ export default function AssistantScreen() {
       const nextDraft = data.draftTraining ?? null;
       setDraft(nextDraft);
       if (nextDraft) {
-        Alert.alert("Treino criado", "O assistente gerou um treino para voce.");
         void notifyTrainingCreated();
       }
     } catch (error) {
@@ -172,7 +199,6 @@ export default function AssistantScreen() {
         { role: "assistant", content: "Treino salvo com sucesso." },
       ]);
       setShowSavedLink(true);
-      Alert.alert("Treino salvo", "Treino salvo com sucesso.");
       void notifyTrainingSaved();
     } catch (error) {
       const detail =
@@ -194,11 +220,7 @@ export default function AssistantScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-      >
+      <View style={{ flex: 1 }}>
       <View style={{ gap: 6, marginBottom: 12 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
           Assistente
@@ -228,7 +250,7 @@ export default function AssistantScreen() {
           Turma selecionada
         </Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {classes.map((item) => {
+          {sortedClasses.map((item) => {
             const active = item.id === classId;
             return (
               <Pressable
@@ -251,7 +273,10 @@ export default function AssistantScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ gap: 10, paddingBottom: 16, flexGrow: 1 }}
+        contentContainerStyle={{
+          gap: 10,
+          paddingBottom: composerHeight + keyboardHeight + insets.bottom + 12,
+        }}
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
       >
@@ -389,6 +414,7 @@ export default function AssistantScreen() {
               <Button
                 label="Ver treinos"
                 onPress={() => router.push({ pathname: "/training" })}
+                variant="secondary"
               />
             </View>
           </View>
@@ -422,6 +448,10 @@ export default function AssistantScreen() {
       </ScrollView>
 
       <View
+        onLayout={(event) => {
+          const next = Math.round(event.nativeEvent.layout.height);
+          if (next !== composerHeight) setComposerHeight(next);
+        }}
         style={{
           flexDirection: "row",
           gap: 8,
@@ -430,6 +460,8 @@ export default function AssistantScreen() {
           backgroundColor: colors.card,
           borderWidth: 1,
           borderColor: colors.border,
+          marginBottom: keyboardHeight,
+          paddingBottom: 12 + insets.bottom,
         }}
       >
         <TextInput
@@ -453,7 +485,7 @@ export default function AssistantScreen() {
           </Text>
         </Pressable>
       </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
