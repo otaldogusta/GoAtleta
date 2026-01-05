@@ -53,7 +53,10 @@ const supabasePatch = async <T>(path: string, body: unknown) => {
     headers: await headers(),
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Supabase PATCH error: ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase PATCH error: ${res.status} ${text}`);
+  }
   const text = await res.text();
   if (!text) return [] as T;
   return JSON.parse(text) as T;
@@ -120,6 +123,7 @@ type ClassRow = {
   ageband: string;
   starttime?: string;
   endtime?: string | null;
+  end_time?: string | null;
   duration?: number;
   days?: number[];
   daysperweek: number;
@@ -209,6 +213,8 @@ type ClassPlanRow = {
   mv_format: string;
   warmupprofile: string;
   ruleset?: string | null;
+  jump_target?: string | null;
+  rpe_target?: string | null;
   source: string;
   created_at?: string | null;
   updated_at?: string | null;
@@ -222,6 +228,7 @@ type SessionLogRow = {
   rpe: number;
   technique: string;
   attendance: number;
+  pain_score?: number | null;
   createdat: string;
 };
 
@@ -253,7 +260,7 @@ export async function seedIfEmpty() {
       unit: "Rede Esperanca",
       ageband: "8-9",
       starttime: "14:00",
-      endtime: computeEndTime("14:00", 60),
+      end_time: computeEndTime("14:00", 60),
       duration: 60,
       days: [2, 4],
       daysperweek: 3,
@@ -263,7 +270,7 @@ export async function seedIfEmpty() {
       mv_level: "MV1",
       cycle_start_date: formatIsoDate(new Date()),
       cycle_length_weeks: 12,
-      createdat: nowIso,
+      created_at: nowIso,
     },
     {
       id: "c2",
@@ -271,7 +278,7 @@ export async function seedIfEmpty() {
       unit: "Rede Esperanca",
       ageband: "10-12",
       starttime: "15:00",
-      endtime: computeEndTime("15:00", 60),
+      end_time: computeEndTime("15:00", 60),
       duration: 60,
       days: [2, 4],
       daysperweek: 3,
@@ -281,7 +288,7 @@ export async function seedIfEmpty() {
       mv_level: "MV2",
       cycle_start_date: formatIsoDate(new Date()),
       cycle_length_weeks: 12,
-      createdat: nowIso,
+      created_at: nowIso,
     },
     {
       id: "c3",
@@ -289,7 +296,7 @@ export async function seedIfEmpty() {
       unit: "Rede Esportes Pinhais",
       ageband: "13-15",
       starttime: "14:00",
-      endtime: computeEndTime("14:00", 60),
+      end_time: computeEndTime("14:00", 60),
       duration: 60,
       days: [1, 3, 5],
       daysperweek: 3,
@@ -299,7 +306,7 @@ export async function seedIfEmpty() {
       mv_level: "MV3",
       cycle_start_date: formatIsoDate(new Date()),
       cycle_length_weeks: 12,
-      createdat: nowIso,
+      created_at: nowIso,
     },
   ];
 
@@ -439,6 +446,7 @@ export async function getClasses(): Promise<ClassGroup[]> {
     ageBand: row.ageband,
     startTime: row.starttime ?? "14:00",
     endTime:
+      row.end_time ??
       row.endtime ??
       computeEndTime(row.starttime, row.duration ?? 60) ??
       undefined,
@@ -457,7 +465,40 @@ export async function getClasses(): Promise<ClassGroup[]> {
     cycleStartDate: row.cycle_start_date ?? undefined,
     cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
     createdAt: row.createdat ?? undefined,
-  }));
+  })).sort((a, b) => {
+    const parseRange = (value?: string) => {
+      const fallback = value ?? "";
+      const match = fallback.match(/(\d+)\s*-\s*(\d+)/);
+      if (match) {
+        const start = Number(match[1]);
+        const end = Number(match[2]);
+        return {
+          start: Number.isFinite(start) ? start : Number.POSITIVE_INFINITY,
+          end: Number.isFinite(end) ? end : Number.POSITIVE_INFINITY,
+          label: fallback,
+        };
+      }
+      const single = fallback.match(/(\d+)/);
+      if (single) {
+        const valueNum = Number(single[1]);
+        return {
+          start: Number.isFinite(valueNum) ? valueNum : Number.POSITIVE_INFINITY,
+          end: Number.isFinite(valueNum) ? valueNum : Number.POSITIVE_INFINITY,
+          label: fallback,
+        };
+      }
+      return {
+        start: Number.POSITIVE_INFINITY,
+        end: Number.POSITIVE_INFINITY,
+        label: fallback,
+      };
+    };
+    const aRange = parseRange(a.ageBand || a.name);
+    const bRange = parseRange(b.ageBand || b.name);
+    if (aRange.start !== bRange.start) return aRange.start - bRange.start;
+    if (aRange.end !== bRange.end) return aRange.end - bRange.end;
+    return aRange.label.localeCompare(bRange.label);
+  });
 }
 
 export async function getClassById(id: string): Promise<ClassGroup | null> {
@@ -479,6 +520,7 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
     ageBand: row.ageband,
     startTime: row.starttime ?? "14:00",
     endTime:
+      row.end_time ??
       row.endtime ??
       computeEndTime(row.starttime, row.duration ?? 60) ??
       undefined,
@@ -523,7 +565,7 @@ export async function updateClass(
     goal: data.goal,
     ageband: data.ageBand,
     starttime: data.startTime,
-    endtime: computeEndTime(data.startTime, data.durationMinutes),
+    end_time: computeEndTime(data.startTime, data.durationMinutes),
     duration: data.durationMinutes,
   };
 
@@ -566,7 +608,7 @@ export async function saveClass(data: {
       unit_id: resolvedUnit,
       ageband: data.ageBand,
       starttime: data.startTime,
-      endtime: computeEndTime(data.startTime, data.durationMinutes),
+      end_time: computeEndTime(data.startTime, data.durationMinutes),
       duration: data.durationMinutes,
       days: data.daysOfWeek,
       daysperweek: data.daysOfWeek.length,
@@ -576,7 +618,7 @@ export async function saveClass(data: {
       mv_level: data.mvLevel,
       cycle_start_date: data.cycleStartDate,
       cycle_length_weeks: data.cycleLengthWeeks,
-      createdat: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     },
   ]);
 }
@@ -594,7 +636,7 @@ export async function duplicateClass(base: ClassGroup) {
       unit_id: resolvedUnit,
       ageband: base.ageBand,
       starttime: base.startTime,
-      endtime: computeEndTime(base.startTime, base.durationMinutes),
+      end_time: computeEndTime(base.startTime, base.durationMinutes),
       duration: base.durationMinutes,
       days: base.daysOfWeek,
       daysperweek: base.daysOfWeek.length,
@@ -604,7 +646,7 @@ export async function duplicateClass(base: ClassGroup) {
       mv_level: base.mvLevel,
       cycle_start_date: base.cycleStartDate,
       cycle_length_weeks: base.cycleLengthWeeks,
-      createdat: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     },
   ]);
 }
@@ -638,6 +680,7 @@ export async function saveSessionLog(log: SessionLog) {
       rpe: log.rpe,
       technique: log.technique,
       attendance: log.attendance,
+      pain_score: log.painScore ?? null,
       createdat: log.createdAt,
     },
   ]);
@@ -666,6 +709,7 @@ export async function getSessionLogByDate(
     rpe: row.rpe,
     technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
     attendance: row.attendance,
+    painScore: row.pain_score ?? undefined,
     createdAt: row.createdat,
   };
 }
@@ -685,6 +729,7 @@ export async function getSessionLogsByRange(
     rpe: row.rpe,
     technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
     attendance: row.attendance,
+    painScore: row.pain_score ?? undefined,
     createdAt: row.createdat,
   }));
 }
@@ -777,6 +822,8 @@ export async function getClassPlansByClass(
       constraints: row.constraints ?? row.ruleset ?? "",
       mvFormat: row.mv_format ?? "",
       warmupProfile: row.warmupprofile ?? "",
+      jumpTarget: row.jump_target ?? "",
+      rpeTarget: row.rpe_target ?? "",
       source: row.source === "MANUAL" ? "MANUAL" : "AUTO",
       createdAt: row.created_at ?? row.createdat ?? new Date().toISOString(),
       updatedAt: row.updated_at ?? row.updatedat ?? undefined,
@@ -819,6 +866,8 @@ export async function updateClassPlan(plan: ClassPlan) {
       mv_format: plan.mvFormat,
       warmupprofile: plan.warmupProfile,
       source: plan.source,
+      jump_target: plan.jumpTarget,
+      rpe_target: plan.rpeTarget,
       created_at: plan.createdAt,
       updated_at: plan.updatedAt ?? plan.createdAt,
     }
@@ -841,6 +890,8 @@ export async function saveClassPlans(plans: ClassPlan[]) {
     mv_format: plan.mvFormat,
     warmupprofile: plan.warmupProfile,
     source: plan.source,
+    jump_target: plan.jumpTarget,
+    rpe_target: plan.rpeTarget,
     created_at: plan.createdAt,
     updated_at: plan.updatedAt ?? plan.createdAt,
   })));

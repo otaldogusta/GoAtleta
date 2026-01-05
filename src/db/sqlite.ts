@@ -37,6 +37,7 @@ export function initDb() {
       rpe INTEGER NOT NULL,
       technique TEXT NOT NULL,
       attendance INTEGER NOT NULL,
+      painScore INTEGER,
       createdAt TEXT NOT NULL
     );
 
@@ -65,6 +66,8 @@ export function initDb() {
       constraints TEXT NOT NULL,
       mvFormat TEXT NOT NULL,
       warmupProfile TEXT NOT NULL,
+      jumpTarget TEXT NOT NULL,
+      rpeTarget TEXT NOT NULL,
       source TEXT NOT NULL,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
@@ -166,6 +169,21 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE class_plans ADD COLUMN updatedAt TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE class_plans ADD COLUMN jumpTarget TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE class_plans ADD COLUMN rpeTarget TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE session_logs ADD COLUMN painScore INTEGER"
     );
   } catch {}
 }

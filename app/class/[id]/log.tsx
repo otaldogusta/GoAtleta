@@ -15,6 +15,7 @@ export default function LogScreen() {
   const [rpe, setRpe] = useState<number>(7);
   const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
   const [attendance, setAttendance] = useState<number>(100);
+  const [painScore, setPainScore] = useState<number>(0);
 
   async function handleSave() {
     const dateValue =
@@ -29,6 +30,7 @@ export default function LogScreen() {
       rpe,
       technique,
       attendance,
+      painScore,
       createdAt,
     });
     router.replace("/");
@@ -99,6 +101,25 @@ export default function LogScreen() {
             />
           ))}
         </View>
+
+        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+          Dor (0-3): {painScore}
+        </Text>
+        <View style={{ flexDirection: "row", gap: 8, marginVertical: 8 }}>
+          {[0, 1, 2, 3].map((n) => (
+            <Button
+              key={n}
+              label={String(n)}
+              onPress={() => setPainScore(n)}
+              variant={painScore === n ? "primary" : "secondary"}
+            />
+          ))}
+        </View>
+        {painScore >= 2 ? (
+          <Text style={{ color: colors.warningText, fontSize: 12 }}>
+            Dor moderada ou alta. Acompanhar de perto.
+          </Text>
+        ) : null}
 
         <View style={{ marginTop: 16 }}>
           <Button label="Salvar" onPress={handleSave} />

@@ -2453,15 +2453,16 @@ export default function TrainingList() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={async () => {
+                  onPress={() => {
                     if (!templateEditorTemplateId) return;
-                    await deleteTemplateItem(
-                      templateEditorTemplateId,
-                      templateEditorSource
-                    );
+                    const targetId = templateEditorTemplateId;
+                    const targetSource = templateEditorSource;
                     closeTemplateEditor();
                     setTemplateEditorTemplateId(null);
                     setTemplateEditorSource("custom");
+                    setTimeout(() => {
+                      void deleteTemplateItem(targetId, targetSource);
+                    }, 10);
                   }}
                   style={{
                     flex: 1,
@@ -2914,9 +2915,12 @@ export default function TrainingList() {
           <Pressable
             onPress={() => {
               if (!actionPlan) return;
-              onDelete(actionPlan);
+              const target = actionPlan;
               setShowPlanActions(false);
               setActionPlan(null);
+              setTimeout(() => {
+                onDelete(target);
+              }, 10);
             }}
             style={{
               paddingVertical: 10,

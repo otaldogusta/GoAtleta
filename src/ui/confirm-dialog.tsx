@@ -56,6 +56,7 @@ export function ConfirmDialogProvider({
         visible={!!options}
         onClose={() => setOptions(null)}
         position="center"
+        overlayZIndex={9999}
         cardStyle={{
           width: "100%",
           maxWidth: 360,

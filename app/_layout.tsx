@@ -20,6 +20,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { SaveToastProvider } from "../src/ui/save-toast";
+import { GuidanceProvider } from "../src/ui/guidance";
 import { addNotification } from "../src/notificationsInbox";
 import { AuthProvider, useAuth } from "../src/auth/auth";
 import * as Sentry from '@sentry/react-native';
@@ -239,7 +240,9 @@ export default Sentry.wrap(function RootLayout() {
         <ConfirmDialogProvider>
           <ConfirmUndoProvider>
             <SaveToastProvider>
-              <RootLayoutContent />
+              <GuidanceProvider>
+                <RootLayoutContent />
+              </GuidanceProvider>
             </SaveToastProvider>
           </ConfirmUndoProvider>
         </ConfirmDialogProvider>

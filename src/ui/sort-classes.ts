@@ -31,14 +31,7 @@ const parseAgeRange = (value?: string): AgeRange => {
 };
 
 export const sortClassesByAgeBand = (items: ClassGroup[]) => {
-  const uniqueByName = new Map<string, ClassGroup>();
-  items.forEach((item) => {
-    const key = item.name.trim().toLowerCase();
-    if (!uniqueByName.has(key)) {
-      uniqueByName.set(key, item);
-    }
-  });
-  return Array.from(uniqueByName.values()).sort((a, b) => {
+  return [...items].sort((a, b) => {
     const aRange = parseAgeRange(a.ageBand || a.name);
     const bRange = parseAgeRange(b.ageBand || b.name);
     if (aRange.start !== bRange.start) return aRange.start - bRange.start;

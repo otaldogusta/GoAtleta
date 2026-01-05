@@ -42,6 +42,7 @@ export type SessionLog = {
   rpe: number;
   technique: "boa" | "ok" | "ruim";
   attendance: number;
+  painScore?: number;
   createdAt: string;
 };
 
@@ -113,6 +114,8 @@ export type ClassPlan = {
   constraints: string;
   mvFormat: string;
   warmupProfile: string;
+  jumpTarget: string;
+  rpeTarget: string;
   source: "AUTO" | "MANUAL";
   createdAt: string;
   updatedAt?: string;

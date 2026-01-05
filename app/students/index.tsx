@@ -613,7 +613,7 @@ export default function StudentsScreen() {
             </View>
           </Pressable>
           {showFormContent ? (
-            <Animated.View style={formAnimStyle}>
+            <Animated.View style={[formAnimStyle, { gap: 12, marginTop: 12 }]}>
               <Text style={{ color: colors.muted }}>Unidade</Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {unitOptions.map((item) => {

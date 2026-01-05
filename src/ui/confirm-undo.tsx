@@ -123,6 +123,7 @@ export function ConfirmUndoProvider({
         visible={!!confirmOptions}
         onClose={() => setConfirmOptions(null)}
         position="center"
+        overlayZIndex={9999}
         cardStyle={{
           width: "100%",
           maxWidth: 360,

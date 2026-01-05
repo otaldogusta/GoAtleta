@@ -15,7 +15,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 
-import { getClasses, saveClass } from "../../src/db/seed";
+import { deleteClassCascade, getClasses, saveClass } from "../../src/db/seed";
 import type { ClassGroup } from "../../src/core/models";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { Button } from "../../src/ui/Button";
@@ -30,11 +30,13 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { updateClass } from "../../src/db/seed";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
 
 export default function ClassesScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
+  const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
 
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
@@ -438,6 +440,31 @@ export default function ClassesScreen() {
     } finally {
       setEditSaving(false);
     }
+  };
+
+  const handleDeleteClass = () => {
+    const target = editingClass;
+    if (!target) return;
+    setShowEditModal(false);
+    setEditingClass(null);
+    setTimeout(() => {
+      confirmUndo({
+        title: "Excluir turma?",
+        message: "Isso remove a turma e todos os dados relacionados.",
+        confirmLabel: "Excluir",
+        undoMessage: "Turma excluida. Deseja desfazer?",
+        onOptimistic: () => {
+          setClasses((prev) => prev.filter((item) => item.id !== target.id));
+        },
+        onConfirm: async () => {
+          await deleteClassCascade(target.id);
+          await loadClasses();
+        },
+        onUndo: async () => {
+          await loadClasses();
+        },
+      });
+    }, 10);
   };
 
   const isDirty =
@@ -1465,6 +1492,12 @@ export default function ClassesScreen() {
               disabled={editSaving || !editName.trim()}
             />
           </View>
+          <Button
+            label="Excluir turma"
+            variant="danger"
+            onPress={handleDeleteClass}
+            disabled={editSaving}
+          />
         </ScrollView>
       </ModalSheet>
       <DatePickerModal

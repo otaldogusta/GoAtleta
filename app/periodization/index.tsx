@@ -12,6 +12,7 @@ import {
   deleteClassPlansByClass,
   getClasses,
   getClassPlansByClass,
+  getSessionLogsByRange,
   saveClassPlans,
   updateClassPlan,
 } from "../../src/db/seed";
@@ -21,6 +22,7 @@ import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
+import { useGuidance } from "../../src/ui/guidance";
 
 type VolumeLevel = "baixo" | "medio" | "alto";
 
@@ -30,6 +32,8 @@ type WeekPlan = {
   focus: string;
   volume: VolumeLevel;
   notes: string[];
+  jumpTarget: string;
+  rpeTarget: string;
 };
 
 const ageBands = ["6-8", "9-11", "12-14"] as const;
@@ -56,8 +60,6 @@ const volumeToRatio: Record<VolumeLevel, number> = {
 };
 
 type SectionKey =
-  | "params"
-  | "summary"
   | "load"
   | "guides"
   | "cycle"
@@ -202,6 +204,34 @@ const parseIsoDate = (value?: string | null) => {
   return parsed;
 };
 
+const parseAgeRange = (value?: string) => {
+  const fallback = value ?? "";
+  const match = fallback.match(/(\d+)\s*-\s*(\d+)/);
+  if (match) {
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    return {
+      start: Number.isFinite(start) ? start : Number.POSITIVE_INFINITY,
+      end: Number.isFinite(end) ? end : Number.POSITIVE_INFINITY,
+      label: fallback,
+    };
+  }
+  const single = fallback.match(/(\d+)/);
+  if (single) {
+    const valueNum = Number(single[1]);
+    return {
+      start: Number.isFinite(valueNum) ? valueNum : Number.POSITIVE_INFINITY,
+      end: Number.isFinite(valueNum) ? valueNum : Number.POSITIVE_INFINITY,
+      label: fallback,
+    };
+  }
+  return {
+    start: Number.POSITIVE_INFINITY,
+    end: Number.POSITIVE_INFINITY,
+    label: fallback,
+  };
+};
+
 const getPhysicalFocus = (band: (typeof ageBands)[number]) => {
   if (band === "6-8") return "Coordenacao e equilibrio";
   if (band === "9-11") return "Forca leve e agilidade";
@@ -214,28 +244,68 @@ const getMvFormat = (band: (typeof ageBands)[number]) => {
   return "4x4/6x6";
 };
 
+const getMvLevel = (mvLevel?: string, band?: (typeof ageBands)[number]) => {
+  if (mvLevel && mvLevel.trim()) return mvLevel;
+  if (band === "6-8") return "MV1";
+  if (band === "9-11") return "MV2";
+  return "MV3";
+};
+
+const getJumpTarget = (mvLevel?: string, band?: (typeof ageBands)[number]) => {
+  const level = getMvLevel(mvLevel, band);
+  if (level === "MV1") return "10-20";
+  if (level === "MV2") return "20-40";
+  return "30-60";
+};
+
+const getPhaseForWeek = (weekNumber: number, cycleLength: number) => {
+  if (cycleLength >= 9) {
+    if (weekNumber <= 4) return "Base";
+    if (weekNumber <= 8) return "Desenvolvimento";
+    return "Consolidacao";
+  }
+  const chunk = Math.max(1, Math.ceil(cycleLength / 3));
+  if (weekNumber <= chunk) return "Base";
+  if (weekNumber <= chunk * 2) return "Desenvolvimento";
+  return "Consolidacao";
+};
+
+const getRpeTarget = (phase: string) => {
+  if (phase === "Base") return "4-5";
+  if (phase === "Desenvolvimento") return "5-6";
+  return "6-7";
+};
+
 const buildClassPlan = (options: {
   classId: string;
   ageBand: (typeof ageBands)[number];
   startDate: string;
   weekNumber: number;
   source: "AUTO" | "MANUAL";
+  mvLevel?: string;
+  cycleLength?: number;
 }): ClassPlan => {
   const base = basePlans[options.ageBand] ?? basePlans["9-11"];
   const template = base[(options.weekNumber - 1) % base.length];
+  const phase = getPhaseForWeek(
+    options.weekNumber,
+    options.cycleLength ?? 12
+  );
   const createdAt = new Date().toISOString();
   return {
     id: `cp_${options.classId}_${Date.now()}_${options.weekNumber}`,
     classId: options.classId,
     startDate: options.startDate,
     weekNumber: options.weekNumber,
-    phase: template.title,
+    phase,
     theme: template.focus,
     technicalFocus: template.focus,
     physicalFocus: getPhysicalFocus(options.ageBand),
     constraints: template.notes[0] ?? "",
     mvFormat: getMvFormat(options.ageBand),
     warmupProfile: template.notes[1] ?? "",
+    jumpTarget: getJumpTarget(options.mvLevel, options.ageBand),
+    rpeTarget: getRpeTarget(phase),
     source: options.source,
     createdAt,
     updatedAt: createdAt,
@@ -247,40 +317,30 @@ const toClassPlans = (options: {
   ageBand: (typeof ageBands)[number];
   cycleLength: number;
   startDate: string;
+  mvLevel?: string;
 }): ClassPlan[] => {
-  const base = basePlans[options.ageBand] ?? basePlans["9-11"];
-  const createdAt = new Date().toISOString();
-  return Array.from({ length: options.cycleLength }).map((_, index) => {
-    const template = base[index % base.length];
-    return {
-      id: `cp_${options.classId}_${Date.now()}_${index}`,
+  return Array.from({ length: options.cycleLength }).map((_, index) =>
+    buildClassPlan({
       classId: options.classId,
+      ageBand: options.ageBand,
       startDate: options.startDate,
       weekNumber: index + 1,
-      phase: template.title,
-      theme: template.focus,
-      technicalFocus: template.focus,
-      physicalFocus: getPhysicalFocus(options.ageBand),
-      constraints: template.notes[0] ?? "",
-      mvFormat: getMvFormat(options.ageBand),
-      warmupProfile: template.notes[1] ?? "",
       source: "AUTO",
-      createdAt,
-      updatedAt: createdAt,
-    };
-  });
+      mvLevel: options.mvLevel,
+      cycleLength: options.cycleLength,
+    })
+  );
 };
 
 export default function PeriodizationScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { setGuidance } = useGuidance();
   const modalCardStyle = useModalCardStyle({ maxHeight: "100%" });
   const [activeTab, setActiveTab] = useState<PeriodizationTab>("geral");
   const [sectionOpen, setSectionOpen] = usePersistedState<Record<SectionKey, boolean>>(
     "periodization_sections_v1",
     {
-      params: true,
-      summary: true,
       load: true,
       guides: false,
       cycle: false,
@@ -307,9 +367,14 @@ export default function PeriodizationScreen() {
   const [editConstraints, setEditConstraints] = useState("");
   const [editMvFormat, setEditMvFormat] = useState("");
   const [editWarmupProfile, setEditWarmupProfile] = useState("");
+  const [editJumpTarget, setEditJumpTarget] = useState("");
+  const [editRpeTarget, setEditRpeTarget] = useState("");
   const [editSource, setEditSource] = useState<"AUTO" | "MANUAL">("AUTO");
   const [isSavingWeek, setIsSavingWeek] = useState(false);
   const autoCreatedRef = useRef<Set<string>>(new Set());
+  const [acwrRatio, setAcwrRatio] = useState<number | null>(null);
+  const [acwrMessage, setAcwrMessage] = useState("");
+  const [painAlert, setPainAlert] = useState("");
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showMesoPicker, setShowMesoPicker] = useState(false);
@@ -351,10 +416,6 @@ export default function PeriodizationScreen() {
     setSectionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const { animatedStyle: paramsAnimStyle, isVisible: showParamsContent } =
-    useCollapsibleAnimation(sectionOpen.params);
-  const { animatedStyle: summaryAnimStyle, isVisible: showSummaryContent } =
-    useCollapsibleAnimation(sectionOpen.summary);
   const { animatedStyle: loadAnimStyle, isVisible: showLoadContent } =
     useCollapsibleAnimation(sectionOpen.load);
   const { animatedStyle: guideAnimStyle, isVisible: showGuideContent } =
@@ -438,8 +499,17 @@ export default function PeriodizationScreen() {
   }, [classes]);
 
   const filteredClasses = useMemo(() => {
-    if (selectedUnit === "Todas") return classes;
-    return classes.filter((item) => item.unit === selectedUnit);
+    const list =
+      selectedUnit === "Todas"
+        ? classes
+        : classes.filter((item) => item.unit === selectedUnit);
+    return [...list].sort((a, b) => {
+      const aRange = parseAgeRange(a.ageBand || a.name);
+      const bRange = parseAgeRange(b.ageBand || b.name);
+      if (aRange.start !== bRange.start) return aRange.start - bRange.start;
+      if (aRange.end !== bRange.end) return aRange.end - bRange.end;
+      return aRange.label.localeCompare(bRange.label);
+    });
   }, [classes, selectedUnit]);
 
   const selectedClass = useMemo(
@@ -498,6 +568,62 @@ export default function PeriodizationScreen() {
     };
   }, [selectedClassId]);
 
+  useEffect(() => {
+    let alive = true;
+    if (!selectedClassId) {
+      setAcwrRatio(null);
+      setAcwrMessage("");
+      setPainAlert("");
+      return;
+    }
+    (async () => {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - 28);
+      const logs = await getSessionLogsByRange(start.toISOString(), end.toISOString());
+      if (!alive) return;
+      const classLogs = logs.filter((log) => log.classId === selectedClassId);
+      const duration = selectedClass?.durationMinutes ?? 60;
+      const acuteStart = new Date();
+      acuteStart.setDate(end.getDate() - 7);
+      const acuteLoad = classLogs
+        .filter((log) => new Date(log.createdAt) >= acuteStart)
+        .reduce((sum, log) => sum + log.rpe * duration, 0);
+      const chronicLoad = classLogs.reduce(
+        (sum, log) => sum + log.rpe * duration,
+        0
+      ) / 4;
+      if (chronicLoad > 0) {
+        const ratio = Number((acuteLoad / chronicLoad).toFixed(2));
+        setAcwrRatio(ratio);
+        if (ratio > 1.3) {
+          setAcwrMessage("Carga subiu mais de 30% nesta semana.");
+        } else if (ratio < 0.8) {
+          setAcwrMessage("Carga semanal abaixo do padrao recente.");
+        } else {
+          setAcwrMessage("Carga semanal dentro do esperado.");
+        }
+      } else {
+        setAcwrRatio(null);
+        setAcwrMessage("");
+      }
+
+      const painLogs = classLogs
+        .filter((log) => typeof log.painScore === "number")
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 3);
+      const painStreak = painLogs.filter((log) => (log.painScore ?? 0) >= 2).length;
+      if (painStreak >= 3) {
+        setPainAlert("Dor nivel 2+ por 3 registros. Considere avaliar com profissional.");
+      } else {
+        setPainAlert("");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selectedClassId, selectedClass?.durationMinutes]);
+
   const weekPlans = useMemo(() => {
     const base = basePlans[ageBand] ?? basePlans["9-11"];
     const length = classPlans.length || cycleLength;
@@ -510,6 +636,8 @@ export default function PeriodizationScreen() {
           focus: plan.theme,
           volume: template.volume,
           notes: [plan.constraints, plan.warmupProfile].filter(Boolean),
+          jumpTarget: plan.jumpTarget || getJumpTarget(selectedClass?.mvLevel, ageBand),
+          rpeTarget: plan.rpeTarget || getRpeTarget(plan.phase),
         };
       });
     }
@@ -519,7 +647,9 @@ export default function PeriodizationScreen() {
       weeks.push({
         ...template,
         week: i + 1,
-        title: i % base.length === base.length - 1 ? "Recuperacao" : template.title,
+        title: getPhaseForWeek(i + 1, length),
+        jumpTarget: getJumpTarget(selectedClass?.mvLevel, ageBand),
+        rpeTarget: getRpeTarget(getPhaseForWeek(i + 1, length)),
       });
     }
     return weeks;
@@ -573,6 +703,8 @@ export default function PeriodizationScreen() {
       startDate,
       weekNumber: currentWeek,
       source: "AUTO",
+      mvLevel: selectedClass.mvLevel,
+      cycleLength,
     });
     autoCreatedRef.current.add(key);
     (async () => {
@@ -604,6 +736,28 @@ export default function PeriodizationScreen() {
     return "";
   }, [highLoadStreak, activeWeek.volume]);
 
+  useEffect(() => {
+    if (activeTab !== "geral" && activeTab !== "ciclo") {
+      setGuidance(null);
+      return;
+    }
+    const acwrSummary = acwrRatio !== null ? `ACWR ${acwrRatio}` : "";
+    const items = [warningMessage, acwrSummary].filter(Boolean);
+    if (!items.length) {
+      setGuidance(null);
+      return;
+    }
+    const details: Record<string, string> = {};
+    if (acwrSummary) {
+      details[acwrSummary] =
+        "ACWR e a razao entre a carga da ultima semana e a media das ultimas 4.";
+    }
+    setGuidance({ title: "Alerta de carga", items, tone: "warning", details });
+    return () => {
+      setGuidance(null);
+    };
+  }, [acwrRatio, activeTab, setGuidance, warningMessage]);
+
   const openWeekEditor = (weekNumber: number) => {
     if (!selectedClass) return;
     const existing = classPlans.find((plan) => plan.weekNumber === weekNumber);
@@ -617,6 +771,8 @@ export default function PeriodizationScreen() {
         startDate,
         weekNumber,
         source: "AUTO",
+        mvLevel: selectedClass.mvLevel,
+        cycleLength,
       });
     setEditingWeek(weekNumber);
     setEditingPlanId(existing?.id ?? null);
@@ -627,6 +783,8 @@ export default function PeriodizationScreen() {
     setEditConstraints(plan.constraints);
     setEditMvFormat(plan.mvFormat);
     setEditWarmupProfile(plan.warmupProfile);
+    setEditJumpTarget(plan.jumpTarget);
+    setEditRpeTarget(plan.rpeTarget);
     setEditSource(existing ? plan.source : "AUTO");
     setShowWeekEditor(true);
   };
@@ -641,13 +799,15 @@ export default function PeriodizationScreen() {
       classId: selectedClass.id,
       startDate,
       weekNumber: editingWeek,
-      phase: editPhase.trim() || "Base",
+      phase: editPhase.trim() || getPhaseForWeek(editingWeek, cycleLength),
       theme: editTheme.trim() || "Fundamentos",
       technicalFocus: editTechnicalFocus.trim() || editTheme.trim() || "Fundamentos",
       physicalFocus: editPhysicalFocus.trim() || getPhysicalFocus(ageBand),
       constraints: editConstraints.trim(),
       mvFormat: editMvFormat.trim() || getMvFormat(ageBand),
       warmupProfile: editWarmupProfile.trim(),
+      jumpTarget: editJumpTarget.trim() || getJumpTarget(selectedClass.mvLevel, ageBand),
+      rpeTarget: editRpeTarget.trim() || getRpeTarget(getPhaseForWeek(editingWeek, cycleLength)),
       source: editSource,
       createdAt: editingPlanId
         ? classPlans.find((p) => p.id === editingPlanId)?.createdAt ?? nowIso
@@ -683,6 +843,7 @@ export default function PeriodizationScreen() {
       ageBand,
       cycleLength,
       startDate,
+      mvLevel: selectedClass.mvLevel,
     });
     setIsSavingPlans(true);
     try {
@@ -836,106 +997,6 @@ export default function PeriodizationScreen() {
 
         {activeTab === "geral" ? (
         <>
-        <View style={{ gap: 10 }}>
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-            Parametros do ciclo
-          </Text>
-          <View style={getSectionCardStyle(colors, "info")}>
-            <Pressable
-              onPress={() => toggleSection("params")}
-              style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
-            >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Parametros
-            </Text>
-            <Ionicons
-              name={sectionOpen.params ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.muted}
-            />
-          </Pressable>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Defina faixa etaria, duracao e dias do microciclo
-          </Text>
-          {showParamsContent ? (
-            <Animated.View style={[{ gap: 8 }, paramsAnimStyle]}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Faixa etaria</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {ageBands.map((band) => {
-                  const active = band === ageBand;
-                  return (
-                    <Pressable
-                      key={band}
-                      onPress={() => setAgeBand(band)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text
-                        style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}
-                      >
-                        {band}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Mesociclo (semanas)</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {cycleOptions.map((value) => {
-                  const active = value === cycleLength;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => setCycleLength(value)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text
-                        style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}
-                      >
-                        {value}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Microciclo (dias)</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {sessionsOptions.map((value) => {
-                const active = value === sessionsPerWeek;
-                return (
-                  <Pressable
-                    key={value}
-                    onPress={() => setSessionsPerWeek(value)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                      {value}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              </View>
-            </Animated.View>
-          ) : null}
-          </View>
-        </View>
-
         <View style={getSectionCardStyle(colors, "primary")}>
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
             Visao geral
@@ -943,9 +1004,41 @@ export default function PeriodizationScreen() {
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Panorama rapido do ciclo e da turma atual
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 8 }}>
-            Turma
-          </Text>
+          <View
+            style={[
+              getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
+              { marginTop: 12, zIndex: 0, position: "relative" },
+            ]}
+          >
+            <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
+              Proxima sessao
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginTop: 6,
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                {formatShortDate(nextSessionDate)}
+              </Text>
+              <View
+                style={{
+                  width: 1,
+                  height: 18,
+                  marginHorizontal: 10,
+                  backgroundColor: colors.border,
+                }}
+              />
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {selectedClass?.startTime
+                  ? "Horario " + selectedClass.startTime
+                  : "Horario indefinido"}
+              </Text>
+            </View>
+          </View>
           <View
             style={{
               flexDirection: "row",
@@ -1051,39 +1144,82 @@ export default function PeriodizationScreen() {
               </View>
             </View>
           </View>
-          <View
-            style={[
-              getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
-              { marginTop: 12, zIndex: 0, position: "relative" },
-            ]}
-          >
-            <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
-              Proxima sessao
-            </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 12 }}>
             <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: 6,
-                justifyContent: "center",
-              }}
+              style={[
+                getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
+                { flexBasis: "48%" },
+              ]}
             >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
-                {formatShortDate(nextSessionDate)}
-              </Text>
-              <View
-                style={{
-                  width: 1,
-                  height: 18,
-                  marginHorizontal: 10,
-                  backgroundColor: colors.border,
-                }}
-              />
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {selectedClass?.startTime
-                  ? "Horario " + selectedClass.startTime
-                  : "Horario indefinido"}
-              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Mesociclo</Text>
+              <View ref={mesoTriggerRef} style={{ position: "relative" }}>
+                <Pressable
+                  onPress={() => {
+                    setShowMesoPicker((prev) => !prev);
+                    setShowMicroPicker(false);
+                  }}
+                  style={{
+                    marginTop: 6,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                      {cycleLength} semanas
+                    </Text>
+                    <Animated.View
+                      style={{
+                        transform: [{ rotate: showMesoPicker ? "180deg" : "0deg" }],
+                      }}
+                    >
+                      <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                    </Animated.View>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+            <View
+              style={[
+                getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
+                { flexBasis: "48%" },
+              ]}
+            >
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Microciclo</Text>
+              <View ref={microTriggerRef} style={{ position: "relative" }}>
+                <Pressable
+                  onPress={() => {
+                    setShowMicroPicker((prev) => !prev);
+                    setShowMesoPicker(false);
+                  }}
+                  style={{
+                    marginTop: 6,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                      {sessionsPerWeek} dias
+                    </Text>
+                    <Animated.View
+                      style={{
+                        transform: [{ rotate: showMicroPicker ? "180deg" : "0deg" }],
+                      }}
+                    >
+                      <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                    </Animated.View>
+                  </View>
+                </Pressable>
+              </View>
             </View>
           </View>
           <View style={{ marginTop: 8, gap: 8 }}>
@@ -1140,146 +1276,23 @@ export default function PeriodizationScreen() {
               })}
             </View>
           </View>
-          {warningMessage ? (
+          {painAlert ? (
             <View
               style={[
-                getSectionCardStyle(colors, "warning", { padding: 12, radius: 14, shadow: true }),
-                {
-                  marginTop: 10,
-                  borderWidth: 1,
-                  borderColor: colors.warningBg,
-                },
+                getSectionCardStyle(colors, "warning", { padding: 12, radius: 14 }),
+                { marginTop: 10 },
               ]}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <View
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.warningText,
-                  }}
-                >
-                  <Ionicons name="alert-circle" size={14} color={colors.warningBg} />
-                </View>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                  Alerta de carga
-                </Text>
-              </View>
-              <Text style={{ color: colors.text, fontSize: 12, marginTop: 6 }}>
-                {warningMessage}
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                Alerta de dor
+              </Text>
+              <Text style={{ color: colors.text, fontSize: 12, marginTop: 4 }}>
+                {painAlert}
               </Text>
             </View>
           ) : null}
         </View>
 
-        <View style={{ gap: 10 }}>
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-            Resumo do ciclo
-          </Text>
-          <View style={getSectionCardStyle(colors, "neutral")}>
-            <Pressable
-              onPress={() => toggleSection("summary")}
-              style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
-            >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Resumo do ciclo
-            </Text>
-            <Ionicons
-              name={sectionOpen.summary ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.muted}
-            />
-          </Pressable>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Ajuste rapido do ciclo atual
-          </Text>
-          {showSummaryContent ? (
-            <Animated.View style={[{ gap: 12 }, summaryAnimStyle]}>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View
-                  style={[
-                    getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
-                    { flexBasis: "48%" },
-                  ]}
-                >
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Mesociclo</Text>
-                  <View ref={mesoTriggerRef} style={{ position: "relative" }}>
-                    <Pressable
-                      onPress={() => {
-                        setShowMesoPicker((prev) => !prev);
-                        setShowMicroPicker(false);
-                      }}
-                      style={{
-                        marginTop: 6,
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 12,
-                        backgroundColor: colors.inputBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
-                          {cycleLength} semanas
-                        </Text>
-                        <Animated.View
-                          style={{
-                            transform: [{ rotate: showMesoPicker ? "180deg" : "0deg" }],
-                          }}
-                        >
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} />
-                        </Animated.View>
-                      </View>
-                    </Pressable>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
-                    { flexBasis: "48%" },
-                  ]}
-                >
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Microciclo</Text>
-                  <View ref={microTriggerRef} style={{ position: "relative" }}>
-                    <Pressable
-                      onPress={() => {
-                        setShowMicroPicker((prev) => !prev);
-                        setShowMesoPicker(false);
-                      }}
-                      style={{
-                        marginTop: 6,
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 12,
-                        backgroundColor: colors.inputBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
-                          {sessionsPerWeek} dias
-                        </Text>
-                        <Animated.View
-                          style={{
-                            transform: [{ rotate: showMicroPicker ? "180deg" : "0deg" }],
-                          }}
-                        >
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} />
-                        </Animated.View>
-                      </View>
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-          ) : null}
-          </View>
-        </View>
         <View style={getSectionCardStyle(colors, "info")}>
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
             Planejamento da turma
@@ -1396,38 +1409,53 @@ export default function PeriodizationScreen() {
           </View>
         </View>
 
-        <View style={{ gap: 10 }}>
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-            Diretrizes
-          </Text>
-          <View style={getSectionCardStyle(colors, "neutral")}>
-          <Pressable
-            onPress={() => toggleSection("guides")}
-            style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+        <Pressable
+          onPress={() => toggleSection("guides")}
+          style={[
+            getSectionCardStyle(colors, "neutral"),
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingVertical: 10,
+            },
+          ]}
+        >
+          <View
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
+            }}
           >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            <Ionicons name="information" size={16} color={colors.text} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
               Diretrizes da faixa
             </Text>
-            <Ionicons
-              name={sectionOpen.guides ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.muted}
-            />
-          </Pressable>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Principios recomendados para esta faixa
-          </Text>
-          {showGuideContent ? (
-            <Animated.View style={[{ gap: 6 }, guideAnimStyle]}>
-              {summary.map((item) => (
-                <Text key={item} style={{ color: colors.muted, fontSize: 12 }}>
-                  {"- " + item}
-                </Text>
-              ))}
-            </Animated.View>
-          ) : null}
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Toque para ver as recomendacoes
+            </Text>
           </View>
-        </View>
+          <Ionicons
+            name={sectionOpen.guides ? "chevron-up" : "chevron-down"}
+            size={18}
+            color={colors.muted}
+          />
+        </Pressable>
+        {showGuideContent ? (
+          <Animated.View style={[{ gap: 6 }, guideAnimStyle]}>
+            {summary.map((item) => (
+              <Text key={item} style={{ color: colors.muted, fontSize: 12 }}>
+                {"- " + item}
+              </Text>
+            ))}
+          </Animated.View>
+        ) : null}
 
         <View style={{ gap: 10 }}>
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
@@ -1452,9 +1480,9 @@ export default function PeriodizationScreen() {
           </Text>
           {showCycleContent ? (
             <Animated.View style={[{ gap: 10 }, cycleAnimStyle]}>
-            {weekPlans.map((week) => (
+            {weekPlans.map((week, index) => (
               <Pressable
-                key={week.week}
+                key={`${week.week}-${index}`}
                 onPress={() => openWeekEditor(week.week)}
                 style={{
                   padding: 12,
@@ -1527,6 +1555,30 @@ export default function PeriodizationScreen() {
                   >
                     <Text style={{ color: colors.text, fontSize: 11 }} title={pseTitle}>
                       {volumeToRpe[week.volume]}
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      paddingVertical: 3,
+                      paddingHorizontal: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 11 }}>
+                      {"RPE alvo: " + week.rpeTarget}
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      paddingVertical: 3,
+                      paddingHorizontal: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 11 }}>
+                      {"Saltos: " + week.jumpTarget}
                     </Text>
                   </View>
                 </View>
@@ -1771,51 +1823,56 @@ export default function PeriodizationScreen() {
                   ? mesoTriggerLayout.y - containerWindow.y + mesoTriggerLayout.height + 8
                   : mesoTriggerLayout.y + mesoTriggerLayout.height + 8,
                 width: mesoTriggerLayout.width,
-                zIndex: 300,
-                elevation: 12,
+                zIndex: 999,
+                elevation: 999,
               },
               mesoPickerAnimStyle,
             ]}
           >
-            <View
-              style={{
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.inputBg,
-                padding: 6,
-              }}
+            <ScrollView
+              style={{ maxHeight: 180 }}
+              contentContainerStyle={{ padding: 6, gap: 2 }}
+              showsVerticalScrollIndicator
             >
-              {cycleOptions.map((value, index) => {
-                const active = value === cycleLength;
-                return (
-                  <Pressable
-                    key={value}
-                    onPress={() => {
-                      setCycleLength(value);
-                      setShowMesoPicker(false);
-                    }}
-                    style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      margin: index === 0 ? 4 : 2,
-                      backgroundColor: active ? colors.primaryBg : "transparent",
-                    }}
-                  >
-                    <Text
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.inputBg,
+                }}
+              >
+                {cycleOptions.map((value, index) => {
+                  const active = value === cycleLength;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => {
+                        setCycleLength(value);
+                        setShowMesoPicker(false);
+                      }}
                       style={{
-                        color: active ? colors.primaryText : colors.text,
-                        fontSize: 12,
-                        fontWeight: active ? "700" : "500",
+                        paddingVertical: 8,
+                        paddingHorizontal: 10,
+                        borderRadius: 10,
+                        margin: index === 0 ? 6 : 2,
+                        backgroundColor: active ? colors.primaryBg : "transparent",
                       }}
                     >
-                      {value} semanas
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                      <Text
+                        style={{
+                          color: active ? colors.primaryText : colors.text,
+                          fontSize: 12,
+                          fontWeight: active ? "700" : "500",
+                        }}
+                      >
+                        {value} semanas
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
           </Animated.View>
         ) : null}
 
@@ -1829,8 +1886,8 @@ export default function PeriodizationScreen() {
                   ? microTriggerLayout.y - containerWindow.y + microTriggerLayout.height + 8
                   : microTriggerLayout.y + microTriggerLayout.height + 8,
                 width: microTriggerLayout.width,
-                zIndex: 300,
-                elevation: 12,
+                zIndex: 999,
+                elevation: 999,
               },
               microPickerAnimStyle,
             ]}
@@ -2136,6 +2193,34 @@ export default function PeriodizationScreen() {
             placeholder="Warmup profile"
             value={editWarmupProfile}
             onChangeText={setEditWarmupProfile}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="RPE alvo (ex: 4-5)"
+            value={editRpeTarget}
+            onChangeText={setEditRpeTarget}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Saltos alvo (ex: 20-40)"
+            value={editJumpTarget}
+            onChangeText={setEditJumpTarget}
             placeholderTextColor={colors.placeholder}
             style={{
               borderWidth: 1,

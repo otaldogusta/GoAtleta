@@ -11,6 +11,7 @@ type ModalSheetProps = {
   backdropOpacity?: number;
   slideOffset?: number;
   position?: "bottom" | "center";
+  overlayZIndex?: number;
 };
 
 export function ModalSheet({
@@ -21,6 +22,7 @@ export function ModalSheet({
   backdropOpacity = 0.5,
   slideOffset = 24,
   position = "bottom",
+  overlayZIndex,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
   const isCenter = position === "center";
@@ -47,7 +49,7 @@ export function ModalSheet({
       transparent
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, zIndex: overlayZIndex, elevation: overlayZIndex }}>
         <RawPressable
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
           onPress={onClose}
