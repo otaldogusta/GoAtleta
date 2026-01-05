@@ -6,14 +6,28 @@ export type ClassGroup = {
   id: string;
   name: string;
   unit: string;
+  unitId?: string;
   ageBand: AgeBand;
   startTime: string;
+  endTime?: string;
   durationMinutes: number;
   daysOfWeek: number[];
   daysPerWeek: number;
   goal: Goal;
   equipment: Equipment;
   level: 1 | 2 | 3;
+  mvLevel?: string;
+  cycleStartDate?: string;
+  cycleLengthWeeks?: number;
+  createdAt?: string;
+};
+
+export type Unit = {
+  id: string;
+  name: string;
+  address?: string;
+  notes?: string;
+  createdAt: string;
 };
 
 export type SessionPlan = {
@@ -85,6 +99,23 @@ export type AttendanceRecord = {
   status: "presente" | "faltou";
   note: string;
   createdAt: string;
+};
+
+export type ClassPlan = {
+  id: string;
+  classId: string;
+  startDate: string;
+  weekNumber: number;
+  phase: string;
+  theme: string;
+  technicalFocus: string;
+  physicalFocus: string;
+  constraints: string;
+  mvFormat: string;
+  warmupProfile: string;
+  source: "AUTO" | "MANUAL";
+  createdAt: string;
+  updatedAt?: string;
 };
 
 export type Exercise = {

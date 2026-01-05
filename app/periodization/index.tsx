@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, ScrollView, Text, View } from "react-native";
+import { Animated, ScrollView, Text, TextInput, View } from "react-native";
 import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -7,8 +7,15 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { type ThemeColors, useAppTheme } from "../../src/ui/app-theme";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
-import { getClasses } from "../../src/db/seed";
-import type { ClassGroup } from "../../src/core/models";
+import {
+  createClassPlan,
+  deleteClassPlansByClass,
+  getClasses,
+  getClassPlansByClass,
+  saveClassPlans,
+  updateClassPlan,
+} from "../../src/db/seed";
+import type { ClassGroup, ClassPlan } from "../../src/core/models";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { getUnitPalette } from "../../src/ui/unit-colors";
@@ -26,7 +33,7 @@ type WeekPlan = {
 };
 
 const ageBands = ["6-8", "9-11", "12-14"] as const;
-const cycleOptions = [2, 3, 4, 5, 6] as const;
+const cycleOptions = [2, 3, 4, 5, 6, 8, 10, 12] as const;
 const sessionsOptions = [
   2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
 ] as const;
@@ -188,6 +195,82 @@ const nextDateForDayNumber = (dayNumber: number) => {
   return target;
 };
 
+const parseIsoDate = (value?: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+const getPhysicalFocus = (band: (typeof ageBands)[number]) => {
+  if (band === "6-8") return "Coordenacao e equilibrio";
+  if (band === "9-11") return "Forca leve e agilidade";
+  return "Potencia controlada";
+};
+
+const getMvFormat = (band: (typeof ageBands)[number]) => {
+  if (band === "6-8") return "1x1/2x2";
+  if (band === "9-11") return "2x2/3x3";
+  return "4x4/6x6";
+};
+
+const buildClassPlan = (options: {
+  classId: string;
+  ageBand: (typeof ageBands)[number];
+  startDate: string;
+  weekNumber: number;
+  source: "AUTO" | "MANUAL";
+}): ClassPlan => {
+  const base = basePlans[options.ageBand] ?? basePlans["9-11"];
+  const template = base[(options.weekNumber - 1) % base.length];
+  const createdAt = new Date().toISOString();
+  return {
+    id: `cp_${options.classId}_${Date.now()}_${options.weekNumber}`,
+    classId: options.classId,
+    startDate: options.startDate,
+    weekNumber: options.weekNumber,
+    phase: template.title,
+    theme: template.focus,
+    technicalFocus: template.focus,
+    physicalFocus: getPhysicalFocus(options.ageBand),
+    constraints: template.notes[0] ?? "",
+    mvFormat: getMvFormat(options.ageBand),
+    warmupProfile: template.notes[1] ?? "",
+    source: options.source,
+    createdAt,
+    updatedAt: createdAt,
+  };
+};
+
+const toClassPlans = (options: {
+  classId: string;
+  ageBand: (typeof ageBands)[number];
+  cycleLength: number;
+  startDate: string;
+}): ClassPlan[] => {
+  const base = basePlans[options.ageBand] ?? basePlans["9-11"];
+  const createdAt = new Date().toISOString();
+  return Array.from({ length: options.cycleLength }).map((_, index) => {
+    const template = base[index % base.length];
+    return {
+      id: `cp_${options.classId}_${Date.now()}_${index}`,
+      classId: options.classId,
+      startDate: options.startDate,
+      weekNumber: index + 1,
+      phase: template.title,
+      theme: template.focus,
+      technicalFocus: template.focus,
+      physicalFocus: getPhysicalFocus(options.ageBand),
+      constraints: template.notes[0] ?? "",
+      mvFormat: getMvFormat(options.ageBand),
+      warmupProfile: template.notes[1] ?? "",
+      source: "AUTO",
+      createdAt,
+      updatedAt: createdAt,
+    };
+  });
+};
+
 export default function PeriodizationScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -205,21 +288,35 @@ export default function PeriodizationScreen() {
     }
   );
   const [ageBand, setAgeBand] = useState<(typeof ageBands)[number]>("9-11");
-  const [cycleLength, setCycleLength] = useState<(typeof cycleOptions)[number]>(4);
+  const [cycleLength, setCycleLength] = useState<(typeof cycleOptions)[number]>(12);
   const [sessionsPerWeek, setSessionsPerWeek] = useState<(typeof sessionsOptions)[number]>(2);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("Todas");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [showDayModal, setShowDayModal] = useState(false);
+  const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
+  const [isSavingPlans, setIsSavingPlans] = useState(false);
+  const [showWeekEditor, setShowWeekEditor] = useState(false);
+  const [editingWeek, setEditingWeek] = useState(1);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [editPhase, setEditPhase] = useState("");
+  const [editTheme, setEditTheme] = useState("");
+  const [editTechnicalFocus, setEditTechnicalFocus] = useState("");
+  const [editPhysicalFocus, setEditPhysicalFocus] = useState("");
+  const [editConstraints, setEditConstraints] = useState("");
+  const [editMvFormat, setEditMvFormat] = useState("");
+  const [editWarmupProfile, setEditWarmupProfile] = useState("");
+  const [editSource, setEditSource] = useState<"AUTO" | "MANUAL">("AUTO");
+  const [isSavingWeek, setIsSavingWeek] = useState(false);
+  const autoCreatedRef = useRef<Set<string>>(new Set());
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showMesoPicker, setShowMesoPicker] = useState(false);
   const [showMicroPicker, setShowMicroPicker] = useState(false);
   const [classPickerTop, setClassPickerTop] = useState(0);
   const [unitPickerTop, setUnitPickerTop] = useState(0);
-  const [mesoPickerTop, setMesoPickerTop] = useState(0);
-  const [microPickerTop, setMicroPickerTop] = useState(0);
+  const containerRef = useRef<View>(null);
   const classTriggerRef = useRef<View>(null);
   const unitTriggerRef = useRef<View>(null);
   const [classTriggerLayout, setClassTriggerLayout] = useState<{
@@ -229,6 +326,21 @@ export default function PeriodizationScreen() {
     height: number;
   } | null>(null);
   const [unitTriggerLayout, setUnitTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const mesoTriggerRef = useRef<View>(null);
+  const microTriggerRef = useRef<View>(null);
+  const [mesoTriggerLayout, setMesoTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [microTriggerLayout, setMicroTriggerLayout] = useState<{
     x: number;
     y: number;
     width: number;
@@ -279,6 +391,33 @@ export default function PeriodizationScreen() {
   }, [showUnitPicker]);
 
   useEffect(() => {
+    if (!showMesoPicker) return;
+    requestAnimationFrame(() => {
+      mesoTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        setMesoTriggerLayout({ x, y, width, height });
+      });
+    });
+  }, [showMesoPicker]);
+
+  useEffect(() => {
+    if (!showMicroPicker) return;
+    requestAnimationFrame(() => {
+      microTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        setMicroTriggerLayout({ x, y, width, height });
+      });
+    });
+  }, [showMicroPicker]);
+
+  useEffect(() => {
+    if (!showUnitPicker && !showClassPicker && !showMesoPicker && !showMicroPicker) return;
+    requestAnimationFrame(() => {
+      containerRef.current?.measureInWindow((x, y) => {
+        setContainerWindow({ x, y });
+      });
+    });
+  }, [showUnitPicker, showClassPicker, showMesoPicker, showMicroPicker]);
+
+  useEffect(() => {
     let alive = true;
     (async () => {
       const data = await getClasses();
@@ -325,12 +464,57 @@ export default function PeriodizationScreen() {
     if (next && ageBands.includes(next)) {
       setAgeBand(next);
     }
+    if (typeof selectedClass.cycleLengthWeeks === "number") {
+      const cycleValue = selectedClass.cycleLengthWeeks as (typeof cycleOptions)[number];
+      if (cycleOptions.includes(cycleValue)) {
+        setCycleLength(cycleValue);
+      }
+    }
+    if (selectedClass.daysOfWeek?.length) {
+      const nextSessions =
+        selectedClass.daysOfWeek.length as (typeof sessionsOptions)[number];
+      if (sessionsOptions.includes(nextSessions)) {
+        setSessionsPerWeek(nextSessions);
+      }
+    }
   }, [selectedClass]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!selectedClassId) {
+      setClassPlans([]);
+      return;
+    }
+    (async () => {
+      const plans = await getClassPlansByClass(selectedClassId);
+      if (!alive) return;
+      setClassPlans(plans);
+      if (plans.length && cycleOptions.includes(plans.length as (typeof cycleOptions)[number])) {
+        setCycleLength(plans.length as (typeof cycleOptions)[number]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selectedClassId]);
 
   const weekPlans = useMemo(() => {
     const base = basePlans[ageBand] ?? basePlans["9-11"];
+    const length = classPlans.length || cycleLength;
+    if (classPlans.length) {
+      return classPlans.map((plan, index) => {
+        const template = base[index % base.length];
+        return {
+          week: plan.weekNumber,
+          title: plan.phase,
+          focus: plan.theme,
+          volume: template.volume,
+          notes: [plan.constraints, plan.warmupProfile].filter(Boolean),
+        };
+      });
+    }
     const weeks: WeekPlan[] = [];
-    for (let i = 0; i < cycleLength; i += 1) {
+    for (let i = 0; i < length; i += 1) {
       const template = base[i % base.length];
       weeks.push({
         ...template,
@@ -339,7 +523,7 @@ export default function PeriodizationScreen() {
       });
     }
     return weeks;
-  }, [ageBand, cycleLength]);
+  }, [ageBand, cycleLength, classPlans]);
 
   const summary = useMemo(() => {
     if (ageBand === "6-8") {
@@ -364,8 +548,38 @@ export default function PeriodizationScreen() {
   }, [ageBand]);
 
   const progressBars = weekPlans.map((week) => volumeToRatio[week.volume]);
-  const currentWeek = 2;
+  const currentWeek = useMemo(() => {
+    const start =
+      parseIsoDate(selectedClass?.cycleStartDate) ??
+      parseIsoDate(classPlans[0]?.startDate);
+    if (!start || !weekPlans.length) return 1;
+    const diffDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const week = Math.floor(diffDays / 7) + 1;
+    return Math.max(1, Math.min(week, weekPlans.length));
+  }, [selectedClass?.cycleStartDate, classPlans, weekPlans.length]);
   const activeWeek = weekPlans[Math.max(0, Math.min(currentWeek - 1, weekPlans.length - 1))];
+
+  useEffect(() => {
+    if (!selectedClass) return;
+    if (!weekPlans.length) return;
+    const key = `${selectedClass.id}:${currentWeek}`;
+    if (autoCreatedRef.current.has(key)) return;
+    if (classPlans.some((plan) => plan.weekNumber === currentWeek)) return;
+    const startDate =
+      selectedClass.cycleStartDate || formatIsoDate(new Date());
+    const plan = buildClassPlan({
+      classId: selectedClass.id,
+      ageBand,
+      startDate,
+      weekNumber: currentWeek,
+      source: "AUTO",
+    });
+    autoCreatedRef.current.add(key);
+    (async () => {
+      await createClassPlan(plan);
+      setClassPlans((prev) => [...prev, plan].sort((a, b) => a.weekNumber - b.weekNumber));
+    })();
+  }, [ageBand, classPlans, currentWeek, selectedClass, weekPlans.length]);
 
   const highLoadStreak = useMemo(() => {
     let streak = 0;
@@ -389,6 +603,96 @@ export default function PeriodizationScreen() {
     }
     return "";
   }, [highLoadStreak, activeWeek.volume]);
+
+  const openWeekEditor = (weekNumber: number) => {
+    if (!selectedClass) return;
+    const existing = classPlans.find((plan) => plan.weekNumber === weekNumber);
+    const startDate =
+      selectedClass.cycleStartDate || formatIsoDate(new Date());
+    const plan =
+      existing ??
+      buildClassPlan({
+        classId: selectedClass.id,
+        ageBand,
+        startDate,
+        weekNumber,
+        source: "AUTO",
+      });
+    setEditingWeek(weekNumber);
+    setEditingPlanId(existing?.id ?? null);
+    setEditPhase(plan.phase);
+    setEditTheme(plan.theme);
+    setEditTechnicalFocus(plan.technicalFocus);
+    setEditPhysicalFocus(plan.physicalFocus);
+    setEditConstraints(plan.constraints);
+    setEditMvFormat(plan.mvFormat);
+    setEditWarmupProfile(plan.warmupProfile);
+    setEditSource(existing ? plan.source : "AUTO");
+    setShowWeekEditor(true);
+  };
+
+  const handleSaveWeek = async () => {
+    if (!selectedClass) return;
+    const startDate =
+      selectedClass.cycleStartDate || formatIsoDate(new Date());
+    const nowIso = new Date().toISOString();
+    const plan: ClassPlan = {
+      id: editingPlanId ?? `cp_${selectedClass.id}_${Date.now()}_${editingWeek}`,
+      classId: selectedClass.id,
+      startDate,
+      weekNumber: editingWeek,
+      phase: editPhase.trim() || "Base",
+      theme: editTheme.trim() || "Fundamentos",
+      technicalFocus: editTechnicalFocus.trim() || editTheme.trim() || "Fundamentos",
+      physicalFocus: editPhysicalFocus.trim() || getPhysicalFocus(ageBand),
+      constraints: editConstraints.trim(),
+      mvFormat: editMvFormat.trim() || getMvFormat(ageBand),
+      warmupProfile: editWarmupProfile.trim(),
+      source: editSource,
+      createdAt: editingPlanId
+        ? classPlans.find((p) => p.id === editingPlanId)?.createdAt ?? nowIso
+        : nowIso,
+      updatedAt: nowIso,
+    };
+    setIsSavingWeek(true);
+    try {
+      if (editingPlanId) {
+        await updateClassPlan(plan);
+        setClassPlans((prev) =>
+          prev
+            .map((item) => (item.id === editingPlanId ? plan : item))
+            .sort((a, b) => a.weekNumber - b.weekNumber)
+        );
+      } else {
+        await createClassPlan(plan);
+        setClassPlans((prev) => [...prev, plan].sort((a, b) => a.weekNumber - b.weekNumber));
+      }
+      setShowWeekEditor(false);
+      setEditingPlanId(null);
+    } finally {
+      setIsSavingWeek(false);
+    }
+  };
+
+  const handleGeneratePlans = async () => {
+    if (!selectedClass) return;
+    const startDate =
+      selectedClass.cycleStartDate || formatIsoDate(new Date());
+    const plans = toClassPlans({
+      classId: selectedClass.id,
+      ageBand,
+      cycleLength,
+      startDate,
+    });
+    setIsSavingPlans(true);
+    try {
+      await deleteClassPlansByClass(selectedClass.id);
+      await saveClassPlans(plans);
+      setClassPlans(plans);
+    } finally {
+      setIsSavingPlans(false);
+    }
+  };
 
   const getWeekSchedule = (week: WeekPlan, sessions: number) => {
     const base = week.focus.split(",")[0] || week.title;
@@ -444,14 +748,20 @@ export default function PeriodizationScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <View style={{ flex: 1 }}>
+      <View ref={containerRef} style={{ flex: 1 }}>
         <Pressable
           onPress={() => {
-            if (!showUnitPicker && !showClassPicker) return;
+            if (!showUnitPicker && !showClassPicker && !showMesoPicker && !showMicroPicker) return;
             setShowUnitPicker(false);
             setShowClassPicker(false);
+            setShowMesoPicker(false);
+            setShowMicroPicker(false);
           }}
-          pointerEvents={showUnitPicker || showClassPicker ? "auto" : "none"}
+          pointerEvents={
+            showUnitPicker || showClassPicker || showMesoPicker || showMicroPicker
+              ? "auto"
+              : "none"
+          }
           style={{
             position: "absolute",
             top: 0,
@@ -465,9 +775,11 @@ export default function PeriodizationScreen() {
           contentContainerStyle={{ gap: 16, paddingBottom: 24 }}
           style={{ zIndex: 1 }}
           onScroll={() => {
-            if (showUnitPicker || showClassPicker) {
+            if (showUnitPicker || showClassPicker || showMesoPicker || showMicroPicker) {
               setShowUnitPicker(false);
               setShowClassPicker(false);
+              setShowMesoPicker(false);
+              setShowMicroPicker(false);
             }
           }}
           scrollEventThrottle={16}
@@ -477,7 +789,7 @@ export default function PeriodizationScreen() {
             Periodizacao
           </Text>
           <Text style={{ color: colors.muted }}>
-            Estrutura do ciclo, cargas e foco semanal.
+            Estrutura do ciclo, cargas e foco semanal
           </Text>
         </View>
 
@@ -894,14 +1206,11 @@ export default function PeriodizationScreen() {
                   ]}
                 >
                   <Text style={{ color: colors.muted, fontSize: 12 }}>Mesociclo</Text>
-                  <View style={{ position: "relative" }}>
+                  <View ref={mesoTriggerRef} style={{ position: "relative" }}>
                     <Pressable
                       onPress={() => {
                         setShowMesoPicker((prev) => !prev);
                         setShowMicroPicker(false);
-                      }}
-                      onLayout={(event) => {
-                        setMesoPickerTop(event.nativeEvent.layout.height);
                       }}
                       style={{
                         marginTop: 6,
@@ -926,60 +1235,6 @@ export default function PeriodizationScreen() {
                         </Animated.View>
                       </View>
                     </Pressable>
-                    {showMesoPickerContent ? (
-                      <Animated.View
-                        style={[
-                          {
-                            position: "absolute",
-                            left: 0,
-                            right: 0,
-                            top: mesoPickerTop + 8,
-                            zIndex: 20,
-                          },
-                          mesoPickerAnimStyle,
-                        ]}
-                      >
-                        <View
-                          style={{
-                            borderRadius: 12,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.inputBg,
-                            padding: 6,
-                          }}
-                        >
-                          {cycleOptions.map((value, index) => {
-                            const active = value === cycleLength;
-                            return (
-                              <Pressable
-                                key={value}
-                                onPress={() => {
-                                  setCycleLength(value);
-                                  setShowMesoPicker(false);
-                                }}
-                                style={{
-                                  paddingVertical: 8,
-                                  paddingHorizontal: 10,
-                                  borderRadius: 10,
-                                  margin: index === 0 ? 4 : 2,
-                                  backgroundColor: active ? colors.primaryBg : "transparent",
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    color: active ? colors.primaryText : colors.text,
-                                    fontSize: 12,
-                                    fontWeight: active ? "700" : "500",
-                                  }}
-                                >
-                                  {value} semanas
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </Animated.View>
-                    ) : null}
                   </View>
                 </View>
                 <View
@@ -989,14 +1244,11 @@ export default function PeriodizationScreen() {
                   ]}
                 >
                   <Text style={{ color: colors.muted, fontSize: 12 }}>Microciclo</Text>
-                  <View style={{ position: "relative" }}>
+                  <View ref={microTriggerRef} style={{ position: "relative" }}>
                     <Pressable
                       onPress={() => {
                         setShowMicroPicker((prev) => !prev);
                         setShowMesoPicker(false);
-                      }}
-                      onLayout={(event) => {
-                        setMicroPickerTop(event.nativeEvent.layout.height);
                       }}
                       style={{
                         marginTop: 6,
@@ -1021,71 +1273,52 @@ export default function PeriodizationScreen() {
                         </Animated.View>
                       </View>
                     </Pressable>
-                    {showMicroPickerContent ? (
-                      <Animated.View
-                        style={[
-                          {
-                            position: "absolute",
-                            left: 0,
-                            right: 0,
-                            top: microPickerTop + 8,
-                            zIndex: 20,
-                          },
-                          microPickerAnimStyle,
-                        ]}
-                      >
-                        <ScrollView
-                          style={{ maxHeight: 180 }}
-                          contentContainerStyle={{ padding: 6, gap: 2 }}
-                          showsVerticalScrollIndicator
-                        >
-                          <View
-                            style={{
-                              borderRadius: 12,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: colors.inputBg,
-                            }}
-                          >
-                            {sessionsOptions.map((value, index) => {
-                              const active = value === sessionsPerWeek;
-                              return (
-                                <Pressable
-                                  key={value}
-                                  onPress={() => {
-                                    setSessionsPerWeek(value);
-                                    setShowMicroPicker(false);
-                                  }}
-                                  style={{
-                                    paddingVertical: 8,
-                                    paddingHorizontal: 10,
-                                    borderRadius: 10,
-                                    margin: index === 0 ? 6 : 2,
-                                    backgroundColor: active ? colors.primaryBg : "transparent",
-                                  }}
-                                >
-                                  <Text
-                                    style={{
-                                      color: active ? colors.primaryText : colors.text,
-                                      fontSize: 12,
-                                      fontWeight: active ? "700" : "500",
-                                    }}
-                                  >
-                                    {value} dias
-                                  </Text>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        </ScrollView>
-                      </Animated.View>
-                    ) : null}
                   </View>
                 </View>
               </View>
             </Animated.View>
           ) : null}
           </View>
+        </View>
+        <View style={getSectionCardStyle(colors, "info")}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            Planejamento da turma
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            {classPlans.length
+              ? "Planejamento salvo para esta turma."
+              : "Gere o planejamento semanal para esta turma."}
+          </Text>
+          <Pressable
+            onPress={handleGeneratePlans}
+            disabled={!selectedClass || isSavingPlans}
+            style={{
+              marginTop: 10,
+              paddingVertical: 10,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor:
+                !selectedClass || isSavingPlans
+                  ? colors.primaryDisabledBg
+                  : colors.primaryBg,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  !selectedClass || isSavingPlans
+                    ? colors.secondaryText
+                    : colors.primaryText,
+                fontWeight: "700",
+              }}
+            >
+              {isSavingPlans
+                ? "Salvando..."
+                : classPlans.length
+                  ? "Regerar planejamento"
+                  : "Gerar planejamento"}
+            </Text>
+          </Pressable>
         </View>
         </>
         ) : null}
@@ -1220,8 +1453,9 @@ export default function PeriodizationScreen() {
           {showCycleContent ? (
             <Animated.View style={[{ gap: 10 }, cycleAnimStyle]}>
             {weekPlans.map((week) => (
-              <View
+              <Pressable
                 key={week.week}
+                onPress={() => openWeekEditor(week.week)}
                 style={{
                   padding: 12,
                   borderRadius: 14,
@@ -1238,17 +1472,31 @@ export default function PeriodizationScreen() {
                   {(() => {
                     const palette = getVolumePalette(week.volume, colors);
                     return (
-                      <View
-                        style={{
-                          paddingVertical: 2,
-                          paddingHorizontal: 8,
-                          borderRadius: 999,
-                          backgroundColor: palette.bg,
-                        }}
-                      >
-                        <Text style={{ color: palette.text, fontSize: 11 }}>
-                          {week.volume}
-                        </Text>
+                      <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                        <View
+                          style={{
+                            paddingVertical: 2,
+                            paddingHorizontal: 8,
+                            borderRadius: 999,
+                            backgroundColor: palette.bg,
+                          }}
+                        >
+                          <Text style={{ color: palette.text, fontSize: 11 }}>
+                            {week.volume}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            paddingVertical: 2,
+                            paddingHorizontal: 8,
+                            borderRadius: 999,
+                            backgroundColor: colors.secondaryBg,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                            Editar
+                          </Text>
+                        </View>
                       </View>
                     );
                   })()}
@@ -1289,11 +1537,11 @@ export default function PeriodizationScreen() {
                     </Text>
                   ))}
                 </View>
-              </View>
+              </Pressable>
             ))}
             </Animated.View>
           ) : null}
-          </View>
+        </View>
         </View>
           </>
         ) : null}
@@ -1381,11 +1629,13 @@ export default function PeriodizationScreen() {
             style={[
               {
                 position: "absolute",
-                left: classTriggerLayout.x,
-                top: classTriggerLayout.y + classTriggerLayout.height + 8,
+                left: containerWindow ? classTriggerLayout.x - containerWindow.x : classTriggerLayout.x,
+                top: containerWindow
+                  ? classTriggerLayout.y - containerWindow.y + classTriggerLayout.height + 8
+                  : classTriggerLayout.y + classTriggerLayout.height + 8,
                 width: classTriggerLayout.width,
-                zIndex: 200,
-                elevation: 10,
+                zIndex: 300,
+                elevation: 12,
               },
               classPickerAnimStyle,
             ]}
@@ -1449,11 +1699,13 @@ export default function PeriodizationScreen() {
             style={[
               {
                 position: "absolute",
-                left: unitTriggerLayout.x,
-                top: unitTriggerLayout.y + unitTriggerLayout.height + 8,
+                left: containerWindow ? unitTriggerLayout.x - containerWindow.x : unitTriggerLayout.x,
+                top: containerWindow
+                  ? unitTriggerLayout.y - containerWindow.y + unitTriggerLayout.height + 8
+                  : unitTriggerLayout.y + unitTriggerLayout.height + 8,
                 width: unitTriggerLayout.width,
-                zIndex: 200,
-                elevation: 10,
+                zIndex: 300,
+                elevation: 12,
               },
               unitPickerAnimStyle,
             ]}
@@ -1500,6 +1752,127 @@ export default function PeriodizationScreen() {
                         }}
                       >
                         {unit}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </Animated.View>
+        ) : null}
+
+        {showMesoPickerContent && mesoTriggerLayout ? (
+          <Animated.View
+            style={[
+              {
+                position: "absolute",
+                left: containerWindow ? mesoTriggerLayout.x - containerWindow.x : mesoTriggerLayout.x,
+                top: containerWindow
+                  ? mesoTriggerLayout.y - containerWindow.y + mesoTriggerLayout.height + 8
+                  : mesoTriggerLayout.y + mesoTriggerLayout.height + 8,
+                width: mesoTriggerLayout.width,
+                zIndex: 300,
+                elevation: 12,
+              },
+              mesoPickerAnimStyle,
+            ]}
+          >
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.inputBg,
+                padding: 6,
+              }}
+            >
+              {cycleOptions.map((value, index) => {
+                const active = value === cycleLength;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => {
+                      setCycleLength(value);
+                      setShowMesoPicker(false);
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      margin: index === 0 ? 4 : 2,
+                      backgroundColor: active ? colors.primaryBg : "transparent",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.text,
+                        fontSize: 12,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {value} semanas
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Animated.View>
+        ) : null}
+
+        {showMicroPickerContent && microTriggerLayout ? (
+          <Animated.View
+            style={[
+              {
+                position: "absolute",
+                left: containerWindow ? microTriggerLayout.x - containerWindow.x : microTriggerLayout.x,
+                top: containerWindow
+                  ? microTriggerLayout.y - containerWindow.y + microTriggerLayout.height + 8
+                  : microTriggerLayout.y + microTriggerLayout.height + 8,
+                width: microTriggerLayout.width,
+                zIndex: 300,
+                elevation: 12,
+              },
+              microPickerAnimStyle,
+            ]}
+          >
+            <ScrollView
+              style={{ maxHeight: 180 }}
+              contentContainerStyle={{ padding: 6, gap: 2 }}
+              showsVerticalScrollIndicator
+            >
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.inputBg,
+                }}
+              >
+                {sessionsOptions.map((value, index) => {
+                  const active = value === sessionsPerWeek;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => {
+                        setSessionsPerWeek(value);
+                        setShowMicroPicker(false);
+                      }}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 10,
+                        borderRadius: 10,
+                        margin: index === 0 ? 6 : 2,
+                        backgroundColor: active ? colors.primaryBg : "transparent",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: active ? colors.primaryText : colors.text,
+                          fontSize: 12,
+                          fontWeight: active ? "700" : "500",
+                        }}
+                      >
+                        {value} dias
                       </Text>
                     </Pressable>
                   );
@@ -1632,6 +2005,181 @@ export default function PeriodizationScreen() {
               }}
             >
               Criar plano de aula
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </ModalSheet>
+
+      <ModalSheet
+        visible={showWeekEditor}
+        onClose={() => setShowWeekEditor(false)}
+        cardStyle={[modalCardStyle, { paddingBottom: 12 }]}
+        position="center"
+      >
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <View>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+              {"Semana " + editingWeek}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {selectedClass?.name ?? "Turma"}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setShowWeekEditor(false)}
+            style={{
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
+          style={{ maxHeight: "92%" }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          <TextInput
+            placeholder="Fase (ex: Base, Recuperacao)"
+            value={editPhase}
+            onChangeText={setEditPhase}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Tema (ex: Manchete, Saque)"
+            value={editTheme}
+            onChangeText={setEditTheme}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Foco tecnico"
+            value={editTechnicalFocus}
+            onChangeText={setEditTechnicalFocus}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Foco fisico"
+            value={editPhysicalFocus}
+            onChangeText={setEditPhysicalFocus}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Restricoes / regras"
+            value={editConstraints}
+            onChangeText={setEditConstraints}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Formato MV (ex: 2x2, 3x3)"
+            value={editMvFormat}
+            onChangeText={setEditMvFormat}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <TextInput
+            placeholder="Warmup profile"
+            value={editWarmupProfile}
+            onChangeText={setEditWarmupProfile}
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(["AUTO", "MANUAL"] as const).map((value) => {
+              const active = editSource === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => setEditSource(value)}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
+                    {value}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable
+            onPress={handleSaveWeek}
+            disabled={isSavingWeek}
+            style={{
+              marginTop: 6,
+              paddingVertical: 10,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: isSavingWeek ? colors.primaryDisabledBg : colors.primaryBg,
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+              {isSavingWeek ? "Salvando..." : "Salvar plano"}
             </Text>
           </Pressable>
         </ScrollView>

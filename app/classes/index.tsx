@@ -19,6 +19,7 @@ import { getClasses, saveClass } from "../../src/db/seed";
 import type { ClassGroup } from "../../src/core/models";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { Button } from "../../src/ui/Button";
+import { DateInput } from "../../src/ui/DateInput";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -28,6 +29,7 @@ import { getUnitPalette } from "../../src/ui/unit-colors";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { updateClass } from "../../src/db/seed";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { DatePickerModal } from "../../src/ui/DatePickerModal";
 
 export default function ClassesScreen() {
   const router = useRouter();
@@ -60,6 +62,9 @@ export default function ClassesScreen() {
   const [newStartTime, setNewStartTime] = useState("14:00");
   const [newDuration, setNewDuration] = useState("60");
   const [newDays, setNewDays] = useState<number[]>([]);
+  const [newMvLevel, setNewMvLevel] = useState("MV1");
+  const [newCycleStartDate, setNewCycleStartDate] = useState("");
+  const [newCycleLengthWeeks, setNewCycleLengthWeeks] = useState(12);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
@@ -71,6 +76,9 @@ export default function ClassesScreen() {
   const [editStartTime, setEditStartTime] = useState("14:00");
   const [editDuration, setEditDuration] = useState("60");
   const [editDays, setEditDays] = useState<number[]>([]);
+  const [editMvLevel, setEditMvLevel] = useState("MV1");
+  const [editCycleStartDate, setEditCycleStartDate] = useState("");
+  const [editCycleLengthWeeks, setEditCycleLengthWeeks] = useState(12);
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomDuration, setEditShowCustomDuration] = useState(false);
@@ -119,6 +127,10 @@ export default function ClassesScreen() {
     "Prevencao de lesoes",
   ];
   const durationOptions = ["60", "75", "90"];
+  const cycleLengthOptions = [2, 3, 4, 5, 6, 8, 10, 12];
+  const mvLevelOptions = ["MV1", "MV2", "MV3"];
+  const [showNewCycleCalendar, setShowNewCycleCalendar] = useState(false);
+  const [showEditCycleCalendar, setShowEditCycleCalendar] = useState(false);
 
   const units = useMemo(() => {
     const set = new Set<string>();
@@ -210,6 +222,11 @@ export default function ClassesScreen() {
     const minutes = Number(value);
     if (!Number.isFinite(minutes)) return null;
     return minutes >= 30 && minutes <= 180 ? minutes : null;
+  };
+
+  const parseCycleLength = (value: number) => {
+    if (!Number.isFinite(value)) return null;
+    return value >= 2 && value <= 12 ? value : null;
   };
 
   const parseTime = (value: string) => {
@@ -314,6 +331,12 @@ export default function ClassesScreen() {
       Vibration.vibrate(40);
       return;
     }
+    const cycleValue = parseCycleLength(newCycleLengthWeeks);
+    if (!cycleValue) {
+      setFormError("Ciclo invalido. Use entre 2 e 12 semanas.");
+      Vibration.vibrate(40);
+      return;
+    }
     setFormError("");
     setSaving(true);
     try {
@@ -325,6 +348,9 @@ export default function ClassesScreen() {
         goal: newGoal,
         startTime: timeValue,
         durationMinutes: durationValue,
+        mvLevel: newMvLevel,
+        cycleStartDate: newCycleStartDate || undefined,
+        cycleLengthWeeks: cycleValue,
       });
       Vibration.vibrate(60);
       setNewName("");
@@ -334,6 +360,9 @@ export default function ClassesScreen() {
       setNewDays([]);
       setNewStartTime("14:00");
       setNewDuration("60");
+      setNewMvLevel("MV1");
+      setNewCycleStartDate("");
+      setNewCycleLengthWeeks(12);
       setShowNew(false);
       await loadClasses();
       router.back();
@@ -351,6 +380,9 @@ export default function ClassesScreen() {
     setEditStartTime(item.startTime ?? "14:00");
     setEditDuration(String(item.durationMinutes ?? 60));
     setEditDays(item.daysOfWeek ?? []);
+    setEditMvLevel(item.mvLevel ?? "MV1");
+    setEditCycleStartDate(item.cycleStartDate ?? "");
+    setEditCycleLengthWeeks(item.cycleLengthWeeks ?? 12);
     setEditFormError("");
     setEditShowCustomDuration(false);
     setEditShowAllAges(false);
@@ -379,6 +411,12 @@ export default function ClassesScreen() {
       Vibration.vibrate(40);
       return;
     }
+    const cycleValue = parseCycleLength(editCycleLengthWeeks);
+    if (!cycleValue) {
+      setEditFormError("Ciclo invalido. Use entre 2 e 12 semanas.");
+      Vibration.vibrate(40);
+      return;
+    }
     setEditFormError("");
     setEditSaving(true);
     try {
@@ -390,6 +428,9 @@ export default function ClassesScreen() {
         goal: editGoal,
         startTime: timeValue,
         durationMinutes: durationValue,
+        mvLevel: editMvLevel,
+        cycleStartDate: editCycleStartDate || undefined,
+        cycleLengthWeeks: cycleValue,
       });
       await loadClasses();
       setShowEditModal(false);
@@ -405,8 +446,11 @@ export default function ClassesScreen() {
     newStartTime.trim() !== "14:00" ||
     newDuration.trim() !== "60" ||
     newAgeBand.trim() !== "8-9" ||
+    newMvLevel.trim() !== "MV1" ||
     newGoal.trim() !== "Fundamentos" ||
-    newDays.length > 0;
+    newDays.length > 0 ||
+    newCycleStartDate.trim() ||
+    newCycleLengthWeeks !== 12;
 
   const confirmCloseForm = () => {
     if (!isDirty) {
@@ -583,6 +627,49 @@ export default function ClassesScreen() {
                   />
                 </Animated.View>
               ) : null}
+              <Text style={{ fontSize: 13, color: colors.muted }}>
+                Data inicio do ciclo
+              </Text>
+              <DateInput
+                value={newCycleStartDate}
+                onChange={setNewCycleStartDate}
+                onOpenCalendar={() => setShowNewCycleCalendar(true)}
+                placeholder="DD/MM/AAAA"
+              />
+              <Text style={{ fontSize: 13, color: colors.muted }}>
+                Duracao do ciclo (semanas)
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {cycleLengthOptions.map((value) => {
+                  const active = newCycleLengthWeeks === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => setNewCycleLengthWeeks(value)}
+                      style={getChipStyle(active)}
+                    >
+                      <Text style={getChipTextStyle(active)}>
+                        {value + " semanas"}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={{ fontSize: 13, color: colors.muted }}>Nivel MV</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {mvLevelOptions.map((value) => {
+                  const active = newMvLevel === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      onPress={() => setNewMvLevel(value)}
+                      style={getChipStyle(active)}
+                    >
+                      <Text style={getChipTextStyle(active)}>{value}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <Text style={{ fontSize: 13, color: colors.muted }}>Faixa etaria</Text>
               {showAllAges ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -1118,6 +1205,49 @@ export default function ClassesScreen() {
               }}
             />
           ) : null}
+          <Text style={{ fontSize: 13, color: colors.muted }}>
+            Data inicio do ciclo
+          </Text>
+          <DateInput
+            value={editCycleStartDate}
+            onChange={setEditCycleStartDate}
+            onOpenCalendar={() => setShowEditCycleCalendar(true)}
+            placeholder="DD/MM/AAAA"
+          />
+          <Text style={{ fontSize: 13, color: colors.muted }}>
+            Duracao do ciclo (semanas)
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {cycleLengthOptions.map((value) => {
+              const active = editCycleLengthWeeks === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => setEditCycleLengthWeeks(value)}
+                  style={getChipStyle(active)}
+                >
+                  <Text style={getChipTextStyle(active)}>
+                    {value + " semanas"}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={{ fontSize: 13, color: colors.muted }}>Nivel MV</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {mvLevelOptions.map((value) => {
+              const active = editMvLevel === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => setEditMvLevel(value)}
+                  style={getChipStyle(active)}
+                >
+                  <Text style={getChipTextStyle(active)}>{value}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <Text style={{ fontSize: 13, color: colors.muted }}>Faixa etaria</Text>
           {editShowAllAges ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -1337,6 +1467,20 @@ export default function ClassesScreen() {
           </View>
         </ScrollView>
       </ModalSheet>
+      <DatePickerModal
+        visible={showNewCycleCalendar}
+        value={newCycleStartDate || undefined}
+        onChange={(value) => setNewCycleStartDate(value)}
+        onClose={() => setShowNewCycleCalendar(false)}
+        closeOnSelect={false}
+      />
+      <DatePickerModal
+        visible={showEditCycleCalendar}
+        value={editCycleStartDate || undefined}
+        onChange={(value) => setEditCycleStartDate(value)}
+        onClose={() => setShowEditCycleCalendar(false)}
+        closeOnSelect={false}
+      />
     </SafeAreaView>
   );
 }
