@@ -42,7 +42,15 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "otaldogustas-company"
+        }
+      ]
     ],
     "updates": {
       "url": "https://u.expo.dev/a5b1cd35-0ae7-4c50-a12e-df9741e0dfca"

@@ -22,6 +22,21 @@ import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { SaveToastProvider } from "../src/ui/save-toast";
 import { addNotification } from "../src/notificationsInbox";
 import { AuthProvider, useAuth } from "../src/auth/auth";
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: true,
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 function RootLayoutContent() {
   const { colors, mode } = useAppTheme();
@@ -173,7 +188,7 @@ textarea:-webkit-autofill:active {
   );
 }
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
   useEffect(() => {
     const globalHandler = (global as {
       ErrorUtils?: {
@@ -231,4 +246,4 @@ export default function RootLayout() {
       </AuthProvider>
     </AppThemeProvider>
   );
-}
+});
