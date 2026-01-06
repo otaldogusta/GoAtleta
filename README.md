@@ -25,6 +25,46 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Web patch (yoga-layout)
+
+O `yoga-layout@3.2.1` contem `import.meta.url` no bundle ESM e o Metro nao transpila `node_modules`, causando tela branca no Web com o erro:
+
+`Cannot use import.meta outside a module`
+
+Para evitar isso, mantemos um patch com `patch-package` que remove esse trecho do arquivo:
+
+- Patch: `patches/yoga-layout+3.2.1.patch`
+- Aplicacao automatica: `npm install` (via `postinstall`)
+- Versao fixada: `yoga-layout: 3.2.1`
+
+Atualizacao:
+
+```bash
+npx patch-package yoga-layout
+```
+
+### Checklist de validacao
+
+- [ ] `rm -rf node_modules && npm install`
+- [ ] `npm run web` (dev)
+- [ ] build web em modo production (se existir)
+- [ ] CI usando `npm ci`
+
+### Problemas na instalacao (postinstall)
+
+Se o `postinstall` falhar, rode:
+
+```bash
+npm install
+```
+
+Se o erro persistir, confira se o patch existe em `patches/yoga-layout+3.2.1.patch`
+e regenere com:
+
+```bash
+npx patch-package yoga-layout
+```
+
 ## Get a fresh project
 
 When you're ready, run:

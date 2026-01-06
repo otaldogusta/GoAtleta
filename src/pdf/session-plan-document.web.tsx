@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
-} from "@react-pdf/renderer/lib/react-pdf.browser.min";
+} from "@react-pdf/renderer/lib/react-pdf.browser";
 import type { SessionPlanPdfData } from "./templates/session-plan";
 
 const styles = StyleSheet.create({

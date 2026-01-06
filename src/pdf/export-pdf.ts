@@ -25,7 +25,8 @@ export const exportPdf = async ({
     if (!webDocument) {
       throw new Error("Missing webDocument for PDF export.");
     }
-    const { pdf } = await import("@react-pdf/renderer");
+    // @ts-expect-error no types for browser bundle entry
+    const { pdf } = await import("@react-pdf/renderer/lib/react-pdf.browser");
     const blob = await pdf(webDocument).toBlob();
     if (typeof window !== "undefined") {
       const url = URL.createObjectURL(blob);

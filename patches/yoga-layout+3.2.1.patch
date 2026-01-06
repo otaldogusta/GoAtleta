@@ -1,0 +1,12 @@
+diff --git a/node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js b/node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js
+index 350866a..f68c000 100644
+--- a/node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js
++++ b/node_modules/yoga-layout/dist/binaries/yoga-wasm-base64-esm.js
+@@ -1,6 +1,6 @@
+ 
+ var loadYoga = (() => {
+-  var _scriptDir = import.meta.url;
++  var _scriptDir = "";
+   
+   return (
+ function(loadYoga) {
