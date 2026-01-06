@@ -1,10 +1,13 @@
 import {
+  memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState } from "react";
 import {
   Animated,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -39,6 +42,7 @@ import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { ModalSheet } from "../../src/ui/ModalSheet";
+import { ScreenHeader } from "../../src/ui/ScreenHeader";
 
 export default function StudentsScreen() {
   const router = useRouter();
@@ -113,8 +117,10 @@ export default function StudentsScreen() {
     setStudents(data);
   };
 
-  const unitLabel = (value?: string) =>
-    value && value.trim() ? value.trim() : "Sem unidade";
+  const unitLabel = useCallback(
+    (value?: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
+    []
+  );
 
   const unitOptions = useMemo(() => {
     const set = new Set<string>();
@@ -328,7 +334,7 @@ export default function StudentsScreen() {
     closeEditModal();
   };
 
-  const onEdit = (student: Student) => {
+  const onEdit = useCallback((student: Student) => {
     const cls = classes.find((item) => item.id === student.classId);
     let nextUnit = "";
     let nextAgeBand = "";
@@ -374,7 +380,7 @@ export default function StudentsScreen() {
     setPhone(student.phone);
     setShowEditModal(true);
     setStudentFormError("");
-  };
+  }, [ageBandOptions, classes, unitLabel]);
 
   const onDelete = (id: string) => {
     const student = students.find((item) => item.id === id);
@@ -403,8 +409,11 @@ export default function StudentsScreen() {
     });
   };
 
-  const getClassName = (id: string) =>
-    classes.find((item) => item.id === id)?.name ?? "Selecione a turma";
+  const getClassName = useCallback(
+    (id: string) =>
+      classes.find((item) => item.id === id)?.name ?? "Selecione a turma",
+    [classes]
+  );
   const selectedClassName = useMemo(
     () => classes.find((item) => item.id === classId)?.name ?? "",
     [classId, classes]
@@ -542,6 +551,59 @@ export default function StudentsScreen() {
     };
   }, []);
 
+  const StudentRow = useMemo(
+    () =>
+      memo(function StudentRowItem({
+        item,
+        onPress,
+        className,
+      }: {
+        item: Student;
+        onPress: (student: Student) => void;
+        className: string;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onPress(item)}
+            style={[
+              getSectionCardStyle(colors, "neutral"),
+              {
+                gap: 6,
+                shadowOpacity: 0.04,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 2,
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              {item.name + " - " + className}
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              {"Idade: " + item.age + " | Telefone: " + item.phone}
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
+  const renderStudentItem = useCallback(
+    ({ item }: { item: Student }) => (
+      <StudentRow
+        item={item}
+        onPress={onEdit}
+        className={getClassName(item.classId)}
+      />
+    ),
+    [StudentRow, getClassName, onEdit]
+  );
+
+  const studentKeyExtractor = useCallback(
+    (item: Student) => String(item.id),
+    []
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
@@ -552,12 +614,7 @@ export default function StudentsScreen() {
         contentContainerStyle={{ paddingBottom: 24, gap: 16 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Alunos
-          </Text>
-          <Text style={{ color: colors.muted }}>Lista de chamada por turma</Text>
-        </View>
+        <ScreenHeader title="Alunos" subtitle="Lista de chamada por turma" />
 
         <View
           style={[
@@ -792,29 +849,17 @@ export default function StudentsScreen() {
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Lista de alunos
           </Text>
-          {students.map((student) => (
-            <Pressable
-              key={student.id}
-              onPress={() => onEdit(student)}
-              style={[
-                getSectionCardStyle(colors, "neutral"),
-                {
-                  gap: 6,
-                  shadowOpacity: 0.04,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 6 },
-                  elevation: 2,
-                },
-              ]}
-            >
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {student.name + " - " + getClassName(student.classId)}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {"Idade: " + student.age + " | Telefone: " + student.phone}
-              </Text>
-            </Pressable>
-          ))}
+          <FlatList
+            data={students}
+            keyExtractor={studentKeyExtractor}
+            renderItem={renderStudentItem}
+            scrollEnabled={false}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+            initialNumToRender={12}
+            windowSize={7}
+            maxToRenderPerBatch={12}
+            removeClippedSubviews
+          />
         </View>
       </ScrollView>
       {saveNotice ? (

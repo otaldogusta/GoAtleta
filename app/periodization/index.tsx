@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, ScrollView, Text, TextInput, View } from "react-native";
 import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -412,9 +412,9 @@ export default function PeriodizationScreen() {
     height: number;
   } | null>(null);
 
-  const toggleSection = (key: SectionKey) => {
+  const toggleSection = useCallback((key: SectionKey) => {
     setSectionOpen((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  }, [setSectionOpen]);
 
   const { animatedStyle: loadAnimStyle, isVisible: showLoadContent } =
     useCollapsibleAnimation(sectionOpen.load);
@@ -758,7 +758,7 @@ export default function PeriodizationScreen() {
     };
   }, [acwrRatio, activeTab, setGuidance, warningMessage]);
 
-  const openWeekEditor = (weekNumber: number) => {
+  const openWeekEditor = useCallback((weekNumber: number) => {
     if (!selectedClass) return;
     const existing = classPlans.find((plan) => plan.weekNumber === weekNumber);
     const startDate =
@@ -787,7 +787,7 @@ export default function PeriodizationScreen() {
     setEditRpeTarget(plan.rpeTarget);
     setEditSource(existing ? plan.source : "AUTO");
     setShowWeekEditor(true);
-  };
+  }, [ageBand, classPlans, cycleLength, selectedClass]);
 
   const handleSaveWeek = async () => {
     if (!selectedClass) return;
@@ -833,6 +833,193 @@ export default function PeriodizationScreen() {
       setIsSavingWeek(false);
     }
   };
+
+  const handleSelectDay = useCallback((index: number) => {
+    setSelectedDayIndex(index);
+    setShowDayModal(true);
+  }, []);
+
+  const handleSelectUnit = useCallback((unit: string) => {
+    setSelectedUnit(unit);
+    setShowUnitPicker(false);
+  }, []);
+
+  const handleSelectClass = useCallback((cls: ClassGroup) => {
+    setSelectedClassId(cls.id);
+    if (cls.unit) setSelectedUnit(cls.unit);
+    setShowClassPicker(false);
+  }, []);
+
+  const handleSelectMeso = useCallback((value: (typeof cycleOptions)[number]) => {
+    setCycleLength(value);
+    setShowMesoPicker(false);
+  }, []);
+
+  const handleSelectMicro = useCallback(
+    (value: (typeof sessionsOptions)[number]) => {
+      setSessionsPerWeek(value);
+      setShowMicroPicker(false);
+    },
+    []
+  );
+
+  const UnitOption = useMemo(
+    () =>
+      memo(function UnitOptionItem({
+        unit,
+        active,
+        palette,
+        onSelect,
+        isFirst,
+      }: {
+        unit: string;
+        active: boolean;
+        palette: { bg: string; text: string };
+        onSelect: (value: string) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(unit)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? palette.bg : "transparent",
+            }}
+          >
+            <Text
+              style={{
+                color: active ? palette.text : colors.text,
+                fontSize: 12,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {unit}
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
+  const ClassOption = useMemo(
+    () =>
+      memo(function ClassOptionItem({
+        cls,
+        active,
+        onSelect,
+        isFirst,
+      }: {
+        cls: ClassGroup;
+        active: boolean;
+        onSelect: (value: ClassGroup) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(cls)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? colors.primaryBg : "transparent",
+            }}
+          >
+            <Text
+              style={{
+                color: active ? colors.primaryText : colors.text,
+                fontSize: 12,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {cls.name}
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
+  const MesoOption = useMemo(
+    () =>
+      memo(function MesoOptionItem({
+        value,
+        active,
+        onSelect,
+        isFirst,
+      }: {
+        value: (typeof cycleOptions)[number];
+        active: boolean;
+        onSelect: (value: (typeof cycleOptions)[number]) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(value)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? colors.primaryBg : "transparent",
+            }}
+          >
+            <Text
+              style={{
+                color: active ? colors.primaryText : colors.text,
+                fontSize: 12,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {value} semanas
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
+  const MicroOption = useMemo(
+    () =>
+      memo(function MicroOptionItem({
+        value,
+        active,
+        onSelect,
+        isFirst,
+      }: {
+        value: (typeof sessionsOptions)[number];
+        active: boolean;
+        onSelect: (value: (typeof sessionsOptions)[number]) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(value)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              margin: isFirst ? 6 : 2,
+              backgroundColor: active ? colors.primaryBg : "transparent",
+            }}
+          >
+            <Text
+              style={{
+                color: active ? colors.primaryText : colors.text,
+                fontSize: 12,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {value} dias
+            </Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
 
   const handleGeneratePlans = async () => {
     if (!selectedClass) return;
@@ -1645,10 +1832,7 @@ export default function PeriodizationScreen() {
                 {weekSchedule.map((item, index) => (
                   <Pressable
                     key={item.label}
-                    onPress={() => {
-                      setSelectedDayIndex(index);
-                      setShowDayModal(true);
-                    }}
+                    onPress={() => handleSelectDay(index)}
                     style={{
                       width: "30%",
                       minWidth: 90,
@@ -1706,36 +1890,15 @@ export default function PeriodizationScreen() {
                 }}
               >
                 {filteredClasses.length ? (
-                  filteredClasses.map((cls, index) => {
-                    const active = cls.id === selectedClassId;
-                    return (
-                      <Pressable
-                        key={cls.id}
-                        onPress={() => {
-                          setSelectedClassId(cls.id);
-                          if (cls.unit) setSelectedUnit(cls.unit);
-                          setShowClassPicker(false);
-                        }}
-                        style={{
-                          paddingVertical: 8,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
-                          margin: index === 0 ? 6 : 2,
-                          backgroundColor: active ? colors.primaryBg : "transparent",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: active ? colors.primaryText : colors.text,
-                            fontSize: 12,
-                            fontWeight: active ? "700" : "500",
-                          }}
-                        >
-                          {cls.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })
+                  filteredClasses.map((cls, index) => (
+                    <ClassOption
+                      key={cls.id}
+                      cls={cls}
+                      active={cls.id === selectedClassId}
+                      onSelect={handleSelectClass}
+                      isFirst={index === 0}
+                    />
+                  ))
                 ) : (
                   <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
                     Nenhuma turma cadastrada.
@@ -1782,30 +1945,14 @@ export default function PeriodizationScreen() {
                       ? { bg: colors.primaryBg, text: colors.primaryText }
                       : getUnitPalette(unit, colors);
                   return (
-                    <Pressable
+                    <UnitOption
                       key={unit}
-                      onPress={() => {
-                        setSelectedUnit(unit);
-                        setShowUnitPicker(false);
-                      }}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        margin: index === 0 ? 6 : 2,
-                        backgroundColor: active ? palette.bg : "transparent",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: active ? palette.text : colors.text,
-                          fontSize: 12,
-                          fontWeight: active ? "700" : "500",
-                        }}
-                      >
-                        {unit}
-                      </Text>
-                    </Pressable>
+                      unit={unit}
+                      active={active}
+                      palette={palette}
+                      onSelect={handleSelectUnit}
+                      isFirst={index === 0}
+                    />
                   );
                 })}
               </View>
@@ -1842,35 +1989,15 @@ export default function PeriodizationScreen() {
                   backgroundColor: colors.inputBg,
                 }}
               >
-                {cycleOptions.map((value, index) => {
-                  const active = value === cycleLength;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => {
-                        setCycleLength(value);
-                        setShowMesoPicker(false);
-                      }}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        margin: index === 0 ? 6 : 2,
-                        backgroundColor: active ? colors.primaryBg : "transparent",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: active ? colors.primaryText : colors.text,
-                          fontSize: 12,
-                          fontWeight: active ? "700" : "500",
-                        }}
-                      >
-                        {value} semanas
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                {cycleOptions.map((value, index) => (
+                  <MesoOption
+                    key={value}
+                    value={value}
+                    active={value === cycleLength}
+                    onSelect={handleSelectMeso}
+                    isFirst={index === 0}
+                  />
+                ))}
               </View>
             </ScrollView>
           </Animated.View>
@@ -1905,35 +2032,15 @@ export default function PeriodizationScreen() {
                   backgroundColor: colors.inputBg,
                 }}
               >
-                {sessionsOptions.map((value, index) => {
-                  const active = value === sessionsPerWeek;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => {
-                        setSessionsPerWeek(value);
-                        setShowMicroPicker(false);
-                      }}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        margin: index === 0 ? 6 : 2,
-                        backgroundColor: active ? colors.primaryBg : "transparent",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: active ? colors.primaryText : colors.text,
-                          fontSize: 12,
-                          fontWeight: active ? "700" : "500",
-                        }}
-                      >
-                        {value} dias
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                {sessionsOptions.map((value, index) => (
+                  <MicroOption
+                    key={value}
+                    value={value}
+                    active={value === sessionsPerWeek}
+                    onSelect={handleSelectMicro}
+                    isFirst={index === 0}
+                  />
+                ))}
               </View>
             </ScrollView>
           </Animated.View>

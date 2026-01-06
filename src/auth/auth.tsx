@@ -32,12 +32,28 @@ const authFetch = async (path: string, body: Record<string, unknown>) => {
   return text ? (JSON.parse(text) as Record<string, any>) : {};
 };
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [loading, setLoading] = useState(true);
+export function AuthProvider({
+  children,
+  initialSession,
+}: {
+  children: React.ReactNode;
+  initialSession?: AuthSession | null;
+}) {
+  const [session, setSession] = useState<AuthSession | null>(
+    initialSession ?? null
+  );
+  const [loading, setLoading] = useState(
+    initialSession === undefined
+  );
 
   useEffect(() => {
     let alive = true;
+    if (initialSession !== undefined) {
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
     (async () => {
       const stored = await loadSession();
       if (!alive) return;
@@ -47,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initialSession]);
 
   const signIn = useCallback(async (email: string, password: string, remember = true) => {
     const payload = await authFetch("/auth/v1/token?grant_type=password", {

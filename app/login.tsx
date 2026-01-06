@@ -22,6 +22,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../src/auth/auth";
 import { useAppTheme } from "../src/ui/app-theme";
 import { setRememberPreference } from "../src/auth/session";
+import { Button } from "../src/ui/Button";
+import { ScreenHeader } from "../src/ui/ScreenHeader";
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
@@ -260,14 +262,10 @@ export default function LoginScreen() {
               </View>
             </Pressable>
 
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontSize: 26, fontWeight: "800", color: colors.text }}>
-                Bem-vindo de volta
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                Retome seus planos com foco e praticidade.
-              </Text>
-            </View>
+            <ScreenHeader
+              title="Bem-vindo de volta"
+              subtitle="Retome seus planos com foco e praticidade."
+            />
 
             <View
               style={{
@@ -364,20 +362,12 @@ export default function LoginScreen() {
                     </Text>
                   ) : null}
 
-                <Pressable
+                <Button
+                  label="Entrar"
                   onPress={handleLogin}
                   disabled={busy}
-                  style={{
-                    paddingVertical: 12,
-                    borderRadius: 14,
-                    backgroundColor: busy ? colors.primaryDisabledBg : colors.primaryBg,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                    Entrar
-                  </Text>
-                </Pressable>
+                  loading={busy}
+                />
 
                   <Pressable
                     onPress={() => {
@@ -503,23 +493,12 @@ export default function LoginScreen() {
                     </Text>
                   ) : null}
 
-                  <Pressable
+                  <Button
+                    label="Enviar link"
                     onPress={handleReset}
                     disabled={busy || resetCountdown > 0}
-                    style={{
-                      paddingVertical: 12,
-                      borderRadius: 14,
-                      backgroundColor:
-                        busy || resetCountdown > 0
-                          ? colors.primaryDisabledBg
-                          : colors.primaryBg,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                      Enviar link
-                    </Text>
-                  </Pressable>
+                    loading={busy}
+                  />
 
                   {resetSent && resetCountdown === 0 ? (
                     <Pressable

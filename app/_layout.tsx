@@ -14,7 +14,6 @@ import {
 import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
 
-import { initDb } from "../src/db/sqlite";
 import { AppThemeProvider } from "../src/ui/app-theme";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
@@ -24,6 +23,8 @@ import { GuidanceProvider } from "../src/ui/guidance";
 import { addNotification } from "../src/notificationsInbox";
 import { AuthProvider, useAuth } from "../src/auth/auth";
 import * as Sentry from '@sentry/react-native';
+import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
+import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
 
 Sentry.init({
   dsn: 'https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320',
@@ -231,22 +232,32 @@ export default Sentry.wrap(function RootLayout() {
         shouldSetBadge: false,
       }),
     });
-    initDb();
   }, []);
 
   return (
     <AppThemeProvider>
-      <AuthProvider>
-        <ConfirmDialogProvider>
-          <ConfirmUndoProvider>
-            <SaveToastProvider>
-              <GuidanceProvider>
-                <RootLayoutContent />
-              </GuidanceProvider>
-            </SaveToastProvider>
-          </ConfirmUndoProvider>
-        </ConfirmDialogProvider>
-      </AuthProvider>
+      <BootstrapProvider>
+        <BootstrapGate>
+          <BootstrapAuthProviders />
+        </BootstrapGate>
+      </BootstrapProvider>
     </AppThemeProvider>
   );
 });
+
+function BootstrapAuthProviders() {
+  const { data } = useBootstrap();
+  return (
+    <AuthProvider initialSession={data?.session ?? null}>
+      <ConfirmDialogProvider>
+        <ConfirmUndoProvider>
+          <SaveToastProvider>
+            <GuidanceProvider>
+              <RootLayoutContent />
+            </GuidanceProvider>
+          </SaveToastProvider>
+        </ConfirmUndoProvider>
+      </ConfirmDialogProvider>
+    </AuthProvider>
+  );
+}

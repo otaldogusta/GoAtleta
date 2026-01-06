@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -182,7 +183,7 @@ export default function CalendarScreen() {
     setApplyPickerDate(targetDate);
     setShowApplyPicker(true);
     applyTargetHandled.current = true;
-  }, [openApply, targetClassId, targetDate, classes]);
+  }, [openApply, targetClassId, targetDate, classes, unitLabel]);
 
   useEffect(() => {
     let alive = true;
@@ -220,18 +221,19 @@ export default function CalendarScreen() {
     return map;
   }, [sessionLogs]);
 
-  const unitLabel = (value?: string) =>
-    value && value.trim() ? value.trim() : "Sem unidade";
+  const unitLabel = useCallback((value?: string) => {
+    return value && value.trim() ? value.trim() : "Sem unidade";
+  }, []);
 
 
-  const sortByTime = (a: ClassGroup, b: ClassGroup) => {
+  const sortByTime = useCallback((a: ClassGroup, b: ClassGroup) => {
     const aParsed = parseTime(a.startTime || "");
     const bParsed = parseTime(b.startTime || "");
     const aMinutes = aParsed ? aParsed.hour * 60 + aParsed.minute : 9999;
     const bMinutes = bParsed ? bParsed.hour * 60 + bParsed.minute : 9999;
     if (aMinutes !== bMinutes) return aMinutes - bMinutes;
     return a.name.localeCompare(b.name);
-  };
+  }, []);
 
   const getAppliedPlan = (classId: string, date: Date) => {
     const list = plansByClassId[classId] ?? [];
@@ -265,19 +267,21 @@ export default function CalendarScreen() {
     if (hour >= 18 && hour <= 23) return "Noite";
     return "Madrugada";
   };
+  const filteredClasses = useMemo(() => {
+    return unitFilter === "Todas"
+      ? classes
+      : classes.filter((cls) => unitLabel(cls.unit) === unitFilter);
+  }, [classes, unitFilter, unitLabel]);
+
   const scheduleDays = useMemo(() => {
     const unique = new Set<number>();
-    const filteredClasses =
-      unitFilter === "Todas"
-        ? classes
-        : classes.filter((cls) => (cls.unit || "Sem unidade") === unitFilter);
     filteredClasses.forEach((cls) => {
       cls.daysOfWeek.forEach((day) => unique.add(day));
     });
     const days = Array.from(unique).sort((a, b) => a - b);
     if (!days.length) return [{ day: 2 }, { day: 4 }];
     return days.map((day) => ({ day }));
-  }, [classes, unitFilter]);
+  }, [filteredClasses]);
 
   const sortedPlans = useMemo(() => {
     return plans
@@ -301,7 +305,14 @@ export default function CalendarScreen() {
         planClass.ageBand === applyFilterAge
       );
     });
-  }, [sortedPlans, classById, selectedApplyClass, applyFilterUnit, applyFilterAge]);
+  }, [
+    sortedPlans,
+    classById,
+    selectedApplyClass,
+    applyFilterUnit,
+    applyFilterAge,
+    unitLabel,
+  ]);
 
   const closeApplyPicker = () => {
     setShowApplyPicker(false);
@@ -437,10 +448,6 @@ export default function CalendarScreen() {
           const isPast = date.getTime() < todayStart.getTime();
           const isExpanded = expandedPastDays[dayKey] ?? !isPast;
           const expandAnim = getExpandAnim(dayKey, isExpanded ? 1 : 0);
-          const filteredClasses =
-            unitFilter === "Todas"
-              ? classes
-              : classes.filter((cls) => (cls.unit || "Sem unidade") === unitFilter);
           const filtered = filteredClasses.filter((cls) =>
             cls.daysOfWeek.includes(day)
           );

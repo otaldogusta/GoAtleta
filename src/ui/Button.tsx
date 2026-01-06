@@ -1,5 +1,7 @@
 import {
-  Text
+  ActivityIndicator,
+  Text,
+  View,
 } from "react-native";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
@@ -9,6 +11,7 @@ export function Button({
   onPress,
   variant = "primary",
   disabled = false,
+  loading = false,
 }: {
   label: string;
   onPress: () => void;
@@ -22,6 +25,7 @@ export function Button({
     | "warning"
     | "info";
   disabled?: boolean;
+  loading?: boolean;
 }) {
   const { colors } = useAppTheme();
   const palette = {
@@ -74,34 +78,43 @@ export function Button({
   const borderWidth =
     variant === "primary" || variant === "ghost" ? 0 : 1;
 
+  const isDisabled = disabled || loading;
+  const indicatorColor =
+    variant === "primary" ? colors.primaryText : selected.text;
+
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={isDisabled}
       style={({ pressed }) => [
         {
           paddingVertical: 12,
           paddingHorizontal: 14,
           borderRadius: 14,
-          backgroundColor: disabled ? disabledBg : selected.bg,
+          backgroundColor: isDisabled ? disabledBg : selected.bg,
           borderWidth,
-          borderColor: disabled ? disabledBorder : selected.border,
+          borderColor: isDisabled ? disabledBorder : selected.border,
           alignItems: "center",
-          opacity: disabled ? 0.7 : 1,
+          opacity: isDisabled ? 0.7 : 1,
         },
-        pressed && !disabled
+        pressed && !isDisabled
           ? { transform: [{ scale: 0.98 }], opacity: 0.92 }
           : null,
       ]}
     >
-      <Text
-        style={{
-          color: disabled ? disabledText : selected.text,
-          fontWeight: "700",
-        }}
-      >
-        {label}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {loading ? (
+          <ActivityIndicator size="small" color={indicatorColor} />
+        ) : null}
+        <Text
+          style={{
+            color: isDisabled ? disabledText : selected.text,
+            fontWeight: "700",
+          }}
+        >
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
 }

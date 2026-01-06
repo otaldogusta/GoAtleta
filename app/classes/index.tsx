@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   Alert,
   Animated,
@@ -373,7 +373,7 @@ export default function ClassesScreen() {
     }
   };
 
-  const openEditModal = (item: ClassGroup) => {
+  const openEditModal = useCallback((item: ClassGroup) => {
     setEditingClass(item);
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
@@ -390,7 +390,7 @@ export default function ClassesScreen() {
     setEditShowAllAges(false);
     setEditShowAllGoals(false);
     setShowEditModal(true);
-  };
+  }, []);
 
   const toggleEditDay = (value: number) => {
     setEditDays((prev) =>
@@ -466,6 +466,172 @@ export default function ClassesScreen() {
       });
     }, 10);
   };
+
+  const handleSelectUnit = useCallback((unit: string) => {
+    setUnitFilter(unit);
+  }, []);
+
+  const handleOpenClass = useCallback(
+    (item: ClassGroup) => {
+      if (suppressNextPress) {
+        setSuppressNextPress(false);
+        return;
+      }
+      router.push({
+        pathname: "/class/[id]",
+        params: { id: item.id },
+      });
+    },
+    [router, suppressNextPress]
+  );
+
+  const handleEditClass = useCallback(
+    (item: ClassGroup) => {
+      setSuppressNextPress(true);
+      openEditModal(item);
+    },
+    [openEditModal]
+  );
+
+  const handleOpenAttendance = useCallback(
+    (item: ClassGroup) => {
+      router.push({
+        pathname: "/class/[id]/attendance",
+        params: { id: item.id, date: formatIsoDate(new Date()) },
+      });
+    },
+    [router]
+  );
+
+  const UnitChip = useMemo(
+    () =>
+      memo(function UnitChipItem({
+        unit,
+        active,
+        palette,
+        onSelect,
+      }: {
+        unit: string;
+        active: boolean;
+        palette: { bg: string; text: string };
+        onSelect: (value: string) => void;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(unit)}
+            style={getChipStyle(active, palette)}
+          >
+            <Text style={getChipTextStyle(active, palette)}>{unit}</Text>
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
+  const ClassCard = useMemo(
+    () =>
+      memo(function ClassCardItem({
+        item,
+        palette,
+        conflicts,
+        onOpen,
+        onEdit,
+        onAttendance,
+      }: {
+        item: ClassGroup;
+        palette: { bg: string; text: string };
+        conflicts?: { name: string; day: number }[];
+        onOpen: (value: ClassGroup) => void;
+        onEdit: (value: ClassGroup) => void;
+        onAttendance: (value: ClassGroup) => void;
+      }) {
+        const parsed = parseTime(item.startTime || "");
+        const duration = item.durationMinutes || 60;
+        const timeLabel = parsed
+          ? `${formatTimeRange(parsed.hour, parsed.minute, duration)} - ${item.name}`
+          : item.name;
+        const hasConflicts = Boolean(conflicts?.length);
+        return (
+          <Pressable
+            onPress={() => onOpen(item)}
+            onLongPress={() => onEdit(item)}
+            delayLongPress={250}
+            style={[
+              getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 }),
+              { borderLeftWidth: 3, borderLeftColor: palette.bg },
+            ]}
+          >
+            {hasConflicts ? (
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  paddingVertical: 2,
+                  paddingHorizontal: 8,
+                  borderRadius: 999,
+                  backgroundColor: colors.dangerBg,
+                  marginBottom: 6,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.dangerText,
+                    fontWeight: "700",
+                    fontSize: 11,
+                  }}
+                >
+                  Conflito de horario
+                </Text>
+              </View>
+            ) : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  backgroundColor: palette.bg,
+                }}
+              />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                {timeLabel}
+              </Text>
+            </View>
+            <Text style={{ color: colors.muted, marginTop: 6, fontSize: 12 }}>
+              {"Faixa: " + item.ageBand}
+            </Text>
+            <Pressable
+              onPress={(event) => {
+                event?.stopPropagation?.();
+                onAttendance(item);
+              }}
+              style={{
+                marginTop: 10,
+                paddingVertical: 8,
+                borderRadius: 12,
+                alignItems: "center",
+                backgroundColor: palette.bg,
+              }}
+            >
+              <Text style={{ color: palette.text, fontWeight: "700", fontSize: 12 }}>
+                Fazer chamada
+              </Text>
+            </Pressable>
+            {hasConflicts ? (
+              <Text style={{ color: colors.dangerText, marginTop: 6 }}>
+                {"Conflitos: " +
+                  conflicts
+                    ?.map(
+                      (conflict) =>
+                        `${conflict.name} (${dayNames[conflict.day]})`
+                    )
+                    .join(", ")}
+              </Text>
+            ) : null}
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
 
   const isDirty =
     newName.trim() ||
@@ -935,13 +1101,13 @@ export default function ClassesScreen() {
                   ? { bg: colors.primaryBg, text: colors.primaryText }
                   : getUnitPalette(unit, colors);
               return (
-                <Pressable
+                <UnitChip
                   key={unit}
-                  onPress={() => setUnitFilter(unit)}
-                  style={getChipStyle(active, palette)}
-                >
-                  <Text style={getChipTextStyle(active, palette)}>{unit}</Text>
-                </Pressable>
+                  unit={unit}
+                  active={active}
+                  palette={palette}
+                  onSelect={handleSelectUnit}
+                />
               );
             })}
           </View>
@@ -971,101 +1137,15 @@ export default function ClassesScreen() {
               </View>
               <View style={{ gap: 12 }}>
                 {items.map((item) => (
-                  <Pressable
+                  <ClassCard
                     key={item.id}
-                    onPress={() =>
-                      suppressNextPress
-                        ? setSuppressNextPress(false)
-                        : router.push({
-                            pathname: "/class/[id]",
-                            params: { id: item.id },
-                          })
-                    }
-                    onLongPress={() => {
-                      setSuppressNextPress(true);
-                      openEditModal(item);
-                    }}
-                    delayLongPress={250}
-                    style={[
-                      getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 }),
-                      { borderLeftWidth: 3, borderLeftColor: palette.bg },
-                    ]}
-                  >
-                    {conflictsById[item.id]?.length ? (
-                      <View
-                        style={{
-                          alignSelf: "flex-start",
-                          paddingVertical: 2,
-                          paddingHorizontal: 8,
-                          borderRadius: 999,
-                          backgroundColor: colors.dangerBg,
-                          marginBottom: 6,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.dangerText,
-                            fontWeight: "700",
-                            fontSize: 11,
-                          }}
-                        >
-                          Conflito de horario
-                        </Text>
-                      </View>
-                    ) : null}
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <View
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 999,
-                          backgroundColor: palette.bg,
-                        }}
-                      />
-                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                        {(() => {
-                          const parsed = parseTime(item.startTime || "");
-                          const duration = item.durationMinutes || 60;
-                          if (!parsed) return item.name;
-                          return `${formatTimeRange(parsed.hour, parsed.minute, duration)} - ${item.name}`;
-                        })()}
-                      </Text>
-                    </View>
-                    <Text style={{ color: colors.muted, marginTop: 6, fontSize: 12 }}>
-                      {"Faixa: " + item.ageBand}
-                    </Text>
-                    <Pressable
-                      onPress={(event) => {
-                        event?.stopPropagation?.();
-                        router.push({
-                          pathname: "/class/[id]/attendance",
-                          params: { id: item.id, date: formatIsoDate(new Date()) },
-                        });
-                      }}
-                      style={{
-                        marginTop: 10,
-                        paddingVertical: 8,
-                        borderRadius: 12,
-                        alignItems: "center",
-                        backgroundColor: palette.bg,
-                      }}
-                    >
-                      <Text style={{ color: palette.text, fontWeight: "700", fontSize: 12 }}>
-                        Fazer chamada
-                      </Text>
-                    </Pressable>
-                    {conflictsById[item.id]?.length ? (
-                      <Text style={{ color: colors.dangerText, marginTop: 6 }}>
-                        {"Conflitos: " +
-                        conflictsById[item.id]
-                          .map(
-                            (conflict) =>
-                              `${conflict.name} (${dayNames[conflict.day]})`
-                          )
-                          .join(", ")}
-                    </Text>
-                  ) : null}
-                  </Pressable>
+                    item={item}
+                    palette={palette}
+                    conflicts={conflictsById[item.id]}
+                    onOpen={handleOpenClass}
+                    onEdit={handleEditClass}
+                    onAttendance={handleOpenAttendance}
+                  />
                 ))}
               </View>
             </View>

@@ -1,4 +1,6 @@
 import {
+  memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -6,6 +8,7 @@ import {
 import {
   Alert,
   Animated,
+  FlatList,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -57,6 +60,7 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useSaveToast } from "../../src/ui/save-toast";
 import { ModalSheet } from "../../src/ui/ModalSheet";
+import { ScreenHeader } from "../../src/ui/ScreenHeader";
 
 const toLines = (value: string) =>
   value
@@ -691,6 +695,251 @@ export default function TrainingList() {
     return items;
   }, [items]);
 
+  const sortedFilteredItems = useMemo(
+    () =>
+      filteredItems
+        .slice()
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [filteredItems]
+  );
+
+  const getClassName = useCallback(
+    (id: string) => classes.find((item) => item.id === id)?.name ?? "Turma",
+    [classes]
+  );
+
+  const TemplateRow = useMemo(
+    () =>
+      memo(function TemplateRowItem({
+        template,
+        onRename,
+        onUse,
+        onOpenEditor,
+      }: {
+        template: (typeof templates)[number];
+        onRename: (id: string, title: string) => void;
+        onUse: (template: (typeof templates)[number]) => void;
+        onOpenEditor: (template: (typeof templates)[number]) => void;
+      }) {
+        return (
+          <View style={{ gap: 6 }}>
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Pressable
+                onLongPress={() => onOpenEditor(template)}
+                delayLongPress={250}
+              >
+                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+                  {template.title}
+                </Text>
+                <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
+                  {"Tags: " + template.tags.join(", ")}
+                </Text>
+                <Text style={{ color: colors.muted, marginTop: 2, fontSize: 10 }}>
+                  {template.source === "built"
+                    ? "Fonte: Instituto Compartilhar e CMV (Volei Veilig)"
+                    : "Fonte: Modelo criado"}
+                </Text>
+              </Pressable>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                <Pressable
+                  onPress={() => onUse(template)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 12,
+                    backgroundColor: colors.primaryBg,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                    Usar modelo
+                  </Text>
+                </Pressable>
+                {template.source === "custom" ? (
+                  <Pressable
+                    onPress={() => onRename(template.id, template.title)}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      Renomear
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              {renameTemplateId === template.id ? (
+                <View style={{ gap: 8, marginTop: 10 }}>
+                  <TextInput
+                    placeholder="Novo nome"
+                    value={renameTemplateText}
+                    onChangeText={setRenameTemplateText}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 8,
+                      borderRadius: 10,
+                      backgroundColor: colors.inputBg,
+                    }}
+                  />
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <Pressable
+                      onPress={async () => {
+                        if (!renameTemplateText.trim()) return;
+                        await updateTrainingTemplate({
+                          id: template.id,
+                          title: renameTemplateText.trim(),
+                          ageBand: template.ageBands[0],
+                          tags: template.tags ?? [],
+                          warmup: template.warmup ?? [],
+                          main: template.main ?? [],
+                          cooldown: template.cooldown ?? [],
+                          warmupTime: template.warmupTime ?? "",
+                          mainTime: template.mainTime ?? "",
+                          cooldownTime: template.cooldownTime ?? "",
+                          createdAt: template.createdAt ?? new Date().toISOString(),
+                        });
+                        const templatesDb = await getTrainingTemplates();
+                        setTemplateItems(templatesDb);
+                        setRenameTemplateId(null);
+                        setRenameTemplateText("");
+                      }}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        backgroundColor: colors.primaryBg,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                        Salvar nome
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        setRenameTemplateId(null);
+                        setRenameTemplateText("");
+                      }}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                        Cancelar
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        );
+      }),
+    [colors, renameTemplateId, renameTemplateText]
+  );
+
+  const PlanRow = useMemo(
+    () =>
+      memo(function PlanRowItem({
+        plan,
+        onOpenActions,
+        onApply,
+        onView,
+      }: {
+        plan: TrainingPlan;
+        onOpenActions: (plan: TrainingPlan) => void;
+        onApply: (plan: TrainingPlan) => void;
+        onView: (plan: TrainingPlan) => void;
+      }) {
+        return (
+          <Pressable
+            onLongPress={() => onOpenActions(plan)}
+            style={{
+              gap: 8,
+              padding: 12,
+              borderRadius: 14,
+              backgroundColor: colors.inputBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                {plan.title}
+              </Text>
+              <Text style={{ color: colors.muted }}>
+                {getClassName(plan.classId)}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Criado em {formatDate(plan.createdAt)}
+              </Text>
+              {plan.applyDays?.length || plan.applyDate ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Aplicado:{" "}
+                  {plan.applyDays?.length ? formatWeekdays(plan.applyDays) : ""}
+                  {plan.applyDays?.length && plan.applyDate ? " • " : ""}
+                  {plan.applyDate ? formatShortDate(plan.applyDate) : ""}
+                </Text>
+              ) : null}
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={() => onApply(plan)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: colors.primaryBg,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                  Aplicar treino
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onView(plan)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                  Ver planejamento
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        );
+      }),
+    [colors, formatDate, formatShortDate, formatWeekdays, getClassName]
+  );
+
   const currentTags = useMemo(() => {
     return tagsText
       .split(",")
@@ -968,15 +1217,15 @@ export default function TrainingList() {
     });
   };
 
-  const getClassName = (id: string) =>
-    classes.find((item) => item.id === id)?.name ?? "Turma";
+  const pickClassIdForAgeBand = useCallback(
+    (band?: string) => {
+      if (!band) return "";
+      return classes.find((item) => item.ageBand === band)?.id ?? "";
+    },
+    [classes]
+  );
 
-  const pickClassIdForAgeBand = (band?: string) => {
-    if (!band) return "";
-    return classes.find((item) => item.ageBand === band)?.id ?? "";
-  };
-
-  const applyTemplate = (template: {
+  const applyTemplate = useCallback((template: {
     id: string;
     title: string;
     tags: string[];
@@ -1002,9 +1251,9 @@ export default function TrainingList() {
     setCooldownTime(template.cooldownTime);
     setShowForm(true);
     setScrollRequested(true);
-  };
+  }, []);
 
-  const useTemplateAsPlan = (template: {
+  const useTemplateAsPlan = useCallback((template: {
     id: string;
     title: string;
     tags: string[];
@@ -1023,7 +1272,7 @@ export default function TrainingList() {
       templateAgeBand ? pickClassIdForAgeBand(templateAgeBand) : ""
     );
     applyTemplate(template);
-  };
+  }, [applyTemplate, pickClassIdForAgeBand, templateAgeBand]);
 
   const duplicatePlan = (plan: TrainingPlan) => {
     useTemplateAsPlan({
@@ -1041,7 +1290,7 @@ export default function TrainingList() {
     });
   };
 
-  const openTemplateForEdit = (template: {
+  const openTemplateForEdit = useCallback((template: {
     id: string;
     title: string;
     tags: string[];
@@ -1066,7 +1315,7 @@ export default function TrainingList() {
     const band = template.ageBands[0] || templateAgeBand;
     setClassId(band ? pickClassIdForAgeBand(band) : "");
     applyTemplate(template);
-  };
+  }, [applyTemplate, pickClassIdForAgeBand, templateAgeBand]);
 
   const deleteTemplateItem = (id: string, source: "built" | "custom") => {
     confirm({
@@ -1134,7 +1383,7 @@ export default function TrainingList() {
     Alert.alert("Modelo duplicado", "Aparece em Modelos prontos.");
   };
 
-  const openTemplateEditor = (template: {
+  const openTemplateEditor = useCallback((template: {
     id: string;
     title: string;
     tags: string[];
@@ -1175,7 +1424,7 @@ export default function TrainingList() {
       cooldownTime: template.cooldownTime,
     });
     setShowTemplateEditor(true);
-  };
+  }, [templateAgeBand]);
 
   const closeTemplateEditor = () => {
     setShowTemplateEditor(false);
@@ -1452,6 +1701,73 @@ export default function TrainingList() {
     setPendingPlanCreate(null);
   }, [pendingPlanCreate, setPendingPlanCreate, setShowForm]);
 
+  const handleRenameTemplate = useCallback((id: string, title: string) => {
+    setRenameTemplateId(id);
+    setRenameTemplateText(title);
+  }, []);
+
+  const handleUseTemplate = useCallback(
+    (template: (typeof templates)[number]) => {
+      useTemplateAsPlan(template);
+    },
+    [useTemplateAsPlan]
+  );
+
+  const handleOpenTemplateEditor = useCallback(
+    (template: (typeof templates)[number]) => {
+      openTemplateEditor(template);
+    },
+    [openTemplateEditor]
+  );
+
+  const renderTemplateItem = useCallback(
+    ({ item }: { item: (typeof templates)[number] }) => (
+      <TemplateRow
+        template={item}
+        onRename={handleRenameTemplate}
+        onUse={handleUseTemplate}
+        onOpenEditor={handleOpenTemplateEditor}
+      />
+    ),
+    [TemplateRow, handleOpenTemplateEditor, handleRenameTemplate, handleUseTemplate]
+  );
+
+  const templateKeyExtractor = useCallback(
+    (item: (typeof templates)[number]) => String(item.id),
+    []
+  );
+
+  const handleOpenPlanActions = useCallback((plan: TrainingPlan) => {
+    setActionPlan(plan);
+    setShowPlanActions(true);
+  }, []);
+
+  const handleApplyPlan = useCallback((plan: TrainingPlan) => {
+    setApplyPlan(plan);
+    setShowApplyModal(true);
+  }, []);
+
+  const handleViewPlan = useCallback((plan: TrainingPlan) => {
+    setSelectedPlan(plan);
+  }, []);
+
+  const renderPlanItem = useCallback(
+    ({ item }: { item: TrainingPlan }) => (
+      <PlanRow
+        plan={item}
+        onOpenActions={handleOpenPlanActions}
+        onApply={handleApplyPlan}
+        onView={handleViewPlan}
+      />
+    ),
+    [PlanRow, handleApplyPlan, handleOpenPlanActions, handleViewPlan]
+  );
+
+  const planKeyExtractor = useCallback(
+    (item: TrainingPlan) => String(item.id),
+    []
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
@@ -1463,14 +1779,10 @@ export default function TrainingList() {
         contentContainerStyle={{ paddingBottom: 24, gap: 16 }}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Treinos
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            Aquecimento, parte principal e volta a calma
-          </Text>
-        </View>
+        <ScreenHeader
+          title="Treinos"
+          subtitle="Aquecimento, parte principal e volta a calma"
+        />
 
         <View
           onLayout={(event) => setFormY(event.nativeEvent.layout.y)}
@@ -1917,157 +2229,28 @@ export default function TrainingList() {
               <Animated.View
                 style={templatesAnimStyle}
               >
-                <ScrollView
-                  style={{ maxHeight: 280 }}
-                  contentContainerStyle={{ gap: 8 }}
-                  nestedScrollEnabled
-                >
                 {templates.length ? (
                   <>
                     <Text style={{ color: colors.muted }}>Para a faixa selecionada</Text>
-                    {templates.map((template) => (
-                      <View key={template.id} style={{ gap: 6 }}>
-                        <View
-                          style={{
-                            padding: 12,
-                            borderRadius: 14,
-                            backgroundColor: colors.card,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Pressable
-                            onLongPress={() => openTemplateEditor(template)}
-                            delayLongPress={250}
-                          >
-                            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
-                              {template.title}
-                            </Text>
-                            <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
-                              {"Tags: " + template.tags.join(", ")}
-                            </Text>
-                            <Text style={{ color: colors.muted, marginTop: 2, fontSize: 10 }}>
-                              {template.source === "built"
-                                ? "Fonte: Instituto Compartilhar e CMV (Volei Veilig)"
-                                : "Fonte: Modelo criado"}
-                            </Text>
-                          </Pressable>
-                          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                            <Pressable
-                              onPress={() => useTemplateAsPlan(template)}
-                              style={{
-                                flex: 1,
-                                paddingVertical: 8,
-                                borderRadius: 12,
-                                backgroundColor: colors.primaryBg,
-                                alignItems: "center",
-                              }}
-                            >
-                              <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                                Usar modelo
-                              </Text>
-                            </Pressable>
-                            {template.source === "custom" ? (
-                              <Pressable
-                                onPress={() => {
-                                  setRenameTemplateId(template.id);
-                                  setRenameTemplateText(template.title);
-                                }}
-                                style={{
-                                  paddingVertical: 8,
-                                  paddingHorizontal: 12,
-                                  borderRadius: 12,
-                                  backgroundColor: colors.secondaryBg,
-                                  borderWidth: 1,
-                                  borderColor: colors.border,
-                                }}
-                              >
-                                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                                  Renomear
-                                </Text>
-                              </Pressable>
-                            ) : null}
-                          </View>
-                          {renameTemplateId === template.id ? (
-                            <View style={{ gap: 8, marginTop: 10 }}>
-                              <TextInput
-                                placeholder="Novo nome"
-                                value={renameTemplateText}
-                                onChangeText={setRenameTemplateText}
-                                style={{
-                                  borderWidth: 1,
-                                  borderColor: colors.border,
-                                  padding: 8,
-                                  borderRadius: 10,
-                                  backgroundColor: colors.inputBg,
-                                }}
-                              />
-                              <View style={{ flexDirection: "row", gap: 8 }}>
-                                <Pressable
-                                  onPress={async () => {
-                                    if (!renameTemplateText.trim()) return;
-                                    await updateTrainingTemplate({
-                                      id: template.id,
-                                      title: renameTemplateText.trim(),
-                                      ageBand: template.ageBands[0],
-                                      tags: template.tags ?? [],
-                                      warmup: template.warmup ?? [],
-                                      main: template.main ?? [],
-                                      cooldown: template.cooldown ?? [],
-                                      warmupTime: template.warmupTime ?? "",
-                                      mainTime: template.mainTime ?? "",
-                                      cooldownTime: template.cooldownTime ?? "",
-                                      createdAt: template.createdAt ?? new Date().toISOString(),
-                                    });
-                                    const templatesDb = await getTrainingTemplates();
-                                    setTemplateItems(templatesDb);
-                                    setRenameTemplateId(null);
-                                    setRenameTemplateText("");
-                                  }}
-                                  style={{
-                                    flex: 1,
-                                    paddingVertical: 6,
-                                    borderRadius: 8,
-                                    backgroundColor: colors.primaryBg,
-                                    alignItems: "center",
-                                  }}
-                                >
-                                  <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                                    Salvar nome
-                                  </Text>
-                                </Pressable>
-                                <Pressable
-                                  onPress={() => {
-                                    setRenameTemplateId(null);
-                                    setRenameTemplateText("");
-                                  }}
-                                  style={{
-                                    flex: 1,
-                                    paddingVertical: 6,
-                                    borderRadius: 8,
-                                    backgroundColor: colors.secondaryBg,
-                                    borderWidth: 1,
-                                    borderColor: colors.border,
-                                    alignItems: "center",
-                                  }}
-                                >
-                                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                                    Cancelar
-                                  </Text>
-                                </Pressable>
-                              </View>
-                            </View>
-                          ) : null}
-                        </View>
-                      </View>
-                    ))}
+                    <FlatList
+                      data={templates}
+                      keyExtractor={templateKeyExtractor}
+                      renderItem={renderTemplateItem}
+                      style={{ maxHeight: 280 }}
+                      contentContainerStyle={{ gap: 8 }}
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator
+                      initialNumToRender={12}
+                      windowSize={7}
+                      maxToRenderPerBatch={12}
+                      removeClippedSubviews
+                    />
                   </>
                 ) : (
-                <Text style={{ color: colors.muted }}>
-                  Nenhum modelo para essa faixa etaria.
-                </Text>
-              )}
-                </ScrollView>
+                  <Text style={{ color: colors.muted }}>
+                    Nenhum modelo para essa faixa etaria.
+                  </Text>
+                )}
               </Animated.View>
           ) : null}
         </View>
@@ -2092,83 +2275,17 @@ export default function TrainingList() {
 
           {showSavedPlansContent ? (
             <Animated.View style={savedPlansAnimStyle}>
-              {filteredItems
-            .slice()
-            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-            .map((item) => (
-              <Pressable
-                key={item.id}
-                onLongPress={() => {
-                  setActionPlan(item);
-                  setShowPlanActions(true);
-                }}
-                style={{
-                  gap: 8,
-                  padding: 12,
-                  borderRadius: 14,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <View style={{ gap: 4 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    {item.title}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>
-                    {getClassName(item.classId)}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Criado em {formatDate(item.createdAt)}
-                  </Text>
-                  {item.applyDays?.length || item.applyDate ? (
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Aplicado:{" "}
-                  {item.applyDays?.length
-                        ? formatWeekdays(item.applyDays)
-                        : ""}
-                  {item.applyDays?.length && item.applyDate ? " • " : ""}
-                  {item.applyDate ? formatShortDate(item.applyDate) : ""}
-                </Text>
-              ) : null}
-                </View>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={() => {
-                      setApplyPlan(item);
-                      setShowApplyModal(true);
-                    }}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      backgroundColor: colors.primaryBg,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                      Aplicar treino
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setSelectedPlan(item)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      Ver planejamento
-                    </Text>
-                  </Pressable>
-                </View>
-              </Pressable>
-            ))}
+              <FlatList
+                data={sortedFilteredItems}
+                keyExtractor={planKeyExtractor}
+                renderItem={renderPlanItem}
+                scrollEnabled={false}
+                contentContainerStyle={{ gap: 12 }}
+                initialNumToRender={12}
+                windowSize={7}
+                maxToRenderPerBatch={12}
+                removeClippedSubviews
+              />
             </Animated.View>
           ) : null}
         </View>
