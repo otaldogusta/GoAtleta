@@ -8,6 +8,10 @@ module.exports = function (api) {
         test: /node_modules[\\/]+yoga-layout[\\/]+dist[\\/]+src[\\/]+load\.js$/,
         plugins: [require("babel-preset-expo/build/import-meta-transform-plugin")],
       },
+      {
+        test: /node_modules[\\/]+yoga-layout[\\/]+dist[\\/]+binaries[\\/]+yoga-wasm-base64-esm\.js$/,
+        plugins: [require("babel-preset-expo/build/import-meta-transform-plugin")],
+      },
     ],
   };
 };
