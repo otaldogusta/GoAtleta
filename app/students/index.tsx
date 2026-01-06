@@ -26,7 +26,6 @@ import {
   saveStudent,
   updateStudent,
   deleteStudent,
-  seedStudentsIfEmpty,
 } from "../../src/db/seed";
 import type { ClassGroup, Student } from "../../src/core/models";
 import { Button } from "../../src/ui/Button";
@@ -98,14 +97,9 @@ export default function StudentsScreen() {
         getClasses(),
         getStudents(),
       ]);
-      let nextStudents = studentList;
-      if (studentList.length === 0) {
-        await seedStudentsIfEmpty();
-        nextStudents = await getStudents();
-      }
       if (!alive) return;
       setClasses(classList);
-      setStudents(nextStudents);
+      setStudents(studentList);
     })();
     return () => {
       alive = false;

@@ -396,36 +396,13 @@ export default function Home() {
                 Biblioteca com videos
               </Text>
             </Pressable>
-            <Pressable
-              onPress={() => router.push({ pathname: "/periodization" })}
-              style={{
-                flexBasis: "48%",
-                padding: 14,
-                borderRadius: 18,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOpacity: 0.06,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 3,
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Periodizacao
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Ciclos e cargas
-              </Text>
-            </Pressable>
           </View>
         </View>
 
         <Card
-          title="Biblioteca de exercicios"
-          subtitle="Videos e links organizados"
-          onPress={() => router.push({ pathname: "/exercises" })}
+          title="Periodizacao"
+          subtitle="Ciclos e cargas"
+          onPress={() => router.push({ pathname: "/periodization" })}
         />
         </View>
       </ScrollView>
