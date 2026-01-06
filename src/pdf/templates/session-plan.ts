@@ -36,6 +36,10 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const materials = (data.materials ?? [])
     .map((item) => `<span class="chip">${esc(item)}</span>`)
     .join("");
+  const hasMaterials = materials.length > 0;
+  const hasObjective = Boolean(data.objective?.trim());
+  const hasLoad = Boolean(data.plannedLoad?.trim());
+  const hasTitle = Boolean(data.title?.trim());
 
   const blocksHtml = data.blocks
     .map((block) => {
@@ -47,9 +51,6 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           <strong>${esc(item.name)}</strong>
           ${item.notes ? `<div class="muted">${esc(item.notes)}</div>` : ""}
         </td>
-        <td class="col-small">${esc(item.duration ?? "-")}</td>
-        <td class="col-small">${esc(item.reps ?? "-")}</td>
-        <td class="col-small">${esc(item.intensity ?? "-")}</td>
       </tr>
     `
         )
@@ -68,13 +69,10 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           <thead>
             <tr>
               <th>Atividade / Exercicio</th>
-              <th class="col-small">Tempo</th>
-              <th class="col-small">Series</th>
-              <th class="col-small">Intens.</th>
             </tr>
           </thead>
           <tbody>
-            ${rows || `<tr><td colspan="4" class="muted">Sem atividades.</td></tr>`}
+            ${rows || `<tr><td class="muted">Sem atividades.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -159,26 +157,44 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       </div>
 
       <div class="grid">
+        ${
+          hasTitle
+            ? `
         <div class="card">
           <div class="label">Titulo / Tema</div>
-          <div class="value">${esc(data.title ?? "—")}</div>
+          <div class="value">${esc(data.title ?? "")}</div>
         </div>
+        `
+            : ""
+        }
         <div class="card">
           <div class="label">Tempo total</div>
           <div class="value">${esc(data.totalTime ?? "—")}</div>
         </div>
+        ${
+          hasObjective
+            ? `
         <div class="card">
           <div class="label">Objetivo</div>
-          <div class="value">${esc(data.objective ?? "—")}</div>
+          <div class="value">${esc(data.objective ?? "")}</div>
         </div>
+        `
+            : ""
+        }
+        ${
+          hasLoad
+            ? `
         <div class="card">
           <div class="label">Carga planejada</div>
-          <div class="value">${esc(data.plannedLoad ?? "—")}</div>
+          <div class="value">${esc(data.plannedLoad ?? "")}</div>
         </div>
+        `
+            : ""
+        }
       </div>
 
       ${
-        materials
+        hasMaterials
           ? `
         <div class="block">
           <div class="block-header">

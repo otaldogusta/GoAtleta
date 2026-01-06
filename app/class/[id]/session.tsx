@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Platform,
   ScrollView,
   Text,
   View,
@@ -19,6 +20,7 @@ import type { ClassGroup, SessionLog, TrainingPlan } from "../../../src/core/mod
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
+import { SessionPlanDocument } from "../../../src/pdf/web/session-plan-document";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useSaveToast } from "../../../src/ui/save-toast";
@@ -144,7 +146,7 @@ export default function SessionScreen() {
       month: "2-digit",
       year: "numeric",
     });
-    const html = sessionPlanHtml({
+    const pdfData = {
       className: cls.name,
       ageGroup: cls.ageBand,
       unitLabel: cls.unit,
@@ -168,7 +170,10 @@ export default function SessionScreen() {
           items: cooldown.map((name) => ({ name })),
         },
       ],
-    });
+    };
+    const html = sessionPlanHtml(pdfData);
+    const webDocument =
+      Platform.OS === "web" ? <SessionPlanDocument data={pdfData} /> : undefined;
 
     try {
       const safeClass = safeFileName(cls.name);
@@ -178,6 +183,7 @@ export default function SessionScreen() {
         exportPdf({
           html,
           fileName,
+          webDocument,
         })
       );
       logAction("Exportar PDF", { classId: cls.id, date: sessionDate });

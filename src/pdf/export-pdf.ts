@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { Platform } from "react-native";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -14,10 +15,32 @@ export const safeFileName = (value: string) =>
 export const exportPdf = async ({
   html,
   fileName,
+  webDocument,
 }: {
   html: string;
   fileName: string;
+  webDocument?: ReactElement;
 }) => {
+  if (Platform.OS === "web") {
+    if (!webDocument) {
+      throw new Error("Missing webDocument for PDF export.");
+    }
+    const { pdf } = await import("@react-pdf/renderer");
+    const blob = await pdf(webDocument).toBlob();
+    if (typeof window !== "undefined") {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { uri: url, fileName };
+    }
+    return { uri: "", fileName };
+  }
+
   const { uri } = await Print.printToFileAsync({
     html,
     base64: false,
@@ -30,8 +53,6 @@ export const exportPdf = async ({
       dialogTitle: "Salvar/Compartilhar PDF",
       UTI: "com.adobe.pdf",
     });
-  } else if (Platform.OS === "web" && typeof window !== "undefined") {
-    window.open(uri, "_blank");
   }
 
   return { uri, fileName };
