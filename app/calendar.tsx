@@ -10,17 +10,16 @@ import { Animated,
   View
 } from "react-native";
 import { Pressable } from "../src/ui/Pressable";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import {
   getClasses,
-  getSessionLogsByRange,
   getTrainingPlans,
   updateTrainingPlan,
 } from "../src/db/seed";
-import type { ClassGroup, SessionLog, TrainingPlan } from "../src/core/models";
+import type { ClassGroup, TrainingPlan } from "../src/core/models";
 import { useAppTheme } from "../src/ui/app-theme";
 import { usePersistedState } from "../src/ui/use-persisted-state";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
@@ -88,7 +87,6 @@ export default function CalendarScreen() {
     typeof params.openApply === "string" ? params.openApply === "1" : false;
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
-  const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
   const [unitFilter, setUnitFilter] = useState("Todas");
   const [activeWeekTab, setActiveWeekTab] = useState<"prev" | "current" | "next">("current");
   const [expandedPastDays, setExpandedPastDays, expandedPastDaysLoaded] =
@@ -109,7 +107,6 @@ export default function CalendarScreen() {
     maxHeight: "100%",
   });
   const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
-  const weekLabels = ["", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
   const baseWeekStart = useMemo(
     () => startOfWeek(targetDate ? new Date(targetDate) : new Date()),
     [targetDate]
@@ -160,23 +157,6 @@ export default function CalendarScreen() {
     });
     return map;
   }, [classes]);
-  const formatAppliedLabel = (plan?: TrainingPlan | null) => {
-    if (!plan?.applyDate && !(plan?.applyDays?.length ?? 0)) return "";
-    return (
-      "Aplicado: " +
-      [
-        plan.applyDays?.length
-          ? plan.applyDays
-              .map((day) => weekLabels[day] ?? String(day))
-              .join("/")
-          : null,
-        plan.applyDate ? formatDate(new Date(plan.applyDate)) : null,
-      ]
-        .filter(Boolean)
-        .join(" | ")
-    );
-  };
-
   useEffect(() => {
     if (!expandedPastDaysLoaded) return;
     Object.entries(expandedPastDays).forEach(([key, expanded]) => {
@@ -226,44 +206,6 @@ export default function CalendarScreen() {
     applyTargetHandled.current = true;
   }, [openApply, targetClassId, targetDate, classes, unitLabel]);
 
-  const fetchSessionLogsFor = useCallback(async (start: Date) => {
-    const startDate = new Date(start);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 7);
-    const logs = await getSessionLogsByRange(
-      startDate.toISOString(),
-      end.toISOString()
-    );
-    return logs;
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const logs = await fetchSessionLogsFor(weekStart);
-      if (!alive) return;
-      setSessionLogs(logs);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [weekStart, fetchSessionLogsFor]);
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      (async () => {
-        if (!active) return;
-        const logs = await fetchSessionLogsFor(weekStart);
-        if (!active) return;
-        setSessionLogs(logs);
-      })();
-      return () => {
-        active = false;
-      };
-    }, [fetchSessionLogsFor, weekStart])
-  );
-
   const plansByClassId = useMemo(() => {
     const map: Record<string, TrainingPlan[]> = {};
     for (const plan of plans) {
@@ -272,15 +214,6 @@ export default function CalendarScreen() {
     }
     return map;
   }, [plans]);
-
-  const sessionLogMap = useMemo(() => {
-    const map = new Map<string, SessionLog>();
-    sessionLogs.forEach((log) => {
-      const date = log.createdAt.slice(0, 10);
-      map.set(`${log.classId}-${date}`, log);
-    });
-    return map;
-  }, [sessionLogs]);
 
   const sortByTime = useCallback((a: ClassGroup, b: ClassGroup) => {
     const aParsed = parseTime(a.startTime || "");
@@ -472,9 +405,6 @@ export default function CalendarScreen() {
                   onPress={() => {
                     const nextTab = tab.id as "prev" | "current" | "next";
                     setActiveWeekTab(nextTab);
-                    void fetchSessionLogsFor(getWeekStartForTab(nextTab)).then((logs) => {
-                      setSessionLogs(logs);
-                    });
                   }}
                   style={{
                     flex: 1,
@@ -627,11 +557,11 @@ export default function CalendarScreen() {
                   key={unit}
                   style={{
                     borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: unitBorder,
+                    borderWidth: 0,
+                    borderColor: "transparent",
                     padding: 10,
                     gap: 10,
-                    backgroundColor: unitBg,
+                    backgroundColor: "transparent",
                   }}
                 >
                   <Pressable
@@ -702,7 +632,6 @@ export default function CalendarScreen() {
                             const classUnit = unitLabel(cls.unit);
                             const classPalette = getUnitPalette(classUnit, colors);
                             const appliedPlan = getAppliedPlan(cls.id, date);
-                            const subtitle = appliedPlan ? "Treino: " + appliedPlan.title : "";
                             const isSpecificDate = Boolean(appliedPlan?.applyDate);
                             const isWeekly =
                               !isSpecificDate &&
@@ -710,15 +639,17 @@ export default function CalendarScreen() {
                             const hasApplied =
                               Boolean(appliedPlan?.applyDate) ||
                               (appliedPlan?.applyDays?.length ?? 0) > 0;
-                            const appliedLabel = hasApplied
-                              ? formatAppliedLabel(appliedPlan)
-                              : "";
-                            const log = sessionLogMap.get(`${cls.id}-${dayKey}`);
-                            const hasLog = Boolean(log);
-                            const isDue = date.getTime() <= todayStart.getTime();
+                            const cardBackground = isPast
+                              ? colors.secondaryBg
+                              : hasApplied
+                              ? colors.inputBg
+                              : colors.card;
+                            const cardBorder = isPast
+                              ? toRgba(classPalette.bg, 0.35)
+                              : classPalette.bg;
                             return (
                               <Pressable
-                                key={`${cls.id}-${day}`}
+                                key={`${cls.id}-${dayKey}`}
                                 onPress={() =>
                                   router.push({
                                     pathname: "/class/[id]/session",
@@ -728,24 +659,17 @@ export default function CalendarScreen() {
                                 style={{
                                   padding: 14,
                                   borderRadius: 18,
-                                  backgroundColor: isPast
-                                    ? colors.secondaryBg
-                                    : hasApplied
-                                    ? colors.inputBg
-                                    : colors.card,
+                                  backgroundColor: cardBackground,
                                   borderWidth: 1,
-                                  borderColor: hasApplied
-                                    ? isPast
-                                      ? colors.border
-                                      : colors.primaryBg
-                                    : colors.border,
-                                  borderLeftWidth: 3,
+                                  borderColor: cardBorder,
+                                  borderLeftWidth: 4,
                                   borderLeftColor: classPalette.bg,
                                   shadowColor: "#000",
-                                  shadowOpacity: 0.05,
-                                  shadowRadius: 10,
-                                  shadowOffset: { width: 0, height: 6 },
-                                  elevation: 2,
+                                  shadowOpacity: isPast ? 0.03 : 0.08,
+                                  shadowRadius: isPast ? 6 : 12,
+                                  shadowOffset: { width: 0, height: isPast ? 4 : 8 },
+                                  elevation: isPast ? 1 : 3,
+                                  opacity: isPast ? 0.65 : 1,
                                 }}
                               >
                                 {isWeekly ? (
@@ -776,203 +700,49 @@ export default function CalendarScreen() {
                                       width: 8,
                                       height: 8,
                                       borderRadius: 999,
-                                      backgroundColor: classPalette.bg,
+                                      backgroundColor: isPast
+                                        ? toRgba(classPalette.bg, 0.45)
+                                        : classPalette.bg,
                                     }}
                                   />
                                   <Text
                                     style={{
                                       fontSize: 16,
                                       fontWeight: "700",
-                                      color: colors.text,
+                                      color: isPast ? colors.muted : colors.text,
                                     }}
                                   >
                                     {time + " - " + cls.name}
                                   </Text>
                                   <ClassGenderBadge gender={cls.gender} size="sm" />
                                 </View>
-                                {subtitle ? (
-                                  <Text style={{ color: colors.muted, marginTop: 6 }}>
-                                    {subtitle}
-                                  </Text>
-                                ) : null}
-                                {appliedLabel ? (
-                                  <Text style={{ color: colors.muted, marginTop: 4 }}>
-                                    {appliedLabel}
-                                  </Text>
-                                ) : null}
-                                {hasLog ? (
-                                  <View
+                                <Pressable
+                                  onPress={(event) => {
+                                    event?.stopPropagation?.();
+                                    router.push({
+                                      pathname: "/class/[id]/session",
+                                      params: { id: cls.id, date: formatIsoDate(date) },
+                                    });
+                                  }}
+                                  style={{
+                                    marginTop: 10,
+                                    paddingVertical: 8,
+                                    borderRadius: 10,
+                                    alignItems: "center",
+                                    backgroundColor: colors.secondaryBg,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                  }}
+                                >
+                                  <Text
                                     style={{
-                                      marginTop: 8,
-                                      padding: 8,
-                                      borderRadius: 12,
-                                      backgroundColor: colors.inputBg,
-                                      borderWidth: 1,
-                                      borderColor: colors.border,
+                                      color: colors.text,
+                                      fontWeight: "700",
                                     }}
                                   >
-                                    <Text
-                                      style={{
-                                        color: colors.text,
-                                        fontWeight: "700",
-                                        fontSize: 12,
-                                      }}
-                                    >
-                                      Relatorio da aula
-                                    </Text>
-                                    <Text
-                                      style={{
-                                        color: colors.muted,
-                                        fontSize: 12,
-                                        marginTop: 2,
-                                      }}
-                                    >
-                                      {"PSE " +
-                                        (log?.PSE ?? "-") +
-                                        " | Tec: " +
-                                        (log?.technique ?? "-") +
-                                        " | Presenca: " +
-                                        (log?.attendance ?? "-") +
-                                        "%"}
-                                    </Text>
-                                  </View>
-                                ) : null}
-                                {!hasApplied ? (
-                                  <View style={{ marginTop: 10, gap: 8 }}>
-                                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                      Sem plano aplicado
-                                    </Text>
-                                    <View style={{ flexDirection: "row", gap: 8 }}>
-                                      <Pressable
-                                        onPress={(event) => {
-                                          event?.stopPropagation?.();
-                                          setApplyPickerClassId(cls.id);
-                                          setApplyPickerDate(formatIsoDate(date));
-                                          setShowApplyPicker(true);
-                                        }}
-                                        style={({ pressed }) => [
-                                          {
-                                            flex: 1,
-                                            paddingVertical: 8,
-                                            borderRadius: 10,
-                                            alignItems: "center",
-                                            backgroundColor: colors.primaryBg,
-                                          },
-                                          pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
-                                        ]}
-                                      >
-                                        <Text
-                                          style={{
-                                            color: colors.primaryText,
-                                            fontWeight: "700",
-                                            fontSize: 12,
-                                          }}
-                                        >
-                                          Aplicar treino
-                                        </Text>
-                                      </Pressable>
-                                      <Pressable
-                                        onPress={(event) => {
-                                          event?.stopPropagation?.();
-                                          setPendingPlanCreate({
-                                            classId: cls.id,
-                                            date: formatIsoDate(date),
-                                          });
-                                          router.push({
-                                            pathname: "/training",
-                                            params: {
-                                              targetClassId: cls.id,
-                                              targetDate: formatIsoDate(date),
-                                              openForm: "1",
-                                            },
-                                          });
-                                        }}
-                                        style={({ pressed }) => [
-                                          {
-                                            flex: 1,
-                                            paddingVertical: 8,
-                                            borderRadius: 10,
-                                            alignItems: "center",
-                                            backgroundColor: colors.secondaryBg,
-                                            borderWidth: 1,
-                                            borderColor: colors.border,
-                                          },
-                                          pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
-                                        ]}
-                                      >
-                                        <Text
-                                          style={{
-                                            color: colors.text,
-                                            fontWeight: "700",
-                                            fontSize: 12,
-                                          }}
-                                        >
-                                          Criar plano
-                                        </Text>
-                                      </Pressable>
-                                    </View>
-                                  </View>
-                                ) : null}
-                                {hasLog ? (
-                                  <Pressable
-                                    onPress={(event) => {
-                                      event?.stopPropagation?.();
-                                      router.push({
-                                        pathname: "/class/[id]/log",
-                                        params: { id: cls.id, date: formatIsoDate(date) },
-                                      });
-                                    }}
-                                    style={{
-                                      marginTop: 10,
-                                      paddingVertical: 8,
-                                      borderRadius: 10,
-                                      alignItems: "center",
-                                      backgroundColor: colors.secondaryBg,
-                                      opacity: isPast ? 0.7 : 1,
-                                    }}
-                                  >
-                                    <Text
-                                      style={{
-                                        color: colors.secondaryText,
-                                        fontWeight: "700",
-                                      }}
-                                    >
-                                      Relatorio da aula
-                                    </Text>
-                                  </Pressable>
-                                ) : null}
-                                {!hasLog && isDue ? (
-                                  <Pressable
-                                    onPress={(event) => {
-                                      event?.stopPropagation?.();
-                                      router.push({
-                                        pathname: "/class/[id]/log",
-                                        params: { id: cls.id, date: formatIsoDate(date) },
-                                      });
-                                    }}
-                                    style={({ pressed }) => [
-                                      {
-                                        marginTop: 10,
-                                        paddingVertical: 8,
-                                        borderRadius: 10,
-                                        alignItems: "center",
-                                        backgroundColor: colors.card,
-                                        borderWidth: 1,
-                                        borderColor: colors.border,
-                                      },
-                                      pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
-                                    ]}
-                                  >
-                                    <Text
-                                      style={{
-                                        color: colors.secondaryText,
-                                        fontWeight: "700",
-                                      }}
-                                    >
-                                      Relatorio da aula
-                                    </Text>
-                                  </Pressable>
-                                ) : null}
+                                    Abrir aula
+                                  </Text>
+                                </Pressable>
                               </Pressable>
                             );
                           })}

@@ -9,6 +9,7 @@ import {
 import { Pressable } from "../../../src/ui/Pressable";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ModalSheet } from "../../../src/ui/ModalSheet";
 
 import {
   getClassById,
@@ -48,8 +49,9 @@ export default function SessionScreen() {
       : new Date().toISOString().slice(0, 10);
   const [scheduleText, setScheduleText] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const [running, setRunning] = useState(false);
-  const [remainingSec, setRemainingSec] = useState(0);
+  const [actionModal, setActionModal] = useState<
+    null | "attendance" | "report" | "plan"
+  >(null);
   const parseTime = (value: string) => {
     const parts = value.split(":");
     const hour = Number(parts[0]);
@@ -270,36 +272,13 @@ export default function SessionScreen() {
   };
 
   useEffect(() => {
-    setRemainingSec(durations[activeIndex] * 60);
-    setRunning(false);
-  }, [activeIndex, durations]);
-
-  useEffect(() => {
     if (autoReport !== "1") return;
     if (!cls || !sessionLog || didAutoReport) return;
     setDidAutoReport(true);
     void handleExportReportPdf();
   }, [autoReport, cls, didAutoReport, sessionLog, studentsCount]);
 
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => {
-      setRemainingSec((prev) => {
-        if (prev <= 1) {
-          setRunning(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [running]);
-
-  const formatTime = (value: number) => {
-    const mins = Math.floor(value / 60);
-    const secs = value % 60;
-    return String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
-  };
+  const handleCloseModal = () => setActionModal(null);
 
   if (!cls) return null;
 
@@ -342,83 +321,12 @@ export default function SessionScreen() {
             marginBottom: 12,
           }}
         >
-          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.primaryText, fontSize: 14, opacity: 0.85 }}>
-                Cronometro do bloco
-              </Text>
-              <Text style={{ color: colors.primaryText, fontSize: 28, fontWeight: "700" }}>
-                {formatTime(remainingSec)}
-              </Text>
-            </View>
-            <View style={{ alignItems: "flex-end", gap: 8 }}>
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/class/[id]/attendance",
-                    params: { id: cls.id, date: sessionDate },
-                  })
-                }
-                style={{
-                  alignSelf: "flex-start",
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  Fazer chamada
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={handleExportPdf}
-                style={{
-                  alignSelf: "flex-start",
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  Exportar plano
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+          <Text style={{ color: colors.primaryText, fontSize: 14, opacity: 0.85 }}>
+            Acoes rapidas
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             <Pressable
-              onPress={() => setRunning((prev) => !prev)}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: running ? colors.warningBg : colors.successBg,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.warningText }}>
-                {running ? "Pausar" : "Iniciar"}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                setRemainingSec(durations[activeIndex] * 60);
-                setRunning(false);
-              }}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>Reset</Text>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                setActiveIndex((prev) => Math.min(prev + 1, 2))
-              }
+              onPress={() => setActionModal("attendance")}
               style={{
                 paddingVertical: 8,
                 paddingHorizontal: 12,
@@ -427,7 +335,33 @@ export default function SessionScreen() {
               }}
             >
               <Text style={{ fontWeight: "700", color: colors.text }}>
-                Proximo bloco
+                Fazer chamada
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActionModal("report")}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ fontWeight: "700", color: colors.text }}>
+                Fazer relatorio
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActionModal("plan")}
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ fontWeight: "700", color: colors.text }}>
+                Exportar plano
               </Text>
             </Pressable>
           </View>
@@ -610,65 +544,141 @@ export default function SessionScreen() {
               <Text style={{ color: colors.text }}>
                 {"Presenca: " + sessionLog.attendance + "%"}
               </Text>
-              <Pressable
-                onPress={handleExportReportPdf}
-                style={{
-                  marginTop: 8,
-                  alignSelf: "flex-start",
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.primaryBg,
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  Exportar relatorio
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/class/[id]/log",
-                    params: { id, date: sessionDate },
-                  })
-                }
-                style={{
-                  marginTop: 8,
-                  alignSelf: "flex-start",
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Editar relatorio
-                </Text>
-              </Pressable>
             </View>
           ) : (
+            <Text style={{ color: colors.muted }}>
+              Nenhum relatorio registrado ainda.
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+      <ModalSheet
+        visible={actionModal !== null}
+        onClose={handleCloseModal}
+        position="center"
+        backdropOpacity={0.6}
+      >
+        <View style={{ gap: 12 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+                {actionModal === "attendance"
+                  ? "Fazer chamada"
+                  : actionModal === "plan"
+                  ? "Exportar plano"
+                  : "Relatorio da aula"}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {sessionDate.split("-").reverse().join("/")}
+              </Text>
+            </View>
             <Pressable
-              onPress={() =>
+              onPress={handleCloseModal}
+              style={{
+                height: 32,
+                paddingHorizontal: 12,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                Fechar
+              </Text>
+            </Pressable>
+          </View>
+          {actionModal === "attendance" ? (
+            <Pressable
+              onPress={() => {
+                handleCloseModal();
                 router.push({
-                  pathname: "/class/[id]/log",
-                  params: { id, date: sessionDate },
-                })
-              }
+                  pathname: "/class/[id]/attendance",
+                  params: { id: cls.id, date: sessionDate },
+                });
+              }}
               style={{
                 alignSelf: "flex-start",
-                paddingVertical: 8,
-                paddingHorizontal: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
                 borderRadius: 999,
                 backgroundColor: colors.primaryBg,
               }}
             >
               <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                Registrar relatorio
+                Abrir chamada
               </Text>
             </Pressable>
-          )}
+          ) : null}
+          {actionModal === "report" ? (
+            <View style={{ gap: 8 }}>
+              <Pressable
+                onPress={() => {
+                  handleCloseModal();
+                  router.push({
+                    pathname: "/class/[id]/log",
+                    params: { id, date: sessionDate },
+                  });
+                }}
+                style={{
+                  alignSelf: "flex-start",
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: colors.primaryBg,
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                  {sessionLog ? "Editar relatorio" : "Registrar relatorio"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  handleCloseModal();
+                  if (sessionLog) {
+                    void handleExportReportPdf();
+                  } else {
+                    router.push({
+                      pathname: "/class/[id]/log",
+                      params: { id, date: sessionDate, autoReport: "1" },
+                    });
+                  }
+                }}
+                style={{
+                  alignSelf: "flex-start",
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {sessionLog ? "Exportar relatorio" : "Salvar e gerar relatorio"}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {actionModal === "plan" ? (
+            <Pressable
+              onPress={() => {
+                handleCloseModal();
+                void handleExportPdf();
+              }}
+              style={{
+                alignSelf: "flex-start",
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                Exportar plano
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
-      </ScrollView>
+      </ModalSheet>
     </SafeAreaView>
   );
 }
