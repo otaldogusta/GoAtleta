@@ -351,20 +351,41 @@ export default function SessionScreen() {
                 {formatTime(remainingSec)}
               </Text>
             </View>
-            <Pressable
-              onPress={handleExportPdf}
-              style={{
-                alignSelf: "flex-start",
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Exportar PDF
-              </Text>
-            </Pressable>
+            <View style={{ alignItems: "flex-end", gap: 8 }}>
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: "/class/[id]/attendance",
+                    params: { id: cls.id, date: sessionDate },
+                  })
+                }
+                style={{
+                  alignSelf: "flex-start",
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 999,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>
+                  Fazer chamada
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleExportPdf}
+                style={{
+                  alignSelf: "flex-start",
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 999,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>
+                  Exportar plano
+                </Text>
+              </Pressable>
+            </View>
           </View>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
             <Pressable
