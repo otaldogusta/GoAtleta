@@ -218,14 +218,14 @@ export default function LogScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
-  const [rpe, setRpe] = useState<number>(7);
+  const [PSE, setPSE] = useState<number>(7);
   const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
   const [attendance, setAttendance] = useState<number>(100);
 
   async function handleSave() {
     await saveSessionLog({
       classId: id,
-      rpe,
+      PSE,
       technique,
       attendance,
       createdAt: new Date().toISOString(),
@@ -237,14 +237,14 @@ export default function LogScreen() {
     <SafeAreaView style={{ flex: 1, padding: 16 }}>
       <Typography variant="title">Registro pós-aula</Typography>
 
-      <Typography variant="body">RPE (1–10): {rpe}</Typography>
+      <Typography variant="body">PSE (1–10): {PSE}</Typography>
       <View style={{ flexDirection: "row", gap: 8, marginVertical: 8 }}>
         {[5, 6, 7, 8, 9].map((n) => (
           <Button
             key={n}
             label={String(n)}
-            onPress={() => setRpe(n)}
-            variant={rpe === n ? "primary" : "secondary"}
+            onPress={() => setPSE(n)}
+            variant={PSE === n ? "primary" : "secondary"}
           />
         ))}
       </View>
@@ -310,7 +310,7 @@ export type SessionPlan = {
 
 export type SessionLog = {
   classId: string;
-  rpe: number;
+  PSE: number;
   technique: "boa" | "ok" | "ruim";
   attendance: number;
   createdAt: string;
@@ -352,7 +352,7 @@ export function generateSession(cls: ClassGroup): SessionPlan {
   const cooldown = [
     "Caminhada + respiração (2min)",
     "Mobilidade leve (2min)",
-    "RPE + técnica (1min)",
+    "PSE + técnica (1min)",
   ];
 
   return { block, warmup, main, cooldown };
@@ -405,7 +405,7 @@ export function initDb() {
     CREATE TABLE IF NOT EXISTS session_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       classId TEXT NOT NULL,
-      rpe INTEGER NOT NULL,
+      PSE INTEGER NOT NULL,
       technique TEXT NOT NULL,
       attendance INTEGER NOT NULL,
       createdAt TEXT NOT NULL
@@ -488,9 +488,9 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
 
 export async function saveSessionLog(log: SessionLog) {
   db.runSync(
-    `INSERT INTO session_logs (classId, rpe, technique, attendance, createdAt)
+    `INSERT INTO session_logs (classId, PSE, technique, attendance, createdAt)
      VALUES (?, ?, ?, ?, ?)`,
-    [log.classId, log.rpe, log.technique, log.attendance, log.createdAt]
+    [log.classId, log.PSE, log.technique, log.attendance, log.createdAt]
   );
 }
 
@@ -600,7 +600,7 @@ test("gera sessão para 8-9", () => {
   const s = generateSession(mk("8-9"));
   expect(s.warmup.length).toBeGreaterThan(0);
   expect(s.main.join(" ")).toContain("Circuito");
-  expect(s.cooldown.join(" ")).toContain("RPE");
+  expect(s.cooldown.join(" ")).toContain("PSE");
 });
 
 test("gera sessão para 10-12", () => {
@@ -632,3 +632,4 @@ test("warmup tem 3 itens", () => {
   const s = generateSession(mk("8-9"));
   expect(s.warmup).toHaveLength(3);
 });
+

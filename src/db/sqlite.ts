@@ -39,6 +39,10 @@ export function initDb() {
       rpe INTEGER NOT NULL,
       technique TEXT NOT NULL,
       attendance INTEGER NOT NULL,
+      activity TEXT NOT NULL DEFAULT '',
+      conclusion TEXT NOT NULL DEFAULT '',
+      participantsCount INTEGER NOT NULL DEFAULT 0,
+      photos TEXT NOT NULL DEFAULT '',
       painScore INTEGER,
       createdAt TEXT NOT NULL
     );
@@ -196,6 +200,26 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE session_logs ADD COLUMN painScore INTEGER"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE session_logs ADD COLUMN activity TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE session_logs ADD COLUMN conclusion TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE session_logs ADD COLUMN participantsCount INTEGER NOT NULL DEFAULT 0"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE session_logs ADD COLUMN photos TEXT NOT NULL DEFAULT ''"
     );
   } catch {}
 }

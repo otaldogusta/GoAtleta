@@ -17,7 +17,7 @@ test("gera sessao para 8-9 com conteudo de voleibol", () => {
   const s = generateSession(mk("8-9"));
   expect(s.warmup.length).toBeGreaterThan(0);
   expect(s.main.join(" ")).toContain("Tecnica - Toque");
-  expect(s.cooldown.join(" ")).toContain("RPE");
+  expect(s.cooldown.join(" ")).toContain("PSE");
 });
 
 test("gera sessao para 10-12 com conteudo de voleibol", () => {
@@ -54,3 +54,4 @@ test("usa fallback fitness quando objetivo nao e voleibol", () => {
   const s = generateSession(mk("8-9", "Forca Geral"));
   expect(s.main.join(" ")).toContain("Circuito");
 });
+

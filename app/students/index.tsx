@@ -84,11 +84,15 @@ export default function StudentsScreen() {
   const [birthDate, setBirthDate] = useState("");
   const [ageNumber, setAgeNumber] = useState<number | null>(null);
   const [phone, setPhone] = useState("");
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianPhone, setGuardianPhone] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
+  const [showEditUnitPicker, setShowEditUnitPicker] = useState(false);
+  const [showEditClassPicker, setShowEditClassPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [studentFormError, setStudentFormError] = useState("");
@@ -103,6 +107,8 @@ export default function StudentsScreen() {
     name: string;
     birthDate: string;
     phone: string;
+    guardianName: string;
+    guardianPhone: string;
   } | null>(null);
   const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
     "students_birthday_notice_v1",
@@ -121,13 +127,33 @@ export default function StudentsScreen() {
     width: number;
     height: number;
   } | null>(null);
+  const [editContainerWindow, setEditContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const [editUnitTriggerLayout, setEditUnitTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editClassTriggerLayout, setEditClassTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const containerRef = useRef<View>(null);
   const unitTriggerRef = useRef<View>(null);
   const classTriggerRef = useRef<View>(null);
+  const editContainerRef = useRef<View>(null);
+  const editUnitTriggerRef = useRef<View>(null);
+  const editClassTriggerRef = useRef<View>(null);
   const { animatedStyle: unitPickerAnimStyle, isVisible: showUnitPickerContent } =
     useCollapsibleAnimation(showUnitPicker);
   const { animatedStyle: classPickerAnimStyle, isVisible: showClassPickerContent } =
     useCollapsibleAnimation(showClassPicker);
+  const { animatedStyle: editUnitPickerAnimStyle, isVisible: showEditUnitPickerContent } =
+    useCollapsibleAnimation(showEditUnitPicker);
+  const { animatedStyle: editClassPickerAnimStyle, isVisible: showEditClassPickerContent } =
+    useCollapsibleAnimation(showEditClassPicker);
 
   useEffect(() => {
     let alive = true;
@@ -159,11 +185,22 @@ export default function StudentsScreen() {
     setShowUnitPicker(false);
     setShowClassPicker(false);
   }, []);
+  const closeAllEditPickers = useCallback(() => {
+    setShowEditUnitPicker(false);
+    setShowEditClassPicker(false);
+  }, []);
 
   const toggleFormPicker = useCallback(
     (target: "unit" | "class") => {
       setShowUnitPicker((prev) => (target === "unit" ? !prev : false));
       setShowClassPicker((prev) => (target === "class" ? !prev : false));
+    },
+    []
+  );
+  const toggleEditPicker = useCallback(
+    (target: "unit" | "class") => {
+      setShowEditUnitPicker((prev) => (target === "unit" ? !prev : false));
+      setShowEditClassPicker((prev) => (target === "class" ? !prev : false));
     },
     []
   );
@@ -179,6 +216,19 @@ export default function StudentsScreen() {
     setAgeBand(value.ageBand);
     setCustomAgeBand("");
     setShowClassPicker(false);
+  }, [unitLabel]);
+
+  const handleSelectEditUnit = useCallback((value: string) => {
+    setUnit(value);
+    setShowEditUnitPicker(false);
+  }, []);
+
+  const handleSelectEditClass = useCallback((value: ClassGroup) => {
+    setClassId(value.id);
+    setUnit(unitLabel(value.unit));
+    setAgeBand(value.ageBand);
+    setCustomAgeBand("");
+    setShowEditClassPicker(false);
   }, [unitLabel]);
 
   const syncPickerLayouts = useCallback(() => {
@@ -200,6 +250,26 @@ export default function StudentsScreen() {
       });
     });
   }, [showClassPicker, showUnitPicker]);
+
+  const syncEditPickerLayouts = useCallback(() => {
+    const hasPickerOpen = showEditUnitPicker || showEditClassPicker;
+    if (!hasPickerOpen) return;
+    requestAnimationFrame(() => {
+      if (showEditUnitPicker) {
+        editUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditUnitTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditClassPicker) {
+        editClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setEditClassTriggerLayout({ x, y, width, height });
+        });
+      }
+      editContainerRef.current?.measureInWindow((x, y) => {
+        setEditContainerWindow({ x, y });
+      });
+    });
+  }, [showEditClassPicker, showEditUnitPicker]);
 
   const unitOptions = useMemo(() => {
     const set = new Set<string>();
@@ -238,8 +308,15 @@ export default function StudentsScreen() {
   }, [showUnitPicker, showClassPicker, syncPickerLayouts]);
 
   useEffect(() => {
+    if (showEditModal) syncEditPickerLayouts();
+  }, [showEditModal, showEditUnitPicker, showEditClassPicker, syncEditPickerLayouts]);
+
+  useEffect(() => {
     if (!showForm) closeAllPickers();
   }, [closeAllPickers, showForm]);
+  useEffect(() => {
+    if (!showEditModal) closeAllEditPickers();
+  }, [closeAllEditPickers, showEditModal]);
 
   useEffect(() => {
     if (!classes.length) return;
@@ -285,6 +362,8 @@ export default function StudentsScreen() {
       classId,
       age: resolvedAge,
       phone: phone.trim(),
+      guardianName: guardianName.trim(),
+      guardianPhone: guardianPhone.trim(),
       birthDate: birthDate || undefined,
       createdAt: editingCreatedAt ?? nowIso,
     };
@@ -311,6 +390,8 @@ export default function StudentsScreen() {
     name.trim() ||
     birthDate.trim() ||
     phone.trim() ||
+    guardianName.trim() ||
+    guardianPhone.trim() ||
     editingId;
 
   const canSaveStudent =
@@ -329,7 +410,9 @@ export default function StudentsScreen() {
       editSnapshot.classId !== classId ||
       editSnapshot.name !== name ||
       editSnapshot.birthDate !== birthDate ||
-      editSnapshot.phone !== phone
+      editSnapshot.phone !== phone ||
+      editSnapshot.guardianName !== guardianName ||
+      editSnapshot.guardianPhone !== guardianPhone
     );
   }, [
     ageBand,
@@ -338,6 +421,8 @@ export default function StudentsScreen() {
     customAgeBand,
     editSnapshot,
     editingId,
+    guardianName,
+    guardianPhone,
     name,
     phone,
     unit,
@@ -352,6 +437,8 @@ export default function StudentsScreen() {
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
+    setGuardianName("");
+    setGuardianPhone("");
     setCustomAgeBand("");
     setUnit("");
     setAgeBand("");
@@ -371,6 +458,8 @@ export default function StudentsScreen() {
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
+    setGuardianName("");
+    setGuardianPhone("");
   };
 
   const showSaveNotice = (message: string) => {
@@ -399,6 +488,7 @@ export default function StudentsScreen() {
   const closeEditModal = () => {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
+    closeAllEditPickers();
     resetForm();
   };
 
@@ -445,6 +535,8 @@ export default function StudentsScreen() {
       name: student.name,
       birthDate: student.birthDate ?? "",
       phone: student.phone,
+      guardianName: student.guardianName ?? "",
+      guardianPhone: student.guardianPhone ?? "",
     });
     if (student.birthDate) {
       setBirthDate(student.birthDate);
@@ -454,9 +546,12 @@ export default function StudentsScreen() {
       setAgeNumber(student.age);
     }
     setPhone(student.phone);
+    setGuardianName(student.guardianName ?? "");
+    setGuardianPhone(student.guardianPhone ?? "");
+    closeAllPickers();
     setShowEditModal(true);
     setStudentFormError("");
-  }, [ageBandOptions, classes, unitLabel]);
+  }, [ageBandOptions, classes, closeAllPickers, unitLabel]);
 
   const onDelete = (id: string) => {
     const student = students.find((item) => item.id === id);
@@ -488,6 +583,35 @@ export default function StudentsScreen() {
       },
     });
   };
+
+  const deleteEditingStudent = useCallback(() => {
+    if (!editingId) return;
+    const student = students.find((item) => item.id === editingId);
+    if (!student) return;
+    confirm({
+      title: "Excluir aluno?",
+      message: student.name
+        ? `Tem certeza que deseja excluir ${student.name}?`
+        : "Tem certeza que deseja excluir este aluno?",
+      confirmLabel: "Excluir",
+      undoMessage: "Aluno excluido. Deseja desfazer?",
+      onOptimistic: () => {
+        setStudents((prev) => prev.filter((item) => item.id !== student.id));
+        closeEditModal();
+      },
+      onConfirm: async () => {
+        await measure("deleteStudent", () => deleteStudent(student.id));
+        await reload();
+        logAction("Excluir aluno", {
+          studentId: student.id,
+          classId: student.classId,
+        });
+      },
+      onUndo: async () => {
+        await reload();
+      },
+    });
+  }, [confirm, editingId, closeEditModal, logAction, reload, students]);
 
   const getClassName = useCallback(
     (id: string) =>
@@ -1038,10 +1162,46 @@ export default function StudentsScreen() {
                   </Text>
                 </View>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+              <TextInput
+                placeholder="Telefone"
+                value={phone}
+                onChangeText={(value) => setPhone(formatPhone(value))}
+                keyboardType="phone-pad"
+                placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
                   <TextInput
-                    placeholder="Telefone"
-                    value={phone}
-                    onChangeText={(value) => setPhone(formatPhone(value))}
+                    placeholder="Nome do responsavel"
+                    value={guardianName}
+                    onChangeText={setGuardianName}
+                    onBlur={() => setGuardianName(formatName(guardianName))}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <TextInput
+                    placeholder="Telefone do responsavel"
+                    value={guardianPhone}
+                    onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                     keyboardType="phone-pad"
                     placeholderTextColor={colors.placeholder}
                     style={{
@@ -1229,7 +1389,7 @@ export default function StudentsScreen() {
       <ModalSheet
         visible={showEditModal}
         onClose={requestCloseEditModal}
-        cardStyle={[editModalCardStyle, { paddingBottom: 12 }]}
+        cardStyle={[editModalCardStyle, { paddingBottom: 20 }]}
         position="center"
       >
         <ConfirmCloseOverlay
@@ -1260,12 +1420,15 @@ export default function StudentsScreen() {
             </Text>
           </Pressable>
         </View>
+        <View ref={editContainerRef} style={{ position: "relative" }}>
         <ScrollView
-          contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
+          contentContainerStyle={{ gap: 10, paddingBottom: 32 }}
           style={{ maxHeight: "94%" }}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           showsVerticalScrollIndicator
+          onScroll={syncEditPickerLayouts}
+          scrollEventThrottle={16}
         >
               <TextInput
                 placeholder="Nome do aluno"
@@ -1282,29 +1445,51 @@ export default function StudentsScreen() {
                   color: colors.inputText,
                 }}
               />
-              <Text style={{ color: colors.muted }}>Unidade</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {unitOptions.map((item) => {
-                  const active = item === unit;
-                  return (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Unidade</Text>
+                  <View ref={editUnitTriggerRef}>
                     <Pressable
-                      key={item}
-                      onPress={() => setUnit(active ? "" : item)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
+                      onPress={() => toggleEditPicker("unit")}
+                      style={selectFieldStyle}
                     >
-                      <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                        {item}
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {unit || "Selecione a unidade"}
                       </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={colors.muted}
+                        style={{ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }}
+                      />
                     </Pressable>
-                  );
-                })}
+                  </View>
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Turma</Text>
+                  <View ref={editClassTriggerRef}>
+                    <Pressable
+                      onPress={() => toggleEditPicker("class")}
+                      style={selectFieldStyle}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                        {selectedClassName || "Selecione a turma"}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={16}
+                        color={colors.muted}
+                        style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
               </View>
-              {renderClassPicker()}
+              {studentFormError ? (
+                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                  {studentFormError}
+                </Text>
+              ) : null}
               {studentFormError ? (
                 <Text style={{ color: colors.dangerText, fontSize: 12 }}>
                   {studentFormError}
@@ -1329,6 +1514,42 @@ export default function StudentsScreen() {
                     placeholder="Telefone"
                     value={phone}
                     onChangeText={(value) => setPhone(formatPhone(value))}
+                    keyboardType="phone-pad"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <TextInput
+                    placeholder="Nome do responsavel"
+                    value={guardianName}
+                    onChangeText={setGuardianName}
+                    onBlur={() => setGuardianName(formatName(guardianName))}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <TextInput
+                    placeholder="Telefone do responsavel"
+                    value={guardianPhone}
+                    onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                     keyboardType="phone-pad"
                     placeholderTextColor={colors.placeholder}
                     style={{
@@ -1387,7 +1608,87 @@ export default function StudentsScreen() {
                   </Text>
                 </Pressable>
               </View>
+              {editingId ? (
+                <Pressable
+                  onPress={deleteEditingStudent}
+                  style={{
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.dangerSolidBg,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
+                    Excluir aluno
+                  </Text>
+                </Pressable>
+              ) : null}
         </ScrollView>
+        <AnchoredDropdown
+          visible={showEditUnitPickerContent}
+          layout={editUnitTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editUnitPickerAnimStyle}
+          zIndex={420}
+          maxHeight={220}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {unitOptions.length ? (
+            unitOptions.map((item, index) => (
+              <SelectOption
+                key={item}
+                label={item}
+                value={item}
+                active={item === unit}
+                onSelect={handleSelectEditUnit}
+                isFirst={index === 0}
+              />
+            ))
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+              Nenhuma unidade cadastrada.
+            </Text>
+          )}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showEditClassPickerContent}
+          layout={editClassTriggerLayout}
+          container={editContainerWindow}
+          animationStyle={editClassPickerAnimStyle}
+          zIndex={420}
+          maxHeight={240}
+          nestedScrollEnabled
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+          }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {classOptions.length ? (
+            classOptions.map((item, index) => (
+              <ClassOption
+                key={item.id}
+                item={item}
+                active={item.id === classId}
+                onSelect={handleSelectEditClass}
+                isFirst={index === 0}
+              />
+            ))
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+              Nenhuma turma encontrada.
+            </Text>
+          )}
+        </AnchoredDropdown>
+        </View>
       </ModalSheet>
       <DatePickerModal
         visible={showCalendar}

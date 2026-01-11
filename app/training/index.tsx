@@ -248,7 +248,7 @@ const getMethodologyTips = (ageBand?: string) => {
     "3 sessoes/semana, 60-90 min",
     "Volleyveilig 2x/semana + mobilidade",
     "Forca 50-70% 1RM com progressao leve",
-    "Monitorar saltos e RPE",
+    "Monitorar saltos e PSE",
   ];
 };
 
@@ -2271,7 +2271,7 @@ export default function TrainingList() {
                       showsVerticalScrollIndicator
                       initialNumToRender={12}
                       windowSize={7}
-                      maxToRenderPerBatch={12}
+                        maxToRenderBatch={12}
                       removeClippedSubviews
                     />
                   </>
@@ -2312,7 +2312,7 @@ export default function TrainingList() {
                 contentContainerStyle={{ gap: 12 }}
                 initialNumToRender={12}
                 windowSize={7}
-                maxToRenderPerBatch={12}
+                  maxToRenderBatch={12}
                 removeClippedSubviews
               />
             </Animated.View>
@@ -3102,3 +3102,4 @@ export default function TrainingList() {
     </SafeAreaView>
   );
 }
+

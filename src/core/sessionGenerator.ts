@@ -12,7 +12,7 @@ export function generateSession(cls: ClassGroup): SessionPlan {
   const cooldown = [
     "Caminhada + respiracao (2min)",
     "Mobilidade leve (2min)",
-    "RPE + tecnica (1min)",
+    "PSE + tecnica (1min)",
   ];
 
   return { block, warmup, main, cooldown };
@@ -41,3 +41,4 @@ function getMainByAgeBand(ageBand: ClassGroup["ageBand"]): string[] {
     "Core (5min): anti-rotacao + prancha lateral",
   ];
 }
+

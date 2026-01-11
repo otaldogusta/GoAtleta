@@ -43,9 +43,13 @@ export type SessionPlan = {
 
 export type SessionLog = {
   classId: string;
-  rpe: number;
+  PSE: number;
   technique: "boa" | "ok" | "ruim";
   attendance: number;
+  activity?: string;
+  conclusion?: string;
+  participantsCount?: number;
+  photos?: string;
   painScore?: number;
   createdAt: string;
 };
@@ -92,6 +96,8 @@ export type Student = {
   classId: string;
   age: number;
   phone: string;
+  guardianName?: string;
+  guardianPhone?: string;
   birthDate?: string;
   createdAt: string;
 };
@@ -103,6 +109,7 @@ export type AttendanceRecord = {
   date: string;
   status: "presente" | "faltou";
   note: string;
+  painScore?: number;
   createdAt: string;
 };
 

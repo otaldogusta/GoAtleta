@@ -28,6 +28,7 @@ import { ModalSheet } from "../src/ui/ModalSheet";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useSaveToast } from "../src/ui/save-toast";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
+import { Badge } from "../src/ui/Badge";
 
 const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
 const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
@@ -90,6 +91,7 @@ export default function CalendarScreen() {
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
   const [unitFilter, setUnitFilter] = useState("Todas");
+  const [activeWeekTab, setActiveWeekTab] = useState<"prev" | "current" | "next">("current");
   const [expandedPastDays, setExpandedPastDays, expandedPastDaysLoaded] =
     usePersistedState<Record<string, boolean>>(CALENDAR_EXPANDED_DAYS_KEY, {});
   const [expandedUnitGroups, setExpandedUnitGroups] = usePersistedState<
@@ -109,10 +111,39 @@ export default function CalendarScreen() {
   });
   const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
   const weekLabels = ["", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
-  const weekStart = useMemo(
+  const baseWeekStart = useMemo(
     () => startOfWeek(targetDate ? new Date(targetDate) : new Date()),
     [targetDate]
   );
+  const weekOffset = activeWeekTab === "prev" ? -1 : activeWeekTab === "next" ? 1 : 0;
+  const weekStart = useMemo(() => {
+    const copy = new Date(baseWeekStart);
+    copy.setDate(copy.getDate() + weekOffset * 7);
+    return copy;
+  }, [baseWeekStart, weekOffset]);
+  const weekRangeLabel = useMemo(() => {
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 6);
+    return `${formatDate(weekStart)} - ${formatDate(end)}`;
+  }, [weekStart]);
+  const earliestClassStart = useMemo(() => {
+    const parsed = classes
+      .map((cls) => cls.cycleStartDate || "")
+      .map((value) => (value ? new Date(value + "T00:00:00") : null))
+      .filter((date): date is Date => !!date && !Number.isNaN(date.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+    return parsed[0] ?? null;
+  }, [classes]);
+  const weekEnd = useMemo(() => {
+    const end = new Date(weekStart);
+    end.setDate(end.getDate() + 6);
+    return end;
+  }, [weekStart]);
+  const showNoTrainingNotice = useMemo(() => {
+    if (!earliestClassStart) return false;
+    return weekEnd.getTime() < earliestClassStart.getTime();
+  }, [earliestClassStart, weekEnd]);
+  const earliestLabel = earliestClassStart ? formatDate(earliestClassStart) : "";
   const unitLabel = useCallback((value?: string) => {
     return value && value.trim() ? value.trim() : "Sem unidade";
   }, []);
@@ -271,6 +302,36 @@ export default function CalendarScreen() {
       ? classes
       : classes.filter((cls) => unitLabel(cls.unit) === unitFilter);
   }, [classes, unitFilter, unitLabel]);
+  const getWeekSessionsCount = useCallback(
+    (start: Date) => {
+      if (!filteredClasses.length) return 0;
+      return filteredClasses.reduce((sum, cls) => {
+        const startDate = cls.cycleStartDate
+          ? new Date(cls.cycleStartDate + "T00:00:00")
+          : null;
+        const count = cls.daysOfWeek.reduce((acc, day) => {
+          const offset = day === 0 ? 6 : day - 1;
+          const date = new Date(start);
+          date.setDate(start.getDate() + offset);
+          if (startDate && date.getTime() < startDate.getTime()) return acc;
+          return acc + 1;
+        }, 0);
+        return sum + count;
+      }, 0);
+    },
+    [filteredClasses]
+  );
+  const weekCounts = useMemo(() => {
+    const prev = new Date(baseWeekStart);
+    prev.setDate(prev.getDate() - 7);
+    const next = new Date(baseWeekStart);
+    next.setDate(next.getDate() + 7);
+    return {
+      prev: getWeekSessionsCount(prev),
+      current: getWeekSessionsCount(baseWeekStart),
+      next: getWeekSessionsCount(next),
+    };
+  }, [baseWeekStart, getWeekSessionsCount]);
 
   const scheduleDays = useMemo(() => {
     const unique = new Set<number>();
@@ -374,25 +435,103 @@ export default function CalendarScreen() {
   }, [classes]);
   const baseHour = 14;
 
-  return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <View style={{ marginBottom: 12 }}>
-        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-          Calendario semanal
-        </Text>
-        <Text style={{ color: colors.muted, marginTop: 4 }}>
-          Dias por unidade e turmas
-        </Text>
-      </View>
+    return (
+      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+        <View style={{ marginBottom: 12 }}>
+          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+            Calendario semanal
+          </Text>
+          <Text style={{ color: colors.muted, marginTop: 4 }}>
+            Dias por unidade e turmas
+          </Text>
+          <Text style={{ color: colors.muted, marginTop: 2 }}>
+            {weekRangeLabel}
+          </Text>
+        </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingVertical: 12, gap: 16 }}
-        pointerEvents={showApplyPicker ? "none" : "auto"}
-      >
-        <View
-          style={{
-            padding: 12,
-            borderRadius: 16,
+        <ScrollView
+          contentContainerStyle={{ paddingVertical: 12, gap: 16 }}
+          pointerEvents={showApplyPicker ? "none" : "auto"}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 6,
+              padding: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            {[
+              { id: "prev", label: "Semana anterior", count: weekCounts.prev },
+              { id: "current", label: "Semana atual", count: weekCounts.current },
+              { id: "next", label: "Proxima semana", count: weekCounts.next },
+            ].map((tab) => {
+              const selected = activeWeekTab === tab.id;
+              return (
+                <Pressable
+                  key={tab.id}
+                  onPress={() => setActiveWeekTab(tab.id as "prev" | "current" | "next")}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    backgroundColor: selected ? colors.primaryBg : colors.card,
+                    borderWidth: selected ? 0 : 1,
+                    borderColor: selected ? "transparent" : colors.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <View style={{ position: "relative" }}>
+                    <Text
+                      style={{
+                        color: selected ? colors.primaryText : colors.muted,
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
+                      {tab.label}
+                    </Text>
+                    {tab.count > 0 ? (
+                      <Badge
+                        label={tab.count}
+                        style={{
+                          position: "absolute",
+                          top: -8,
+                          right: -18,
+                        }}
+                      />
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          {showNoTrainingNotice ? (
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                Sem aulas nesta semana
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 4 }}>
+                Inicio das aulas em {earliestLabel}.
+              </Text>
+            </View>
+          ) : null}
+
+          <View
+            style={{
+              padding: 12,
+              borderRadius: 16,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
@@ -439,22 +578,26 @@ export default function CalendarScreen() {
           </ScrollView>
         </View>
         {scheduleDays.map((dayInfo) => {
-          const date = new Date(weekStart);
-          const day = dayInfo.day;
-          const offset = day === 0 ? 6 : day - 1;
-          date.setDate(weekStart.getDate() + offset);
-          const dayKey = formatIsoDate(date);
-          const isPast = date.getTime() < todayStart.getTime();
-          const isExpanded = expandedPastDays[dayKey] ?? !isPast;
-          const expandAnim = getExpandAnim(dayKey, isExpanded ? 1 : 0);
-          const filtered = filteredClasses.filter((cls) =>
-            cls.daysOfWeek.includes(day)
-          );
-          const groupedByUnit = filtered.reduce<Record<string, ClassGroup[]>>(
-            (acc, cls) => {
-              const key = unitLabel(cls.unit);
-              if (!acc[key]) acc[key] = [];
-              acc[key].push(cls);
+            const date = new Date(weekStart);
+            const day = dayInfo.day;
+            const offset = day === 0 ? 6 : day - 1;
+            date.setDate(weekStart.getDate() + offset);
+            const dayKey = formatIsoDate(date);
+            const isPast = date.getTime() < todayStart.getTime();
+            const isExpanded = expandedPastDays[dayKey] ?? !isPast;
+            const expandAnim = getExpandAnim(dayKey, isExpanded ? 1 : 0);
+            const filtered = filteredClasses.filter((cls) =>
+              cls.daysOfWeek.includes(day)
+            );
+            const pendingCount = filtered.filter((cls) => {
+              if (date.getTime() > todayStart.getTime()) return false;
+              return !sessionLogMap.has(`${cls.id}-${dayKey}`);
+            }).length;
+            const groupedByUnit = filtered.reduce<Record<string, ClassGroup[]>>(
+              (acc, cls) => {
+                const key = unitLabel(cls.unit);
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(cls);
               return acc;
             },
             {}
@@ -586,6 +729,7 @@ export default function CalendarScreen() {
                               : "";
                             const log = sessionLogMap.get(`${cls.id}-${dayKey}`);
                             const hasLog = Boolean(log);
+                            const isDue = date.getTime() <= todayStart.getTime();
                             return (
                               <Pressable
                                 key={`${cls.id}-${day}`}
@@ -697,12 +841,12 @@ export default function CalendarScreen() {
                                         marginTop: 2,
                                       }}
                                     >
-                                      {"RPE " +
-                                        log?.rpe +
-                                        " ƒ?½ Tec: " +
-                                        log?.technique +
-                                        " ƒ?½ Presenca: " +
-                                        log?.attendance +
+                                      {"PSE " +
+                                        (log?.PSE ?? "-") +
+                                        " | Tec: " +
+                                        (log?.technique ?? "-") +
+                                        " | Presenca: " +
+                                        (log?.attendance ?? "-") +
                                         "%"}
                                     </Text>
                                   </View>
@@ -811,6 +955,42 @@ export default function CalendarScreen() {
                                     </Text>
                                   </Pressable>
                                 ) : null}
+                                {!hasLog && isDue ? (
+                                  <Pressable
+                                    onPress={(event) => {
+                                      event?.stopPropagation?.();
+                                      router.push({
+                                        pathname: "/class/[id]/log",
+                                        params: { id: cls.id, date: formatIsoDate(date) },
+                                      });
+                                    }}
+                                    style={({ pressed }) => [
+                                      {
+                                        marginTop: 10,
+                                        paddingVertical: 8,
+                                        borderRadius: 10,
+                                        alignItems: "center",
+                                        backgroundColor: colors.card,
+                                        borderWidth: 1,
+                                        borderColor: colors.border,
+                                        flexDirection: "row",
+                                        justifyContent: "center",
+                                        gap: 6,
+                                      },
+                                      pressed && { transform: [{ scale: 0.98 }], opacity: 0.9 },
+                                    ]}
+                                  >
+                                    <Badge />
+                                    <Text
+                                      style={{
+                                        color: colors.secondaryText,
+                                        fontWeight: "700",
+                                      }}
+                                    >
+                                      Relatorio da aula
+                                    </Text>
+                                  </Pressable>
+                                ) : null}
                               </Pressable>
                             );
                           })}
@@ -882,7 +1062,15 @@ export default function CalendarScreen() {
                         {formatDate(date)}
                       </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{countLabel}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>{countLabel}</Text>
+                      {pendingCount > 0 ? (
+                        <Badge
+                          label={pendingCount}
+                          style={{ alignSelf: "center" }}
+                        />
+                      ) : null}
+                    </View>
                   </View>
                 </View>
                 <MaterialCommunityIcons
@@ -1045,6 +1233,7 @@ export default function CalendarScreen() {
     </SafeAreaView>
   );
 }
+
 
 
 

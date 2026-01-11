@@ -15,24 +15,33 @@ import {
   getTrainingPlans,
   getClasses,
   getSessionLogByDate,
+  getStudentsByClass,
 } from "../../../src/db/seed";
 import type { ClassGroup, SessionLog, TrainingPlan } from "../../../src/core/models";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
 import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
+import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
+import { SessionReportDocument } from "../../../src/pdf/session-report-document";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useSaveToast } from "../../../src/ui/save-toast";
 
 export default function SessionScreen() {
-  const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
+  const { id, date, autoReport } = useLocalSearchParams<{
+    id: string;
+    date?: string;
+    autoReport?: string;
+  }>();
   const router = useRouter();
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
+  const [studentsCount, setStudentsCount] = useState(0);
+  const [didAutoReport, setDidAutoReport] = useState(false);
   const sessionDate =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
@@ -69,6 +78,8 @@ export default function SessionScreen() {
       const data = await getClassById(id);
       if (alive) setCls(data);
       if (data) {
+        const classStudents = await getStudentsByClass(data.id);
+        if (alive) setStudentsCount(classStudents.length);
         const plans = await getTrainingPlans();
         const byClass = plans.filter((item) => item.classId === data.id);
         const byDate = byClass.find((item) => item.applyDate === sessionDate);
@@ -135,6 +146,25 @@ export default function SessionScreen() {
   }, [plan]);
 
   const totalMinutes = durations.reduce((sum, value) => sum + value, 0);
+  const monthLabel = (value: string) => {
+    const [year, month] = value.split("-");
+    const names = [
+      "Janeiro",
+      "Fevereiro",
+      "Marco",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
+    ];
+    const index = Math.max(0, Math.min(11, Number(month) - 1));
+    return `${names[index]}/${year}`;
+  };
 
   const handleExportPdf = async () => {
     if (!plan || !cls) return;
@@ -194,10 +224,62 @@ export default function SessionScreen() {
     }
   };
 
+  const handleExportReportPdf = async () => {
+    if (!cls || !sessionLog) return;
+    const dateLabel = sessionDate.split("-").reverse().join("/");
+    const reportMonth = monthLabel(sessionDate);
+    const estimatedParticipants =
+      studentsCount > 0
+        ? Math.round((sessionLog.attendance / 100) * studentsCount)
+        : 0;
+    const participantsCount =
+      sessionLog.participantsCount && sessionLog.participantsCount > 0
+        ? sessionLog.participantsCount
+        : estimatedParticipants || undefined;
+    const reportData = {
+      monthLabel: reportMonth,
+      dateLabel,
+      className: cls.name,
+      unitLabel: cls.unit,
+      activity: sessionLog.activity ?? "",
+      conclusion: sessionLog.conclusion ?? "",
+      participantsCount: participantsCount ?? 0,
+      photos: sessionLog.photos ?? "",
+      deadlineLabel: "Ultimo dia da escolinha do mes",
+    };
+    const html = sessionReportHtml(reportData);
+    const webDocument =
+      Platform.OS === "web" ? <SessionReportDocument data={reportData} /> : undefined;
+    try {
+      const safeClass = safeFileName(cls.name);
+      const safeDate = safeFileName(sessionDate);
+      const fileName = `relatorio-${safeClass}-${safeDate}.pdf`;
+      await measure("exportSessionReportPdf", () =>
+        exportPdf({
+          html,
+          fileName,
+          webDocument,
+        })
+      );
+      logAction("Exportar relatorio PDF", { classId: cls.id, date: sessionDate });
+      showSaveToast({ message: "Relatorio gerado com sucesso.", variant: "success" });
+    } catch (error) {
+      showSaveToast({ message: "Nao foi possivel gerar o relatorio.", variant: "error" });
+      Alert.alert("Falha ao exportar PDF", "Tente novamente.");
+    }
+  };
+
   useEffect(() => {
     setRemainingSec(durations[activeIndex] * 60);
     setRunning(false);
   }, [activeIndex, durations]);
+
+  useEffect(() => {
+    if (autoReport !== "1") return;
+    if (!cls || !sessionLog || didAutoReport) return;
+    setDidAutoReport(true);
+    void handleExportReportPdf();
+  }, [autoReport, cls, didAutoReport, sessionLog, studentsCount]);
 
   useEffect(() => {
     if (!running) return;
@@ -484,14 +566,44 @@ export default function SessionScreen() {
           {sessionLog ? (
             <View style={{ gap: 4 }}>
               <Text style={{ color: colors.text }}>
-                {"RPE: " + sessionLog.rpe}
+                {"PSE: " + sessionLog.PSE}
               </Text>
+              {sessionLog.activity ? (
+                <Text style={{ color: colors.text }}>
+                  {"Atividade: " + sessionLog.activity}
+                </Text>
+              ) : null}
+              {sessionLog.conclusion ? (
+                <Text style={{ color: colors.text }}>
+                  {"Conclusao: " + sessionLog.conclusion}
+                </Text>
+              ) : null}
+              {sessionLog.participantsCount ? (
+                <Text style={{ color: colors.text }}>
+                  {"Participantes: " + sessionLog.participantsCount}
+                </Text>
+              ) : null}
               <Text style={{ color: colors.text }}>
                 {"Tecnica: " + sessionLog.technique}
               </Text>
               <Text style={{ color: colors.text }}>
                 {"Presenca: " + sessionLog.attendance + "%"}
               </Text>
+              <Pressable
+                onPress={handleExportReportPdf}
+                style={{
+                  marginTop: 8,
+                  alignSelf: "flex-start",
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 999,
+                  backgroundColor: colors.primaryBg,
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                  Exportar relatorio
+                </Text>
+              </Pressable>
               <Pressable
                 onPress={() =>
                   router.push({

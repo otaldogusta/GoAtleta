@@ -15,6 +15,11 @@ type SessionLogRow = {
   rpe: number;
   technique: string;
   attendance: number;
+  activity?: string;
+  conclusion?: string;
+  participantsCount?: number;
+  photos?: string;
+  painScore?: number;
   createdAt: string;
 };
 
@@ -92,12 +97,18 @@ export const db = {
       return;
     }
     if (normalized.startsWith("insert into session_logs")) {
+      const createdAt = String(params[params.length - 1] ?? "");
       const row: SessionLogRow = {
         classId: String(params[0] ?? ""),
         rpe: Number(params[1] ?? 0),
         technique: String(params[2] ?? ""),
         attendance: Number(params[3] ?? 0),
-        createdAt: String(params[4] ?? ""),
+        activity: params.length > 5 ? String(params[4] ?? "") : "",
+        conclusion: params.length > 5 ? String(params[5] ?? "") : "",
+        participantsCount: params.length > 6 ? Number(params[6] ?? 0) : 0,
+        photos: params.length > 7 ? String(params[7] ?? "") : "",
+        painScore: params.length > 8 ? Number(params[8] ?? 0) : undefined,
+        createdAt,
       };
       sessionLogs.push(row);
       return;

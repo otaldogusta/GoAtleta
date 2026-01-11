@@ -37,7 +37,7 @@ type WeekPlan = {
   volume: VolumeLevel;
   notes: string[];
   jumpTarget: string;
-  rpeTarget: string;
+  PSETarget: string;
 };
 
 const ageBands = ["6-8", "9-11", "12-14"] as const;
@@ -51,7 +51,7 @@ const dayNumbersByLabelIndex = [1, 2, 3, 4, 5, 6, 0];
 
 const pseTitle = "Percepcao Subjetiva de Esforco";
 
-const volumeToRpe: Record<VolumeLevel, string> = {
+const volumeToPSE: Record<VolumeLevel, string> = {
   baixo: "PSE 4-5",
   medio: "PSE 5-6",
   alto: "PSE 6-7",
@@ -274,7 +274,7 @@ const getPhaseForWeek = (weekNumber: number, cycleLength: number) => {
   return "Consolidacao";
 };
 
-const getRpeTarget = (phase: string) => {
+const getPSETarget = (phase: string) => {
   if (phase === "Base") return "4-5";
   if (phase === "Desenvolvimento") return "5-6";
   return "6-7";
@@ -309,7 +309,7 @@ const buildClassPlan = (options: {
     mvFormat: getMvFormat(options.ageBand),
     warmupProfile: template.notes[1] ?? "",
     jumpTarget: getJumpTarget(options.mvLevel, options.ageBand),
-    rpeTarget: getRpeTarget(phase),
+    PSETarget: getPSETarget(phase),
     source: options.source,
     createdAt,
     updatedAt: createdAt,
@@ -372,7 +372,7 @@ export default function PeriodizationScreen() {
   const [editMvFormat, setEditMvFormat] = useState("");
   const [editWarmupProfile, setEditWarmupProfile] = useState("");
   const [editJumpTarget, setEditJumpTarget] = useState("");
-  const [editRpeTarget, setEditRpeTarget] = useState("");
+  const [editPSETarget, setEditPSETarget] = useState("");
   const [editSource, setEditSource] = useState<"AUTO" | "MANUAL">("AUTO");
   const [isSavingWeek, setIsSavingWeek] = useState(false);
   const autoCreatedRef = useRef<Set<string>>(new Set());
@@ -646,9 +646,9 @@ export default function PeriodizationScreen() {
       acuteStart.setDate(end.getDate() - 7);
       const acuteLoad = classLogs
         .filter((log) => new Date(log.createdAt) >= acuteStart)
-        .reduce((sum, log) => sum + log.rpe * duration, 0);
+        .reduce((sum, log) => sum + log.PSE * duration, 0);
       const chronicLoad = classLogs.reduce(
-        (sum, log) => sum + log.rpe * duration,
+        (sum, log) => sum + log.PSE * duration,
         0
       ) / 4;
       if (chronicLoad > 0) {
@@ -695,7 +695,7 @@ export default function PeriodizationScreen() {
           volume: template.volume,
           notes: [plan.constraints, plan.warmupProfile].filter(Boolean),
           jumpTarget: plan.jumpTarget || getJumpTarget(selectedClass?.mvLevel, ageBand),
-          rpeTarget: plan.rpeTarget || getRpeTarget(plan.phase),
+          PSETarget: plan.PSETarget || getPSETarget(plan.phase),
         };
       });
     }
@@ -707,7 +707,7 @@ export default function PeriodizationScreen() {
         week: i + 1,
         title: getPhaseForWeek(i + 1, length),
         jumpTarget: getJumpTarget(selectedClass?.mvLevel, ageBand),
-        rpeTarget: getRpeTarget(getPhaseForWeek(i + 1, length)),
+        PSETarget: getPSETarget(getPhaseForWeek(i + 1, length)),
       });
     }
     return weeks;
@@ -731,7 +731,7 @@ export default function PeriodizationScreen() {
     return [
       "Tecnica eficiente + sistema de jogo",
       "Forca moderada e pliometria controlada",
-      "Monitorar RPE e recuperacao",
+      "Monitorar PSE e recuperacao",
     ];
   }, [ageBand]);
 
@@ -789,7 +789,7 @@ export default function PeriodizationScreen() {
       return "Duas semanas seguidas em carga alta. Considere uma semana de recuperacao.";
     }
     if (activeWeek.volume === "alto") {
-      return "Semana atual com carga alta. Monitore recuperacao e RPE.";
+      return "Semana atual com carga alta. Monitore recuperacao e PSE.";
     }
     return "";
   }, [highLoadStreak, activeWeek.volume]);
@@ -842,7 +842,7 @@ export default function PeriodizationScreen() {
     setEditMvFormat(plan.mvFormat);
     setEditWarmupProfile(plan.warmupProfile);
     setEditJumpTarget(plan.jumpTarget);
-    setEditRpeTarget(plan.rpeTarget);
+    setEditPSETarget(plan.PSETarget);
     setEditSource(existing ? plan.source : "AUTO");
     setShowWeekEditor(true);
   }, [ageBand, classPlans, cycleLength, selectedClass]);
@@ -865,7 +865,7 @@ export default function PeriodizationScreen() {
       mvFormat: editMvFormat.trim() || getMvFormat(ageBand),
       warmupProfile: editWarmupProfile.trim(),
       jumpTarget: editJumpTarget.trim() || getJumpTarget(selectedClass.mvLevel, ageBand),
-      rpeTarget: editRpeTarget.trim() || getRpeTarget(getPhaseForWeek(editingWeek, cycleLength)),
+      PSETarget: editPSETarget.trim() || getPSETarget(getPhaseForWeek(editingWeek, cycleLength)),
       source: editSource,
       createdAt: editingPlanId
         ? classPlans.find((p) => p.id === editingPlanId)?.createdAt ?? nowIso
@@ -1645,7 +1645,7 @@ export default function PeriodizationScreen() {
                   }}
                 >
                   <Text style={{ color: palette.text, fontSize: 11 }} title={pseTitle}>
-                    {level + " - " + volumeToRpe[level]}
+                    {level + " - " + volumeToPSE[level]}
                   </Text>
                 </View>
                 );
@@ -1801,7 +1801,7 @@ export default function PeriodizationScreen() {
                     }}
                   >
                     <Text style={{ color: colors.text, fontSize: 11 }} title={pseTitle}>
-                      {volumeToRpe[week.volume]}
+                      {volumeToPSE[week.volume]}
                     </Text>
                   </View>
                   <View
@@ -1813,7 +1813,7 @@ export default function PeriodizationScreen() {
                     }}
                   >
                     <Text style={{ color: colors.text, fontSize: 11 }}>
-                      {"RPE alvo: " + week.rpeTarget}
+                      {"PSE alvo: " + week.PSETarget}
                     </Text>
                   </View>
                   <View
@@ -2117,7 +2117,7 @@ export default function PeriodizationScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontSize: 11 }} title={pseTitle}>
-                  {volumeToRpe[activeWeek.volume]}
+                  {volumeToPSE[activeWeek.volume]}
                 </Text>
               </View>
             </View>
@@ -2260,6 +2260,8 @@ export default function PeriodizationScreen() {
             placeholder="Restricoes / regras"
             value={editConstraints}
             onChangeText={setEditConstraints}
+            multiline
+            textAlignVertical="top"
             placeholderTextColor={colors.placeholder}
             style={{
               borderWidth: 1,
@@ -2267,6 +2269,7 @@ export default function PeriodizationScreen() {
               padding: 12,
               borderRadius: 12,
               backgroundColor: colors.inputBg,
+              minHeight: 84,
               color: colors.inputText,
             }}
           />
@@ -2299,9 +2302,9 @@ export default function PeriodizationScreen() {
             }}
           />
           <TextInput
-            placeholder="RPE alvo (ex: 4-5)"
-            value={editRpeTarget}
-            onChangeText={setEditRpeTarget}
+            placeholder="PSE alvo (0-10, ex: 3-4)"
+            value={editPSETarget}
+            onChangeText={setEditPSETarget}
             placeholderTextColor={colors.placeholder}
             style={{
               borderWidth: 1,
@@ -2367,3 +2370,4 @@ export default function PeriodizationScreen() {
     </SafeAreaView>
   );
 }
+

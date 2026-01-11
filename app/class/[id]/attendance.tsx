@@ -59,6 +59,7 @@ export default function AttendanceScreen() {
   const [date, setDate] = useState(formatDate(new Date()));
   const [statusById, setStatusById] = useState<Record<string, "presente" | "faltou" | undefined>>({});
   const [noteById, setNoteById] = useState<Record<string, string>>({});
+  const [painById, setPainById] = useState<Record<string, number | undefined>>({});
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [historyFilter, setHistoryFilter] = useState("");
   const [csvPreview, setCsvPreview] = useState("");
@@ -103,10 +104,13 @@ export default function AttendanceScreen() {
 
   useEffect(() => {
     const initial: Record<string, "presente" | "faltou" | undefined> = {};
+    const painInitial: Record<string, number | undefined> = {};
     students.forEach((student) => {
       initial[student.id] = statusById[student.id];
+      painInitial[student.id] = painById[student.id] ?? 0;
     });
     setStatusById(initial);
+    setPainById(painInitial);
   }, [students]);
 
   const items = useMemo(
@@ -115,8 +119,9 @@ export default function AttendanceScreen() {
         student,
         status: statusById[student.id],
         note: noteById[student.id] ?? "",
+        pain: painById[student.id] ?? 0,
       })),
-    [students, statusById, noteById]
+    [students, statusById, noteById, painById]
   );
 
 
@@ -130,6 +135,7 @@ export default function AttendanceScreen() {
       date,
       status: item.status ?? "faltou",
       note: item.note.trim(),
+      painScore: item.pain,
       createdAt,
     }));
 
@@ -155,12 +161,15 @@ export default function AttendanceScreen() {
     if (!records.length) return;
     const nextStatus: Record<string, "presente" | "faltou"> = {};
     const nextNotes: Record<string, string> = {};
+    const nextPain: Record<string, number> = {};
     records.forEach((record) => {
       nextStatus[record.studentId] = record.status;
       nextNotes[record.studentId] = record.note;
+      nextPain[record.studentId] = record.painScore ?? 0;
     });
     setStatusById((prev) => ({ ...prev, ...nextStatus }));
     setNoteById((prev) => ({ ...prev, ...nextNotes }));
+    setPainById((prev) => ({ ...prev, ...nextPain }));
   };
 
   const historyDates = Array.from(
@@ -172,13 +181,14 @@ export default function AttendanceScreen() {
 
   const buildCsv = () => {
     const rows = [
-      ["date", "class", "student", "status", "note", "phone", "age"],
+      ["date", "class", "student", "status", "note", "pain", "phone", "age"],
       ...items.map((item) => [
         date,
         cls?.name ?? "",
         item.student.name,
         item.status,
         item.note ?? "",
+        String(item.pain ?? 0),
         item.student.phone,
         String(item.student.age),
       ]),
@@ -389,6 +399,24 @@ export default function AttendanceScreen() {
                     color: colors.inputText,
                   }}
                 />
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text }}>Dor (0-3)</Text>
+                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                    {[0, 1, 2, 3].map((value) => (
+                      <Button
+                        key={value}
+                        label={String(value)}
+                        variant={item.pain === value ? "primary" : "secondary"}
+                        onPress={() =>
+                          setPainById((prev) => ({
+                            ...prev,
+                            [item.student.id]: value,
+                          }))
+                        }
+                      />
+                    ))}
+                  </View>
+                </View>
               </View>
             ) : null}
           </View>

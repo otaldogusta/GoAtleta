@@ -65,13 +65,13 @@ e regenere com:
 npx patch-package yoga-layout
 ```
 
-## UI pattern: dropdown ancorado
+## UI pattern: dropdown ancorado (lista fixa + scroll interno)
 
 Padrao usado para selects com lista fixa e scroll interno, igual na tela de
 periodizacao e no cadastro de turmas.
 
 Regras do padrao:
-- Lista abre abaixo do campo (ancorada no trigger).
+- Ao clicar, abre lista abaixo do campo (ancorada no trigger).
 - So um dropdown aberto por vez.
 - Scroll acontece dentro da lista, nao na tela.
 - Ao rolar a tela, a lista acompanha o campo (recalcula layout).

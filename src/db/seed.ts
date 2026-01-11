@@ -220,6 +220,8 @@ type StudentRow = {
   classid: string;
   age: number;
   phone: string;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
   birthdate?: string | null;
   createdat: string;
 };
@@ -231,6 +233,7 @@ type AttendanceRow = {
   date: string;
   status: string;
   note: string;
+  pain_score?: number | null;
   createdat: string;
 };
 
@@ -262,6 +265,10 @@ type SessionLogRow = {
   rpe: number;
   technique: string;
   attendance: number;
+  activity?: string | null;
+  conclusion?: string | null;
+  participants_count?: number | null;
+  photos?: string | null;
   pain_score?: number | null;
   createdat: string;
 };
@@ -779,13 +786,30 @@ export async function deleteClassCascade(id: string) {
 }
 
 export async function saveSessionLog(log: SessionLog) {
+  const pseValue =
+    typeof (log as { PSE?: number }).PSE === "number"
+      ? (log as { PSE?: number }).PSE
+      : (log as { rpe?: number }).rpe ?? 0;
+  const activity = log.activity?.trim() || null;
+  const conclusion = log.conclusion?.trim() || null;
+  const photos = log.photos?.trim() || null;
+  const participantsCount =
+    typeof log.participantsCount === "number" &&
+    Number.isFinite(log.participantsCount) &&
+    log.participantsCount >= 0
+      ? Math.round(log.participantsCount)
+      : null;
   await supabasePost("/session_logs", [
     {
       id: "log_" + Date.now(),
       classid: log.classId,
-      rpe: log.rpe,
+      rpe: pseValue,
       technique: log.technique,
       attendance: log.attendance,
+      activity,
+      conclusion,
+      participants_count: participantsCount,
+      photos,
       pain_score: log.painScore ?? null,
       createdat: log.createdAt,
     },
@@ -812,9 +836,13 @@ export async function getSessionLogByDate(
   if (!row) return null;
   return {
     classId: row.classid,
-    rpe: row.rpe,
+    PSE: row.rpe,
     technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
     attendance: row.attendance,
+    activity: row.activity ?? undefined,
+    conclusion: row.conclusion ?? undefined,
+    participantsCount: row.participants_count ?? undefined,
+    photos: row.photos ?? undefined,
     painScore: row.pain_score ?? undefined,
     createdAt: row.createdat,
   };
@@ -832,9 +860,13 @@ export async function getSessionLogsByRange(
   );
   return rows.map((row) => ({
     classId: row.classid,
-    rpe: row.rpe,
+    PSE: row.rpe,
     technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
     attendance: row.attendance,
+    activity: row.activity ?? undefined,
+    conclusion: row.conclusion ?? undefined,
+    participantsCount: row.participants_count ?? undefined,
+    photos: row.photos ?? undefined,
     painScore: row.pain_score ?? undefined,
     createdAt: row.createdat,
   }));
@@ -1181,31 +1213,35 @@ export async function getStudents(): Promise<Student[]> {
   const rows = await supabaseGet<StudentRow[]>(
     "/students?select=*&order=name.asc"
   );
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    classId: row.classid,
-    age: row.age,
-    phone: row.phone,
-    birthDate: row.birthdate ?? "",
-    createdAt: row.createdat,
-  }));
-}
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      classId: row.classid,
+      age: row.age,
+      phone: row.phone,
+      guardianName: row.guardian_name ?? undefined,
+      guardianPhone: row.guardian_phone ?? undefined,
+      birthDate: row.birthdate ?? "",
+      createdAt: row.createdat,
+    }));
+  }
 
 export async function getStudentsByClass(classId: string): Promise<Student[]> {
   const rows = await supabaseGet<StudentRow[]>(
     "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
   );
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    classId: row.classid,
-    age: row.age,
-    phone: row.phone,
-    birthDate: row.birthdate ?? "",
-    createdAt: row.createdat,
-  }));
-}
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      classId: row.classid,
+      age: row.age,
+      phone: row.phone,
+      guardianName: row.guardian_name ?? undefined,
+      guardianPhone: row.guardian_phone ?? undefined,
+      birthDate: row.birthdate ?? "",
+      createdAt: row.createdat,
+    }));
+  }
 
 export async function getStudentById(id: string): Promise<Student | null> {
   const rows = await supabaseGet<StudentRow[]>(
@@ -1213,44 +1249,50 @@ export async function getStudentById(id: string): Promise<Student | null> {
   );
   const row = rows[0];
   if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    classId: row.classid,
-    age: row.age,
-    phone: row.phone,
-    birthDate: row.birthdate ?? "",
-    createdAt: row.createdat,
-  };
-}
+    return {
+      id: row.id,
+      name: row.name,
+      classId: row.classid,
+      age: row.age,
+      phone: row.phone,
+      guardianName: row.guardian_name ?? undefined,
+      guardianPhone: row.guardian_phone ?? undefined,
+      birthDate: row.birthdate ?? "",
+      createdAt: row.createdat,
+    };
+  }
 
 export async function saveStudent(student: Student) {
-  await supabasePost("/students", [
-    {
-      id: student.id,
-      name: student.name,
-      classid: student.classId,
-      age: student.age,
-      phone: student.phone,
-      birthdate: student.birthDate ? student.birthDate : null,
-      createdat: student.createdAt,
-    },
-  ]);
-}
+    await supabasePost("/students", [
+      {
+        id: student.id,
+        name: student.name,
+        classid: student.classId,
+        age: student.age,
+        phone: student.phone,
+        guardian_name: student.guardianName?.trim() || null,
+        guardian_phone: student.guardianPhone?.trim() || null,
+        birthdate: student.birthDate ? student.birthDate : null,
+        createdat: student.createdAt,
+      },
+    ]);
+  }
 
 export async function updateStudent(student: Student) {
-  await supabasePatch(
-    "/students?id=eq." + encodeURIComponent(student.id),
-    {
-      name: student.name,
-      classid: student.classId,
-      age: student.age,
-      phone: student.phone,
-      birthdate: student.birthDate ? student.birthDate : null,
-      createdat: student.createdAt,
-    }
-  );
-}
+    await supabasePatch(
+      "/students?id=eq." + encodeURIComponent(student.id),
+      {
+        name: student.name,
+        classid: student.classId,
+        age: student.age,
+        phone: student.phone,
+        guardian_name: student.guardianName?.trim() || null,
+        guardian_phone: student.guardianPhone?.trim() || null,
+        birthdate: student.birthDate ? student.birthDate : null,
+        createdat: student.createdAt,
+      }
+    );
+  }
 
 export async function deleteStudent(id: string) {
   await supabaseDelete("/students?id=eq." + encodeURIComponent(id));
@@ -1275,6 +1317,10 @@ export async function saveAttendanceRecords(
     date: record.date,
     status: record.status,
     note: record.note,
+    pain_score:
+      typeof record.painScore === "number" && Number.isFinite(record.painScore)
+        ? record.painScore
+        : null,
     createdat: record.createdAt,
   }));
 
@@ -1289,16 +1335,17 @@ export async function getAttendanceByClass(
       encodeURIComponent(classId) +
       "&order=date.desc"
   );
-  return rows.map((row) => ({
-    id: row.id,
-    classId: row.classid,
-    studentId: row.studentid,
-    date: row.date,
-    status: row.status === "faltou" ? "faltou" : "presente",
-    note: row.note ?? "",
-    createdAt: row.createdat,
-  }));
-}
+    return rows.map((row) => ({
+      id: row.id,
+      classId: row.classid,
+      studentId: row.studentid,
+      date: row.date,
+      status: row.status === "faltou" ? "faltou" : "presente",
+      note: row.note ?? "",
+      painScore: row.pain_score ?? undefined,
+      createdAt: row.createdat,
+    }));
+  }
 
 export async function getAttendanceByDate(
   classId: string,
@@ -1310,16 +1357,17 @@ export async function getAttendanceByDate(
       "&date=eq." +
       encodeURIComponent(date)
   );
-  return rows.map((row) => ({
-    id: row.id,
-    classId: row.classid,
-    studentId: row.studentid,
-    date: row.date,
-    status: row.status === "faltou" ? "faltou" : "presente",
-    note: row.note ?? "",
-    createdAt: row.createdat,
-  }));
-}
+    return rows.map((row) => ({
+      id: row.id,
+      classId: row.classid,
+      studentId: row.studentid,
+      date: row.date,
+      status: row.status === "faltou" ? "faltou" : "presente",
+      note: row.note ?? "",
+      painScore: row.pain_score ?? undefined,
+      createdAt: row.createdat,
+    }));
+  }
 
 export async function getAttendanceByStudent(
   studentId: string
@@ -1329,28 +1377,30 @@ export async function getAttendanceByStudent(
       encodeURIComponent(studentId) +
       "&order=date.desc"
   );
-  return rows.map((row) => ({
-    id: row.id,
-    classId: row.classid,
-    studentId: row.studentid,
-    date: row.date,
-    status: row.status === "faltou" ? "faltou" : "presente",
-    note: row.note ?? "",
-    createdAt: row.createdat,
-  }));
-}
+    return rows.map((row) => ({
+      id: row.id,
+      classId: row.classid,
+      studentId: row.studentid,
+      date: row.date,
+      status: row.status === "faltou" ? "faltou" : "presente",
+      note: row.note ?? "",
+      painScore: row.pain_score ?? undefined,
+      createdAt: row.createdat,
+    }));
+  }
 
 export async function getAttendanceAll(): Promise<AttendanceRecord[]> {
   const rows = await supabaseGet<AttendanceRow[]>(
     "/attendance_logs?select=*&order=date.desc"
   );
-  return rows.map((row) => ({
-    id: row.id,
-    classId: row.classid,
-    studentId: row.studentid,
-    date: row.date,
-    status: row.status === "faltou" ? "faltou" : "presente",
-    note: row.note ?? "",
-    createdAt: row.createdat,
-  }));
-}
+    return rows.map((row) => ({
+      id: row.id,
+      classId: row.classid,
+      studentId: row.studentid,
+      date: row.date,
+      status: row.status === "faltou" ? "faltou" : "presente",
+      note: row.note ?? "",
+      painScore: row.pain_score ?? undefined,
+      createdAt: row.createdat,
+    }));
+  }

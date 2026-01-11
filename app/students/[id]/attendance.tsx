@@ -112,7 +112,16 @@ export default function StudentAttendanceScreen() {
                 <Card
                   key={item.id}
                   title={item.status === "presente" ? "Presente" : "Faltou"}
-                  subtitle={item.note ? "Obs: " + item.note : undefined}
+                  subtitle={
+                    item.note || item.painScore !== undefined
+                      ? [
+                          item.note ? `Obs: ${item.note}` : null,
+                          item.painScore !== undefined ? `Dor: ${item.painScore}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" | ")
+                      : undefined
+                  }
                 />
               ))}
             </View>
