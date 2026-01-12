@@ -20,7 +20,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import * as Clipboard from "expo-clipboard";
 import * as Updates from "expo-updates";
 
-import { seedIfEmpty } from "../src/db/seed";
+import { getClasses, seedIfEmpty } from "../src/db/seed";
+import type { ClassGroup } from "../src/core/models";
 import { Card } from "../src/ui/Card";
 import { useAppTheme } from "../src/ui/app-theme";
 import {
@@ -40,6 +41,7 @@ export default function Home() {
   const [showInbox, setShowInbox] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [toast, setToast] = useState<{
     message: string;
     type: "info" | "success" | "error";
@@ -64,6 +66,8 @@ export default function Home() {
       await seedIfEmpty();
       const items = await getNotifications();
       if (alive) setInbox(items);
+      const classList = await getClasses();
+      if (alive) setClasses(classList);
     })();
     const unsubscribe = subscribeNotifications((items) => {
       if (!alive) return;
@@ -135,6 +139,63 @@ export default function Home() {
     if (value.length <= max) return value;
     return value.slice(0, max).trimEnd() + "...";
   };
+
+  const formatIsoDate = (value: Date) => {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, "0");
+    const d = String(value.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const parseTime = (value?: string) => {
+    if (!value) return null;
+    const match = value.match(/^(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    return { hour: Number(match[1]), minute: Number(match[2]) };
+  };
+
+  const nearestAttendanceTarget = useMemo(() => {
+    if (!classes.length) return null;
+    const now = new Date();
+    const candidates: {
+      classId: string;
+      date: string;
+      time: number;
+    }[] = [];
+
+    for (let offset = -7; offset <= 7; offset += 1) {
+      const dayDate = new Date(now);
+      dayDate.setDate(now.getDate() + offset);
+      dayDate.setHours(0, 0, 0, 0);
+      const dayIndex = dayDate.getDay();
+
+      classes.forEach((cls) => {
+        const days = cls.daysOfWeek ?? [];
+        if (!days.includes(dayIndex)) return;
+        const time = parseTime(cls.startTime);
+        if (!time) return;
+        const candidate = new Date(dayDate);
+        candidate.setHours(time.hour, time.minute, 0, 0);
+        candidates.push({
+          classId: cls.id,
+          date: formatIsoDate(candidate),
+          time: candidate.getTime(),
+        });
+      });
+    }
+
+    if (!candidates.length) return null;
+
+    const nowTime = now.getTime();
+    candidates.sort((a, b) => {
+      const diffA = Math.abs(a.time - nowTime);
+      const diffB = Math.abs(b.time - nowTime);
+      if (diffA !== diffB) return diffA - diffB;
+      return a.time - b.time;
+    });
+
+    return candidates[0];
+  }, [classes]);
 
   const showToast = (message: string, type: "info" | "success" | "error") => {
     setToast({ message, type });
@@ -263,37 +324,34 @@ export default function Home() {
           <Text style={{ color: colors.primaryText, marginTop: 6, opacity: 0.85 }}>
             Turmas, treino e chamada em um lugar
           </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 8,
-              marginTop: 12,
-            }}
-          >
+          <View style={{ marginTop: 12 }}>
             <Pressable
-              onPress={() => router.push({ pathname: "/classes" })}
+              onPress={() => {
+                if (!nearestAttendanceTarget) return;
+                router.push({
+                  pathname: "/class/[id]/attendance",
+                  params: {
+                    id: nearestAttendanceTarget.classId,
+                    date: nearestAttendanceTarget.date,
+                  },
+                });
+              }}
+              disabled={!nearestAttendanceTarget}
               style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
+                alignSelf: "flex-start",
+                paddingVertical: 8,
+                paddingHorizontal: 14,
                 borderRadius: 999,
-                backgroundColor: colors.successBg,
+                backgroundColor: nearestAttendanceTarget
+                  ? colors.secondaryBg
+                  : colors.primaryDisabledBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                opacity: nearestAttendanceTarget ? 1 : 0.7,
               }}
             >
-              <Text style={{ color: colors.successText, fontWeight: "700" }}>
-                Ver turmas
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push({ pathname: "/calendar" })}
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
-                Ver aula do dia
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Fazer chamada
               </Text>
             </Pressable>
           </View>
@@ -328,6 +386,29 @@ export default function Home() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() => router.push({ pathname: "/classes" })}
+              style={{
+                flexBasis: "48%",
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 3,
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                Turmas
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Cadastros e lista
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => router.push({ pathname: "/students" })}
               style={{
                 flexBasis: "48%",
@@ -348,6 +429,29 @@ export default function Home() {
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Lista e chamada
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push({ pathname: "/calendar" })}
+              style={{
+                flexBasis: "48%",
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 3,
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                Calendario semanal
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Aulas e chamada
               </Text>
             </Pressable>
             <Pressable

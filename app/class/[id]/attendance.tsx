@@ -3,7 +3,6 @@ import {
   useMemo,
   useState } from "react";
 import {
-  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,12 +13,13 @@ import {
 import { Pressable } from "../../../src/ui/Pressable";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRef } from "react";
 
 import {
   getClassById,
   getStudentsByClass,
   saveAttendanceRecords,
-  getAttendanceByClass,
   getAttendanceByDate,
 } from "../../../src/db/seed";
 import type {
@@ -28,13 +28,13 @@ import type {
   Student,
 } from "../../../src/core/models";
 import { Button } from "../../../src/ui/Button";
-import { animateLayout } from "../../../src/ui/animate-layout";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
 import { DateInput } from "../../../src/ui/DateInput";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
-import { Typography } from "../../../src/ui/Typography";
 import { useAppTheme } from "../../../src/ui/app-theme";
-import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { useSaveToast } from "../../../src/ui/save-toast";
+import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
+import { getUnitPalette, toRgba } from "../../../src/ui/unit-colors";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 
@@ -44,6 +44,7 @@ const formatDate = (value: Date) => {
   const d = String(value.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 };
+
 
 
 
@@ -60,21 +61,19 @@ export default function AttendanceScreen() {
   const [statusById, setStatusById] = useState<Record<string, "presente" | "faltou" | undefined>>({});
   const [noteById, setNoteById] = useState<Record<string, string>>({});
   const [painById, setPainById] = useState<Record<string, number | undefined>>({});
-  const [history, setHistory] = useState<AttendanceRecord[]>([]);
-  const [historyFilter, setHistoryFilter] = useState("");
-  const [csvPreview, setCsvPreview] = useState("");
+  const [loadMessage, setLoadMessage] = useState("");
+  const [baseline, setBaseline] = useState<{
+    status: Record<string, "presente" | "faltou" | undefined>;
+    note: Record<string, string>;
+    pain: Record<string, number>;
+  }>({ status: {}, note: {}, pain: {} });
   const [expandedById, setExpandedById] = usePersistedState<
     Record<string, boolean>
   >(id ? `attendance_${id}_expanded_v1` : null, {});
-  const [showHistory, setShowHistory] = usePersistedState<boolean>(
-    id ? `attendance_${id}_show_history_v1` : null,
-    false
-  );
-  const {
-    animatedStyle: historyAnimStyle,
-    isVisible: showHistoryContent,
-  } = useCollapsibleAnimation(showHistory);
   const [showCalendar, setShowCalendar] = useState(false);
+  const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialLoadDone = useRef(false);
+  const { showSaveToast } = useSaveToast();
 
   useEffect(() => {
     let alive = true;
@@ -84,8 +83,6 @@ export default function AttendanceScreen() {
       if (data) {
         const list = await getStudentsByClass(data.id);
         if (alive) setStudents(list);
-        const past = await getAttendanceByClass(data.id);
-        if (alive) setHistory(past);
       }
     })();
     return () => {
@@ -103,14 +100,18 @@ export default function AttendanceScreen() {
   }, [cls, dateParam]);
 
   useEffect(() => {
-    const initial: Record<string, "presente" | "faltou" | undefined> = {};
-    const painInitial: Record<string, number | undefined> = {};
+    const initialStatus: Record<string, "presente" | "faltou" | undefined> = {};
+    const initialNotes: Record<string, string> = {};
+    const initialPain: Record<string, number> = {};
     students.forEach((student) => {
-      initial[student.id] = statusById[student.id];
-      painInitial[student.id] = painById[student.id] ?? 0;
+      initialStatus[student.id] = undefined;
+      initialNotes[student.id] = "";
+      initialPain[student.id] = 0;
     });
-    setStatusById(initial);
-    setPainById(painInitial);
+    setStatusById(initialStatus);
+    setNoteById(initialNotes);
+    setPainById(initialPain);
+    setBaseline({ status: initialStatus, note: initialNotes, pain: initialPain });
   }, [students]);
 
   const items = useMemo(
@@ -123,6 +124,43 @@ export default function AttendanceScreen() {
       })),
     [students, statusById, noteById, painById]
   );
+
+  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  const formatDays = (days: number[]) =>
+    days.length ? days.map((day) => dayNames[day]).join(", ") : "";
+  const getDayIndex = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.getDay();
+  };
+  const classDays = cls?.daysOfWeek ?? [];
+  const isClassDay = useMemo(() => {
+    if (!classDays.length) return true;
+    const dayIndex = getDayIndex(date);
+    if (dayIndex === null) return true;
+    return classDays.includes(dayIndex);
+  }, [classDays, date]);
+
+  const buildBaseMaps = () => {
+    const baseStatus: Record<string, "presente" | "faltou" | undefined> = {};
+    const baseNotes: Record<string, string> = {};
+    const basePain: Record<string, number> = {};
+    students.forEach((student) => {
+      baseStatus[student.id] = undefined;
+      baseNotes[student.id] = "";
+      basePain[student.id] = 0;
+    });
+    return { baseStatus, baseNotes, basePain };
+  };
+
+  useEffect(() => {
+    if (!cls) return;
+    if (!students.length) return;
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
+    void loadDate(date);
+  }, [cls, date, students.length]);
 
 
   const handleSave = async () => {
@@ -142,14 +180,19 @@ export default function AttendanceScreen() {
     await measure("saveAttendanceRecords", () =>
       saveAttendanceRecords(cls.id, date, records)
     );
-    const past = await measure("getAttendanceByClass", () =>
-      getAttendanceByClass(cls.id)
-    );
-    setHistory(past);
+    setBaseline({
+      status: { ...statusById },
+      note: { ...noteById },
+      pain: { ...painById },
+    });
     logAction("Salvar chamada", {
       classId: cls.id,
       date,
       total: records.length,
+    });
+    showSaveToast({
+      message: "Chamada salva com sucesso.",
+      variant: "success",
     });
     router.replace("/");
   };
@@ -157,8 +200,42 @@ export default function AttendanceScreen() {
   const loadDate = async (value: string) => {
     if (!cls) return;
     setDate(value);
+    setLoadMessage("");
+    if (loadMessageTimer.current) {
+      clearTimeout(loadMessageTimer.current);
+      loadMessageTimer.current = null;
+    }
+    const { baseStatus, baseNotes, basePain } = buildBaseMaps();
+    if (classDays.length) {
+      const dayIndex = getDayIndex(value);
+      if (dayIndex !== null && !classDays.includes(dayIndex)) {
+        setStatusById(baseStatus);
+        setNoteById(baseNotes);
+        setPainById(basePain);
+        setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
+        setLoadMessage(
+          `Essa turma treina em ${formatDays(classDays)}. Selecione um desses dias.`
+        );
+        loadMessageTimer.current = setTimeout(() => {
+          setLoadMessage("");
+          loadMessageTimer.current = null;
+        }, 2500);
+        return;
+      }
+    }
     const records = await getAttendanceByDate(cls.id, value);
-    if (!records.length) return;
+    if (!records.length) {
+      setStatusById(baseStatus);
+      setNoteById(baseNotes);
+      setPainById(basePain);
+      setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
+      setLoadMessage("Sem registros para essa data.");
+      loadMessageTimer.current = setTimeout(() => {
+        setLoadMessage("");
+        loadMessageTimer.current = null;
+      }, 2500);
+      return;
+    }
     const nextStatus: Record<string, "presente" | "faltou"> = {};
     const nextNotes: Record<string, string> = {};
     const nextPain: Record<string, number> = {};
@@ -167,51 +244,74 @@ export default function AttendanceScreen() {
       nextNotes[record.studentId] = record.note;
       nextPain[record.studentId] = record.painScore ?? 0;
     });
-    setStatusById((prev) => ({ ...prev, ...nextStatus }));
-    setNoteById((prev) => ({ ...prev, ...nextNotes }));
-    setPainById((prev) => ({ ...prev, ...nextPain }));
+    const finalStatus = { ...baseStatus, ...nextStatus };
+    const finalNotes = { ...baseNotes, ...nextNotes };
+    const finalPain = { ...basePain, ...nextPain };
+    setStatusById(finalStatus);
+    setNoteById(finalNotes);
+    setPainById(finalPain);
+    setBaseline({ status: finalStatus, note: finalNotes, pain: finalPain });
+    setLoadMessage("Historico carregado para essa data.");
+    loadMessageTimer.current = setTimeout(() => {
+      setLoadMessage("");
+      loadMessageTimer.current = null;
+    }, 2000);
   };
 
-  const historyDates = Array.from(
-    new Set(history.map((record) => record.date))
-  );
-  const filteredHistoryDates = historyDates.filter((value) =>
-    value.includes(historyFilter.trim())
-  );
-
-  const buildCsv = () => {
-    const rows = [
-      ["date", "class", "student", "status", "note", "pain", "phone", "age"],
-      ...items.map((item) => [
-        date,
-        cls?.name ?? "",
-        item.student.name,
-        item.status,
-        item.note ?? "",
-        String(item.pain ?? 0),
-        item.student.phone,
-        String(item.student.age),
-      ]),
-    ];
-    return rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-  };
-
-  const handleExportCsv = () => {
-    const csv = buildCsv();
-    if (typeof document !== "undefined") {
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `chamada_${date}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+  const handleDateChange = (value: string) => {
+    if (cls) {
+      void loadDate(value);
     } else {
-      setCsvPreview(csv);
+      setDate(value);
+      setLoadMessage("");
     }
   };
 
+  const handleToday = () => {
+    const today = formatDate(new Date());
+    if (cls) {
+      void loadDate(today);
+    } else {
+      setDate(today);
+    }
+  };
+
+
+  const hasChanges = useMemo(() => {
+    const statusKeys = new Set([
+      ...Object.keys(baseline.status),
+      ...Object.keys(statusById),
+    ]);
+    for (const key of statusKeys) {
+      if ((baseline.status[key] ?? undefined) !== (statusById[key] ?? undefined)) {
+        return true;
+      }
+    }
+    const noteKeys = new Set([
+      ...Object.keys(baseline.note),
+      ...Object.keys(noteById),
+    ]);
+    for (const key of noteKeys) {
+      if ((baseline.note[key] ?? "") !== (noteById[key] ?? "")) {
+        return true;
+      }
+    }
+    const painKeys = new Set([
+      ...Object.keys(baseline.pain),
+      ...Object.keys(painById),
+    ]);
+    for (const key of painKeys) {
+      if ((baseline.pain[key] ?? 0) !== (painById[key] ?? 0)) {
+        return true;
+      }
+    }
+    return false;
+  }, [baseline, noteById, painById, statusById]);
+
+
   if (!cls) return null;
+  const unitLabel = cls.unit?.trim() ? cls.unit.trim() : "Sem unidade";
+  const unitPalette = getUnitPalette(unitLabel, colors);
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
@@ -231,7 +331,35 @@ export default function AttendanceScreen() {
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
             Chamada
           </Text>
-          <Text style={{ color: colors.muted, marginTop: 4 }}>{cls.name}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+            <View
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 999,
+                backgroundColor: toRgba(unitPalette.bg, 0.18),
+              }}
+            >
+              <Text style={{ color: unitPalette.text, fontSize: 12, fontWeight: "700" }}>
+                {unitLabel}
+              </Text>
+            </View>
+            <View
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 999,
+                backgroundColor: colors.inputBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                {cls.name}
+              </Text>
+            </View>
+            <ClassGenderBadge gender={cls.gender} />
+          </View>
         </View>
       </View>
 
@@ -256,245 +384,218 @@ export default function AttendanceScreen() {
         </Text>
         <DateInput
           value={date}
-          onChange={setDate}
+          onChange={handleDateChange}
           placeholder="Selecione a data"
           onOpenCalendar={() => setShowCalendar(true)}
         />
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-          <Button label="Carregar data" onPress={() => loadDate(date)} />
-          {historyDates.length > 0 ? (
-            <Button
-              label="Hoje"
-              variant="secondary"
-              onPress={() => loadDate(formatDate(new Date()))}
-            />
-          ) : null}
-        </View>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {items.map((item) => (
+        {loadMessage ? (
           <View
-            key={item.student.id}
             style={{
-              borderRadius: 18,
-              padding: 14,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOpacity: 0.04,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 2,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              marginTop: 2,
             }}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {item.student.name}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  onPress={() =>
-                    setStatusById((prev) => ({
-                      ...prev,
-                      [item.student.id]:
-                        prev[item.student.id] === "presente" ? undefined : "presente",
-                    }))
-                  }
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    borderRadius: 999,
-                    backgroundColor:
-                      item.status === "presente" ? colors.successBg : colors.secondaryBg,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: item.status === "presente" ? colors.primaryText : colors.text,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Presente
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() =>
-                    setStatusById((prev) => ({
-                      ...prev,
-                      [item.student.id]:
-                        prev[item.student.id] === "faltou" ? undefined : "faltou",
-                    }))
-                  }
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    borderRadius: 999,
-                    backgroundColor:
-                      item.status === "faltou" ? colors.dangerSolidBg : colors.secondaryBg,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: item.status === "faltou" ? colors.primaryText : colors.text,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Faltou
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    animateLayout();
-                    setExpandedById((prev) => ({
-                      ...prev,
-                      [item.student.id]: !prev[item.student.id],
-                    }));
-                  }}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ fontWeight: "700", color: colors.text }}>
-                    {expandedById[item.student.id] ? "\u25B2" : "\u25BC"}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {expandedById[item.student.id] ? (
-              <View style={{ marginTop: 10, gap: 8 }}>
-                <Text style={{ color: colors.text }}>
-                  Idade: {item.student.age} | Tel: {item.student.phone}
-                </Text>
-                <TextInput
-                  placeholder="Observacao (opcional)"
-                  value={item.note}
-                  onChangeText={(text) =>
-                    setNoteById((prev) => ({
-                      ...prev,
-                      [item.student.id]: text,
-                    }))
-                  }
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                  }}
-                />
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: colors.text }}>Dor (0-3)</Text>
-                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                    {[0, 1, 2, 3].map((value) => (
-                      <Button
-                        key={value}
-                        label={String(value)}
-                        variant={item.pain === value ? "primary" : "secondary"}
-                        onPress={() =>
-                          setPainById((prev) => ({
-                            ...prev,
-                            [item.student.id]: value,
-                          }))
-                        }
-                      />
-                    ))}
-                  </View>
-                </View>
-              </View>
-            ) : null}
+            <MaterialCommunityIcons
+              name="alert-circle-outline"
+              size={14}
+              color={colors.warningText}
+            />
+            <Text style={{ color: colors.warningText, fontSize: 12 }}>
+              {loadMessage}
+            </Text>
           </View>
-        ))}
-      </ScrollView>
-
-      <View style={{ marginTop: 8, gap: 8 }}>
-        <Button label="Salvar chamada" onPress={handleSave} />
+        ) : null}
       </View>
 
-      {historyDates.length > 0 ? (
-        <View style={{ marginTop: 16 }}>
-          <Button
-            label={showHistory ? "Esconder historico" : "Mostrar historico"}
-            variant="secondary"
-            onPress={() => {
-              animateLayout();
-              setShowHistory((prev) => !prev);
-            }}
-          />
-          {showHistoryContent ? (
-            <Animated.View style={historyAnimStyle}>
-            <View style={{ marginTop: 8 }}>
-              <Typography variant="subtitle">Historico por data</Typography>
-              <TextInput
-                placeholder="Filtrar por data (YYYY-MM-DD)"
-                value={historyFilter}
-                onChangeText={setHistoryFilter}
-                placeholderTextColor={colors.placeholder}
+      {isClassDay ? (
+        <ScrollView
+          contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {items.map((item) => (
+            <View
+              key={item.student.id}
+              style={{
+                borderRadius: 18,
+                padding: 14,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.04,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 2,
+              }}
+            >
+              <View
                 style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 10,
-                  marginTop: 8,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
-              />
-              <ScrollView contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
-                {filteredHistoryDates.map((value) => (
-                  <Button
-                    key={value}
-                    label={value}
-                    variant={value === date ? "primary" : "secondary"}
-                    onPress={() => loadDate(value)}
-                  />
-                ))}
-              </ScrollView>
-              <Button label="Exportar CSV (data)" onPress={handleExportCsv} />
-              {csvPreview ? (
-                <View>
-                  <Typography variant="subtitle">CSV gerado</Typography>
+              >
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  {item.student.name}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() =>
+                      setStatusById((prev) => ({
+                        ...prev,
+                        [item.student.id]:
+                          prev[item.student.id] === "presente" ? undefined : "presente",
+                      }))
+                    }
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                      borderRadius: 999,
+                      backgroundColor:
+                        item.status === "presente" ? colors.successBg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: item.status === "presente" ? colors.primaryText : colors.text,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Presente
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      setStatusById((prev) => ({
+                        ...prev,
+                        [item.student.id]:
+                          prev[item.student.id] === "faltou" ? undefined : "faltou",
+                      }))
+                    }
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                      borderRadius: 999,
+                      backgroundColor:
+                        item.status === "faltou" ? colors.dangerSolidBg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: item.status === "faltou" ? colors.primaryText : colors.text,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Faltou
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setExpandedById((prev) => ({
+                        ...prev,
+                        [item.student.id]: !prev[item.student.id],
+                      }));
+                    }}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={
+                        expandedById[item.student.id]
+                          ? "chevron-down"
+                          : "chevron-right"
+                      }
+                      size={16}
+                      color={colors.muted}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              {expandedById[item.student.id] ? (
+                <View style={{ marginTop: 10, gap: 8 }}>
+                  <Text style={{ color: colors.text }}>
+                    Idade: {item.student.age} | Tel: {item.student.phone}
+                  </Text>
                   <TextInput
-                    value={csvPreview}
-                    multiline
+                    placeholder="Observacao (opcional)"
+                    value={item.note}
+                    onChangeText={(text) =>
+                      setNoteById((prev) => ({
+                        ...prev,
+                        [item.student.id]: text,
+                      }))
+                    }
+                    placeholderTextColor={colors.placeholder}
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
                       padding: 10,
-                      borderRadius: 10,
-                      minHeight: 120,
+                      borderRadius: 12,
                       backgroundColor: colors.inputBg,
                       color: colors.inputText,
                     }}
                   />
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text }}>Dor (0-3)</Text>
+                    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                      {[0, 1, 2, 3].map((value) => (
+                        <Button
+                          key={value}
+                          label={String(value)}
+                          variant={item.pain === value ? "primary" : "secondary"}
+                          onPress={() =>
+                            setPainById((prev) => ({
+                              ...prev,
+                              [item.student.id]: value,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+                  </View>
                 </View>
               ) : null}
             </View>
-            </Animated.View>
-          ) : null}
+          ))}
+        </ScrollView>
+      ) : (
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 16,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
+            Dia sem aula para essa turma.
+          </Text>
+          <Text style={{ color: colors.muted, marginTop: 6 }}>
+            Dias da turma: {formatDays(classDays)}.
+          </Text>
         </View>
-      ) : null}
+      )}
+
+      <View style={{ marginTop: 8, gap: 8 }}>
+        <Button
+          label="Salvar chamada"
+          onPress={handleSave}
+          disabled={!isClassDay || !hasChanges}
+        />
+      </View>
 
       <DatePickerModal
         visible={showCalendar}
         value={date}
-        onChange={setDate}
+        onChange={handleDateChange}
         onClose={() => setShowCalendar(false)}
         closeOnSelect
       />

@@ -22,6 +22,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Calendar from "expo-calendar";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import {
   saveTrainingPlan,
@@ -86,6 +87,25 @@ const formatShortDate = (value?: string) => {
     return `${day}/${month}/${year}`;
   }
   return formatDate(value);
+};
+
+const formatShortDateValue = (value: Date) =>
+  value.toLocaleDateString("pt-BR");
+
+const getWeekStart = (value: Date) => {
+  const date = new Date(value);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const getWeekEnd = (start: Date) => {
+  const date = new Date(start);
+  date.setDate(date.getDate() + 6);
+  date.setHours(23, 59, 59, 999);
+  return date;
 };
 
 
@@ -401,6 +421,14 @@ export default function TrainingList() {
     [classes]
   );
 
+  const classStartTimeById = useMemo(() => {
+    const map: Record<string, string> = {};
+    classes.forEach((item) => {
+      if (item.startTime) map[item.id] = item.startTime;
+    });
+    return map;
+  }, [classes]);
+
   const unitLabel = (value?: string) =>
     value && value.trim() ? value.trim() : "Sem unidade";
 
@@ -698,13 +726,56 @@ export default function TrainingList() {
     return items;
   }, [items]);
 
-  const sortedFilteredItems = useMemo(
-    () =>
-      filteredItems
-        .slice()
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [filteredItems]
-  );
+  const groupedSavedPlans = useMemo(() => {
+    const getPlanDateTime = (plan: TrainingPlan) => {
+      if (plan.applyDate) {
+        const startTime = classStartTimeById[plan.classId];
+        if (
+          startTime &&
+          /^\d{4}-\d{2}-\d{2}$/.test(plan.applyDate)
+        ) {
+          const dated = new Date(`${plan.applyDate}T${startTime}:00`);
+          if (!Number.isNaN(dated.getTime())) return dated;
+        }
+        const applied = new Date(plan.applyDate);
+        if (!Number.isNaN(applied.getTime())) return applied;
+      }
+      const created = new Date(plan.createdAt);
+      return Number.isNaN(created.getTime()) ? new Date(0) : created;
+    };
+
+    const entries = filteredItems
+      .map((plan) => ({ plan, date: getPlanDateTime(plan) }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const groups: {
+      key: string;
+      label: string;
+      items: TrainingPlan[];
+      start: Date;
+    }[] = [];
+    const map = new Map<string, (typeof groups)[number]>();
+
+    entries.forEach(({ plan, date }) => {
+      const start = getWeekStart(date);
+      const key = start.toISOString().slice(0, 10);
+      let group = map.get(key);
+      if (!group) {
+        const end = getWeekEnd(start);
+        group = {
+          key,
+          label: `${formatShortDateValue(start)} - ${formatShortDateValue(end)}`,
+          items: [],
+          start,
+        };
+        map.set(key, group);
+        groups.push(group);
+      }
+      group.items.push(plan);
+    });
+
+    return groups;
+  }, [classStartTimeById, filteredItems]);
 
   const getClassName = useCallback(
     (id: string) => classes.find((item) => item.id === id)?.name ?? "Turma",
@@ -1774,23 +1845,6 @@ export default function TrainingList() {
     setSelectedPlan(plan);
   }, []);
 
-  const renderPlanItem = useCallback(
-    ({ item }: { item: TrainingPlan }) => (
-      <PlanRow
-        plan={item}
-        onOpenActions={handleOpenPlanActions}
-        onApply={handleApplyPlan}
-        onView={handleViewPlan}
-      />
-    ),
-    [PlanRow, handleApplyPlan, handleOpenPlanActions, handleViewPlan]
-  );
-
-  const planKeyExtractor = useCallback(
-    (item: TrainingPlan) => String(item.id),
-    []
-  );
-
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
@@ -2295,26 +2349,78 @@ export default function TrainingList() {
               alignItems: "center",
               justifyContent: "space-between",
               gap: 12,
+              paddingVertical: 6,
+              paddingHorizontal: 8,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              borderWidth: 1,
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Treinos salvos
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                Treinos salvos
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {filteredItems.length}
+              </Text>
+            </View>
+            <MaterialCommunityIcons
+              name={showSavedPlans ? "chevron-down" : "chevron-right"}
+              size={18}
+              color={colors.muted}
+            />
           </Pressable>
 
           {showSavedPlansContent ? (
             <Animated.View style={savedPlansAnimStyle}>
-              <FlatList
-                data={sortedFilteredItems}
-                keyExtractor={planKeyExtractor}
-                renderItem={renderPlanItem}
-                scrollEnabled={false}
-                contentContainerStyle={{ gap: 12 }}
-                initialNumToRender={12}
-                windowSize={7}
-                  maxToRenderBatch={12}
-                removeClippedSubviews
-              />
+              {groupedSavedPlans.length ? (
+                <View style={{ gap: 16 }}>
+                  {groupedSavedPlans.map((group) => (
+                    <View key={group.key} style={{ gap: 10 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View
+                          style={{
+                            paddingVertical: 3,
+                            paddingHorizontal: 10,
+                            borderRadius: 999,
+                            backgroundColor: colors.inputBg,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontWeight: "700",
+                              fontSize: 11,
+                            }}
+                          >
+                            Semana {group.label}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                          {group.items.length} treinos
+                        </Text>
+                      </View>
+                      <View style={{ gap: 12 }}>
+                        {group.items.map((plan) => (
+                          <PlanRow
+                            key={plan.id}
+                            plan={plan}
+                            onOpenActions={handleOpenPlanActions}
+                            onApply={handleApplyPlan}
+                            onView={handleViewPlan}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ color: colors.muted }}>
+                  Nenhum treino salvo ainda.
+                </Text>
+              )}
             </Animated.View>
           ) : null}
         </View>
