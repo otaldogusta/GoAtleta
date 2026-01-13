@@ -113,6 +113,12 @@ Exemplo:
 Rede Esperanca | 14:00-15:00 | 08-11 | Semana 01 - Diagnostica
 ```
 
+Exemplo de CSV (1 linha):
+```
+date,title,warmup_time,warmup,main_time,main,cooldown_time,cooldown,objective_general,objective_specific,observations
+2026-01-06,"Rede Esperanca | 14:00-15:00 | 08-11 | Semana 01 - Diagnostica","10 min","Pega-pega","45 min","Toque para alvo | Mini jogo 1x1","5 min","Roda de conversa","Diagnostico do mes","Controle de bola e toque",""
+```
+
 Se existir ambiguidade (mais de uma turma com mesma unidade + horario + faixa + dia),
 o importador retorna erro com a lista de turmas candidatas.
 
