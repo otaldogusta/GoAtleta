@@ -599,7 +599,11 @@ export default function SessionScreen() {
         <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
           {className}
         </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+        >
           {unitPalette ? (
             <View
               style={{
@@ -629,8 +633,12 @@ export default function SessionScreen() {
             </View>
           ) : null}
           <ClassGenderBadge gender={classGender} size="md" />
-        </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        </ScrollView>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+        >
           <View
             style={{
               paddingVertical: 6,
@@ -657,7 +665,7 @@ export default function SessionScreen() {
               </Text>
             </View>
           ) : null}
-        </View>
+        </ScrollView>
         {showNoPlanNotice ? (
           <View
             style={{
