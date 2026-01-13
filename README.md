@@ -86,6 +86,18 @@ Checklist rapido ao aplicar em outra tela:
 - Usar `toggleNewPicker` (ou equivalente) para fechar outras listas.
 - No `ScrollView`, chamar `syncPickerLayouts` no `onScroll`.
 
+## Supabase migrations (scouting)
+
+Para habilitar o modulo de scouting no Supabase, crie a tabela:
+
+- `supabase/migrations/20260106_create_scouting_logs.sql`
+
+Rodar no SQL Editor do Supabase e depois atualizar o schema:
+
+```sql
+select pg_notify('pgrst', 'reload schema');
+```
+
 ## Pendencias (to-do)
 
 - Home > Agenda do dia: revisar botao "Fazer chamada" para abrir a turma correta do dia/horario, e opcionalmente exibir turma/horario no botao.
