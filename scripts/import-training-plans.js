@@ -160,6 +160,41 @@ const buildMain = (row) => {
   return [...extras, ...mainItems];
 };
 
+const normalizeWord = (value) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const allowedObjectiveVerbs = new Set([
+  "introduzir",
+  "desenvolver",
+  "consolidar",
+  "reforcar",
+  "aplicar",
+  "trabalhar",
+  "melhorar",
+  "aumentar",
+  "estimular",
+  "iniciar",
+  "promover",
+  "orientar",
+  "avaliar",
+  "diagnosticar",
+  "manter",
+  "integrar",
+  "aperfeicoar",
+  "treinar",
+  "ensinar",
+  "revisar",
+]);
+
+const objectiveStartsWithVerb = (value) => {
+  const firstWord = value.trim().split(/\s+/)[0];
+  if (!firstWord) return false;
+  return allowedObjectiveVerbs.has(normalizeWord(firstWord));
+};
+
 const matchClass = (classes, row, titleInfo, unitHint) => {
   const startTime = titleInfo.startTime;
   const ageBand = titleInfo.ageBand;
@@ -247,6 +282,7 @@ const run = async () => {
 
   const classes = await request("GET", "/classes?select=*");
   const errors = [];
+  const warnings = [];
   const plans = [];
 
   rows.forEach((row, index) => {
@@ -274,6 +310,22 @@ const run = async () => {
         reason: issues.join("; "),
       });
       return;
+    }
+
+    const objectiveIssues = [];
+    if (row.objective_general && !objectiveStartsWithVerb(row.objective_general)) {
+      objectiveIssues.push("objetivo geral nao inicia com verbo");
+    }
+    if (row.objective_specific && !objectiveStartsWithVerb(row.objective_specific)) {
+      objectiveIssues.push("objetivo especifico nao inicia com verbo");
+    }
+    if (objectiveIssues.length) {
+      warnings.push({
+        index,
+        date: row.date,
+        title: row.title,
+        reason: objectiveIssues.join("; "),
+      });
     }
 
     const candidates = matchClass(classes, row, titleInfo, unitHint);
@@ -304,6 +356,14 @@ const run = async () => {
       console.error(`${base}${candidates}${reason}`);
     });
     process.exit(1);
+  }
+
+  if (warnings.length) {
+    console.warn("Aviso: objetivos sem verbo no inicio:");
+    warnings.forEach((warn) => {
+      const reason = warn.reason ? ` (${warn.reason})` : "";
+      console.warn(`- Linha ${warn.index + 2} (${warn.date}): ${warn.title}${reason}`);
+    });
   }
 
   for (const plan of plans) {
