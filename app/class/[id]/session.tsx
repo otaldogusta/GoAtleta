@@ -1,22 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Platform,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
+  getAttendanceByDate,
   getClassById,
   getTrainingPlans,
   getClasses,
   getSessionLogByDate,
   getScoutingLogByDate,
   getStudentsByClass,
+  saveSessionLog,
   saveScoutingLog,
 } from "../../../src/db/seed";
 import type { ClassGroup, SessionLog, TrainingPlan, ScoutingLog } from "../../../src/core/models";
@@ -42,6 +46,9 @@ import { SessionReportDocument } from "../../../src/pdf/session-report-document"
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useSaveToast } from "../../../src/ui/save-toast";
+import { Button } from "../../../src/ui/Button";
+import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
+import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
@@ -70,6 +77,37 @@ export default function SessionScreen() {
   const [studentsCount, setStudentsCount] = useState(0);
   const [didAutoReport, setDidAutoReport] = useState(false);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
+  const [PSE, setPSE] = useState<number>(7);
+  const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
+  const [activity, setActivity] = useState("");
+  const [autoActivity, setAutoActivity] = useState("");
+  const [conclusion, setConclusion] = useState("");
+  const [participantsCount, setParticipantsCount] = useState("");
+  const [photos, setPhotos] = useState("");
+  const [attendancePercent, setAttendancePercent] = useState<number | null>(null);
+  const [showPsePicker, setShowPsePicker] = useState(false);
+  const [showTechniquePicker, setShowTechniquePicker] = useState(false);
+  const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const [pseTriggerLayout, setPseTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [techniqueTriggerLayout, setTechniqueTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [reportLoaded, setReportLoaded] = useState(false);
+  const containerRef = useRef<View>(null);
+  const pseTriggerRef = useRef<View>(null);
+  const techniqueTriggerRef = useRef<View>(null);
+  const { animatedStyle: psePickerAnimStyle, isVisible: showPsePickerContent } =
+    useCollapsibleAnimation(showPsePicker, { translateY: -6 });
+  const { animatedStyle: techniquePickerAnimStyle, isVisible: showTechniquePickerContent } =
+    useCollapsibleAnimation(showTechniquePicker, { translateY: -6 });
   const sessionDate =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
@@ -97,6 +135,46 @@ export default function SessionScreen() {
     const day = dateObj.getDay();
     return day === 0 ? 7 : day;
   }, [sessionDate]);
+
+  const togglePicker = (target: "pse" | "technique") => {
+    setShowPsePicker((prev) => (target === "pse" ? !prev : false));
+    setShowTechniquePicker((prev) => (target === "technique" ? !prev : false));
+  };
+
+  const closePickers = () => {
+    setShowPsePicker(false);
+    setShowTechniquePicker(false);
+  };
+
+  const handleSelectPse = (value: number) => {
+    setPSE(value);
+    setShowPsePicker(false);
+  };
+
+  const handleSelectTechnique = (value: "boa" | "ok" | "ruim") => {
+    setTechnique(value);
+    setShowTechniquePicker(false);
+  };
+
+  const syncPickerLayouts = () => {
+    const hasPickerOpen = showPsePicker || showTechniquePicker;
+    if (!hasPickerOpen) return;
+    requestAnimationFrame(() => {
+      if (showPsePicker) {
+        pseTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setPseTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showTechniquePicker) {
+        techniqueTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setTechniqueTriggerLayout({ x, y, width, height });
+        });
+      }
+      containerRef.current?.measureInWindow((x, y) => {
+        setContainerWindow({ x, y });
+      });
+    });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -130,7 +208,22 @@ export default function SessionScreen() {
       }
       if (id) {
         const log = await getSessionLogByDate(id, sessionDate);
-        if (alive) setSessionLog(log);
+        if (alive) {
+          setSessionLog(log);
+          if (log && !reportLoaded) {
+            setPSE(log.PSE ?? 7);
+            setTechnique(log.technique ?? "boa");
+            setActivity(log.activity ?? "");
+            setConclusion(log.conclusion ?? "");
+            setParticipantsCount(
+              typeof log.participantsCount === "number"
+                ? String(log.participantsCount)
+                : ""
+            );
+            setPhotos(log.photos ?? "");
+            setReportLoaded(true);
+          }
+        }
         const scouting = await getScoutingLogByDate(id, sessionDate);
         if (alive) {
           const counts = scouting ? countsFromLog(scouting) : createEmptyCounts();
@@ -143,7 +236,123 @@ export default function SessionScreen() {
     return () => {
       alive = false;
     };
-  }, [id, sessionDate]);
+  }, [id, sessionDate, reportLoaded]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!id) return;
+      const [attendanceRecords, students] = await Promise.all([
+        getAttendanceByDate(id, sessionDate),
+        getStudentsByClass(id),
+      ]);
+      if (!alive) return;
+      if (attendanceRecords.length) {
+        const present = attendanceRecords.filter(
+          (record) => record.status === "presente"
+        ).length;
+        const total = attendanceRecords.length;
+        const percent = total > 0 ? Math.round((present / total) * 100) : 0;
+        setAttendancePercent(percent);
+      } else if (students.length) {
+        setAttendancePercent(0);
+      } else {
+        setAttendancePercent(null);
+      }
+
+      const plans = await getTrainingPlans();
+      const byClass = plans.filter((item) => item.classId === id);
+      const byDate = byClass.find((item) => item.applyDate === sessionDate);
+      const byWeekday = byClass.find((item) =>
+        (item.applyDays ?? []).includes(weekdayId)
+      );
+      const planForActivity = byDate ?? byWeekday ?? null;
+      if (!planForActivity) return;
+      const fallback =
+        planForActivity.title?.trim() ||
+        planForActivity.main?.filter(Boolean).slice(0, 2).join(" / ") ||
+        "";
+      if (!fallback) return;
+      setAutoActivity(fallback);
+      if (!activity.trim()) setActivity(fallback);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [activity, id, sessionDate, weekdayId]);
+
+  useEffect(() => {
+    syncPickerLayouts();
+  }, [showPsePicker, showTechniquePicker]);
+
+  const saveReport = async () => {
+    if (!cls) return null;
+    const dateValue =
+      typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? date
+        : null;
+    const createdAt = dateValue
+      ? new Date(`${dateValue}T12:00:00`).toISOString()
+      : new Date().toISOString();
+    const participantsRaw = participantsCount.trim();
+    const participantsValue = participantsRaw ? Number(participantsRaw) : Number.NaN;
+    const parsedParticipants =
+      Number.isFinite(participantsValue) && participantsValue >= 0
+        ? participantsValue
+        : undefined;
+    const activityValue = activity.trim() || autoActivity.trim();
+    const attendanceValue =
+      typeof attendancePercent === "number" ? attendancePercent : 0;
+    await saveSessionLog({
+      classId: cls.id,
+      PSE,
+      technique,
+      attendance: attendanceValue,
+      activity: activityValue,
+      conclusion,
+      participantsCount: parsedParticipants,
+      photos,
+      createdAt,
+    });
+    setSessionLog({
+      classId: cls.id,
+      PSE,
+      technique,
+      attendance: attendanceValue,
+      activity: activityValue,
+      conclusion,
+      participantsCount: parsedParticipants,
+      photos,
+      createdAt,
+    });
+    setReportLoaded(true);
+    return dateValue ?? new Date().toISOString().slice(0, 10);
+  };
+
+  async function handleSaveReport() {
+    try {
+      await saveReport();
+      showSaveToast({ message: "Relatorio salvo com sucesso.", variant: "success" });
+    } catch (error) {
+      showSaveToast({ message: "Nao foi possivel salvar o relatorio.", variant: "error" });
+      Alert.alert("Falha ao salvar", "Tente novamente.");
+    }
+  }
+
+  async function handleSaveAndGenerateReport() {
+    try {
+      const reportDate = await saveReport();
+      if (reportDate) {
+        router.replace({
+          pathname: "/class/[id]/session",
+          params: { id, date: reportDate, autoReport: "1" },
+        });
+      }
+    } catch (error) {
+      showSaveToast({ message: "Nao foi possivel salvar o relatorio.", variant: "error" });
+      Alert.alert("Falha ao salvar", "Tente novamente.");
+    }
+  }
 
   const title = plan ? "Treino mais recente" : "Aula do dia";
   const block = plan?.title ?? "";
@@ -437,24 +646,6 @@ export default function SessionScreen() {
             >
               <Text style={{ fontWeight: "700", color: colors.text }}>
                 Fazer chamada
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/class/[id]/log",
-                  params: { id, date: sessionDate },
-                })
-              }
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Fazer relatorio
               </Text>
             </Pressable>
             <Pressable
@@ -854,25 +1045,253 @@ export default function SessionScreen() {
               Nenhum relatorio registrado ainda.
             </Text>
           )}
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: "/class/[id]/log",
-                params: { id, date: sessionDate },
-              })
-            }
-            style={{
-              alignSelf: "flex-start",
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
+          <View ref={containerRef} style={{ gap: 10, marginTop: 12 }}>
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                PSE (0-10)
+              </Text>
+              <View ref={pseTriggerRef}>
+                <Pressable
+                  onPress={() => togglePicker("pse")}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                    {String(PSE)}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{ transform: [{ rotate: showPsePicker ? "180deg" : "0deg" }] }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Tecnica geral
+              </Text>
+              <View ref={techniqueTriggerRef}>
+                <Pressable
+                  onPress={() => togglePicker("technique")}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                    {technique}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{
+                      transform: [{ rotate: showTechniquePicker ? "180deg" : "0deg" }],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Numero de participantes
+              </Text>
+              <TextInput
+                placeholder="Ex: 12"
+                value={participantsCount}
+                onChangeText={setParticipantsCount}
+                keyboardType="numeric"
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Atividade
+              </Text>
+              <TextInput
+                placeholder="Resumo da atividade principal"
+                value={activity}
+                onChangeText={(value) => {
+                  setActivity(value);
+                  closePickers();
+                }}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Conclusao
+              </Text>
+              <TextInput
+                placeholder="Observacoes finais da aula"
+                value={conclusion}
+                onChangeText={(value) => {
+                  setConclusion(value);
+                  closePickers();
+                }}
+                placeholderTextColor={colors.placeholder}
+                multiline
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  minHeight: 90,
+                  textAlignVertical: "top",
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Fotos
+              </Text>
+              <TextInput
+                placeholder="Cole links ou descreva as fotos"
+                value={photos}
+                onChangeText={(value) => {
+                  setPhotos(value);
+                  closePickers();
+                }}
+                placeholderTextColor={colors.placeholder}
+                multiline
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  minHeight: 80,
+                  textAlignVertical: "top",
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <Button label="Salvar e gerar relatorio" onPress={handleSaveAndGenerateReport} />
+              <Button label="Salvar" variant="secondary" onPress={handleSaveReport} />
+            </View>
+          </View>
+
+          <AnchoredDropdown
+            visible={showPsePickerContent}
+            layout={pseTriggerLayout}
+            container={containerWindow}
+            animationStyle={psePickerAnimStyle}
+            zIndex={420}
+            maxHeight={220}
+            nestedScrollEnabled
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.inputBg,
             }}
+            scrollContentStyle={{ padding: 4 }}
           >
-            <Text style={{ fontWeight: "700", color: colors.text }}>
-              Editar relatorio
-            </Text>
-          </Pressable>
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n, index) => (
+              <Pressable
+                key={n}
+                onPress={() => handleSelectPse(n)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  margin: index === 0 ? 6 : 2,
+                  backgroundColor: PSE === n ? colors.primaryBg : "transparent",
+                }}
+              >
+                <Text
+                  style={{
+                    color: PSE === n ? colors.primaryText : colors.text,
+                    fontSize: 12,
+                    fontWeight: PSE === n ? "700" : "500",
+                  }}
+                >
+                  {n}
+                </Text>
+              </Pressable>
+            ))}
+          </AnchoredDropdown>
+
+          <AnchoredDropdown
+            visible={showTechniquePickerContent}
+            layout={techniqueTriggerLayout}
+            container={containerWindow}
+            animationStyle={techniquePickerAnimStyle}
+            zIndex={420}
+            maxHeight={160}
+            nestedScrollEnabled
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.inputBg,
+            }}
+            scrollContentStyle={{ padding: 4 }}
+          >
+            {(["boa", "ok", "ruim"] as const).map((value, index) => (
+              <Pressable
+                key={value}
+                onPress={() => handleSelectTechnique(value)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  margin: index === 0 ? 6 : 2,
+                  backgroundColor: technique === value ? colors.primaryBg : "transparent",
+                }}
+              >
+                <Text
+                  style={{
+                    color: technique === value ? colors.primaryText : colors.text,
+                    fontSize: 12,
+                    fontWeight: technique === value ? "700" : "500",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {value}
+                </Text>
+              </Pressable>
+            ))}
+          </AnchoredDropdown>
         </View>
         ) : null}
       </ScrollView>
