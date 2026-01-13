@@ -1112,38 +1112,11 @@ export default function SessionScreen() {
           <Text style={{ color: colors.muted }}>
             {sessionDate.split("-").reverse().join("/")}
           </Text>
-          {sessionLog ? (
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.text }}>
-                {"PSE: " + sessionLog.PSE}
-              </Text>
-              {sessionLog.activity ? (
-                <Text style={{ color: colors.text }}>
-                  {"Atividade: " + sessionLog.activity}
-                </Text>
-              ) : null}
-              {sessionLog.conclusion ? (
-                <Text style={{ color: colors.text }}>
-                  {"Conclusao: " + sessionLog.conclusion}
-                </Text>
-              ) : null}
-              {sessionLog.participantsCount ? (
-                <Text style={{ color: colors.text }}>
-                  {"Participantes: " + sessionLog.participantsCount}
-                </Text>
-              ) : null}
-              <Text style={{ color: colors.text }}>
-                {"Tecnica: " + sessionLog.technique}
-              </Text>
-              <Text style={{ color: colors.text }}>
-                {"Presenca: " + sessionLog.attendance + "%"}
-              </Text>
-            </View>
-          ) : (
+          {!sessionLog ? (
             <Text style={{ color: colors.muted }}>
               Nenhum relatorio registrado ainda.
             </Text>
-          )}
+          ) : null}
           {sessionLog ? (
             <View
               style={{
