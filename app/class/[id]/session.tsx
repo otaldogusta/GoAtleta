@@ -1336,7 +1336,7 @@ export default function SessionScreen() {
 
             <View style={{ gap: 8 }}>
               <Button
-                label="Salvar alteracoes"
+                label={reportHasChanges ? "Salvar alteracoes" : "Salvar"}
                 variant="secondary"
                 onPress={handleSaveReport}
                 disabled={!reportHasChanges}
