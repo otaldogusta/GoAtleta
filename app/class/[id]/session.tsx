@@ -363,7 +363,7 @@ export default function SessionScreen() {
     : "Volta a calma (5 min)";
   const showNoPlanNotice = !plan;
   const headerSubtitle = block ? cls?.name + " - " + block : cls?.name ?? "";
-  const unitPalette = cls ? getUnitPalette(cls.unit) : undefined;
+  const unitPalette = cls ? getUnitPalette(cls.unit || "", colors) : undefined;
   const className = cls?.name ?? "";
   const classAgeBand = cls?.ageBand ?? "";
   const classGender = cls?.gender ?? "misto";
