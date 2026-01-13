@@ -43,6 +43,14 @@ import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useSaveToast } from "../../../src/ui/save-toast";
 
+const sessionTabs = [
+  { id: "treino", label: "Treino mais recente" },
+  { id: "relatorio", label: "Fazer relatorio" },
+  { id: "scouting", label: "Scouting" },
+] as const;
+
+type SessionTabId = (typeof sessionTabs)[number]["id"];
+
 export default function SessionScreen() {
   const { id, date, autoReport } = useLocalSearchParams<{
     id: string;
@@ -61,6 +69,7 @@ export default function SessionScreen() {
   const [scoutingSaving, setScoutingSaving] = useState(false);
   const [studentsCount, setStudentsCount] = useState(0);
   const [didAutoReport, setDidAutoReport] = useState(false);
+  const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
   const sessionDate =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
@@ -465,8 +474,47 @@ export default function SessionScreen() {
         </View>
       ) : null}
 
+      <View
+        style={{
+          flexDirection: "row",
+          gap: 8,
+          backgroundColor: colors.secondaryBg,
+          padding: 6,
+          borderRadius: 999,
+          marginBottom: 12,
+        }}
+      >
+        {sessionTabs.map((tab) => {
+          const selected = sessionTab === tab.id;
+          return (
+            <Pressable
+              key={tab.id}
+              onPress={() => setSessionTab(tab.id)}
+              style={{
+                flex: 1,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: selected ? colors.primaryBg : "transparent",
+                alignItems: "center",
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: selected ? colors.primaryText : colors.text,
+                  fontWeight: "700",
+                  fontSize: 11,
+                }}
+              >
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <ScrollView contentContainerStyle={{ paddingVertical: 12, gap: 12 }}>
-        {plan
+        {sessionTab === "treino" && plan
           ? [
               { label: warmupLabel, items: warmup },
               { label: mainLabel, items: main },
@@ -524,7 +572,7 @@ export default function SessionScreen() {
               </View>
             ))
           : null}
-        {!plan ? (
+        {sessionTab === "treino" && !plan ? (
           <View
             style={{
               padding: 14,
@@ -594,6 +642,8 @@ export default function SessionScreen() {
             </View>
           </View>
         ) : null}
+        {sessionTab === "scouting" ? (
+        {sessionTab === "relatorio" ? (
         <View
           style={{
             padding: 14,
@@ -750,6 +800,7 @@ export default function SessionScreen() {
             </Text>
           </Pressable>
         </View>
+        ) : null}
         <View
           style={{
             padding: 14,
@@ -803,7 +854,27 @@ export default function SessionScreen() {
               Nenhum relatorio registrado ainda.
             </Text>
           )}
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/class/[id]/log",
+                params: { id, date: sessionDate },
+              })
+            }
+            style={{
+              alignSelf: "flex-start",
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ fontWeight: "700", color: colors.text }}>
+              Editar relatorio
+            </Text>
+          </Pressable>
         </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
