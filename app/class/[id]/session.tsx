@@ -104,6 +104,14 @@ export default function SessionScreen() {
     height: number;
   } | null>(null);
   const [reportLoaded, setReportLoaded] = useState(false);
+  const [reportBaseline, setReportBaseline] = useState({
+    PSE: 0,
+    technique: "nenhum" as "boa" | "ok" | "ruim" | "nenhum",
+    activity: "",
+    conclusion: "",
+    participantsCount: "",
+    photos: "",
+  });
   const containerRef = useRef<View>(null);
   const pseTriggerRef = useRef<View>(null);
   const techniqueTriggerRef = useRef<View>(null);
@@ -212,6 +220,18 @@ export default function SessionScreen() {
                 : ""
             );
             setPhotos(log.photos ?? "");
+            setReportBaseline({
+              PSE: typeof log.PSE === "number" ? log.PSE : 0,
+              technique:
+                (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum",
+              activity: log.activity ?? "",
+              conclusion: log.conclusion ?? "",
+              participantsCount:
+                typeof log.participantsCount === "number"
+                  ? String(log.participantsCount)
+                  : "",
+              photos: log.photos ?? "",
+            });
             setReportLoaded(true);
           }
         }
@@ -311,6 +331,14 @@ export default function SessionScreen() {
       photos,
       createdAt,
     });
+    setReportBaseline({
+      PSE,
+      technique,
+      activity: activityValue,
+      conclusion,
+      participantsCount: parsedParticipants !== undefined ? String(parsedParticipants) : "",
+      photos,
+    });
     setSessionLog({
       classId: cls.id,
       PSE,
@@ -325,6 +353,14 @@ export default function SessionScreen() {
     setReportLoaded(true);
     return dateValue ?? new Date().toISOString().slice(0, 10);
   };
+
+  const reportHasChanges =
+    PSE !== reportBaseline.PSE ||
+    technique !== reportBaseline.technique ||
+    activity.trim() !== reportBaseline.activity.trim() ||
+    conclusion.trim() !== reportBaseline.conclusion.trim() ||
+    participantsCount.trim() !== reportBaseline.participantsCount.trim() ||
+    photos.trim() !== reportBaseline.photos.trim();
 
   async function handleSaveReport() {
     try {
@@ -1299,8 +1335,16 @@ export default function SessionScreen() {
             </View>
 
             <View style={{ gap: 8 }}>
-              <Button label="Salvar e gerar relatorio" onPress={handleSaveAndGenerateReport} />
-              <Button label="Salvar" variant="secondary" onPress={handleSaveReport} />
+              <Button
+                label="Salvar alteracoes"
+                variant="secondary"
+                onPress={handleSaveReport}
+                disabled={!reportHasChanges}
+              />
+              <Button
+                label="Gerar relatorio"
+                onPress={handleSaveAndGenerateReport}
+              />
             </View>
           </View>
 
