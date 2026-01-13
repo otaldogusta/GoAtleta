@@ -16,7 +16,6 @@ import {
   getAttendanceByDate,
   getClassById,
   getTrainingPlans,
-  getClasses,
   getSessionLogByDate,
   getScoutingLogByDate,
   getStudentsByClass,
@@ -49,6 +48,8 @@ import { useSaveToast } from "../../../src/ui/save-toast";
 import { Button } from "../../../src/ui/Button";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { getUnitPalette } from "../../../src/ui/unit-colors";
+import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
@@ -112,7 +113,6 @@ export default function SessionScreen() {
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
       : new Date().toISOString().slice(0, 10);
-  const [scheduleText, setScheduleText] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const parseTime = (value: string) => {
     const parts = value.split(":");
@@ -191,20 +191,7 @@ export default function SessionScreen() {
           (item.applyDays ?? []).includes(weekdayId)
         );
         if (alive) setPlan(byDate ?? byWeekday ?? null);
-        const classes = await getClasses();
-        const index = classes.findIndex((item) => item.id === data.id);
-        if (index >= 0) {
-          const parsed = parseTime(data.startTime || "");
-          const startHour = parsed?.hour ?? 14 + index;
-          const startMinute = parsed?.minute ?? 0;
-          const durationMinutes = data.durationMinutes ?? 60;
-          const time = formatRange(startHour, startMinute, durationMinutes);
-          const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
-          const days = data.daysOfWeek.length
-            ? data.daysOfWeek.map((day) => dayNames[day]).join(", ")
-            : "-";
-          if (alive) setScheduleText("Dias: " + days + " - " + time);
-        }
+        if (!alive) return;
       }
       if (id) {
         const log = await getSessionLogByDate(id, sessionDate);
@@ -376,6 +363,16 @@ export default function SessionScreen() {
     : "Volta a calma (5 min)";
   const showNoPlanNotice = !plan;
   const headerSubtitle = block ? cls?.name + " - " + block : cls?.name ?? "";
+  const unitPalette = cls ? getUnitPalette(cls.unit) : undefined;
+  const className = cls?.name ?? "";
+  const classAgeBand = cls?.ageBand ?? "";
+  const classGender = cls?.gender ?? "misto";
+  const dateLabel = sessionDate.split("-").reverse().join("/");
+  const parsedStart = cls?.startTime ? parseTime(cls.startTime) : null;
+  const timeLabel =
+    parsedStart && cls
+      ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes ?? 60)
+      : "";
 
   const parseMinutes = (value: string, fallback: number) => {
     const match = value.match(/\d+/);
@@ -595,18 +592,77 @@ export default function SessionScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <View style={{ gap: 6, marginBottom: 12 }}>
+      <View style={{ gap: 8, marginBottom: 12 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
           {title}
         </Text>
         <Text style={{ color: colors.muted }}>{headerSubtitle}</Text>
-        {scheduleText ? (
-          <Text style={{ color: colors.text }}>Horario: {scheduleText}</Text>
-        ) : null}
+        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
+          {className}
+        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {unitPalette ? (
+            <View
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 10,
+                borderRadius: 999,
+                backgroundColor: unitPalette.bg,
+              }}
+            >
+              <Text style={{ color: unitPalette.text, fontWeight: "600", fontSize: 12 }}>
+                {cls?.unit}
+              </Text>
+            </View>
+          ) : null}
+          {classAgeBand ? (
+            <View
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 10,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
+                {"Faixa " + classAgeBand}
+              </Text>
+            </View>
+          ) : null}
+          <ClassGenderBadge gender={classGender} size="md" />
+        </View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <View
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 12 }}>
+              {"Data: " + dateLabel}
+            </Text>
+          </View>
+          {timeLabel ? (
+            <View
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 10,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 12 }}>
+                {"Horario: " + timeLabel}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         {showNoPlanNotice ? (
           <View
             style={{
-              marginTop: 8,
+              marginTop: 6,
               paddingVertical: 6,
               paddingHorizontal: 10,
               borderRadius: 12,
