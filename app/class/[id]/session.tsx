@@ -268,10 +268,16 @@ export default function SessionScreen() {
       );
       const planForActivity = byDate ?? byWeekday ?? null;
       if (!planForActivity) return;
-      const fallback =
-        planForActivity.title?.trim() ||
-        planForActivity.main?.filter(Boolean).slice(0, 2).join(" / ") ||
-        "";
+      const warmupText = planForActivity.warmup?.filter(Boolean).join(" / ") || "";
+      const mainText = planForActivity.main?.filter(Boolean).join(" / ") || "";
+      const cooldownText = planForActivity.cooldown?.filter(Boolean).join(" / ") || "";
+      const fallback = [
+        warmupText ? "Aquecimento: " + warmupText : "",
+        mainText ? "Parte principal: " + mainText : "",
+        cooldownText ? "Volta a calma: " + cooldownText : "",
+      ]
+        .filter(Boolean)
+        .join(" | ");
       if (!fallback) return;
       setAutoActivity(fallback);
       if (!activity.trim()) setActivity(fallback);
