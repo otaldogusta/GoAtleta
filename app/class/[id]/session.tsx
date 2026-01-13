@@ -78,8 +78,10 @@ export default function SessionScreen() {
   const [studentsCount, setStudentsCount] = useState(0);
   const [didAutoReport, setDidAutoReport] = useState(false);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
-  const [PSE, setPSE] = useState<number>(7);
-  const [technique, setTechnique] = useState<"boa" | "ok" | "ruim">("boa");
+  const [PSE, setPSE] = useState<number>(0);
+  const [technique, setTechnique] = useState<"boa" | "ok" | "ruim" | "nenhum">(
+    "nenhum"
+  );
   const [activity, setActivity] = useState("");
   const [autoActivity, setAutoActivity] = useState("");
   const [conclusion, setConclusion] = useState("");
@@ -151,7 +153,7 @@ export default function SessionScreen() {
     setShowPsePicker(false);
   };
 
-  const handleSelectTechnique = (value: "boa" | "ok" | "ruim") => {
+  const handleSelectTechnique = (value: "boa" | "ok" | "ruim" | "nenhum") => {
     setTechnique(value);
     setShowTechniquePicker(false);
   };
@@ -198,8 +200,10 @@ export default function SessionScreen() {
         if (alive) {
           setSessionLog(log);
           if (log && !reportLoaded) {
-            setPSE(log.PSE ?? 7);
-            setTechnique(log.technique ?? "boa");
+            setPSE(typeof log.PSE === "number" ? log.PSE : 0);
+            setTechnique(
+              (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum"
+            );
             setActivity(log.activity ?? "");
             setConclusion(log.conclusion ?? "");
             setParticipantsCount(
@@ -1140,6 +1144,22 @@ export default function SessionScreen() {
               Nenhum relatorio registrado ainda.
             </Text>
           )}
+          {sessionLog ? (
+            <View
+              style={{
+                alignSelf: "flex-start",
+                paddingVertical: 4,
+                paddingHorizontal: 8,
+                borderRadius: 10,
+                backgroundColor: colors.successBg,
+                marginTop: 4,
+              }}
+            >
+              <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
+                Editando relatorio existente
+              </Text>
+            </View>
+          ) : null}
           <View style={{ gap: 12, marginTop: 12 }}>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1, gap: 6 }}>
@@ -1366,7 +1386,7 @@ export default function SessionScreen() {
             }}
             scrollContentStyle={{ padding: 4 }}
           >
-            {(["boa", "ok", "ruim"] as const).map((value, index) => (
+            {(["nenhum", "boa", "ok", "ruim"] as const).map((value, index) => (
               <Pressable
                 key={value}
                 onPress={() => handleSelectTechnique(value)}
