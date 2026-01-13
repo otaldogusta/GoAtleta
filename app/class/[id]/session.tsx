@@ -409,7 +409,6 @@ export default function SessionScreen() {
       </View>
 
       {plan ? (
-        {sessionTab === "relatorio" ? (
         <View
           style={{
             padding: 16,
