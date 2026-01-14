@@ -118,6 +118,7 @@ export type AttendanceRecord = {
 
 export type ScoutingLog = {
   id: string;
+  clientId?: string;
   classId: string;
   unit?: string;
   date: string;

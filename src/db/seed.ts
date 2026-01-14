@@ -173,7 +173,17 @@ const buildSessionLogClientId = (log: SessionLog) => {
   const timestamp = Number.isFinite(Date.parse(log.createdAt))
     ? Date.parse(log.createdAt)
     : Date.now();
-  return `session_${log.classId}_${timestamp}`;
+  const suffix = Number.isFinite(Date.parse(log.createdAt))
+    ? ""
+    : `_${Math.random().toString(16).slice(2, 6)}`;
+  return `session_${log.classId}_${timestamp}${suffix}`;
+};
+
+const buildScoutingLogClientId = (log: ScoutingLog) => {
+  const existing = (log.clientId || log.id || "").trim();
+  if (existing) return existing;
+  const datePart = log.date ? log.date.trim() : "unknown";
+  return `scout_${log.classId}_${datePart}`;
 };
 
 const enqueueWrite = async (write: PendingWrite) => {
@@ -972,8 +982,11 @@ export async function saveScoutingLog(
   const allowQueue = options?.allowQueue !== false;
   try {
     const now = new Date().toISOString();
-    const existing = await getScoutingLogByDate(log.classId, log.date);
+    const clientId = buildScoutingLogClientId(log);
+    const logId = log.id?.trim() || clientId;
     const payload = {
+      id: logId,
+      client_id: clientId,
       classid: log.classId,
       unit: log.unit ?? null,
       date: log.date,
@@ -989,31 +1002,20 @@ export async function saveScoutingLog(
       attack_send_0: log.attackSend0,
       attack_send_1: log.attackSend1,
       attack_send_2: log.attackSend2,
-      updatedat: now,
-    };
-
-    if (existing) {
-      await supabasePatch(
-        "/scouting_logs?classid=eq." +
-          encodeURIComponent(log.classId) +
-          "&date=eq." +
-          encodeURIComponent(log.date),
-        payload
-      );
-      return { ...log, createdAt: existing.createdAt, updatedAt: now };
-    }
-
-    const created = {
-      ...payload,
-      id: log.id || "scout_" + Date.now(),
       createdat: log.createdAt || now,
       updatedat: now,
     };
-    await supabasePost("/scouting_logs", [created]);
+
+    await supabasePost(
+      "/scouting_logs?on_conflict=client_id",
+      [payload],
+      { Prefer: "resolution=merge-duplicates" }
+    );
     return {
       ...log,
-      id: created.id,
-      createdAt: created.createdat,
+      id: logId,
+      clientId,
+      createdAt: payload.createdat,
       updatedAt: now,
     };
   } catch (error) {
@@ -1021,7 +1023,7 @@ export async function saveScoutingLog(
       await enqueueWrite({
         id: "queue_scout_" + Date.now(),
         kind: "scouting_log",
-        payload: log,
+        payload: { ...log, id: log.id || "", clientId: log.clientId || "" },
         createdAt: new Date().toISOString(),
       });
       return { ...log };
