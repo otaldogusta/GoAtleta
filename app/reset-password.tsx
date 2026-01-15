@@ -30,6 +30,28 @@ const parseAccessToken = (url?: string | null) => {
   return params.get("access_token") ?? "";
 };
 
+const formatResetError = (raw: string) => {
+  try {
+    const parsed = JSON.parse(raw) as { error_code?: string; msg?: string };
+    if (parsed.error_code === "same_password") {
+      return "A nova senha precisa ser diferente da anterior.";
+    }
+    if (parsed.msg) {
+      return parsed.msg;
+    }
+  } catch {
+    // ignore parse error
+  }
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("same_password")) {
+    return "A nova senha precisa ser diferente da anterior.";
+  }
+  if (normalized.includes("invalid") && normalized.includes("token")) {
+    return "Link invalido ou expirado.";
+  }
+  return raw.replace(/\s+/g, " ");
+};
+
 export default function ResetPasswordScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
@@ -145,7 +167,7 @@ export default function ResetPasswordScreen() {
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "Falha ao atualizar senha.";
-      setMessage(detail.replace(/\s+/g, " "));
+      setMessage(formatResetError(detail));
     } finally {
       setBusy(false);
     }
