@@ -168,9 +168,13 @@ export default function LoginScreen() {
     setMessage("");
     setBusy(true);
     try {
+      const webOrigin =
+        Platform.OS === "web" && typeof window !== "undefined"
+          ? window.location.origin
+          : "";
       const redirectTo =
         Platform.OS === "web"
-          ? "http://localhost:8082/reset-password"
+          ? `${webOrigin || "http://localhost:8081"}/reset-password`
           : Linking.createURL("reset-password");
       await resetPassword(email.trim(), redirectTo);
       setMessage("Enviamos um link de recuperacao para seu email.");
