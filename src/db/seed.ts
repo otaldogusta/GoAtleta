@@ -295,6 +295,8 @@ type ClassRow = {
   mv_level?: string | null;
   cycle_start_date?: string | null;
   cycle_length_weeks?: number | null;
+  acwr_low?: number | null;
+  acwr_high?: number | null;
   createdat?: string | null;
 };
 
@@ -709,6 +711,8 @@ export async function getClasses(): Promise<ClassGroup[]> {
       mvLevel: row.mv_level ?? undefined,
       cycleStartDate: row.cycle_start_date ?? undefined,
       cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
+      acwrLow: row.acwr_low ?? undefined,
+      acwrHigh: row.acwr_high ?? undefined,
       createdAt: row.createdat ?? undefined,
     })).sort((a, b) => {
       const aRange = parseAgeBandRange(a.ageBand || a.name);
@@ -773,6 +777,8 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
     mvLevel: row.mv_level ?? undefined,
     cycleStartDate: row.cycle_start_date ?? undefined,
     cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
+    acwrLow: row.acwr_low ?? undefined,
+    acwrHigh: row.acwr_high ?? undefined,
     createdAt: row.createdat ?? undefined,
   };
 }
@@ -793,6 +799,8 @@ export async function updateClass(
     mvLevel?: string;
     cycleStartDate?: string;
     cycleLengthWeeks?: number;
+    acwrLow?: number;
+    acwrHigh?: number;
   }
 ) {
   const payload: Record<string, unknown> = {
@@ -818,8 +826,20 @@ export async function updateClass(
   if (typeof data.cycleLengthWeeks === "number") {
     payload.cycle_length_weeks = data.cycleLengthWeeks;
   }
+  if (typeof data.acwrLow === "number") payload.acwr_low = data.acwrLow;
+  if (typeof data.acwrHigh === "number") payload.acwr_high = data.acwrHigh;
 
   await supabasePatch("/classes?id=eq." + encodeURIComponent(id), payload);
+}
+
+export async function updateClassAcwrLimits(
+  id: string,
+  limits: { low: number; high: number }
+) {
+  await supabasePatch("/classes?id=eq." + encodeURIComponent(id), {
+    acwr_low: limits.low,
+    acwr_high: limits.high,
+  });
 }
 
 export async function saveClass(data: {
@@ -891,6 +911,8 @@ export async function duplicateClass(base: ClassGroup) {
       mv_level: base.mvLevel,
       cycle_start_date: base.cycleStartDate,
       cycle_length_weeks: base.cycleLengthWeeks,
+      acwr_low: base.acwrLow,
+      acwr_high: base.acwrHigh,
       created_at: new Date().toISOString(),
     },
   ]);

@@ -23,6 +23,8 @@ export type ClassGroup = {
   mvLevel?: string;
   cycleStartDate?: string;
   cycleLengthWeeks?: number;
+  acwrLow?: number;
+  acwrHigh?: number;
   createdAt?: string;
 };
 

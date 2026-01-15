@@ -20,6 +20,8 @@ export function initDb() {
       mvLevel TEXT NOT NULL DEFAULT '',
       cycleStartDate TEXT NOT NULL DEFAULT '',
       cycleLengthWeeks INTEGER NOT NULL DEFAULT 0,
+      acwrLow REAL NOT NULL DEFAULT 0.8,
+      acwrHigh REAL NOT NULL DEFAULT 1.3,
       startTime TEXT NOT NULL DEFAULT '',
       endTime TEXT NOT NULL DEFAULT '',
       createdAt TEXT NOT NULL DEFAULT ''
@@ -161,6 +163,16 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE classes ADD COLUMN cycleLengthWeeks INTEGER NOT NULL DEFAULT 0"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN acwrLow REAL NOT NULL DEFAULT 0.8"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN acwrHigh REAL NOT NULL DEFAULT 1.3"
     );
   } catch {}
   try {

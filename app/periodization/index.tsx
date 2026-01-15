@@ -15,6 +15,7 @@ import {
   getSessionLogsByRange,
   saveClassPlans,
   updateClassPlan,
+  updateClassAcwrLimits,
 } from "../../src/db/seed";
 import type { ClassGroup, ClassPlan } from "../../src/core/models";
 import { ModalSheet } from "../../src/ui/ModalSheet";
@@ -377,10 +378,8 @@ export default function PeriodizationScreen() {
   const [acwrMessage, setAcwrMessage] = useState("");
   const [painAlert, setPainAlert] = useState("");
   const [painAlertDates, setPainAlertDates] = useState<string[]>([]);
-  const [acwrLimits, setAcwrLimits] = usePersistedState(
-    selectedClassId ? `acwr_limits_${selectedClassId}` : null,
-    { high: "1.3", low: "0.8" }
-  );
+  const [acwrLimits, setAcwrLimits] = useState({ high: "1.3", low: "0.8" });
+  const acwrSavedRef = useRef({ high: "1.3", low: "0.8" });
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showMesoPicker, setShowMesoPicker] = useState(false);
@@ -657,6 +656,67 @@ export default function PeriodizationScreen() {
       }
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    if (!selectedClass) {
+      setAcwrLimits({ high: "1.3", low: "0.8" });
+      acwrSavedRef.current = { high: "1.3", low: "0.8" };
+      return;
+    }
+    const nextHigh =
+      typeof selectedClass.acwrHigh === "number"
+        ? String(selectedClass.acwrHigh)
+        : "1.3";
+    const nextLow =
+      typeof selectedClass.acwrLow === "number" ? String(selectedClass.acwrLow) : "0.8";
+    const next = { high: nextHigh, low: nextLow };
+    setAcwrLimits(next);
+    acwrSavedRef.current = next;
+  }, [selectedClass]);
+
+  const persistAcwrLimits = useCallback(
+    async (next: { high: string; low: string }) => {
+      if (!selectedClassId) return;
+      const highValue = Number(next.high);
+      const lowValue = Number(next.low);
+      if (!Number.isFinite(highValue) || !Number.isFinite(lowValue)) return;
+      if (
+        acwrSavedRef.current.high === next.high &&
+        acwrSavedRef.current.low === next.low
+      ) {
+        return;
+      }
+      try {
+        await updateClassAcwrLimits(selectedClassId, {
+          high: highValue,
+          low: lowValue,
+        });
+        acwrSavedRef.current = { high: next.high, low: next.low };
+        setClasses((prev) =>
+          prev.map((item) =>
+            item.id === selectedClassId
+              ? { ...item, acwrHigh: highValue, acwrLow: lowValue }
+              : item
+          )
+        );
+      } catch (error) {
+        logAction("acwr_limits_save_failed", {
+          classId: selectedClassId,
+          high: next.high,
+          low: next.low,
+        });
+      }
+    },
+    [selectedClassId]
+  );
+
+  useEffect(() => {
+    if (!selectedClassId) return;
+    const handle = setTimeout(() => {
+      void persistAcwrLimits(acwrLimits);
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [acwrLimits.high, acwrLimits.low, persistAcwrLimits, selectedClassId]);
 
   useEffect(() => {
     let alive = true;

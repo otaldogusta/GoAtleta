@@ -10,6 +10,8 @@ type ClassRow = {
   goal: string;
   equipment: string;
   level: number;
+  acwrLow?: number;
+  acwrHigh?: number;
 };
 
 type SessionLogRow = {
@@ -93,6 +95,8 @@ export const db = {
         level: Number(params[6] ?? 0),
         gender: String(params[7] ?? "misto"),
         modality: String(params[8] ?? "fitness"),
+        acwrLow: Number(params[9] ?? 0.8),
+        acwrHigh: Number(params[10] ?? 1.3),
       };
       const exists = classes.some((item) => item.id === row.id);
       if (!exists) classes.push(row);
