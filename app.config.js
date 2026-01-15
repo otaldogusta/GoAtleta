@@ -22,6 +22,10 @@ module.exports = {
   expo: {
     ...base,
     owner: "otaldogusta",
+    updates: {
+      ...(base.updates ?? {}),
+      url: `https://u.expo.dev/${easProjectId}`,
+    },
     extra: {
       ...cleanedExtra,
       SUPABASE_URL:
