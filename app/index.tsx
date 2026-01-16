@@ -596,7 +596,7 @@ export default function Home() {
                 Planejamento
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Modelos e treinos
+                Modelos e planejamentos
               </Text>
             </Pressable>
             <Pressable

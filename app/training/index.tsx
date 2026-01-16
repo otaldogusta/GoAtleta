@@ -316,10 +316,6 @@ export default function TrainingList() {
   } = useCollapsibleAnimation(showTemplates);
   const [formUnit, setFormUnit] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
-  const [showForm, setShowForm] = usePersistedState<boolean>(
-    "training_show_form_v1",
-    false
-  );
   const [showSavedPlans, setShowSavedPlans] = usePersistedState<boolean>(
     "training_show_saved_plans_v1",
     true
@@ -334,10 +330,6 @@ export default function TrainingList() {
   const formClassTriggerRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const [scrollRequested, setScrollRequested] = useState(false);
-  const {
-    animatedStyle: formAnimStyle,
-    isVisible: showFormContent,
-  } = useCollapsibleAnimation(showForm);
   const [templateAgeBand, setTemplateAgeBand] = useState("");
   const [formMode, setFormMode] = useState<"plan" | "template">("plan");
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -481,6 +473,8 @@ export default function TrainingList() {
   const unitLabel = (value?: string) =>
     value && value.trim() ? value.trim() : "Sem unidade";
 
+  const ALL_UNITS_VALUE = "__all__";
+
   const unitOptions = useMemo(() => {
     const units = new Set<string>();
     classes.forEach((item) => {
@@ -490,11 +484,13 @@ export default function TrainingList() {
   }, [classes]);
 
   const classOptionsForUnit = useMemo(() => {
-    if (!applyUnit) return sortedClasses;
+    if (applyUnit === ALL_UNITS_VALUE) return sortedClasses;
+    if (!applyUnit) return [];
     return sortedClasses.filter((item) => unitLabel(item.unit) === applyUnit);
   }, [applyUnit, sortedClasses]);
   const classOptionsForForm = useMemo(() => {
-    if (!formUnit) return sortedClasses;
+    if (formUnit === ALL_UNITS_VALUE) return sortedClasses;
+    if (!formUnit) return [];
     return sortedClasses.filter((item) => unitLabel(item.unit) === formUnit);
   }, [formUnit, sortedClasses]);
   const selectedApplyClass = useMemo(
@@ -508,6 +504,7 @@ export default function TrainingList() {
 
   useEffect(() => {
     if (!classId) return;
+    if (formUnit) return;
     const selected = classes.find((item) => item.id === classId);
     const selectedUnit = unitLabel(selected?.unit);
     if (selectedUnit && selectedUnit !== formUnit) {
@@ -761,9 +758,6 @@ export default function TrainingList() {
       ]);
       if (!alive) return;
       setClasses(classList);
-      if (!classId && classList.length > 0 && !showForm) {
-        setClassId(classList[0].id);
-      }
       setTemplateItems(templatesDb);
       setHiddenTemplates(hidden);
       setItems(plans);
@@ -1292,7 +1286,6 @@ export default function TrainingList() {
     setEditingId(null);
     setEditingCreatedAt(null);
     setFormMode("plan");
-    setShowForm(false);
     closeFormPickers();
     await reload();
   };
@@ -1339,7 +1332,6 @@ export default function TrainingList() {
     setEditingTemplateId(null);
     setEditingTemplateCreatedAt(null);
     setFormMode("plan");
-    setShowForm(false);
     closeFormPickers();
     showSaveToast({ message: "Modelo salvo com sucesso.", variant: "success" });
   };
@@ -1358,7 +1350,6 @@ export default function TrainingList() {
     setClassId(plan.classId);
     setFormUnit(unitLabel(classes.find((item) => item.id === plan.classId)?.unit));
     setFormMode("plan");
-    setShowForm(true);
     setScrollRequested(true);
   };
 
@@ -1423,7 +1414,6 @@ export default function TrainingList() {
     setWarmupTime(template.warmupTime);
     setMainTime(template.mainTime);
     setCooldownTime(template.cooldownTime);
-    setShowForm(true);
     setScrollRequested(true);
   }, []);
 
@@ -1863,37 +1853,6 @@ export default function TrainingList() {
       templateCooldownTime.trim()
   );
 
-  const confirmCloseForm = () => {
-    if (!isFormDirty) {
-      setShowForm(false);
-      closeFormPickers();
-      return;
-    }
-    confirmDialog({
-      title: "Sair sem salvar?",
-      message: "Voce tem alteracoes nao salvas.",
-      confirmLabel: "Descartar",
-      cancelLabel: "Continuar",
-      onConfirm: () => {
-        setShowForm(false);
-        closeFormPickers();
-        setEditingId(null);
-        setEditingCreatedAt(null);
-        setEditingTemplateId(null);
-        setEditingTemplateCreatedAt(null);
-        setFormMode("plan");
-        setTitle("");
-        setTagsText("");
-        setWarmup("");
-        setMain("");
-        setCooldown("");
-        setWarmupTime("");
-        setMainTime("");
-        setCooldownTime("");
-      },
-    });
-  };
-
   const scrollToForm = () => {
     setTimeout(() => {
       scrollRef.current?.scrollTo({
@@ -1904,10 +1863,10 @@ export default function TrainingList() {
   };
 
   useEffect(() => {
-    if (!showForm || !scrollRequested) return;
+    if (!scrollRequested) return;
     scrollToForm();
     setScrollRequested(false);
-  }, [formY, showForm, scrollRequested]);
+  }, [formY, scrollRequested]);
 
   useEffect(() => {
     if (!openForm) return;
@@ -1924,14 +1883,13 @@ export default function TrainingList() {
     setWarmupTime("");
     setMainTime("");
     setCooldownTime("");
-    setShowForm(true);
     setScrollRequested(true);
     if (targetClassId) {
       setClassId(targetClassId);
       const targetClass = classes.find((item) => item.id === targetClassId);
       setFormUnit(unitLabel(targetClass?.unit));
     }
-  }, [openForm, targetClassId, setShowForm]);
+  }, [openForm, targetClassId, classes]);
 
   useEffect(() => {
     if (!pendingPlanCreate) return;
@@ -1948,7 +1906,6 @@ export default function TrainingList() {
     setWarmupTime("");
     setMainTime("");
     setCooldownTime("");
-    setShowForm(true);
     setScrollRequested(true);
     if (pendingPlanCreate.classId) {
       setClassId(pendingPlanCreate.classId);
@@ -1958,7 +1915,7 @@ export default function TrainingList() {
       setFormUnit(unitLabel(pendingClass?.unit));
     }
     setPendingPlanCreate(null);
-  }, [pendingPlanCreate, setPendingPlanCreate, setShowForm]);
+  }, [pendingPlanCreate, setPendingPlanCreate, classes]);
 
   const handleRenameTemplate = useCallback((id: string, title: string) => {
     setRenameTemplateId(id);
@@ -2050,62 +2007,9 @@ export default function TrainingList() {
             setFormY(event.nativeEvent.layout.y);
             syncFormPickerLayouts();
           }}
-          style={[
-            getSectionCardStyle(colors, "success"),
-            { borderRadius: 20, borderLeftWidth: 3, borderLeftColor: "#ffffff" },
-          ]}
+          style={{ gap: 12 }}
         >
-          <Pressable
-            onPress={() =>
-              showForm
-                ? confirmCloseForm()
-                : (() => {
-                    setEditingId(null);
-                    setEditingCreatedAt(null);
-                    setEditingTemplateId(null);
-                    setEditingTemplateCreatedAt(null);
-                    setFormMode("plan");
-                    setClassId("");
-                    setFormUnit("");
-                    setTitle("");
-                    setTagsText("");
-                    setWarmup("");
-                    setMain("");
-                    setCooldown("");
-                    setWarmupTime("");
-                    setMainTime("");
-                    setCooldownTime("");
-                    setShowForm(true);
-                  })()
-            }
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              backgroundColor: showForm ? colors.secondaryBg : colors.primaryBg,
-              borderWidth: showForm ? 1 : 0,
-              borderColor: colors.border,
-            }}
-          >
-            <View style={{ gap: 4 }}>
-              <Text
-                style={{
-                  color: showForm ? colors.text : colors.primaryText,
-                  fontWeight: "700",
-                  fontSize: 16,
-                }}
-              >
-                {showForm ? "Fechar plano de aula" : "Criar plano de aula"}
-              </Text>
-              <Text style={{ color: showForm ? colors.muted : colors.primaryText, fontSize: 12 }}>
-                {showForm ? "Ocultar formulario" : "Criar e salvar plano de aula"}
-              </Text>
-            </View>
-          </Pressable>
-          {showFormContent ? (
-            <Animated.View
-              style={[formAnimStyle, { gap: 10 }]}
-            >
+          <View style={{ gap: 10 }}>
           <Text style={{ color: colors.muted }}>Selecione a turma</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1, gap: 6 }}>
@@ -2125,7 +2029,9 @@ export default function TrainingList() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                    {formUnit || "Selecione uma unidade"}
+                    {formUnit === ALL_UNITS_VALUE
+                      ? "Todas unidades"
+                      : formUnit || "Selecione uma unidade"}
                   </Text>
                   <MaterialCommunityIcons
                     name="chevron-down"
@@ -2165,16 +2071,16 @@ export default function TrainingList() {
                       <ClassGenderBadge gender={selectedFormClass.gender} />
                     ) : null}
                   </View>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={18}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showFormClassPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={18}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showFormClassPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
                 </Pressable>
               </View>
             </View>
@@ -2194,39 +2100,20 @@ export default function TrainingList() {
             }}
             scrollContentStyle={{ padding: 4 }}
           >
-            <Pressable
-              onPress={() => {
-                setFormUnit("");
-                setClassId("");
-                closeFormPickers();
-              }}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 10,
-                borderRadius: 10,
-                margin: 6,
-                backgroundColor: !formUnit ? colors.primaryBg : "transparent",
-              }}
-            >
-              <Text
-                style={{
-                  color: !formUnit ? colors.primaryText : colors.text,
-                  fontSize: 12,
-                  fontWeight: !formUnit ? "700" : "500",
-                }}
-              >
-                Todas as unidades
-              </Text>
-            </Pressable>
-            {unitOptions.map((unit, index) => {
-              const active = formUnit === unit;
+            {[
+              { label: "Selecione uma unidade", value: "" },
+              { label: "Todas unidades", value: ALL_UNITS_VALUE },
+              ...unitOptions.map((unit) => ({ label: unit, value: unit })),
+            ].map((option, index) => {
+              const active = formUnit === option.value;
               return (
-                <Pressable
-                  key={unit}
-                  onPress={() => {
-                    setFormUnit(unit);
-                    closeFormPickers();
-                  }}
+                  <Pressable
+                    key={option.value || "unit-empty"}
+                    onPress={() => {
+                      setClassId("");
+                      setFormUnit(option.value);
+                      closeFormPickers();
+                    }}
                   style={{
                     paddingVertical: 8,
                     paddingHorizontal: 10,
@@ -2242,7 +2129,7 @@ export default function TrainingList() {
                       fontWeight: active ? "700" : "500",
                     }}
                   >
-                    {unit}
+                    {option.label}
                   </Text>
                 </Pressable>
               );
@@ -2299,7 +2186,7 @@ export default function TrainingList() {
             ) : (
               <View style={{ padding: 10 }}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Nenhuma turma cadastrada.
+                  {formUnit ? "Nenhuma turma cadastrada." : "Selecione uma unidade."}
                 </Text>
               </View>
             )}
@@ -2543,13 +2430,11 @@ export default function TrainingList() {
                 setMainTime("");
                 setCooldownTime("");
                 setFormUnit("");
-                setShowForm(false);
                 closeFormPickers();
               }}
             />
               ) : null}
-            </Animated.View>
-          ) : null}
+            </View>
         </View>
 
         <View style={getSectionCardStyle(colors, "info")}>
@@ -3239,7 +3124,9 @@ export default function TrainingList() {
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                      {applyUnit || "Selecione uma unidade"}
+                      {applyUnit === ALL_UNITS_VALUE
+                        ? "Todas unidades"
+                        : applyUnit || "Selecione uma unidade"}
                     </Text>
                     <MaterialCommunityIcons
                       name="chevron-down"
@@ -3346,13 +3233,18 @@ export default function TrainingList() {
               }}
               scrollContentStyle={{ padding: 4 }}
             >
-              {unitOptions.map((unit, index) => {
-                const active = applyUnit === unit;
+              {[
+                { label: "Selecione uma unidade", value: "" },
+                { label: "Todas unidades", value: ALL_UNITS_VALUE },
+                ...unitOptions.map((unit) => ({ label: unit, value: unit })),
+              ].map((option, index) => {
+                const active = applyUnit === option.value;
                 return (
                   <Pressable
-                    key={unit}
+                    key={option.value || "unit-empty"}
                     onPress={() => {
-                      setApplyUnit(unit);
+                      setApplyClassId("");
+                      setApplyUnit(option.value);
                       closeApplyPickers();
                     }}
                     style={{
@@ -3370,7 +3262,7 @@ export default function TrainingList() {
                         fontWeight: active ? "700" : "500",
                       }}
                     >
-                      {unit}
+                      {option.label}
                     </Text>
                   </Pressable>
                 );
@@ -3427,7 +3319,7 @@ export default function TrainingList() {
               ) : (
                 <View style={{ padding: 10 }}>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Nenhuma turma cadastrada.
+                    {applyUnit ? "Nenhuma turma cadastrada." : "Selecione uma unidade."}
                   </Text>
                 </View>
               )}

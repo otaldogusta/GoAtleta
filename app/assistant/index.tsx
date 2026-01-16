@@ -63,7 +63,7 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
   return {
     id: "t_ai_" + Date.now(),
     classId,
-    title: String(draft.title ?? "Treino sugerido"),
+    title: String(draft.title ?? "Planejamento sugerido"),
     tags: sanitizeList(draft.tags),
     warmup: sanitizeList(draft.warmup),
     main: sanitizeList(draft.main),
@@ -198,7 +198,7 @@ export default function AssistantScreen() {
       setDraft(null);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Treino salvo com sucesso." },
+        { role: "assistant", content: "Planejamento salvo com sucesso." },
       ]);
       setShowSavedLink(true);
       void notifyTrainingSaved();
@@ -212,7 +212,7 @@ export default function AssistantScreen() {
         {
           role: "assistant",
           content:
-            "Nao consegui salvar o treino. " +
+            "Nao consegui salvar o planejamento. " +
             "Detalhe: " +
             detail.replace(/\s+/g, " "),
         },
@@ -228,7 +228,7 @@ export default function AssistantScreen() {
           Assistente
         </Text>
         <Text style={{ color: colors.muted }}>
-          Crie treinos e planos com referencias
+          Crie planejamentos e planos com referencias
         </Text>
       </View>
 
@@ -315,7 +315,7 @@ export default function AssistantScreen() {
             }}
           >
             <Text style={{ fontWeight: "700", color: colors.text }}>
-              Treino sugerido
+              Planejamento sugerido
             </Text>
             <Text style={{ color: colors.muted, marginTop: 6 }}>
               {draft.title}
@@ -399,7 +399,7 @@ export default function AssistantScreen() {
               </View>
             ) : null}
             <View style={{ marginTop: 10 }}>
-              <Button label="Salvar treino" onPress={saveDraft} />
+              <Button label="Salvar planejamento" onPress={saveDraft} />
             </View>
           </View>
         ) : null}
@@ -415,14 +415,14 @@ export default function AssistantScreen() {
             }}
           >
             <Text style={{ fontWeight: "700", color: colors.text }}>
-              Treino salvo
+              Planejamento salvo
             </Text>
             <Text style={{ color: colors.muted, marginTop: 6 }}>
-              Clique para ver na lista de treinos.
+              Clique para ver na lista de planejamentos.
             </Text>
             <View style={{ marginTop: 10 }}>
               <Button
-                label="Ver treinos"
+                label="Ver planejamentos"
                 onPress={() => router.push({ pathname: "/training" })}
                 variant="secondary"
               />
@@ -475,7 +475,7 @@ export default function AssistantScreen() {
         }}
       >
         <TextInput
-          placeholder="Descreva a aula ou o treino..."
+          placeholder="Descreva a aula ou o planejamento..."
           value={input}
           onChangeText={setInput}
           placeholderTextColor={colors.placeholder}

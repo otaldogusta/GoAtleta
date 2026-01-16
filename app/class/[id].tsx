@@ -314,7 +314,7 @@ export default function ClassDetails() {
     confirm({
       title: "Excluir turma?",
       message:
-        "Isso remove treinos, chamadas e alunos da turma. Deseja excluir?",
+        "Isso remove planejamentos, chamadas e alunos da turma. Deseja excluir?",
       confirmLabel: "Excluir",
       undoMessage: "Turma excluida. Deseja desfazer?",
       onConfirm: async () => {

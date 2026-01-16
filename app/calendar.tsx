@@ -347,7 +347,7 @@ export default function CalendarScreen() {
     setPlans(nextPlans);
     closeApplyPicker();
     showSaveToast({
-      message: "Treino aplicado com sucesso.",
+      message: "Planejamento aplicado com sucesso.",
       actionLabel: "Ver aula do dia",
       variant: "success",
       onAction: () => {
@@ -871,10 +871,10 @@ export default function CalendarScreen() {
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <View style={{ gap: 4 }}>
                     <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-                      Aplicar treino
+                      Aplicar planejamento
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Selecione um treino salvo
+                      Selecione um planejamento salvo
                     </Text>
                   </View>
                   <Pressable
@@ -982,7 +982,7 @@ export default function CalendarScreen() {
                 </ScrollView>
               ) : (
                 <Text style={{ color: colors.muted }}>
-                  Nenhum treino salvo para essa faixa e unidade.
+                  Nenhum planejamento salvo para essa faixa e unidade.
                 </Text>
               )}
       </ModalSheet>

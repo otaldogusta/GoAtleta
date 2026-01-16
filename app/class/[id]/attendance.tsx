@@ -213,6 +213,10 @@ export default function AttendanceScreen() {
       message: "Chamada salva com sucesso.",
       variant: "success",
     });
+    showSaveToast({
+      message: "Chamada salva - abrir relatorio?",
+      variant: "info",
+    });
     setHasSaved(true);
   };
 
@@ -282,6 +286,7 @@ export default function AttendanceScreen() {
 
   const handleDateChange = (value: string) => {
     if (cls) {
+      setHasSaved(false);
       void loadDate(value);
     } else {
       setDate(value);
