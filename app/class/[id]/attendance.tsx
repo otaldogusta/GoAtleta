@@ -793,8 +793,29 @@ export default function AttendanceScreen() {
                 <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
                   Template:
                 </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -12, paddingHorizontal: 12 }}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Pressable
+                    onPress={() => {
+                      const scrollView = document.querySelector('[data-template-scroll]');
+                      if (scrollView) scrollView.scrollBy({ left: -200, behavior: 'smooth' });
+                    }}
+                    style={{
+                      padding: 6,
+                      borderRadius: 8,
+                      backgroundColor: colors.inputBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, color: colors.text }}>‹</Text>
+                  </Pressable>
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false} 
+                    style={{ flex: 1 }}
+                    {...(Platform.OS === 'web' ? { 'data-template-scroll': true } : {})}
+                  >
+                    <View style={{ flexDirection: "row", gap: 8 }}>
                     {Object.values(WHATSAPP_TEMPLATES).map((template) => {
                       const isSelected = selectedTemplateId === template.id;
                       
@@ -878,7 +899,23 @@ export default function AttendanceScreen() {
                       );
                     })}
                   </View>
-                </ScrollView>
+                  </ScrollView>
+                  <Pressable
+                    onPress={() => {
+                      const scrollView = document.querySelector('[data-template-scroll]');
+                      if (scrollView) scrollView.scrollBy({ left: 200, behavior: 'smooth' });
+                    }}
+                    style={{
+                      padding: 6,
+                      borderRadius: 8,
+                      backgroundColor: colors.inputBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ fontSize: 16, color: colors.text }}>›</Text>
+                  </Pressable>
+                </View>
               </View>
 
               {/* Dynamic Fields */}
