@@ -64,6 +64,7 @@ export interface TemplatePlaceholders {
 
 /**
  * Renders a template with placeholders replaced
+ * Uses safe fallbacks to avoid empty placeholders
  */
 export function renderTemplate(
   templateId: WhatsAppTemplateId,
@@ -72,14 +73,26 @@ export function renderTemplate(
   const template = WHATSAPP_TEMPLATES[templateId];
   let result = template.body;
 
-  // Replace all placeholders
-  Object.entries(placeholders).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      result = result.replace(new RegExp(`\\{${key}\\}`, "g"), String(value));
-    }
+  // Safe fallbacks for required fields
+  const safeValues = {
+    coachName: placeholders.coachName || "Professor",
+    className: placeholders.className || "Turma",
+    unitLabel: placeholders.unitLabel || "",
+    dateLabel: placeholders.dateLabel || "hoje",
+    studentName: placeholders.studentName || "aluno(a)",
+    nextClassDate: placeholders.nextClassDate || "",
+    nextClassTime: placeholders.nextClassTime || "",
+    groupInviteLink: placeholders.groupInviteLink || "",
+    highlightNote: placeholders.highlightNote || "esforço e evolução",
+    customText: placeholders.customText || "",
+  };
+
+  // Replace all placeholders with safe values
+  Object.entries(safeValues).forEach(([key, value]) => {
+    result = result.replace(new RegExp(`\\{${key}\\}`, "g"), String(value));
   });
 
-  // Remove unreplaced placeholders
+  // Clean up any remaining unreplaced placeholders (shouldn't happen)
   result = result.replace(/\{[^}]+\}/g, "");
 
   return result;

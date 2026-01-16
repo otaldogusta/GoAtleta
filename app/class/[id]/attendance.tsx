@@ -502,6 +502,17 @@ export default function AttendanceScreen() {
                       setSelectedTemplateId(suggestedTemplate);
                       setCustomFields({});
                       
+                      // Auto-selecionar contato se houver apenas um válido
+                      const guardianValid = contact.source === "guardian";
+                      const studentValid = contact.source === "student";
+                      if (guardianValid && !studentValid) {
+                        setSelectedContactType("guardian");
+                      } else if (studentValid && !guardianValid) {
+                        setSelectedContactType("student");
+                      } else if (guardianValid) {
+                        setSelectedContactType("guardian"); // Preferência para guardião
+                      }
+                      
                       // Calcular próxima aula
                       const nextClassDate = calculateNextClassDate(cls.daysOfWeek);
                       const nextClassTime = cls.startTime || "";
@@ -788,18 +799,38 @@ export default function AttendanceScreen() {
                       const isSelected = selectedTemplateId === template.id;
                       
                       // Verificar se o template pode ser usado
-                      const canUse = !template.requires || template.requires.every((req) => {
-                        if (req === "nextClassDate") return !!calculateNextClassDate(cls.daysOfWeek);
-                        if (req === "nextClassTime") return !!cls.startTime;
-                        if (req === "groupInviteLink") return !!(groupInviteLinks[cls.id]);
-                        return true;
-                      });
+                      let canUse = true;
+                      let missingRequirement = "";
+                      
+                      if (template.requires) {
+                        for (const req of template.requires) {
+                          if (req === "nextClassDate" && !calculateNextClassDate(cls.daysOfWeek)) {
+                            canUse = false;
+                            missingRequirement = "Dias da semana não configurados";
+                            break;
+                          }
+                          if (req === "nextClassTime" && !cls.startTime) {
+                            canUse = false;
+                            missingRequirement = "Horário não configurado";
+                            break;
+                          }
+                          if (req === "groupInviteLink" && !groupInviteLinks[cls.id]) {
+                            canUse = false;
+                            missingRequirement = "Link do grupo não configurado";
+                            break;
+                          }
+                        }
+                      }
                       
                       return (
                         <Pressable
                           key={template.id}
                           disabled={!canUse}
                           onPress={() => {
+                            if (!canUse) {
+                              alert(missingRequirement);
+                              return;
+                            }
                             setSelectedTemplateId(template.id);
                             setCustomFields({});
                             
@@ -838,6 +869,11 @@ export default function AttendanceScreen() {
                           >
                             {template.title}
                           </Text>
+                          {!canUse && (
+                            <Text style={{ fontSize: 9, color: colors.dangerText, marginTop: 2 }}>
+                              ⚠️ {missingRequirement}
+                            </Text>
+                          )}
                         </Pressable>
                       );
                     })}

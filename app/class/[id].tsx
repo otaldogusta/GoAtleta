@@ -837,17 +837,34 @@ export default function ClassDetails() {
               {Object.values(WHATSAPP_TEMPLATES).map((template) => {
                 const isSelected = selectedTemplateId === template.id;
                 const nextClassDate = calculateNextClassDate(daysOfWeek);
-                const canUse = !template.requires || template.requires.every(req => {
-                  if (req === "nextClassDate" || req === "nextClassTime") return !!nextClassDate;
-                  if (req === "groupInviteLink") return !!(groupInviteLinks[cls?.id || ""]);
-                  return true;
-                });
+                
+                let canUse = true;
+                let missingRequirement = "";
+                
+                if (template.requires) {
+                  for (const req of template.requires) {
+                    if ((req === "nextClassDate" || req === "nextClassTime") && !nextClassDate) {
+                      canUse = false;
+                      missingRequirement = "Dias da semana não configurados";
+                      break;
+                    }
+                    if (req === "groupInviteLink" && !groupInviteLinks[cls?.id || ""]) {
+                      canUse = false;
+                      missingRequirement = "Link do grupo não configurado";
+                      break;
+                    }
+                  }
+                }
                 
                 return (
                   <Pressable
                     key={template.id}
                     disabled={!canUse}
                     onPress={() => {
+                      if (!canUse) {
+                        alert(missingRequirement);
+                        return;
+                      }
                       setSelectedTemplateId(template.id);
                       if (defaultMessageEnabled) {
                         const message = renderTemplate(template.id, {
@@ -882,6 +899,11 @@ export default function ClassDetails() {
                     }}>
                       {template.title}
                     </Text>
+                    {!canUse && (
+                      <Text style={{ fontSize: 9, color: colors.dangerText, marginTop: 2 }}>
+                        ⚠️ {missingRequirement}
+                      </Text>
+                    )}
                   </Pressable>
                 );
               })}
