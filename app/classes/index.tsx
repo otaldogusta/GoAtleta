@@ -1835,317 +1835,286 @@ export default function ClassesScreen() {
             Editar turma
           </Text>
 
-          <TextInput
-            placeholder="Nome da turma"
-            value={editName}
-            onChangeText={setEditName}
-            placeholderTextColor={colors.placeholder}
+          <View
             style={{
+              borderRadius: 14,
               borderWidth: 1,
               borderColor: colors.border,
-              padding: 12,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
+              backgroundColor: colors.card,
+              overflow: "hidden",
             }}
-          />
-          
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <TextInput
-              placeholder="Unidade"
-              value={editUnit}
-              onChangeText={setEditUnit}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-            <TextInput
-              placeholder="Horario (HH:MM)"
-              value={editStartTime}
-              onChangeText={(value) => setEditStartTime(normalizeTimeInput(value))}
-              keyboardType="numeric"
-              placeholderTextColor={colors.placeholder}
-              style={{
-                width: 130,
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          </View>
-          <Text style={{ fontSize: 13, color: colors.muted }}>Duracao</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {durationOptions.map((item) => {
-              const active = editDuration === item;
-              return (
-                <Pressable
-                  key={item}
-                  onPress={() => setEditDuration(item)}
-                  style={getChipStyle(active)}
-                >
-                  <Text style={getChipTextStyle(active)}>{item + " min"}</Text>
-                </Pressable>
-              );
-            })}
-            <Pressable
-              onPress={() => {
-                animateLayout();
-                setEditShowCustomDuration((prev) => !prev);
-              }}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 13,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {editShowCustomDuration ? "−" : "+"}
-              </Text>
-            </Pressable>
-          </View>
-          {editShowCustomDuration ? (
-            <TextInput
-              placeholder="Duracao (min)"
-              value={editDuration}
-              onChangeText={setEditDuration}
-              keyboardType="numeric"
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          ) : null}
-          <Text style={{ fontSize: 13, color: colors.muted }}>
-            Data inicio do ciclo
-          </Text>
-          <DateInput
-            value={editCycleStartDate}
-            onChange={setEditCycleStartDate}
-            onOpenCalendar={() => setShowEditCycleCalendar(true)}
-            placeholder="DD/MM/AAAA"
-          />
-          <Text style={{ fontSize: 13, color: colors.muted }}>
-            Duracao do ciclo (semanas)
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {cycleLengthOptions.map((value) => {
-              const active = editCycleLengthWeeks === value;
-              return (
-                <Pressable
-                  key={value}
-                  onPress={() => setEditCycleLengthWeeks(value)}
-                  style={getChipStyle(active)}
-                >
-                  <Text style={getChipTextStyle(active)}>
-                    {value + " semanas"}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-            <Text style={{ fontSize: 13, color: colors.muted }}>Nivel</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {mvLevelOptions.map((option) => {
-                const active = editMvLevel === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => setEditMvLevel(option.value)}
-                    style={getChipStyle(active)}
-                  >
-                    <Text style={getChipTextStyle(active)}>{option.label}</Text>
-                  </Pressable>
-                );
-              })}
+          >
+            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Nome da turma</Text>
+                <TextInput
+                  placeholder="Nome da turma"
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Unidade</Text>
+                <TextInput
+                  placeholder="Unidade"
+                  value={editUnit}
+                  onChangeText={setEditUnit}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
             </View>
-          <Text style={{ fontSize: 13, color: colors.muted }}>Faixa etaria</Text>
-          {editShowAllAges ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {ageBandOptions.map((band) => {
-                const active = editAgeBand === band;
-                return (
+            <View style={{ height: 1, backgroundColor: colors.border }} />
+            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Horario</Text>
+                <TextInput
+                  placeholder="Horario (HH:MM)"
+                  value={editStartTime}
+                  onChangeText={(value) => setEditStartTime(normalizeTimeInput(value))}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Duracao</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {durationOptions.map((item) => {
+                    const active = editDuration === item;
+                    return (
+                      <Pressable
+                        key={item}
+                        onPress={() => setEditDuration(item)}
+                        style={getChipStyle(active)}
+                      >
+                        <Text style={getChipTextStyle(active)}>{item + " min"}</Text>
+                      </Pressable>
+                    );
+                  })}
                   <Pressable
-                    key={band}
-                    onPress={() => setEditAgeBand(band)}
-                    style={getChipStyle(active)}
+                    onPress={() => {
+                      animateLayout();
+                      setEditShowCustomDuration((prev) => !prev);
+                    }}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 13,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.secondaryBg,
+                    }}
                   >
-                    <Text style={getChipTextStyle(active)}>{band}</Text>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {editShowCustomDuration ? "−" : "+"}
+                    </Text>
                   </Pressable>
-                );
-              })}
-              <Pressable
-                onPress={() => {
-                  animateLayout();
-                  setEditShowAllAges((prev) => !prev);
-                }}
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 13,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {editShowAllAges ? "−" : "+"}
-                </Text>
-              </Pressable>
+                </View>
+                {editShowCustomDuration ? (
+                  <TextInput
+                    placeholder="Duracao (min)"
+                    value={editDuration}
+                    onChangeText={setEditDuration}
+                    keyboardType="numeric"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                ) : null}
+              </View>
             </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {ageBandOptions.slice(0, 3).map((band) => {
-                  const active = editAgeBand === band;
+            <View style={{ height: 1, backgroundColor: colors.border }} />
+            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Data inicio do ciclo</Text>
+                <DateInput
+                  value={editCycleStartDate}
+                  onChange={setEditCycleStartDate}
+                  onOpenCalendar={() => setShowEditCycleCalendar(true)}
+                  placeholder="DD/MM/AAAA"
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Duracao do ciclo</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {cycleLengthOptions.map((value) => {
+                    const active = editCycleLengthWeeks === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        onPress={() => setEditCycleLengthWeeks(value)}
+                        style={getChipStyle(active)}
+                      >
+                        <Text style={getChipTextStyle(active)}>
+                          {value + "sem"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+            <View style={{ height: 1, backgroundColor: colors.border }} />
+            <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Nivel</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {mvLevelOptions.map((option) => {
+                    const active = editMvLevel === option.value;
+                    return (
+                      <Pressable
+                        key={option.value}
+                        onPress={() => setEditMvLevel(option.value)}
+                        style={getChipStyle(active)}
+                      >
+                        <Text style={getChipTextStyle(active)}>{option.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+              <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                <Text style={{ fontSize: 12, color: colors.muted }}>Faixa etaria</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {ageBandOptions.slice(0, 3).map((band) => {
+                    const active = editAgeBand === band;
+                    return (
+                      <Pressable
+                        key={band}
+                        onPress={() => setEditAgeBand(band)}
+                        style={getChipStyle(active)}
+                      >
+                        <Text style={getChipTextStyle(active)}>{band}</Text>
+                      </Pressable>
+                    );
+                  })}
+                  <Pressable
+                    onPress={() => {
+                      animateLayout();
+                      setEditShowAllAges((prev) => !prev);
+                    }}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 13,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {editShowAllAges ? "−" : "+"}
+                    </Text>
+                  </Pressable>
+                </View>
+                {editShowAllAges ? (
+                  <TextInput
+                    placeholder="Faixa etaria (ex: 14-16)"
+                    value={editAgeBand}
+                    onChangeText={setEditAgeBand}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                ) : null}
+              </View>
+            </View>
+            <View style={{ height: 1, backgroundColor: colors.border }} />
+            <View style={{ padding: 10, gap: 8 }}>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Genero</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {genderOptions.map((option) => {
+                  const active = editGender === option.value;
                   return (
                     <Pressable
-                      key={band}
-                      onPress={() => setEditAgeBand(band)}
+                      key={option.value}
+                      onPress={() => setEditGender(option.value)}
                       style={getChipStyle(active)}
                     >
-                      <Text style={getChipTextStyle(active)}>{band}</Text>
+                      <Text style={getChipTextStyle(active)}>
+                        {option.label}
+                      </Text>
                     </Pressable>
                   );
                 })}
-                <Pressable
-                  onPress={() => {
-                    animateLayout();
-                    setEditShowAllAges((prev) => !prev);
-                  }}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {editShowAllAges ? "−" : "+"}
-                  </Text>
-                </Pressable>
               </View>
-            </ScrollView>
-          )}
-          {editShowAllAges ? (
-            <TextInput
-              placeholder="Faixa etaria (ex: 14-16)"
-              value={editAgeBand}
-              onChangeText={setEditAgeBand}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          ) : null}
-          <Text style={{ fontSize: 13, color: colors.muted }}>Genero</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {genderOptions.map((option) => {
-              const active = editGender === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  onPress={() => setEditGender(option.value)}
-                  style={getChipStyle(active)}
-                >
-                  <Text style={getChipTextStyle(active)}>
-                    {option.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={{ fontSize: 13, color: colors.muted }}>Dias da semana</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {dayNames.map((label, index) => {
-              const active = editDays.includes(index);
-              return (
-                <Pressable
-                  key={label}
-                  onPress={() => toggleEditDay(index)}
-                  style={getChipStyle(active)}
-                >
-                  <Text style={getChipTextStyle(active)}>{label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={{ fontSize: 13, color: colors.muted }}>Modalidade</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {modalityOptions.map((option) => {
-              const active = editModality === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  onPress={() => setEditModality(option.value)}
-                  style={getChipStyle(active)}
-                >
-                  <Text style={getChipTextStyle(active)}>{option.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={{ fontSize: 13, color: colors.muted }}>Objetivo</Text>
-          {editShowAllGoals ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {goals.map((item) => {
-                const active = editGoal === item;
-                return (
-                  <Pressable
-                    key={item}
-                    onPress={() => setEditGoal(item)}
-                    style={getChipStyle(active)}
-                  >
-                    <Text style={getChipTextStyle(active)}>{item}</Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable
-                onPress={() => {
-                  animateLayout();
-                  setEditShowAllGoals((prev) => !prev);
-                }}
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 13,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {editShowAllGoals ? "−" : "+"}
-                </Text>
-              </Pressable>
             </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ height: 1, backgroundColor: colors.border }} />
+            <View style={{ padding: 10, gap: 8 }}>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Dias da semana</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {dayNames.map((label, index) => {
+                  const active = editDays.includes(index);
+                  return (
+                    <Pressable
+                      key={label}
+                      onPress={() => toggleEditDay(index)}
+                      style={getChipStyle(active)}
+                    >
+                      <Text style={getChipTextStyle(active)}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+            <View style={{ height: 1, backgroundColor: colors.border }} />
+            <View style={{ padding: 10, gap: 8 }}>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Modalidade</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {modalityOptions.map((option) => {
+                  const active = editModality === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setEditModality(option.value)}
+                      style={getChipStyle(active)}
+                    >
+                      <Text style={getChipTextStyle(active)}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+            <View style={{ height: 1, backgroundColor: colors.border }} />
+            <View style={{ padding: 10, gap: 8 }}>
+              <Text style={{ fontSize: 12, color: colors.muted }}>Objetivo</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {goals.slice(0, 4).map((item) => {
                   const active = editGoal === item;
                   return (
@@ -2177,42 +2146,42 @@ export default function ClassesScreen() {
                   </Text>
                 </Pressable>
               </View>
-            </ScrollView>
-          )}
-          {editGoalSuggestions.length ? (
-            <>
-              <Text style={{ fontSize: 13, color: colors.muted }}>
-                Sugestoes da turma
-              </Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {editGoalSuggestions.map((item) => (
-                  <Pressable
-                    key={item}
-                    onPress={() => setEditGoal(item)}
-                    style={getChipStyle(false)}
-                  >
-                    <Text style={getChipTextStyle(false)}>{item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          ) : null}
-          {editShowAllGoals ? (
-            <TextInput
-              placeholder="Objetivo (ex: Forca, Potencia)"
-              value={editGoal}
-              onChangeText={setEditGoal}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          ) : null}
+              {editGoalSuggestions.length ? (
+                <>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
+                    Sugestoes da turma
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                    {editGoalSuggestions.map((item) => (
+                      <Pressable
+                        key={item}
+                        onPress={() => setEditGoal(item)}
+                        style={getChipStyle(false)}
+                      >
+                        <Text style={getChipTextStyle(false)}>{item}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : null}
+              {editShowAllGoals ? (
+                <TextInput
+                  placeholder="Objetivo (ex: Forca, Potencia)"
+                  value={editGoal}
+                  onChangeText={setEditGoal}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+              ) : null}
+            </View>
+          </View>
           {editFormError ? (
             <Text style={{ color: colors.dangerText, fontSize: 12 }}>
               {editFormError}
