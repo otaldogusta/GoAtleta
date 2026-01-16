@@ -1827,45 +1827,14 @@ export default function ClassesScreen() {
           setShowEditModal(false);
           setEditingClass(null);
         }}
-        cardStyle={[editModalCardStyle, { paddingBottom: 12 }]}
+        cardStyle={editModalCardStyle}
         position="center"
-        backdropOpacity={0.6}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <View style={{ gap: 4 }}>
-            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-              Editar turma
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {editingClass?.name ?? "Turma"}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => {
-              setShowEditModal(false);
-              setEditingClass(null);
-            }}
-            style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-              Fechar
-            </Text>
-          </Pressable>
-        </View>
-        <ScrollView
-          contentContainerStyle={{ gap: 10, paddingBottom: 8 }}
-          style={{ maxHeight: "94%" }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-        >
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            Editar turma
+          </Text>
+
           <TextInput
             placeholder="Nome da turma"
             value={editName}
@@ -1880,6 +1849,7 @@ export default function ClassesScreen() {
               color: colors.inputText,
             }}
           />
+          
           <View style={{ flexDirection: "row", gap: 10 }}>
             <TextInput
               placeholder="Unidade"
@@ -2248,20 +2218,37 @@ export default function ClassesScreen() {
               {editFormError}
             </Text>
           ) : null}
-          <View style={{ marginTop: 8 }}>
-            <Button
-              label={editSaving ? "Salvando..." : "Salvar alteracoes"}
-              onPress={saveEditClass}
-              disabled={editSaving || !editName.trim()}
-            />
-          </View>
+          
+          <Button
+            label={editSaving ? "Salvando..." : "Salvar alteracoes"}
+            onPress={saveEditClass}
+            disabled={editSaving || !editName.trim()}
+          />
+          
           <Button
             label="Excluir turma"
             variant="danger"
             onPress={handleDeleteClass}
             disabled={editSaving}
           />
-        </ScrollView>
+          
+          <Pressable
+            onPress={() => {
+              setShowEditModal(false);
+              setEditingClass(null);
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: colors.secondaryBg,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
       </ModalSheet>
       <DatePickerModal
         visible={showNewCycleCalendar}
