@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Platform,
   ScrollView,
   Text,
   View,
@@ -231,15 +232,18 @@ export default function ReportsScreen() {
     const csv = rows
       .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
-    if (typeof document !== "undefined") {
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `relatorio_${monthKey}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      console.warn("CSV export only available on web platform");
+      return;
     }
+    
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `relatorio_${monthKey}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const weeklySummary = useMemo(() => {

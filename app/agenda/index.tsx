@@ -173,17 +173,19 @@ export default function AgendaScreen() {
     lines.push("END:VCALENDAR");
     const ics = lines.join("\r\n");
 
-    if (Platform.OS === "web") {
-      const blob = new Blob([ics], { type: "text/calendar;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `agenda_${year}-${pad2(monthIndex + 1)}.ics`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } else {
+    if (Platform.OS !== "web") {
       setIcsPreview(ics);
+      return;
     }
+    
+    // Web: Export as file
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `agenda_${year}-${pad2(monthIndex + 1)}.ics`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (

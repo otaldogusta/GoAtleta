@@ -21,40 +21,42 @@ export const exportPdf = async ({
   fileName: string;
   webDocument?: ReactElement;
 }) => {
-  if (Platform.OS === "web") {
-    if (!webDocument) {
-      throw new Error("Missing webDocument for PDF export.");
+  if (Platform.OS !== "web") {
+    // Mobile: Use Print and Share APIs
+    const { uri } = await Print.printToFileAsync({
+      html,
+      base64: false,
+    });
+
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Salvar/Compartilhar PDF",
+        UTI: "com.adobe.pdf",
+      });
     }
-    // @ts-expect-error no types for browser bundle entry
-    const { pdf } = await import("@react-pdf/renderer/lib/react-pdf.browser");
-    const blob = await pdf(webDocument).toBlob();
-    if (typeof window !== "undefined") {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      return { uri: url, fileName };
-    }
+
+    return { uri, fileName };
+  }
+
+  // Web: Export as file download
+  if (!webDocument) {
+    throw new Error("Missing webDocument for PDF export.");
+  }
+  // @ts-expect-error no types for browser bundle entry
+  const { pdf } = await import("@react-pdf/renderer/lib/react-pdf.browser");
+  const blob = await pdf(webDocument).toBlob();
+  if (typeof window === "undefined" || typeof document === "undefined") {
     return { uri: "", fileName };
   }
-
-  const { uri } = await Print.printToFileAsync({
-    html,
-    base64: false,
-  });
-
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(uri, {
-      mimeType: "application/pdf",
-      dialogTitle: "Salvar/Compartilhar PDF",
-      UTI: "com.adobe.pdf",
-    });
-  }
-
-  return { uri, fileName };
-};
+  
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { uri: url, fileName };

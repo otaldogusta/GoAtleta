@@ -438,25 +438,30 @@ export default function ClassDetails() {
   };
 
   const exportCsv = async (whatsappOnly: boolean) => {
-    const list = await getStudentsByClass(cls.id);
-    const csv = whatsappOnly ? buildWhatsAppCsv(list) : buildRosterCsv(list);
-    const suffix = whatsappOnly ? "_whatsapp" : "_completa";
-    const fileName = `lista_chamada_${safeFileName(unitLabel)}_${safeFileName(cls.id)}${suffix}.csv`;
-    
-    if (Platform.OS === "web") {
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      link.click();
-      URL.revokeObjectURL(url);
+    if (Platform.OS !== "web") {
+      // Mobile: Use Share API
+      const list = await getStudentsByClass(cls?.id || "");
+      const csv = whatsappOnly ? buildWhatsAppCsv(list) : buildRosterCsv(list);
+      const className = cls?.name || "Turma";
+      await Share.share({
+        title: `Lista de chamada - ${className}`,
+        message: csv,
+      });
       return;
     }
-    await Share.share({
-      title: `Lista de chamada - ${className}`,
-      message: csv,
-    });
+    
+    // Web: Export as file
+    const list = await getStudentsByClass(cls?.id || "");
+    const csv = whatsappOnly ? buildWhatsAppCsv(list) : buildRosterCsv(list);
+    const suffix = whatsappOnly ? "_whatsapp" : "_completa";
+    const fileName = `lista_chamada_${safeFileName(unitLabel)}_${safeFileName(cls?.id || "")}${suffix}.csv`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const buildWhatsAppCsv = (students: Awaited<ReturnType<typeof getStudentsByClass>>) => {
