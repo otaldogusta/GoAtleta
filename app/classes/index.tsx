@@ -156,7 +156,7 @@ export default function ClassesScreen() {
     y: number;
   } | null>(null);
   const editModalCardStyle = useModalCardStyle({
-    maxHeight: Platform.OS === "web" ? "92%" : "100%",
+    maxHeight: "92%",
   });
   const [suppressNextPress, setSuppressNextPress] = useState(false);
   const [showCustomDuration, setShowCustomDuration] = usePersistedState<boolean>(
@@ -1388,10 +1388,18 @@ export default function ClassesScreen() {
             onPress={() => onOpen(item)}
             onLongPress={() => onEdit(item)}
             delayLongPress={250}
-            style={[
-              getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 }),
-              { borderLeftWidth: 3, borderLeftColor: palette.bg },
-            ]}
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: palette.bg,
+              shadowColor: "#000",
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 3,
+            }}
           >
             {hasConflicts ? (
               <View
@@ -1417,14 +1425,6 @@ export default function ClassesScreen() {
             ) : null}
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", flex: 1 }}>
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 999,
-                      backgroundColor: palette.bg,
-                    }}
-                  />
                   <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
                     {timeLabel}
                   </Text>
@@ -1515,8 +1515,17 @@ export default function ClassesScreen() {
           }}
         />
 
-        <View style={[getSectionCardStyle(colors, "info", { padding: 10, radius: 16 })]}>
-          <View style={{ flexDirection: "row", gap: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            padding: 6,
+            borderRadius: 999,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
             {[
               { id: "lista" as const, label: "Lista" },
               { id: "criar" as const, label: "Criar turma" },
@@ -1530,15 +1539,17 @@ export default function ClassesScreen() {
                     flex: 1,
                     paddingVertical: 8,
                     borderRadius: 999,
-                    backgroundColor: selected ? colors.primaryBg : "transparent",
+                    backgroundColor: selected ? colors.primaryBg : colors.card,
+                    borderWidth: selected ? 0 : 1,
+                    borderColor: selected ? "transparent" : colors.border,
                     alignItems: "center",
                   }}
                 >
                   <Text
                     style={{
-                      color: selected ? colors.primaryText : colors.text,
+                      color: selected ? colors.primaryText : colors.muted,
                       fontWeight: "700",
-                      fontSize: 11,
+                      fontSize: 12,
                     }}
                   >
                     {tab.label}
@@ -1546,7 +1557,6 @@ export default function ClassesScreen() {
                 </Pressable>
               );
             })}
-          </View>
         </View>
 
         {mainTab === "lista" && (
@@ -1570,15 +1580,12 @@ export default function ClassesScreen() {
                           paddingHorizontal: 10,
                           borderRadius: 999,
                           backgroundColor: active ? palette.bg : colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: active ? "transparent" : colors.border,
                         }}
                       >
                         <Text
                           style={{
                             color: active ? palette.text : colors.text,
                             fontSize: 12,
-                            fontWeight: "700",
                           }}
                         >
                           {unit}
@@ -1593,24 +1600,29 @@ export default function ClassesScreen() {
           {grouped.map(([unit, items]) => {
             const palette = getUnitPalette(unit, colors);
             return (
-              <View key={unit} style={{ gap: 10 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <View
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 999,
-                      backgroundColor: palette.bg,
-                    }}
-                  />
-                  <View style={{ gap: 2 }}>
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                      {unit}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {"Turmas: " + items.length}
-                    </Text>
-                  </View>
+              <View
+                key={unit}
+                style={{
+                  gap: 10,
+                  paddingLeft: 10,
+                }}
+              >
+                <View
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
+                    borderRadius: 10,
+                    backgroundColor: colors.inputBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                    {unit}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+                    {"Turmas: " + items.length}
+                  </Text>
                 </View>
                 <View style={{ gap: 12 }}>
                   {items.map((item) => (

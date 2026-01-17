@@ -946,7 +946,17 @@ export default function TrainingList() {
                       backgroundColor: colors.inputBg,
                     }}
                   />
-                  <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      gap: 6,
+                      padding: 6,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
                     <Pressable
                       onPress={async () => {
                         if (!renameTemplateText.trim()) return;
@@ -961,7 +971,6 @@ export default function TrainingList() {
                           warmupTime: template.warmupTime ?? "",
                           mainTime: template.mainTime ?? "",
                           cooldownTime: template.cooldownTime ?? "",
-                          createdAt: template.createdAt ?? new Date().toISOString(),
                         });
                         const templatesDb = await getTrainingTemplates();
                         setTemplateItems(templatesDb);
@@ -1053,7 +1062,17 @@ export default function TrainingList() {
                 </Text>
               ) : null}
             </View>
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 6,
+                padding: 6,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
               <Pressable
                 onPress={() => onApply(plan)}
                 style={{
@@ -1985,7 +2004,17 @@ export default function TrainingList() {
           title="Planejamento"
           subtitle="Aquecimento, parte principal e volta a calma"
         />
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            padding: 6,
+            borderRadius: 999,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
           {[
             { id: "formulario" as const, label: "Formulario" },
             { id: "salvos" as const, label: "Planejamentos salvos" },
@@ -2000,15 +2029,17 @@ export default function TrainingList() {
                   flex: 1,
                   paddingVertical: 8,
                   borderRadius: 999,
-                  backgroundColor: selected ? colors.primaryBg : "transparent",
+                  backgroundColor: selected ? colors.primaryBg : colors.card,
+                  borderWidth: selected ? 0 : 1,
+                  borderColor: selected ? "transparent" : colors.border,
                   alignItems: "center",
                 }}
               >
                 <Text
                   style={{
-                    color: selected ? colors.primaryText : colors.text,
+                    color: selected ? colors.primaryText : colors.muted,
                     fontWeight: "700",
-                    fontSize: 11,
+                    fontSize: 12,
                   }}
                 >
                   {tab.label}

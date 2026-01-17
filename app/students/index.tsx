@@ -1,56 +1,72 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import {
-    memo,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
 } from "react";
 import {
-    Animated,
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    View
+  Animated,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { DatePickerModal } from "../../src/ui/DatePickerModal";
-import { Pressable } from "../../src/ui/Pressable";
-
-import type { ClassGroup, Student } from "../../src/core/models";
 import {
-    deleteStudent,
-    getClasses,
-    getStudents,
-    saveStudent,
-    updateStudent,
+  deleteStudent,
+  getClasses,
+  getStudents,
+  saveStudent,
+  updateStudent,
 } from "../../src/db/seed";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import type { ClassGroup, Student } from "../../src/core/models";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
+import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
+import { Pressable } from "../../src/ui/Pressable";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
-import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
+const monthNames = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
+type BirthdayEntry = { student: Student; date: Date; unitName: string };
+type BirthdayUnitGroup = [string, BirthdayEntry[]];
+type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
+
 export default function StudentsScreen() {
-  const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -74,10 +90,15 @@ export default function StudentsScreen() {
     "students_show_form_v1",
     false
   );
-  const {
-    animatedStyle: formAnimStyle,
-    isVisible: showFormContent,
-  } = useCollapsibleAnimation(showForm);
+  const [studentsTab, setStudentsTab] = useState<
+    "cadastro" | "aniversarios" | "alunos"
+  >("alunos");
+  const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
+  const [pendingStudentsTab, setPendingStudentsTab] = useState<
+    "cadastro" | "aniversarios" | "alunos" | null
+  >(null);
+  const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
+  const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("");
   const [customAgeBand, setCustomAgeBand] = useState("");
@@ -181,7 +202,6 @@ export default function StudentsScreen() {
     animatedStyle: editGuardianRelationPickerAnimStyle,
     isVisible: showEditGuardianRelationPickerContent,
   } = useCollapsibleAnimation(showEditGuardianRelationPicker);
-
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -535,6 +555,22 @@ export default function StudentsScreen() {
     setGuardianPhone("");
     setGuardianRelation("");
   };
+
+  const requestSwitchStudentsTab = useCallback(
+    (nextTab: "cadastro" | "aniversarios" | "alunos") => {
+      if (nextTab === studentsTab) return;
+      if (studentsTab === "cadastro" && isFormDirty) {
+        setPendingStudentsTab(nextTab);
+        setShowStudentsTabConfirm(true);
+        return;
+      }
+      if (studentsTab === "cadastro" && !isFormDirty) {
+        resetForm();
+      }
+      setStudentsTab(nextTab);
+    },
+    [isFormDirty, resetForm, studentsTab]
+  );
 
   const showSaveNotice = (message: string) => {
     setSaveNotice(message);
@@ -897,7 +933,41 @@ export default function StudentsScreen() {
   };
 
   const today = useMemo(() => new Date(), []);
-  const birthdayStudents = useMemo(() => {
+  const birthdayUnitOptions = useMemo(
+    () => ["Todas", ...unitOptions],
+    [unitOptions]
+  );
+  const studentsUnitOptions = useMemo(
+    () => ["Todas", ...unitOptions],
+    [unitOptions]
+  );
+  const birthdayFilteredStudents = useMemo(() => {
+    if (birthdayUnitFilter === "Todas") return students;
+    return students.filter((student) => {
+      const cls = classes.find((item) => item.id === student.classId);
+      return unitLabel(cls?.unit) === birthdayUnitFilter;
+    });
+  }, [birthdayUnitFilter, classes, students]);
+  const studentsFiltered = useMemo(() => {
+    if (studentsUnitFilter === "Todas") return students;
+    return students.filter((student) => {
+      const cls = classes.find((item) => item.id === student.classId);
+      return unitLabel(cls?.unit) === studentsUnitFilter;
+    });
+  }, [studentsUnitFilter, classes, students, unitLabel]);
+  const studentsGrouped = useMemo(() => {
+    const map = new Map<string, Student[]>();
+    studentsFiltered.forEach((student) => {
+      const cls = classes.find((item) => item.id === student.classId);
+      const unitName = unitLabel(cls?.unit);
+      if (!map.has(unitName)) map.set(unitName, []);
+      map.get(unitName)?.push(student);
+    });
+    return Array.from(map.entries())
+      .map(([unitName, items]) => [unitName, items] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [classes, studentsFiltered, unitLabel]);
+  const birthdayTodayAll = useMemo(() => {
     return students.filter((student) => {
       if (!student.birthDate) return false;
       const date = parseIsoDate(student.birthDate);
@@ -908,10 +978,21 @@ export default function StudentsScreen() {
       );
     });
   }, [students, today]);
+  const birthdayToday = useMemo(() => {
+    return birthdayFilteredStudents.filter((student) => {
+      if (!student.birthDate) return false;
+      const date = parseIsoDate(student.birthDate);
+      if (!date) return false;
+      return (
+        date.getMonth() === today.getMonth() &&
+        date.getDate() === today.getDate()
+      );
+    });
+  }, [birthdayFilteredStudents, today]);
 
-  const monthGroups = useMemo(() => {
-    const byMonth = new Map();
-    students.forEach((student) => {
+  const birthdayMonthGroups = useMemo<BirthdayMonthGroup[]>(() => {
+    const byMonth = new Map<number, Map<string, BirthdayEntry[]>>();
+    birthdayFilteredStudents.forEach((student) => {
       if (!student.birthDate) return;
       const date = parseIsoDate(student.birthDate);
       if (!date) return;
@@ -919,26 +1000,29 @@ export default function StudentsScreen() {
       const cls = classes.find((item) => item.id === student.classId);
       const unitName = unitLabel(cls?.unit);
       if (!byMonth.has(month)) byMonth.set(month, new Map());
-      const monthMap = byMonth.get(month);
+      const monthMap = byMonth.get(month)!;
       if (!monthMap.has(unitName)) monthMap.set(unitName, []);
-      monthMap.get(unitName).push({ student, date, unitName });
+      monthMap.get(unitName)!.push({ student, date, unitName });
     });
     return Array.from(byMonth.entries())
       .sort((a, b) => a[0] - b[0])
-      .map(([month, unitMap]) => [
-        month,
-        Array.from(unitMap.entries()).sort((a, b) => a[0].localeCompare(b[0])),
-      ]);
-  }, [classes, students]);
+      .map(
+        ([month, unitMap]) =>
+          [
+            month,
+            Array.from(unitMap.entries()).sort((a, b) => a[0].localeCompare(b[0])),
+          ] as BirthdayMonthGroup
+      );
+  }, [birthdayFilteredStudents, classes]);
 
   useEffect(() => {
-    if (!birthdayStudents.length) return;
+    if (!birthdayTodayAll.length) return;
     const todayKey = formatIsoDate(today);
     if (lastBirthdayNotice === todayKey) return;
-    const names = birthdayStudents.map((student) => student.name);
+    const names = birthdayTodayAll.map((student) => student.name);
     void notifyBirthdays(names);
     setLastBirthdayNotice(todayKey);
-  }, [birthdayStudents, lastBirthdayNotice, setLastBirthdayNotice, today]);
+  }, [birthdayTodayAll, lastBirthdayNotice, setLastBirthdayNotice, today]);
 
   useEffect(() => {
     return () => {
@@ -954,24 +1038,29 @@ export default function StudentsScreen() {
         item,
         onPress,
         className,
+        palette,
       }: {
         item: Student;
         onPress: (student: Student) => void;
         className: string;
+        palette: { bg: string; text: string };
       }) {
         return (
           <Pressable
             onPress={() => onPress(item)}
-            style={[
-              getSectionCardStyle(colors, "neutral"),
-              {
-                gap: 6,
-                shadowOpacity: 0.04,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 2,
-              },
-            ]}
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: palette.bg,
+              shadowColor: "#000",
+              shadowOpacity: 0.08,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 3,
+              gap: 6,
+            }}
           >
             <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
               {item.name + " - " + className}
@@ -1078,14 +1167,20 @@ export default function StudentsScreen() {
   );
 
   const renderStudentItem = useCallback(
-    ({ item }: { item: Student }) => (
-      <StudentRow
-        item={item}
-        onPress={onEdit}
-        className={getClassName(item.classId)}
-      />
-    ),
-    [StudentRow, getClassName, onEdit]
+    ({ item }: { item: Student }) => {
+      const cls = classes.find((entry) => entry.id === item.classId);
+      const unitName = unitLabel(cls?.unit);
+      const palette = getUnitPalette(unitName, colors);
+      return (
+        <StudentRow
+          item={item}
+          onPress={onEdit}
+          className={getClassName(item.classId)}
+          palette={palette}
+        />
+      );
+    },
+    [StudentRow, classes, colors, getClassName, onEdit, unitLabel]
   );
 
   const studentKeyExtractor = useCallback(
@@ -1108,61 +1203,73 @@ export default function StudentsScreen() {
       >
         <ScreenHeader title="Alunos" subtitle="Lista de chamada por turma" />
 
+        <ConfirmCloseOverlay
+          visible={showStudentsTabConfirm}
+          onCancel={() => {
+            setShowStudentsTabConfirm(false);
+            setPendingStudentsTab(null);
+          }}
+          onConfirm={() => {
+            setShowStudentsTabConfirm(false);
+            resetForm();
+            setStudentsTab(pendingStudentsTab ?? "alunos");
+            setPendingStudentsTab(null);
+          }}
+        />
+
         <View
-          style={[
-            getSectionCardStyle(colors, "success", { padding: 16, radius: 20 }),
-            { borderLeftWidth: 3, borderLeftColor: "#ffffff" },
-          ]}
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            padding: 6,
+            borderRadius: 999,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
         >
-            <Pressable
-            onPress={() => {
-              animateLayout();
-              if (showForm && isFormDirty) {
-                confirmDialog({
-                  title: "Sair sem salvar?",
-                  message: "Voce tem alteracoes nao salvas.",
-                  confirmLabel: "Descartar",
-                  cancelLabel: "Continuar",
-                  onConfirm: () => {
-                    resetForm();
-                  },
-                });
-                return;
-              }
-              setShowForm((prev) => {
-                const next = !prev;
-                if (next && !editingId) {
-                  resetCreateForm();
-                }
-                return next;
-              });
-            }}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              backgroundColor: showForm ? colors.secondaryBg : colors.primaryBg,
-              borderWidth: showForm ? 1 : 0,
-              borderColor: colors.border,
-            }}
-          >
-            <View style={{ gap: 4 }}>
-              <Text
+          {[
+            { id: "alunos" as const, label: "Alunos" },
+            { id: "cadastro" as const, label: "Cadastro" },
+            { id: "aniversarios" as const, label: "Aniversarios" },
+          ].map((tab) => {
+            const selected = studentsTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => requestSwitchStudentsTab(tab.id)}
                 style={{
-                  color: showForm ? colors.text : colors.primaryText,
-                  fontWeight: "700",
-                  fontSize: 16,
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: selected ? colors.primaryBg : colors.card,
+                  borderWidth: selected ? 0 : 1,
+                  borderColor: selected ? "transparent" : colors.border,
+                  alignItems: "center",
                 }}
               >
-                {showForm ? "Fechar cadastro" : "+ Cadastrar aluno"}
-              </Text>
-              <Text style={{ color: showForm ? colors.muted : colors.primaryText, fontSize: 12 }}>
-                {showForm ? "Ocultar formulario" : "Adicionar um novo aluno"}
-              </Text>
-            </View>
-          </Pressable>
-          {showFormContent ? (
-            <Animated.View style={[formAnimStyle, { gap: 12, marginTop: 12 }]}>
+                <Text
+                  style={{
+                    color: selected ? colors.primaryText : colors.muted,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {studentsTab === "cadastro" && (
+          <View
+            style={[
+              getSectionCardStyle(colors, "success", { padding: 16, radius: 20 }),
+              { borderLeftWidth: 3, borderLeftColor: "#ffffff" },
+            ]}
+          >
+            <View style={{ gap: 12 }}>
               <TextInput
                 placeholder="Nome do aluno"
                 value={name}
@@ -1344,48 +1451,375 @@ export default function StudentsScreen() {
                   }}
                 />
               ) : null}
-            </Animated.View>
-          ) : null}
-        </View>
+            </View>
+          </View>
+        )}
 
-        <View style={{ gap: 12 }}>
-          {monthGroups.length ? (
-            <Pressable
-              onPress={() => router.push({ pathname: "/students/birthdays" })}
-              style={[
-                getSectionCardStyle(colors, "info"),
-                {
-                  gap: 6,
-                  shadowOpacity: 0.04,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 6 },
-                  elevation: 2,
-                },
-              ]}
+        {studentsTab === "aniversarios" && (
+          <View style={{ gap: 12 }}>
+            {birthdayToday.length ? (
+              <View
+                style={{
+                  padding: 16,
+                  borderRadius: 20,
+                  backgroundColor: colors.successBg,
+                  borderWidth: 1,
+                  borderColor: colors.successBg,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.08,
+                  shadowRadius: 12,
+                  shadowOffset: { width: 0, height: 8 },
+                  elevation: 4,
+                  gap: 10,
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: "800", color: colors.successText }}>
+                  Hoje e dia de aniversario
+                </Text>
+                {birthdayToday.map((student) => {
+                  const cls = classes.find((item) => item.id === student.classId);
+                  const unitName = unitLabel(cls?.unit);
+                  const className = cls?.name ?? "Turma";
+                  return (
+                    <View
+                      key={student.id}
+                      style={{
+                        padding: 10,
+                        borderRadius: 14,
+                        backgroundColor: "rgba(255,255,255,0.14)",
+                      }}
+                    >
+                      <Text style={{ color: colors.successText, fontWeight: "700" }}>
+                        {student.name}
+                      </Text>
+                      <Text style={{ color: colors.successText, marginTop: 4 }}>
+                        {formatShortDate(student.birthDate)} - {unitName} | {className}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 16,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 2,
+                gap: 8,
+              }}
             >
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Aniversariantes
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Unidade
               </Text>
-              <Text style={{ color: colors.muted }}>
-                Ver aniversarios por mes e unidade
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {birthdayUnitOptions.map((unit) => {
+                    const active = birthdayUnitFilter === unit;
+                    const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
+                    const chipBg = active
+                      ? palette?.bg ?? colors.primaryBg
+                      : colors.secondaryBg;
+                    const chipText = active
+                      ? palette?.text ?? colors.primaryText
+                      : colors.text;
+                    return (
+                      <Pressable
+                        key={unit}
+                        onPress={() => setBirthdayUnitFilter(unit)}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: chipBg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: chipText,
+                            fontWeight: active ? "700" : "500",
+                          }}
+                        >
+                          {unit}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+
+            {birthdayMonthGroups.length ? (
+              birthdayMonthGroups.map(([month, unitGroups]) => {
+                const monthKey = `m-${month}`;
+                const totalCount = unitGroups.reduce(
+                  (sum, [, entries]) => sum + entries.length,
+                  0
+                );
+                return (
+                  <View
+                    key={monthKey}
+                    style={{
+                      padding: 14,
+                      borderRadius: 18,
+                      backgroundColor: colors.card,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      shadowColor: "#000",
+                      shadowOpacity: 0.04,
+                      shadowRadius: 10,
+                      shadowOffset: { width: 0, height: 6 },
+                      elevation: 2,
+                      gap: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                        {monthNames[month]}
+                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={{ color: colors.muted }}>{totalCount}</Text>
+                      </View>
+                    </View>
+
+                    {unitGroups.map(([unitName, entries]) => {
+                      const unitKey = `m-${month}-u-${unitName}`;
+                      const palette = getUnitPalette(unitName, colors);
+                      return (
+                        <View key={unitKey} style={{ gap: 6 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              paddingVertical: 6,
+                            }}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <View
+                                style={{
+                                  alignSelf: "flex-start",
+                                  paddingVertical: 4,
+                                  paddingHorizontal: 10,
+                                  borderRadius: 999,
+                                  backgroundColor: palette.bg,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: palette.text,
+                                    fontWeight: "700",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  {unitName}
+                                </Text>
+                              </View>
+                              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                                {entries.length === 1
+                                  ? "1 aluno"
+                                  : `${entries.length} alunos`}
+                              </Text>
+                            </View>
+                          </View>
+                          <View
+                            style={{
+                              borderRadius: 14,
+                              borderWidth: 1,
+                              borderColor: palette.bg,
+                              padding: 10,
+                              gap: 8,
+                              backgroundColor: colors.inputBg,
+                            }}
+                          >
+                            {entries
+                              .sort((a, b) => a.date.getDate() - b.date.getDate())
+                              .map(({ student, date }) => {
+                                const cls = classes.find((item) => item.id === student.classId);
+                                const className = cls?.name ?? "Turma";
+                                return (
+                                  <View
+                                    key={student.id}
+                                    style={{
+                                      padding: 10,
+                                      borderRadius: 14,
+                                      backgroundColor: colors.card,
+                                      borderWidth: 1,
+                                      borderColor: palette.bg,
+                                    }}
+                                  >
+                                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                                      {String(date.getDate()).padStart(2, "0")} - {student.name}
+                                    </Text>
+                                    <Text style={{ color: colors.muted, marginTop: 4 }}>
+                                      {formatShortDate(student.birthDate)} | {className}
+                                    </Text>
+                                  </View>
+                                );
+                              })}
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })
+            ) : (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Sem aniversarios
+                </Text>
+                <Text style={{ color: colors.muted, marginTop: 4 }}>
+                  Nenhum aluno com data de nascimento.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {studentsTab === "alunos" && (
+          <View style={{ gap: 12 }}>
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 16,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 2,
+                gap: 8,
+              }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Unidade
               </Text>
-            </Pressable>
-          ) : null}
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Lista de alunos
-          </Text>
-          <FlatList
-            data={students}
-            keyExtractor={studentKeyExtractor}
-            renderItem={renderStudentItem}
-            scrollEnabled={false}
-            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-            initialNumToRender={12}
-            windowSize={7}
-            maxToRenderPerBatch={12}
-            removeClippedSubviews
-          />
-        </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {studentsUnitOptions.map((unit) => {
+                    const active = studentsUnitFilter === unit;
+                    const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
+                    const chipBg = active
+                      ? palette?.bg ?? colors.primaryBg
+                      : colors.secondaryBg;
+                    const chipText = active
+                      ? palette?.text ?? colors.primaryText
+                      : colors.text;
+                    return (
+                      <Pressable
+                        key={unit}
+                        onPress={() => setStudentsUnitFilter(unit)}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: chipBg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: chipText,
+                            fontWeight: active ? "700" : "500",
+                          }}
+                        >
+                          {unit}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  Alunos
+                </Text>
+              </View>
+
+              {studentsGrouped.length > 0 ? (
+                <View style={{ gap: 12 }}>
+                  {studentsGrouped.map(([unitName, unitStudents]) => (
+                    <View key={unitName} style={{ gap: 8 }}>
+                      <View
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 8,
+                          borderRadius: 10,
+                          backgroundColor: colors.inputBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                          {unitName}
+                        </Text>
+                      </View>
+                      <View style={{ gap: 8 }}>
+                        {unitStudents.map((student) => (
+                          <View key={student.id}>
+                            {renderStudentItem({ item: student })}
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View
+                  style={{
+                    padding: 16,
+                    borderRadius: 16,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    Nenhum aluno encontrado
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {studentsUnitFilter === "Todas"
+                      ? "Comece adicionando alunos"
+                      : "Nenhum aluno nesta unidade"}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
       </ScrollView>
 
         <AnchoredDropdown

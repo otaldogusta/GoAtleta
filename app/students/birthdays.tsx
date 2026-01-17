@@ -1,21 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ScrollView,
-  Text,
-  View,
+    ScrollView,
+    Text,
+    View,
 } from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable } from "../../src/ui/Pressable";
 
-import { getClasses, getStudents } from "../../src/db/seed";
 import type { ClassGroup, Student } from "../../src/core/models";
-import { animateLayout } from "../../src/ui/animate-layout";
+import { getClasses, getStudents } from "../../src/db/seed";
 import { useAppTheme } from "../../src/ui/app-theme";
-import { usePersistedState } from "../../src/ui/use-persisted-state";
-
-const MONTH_EXPANDED_KEY = "birthdays_expanded_months_v1";
-const UNIT_EXPANDED_KEY = "birthdays_expanded_units_v1";
 
 const monthNames = [
   "Janeiro",
@@ -74,12 +68,6 @@ export default function BirthdaysScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [unitFilter, setUnitFilter] = useState("Todas");
-  const [expandedMonths, setExpandedMonths] = usePersistedState<
-    Record<string, boolean>
-  >(MONTH_EXPANDED_KEY, {});
-  const [expandedUnits, setExpandedUnits] = usePersistedState<
-    Record<string, boolean>
-  >(UNIT_EXPANDED_KEY, {});
 
   useEffect(() => {
     let alive = true;
@@ -149,18 +137,6 @@ export default function BirthdaysScreen() {
       Array.from(unitMap.entries()).sort((a, b) => a[0].localeCompare(b[0])),
     ]);
   }, [classes, filteredStudents, today]);
-
-  const isMonthExpanded = (month: number) => {
-    const key = `m-${month}`;
-    if (key in expandedMonths) return expandedMonths[key];
-    return month === today.getMonth();
-  };
-
-  const isUnitExpanded = (month: number, unitName: string) => {
-    const key = `m-${month}-u-${unitName}`;
-    if (key in expandedUnits) return expandedUnits[key];
-    return true;
-  };
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
@@ -265,7 +241,6 @@ export default function BirthdaysScreen() {
         {monthGroups.length ? (
           monthGroups.map(([month, unitGroups]) => {
             const monthKey = `m-${month}`;
-            const expanded = isMonthExpanded(month);
             const totalCount = unitGroups.reduce(
               (sum, [, entries]) => sum + entries.length,
               0
@@ -287,14 +262,7 @@ export default function BirthdaysScreen() {
                   gap: 10,
                 }}
               >
-                <Pressable
-                  onPress={() => {
-                    animateLayout();
-                    setExpandedMonths((prev) => ({
-                      ...prev,
-                      [monthKey]: !expanded,
-                    }));
-                  }}
+                <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
@@ -306,98 +274,86 @@ export default function BirthdaysScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Text style={{ color: colors.muted }}>{totalCount}</Text>
-                    <MaterialCommunityIcons
-                      name={expanded ? "chevron-down" : "chevron-right"}
-                      size={18}
-                      color={colors.muted}
-                    />
                   </View>
-                </Pressable>
+                </View>
 
-                {expanded
-                  ? unitGroups.map(([unitName, entries]) => {
-                      const unitKey = `m-${month}-u-${unitName}`;
-                      const unitExpanded = isUnitExpanded(month, unitName);
-                      return (
-                        <View key={unitKey} style={{ gap: 6 }}>
-                          <Pressable
-                            onPress={() => {
-                              animateLayout();
-                              setExpandedUnits((prev) => ({
-                                ...prev,
-                                [unitKey]: !unitExpanded,
-                              }));
-                            }}
-                            style={{
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              paddingVertical: 6,
-                            }}
-                          >
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                                {unitName}
-                              </Text>
-                              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                {entries.length === 1
-                                  ? "1 aluno"
-                                  : `${entries.length} alunos`}
-                              </Text>
-                            </View>
-                            <MaterialCommunityIcons
-                              name={unitExpanded ? "chevron-down" : "chevron-right"}
-                              size={18}
-                              color={colors.muted}
-                            />
-                          </Pressable>
-                          {unitExpanded ? (
+                {unitGroups.map(([unitName, entries]) => {
+                  const unitKey = `m-${month}-u-${unitName}`;
+                  return (
+                    <View key={unitKey} style={{ gap: 6 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: colors.text, fontWeight: "700" }}>
+                            {unitName}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>
+                            {entries.length === 1
+                              ? "1 aluno"
+                              : `${entries.length} alunos`}
+                          </Text>
+                        </View>
+                      </View>
+                      <View
+                        style={{
+                          borderRadius: 14,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          gap: 8,
+                          backgroundColor: colors.secondaryBg,
+                        }}
+                      >
+                        {entries
+                          .sort((a, b) => a.date.getDate() - b.date.getDate())
+                          .map(({ student, date }) => (
                             <View
+                              key={student.id}
                               style={{
+                                padding: 10,
                                 borderRadius: 14,
+                                backgroundColor: colors.card,
                                 borderWidth: 1,
                                 borderColor: colors.border,
-                                padding: 10,
-                                gap: 8,
-                                backgroundColor: colors.secondaryBg,
                               }}
                             >
-                              {entries
-                                .sort((a, b) => a.date.getDate() - b.date.getDate())
-                                .map(({ student, date }) => (
-                                  <View
-                                    key={student.id}
-                                    style={{
-                                      padding: 10,
-                                      borderRadius: 14,
-                                      backgroundColor: colors.card,
-                                      borderWidth: 1,
-                                      borderColor: colors.border,
-                                    }}
-                                  >
-                                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                                      {String(date.getDate()).padStart(2, "0")} -{" "}
-                                      {student.name}
-                                    </Text>
-                                    {calculateAge(student.birthDate || "") !== null ? (
-                                      <Text style={{ color: colors.muted, marginTop: 4 }}>
-                                        {calculateAge(student.birthDate || "")} anos
-                                      </Text>
-                                    ) : null}
-                                  </View>
-                                ))}
+                              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                                {String(date.getDate()).padStart(2, "0")} - {student.name}
+                              </Text>
+                              <Text style={{ color: colors.muted, marginTop: 4 }}>
+                                {formatShortDate(student.birthDate)}
+                              </Text>
                             </View>
-                          ) : null}
-                        </View>
-                      );
-                    })
-                  : null}
+                          ))}
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             );
           })
         ) : (
-          <Text style={{ color: colors.muted }}>
-            Nenhum aniversario cadastrado.
-          </Text>
+          <View
+            style={{
+              padding: 12,
+              borderRadius: 16,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Sem aniversarios
+            </Text>
+            <Text style={{ color: colors.muted, marginTop: 4 }}>
+              Nenhum aluno com data de nascimento.
+            </Text>
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>

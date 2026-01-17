@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import {
   useEffect,
   useMemo,
@@ -332,9 +333,7 @@ export default function Home() {
               borderColor: colors.border,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-              {"\u2699"}
-            </Text>
+            <Ionicons name="settings-outline" size={18} color={colors.text} />
           </Pressable>
           <Pressable
             onPress={openInbox}
@@ -346,9 +345,7 @@ export default function Home() {
               position: "relative",
             }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 16 }}>
-              {"\uD83D\uDD14"}
-            </Text>
+            <Ionicons name="notifications-outline" size={18} color={colors.primaryText} />
             {unreadCount > 0 ? (
               <View
                 style={{
@@ -425,59 +422,76 @@ export default function Home() {
             elevation: 5,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontSize: 18, fontWeight: "700" }}>
-            Agenda do dia
-          </Text>
-          <Text style={{ color: colors.primaryText, marginTop: 6, opacity: 0.85 }}>
-            Turmas, treino e chamada em um lugar
-          </Text>
-          {nearestSummary ? (
-            <View style={{ marginTop: 10, gap: 4 }}>
-              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                Proxima aula
+          <View style={{ gap: 12 }}>
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.primaryText, fontSize: 18, fontWeight: "800" }}>
+                Agenda do dia
               </Text>
-              <Text style={{ color: colors.primaryText, opacity: 0.9 }}>
-                {nearestSummary.className} | {nearestSummary.unit}
-              </Text>
-              <Text style={{ color: colors.primaryText, opacity: 0.8 }}>
-                {nearestSummary.dateLabel} | {nearestSummary.timeLabel}
+              <Text style={{ color: colors.primaryText, opacity: 0.85 }}>
+                Turmas, treino e chamada em um lugar
               </Text>
             </View>
-          ) : (
-            <Text style={{ color: colors.primaryText, marginTop: 8, opacity: 0.85 }}>
-              Nenhuma aula encontrada nos proximos dias.
-            </Text>
-          )}
-          <View style={{ marginTop: 12, gap: 8 }}>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              <Pressable
-                onPress={() => {
-                  if (!nearestAttendanceTarget) return;
-                  router.push({
-                    pathname: "/class/[id]/attendance",
-                    params: {
-                      id: nearestAttendanceTarget.classId,
-                      date: nearestAttendanceTarget.date,
-                    },
-                  });
-                }}
-                disabled={!nearestAttendanceTarget}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 14,
-                  borderRadius: 999,
-                  backgroundColor: nearestAttendanceTarget
-                    ? colors.secondaryBg
-                    : colors.primaryDisabledBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: nearestAttendanceTarget ? 1 : 0.7,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Fazer chamada
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                backgroundColor: "rgba(255,255,255,0.12)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.18)",
+                gap: 8,
+              }}
+            >
+              {nearestSummary ? (
+                <>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <View
+                      style={{
+                        paddingVertical: 2,
+                        paddingHorizontal: 8,
+                        borderRadius: 999,
+                        backgroundColor: "rgba(255,255,255,0.16)",
+                      }}
+                    >
+                      <Text style={{ color: colors.primaryText, fontSize: 11, fontWeight: "700" }}>
+                        Proxima aula
+                      </Text>
+                    </View>
+                    <Text style={{ color: colors.primaryText, opacity: 0.8 }}>
+                      {nearestSummary.dateLabel}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
+                    {nearestSummary.className}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      gap: 12,
+                    }}
+                  >
+                    <Text style={{ color: colors.primaryText, opacity: 0.9, flex: 1 }}>
+                      {nearestSummary.unit}
+                    </Text>
+                    <Text style={{ color: colors.primaryText, opacity: 0.8 }}>
+                      {nearestSummary.timeLabel}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={{ color: colors.primaryText, opacity: 0.85 }}>
+                  Nenhuma aula encontrada nos proximos dias.
                 </Text>
-              </Pressable>
+              )}
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
                 onPress={() => {
                   if (!nearestAttendanceTarget) return;
@@ -492,7 +506,8 @@ export default function Home() {
                 }}
                 disabled={!nearestAttendanceTarget}
                 style={{
-                  paddingVertical: 8,
+                  flex: 1,
+                  paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 999,
                   backgroundColor: nearestAttendanceTarget
@@ -501,14 +516,43 @@ export default function Home() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  alignItems: "center",
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
                   Abrir plano
                 </Text>
               </Pressable>
-            </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              <Pressable
+                onPress={() => {
+                  if (!nearestAttendanceTarget) return;
+                  router.push({
+                    pathname: "/class/[id]/attendance",
+                    params: {
+                      id: nearestAttendanceTarget.classId,
+                      date: nearestAttendanceTarget.date,
+                    },
+                  });
+                }}
+                disabled={!nearestAttendanceTarget}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: nearestAttendanceTarget
+                    ? colors.secondaryBg
+                    : colors.primaryDisabledBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Fazer chamada
+                </Text>
+              </Pressable>
               <Pressable
                 onPress={() => {
                   if (!nearestAttendanceTarget) return;
@@ -523,7 +567,8 @@ export default function Home() {
                 }}
                 disabled={!nearestAttendanceTarget}
                 style={{
-                  paddingVertical: 8,
+                  flex: 1,
+                  paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 999,
                   backgroundColor: nearestAttendanceTarget
@@ -532,6 +577,7 @@ export default function Home() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  alignItems: "center",
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
@@ -552,7 +598,8 @@ export default function Home() {
                 }}
                 disabled={!nearestAttendanceTarget}
                 style={{
-                  paddingVertical: 8,
+                  flex: 1,
+                  paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 999,
                   backgroundColor: nearestAttendanceTarget
@@ -561,6 +608,7 @@ export default function Home() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  alignItems: "center",
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
@@ -776,9 +824,9 @@ export default function Home() {
             {...closeSwipe.panHandlers}
             style={{
               position: "absolute",
-              top: 0,
+              top: insets.top,
               right: 0,
-              bottom: 0,
+              bottom: insets.bottom,
               width: panelWidth,
               transform: [{ translateX: inboxX }],
               backgroundColor: colors.card,
@@ -792,6 +840,7 @@ export default function Home() {
               elevation: 6,
               gap: 12,
               paddingTop: insets.top + 12,
+              paddingBottom: insets.bottom + 12,
             }}
             >
             <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
