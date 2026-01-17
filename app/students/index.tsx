@@ -9,7 +9,6 @@ import {
 } from "react";
 import {
   Animated,
-  FlatList,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,6 +17,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { ClassGroup, Student } from "../../src/core/models";
 import {
   deleteStudent,
   getClasses,
@@ -28,7 +28,6 @@ import {
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
-import type { ClassGroup, Student } from "../../src/core/models";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
