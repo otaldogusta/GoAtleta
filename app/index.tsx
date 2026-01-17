@@ -3,21 +3,21 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
 import {
-    useEffect,
-    useMemo,
-    useRef,
-    useState
+  useEffect,
+  useMemo,
+  useRef,
+  useState
 } from "react";
 import {
-    Alert,
-    Animated,
-    Dimensions,
-    PanResponder,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    Text,
-    View
+  Alert,
+  Animated,
+  Dimensions,
+  PanResponder,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
@@ -26,11 +26,11 @@ import type { ClassGroup } from "../src/core/models";
 import { flushPendingWrites, getClasses, getPendingWritesCount, seedIfEmpty } from "../src/db/seed";
 import { requestNotificationPermission } from "../src/notifications";
 import {
-    AppNotification,
-    clearNotifications,
-    getNotifications,
-    markAllRead,
-    subscribeNotifications,
+  AppNotification,
+  clearNotifications,
+  getNotifications,
+  markAllRead,
+  subscribeNotifications,
 } from "../src/notificationsInbox";
 import { Card } from "../src/ui/Card";
 import { useAppTheme } from "../src/ui/app-theme";

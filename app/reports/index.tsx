@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Platform,
-  ScrollView,
-  Text,
-  View,
+    Platform,
+    ScrollView,
+    Text,
+    View,
 } from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../../src/ui/Pressable";
 
-import {
-  getAttendanceAll,
-  getClasses,
-  getSessionLogsByRange,
-  getStudents,
-} from "../../src/db/seed";
 import type { AttendanceRecord, ClassGroup, SessionLog, Student } from "../../src/core/models";
+import {
+    getAttendanceAll,
+    getClasses,
+    getSessionLogsByRange,
+    getStudents,
+} from "../../src/db/seed";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 

@@ -1,20 +1,21 @@
 import {
-  useEffect,
-  useMemo,
-  useState } from "react";
+    useEffect,
+    useMemo,
+    useState
+} from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
 } from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../../src/ui/Pressable";
 
-import { getClasses } from "../../src/db/seed";
 import type { ClassGroup } from "../../src/core/models";
+import { getClasses } from "../../src/db/seed";
 import { Button } from "../../src/ui/Button";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
