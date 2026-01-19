@@ -100,6 +100,14 @@ export const setRememberPreference = async (remember: boolean) => {
   setWebKey(REMEMBER_KEY, "false");
 };
 
+export const getSessionUserId = async (): Promise<string> => {
+  if (!currentSession) {
+    const stored = await loadSession();
+    if (!stored) return "";
+  }
+  return currentSession?.user?.id ?? "";
+};
+
 export const getValidAccessToken = async (): Promise<string> => {
   if (!currentSession) {
     const stored = await loadSession();

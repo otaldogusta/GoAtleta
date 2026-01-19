@@ -23,6 +23,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../src/ui/Pressable";
 
 import type { ClassGroup } from "../src/core/models";
+import { useAuth } from "../src/auth/auth";
 import { flushPendingWrites, getClasses, getPendingWritesCount, seedIfEmpty } from "../src/db/seed";
 import { requestNotificationPermission } from "../src/notifications";
 import {
@@ -39,6 +40,7 @@ export default function Home() {
   const router = useRouter();
   const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { session } = useAuth();
   const [inbox, setInbox] = useState<AppNotification[]>([]);
   const [showInbox, setShowInbox] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -67,9 +69,10 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      await seedIfEmpty();
       const items = await getNotifications();
       if (alive) setInbox(items);
+      if (!session) return;
+      await seedIfEmpty();
       const classList = await getClasses();
       if (alive) setClasses(classList);
     })();
@@ -81,7 +84,7 @@ export default function Home() {
       alive = false;
       unsubscribe();
     };
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     let alive = true;
@@ -1095,5 +1098,4 @@ export default function Home() {
     </SafeAreaView>
   );
 }
-
 

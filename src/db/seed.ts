@@ -1,5 +1,5 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
-import { getValidAccessToken } from "../auth/session";
+import { getValidAccessToken, getSessionUserId } from "../auth/session";
 import * as Sentry from "@sentry/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type {
@@ -20,9 +20,12 @@ const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
 
 const headers = async () => {
   const token = await getValidAccessToken();
+  if (!token) {
+    throw new Error("Missing auth token");
+  }
   return {
     apikey: SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 };
@@ -446,6 +449,7 @@ type ExerciseRow = {
 };
 
 export async function seedIfEmpty() {
+  if (!(await getSessionUserId())) return;
   const existing = await supabaseGet<ClassRow[]>(
     "/classes?select=id&limit=1"
   );
@@ -607,6 +611,7 @@ const computeEndTime = (startTime?: string, duration?: number | null) => {
 };
 
 export async function seedStudentsIfEmpty() {
+  if (!(await getSessionUserId())) return;
   const existing = await supabaseGet<StudentRow[]>(
     "/students?select=id&limit=1"
   );
@@ -1815,4 +1820,3 @@ export async function getAttendanceAll(): Promise<AttendanceRecord[]> {
       createdAt: row.createdat,
     }));
   }
-
