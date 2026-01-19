@@ -56,12 +56,11 @@ const normalizePublicUrl = (value: string) => {
   }
 };
 
-const createSupabaseClient = (authHeader: string) => {
+const createSupabaseClient = () => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (!supabaseUrl || !supabaseAnonKey) return null;
   return createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authHeader } },
     auth: { persistSession: false },
   });
 };
@@ -69,9 +68,11 @@ const createSupabaseClient = (authHeader: string) => {
 const requireUser = async (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return null;
-  const supabase = createSupabaseClient(authHeader);
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) return null;
+  const supabase = createSupabaseClient();
   if (!supabase) return null;
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser(token);
   if (error || !data?.user) return null;
   return data.user;
 };
