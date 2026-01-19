@@ -1,1 +1,7 @@
 project_id = "hgmdpetpwclucvquoklv"
+
+[functions.assistant]
+verify_jwt = false
+
+[functions.link-metadata]
+verify_jwt = false
