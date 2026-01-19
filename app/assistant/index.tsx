@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router";
 
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../src/api/config";
+import { getValidAccessToken } from "../../src/auth/session";
 import { getClasses, saveTrainingPlan } from "../../src/db/seed";
 import type { ClassGroup, TrainingPlan } from "../../src/core/models";
 import { Button } from "../../src/ui/Button";
@@ -143,11 +144,23 @@ export default function AssistantScreen() {
     setShowSavedLink(false);
 
     try {
+      const accessToken = await getValidAccessToken();
+      if (!accessToken) {
+        Alert.alert("Sessao expirada", "Faca login novamente para usar o assistente.");
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Sessao expirada. Faca login novamente e tente de novo.",
+          },
+        ]);
+        return;
+      }
       const response = await fetch(`${SUPABASE_URL}/functions/v1/assistant`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${accessToken}`,
           apikey: SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
@@ -499,7 +512,3 @@ export default function AssistantScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-

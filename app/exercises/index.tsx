@@ -28,6 +28,7 @@ import {
 } from "../../src/db/seed";
 import type { Exercise } from "../../src/core/models";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
+import { getValidAccessToken } from "../../src/auth/session";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -159,13 +160,18 @@ export default function ExercisesScreen() {
       try {
         setMetaLoading(true);
         setMetaStatus("");
+        const accessToken = await getValidAccessToken();
+        if (!accessToken) {
+          setMetaStatus("Sessao expirada. Faca login novamente.");
+          return;
+        }
         const response = await fetch(
           `${SUPABASE_URL}/functions/v1/link-metadata`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              Authorization: `Bearer ${accessToken}`,
               apikey: SUPABASE_ANON_KEY,
             },
             body: JSON.stringify({ url: videoUrl.trim() }),
@@ -551,5 +557,3 @@ export default function ExercisesScreen() {
     </SafeAreaView>
   );
 }
-
-

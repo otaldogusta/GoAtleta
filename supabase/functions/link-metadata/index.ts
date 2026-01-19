@@ -1,7 +1,79 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const isPrivateIpv4 = (host: string) => {
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
+  const parts = host.split(".").map((part) => Number(part));
+  if (parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return true;
+  }
+  const [first, second] = parts;
+  if (first === 10 || first === 127 || first === 0) return true;
+  if (first === 169 && second === 254) return true;
+  if (first === 192 && second === 168) return true;
+  if (first === 172 && second >= 16 && second <= 31) return true;
+  if (first === 100 && second >= 64 && second <= 127) return true;
+  return false;
+};
+
+const isPrivateIpv6 = (host: string) => {
+  const normalized = host.toLowerCase();
+  if (!normalized.includes(":")) return false;
+  if (normalized === "::1" || normalized === "::") return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  if (normalized.startsWith("fe80")) return true;
+  return false;
+};
+
+const isPrivateHost = (host: string) => {
+  const normalized = host.toLowerCase();
+  if (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal")
+  ) {
+    return true;
+  }
+  if (isPrivateIpv4(normalized) || isPrivateIpv6(normalized)) return true;
+  return false;
+};
+
+const normalizePublicUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (url.username || url.password) return "";
+    if (!url.hostname || isPrivateHost(url.hostname)) return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+};
+
+const createSupabaseClient = (authHeader: string) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+    auth: { persistSession: false },
+  });
+};
+
+const requireUser = async (req: Request) => {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.startsWith("Bearer ")) return null;
+  const supabase = createSupabaseClient(authHeader);
+  if (!supabase) return null;
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data?.user) return null;
+  return data.user;
 };
 
 const extractMeta = (html: string, key: string) => {
@@ -54,14 +126,6 @@ const extractImage = (html: string) => {
   );
 };
 
-const safeUrl = (value: string) => {
-  try {
-    return new URL(value).toString();
-  } catch {
-    return "";
-  }
-};
-
 const isYouTube = (value: string) =>
   value.includes("youtube.com") || value.includes("youtu.be");
 
@@ -71,8 +135,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const user = await requireUser(req);
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { url } = await req.json();
-    const normalized = safeUrl(String(url ?? ""));
+    const normalized = normalizePublicUrl(String(url ?? ""));
     if (!normalized) {
       return new Response(
         JSON.stringify({ error: "URL invalida." }),
