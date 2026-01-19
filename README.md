@@ -92,7 +92,7 @@ Checklist rapido ao aplicar em outra tela:
 
 Para habilitar o modulo de scouting no Supabase, crie a tabela:
 
-- `supabase/migrations/20260106_create_scouting_logs.sql`
+- `supabase/migrations/2026010601_create_scouting_logs.sql`
 
 Rodar no SQL Editor do Supabase e depois atualizar o schema:
 
