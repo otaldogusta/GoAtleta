@@ -10,6 +10,7 @@ import type {
   HiddenTemplate,
   Student,
   AttendanceRecord,
+  AbsenceNotice,
   Exercise,
   ClassPlan,
   ScoutingLog,
@@ -358,6 +359,7 @@ type StudentRow = {
   classid: string;
   age: number;
   phone: string;
+  login_email?: string | null;
   guardian_name?: string | null;
   guardian_phone?: string | null;
   guardian_relation?: string | null;
@@ -374,6 +376,17 @@ type AttendanceRow = {
   note: string;
   pain_score?: number | null;
   createdat: string;
+};
+
+type AbsenceNoticeRow = {
+  id: string;
+  student_id: string;
+  class_id: string;
+  session_date: string;
+  reason: string;
+  note?: string | null;
+  status: string;
+  created_at: string;
 };
 
 type ScoutingLogRow = {
@@ -1598,6 +1611,7 @@ export async function getStudents(): Promise<Student[]> {
       classId: row.classid,
       age: row.age,
       phone: row.phone,
+      loginEmail: row.login_email ?? undefined,
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
       guardianRelation: row.guardian_relation ?? undefined,
@@ -1626,6 +1640,7 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
       classId: row.classid,
       age: row.age,
       phone: row.phone,
+      loginEmail: row.login_email ?? undefined,
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
       guardianRelation: row.guardian_relation ?? undefined,
@@ -1653,6 +1668,7 @@ export async function getStudentById(id: string): Promise<Student | null> {
       classId: row.classid,
       age: row.age,
       phone: row.phone,
+      loginEmail: row.login_email ?? undefined,
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
       guardianRelation: row.guardian_relation ?? undefined,
@@ -1662,6 +1678,7 @@ export async function getStudentById(id: string): Promise<Student | null> {
   }
 
 export async function saveStudent(student: Student) {
+    const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
     await supabasePost("/students", [
       {
         id: student.id,
@@ -1669,6 +1686,7 @@ export async function saveStudent(student: Student) {
         classid: student.classId,
         age: student.age,
         phone: student.phone,
+        login_email: normalizedLoginEmail,
         guardian_name: student.guardianName?.trim() || null,
         guardian_phone: student.guardianPhone?.trim() || null,
         guardian_relation: student.guardianRelation?.trim() || null,
@@ -1679,6 +1697,7 @@ export async function saveStudent(student: Student) {
   }
 
 export async function updateStudent(student: Student) {
+    const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
     await supabasePatch(
       "/students?id=eq." + encodeURIComponent(student.id),
       {
@@ -1686,6 +1705,7 @@ export async function updateStudent(student: Student) {
         classid: student.classId,
         age: student.age,
         phone: student.phone,
+        login_email: normalizedLoginEmail,
         guardian_name: student.guardianName?.trim() || null,
         guardian_phone: student.guardianPhone?.trim() || null,
         guardian_relation: student.guardianRelation?.trim() || null,
@@ -1820,3 +1840,57 @@ export async function getAttendanceAll(): Promise<AttendanceRecord[]> {
       createdAt: row.createdat,
     }));
   }
+
+const mapAbsenceNotice = (row: AbsenceNoticeRow): AbsenceNotice => ({
+  id: row.id,
+  studentId: row.student_id,
+  classId: row.class_id,
+  date: row.session_date,
+  reason: row.reason,
+  note: row.note ?? undefined,
+  status:
+    row.status === "confirmed"
+      ? "confirmed"
+      : row.status === "ignored"
+      ? "ignored"
+      : "pending",
+  createdAt: row.created_at,
+});
+
+type AbsenceNoticeInput = {
+  studentId: string;
+  classId: string;
+  date: string;
+  reason: string;
+  note?: string;
+  status?: AbsenceNotice["status"];
+};
+
+export async function getAbsenceNotices(): Promise<AbsenceNotice[]> {
+  const rows = await supabaseGet<AbsenceNoticeRow[]>(
+    "/absence_notices?select=*&order=created_at.desc"
+  );
+  return rows.map(mapAbsenceNotice);
+}
+
+export async function createAbsenceNotice(notice: AbsenceNoticeInput) {
+  await supabasePost("/absence_notices", [
+    {
+      student_id: notice.studentId,
+      class_id: notice.classId,
+      session_date: notice.date,
+      reason: notice.reason,
+      note: notice.note?.trim() || null,
+      status: notice.status ?? "pending",
+    },
+  ]);
+}
+
+export async function updateAbsenceNoticeStatus(
+  id: string,
+  status: AbsenceNotice["status"]
+) {
+  await supabasePatch("/absence_notices?id=eq." + encodeURIComponent(id), {
+    status,
+  });
+}

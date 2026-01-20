@@ -105,6 +105,7 @@ export default function StudentsScreen() {
   const [birthDate, setBirthDate] = useState("");
   const [ageNumber, setAgeNumber] = useState<number | null>(null);
   const [phone, setPhone] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
   const [guardianRelation, setGuardianRelation] = useState("");
@@ -131,6 +132,7 @@ export default function StudentsScreen() {
     name: string;
     birthDate: string;
     phone: string;
+    loginEmail: string;
     guardianName: string;
     guardianPhone: string;
     guardianRelation: string;
@@ -449,6 +451,7 @@ export default function StudentsScreen() {
       classId,
       age: resolvedAge,
       phone: phone.trim(),
+      loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : undefined,
       guardianName: guardianName.trim(),
       guardianPhone: guardianPhone.trim(),
       guardianRelation: guardianRelation.trim(),
@@ -478,6 +481,7 @@ export default function StudentsScreen() {
     name.trim() ||
     birthDate.trim() ||
     phone.trim() ||
+    loginEmail.trim() ||
     guardianName.trim() ||
     guardianPhone.trim() ||
     guardianRelation.trim() ||
@@ -500,6 +504,7 @@ export default function StudentsScreen() {
       editSnapshot.name !== name ||
       editSnapshot.birthDate !== birthDate ||
       editSnapshot.phone !== phone ||
+      editSnapshot.loginEmail !== loginEmail ||
       editSnapshot.guardianName !== guardianName ||
       editSnapshot.guardianPhone !== guardianPhone ||
       editSnapshot.guardianRelation !== guardianRelation
@@ -514,6 +519,7 @@ export default function StudentsScreen() {
     guardianName,
     guardianPhone,
     guardianRelation,
+    loginEmail,
     name,
     phone,
     unit,
@@ -528,6 +534,7 @@ export default function StudentsScreen() {
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
+    setLoginEmail("");
     setGuardianName("");
     setGuardianPhone("");
     setGuardianRelation("");
@@ -550,6 +557,7 @@ export default function StudentsScreen() {
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
+    setLoginEmail("");
     setGuardianName("");
     setGuardianPhone("");
     setGuardianRelation("");
@@ -644,6 +652,7 @@ export default function StudentsScreen() {
       name: student.name,
       birthDate: student.birthDate ?? "",
       phone: student.phone,
+      loginEmail: student.loginEmail ?? "",
       guardianName: student.guardianName ?? "",
       guardianPhone: student.guardianPhone ?? "",
       guardianRelation: student.guardianRelation ?? "",
@@ -656,6 +665,7 @@ export default function StudentsScreen() {
       setAgeNumber(student.age);
     }
     setPhone(student.phone);
+    setLoginEmail(student.loginEmail ?? "");
     setGuardianName(student.guardianName ?? "");
     setGuardianPhone(student.guardianPhone ?? "");
     setGuardianRelation(student.guardianRelation ?? "");
@@ -786,6 +796,8 @@ export default function StudentsScreen() {
     }
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
+
+  const formatEmail = (value: string) => value.trim().toLowerCase();
 
   const formatName = (value: string) => {
     const particles = new Set([
@@ -1350,6 +1362,29 @@ export default function StudentsScreen() {
                 onChangeText={(value) => setPhone(formatPhone(value))}
                 keyboardType="phone-pad"
                 placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Email do aluno (login)</Text>
+                  <TextInput
+                    placeholder="email@exemplo.com"
+                    value={loginEmail}
+                    onChangeText={setLoginEmail}
+                    onBlur={() => setLoginEmail(formatEmail(loginEmail))}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholderTextColor={colors.placeholder}
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
@@ -2088,6 +2123,30 @@ export default function StudentsScreen() {
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Email do aluno (login)</Text>
+                  <TextInput
+                    placeholder="email@exemplo.com"
+                    value={loginEmail}
+                    onChangeText={setLoginEmail}
+                    onBlur={() => setLoginEmail(formatEmail(loginEmail))}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 10,
+                      fontSize: 13,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do responsavel</Text>
                   <TextInput
                     placeholder="Nome do responsavel"
@@ -2312,7 +2371,3 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-

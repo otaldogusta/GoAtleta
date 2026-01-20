@@ -24,6 +24,7 @@ import { Pressable } from "../src/ui/Pressable";
 
 import type { ClassGroup } from "../src/core/models";
 import { useAuth } from "../src/auth/auth";
+import { useRole } from "../src/auth/role";
 import { flushPendingWrites, getClasses, getPendingWritesCount, seedIfEmpty } from "../src/db/seed";
 import { requestNotificationPermission } from "../src/notifications";
 import {
@@ -35,8 +36,9 @@ import {
 } from "../src/notificationsInbox";
 import { Card } from "../src/ui/Card";
 import { useAppTheme } from "../src/ui/app-theme";
+import StudentHome from "./student-home";
 
-export default function Home() {
+function TrainerHome() {
   const router = useRouter();
   const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -748,6 +750,29 @@ export default function Home() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() => router.push({ pathname: "/absence-notices" })}
+              style={{
+                flexBasis: "48%",
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.06,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 3,
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                Avisos de ausencia
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Alunos ausentes
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => router.push({ pathname: "/exercises" })}
               style={{
                 flexBasis: "48%",
@@ -1099,3 +1124,11 @@ export default function Home() {
   );
 }
 
+export default function Home() {
+  const { role, loading } = useRole();
+  if (loading) return null;
+  if (role === "student") {
+    return <StudentHome />;
+  }
+  return <TrainerHome />;
+}

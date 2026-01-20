@@ -2,6 +2,11 @@
 
 Uso o GoAtleta para planejar, registrar e acompanhar treinos com meus alunos.
 
+## Roadmap
+
+- `ROADMAP.md`
+- `RELEASE_CHECKLIST.md`
+
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started
@@ -98,6 +103,23 @@ Rodar no SQL Editor do Supabase e depois atualizar o schema:
 
 ```sql
 select pg_notify('pgrst', 'reload schema');
+```
+
+## Supabase: auto-link de aluno (login)
+
+Para vincular automaticamente o usuario do aluno ao cadastro (`students.student_user_id`):
+
+1. No cadastro de aluno, preencha o campo "Email do aluno (login)".
+2. Em Supabase > Authentication > Webhooks, crie um webhook de "User created" para:
+   `https://<project>.functions.supabase.co/auto-link-student`
+3. Em Secrets do projeto, defina `SUPABASE_SERVICE_ROLE_KEY` para a Edge Function.
+4. (Opcional) Defina `AUTH_HOOK_SECRET` e use o mesmo valor no header
+   `Authorization: Bearer <secret>` do webhook.
+
+Deploy:
+
+```bash
+supabase functions deploy auto-link-student
 ```
 
 ## Importacao de planejamento (CSV)

@@ -9,7 +9,7 @@ type AuthContextValue = {
   session: AuthSession | null;
   loading: boolean;
   signIn: (email: string, password: string, remember?: boolean) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<AuthSession | null>;
   resetPassword: (email: string, redirectTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -101,10 +101,11 @@ export function AuthProvider({
       };
       setSession(next);
       await saveSession(next, true);
-      return;
+      return next;
     }
     setSession(null);
     await saveSession(null, false);
+    return null;
   }, []);
 
   const resetPassword = useCallback(async (email: string, redirectTo?: string) => {
@@ -141,7 +142,7 @@ export const useAuth = () => {
       session: null,
       loading: false,
       signIn: async () => {},
-      signUp: async () => {},
+      signUp: async () => null,
       resetPassword: async () => {},
       signOut: async () => {},
     };

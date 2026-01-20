@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { useAuth } from "../src/auth/auth";
+import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { useAppTheme } from "../src/ui/app-theme";
 
 export default function SignupScreen() {
@@ -31,6 +32,8 @@ export default function SignupScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [role, setRole] = useState<"student" | "trainer">("student");
+  const [inviteCode, setInviteCode] = useState("");
   const strengthAnim = useRef(new Animated.Value(0)).current;
   const enterAnim = useRef(new Animated.Value(0)).current;
 
@@ -95,16 +98,33 @@ export default function SignupScreen() {
       setMessage("As senhas nao conferem.");
       return;
     }
+    if (role === "trainer" && !inviteCode.trim()) {
+      setMessage("Informe o codigo de convite para treinador.");
+      return;
+    }
     setMessage("");
     setBusy(true);
     try {
-      await signUp(email.trim(), password);
-      setMessage("Conta criada! Verifique o email se precisar confirmar.");
+      const session = await signUp(email.trim(), password);
+      if (role === "trainer") {
+        if (session) {
+          await claimTrainerInvite(inviteCode.trim());
+          setMessage("Conta criada e convite validado.");
+        } else {
+          setMessage(
+            "Conta criada. Confirme o email e depois valide o convite ao entrar."
+          );
+        }
+      } else {
+        setMessage("Conta criada! Verifique o email se precisar confirmar.");
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao cadastrar.";
       const normalized = detail.toLowerCase();
       if (normalized.includes("user already registered")) {
         setMessage("Esse email ja esta cadastrado.");
+      } else if (normalized.includes("invite")) {
+        setMessage("Convite invalido ou expirado.");
       } else if (normalized.includes("weak_password") || normalized.includes("at least 6")) {
         setMessage("A senha precisa ter pelo menos 6 caracteres.");
       } else {
@@ -367,6 +387,77 @@ export default function SignupScreen() {
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     Exemplo: @Senha1234_
                   </Text>
+                </View>
+              ) : null}
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Quero acessar como
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {[
+                    { id: "student", label: "Aluno" },
+                    { id: "trainer", label: "Treinador" },
+                  ].map((option) => {
+                    const active = role === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => {
+                          setRole(option.id as "student" | "trainer");
+                          if (option.id === "student") {
+                            setInviteCode("");
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          alignItems: "center",
+                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: active ? colors.primaryText : colors.text,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {role === "trainer" ? (
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 14,
+                    backgroundColor: colors.inputBg,
+                    overflow: "hidden",
+                  }}
+                >
+                  <TextInput
+                    placeholder="Codigo de convite"
+                    value={inviteCode}
+                    onChangeText={setInviteCode}
+                    placeholderTextColor={colors.placeholder}
+                    autoCapitalize="characters"
+                    style={{
+                      padding: 12,
+                      color: colors.inputText,
+                      backgroundColor: "transparent",
+                      borderWidth: 0,
+                      outlineStyle: "none",
+                      outlineWidth: 0,
+                    }}
+                  />
                 </View>
               ) : null}
 

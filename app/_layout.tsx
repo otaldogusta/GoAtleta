@@ -19,6 +19,7 @@ import { Pressable } from "../src/ui/Pressable";
 
 import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
+import { RoleProvider, useRole } from "../src/auth/role";
 import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
 import { addNotification } from "../src/notificationsInbox";
@@ -52,8 +53,34 @@ function RootLayoutContent() {
   const lastPathRef = useRef<string | null>(null);
   const rootState = useRootNavigationState();
   const { session, loading } = useAuth();
+  const { role, loading: roleLoading } = useRole();
   const navReady = Boolean(rootState?.key);
-  const publicRoutes = ["/welcome", "/login", "/signup", "/reset-password"];
+  const publicRoutes = [
+    "/welcome",
+    "/login",
+    "/signup",
+    "/reset-password",
+    ...(__DEV__ ? ["/admin"] : []),
+  ];
+  const studentOnlyRoutes = [
+    "/absence-report",
+    "/communications",
+    "/profile",
+    "/student-plan",
+  ];
+  const trainerOnlyPrefixes = [
+    "/absence-notices",
+    "/assistant",
+    "/calendar",
+    "/class",
+    "/classes",
+    "/exercises",
+    "/periodization",
+    "/reports",
+    "/students",
+    "/training",
+    "/whatsapp-settings",
+  ];
   const canGoBack =
     Platform.OS === "web" &&
     pathname !== "/" &&
@@ -69,9 +96,35 @@ function RootLayoutContent() {
   useEffect(() => {
     if (!navReady) return;
     if (loading) return;
+    if (roleLoading) return;
     const timer = setTimeout(() => {
       if (!session && !publicRoutes.includes(pathname)) {
         router.replace("/welcome");
+        return;
+      }
+      if (session && role === "pending" && pathname !== "/pending") {
+        router.replace("/pending");
+        return;
+      }
+      if (session && role === "trainer" && pathname === "/pending") {
+        router.replace("/");
+        return;
+      }
+      if (session && role === "student" && pathname === "/pending") {
+        router.replace("/");
+        return;
+      }
+      if (session && role === "student") {
+        const blocked = trainerOnlyPrefixes.some((prefix) =>
+          pathname.startsWith(prefix)
+        );
+        if (blocked) {
+          router.replace("/");
+          return;
+        }
+      }
+      if (session && role === "trainer" && studentOnlyRoutes.includes(pathname)) {
+        router.replace("/");
         return;
       }
       if (session && ["/welcome", "/login", "/signup"].includes(pathname)) {
@@ -79,7 +132,7 @@ function RootLayoutContent() {
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, [loading, navReady, pathname, router, session]);
+  }, [loading, navReady, pathname, router, role, roleLoading, session]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -263,17 +316,19 @@ function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
     <AuthProvider initialSession={data?.session ?? null}>
-      <WhatsAppSettingsProvider>
-        <ConfirmDialogProvider>
-          <ConfirmUndoProvider>
-            <SaveToastProvider>
-              <GuidanceProvider>
-                <RootLayoutContent />
-              </GuidanceProvider>
-            </SaveToastProvider>
-          </ConfirmUndoProvider>
-        </ConfirmDialogProvider>
-      </WhatsAppSettingsProvider>
+      <RoleProvider>
+        <WhatsAppSettingsProvider>
+          <ConfirmDialogProvider>
+            <ConfirmUndoProvider>
+              <SaveToastProvider>
+                <GuidanceProvider>
+                  <RootLayoutContent />
+                </GuidanceProvider>
+              </SaveToastProvider>
+            </ConfirmUndoProvider>
+          </ConfirmDialogProvider>
+        </WhatsAppSettingsProvider>
+      </RoleProvider>
     </AuthProvider>
   );
 }

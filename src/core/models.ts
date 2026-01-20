@@ -100,6 +100,7 @@ export type Student = {
   classId: string;
   age: number;
   phone: string;
+  loginEmail?: string;
   guardianName?: string;
   guardianPhone?: string;
   guardianRelation?: string;
@@ -115,6 +116,19 @@ export type AttendanceRecord = {
   status: "presente" | "faltou";
   note: string;
   painScore?: number;
+  createdAt: string;
+};
+
+export type AbsenceNoticeStatus = "pending" | "confirmed" | "ignored";
+
+export type AbsenceNotice = {
+  id: string;
+  studentId: string;
+  classId: string;
+  date: string;
+  reason: string;
+  note?: string;
+  status: AbsenceNoticeStatus;
   createdAt: string;
 };
 
