@@ -3,9 +3,5 @@
   "outputDirectory": "dist",
   "devCommand": "npm run web",
   "installCommand": "npm install",
-  "framework": null,
-  "env": {
-    "EXPO_PUBLIC_SUPABASE_URL": "@expo_public_supabase_url",
-    "EXPO_PUBLIC_SUPABASE_ANON_KEY": "@expo_public_supabase_anon_key"
-  }
+  "framework": null
 }
