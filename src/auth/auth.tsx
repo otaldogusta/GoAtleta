@@ -160,14 +160,14 @@ export function AuthProvider({
 
   const signInWithOAuth = useCallback(
     async (provider: "google" | "facebook" | "apple", redirectPath?: string) => {
-      // For web, redirect directly to Supabase authorize
+      // For web, redirect to Supabase authorize with callback page
       if (Platform.OS === "web") {
         const authUrl =
           SUPABASE_URL.replace(/\/$/, "") +
           `/auth/v1/authorize?provider=${encodeURIComponent(
             provider
           )}&response_type=code&redirect_to=${encodeURIComponent(
-            window.location.origin + "/" + (redirectPath ?? "").replace(/^\//, "")
+            window.location.origin + "/auth-callback"
           )}`;
         window.location.href = authUrl;
         return;
