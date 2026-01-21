@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import type { AuthSession } from "./session";
@@ -159,6 +160,20 @@ export function AuthProvider({
 
   const signInWithOAuth = useCallback(
     async (provider: "google" | "facebook" | "apple", redirectPath?: string) => {
+      // For web, redirect directly to Supabase authorize
+      if (Platform.OS === "web") {
+        const authUrl =
+          SUPABASE_URL.replace(/\/$/, "") +
+          `/auth/v1/authorize?provider=${encodeURIComponent(
+            provider
+          )}&response_type=code&redirect_to=${encodeURIComponent(
+            window.location.origin + "/" + (redirectPath ?? "").replace(/^\//, "")
+          )}`;
+        window.location.href = authUrl;
+        return;
+      }
+
+      // For mobile, use WebBrowser
       const redirectTo = buildRedirectUrl(redirectPath);
       const authUrl =
         SUPABASE_URL.replace(/\/$/, "") +

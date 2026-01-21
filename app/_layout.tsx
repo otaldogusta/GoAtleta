@@ -152,6 +152,12 @@ function RootLayoutContent() {
     if (type === "recovery" && accessToken) {
       const next = `/reset-password?access_token=${encodeURIComponent(accessToken)}`;
       window.location.replace(next);
+      return;
+    }
+    // Handle OAuth redirect with access_token
+    if (accessToken) {
+      window.location.replace("/");
+      return;
     }
   }, []);
 
