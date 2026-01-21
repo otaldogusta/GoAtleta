@@ -164,19 +164,30 @@ export function AuthProvider({
         SUPABASE_URL.replace(/\/$/, "") +
         `/auth/v1/authorize?provider=${encodeURIComponent(
           provider
-        )}&redirect_to=${encodeURIComponent(redirectTo)}&response_type=token`;
+        )}&redirect_to=${encodeURIComponent(redirectTo)}&response_type=code&skip_http_redirect=true`;
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectTo);
       if (result.type !== "success") {
         throw new Error("OAuth cancelado.");
       }
-      const sessionData = parseOAuthSession(result.url);
-      if (!sessionData?.access_token) {
+      
+      // Extract code from the URL
+      const url = new URL(result.url);
+      const code = url.searchParams.get("code");
+      
+      if (!code) {
         throw new Error("Falha ao autenticar.");
       }
-      const user = await fetchUser(sessionData.access_token);
+      
+      // Exchange code for session
+      const payload = await authFetch("/auth/v1/token?grant_type=authorization_code", {
+        code,
+      });
+      
       const next: AuthSession = {
-        ...sessionData,
-        user: user ?? sessionData.user,
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token,
+        expires_at: payload.expires_at,
+        user: payload.user,
       };
       setSession(next);
       await saveSession(next, true);
