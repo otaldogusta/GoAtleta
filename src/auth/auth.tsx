@@ -14,6 +14,7 @@ type AuthContextValue = {
   signIn: (email: string, password: string, remember?: boolean) => Promise<void>;
   signUp: (email: string, password: string) => Promise<AuthSession | null>;
   signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath?: string) => Promise<void>;
+  exchangeCodeForSession: (code: string) => Promise<void>;
   resetPassword: (email: string, redirectTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -210,6 +211,20 @@ export function AuthProvider({
     []
   );
 
+  const exchangeCodeForSession = useCallback(async (code: string) => {
+    const payload = await authFetch("/auth/v1/token?grant_type=authorization_code", {
+      code,
+    });
+    const next: AuthSession = {
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+      expires_at: payload.expires_at,
+      user: payload.user,
+    };
+    setSession(next);
+    await saveSession(next, true);
+  }, []);
+
   const resetPassword = useCallback(async (email: string, redirectTo?: string) => {
     await authFetch("/auth/v1/recover", {
       email,
@@ -229,10 +244,11 @@ export function AuthProvider({
       signIn,
       signUp,
       signInWithOAuth,
+      exchangeCodeForSession,
       resetPassword,
       signOut,
     }),
-    [loading, resetPassword, session, signIn, signInWithOAuth, signOut, signUp]
+    [loading, resetPassword, session, signIn, signInWithOAuth, exchangeCodeForSession, signOut, signUp]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -246,6 +262,8 @@ export const useAuth = () => {
       loading: false,
       signIn: async () => {},
       signUp: async () => null,
+      signInWithOAuth: async () => {},
+      exchangeCodeForSession: async () => {},
       resetPassword: async () => {},
       signOut: async () => {},
     };

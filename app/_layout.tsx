@@ -1,19 +1,19 @@
 import * as Notifications from "expo-notifications";
 import {
-  Stack,
-  usePathname,
-  useRootNavigationState,
-  useRouter,
+    Stack,
+    usePathname,
+    useRootNavigationState,
+    useRouter,
 } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
-  useEffect,
-  useRef
+    useEffect,
+    useRef
 } from "react";
 import {
-  Platform,
-  Text,
-  View
+    Platform,
+    Text,
+    View
 } from "react-native";
 import { Pressable } from "../src/ui/Pressable";
 
@@ -55,7 +55,7 @@ function RootLayoutContent() {
   const pathname = usePathname();
   const lastPathRef = useRef<string | null>(null);
   const rootState = useRootNavigationState();
-  const { session, loading } = useAuth();
+  const { session, loading, exchangeCodeForSession } = useAuth();
   const { role, loading: roleLoading } = useRole();
   const navReady = Boolean(rootState?.key);
   const publicRoutes = [
@@ -144,6 +144,24 @@ function RootLayoutContent() {
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (typeof window === "undefined") return;
+    
+    // Process OAuth code from query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    if (code) {
+      exchangeCodeForSession(code).then(() => {
+        // Clean up URL
+        const newUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+        router.replace("/");
+      }).catch((err) => {
+        console.error("Failed to exchange OAuth code:", err);
+        router.replace("/welcome");
+      });
+      return;
+    }
+    
+    // Process password recovery from hash
     const hash = window.location.hash.replace(/^#/, "");
     if (!hash) return;
     const params = new URLSearchParams(hash);
@@ -154,12 +172,7 @@ function RootLayoutContent() {
       window.location.replace(next);
       return;
     }
-    // Handle OAuth redirect with access_token
-    if (accessToken) {
-      window.location.replace("/");
-      return;
-    }
-  }, []);
+  }, [exchangeCodeForSession, router]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
