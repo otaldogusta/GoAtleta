@@ -1,12 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import type { AuthSession } from "./session";
 import { loadSession, saveSession } from "./session";
-import { clearSentryUser, setSentryUser } from "../observability/sentry";
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -160,14 +160,14 @@ export function AuthProvider({
 
   const signInWithOAuth = useCallback(
     async (provider: "google" | "facebook" | "apple", redirectPath?: string) => {
-      // For web, redirect to Supabase authorize with callback page
+      // For web, redirect directly to Supabase with custom scheme
       if (Platform.OS === "web") {
         const authUrl =
           SUPABASE_URL.replace(/\/$/, "") +
           `/auth/v1/authorize?provider=${encodeURIComponent(
             provider
           )}&response_type=code&redirect_to=${encodeURIComponent(
-            window.location.origin + "/auth-callback"
+            window.location.origin
           )}`;
         window.location.href = authUrl;
         return;
