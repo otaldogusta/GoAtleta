@@ -860,7 +860,9 @@ export default function ClassDetails() {
                 style={{ flex: 1 }}
                 {...(Platform.OS === 'web' ? { 'data-template-scroll-class': true } : {})}
               >
-              {Object.values(WHATSAPP_TEMPLATES).map((template) => {
+              {Object.values(WHATSAPP_TEMPLATES)
+                .filter((template) => template.id !== "student_invite")
+                .map((template) => {
                 const isSelected = selectedTemplateId === template.id;
                 const nextClassDate = calculateNextClassDate(daysOfWeek);
                 
@@ -1228,7 +1230,6 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
-
 
 
 

@@ -79,6 +79,7 @@ export default function SessionScreen() {
   const [studentsCount, setStudentsCount] = useState(0);
   const [didAutoReport, setDidAutoReport] = useState(false);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
+  const [showAppliedPreview, setShowAppliedPreview] = useState(false);
   const [PSE, setPSE] = useState<number>(0);
   const [technique, setTechnique] = useState<"boa" | "ok" | "ruim" | "nenhum">(
     "nenhum"
@@ -748,10 +749,12 @@ export default function SessionScreen() {
       <View
         style={{
           flexDirection: "row",
-          gap: 8,
+          gap: 6,
           backgroundColor: colors.secondaryBg,
           padding: 6,
           borderRadius: 999,
+          borderWidth: 1,
+          borderColor: colors.border,
           marginBottom: 12,
         }}
       >
@@ -768,16 +771,18 @@ export default function SessionScreen() {
                 flex: 1,
                 paddingVertical: 8,
                 borderRadius: 999,
-                backgroundColor: selected ? colors.primaryBg : "transparent",
+                backgroundColor: selected ? colors.primaryBg : colors.card,
+                borderWidth: selected ? 0 : 1,
+                borderColor: selected ? "transparent" : colors.border,
                 alignItems: "center",
               }}
             >
               <Text
                 numberOfLines={1}
                 style={{
-                  color: selected ? colors.primaryText : colors.text,
+                  color: selected ? colors.primaryText : colors.muted,
                   fontWeight: "700",
-                  fontSize: 11,
+                  fontSize: 12,
                 }}
               >
                 {tab.label}
@@ -1304,36 +1309,58 @@ export default function SessionScreen() {
                   gap: 6,
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                  Preview do treino aplicado
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {autoActivity}
-                </Text>
-                <Pressable
-                  onPress={handleApplyAutoActivity}
-                  disabled={!canApplyAutoActivity}
+                <View
                   style={{
-                    alignSelf: "flex-start",
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    backgroundColor: canApplyAutoActivity
-                      ? colors.primaryBg
-                      : colors.secondaryBg,
-                    opacity: canApplyAutoActivity ? 1 : 0.6,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
                   }}
                 >
-                  <Text
-                    style={{
-                      color: canApplyAutoActivity ? colors.primaryText : colors.muted,
-                      fontWeight: "700",
-                      fontSize: 12,
-                    }}
-                  >
-                    Aplicar do treino
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                      Preview do treino aplicado
+                    </Text>
+                    <Pressable
+                      onPress={handleApplyAutoActivity}
+                      disabled={!canApplyAutoActivity}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: canApplyAutoActivity
+                          ? colors.primaryBg
+                          : colors.secondaryBg,
+                        opacity: canApplyAutoActivity ? 1 : 0.6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: canApplyAutoActivity ? colors.primaryText : colors.muted,
+                          fontWeight: "700",
+                          fontSize: 12,
+                        }}
+                      >
+                        Aplicar
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable onPress={() => setShowAppliedPreview((prev) => !prev)}>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [{ rotate: showAppliedPreview ? "180deg" : "0deg" }],
+                      }}
+                    />
+                  </Pressable>
+                </View>
+                {showAppliedPreview ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {autoActivity}
                   </Text>
-                </Pressable>
+                ) : null}
                 {!canApplyAutoActivity ? (
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
                     Limpe o campo para aplicar do treino.
@@ -1494,6 +1521,3 @@ export default function SessionScreen() {
     </SafeAreaView>
   );
 }
-
-
-

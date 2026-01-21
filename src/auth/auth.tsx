@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import type { AuthSession } from "./session";
@@ -10,6 +12,7 @@ type AuthContextValue = {
   loading: boolean;
   signIn: (email: string, password: string, remember?: boolean) => Promise<void>;
   signUp: (email: string, password: string) => Promise<AuthSession | null>;
+  signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath?: string) => Promise<void>;
   resetPassword: (email: string, redirectTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -31,6 +34,52 @@ const authFetch = async (path: string, body: Record<string, unknown>) => {
     throw new Error(text || "Falha na autenticacao.");
   }
   return text ? (JSON.parse(text) as Record<string, any>) : {};
+};
+
+const parseOAuthSession = (url?: string) => {
+  if (!url) return null;
+  const [base, hash] = url.split("#");
+  const query = hash || (base.includes("?") ? base.split("?")[1] : "");
+  if (!query) return null;
+  const params = new URLSearchParams(query);
+  const accessToken = params.get("access_token") ?? "";
+  if (!accessToken) return null;
+  const refreshToken = params.get("refresh_token") ?? "";
+  const expiresAtRaw = params.get("expires_at");
+  const expiresInRaw = params.get("expires_in");
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expiresAt =
+    expiresAtRaw && Number.isFinite(Number(expiresAtRaw))
+      ? Number(expiresAtRaw)
+      : expiresInRaw && Number.isFinite(Number(expiresInRaw))
+      ? nowSeconds + Number(expiresInRaw)
+      : undefined;
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_at: expiresAt,
+  } as AuthSession;
+};
+
+const buildRedirectUrl = (path?: string) => {
+  const normalized = (path ?? "login").replace(/^\/+/, "");
+  return Linking.createURL(normalized);
+};
+
+const fetchUser = async (accessToken: string) => {
+  const res = await fetch(SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user", {
+    method: "GET",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) return null;
+  const text = await res.text();
+  if (!text) return null;
+  const payload = JSON.parse(text) as { id?: string; email?: string };
+  return payload?.id ? payload : null;
 };
 
 export function AuthProvider({
@@ -108,6 +157,33 @@ export function AuthProvider({
     return null;
   }, []);
 
+  const signInWithOAuth = useCallback(
+    async (provider: "google" | "facebook" | "apple", redirectPath?: string) => {
+      const redirectTo = buildRedirectUrl(redirectPath);
+      const authUrl =
+        SUPABASE_URL.replace(/\/$/, "") +
+        `/auth/v1/authorize?provider=${encodeURIComponent(
+          provider
+        )}&redirect_to=${encodeURIComponent(redirectTo)}&response_type=token`;
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectTo);
+      if (result.type !== "success") {
+        throw new Error("OAuth cancelado.");
+      }
+      const sessionData = parseOAuthSession(result.url);
+      if (!sessionData?.access_token) {
+        throw new Error("Falha ao autenticar.");
+      }
+      const user = await fetchUser(sessionData.access_token);
+      const next: AuthSession = {
+        ...sessionData,
+        user: user ?? sessionData.user,
+      };
+      setSession(next);
+      await saveSession(next, true);
+    },
+    []
+  );
+
   const resetPassword = useCallback(async (email: string, redirectTo?: string) => {
     await authFetch("/auth/v1/recover", {
       email,
@@ -126,10 +202,11 @@ export function AuthProvider({
       loading,
       signIn,
       signUp,
+      signInWithOAuth,
       resetPassword,
       signOut,
     }),
-    [loading, resetPassword, session, signIn, signOut, signUp]
+    [loading, resetPassword, session, signIn, signInWithOAuth, signOut, signUp]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

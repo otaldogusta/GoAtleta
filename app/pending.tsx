@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
+import { claimStudentInvite } from "../src/api/student-invite";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -15,6 +16,15 @@ export default function PendingScreen() {
   const [busy, setBusy] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [message, setMessage] = useState("");
+  const [studentInviteInput, setStudentInviteInput] = useState("");
+  const [studentMessage, setStudentMessage] = useState("");
+
+  const extractStudentToken = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    const match = trimmed.match(/invite\/([^/?#]+)/i);
+    return match?.[1] ?? trimmed;
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -91,6 +101,78 @@ export default function PendingScreen() {
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
               Validar convite
+            </Text>
+          </Pressable>
+        </View>
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 16,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
+            Convite de aluno
+          </Text>
+          <Text style={{ color: colors.muted }}>
+            Cole o link do convite para vincular sua conta.
+          </Text>
+          <TextInput
+            placeholder="Link ou token do convite"
+            value={studentInviteInput}
+            onChangeText={setStudentInviteInput}
+            placeholderTextColor={colors.placeholder}
+            autoCapitalize="none"
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 10,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          {studentMessage ? (
+            <Text style={{ color: colors.muted }}>{studentMessage}</Text>
+          ) : null}
+          <Pressable
+            onPress={async () => {
+              const token = extractStudentToken(studentInviteInput);
+              if (!token) {
+                setStudentMessage("Informe o convite.");
+                return;
+              }
+              setStudentMessage("");
+              try {
+                await claimStudentInvite(token);
+                await refresh();
+                setStudentMessage("Convite vinculado com sucesso.");
+              } catch (error) {
+                const detail = error instanceof Error ? error.message : "";
+                const lower = detail.toLowerCase();
+                setStudentMessage(
+                  lower.includes("expired")
+                    ? "Convite expirado."
+                    : lower.includes("used")
+                    ? "Convite ja utilizado."
+                    : "Nao foi possivel validar o convite."
+                );
+              }
+            }}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Vincular convite
             </Text>
           </Pressable>
         </View>

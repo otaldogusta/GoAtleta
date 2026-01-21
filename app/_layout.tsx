@@ -32,15 +32,18 @@ import { GuidanceProvider } from "../src/ui/guidance";
 import { SaveToastProvider } from "../src/ui/save-toast";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 
+const enableSentryPii = __DEV__;
+const enableSentryLogs = __DEV__;
+
 Sentry.init({
   dsn: 'https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320',
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
-  sendDefaultPii: true,
+  sendDefaultPii: enableSentryPii,
 
   // Enable Logs
-  enableLogs: true,
+  enableLogs: enableSentryLogs,
 
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
@@ -62,11 +65,13 @@ function RootLayoutContent() {
     "/reset-password",
     ...(__DEV__ ? ["/admin"] : []),
   ];
+  const publicPrefixes = ["/invite"];
   const studentOnlyRoutes = [
     "/absence-report",
     "/communications",
     "/profile",
     "/student-plan",
+    "/student-home",
   ];
   const trainerOnlyPrefixes = [
     "/absence-notices",
@@ -81,10 +86,14 @@ function RootLayoutContent() {
     "/training",
     "/whatsapp-settings",
   ];
+  const isInviteRoute = pathname.startsWith("/invite");
+  const isPublicRoute =
+    publicRoutes.includes(pathname) ||
+    publicPrefixes.some((prefix) => pathname.startsWith(prefix));
   const canGoBack =
     Platform.OS === "web" &&
     pathname !== "/" &&
-    !publicRoutes.includes(pathname);
+    !isPublicRoute;
 
   useEffect(() => {
     if (!pathname) return;
@@ -97,42 +106,40 @@ function RootLayoutContent() {
     if (!navReady) return;
     if (loading) return;
     if (roleLoading) return;
-    const timer = setTimeout(() => {
-      if (!session && !publicRoutes.includes(pathname)) {
-        router.replace("/welcome");
-        return;
-      }
-      if (session && role === "pending" && pathname !== "/pending") {
-        router.replace("/pending");
-        return;
-      }
-      if (session && role === "trainer" && pathname === "/pending") {
+    if (session && role === null) return;
+    if (!session && !isPublicRoute) {
+      router.replace("/welcome");
+      return;
+    }
+    if (session && role === "pending" && pathname !== "/pending" && !isInviteRoute) {
+      router.replace("/pending");
+      return;
+    }
+    if (session && role === "trainer" && pathname === "/pending") {
+      router.replace("/");
+      return;
+    }
+    if (session && role === "student" && pathname === "/pending") {
+      router.replace("/");
+      return;
+    }
+    if (session && role === "student") {
+      const blocked = trainerOnlyPrefixes.some((prefix) =>
+        pathname.startsWith(prefix)
+      );
+      if (blocked) {
         router.replace("/");
         return;
       }
-      if (session && role === "student" && pathname === "/pending") {
-        router.replace("/");
-        return;
-      }
-      if (session && role === "student") {
-        const blocked = trainerOnlyPrefixes.some((prefix) =>
-          pathname.startsWith(prefix)
-        );
-        if (blocked) {
-          router.replace("/");
-          return;
-        }
-      }
-      if (session && role === "trainer" && studentOnlyRoutes.includes(pathname)) {
-        router.replace("/");
-        return;
-      }
-      if (session && ["/welcome", "/login", "/signup"].includes(pathname)) {
-        router.replace("/");
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [loading, navReady, pathname, router, role, roleLoading, session]);
+    }
+    if (session && role === "trainer" && studentOnlyRoutes.includes(pathname)) {
+      router.replace("/");
+      return;
+    }
+    if (session && ["/welcome", "/login", "/signup"].includes(pathname)) {
+      router.replace("/");
+    }
+  }, [isInviteRoute, isPublicRoute, loading, navReady, pathname, router, role, roleLoading, session]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -240,7 +247,7 @@ textarea:-webkit-autofill:active {
         }}
       >
       </Stack>
-      {loading ? (
+      {loading || roleLoading ? (
         <View
           style={{
             position: "absolute",

@@ -27,7 +27,7 @@ import { ScreenHeader } from "../src/ui/ScreenHeader";
 
 export default function LoginScreen() {
   const { colors } = useAppTheme();
-  const { signIn, resetPassword } = useAuth();
+  const { signIn, resetPassword, signInWithOAuth } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -186,6 +186,24 @@ export default function LoginScreen() {
         detail.toLowerCase().includes("rate limit")
           ? "Aguarde alguns minutos e tente novamente."
           : "Nao foi possivel enviar o link. Verifique o email e tente novamente."
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOAuth = async (provider: "google" | "facebook" | "apple") => {
+    setMessage("");
+    setBusy(true);
+    try {
+      await signInWithOAuth(provider);
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message.toLowerCase() : "Falha ao autenticar.";
+      setMessage(
+        detail.includes("cancel")
+          ? "Login cancelado."
+          : "Nao foi possivel entrar com essa conta."
       );
     } finally {
       setBusy(false);
@@ -451,7 +469,9 @@ export default function LoginScreen() {
                       ].map((provider) => (
                         <Pressable
                           key={provider.label}
-                          onPress={() => {}}
+                          onPress={() =>
+                            handleOAuth(provider.label.toLowerCase() as "google" | "facebook" | "apple")
+                          }
                           style={{
                             width: 48,
                             height: 48,

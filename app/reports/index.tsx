@@ -6,6 +6,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Pressable } from "../../src/ui/Pressable";
 
 import type { AttendanceRecord, ClassGroup, SessionLog, Student } from "../../src/core/models";
@@ -44,14 +45,60 @@ const monthLabel = (date: Date) => {
   return `${names[date.getMonth()]} ${date.getFullYear()}`;
 };
 
+const formatDateLabel = (iso: string) => {
+  const date = iso.split("T")[0];
+  const parts = date.split("-");
+  if (parts.length !== 3) return date;
+  return parts.reverse().join("/");
+};
+
 export default function ReportsScreen() {
   const { colors } = useAppTheme();
+  const router = useRouter();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
   const [month, setMonth] = useState(new Date());
   const [classId, setClassId] = useState<string>("all");
+  const reportTabs = [
+    { id: "month" as const, label: "Mes atual" },
+    { id: "reports" as const, label: "Relatorios" },
+    { id: "students" as const, label: "Alertas" },
+  ];
+  type ReportTabId = (typeof reportTabs)[number]["id"];
+  const [reportTab, setReportTab] = useState<ReportTabId>("month");
+  const cardStyle = {
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+    gap: 12,
+  };
+  const insetCardStyle = {
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+  };
+  const sectionTitleStyle = {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+  };
+  const dividerStyle = {
+    height: 1,
+    backgroundColor: colors.border,
+    opacity: 0.5,
+  };
 
   useEffect(() => {
     let alive = true;
@@ -128,14 +175,32 @@ export default function ReportsScreen() {
     return { total, present, absent, percent };
   }, [monthAttendance]);
 
+  const uniqueSessionLogs = useMemo(() => {
+    const sorted = [...sessionLogs].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt)
+    );
+    const unique: SessionLog[] = [];
+    const seen = new Set<string>();
+    sorted.forEach((log) => {
+      const dateKey = log.createdAt.split("T")[0];
+      const key = `${log.classId}_${dateKey}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(log);
+    });
+    return unique;
+  }, [sessionLogs]);
+
   const pseSummary = useMemo(() => {
-    const valid = sessionLogs.filter((log) => typeof log.PSE === "number");
+    const valid = uniqueSessionLogs.filter(
+      (log) => typeof log.PSE === "number"
+    );
     if (!valid.length) {
       return { avg: null, total: 0 };
     }
     const sum = valid.reduce((acc, log) => acc + (log.PSE ?? 0), 0);
     return { avg: sum / valid.length, total: valid.length };
-  }, [sessionLogs]);
+  }, [uniqueSessionLogs]);
 
   const studentsForClass = useMemo(() => {
     if (classId === "all") return students;
@@ -211,6 +276,22 @@ export default function ReportsScreen() {
       return { cls, total, present, percent };
     });
   }, [classes, attendanceByClass]);
+
+  const sessionLogRows = useMemo(() => {
+    return uniqueSessionLogs
+      .map((log) => {
+        const cls = classMap[log.classId];
+        const className = cls?.name ?? "Turma";
+        const dateKey = log.createdAt.split("T")[0];
+        return {
+          log,
+          className,
+          classGender: cls?.gender,
+          dateKey,
+          dateLabel: formatDateLabel(log.createdAt),
+        };
+      });
+  }, [classMap, uniqueSessionLogs]);
 
   const avgPresenceByClass = useMemo(() => {
     if (!classRows.length) return null;
@@ -301,79 +382,108 @@ export default function ReportsScreen() {
 
         <View
           style={{
-            padding: 16,
-            borderRadius: 22,
-            backgroundColor: colors.card,
+            flexDirection: "row",
+            gap: 6,
+            backgroundColor: colors.secondaryBg,
+            padding: 6,
+            borderRadius: 999,
             borderWidth: 1,
             borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 3,
-            gap: 12,
           }}
         >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Mes atual
-            </Text>
-            <Pressable
-              onPress={exportCsv}
+          {reportTabs.map((tab) => {
+            const selected = reportTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                onPress={() => setReportTab(tab.id)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: selected ? colors.primaryBg : colors.card,
+                  borderWidth: selected ? 0 : 1,
+                  borderColor: selected ? "transparent" : colors.border,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: selected ? colors.primaryText : colors.muted,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {reportTab === "month" ? (
+        <View style={cardStyle}>
+          <View style={{ gap: 8 }}>
+            <View
               style={{
-                paddingVertical: 6,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.primaryBg,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
               }}
             >
-              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                Exportar CSV
+              <Text style={sectionTitleStyle}>Mes atual</Text>
+              <Pressable
+                onPress={exportCsv}
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                  borderRadius: 999,
+                  backgroundColor: colors.primaryBg,
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                  Exportar CSV
+                </Text>
+              </Pressable>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Pressable
+                onPress={() => setMonth((m) => nextMonth(m, -1))}
+                style={{ padding: 8 }}
+              >
+                <Text style={{ fontSize: 18, color: colors.text }}>{"<"}</Text>
+              </Pressable>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                {monthLabel(month)}
               </Text>
-            </Pressable>
-          </View>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Pressable
-              onPress={() => setMonth((m) => nextMonth(m, -1))}
-              style={{ padding: 8 }}
-            >
-              <Text style={{ fontSize: 18, color: colors.text }}>{"<"}</Text>
-            </Pressable>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              {monthLabel(month)}
-            </Text>
-            <Pressable
-              onPress={() => setMonth((m) => nextMonth(m, 1))}
-              style={{ padding: 8 }}
-            >
-              <Text style={{ fontSize: 18, color: colors.text }}>{">"}</Text>
-            </Pressable>
+              <Pressable
+                onPress={() => setMonth((m) => nextMonth(m, 1))}
+                style={{ padding: 8 }}
+              >
+                <Text style={{ fontSize: 18, color: colors.text }}>{">"}</Text>
+              </Pressable>
+            </View>
           </View>
 
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
             {statCards.map((card) => (
               <View
                 key={card.label}
                 style={{
                   flexBasis: "48%",
-                  padding: 14,
+                  padding: 12,
                   borderRadius: 16,
                   backgroundColor: colors.inputBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  gap: 6,
+                  gap: 4,
                 }}
               >
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -386,19 +496,8 @@ export default function ReportsScreen() {
             ))}
           </View>
 
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 18,
-              backgroundColor: colors.inputBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              gap: 10,
-            }}
-          >
-            <Text style={{ fontWeight: "700", color: colors.text }}>
-              Presenca geral
-            </Text>
+          <View style={insetCardStyle}>
+            <Text style={sectionTitleStyle}>Presenca geral</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
               <View
                 style={{
@@ -428,85 +527,58 @@ export default function ReportsScreen() {
                 </Text>
               </View>
             </View>
-          </View>
-        </View>
-
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 22,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 3,
-            gap: 12,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Evolucao semanal
-          </Text>
-          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
-            {weeklySummary.map((week) => (
-              <View key={week.label} style={{ alignItems: "center", gap: 6 }}>
-                <View
-                  style={{
-                    width: 22,
-                    height: 80,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    overflow: "hidden",
-                  }}
-                >
-                  <View
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      width: "100%",
-                      height: `${week.percent}%`,
-                      backgroundColor: colors.primaryBg,
-                    }}
-                  />
-                </View>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {week.label}
-                </Text>
+            <View style={dividerStyle} />
+            <View style={{ gap: 8 }}>
+              <Text style={sectionTitleStyle}>Evolucao semanal</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-end",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                {weeklySummary.map((week) => (
+                  <View key={week.label} style={{ alignItems: "center", gap: 6 }}>
+                    <View
+                      style={{
+                        width: 18,
+                        height: 64,
+                        borderRadius: 10,
+                        backgroundColor: colors.secondaryBg,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <View
+                        style={{
+                          position: "absolute",
+                          bottom: 0,
+                          width: "100%",
+                          height: `${week.percent}%`,
+                          backgroundColor: colors.primaryBg,
+                        }}
+                      />
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {week.label}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
+            </View>
           </View>
         </View>
+        ) : null}
 
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 22,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 3,
-            gap: 12,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Alertas rapidos
-          </Text>
+        {reportTab === "students" ? (
+        <View style={cardStyle}>
+          <Text style={sectionTitleStyle}>Alertas rapidos</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View
-              style={{
-                flex: 1,
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: colors.dangerBg,
-                borderWidth: 1,
-                borderColor: colors.dangerBorder,
-              }}
+              style={[
+                insetCardStyle,
+                { flex: 1, backgroundColor: colors.dangerBg, borderColor: colors.dangerBorder },
+              ]}
             >
               <Text style={{ fontWeight: "700", color: colors.dangerText }}>
                 Ausencias seguidas
@@ -516,14 +588,10 @@ export default function ReportsScreen() {
               </Text>
             </View>
             <View
-              style={{
-                flex: 1,
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: colors.warningBg,
-                borderWidth: 1,
-                borderColor: colors.warningBg,
-              }}
+              style={[
+                insetCardStyle,
+                { flex: 1, backgroundColor: colors.warningBg, borderColor: colors.warningBg },
+              ]}
             >
               <Text style={{ fontWeight: "700", color: colors.warningText }}>
                 Inativos
@@ -534,37 +602,58 @@ export default function ReportsScreen() {
             </View>
           </View>
         </View>
+        ) : null}
 
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 22,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 3,
-            gap: 12,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Turmas (mes atual)
-          </Text>
+        {reportTab === "reports" ? (
+        <View style={cardStyle}>
+          <Text style={sectionTitleStyle}>Relatorios do mes</Text>
+          {sessionLogRows.length ? (
+            <View style={{ gap: 10 }}>
+              {sessionLogRows.map((row) => (
+                <Pressable
+                  key={`${row.log.classId}_${row.log.createdAt}`}
+                  onPress={() => {
+                    router.push({
+                      pathname: "/class/[id]/session",
+                      params: { id: row.log.classId, date: row.dateKey, tab: "relatorio" },
+                    });
+                  }}
+                  style={insetCardStyle}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ fontWeight: "700", color: colors.text }}>
+                        {row.className}
+                      </Text>
+                      {row.classGender ? (
+                        <ClassGenderBadge gender={row.classGender} size="sm" />
+                      ) : null}
+                    </View>
+                    <Text style={{ color: colors.muted }}>{row.dateLabel}</Text>
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    PSE: {row.log.PSE} | Tecnica: {row.log.technique} | Presenca:{" "}
+                    {Math.round(row.log.attendance)}%
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={{ color: colors.muted }}>
+              Nenhum relatorio registrado neste mes.
+            </Text>
+          )}
+        </View>
+        ) : null}
+
+        {reportTab === "month" ? (
+        <View style={cardStyle}>
+          <Text style={sectionTitleStyle}>Turmas (mes atual)</Text>
           <View style={{ gap: 10 }}>
             {classRows.map((row) => (
               <View
                 key={row.cls.id}
-                style={{
-                  padding: 12,
-                  borderRadius: 14,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 6,
-                }}
+                style={insetCardStyle}
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -598,25 +687,11 @@ export default function ReportsScreen() {
             ))}
           </View>
         </View>
+        ) : null}
 
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 22,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.06,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 3,
-            gap: 12,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Alunos destaque
-          </Text>
+        {reportTab === "students" ? (
+        <View style={cardStyle}>
+          <Text style={sectionTitleStyle}>Alunos destaque</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <Pressable
               onPress={() => setClassId("all")}
@@ -658,14 +733,7 @@ export default function ReportsScreen() {
             {topStudents.map((row) => (
               <View
                 key={row.student.id}
-                style={{
-                  padding: 12,
-                  borderRadius: 14,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 6,
-                }}
+                style={insetCardStyle}
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ fontWeight: "700", color: colors.text }}>
@@ -696,8 +764,8 @@ export default function ReportsScreen() {
             ))}
           </View>
         </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
-

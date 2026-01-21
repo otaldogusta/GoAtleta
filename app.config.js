@@ -4,6 +4,39 @@ const supabaseUrl =
 	process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
 const supabaseAnonKey =
 	process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+const buildProfile = process.env.EAS_BUILD_PROFILE || "";
+const useDevClient = buildProfile === "development";
+
+const plugins = [
+	"expo-router",
+	[
+		"expo-splash-screen",
+		{
+			image: "./assets/images/splash-icon.png",
+			imageWidth: 200,
+			resizeMode: "contain",
+			backgroundColor: "#ffffff",
+			dark: {
+				backgroundColor: "#000000",
+			},
+		},
+	],
+	"@react-native-community/datetimepicker",
+	"@sentry/react-native",
+	[
+		"@sentry/react-native/expo",
+		{
+			url: "https://sentry.io/",
+			project: "react-native",
+			organization: "otaldogustas-company",
+			dsn: "https://75f40b42770cc00892ƒ?<43e3a49bb654f0a45f0656f0577f7920.ingest.us.sentry.io/4510656f0760832f0",
+		},
+	],
+];
+
+if (useDevClient) {
+	plugins.unshift("expo-dev-client");
+}
 
 module.exports = {
 	expo: {
@@ -35,32 +68,7 @@ module.exports = {
 			output: "static",
 			favicon: "./assets/images/favicon.png",
 		},
-		plugins: [
-			"expo-router",
-			[
-				"expo-splash-screen",
-				{
-					image: "./assets/images/splash-icon.png",
-					imageWidth: 200,
-					resizeMode: "contain",
-					backgroundColor: "#ffffff",
-					dark: {
-						backgroundColor: "#000000",
-					},
-				},
-			],
-			"@react-native-community/datetimepicker",
-			"@sentry/react-native",
-			[
-				"@sentry/react-native/expo",
-				{
-					url: "https://sentry.io/",
-					project: "react-native",
-					organization: "otaldogustas-company",
-					dsn: "https://75f40b42770cc00892​43e3a49bb654f0a45f0656f0577f7920.ingest.us.sentry.io/4510656f0760832f0",
-				},
-			],
-		],
+		plugins,
 		updates: {
 			url: "https://u.expo.dev/ac21b1cd-e0e3-495f-ba43-e262c8185ef5",
 		},
