@@ -1,34 +1,39 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import * as Linking from "expo-linking";
 import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
+    memo,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
 } from "react";
 import {
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View
+    Alert,
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SUPABASE_URL } from "../../src/api/config";
+import { createStudentInvite } from "../../src/api/student-invite";
 import type { ClassGroup, Student } from "../../src/core/models";
 import {
-  deleteStudent,
-  getClasses,
-  getStudents,
-  saveStudent,
-  updateStudent,
+    deleteStudent,
+    getClasses,
+    getStudents,
+    saveStudent,
+    updateStudent,
 } from "../../src/db/seed";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
-import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
@@ -45,6 +50,20 @@ import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
+import {
+    buildWaMeLink,
+    getContactPhone,
+    normalizePhoneBR,
+    openWhatsApp,
+} from "../../src/utils/whatsapp";
+import {
+    WHATSAPP_TEMPLATES,
+    calculateNextClassDate,
+    formatNextClassDate,
+    renderTemplate,
+    type WhatsAppTemplateId,
+} from "../../src/utils/whatsapp-templates";
 
 const monthNames = [
   "Janeiro",
@@ -67,6 +86,7 @@ type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
 
 export default function StudentsScreen() {
   const { colors } = useAppTheme();
+  const { coachName, groupInviteLinks } = useWhatsAppSettings();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const selectFieldStyle = {
@@ -82,6 +102,10 @@ export default function StudentsScreen() {
     gap: 8,
   };
   const editModalCardStyle = useModalCardStyle({ maxHeight: "100%" });
+  const whatsappModalCardStyle = useModalCardStyle({
+    maxHeight: "70%",
+    maxWidth: 360,
+  });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [classId, setClassId] = useState("");
@@ -122,6 +146,32 @@ export default function StudentsScreen() {
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [studentFormError, setStudentFormError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [studentInviteBusy, setStudentInviteBusy] = useState(false);
+  const [inviteLink, setInviteLink] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedContactType, setSelectedContactType] = useState<
+    "guardian" | "student"
+  >("guardian");
+  const [selectedTemplateId, setSelectedTemplateId] =
+    useState<WhatsAppTemplateId | null>(null);
+  const [selectedTemplateLabel, setSelectedTemplateLabel] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<Record<string, string>>({});
+  const [customStudentMessage, setCustomStudentMessage] = useState("");
+  const [showTemplateList, setShowTemplateList] = useState(false);
+  const [whatsappContainerWindow, setWhatsappContainerWindow] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [templateTriggerLayout, setTemplateTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const saveNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveNoticeAnim = useRef(new Animated.Value(0)).current;
   const [editSnapshot, setEditSnapshot] = useState<{
@@ -187,6 +237,8 @@ export default function StudentsScreen() {
   const editUnitTriggerRef = useRef<View>(null);
   const editClassTriggerRef = useRef<View>(null);
   const editGuardianRelationTriggerRef = useRef<View>(null);
+  const whatsappContainerRef = useRef<View>(null);
+  const templateTriggerRef = useRef<View>(null);
   const { animatedStyle: unitPickerAnimStyle, isVisible: showUnitPickerContent } =
     useCollapsibleAnimation(showUnitPicker);
   const { animatedStyle: classPickerAnimStyle, isVisible: showClassPickerContent } =
@@ -203,6 +255,8 @@ export default function StudentsScreen() {
     animatedStyle: editGuardianRelationPickerAnimStyle,
     isVisible: showEditGuardianRelationPickerContent,
   } = useCollapsibleAnimation(showEditGuardianRelationPicker);
+  const { animatedStyle: templateListAnimStyle, isVisible: showTemplateListContent } =
+    useCollapsibleAnimation(showTemplateList, { translateY: -6 });
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -344,6 +398,17 @@ export default function StudentsScreen() {
     });
   }, [showEditClassPicker, showEditGuardianRelationPicker, showEditUnitPicker]);
 
+  const syncTemplateLayout = useCallback(() => {
+    requestAnimationFrame(() => {
+      templateTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        setTemplateTriggerLayout({ x, y, width, height });
+      });
+      whatsappContainerRef.current?.measureInWindow((x, y) => {
+        setWhatsappContainerWindow({ x, y });
+      });
+    });
+  }, []);
+
   const unitOptions = useMemo(() => {
     const set = new Set<string>();
     classes.forEach((item) => {
@@ -393,6 +458,12 @@ export default function StudentsScreen() {
     showEditGuardianRelationPicker,
     syncEditPickerLayouts,
   ]);
+
+  useEffect(() => {
+    if (showWhatsAppModal && showTemplateList) {
+      syncTemplateLayout();
+    }
+  }, [showTemplateList, showWhatsAppModal, syncTemplateLayout]);
 
   useEffect(() => {
     if (!showForm) closeAllPickers();
@@ -602,10 +673,83 @@ export default function StudentsScreen() {
     }, 2200);
   };
 
+  const resetInviteState = useCallback(() => {
+    setInviteLink("");
+    setInviteMessage("");
+    setInviteExpiresAt(null);
+  }, []);
+
+  const formatInviteExpiry = (value?: string | null) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const handleStudentInvite = async (openWhatsApp: boolean) => {
+    if (!editingId) return;
+    if (inviteBusy) return;
+    if (inviteLink && inviteExpiresAt) {
+      const expiresAt = new Date(inviteExpiresAt);
+      if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() > Date.now()) {
+        await Clipboard.setStringAsync(inviteLink);
+        setInviteMessage("Link copiado.");
+        if (openWhatsApp) {
+          const message = buildInviteMessage(inviteLink);
+          const digits = sanitizePhone(phone);
+          const waBase = digits ? `https://wa.me/${digits}` : "https://wa.me/";
+          const waUrl = `${waBase}?text=${encodeURIComponent(message)}`;
+          await Linking.openURL(waUrl);
+        }
+        return;
+      }
+    }
+    setInviteBusy(true);
+    setInviteMessage("");
+    try {
+      const response = await createStudentInvite(editingId, {
+        invitedVia: "whatsapp",
+        invitedTo: phone.trim() || undefined,
+      });
+      if (!response?.token) {
+        throw new Error("Convite invalido.");
+      }
+      const link = buildInviteLink(response.token);
+      setInviteLink(link);
+      setInviteExpiresAt(response.expires_at ?? null);
+      await Clipboard.setStringAsync(link);
+      setInviteMessage("Link copiado.");
+      if (openWhatsApp) {
+        const message = buildInviteMessage(link);
+        const digits = sanitizePhone(phone);
+        const waBase = digits ? `https://wa.me/${digits}` : "https://wa.me/";
+        const waUrl = `${waBase}?text=${encodeURIComponent(message)}`;
+        await Linking.openURL(waUrl);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      const lower = detail.toLowerCase();
+      if (lower.includes("already linked")) {
+        setInviteMessage("Esse aluno ja esta vinculado.");
+      } else if (lower.includes("student not found")) {
+        setInviteMessage("Aluno nao encontrado.");
+      } else {
+        setInviteMessage("Nao foi possivel gerar o convite.");
+      }
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
   const closeEditModal = () => {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
     closeAllEditPickers();
+    resetInviteState();
     resetForm();
   };
 
@@ -670,9 +814,10 @@ export default function StudentsScreen() {
     setGuardianPhone(student.guardianPhone ?? "");
     setGuardianRelation(student.guardianRelation ?? "");
     closeAllPickers();
+    resetInviteState();
     setShowEditModal(true);
     setStudentFormError("");
-  }, [ageBandOptions, classes, closeAllPickers, unitLabel]);
+  }, [ageBandOptions, classes, closeAllPickers, resetInviteState, unitLabel]);
 
   const onDelete = (id: string) => {
     const student = students.find((item) => item.id === id);
@@ -797,7 +942,149 @@ export default function StudentsScreen() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
 
+  const sanitizePhone = (value: string) => value.replace(/\D/g, "");
+
   const formatEmail = (value: string) => value.trim().toLowerCase();
+
+  const formatTodayLabel = () =>
+    new Date().toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+
+  const buildStudentMessage = useCallback(
+    (
+      student: Student,
+      cls: ClassGroup | null,
+      templateId: WhatsAppTemplateId,
+      fields: Record<string, string>
+    ) => {
+      const nextClassDate = cls?.daysOfWeek?.length
+        ? calculateNextClassDate(cls.daysOfWeek)
+        : null;
+      return renderTemplate(templateId, {
+        coachName,
+        studentName: student.name,
+        className: cls?.name ?? "Turma",
+        unitLabel: cls?.unit ?? "Sem unidade",
+        dateLabel: formatTodayLabel(),
+        nextClassDate: nextClassDate ? formatNextClassDate(nextClassDate) : "",
+        nextClassTime: cls?.startTime ?? "",
+        groupInviteLink: cls ? groupInviteLinks[cls.id] ?? "" : "",
+        inviteLink: fields.inviteLink ?? "",
+        highlightNote: fields.highlightNote ?? "",
+        customText: fields.customText ?? "",
+      });
+    },
+    [coachName, groupInviteLinks]
+  );
+
+  const openStudentWhatsApp = useCallback(
+    (student: Student) => {
+      const contact = getContactPhone(student);
+      if (contact.status === "missing") {
+        Alert.alert(
+          "Sem telefone",
+          "Adicione o telefone do aluno ou responsavel para usar o WhatsApp."
+        );
+        return;
+      }
+      if (contact.status === "invalid") {
+        Alert.alert("Telefone invalido", "Informe um telefone com DDD.");
+        return;
+      }
+      const cls = classes.find((entry) => entry.id === student.classId) ?? null;
+      const hasReminder =
+        !!cls?.daysOfWeek?.length && Boolean(cls?.startTime?.trim());
+      const suggested: WhatsAppTemplateId = hasReminder
+        ? "class_reminder"
+        : "quick_notice";
+      const fields: Record<string, string> = {};
+      setSelectedTemplateId(suggested);
+      setSelectedTemplateLabel(WHATSAPP_TEMPLATES[suggested].title);
+      setCustomFields(fields);
+      setSelectedContactType(contact.source === "student" ? "student" : "guardian");
+      setCustomStudentMessage(buildStudentMessage(student, cls, suggested, fields));
+      setSelectedStudentId(student.id);
+      setShowWhatsAppModal(true);
+    },
+    [buildStudentMessage, classes]
+  );
+
+  const closeWhatsAppModal = useCallback(() => {
+    setShowWhatsAppModal(false);
+    setSelectedStudentId(null);
+    setSelectedTemplateId(null);
+    setSelectedTemplateLabel(null);
+    setCustomFields({});
+    setCustomStudentMessage("");
+    setSelectedContactType("guardian");
+    setShowTemplateList(false);
+    setStudentInviteBusy(false);
+  }, []);
+
+  const buildInviteLink = (token: string) => {
+    if (!SUPABASE_URL) {
+      return `goatleta://invite/${token}`;
+    }
+    const base = SUPABASE_URL.replace(/\/$/, "").replace(
+      ".supabase.co",
+      ".functions.supabase.co"
+    );
+    return `${base}/invite-link?token=${encodeURIComponent(token)}`;
+  };
+
+  const applyStudentInviteTemplate = useCallback(
+    async (
+      student: Student,
+      cls: ClassGroup | null,
+      invitedTo: string
+    ): Promise<string | null> => {
+      if (studentInviteBusy) return null;
+      setStudentInviteBusy(true);
+      setSelectedTemplateId("student_invite");
+      setSelectedTemplateLabel(WHATSAPP_TEMPLATES.student_invite.title);
+      setCustomFields({});
+      setCustomStudentMessage("Gerando convite...");
+      try {
+        const response = await createStudentInvite(student.id, {
+          invitedVia: "whatsapp",
+          invitedTo: invitedTo.trim() ? invitedTo : undefined,
+        });
+        if (!response?.token) {
+          throw new Error("Convite invalido.");
+        }
+        const link = buildInviteLink(response.token);
+        const fields: Record<string, string> = { inviteLink: link };
+        setCustomFields(fields);
+        const message = buildStudentMessage(student, cls, "student_invite", fields);
+        setCustomStudentMessage(message);
+        return message;
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "";
+        const lower = detail.toLowerCase();
+        if (lower.includes("already linked")) {
+          Alert.alert("Convite", "Esse aluno ja esta vinculado.");
+        } else if (lower.includes("student not found")) {
+          Alert.alert("Convite", "Aluno nao encontrado.");
+        } else {
+          Alert.alert("Convite", "Nao foi possivel gerar o convite.");
+        }
+        setCustomStudentMessage("Nao foi possivel gerar o convite.");
+        return null;
+      } finally {
+        setStudentInviteBusy(false);
+      }
+    },
+    [buildInviteLink, buildStudentMessage, studentInviteBusy]
+  );
+
+  const buildInviteMessage = (link: string) => {
+    const studentName = name.trim();
+    const intro = "Ola! Seu treinador te convidou para acessar seus treinos no GoAtleta.";
+    const forStudent = studentName ? `Aluno: ${studentName}.` : "";
+    return [intro, forStudent, "Clique para ativar:", link].filter(Boolean).join(" ");
+  };
 
   const formatName = (value: string) => {
     const particles = new Set([
@@ -1048,14 +1335,18 @@ export default function StudentsScreen() {
       memo(function StudentRowItem({
         item,
         onPress,
+        onWhatsApp,
         className,
         palette,
       }: {
         item: Student;
         onPress: (student: Student) => void;
+        onWhatsApp: (student: Student) => void;
         className: string;
         palette: { bg: string; text: string };
       }) {
+        const contact = getContactPhone(item);
+        const disabled = contact.status === "missing";
         return (
           <Pressable
             onPress={() => onPress(item)}
@@ -1073,9 +1364,33 @@ export default function StudentsScreen() {
               gap: 6,
             }}
           >
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              {item.name + " - " + className}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  {item.name}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {className}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => onWhatsApp(item)}
+                disabled={disabled}
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  backgroundColor: disabled ? colors.secondaryBg : "#25D366",
+                  opacity: disabled ? 0.5 : 1,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="whatsapp"
+                  size={18}
+                  color={disabled ? colors.muted : "white"}
+                />
+              </Pressable>
+            </View>
             <Text style={{ color: colors.muted }}>
               {"Idade: " + item.age + " | Telefone: " + item.phone}
             </Text>
@@ -1186,12 +1501,13 @@ export default function StudentsScreen() {
         <StudentRow
           item={item}
           onPress={onEdit}
+          onWhatsApp={openStudentWhatsApp}
           className={getClassName(item.classId)}
           palette={palette}
         />
       );
     },
-    [StudentRow, classes, colors, getClassName, onEdit, unitLabel]
+    [StudentRow, classes, colors, getClassName, onEdit, openStudentWhatsApp, unitLabel]
   );
 
   const studentKeyExtractor = useCallback(
@@ -1856,7 +2172,7 @@ export default function StudentsScreen() {
         )}
       </ScrollView>
 
-        <AnchoredDropdown
+        <StudentsAnchoredDropdown
           visible={showUnitPickerContent}
           layout={unitTriggerLayout}
           container={containerWindow}
@@ -1887,9 +2203,9 @@ export default function StudentsScreen() {
               Nenhuma unidade cadastrada.
             </Text>
           )}
-        </AnchoredDropdown>
+        </StudentsAnchoredDropdown>
 
-        <AnchoredDropdown
+        <StudentsAnchoredDropdown
           visible={showClassPickerContent}
           layout={classTriggerLayout}
           container={containerWindow}
@@ -1919,8 +2235,8 @@ export default function StudentsScreen() {
               Nenhuma turma encontrada.
             </Text>
           )}
-        </AnchoredDropdown>
-        <AnchoredDropdown
+        </StudentsAnchoredDropdown>
+        <StudentsAnchoredDropdown
           visible={showGuardianRelationPickerContent}
           layout={guardianRelationTriggerLayout}
           container={containerWindow}
@@ -1945,7 +2261,7 @@ export default function StudentsScreen() {
               isFirst={index === 0}
             />
           ))}
-        </AnchoredDropdown>
+        </StudentsAnchoredDropdown>
       </View>
       {saveNotice ? (
         <Animated.View
@@ -2209,6 +2525,76 @@ export default function StudentsScreen() {
                 </View>
               </View>
               <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 16,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Convite do aluno
+                </Text>
+                <Text style={{ color: colors.muted }}>
+                  Gere um link e envie por WhatsApp.
+                </Text>
+                {inviteLink ? (
+                  <Text
+                    style={{ color: colors.muted, fontSize: 12 }}
+                    numberOfLines={2}
+                    ellipsizeMode="middle"
+                  >
+                    {inviteLink}
+                  </Text>
+                ) : null}
+                {inviteExpiresAt ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Expira em {formatInviteExpiry(inviteExpiresAt)}
+                  </Text>
+                ) : null}
+                {inviteMessage ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {inviteMessage}
+                  </Text>
+                ) : null}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => handleStudentInvite(false)}
+                    disabled={inviteBusy}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      backgroundColor: inviteBusy ? colors.primaryDisabledBg : colors.card,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {inviteBusy ? "Gerando..." : "Copiar link"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleStudentInvite(true)}
+                    disabled={inviteBusy}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      backgroundColor: inviteBusy ? colors.primaryDisabledBg : colors.primaryBg,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                      WhatsApp
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
                   onPress={async () => {
@@ -2270,7 +2656,7 @@ export default function StudentsScreen() {
                 </Pressable>
               ) : null}
         </View>
-        <AnchoredDropdown
+        <StudentsAnchoredDropdown
           visible={showEditUnitPickerContent}
           layout={editUnitTriggerLayout}
           container={editContainerWindow}
@@ -2301,9 +2687,9 @@ export default function StudentsScreen() {
               Nenhuma unidade cadastrada.
             </Text>
           )}
-        </AnchoredDropdown>
+        </StudentsAnchoredDropdown>
 
-        <AnchoredDropdown
+        <StudentsAnchoredDropdown
           visible={showEditClassPickerContent}
           layout={editClassTriggerLayout}
           container={editContainerWindow}
@@ -2333,8 +2719,8 @@ export default function StudentsScreen() {
               Nenhuma turma encontrada.
             </Text>
           )}
-        </AnchoredDropdown>
-        <AnchoredDropdown
+        </StudentsAnchoredDropdown>
+        <StudentsAnchoredDropdown
           visible={showEditGuardianRelationPickerContent}
           layout={editGuardianRelationTriggerLayout}
           container={editContainerWindow}
@@ -2359,7 +2745,415 @@ export default function StudentsScreen() {
               isFirst={index === 0}
             />
           ))}
-        </AnchoredDropdown>
+        </StudentsAnchoredDropdown>
+      </ModalSheet>
+      <ModalSheet
+        visible={showWhatsAppModal}
+        onClose={closeWhatsAppModal}
+        cardStyle={whatsappModalCardStyle}
+        position="center"
+        backdropOpacity={0.65}
+      >
+        {(() => {
+          if (!selectedStudentId) return null;
+          const student = students.find((item) => item.id === selectedStudentId);
+          if (!student) return null;
+          const cls = classes.find((item) => item.id === student.classId) ?? null;
+          const guardianContact = normalizePhoneBR(student.guardianPhone);
+          const studentContact = normalizePhoneBR(student.phone);
+          const hasGuardian = guardianContact.isValid;
+          const hasStudent = studentContact.isValid;
+          const useGuardian = selectedContactType === "guardian" && hasGuardian;
+          const useStudent = selectedContactType === "student" && hasStudent;
+          const finalPhone = useGuardian
+            ? guardianContact.phoneDigits
+            : useStudent
+            ? studentContact.phoneDigits
+            : "";
+          const nextClassDate = cls?.daysOfWeek?.length
+            ? calculateNextClassDate(cls.daysOfWeek)
+            : null;
+          const sendMessage = async () => {
+            if (!finalPhone) {
+              Alert.alert(
+                "Contato invalido",
+                "Atualize o telefone do aluno ou responsavel."
+              );
+              return;
+            }
+            let messageText = customStudentMessage.trim();
+            if (selectedTemplateId === "student_invite" && !customFields.inviteLink) {
+              const generated = await applyStudentInviteTemplate(
+                student,
+                cls,
+                finalPhone
+              );
+              if (generated) {
+                messageText = generated.trim();
+              }
+            }
+            if (!messageText) {
+              Alert.alert("Mensagem vazia", "Escreva ou escolha um template.");
+              return;
+            }
+            const url = buildWaMeLink(finalPhone, messageText);
+            await openWhatsApp(url);
+            closeWhatsAppModal();
+          };
+
+          return (
+            <View
+              ref={whatsappContainerRef}
+              style={{ gap: 12, overflow: "visible" }}
+            >
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  {student.name}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                  {cls?.name ?? "Turma"}
+                </Text>
+              </View>
+
+              <View style={{ gap: 6 }}>
+                <View ref={templateTriggerRef}>
+                  <Pressable
+                    onPress={() => {
+                      setShowTemplateList((prev) => {
+                        const next = !prev;
+                        if (!prev && next) {
+                          syncTemplateLayout();
+                        }
+                        return next;
+                      });
+                    }}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                      {selectedTemplateLabel ??
+                        (selectedTemplateId
+                          ? WHATSAPP_TEMPLATES[selectedTemplateId]?.title
+                          : "Template")}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [{ rotate: showTemplateList ? "180deg" : "0deg" }],
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              {selectedTemplateId &&
+                WHATSAPP_TEMPLATES[selectedTemplateId].requires?.map((field) => {
+                  if (
+                    field === "nextClassDate" ||
+                    field === "nextClassTime" ||
+                    field === "groupInviteLink" ||
+                    field === "inviteLink"
+                  ) {
+                    return null;
+                  }
+                  const fieldLabel = field === "highlightNote" ? "Destaque" : "Texto";
+                  const fieldPlaceholder =
+                    field === "highlightNote"
+                      ? "Ex: excelente postura no saque!"
+                      : "Ex: nao havera treino na sexta";
+                  return (
+                    <View key={field} style={{ gap: 6 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
+                        {fieldLabel}:
+                      </Text>
+                      <TextInput
+                        placeholder={fieldPlaceholder}
+                        placeholderTextColor={colors.placeholder}
+                        value={customFields[field] || ""}
+                        onChangeText={(text) => {
+                          const updatedFields = { ...customFields, [field]: text };
+                          setCustomFields(updatedFields);
+                          if (selectedTemplateId) {
+                            setCustomStudentMessage(
+                              buildStudentMessage(student, cls, selectedTemplateId, updatedFields)
+                            );
+                          }
+                        }}
+                        multiline
+                        numberOfLines={2}
+                        style={{
+                          padding: 10,
+                          borderRadius: 8,
+                          backgroundColor: colors.inputBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          color: colors.text,
+                          fontSize: 12,
+                          textAlignVertical: "top",
+                        }}
+                      />
+                    </View>
+                  );
+                })}
+
+              {hasGuardian || hasStudent ? (
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
+                    Enviar para:
+                  </Text>
+                  {hasGuardian ? (
+                    <Pressable
+                      onPress={() => setSelectedContactType("guardian")}
+                      style={{
+                        padding: 10,
+                        borderRadius: 8,
+                        backgroundColor:
+                          selectedContactType === "guardian"
+                            ? colors.primaryBg
+                            : colors.inputBg,
+                        borderWidth: 1,
+                        borderColor:
+                          selectedContactType === "guardian"
+                            ? colors.primaryBg
+                            : colors.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "600",
+                          color:
+                            selectedContactType === "guardian"
+                              ? colors.primaryText
+                              : colors.text,
+                        }}
+                      >
+                        Responsavel
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color:
+                            selectedContactType === "guardian"
+                              ? colors.primaryText
+                              : colors.muted,
+                          marginTop: 2,
+                        }}
+                      >
+                        {student.guardianPhone || "Sem telefone"}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  {hasStudent ? (
+                    <Pressable
+                      onPress={() => setSelectedContactType("student")}
+                      style={{
+                        padding: 10,
+                        borderRadius: 8,
+                        backgroundColor:
+                          selectedContactType === "student"
+                            ? colors.primaryBg
+                            : colors.inputBg,
+                        borderWidth: 1,
+                        borderColor:
+                          selectedContactType === "student"
+                            ? colors.primaryBg
+                            : colors.border,
+                        marginTop: hasGuardian ? 6 : 0,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "600",
+                          color:
+                            selectedContactType === "student"
+                              ? colors.primaryText
+                              : colors.text,
+                        }}
+                      >
+                        Aluno
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color:
+                            selectedContactType === "student"
+                              ? colors.primaryText
+                              : colors.muted,
+                          marginTop: 2,
+                        }}
+                      >
+                        {student.phone || "Sem telefone"}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Sem telefone valido cadastrado.
+                </Text>
+              )}
+
+              <View style={{ gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
+                  Mensagem:
+                </Text>
+                <TextInput
+                  placeholder="Escreva a mensagem"
+                  placeholderTextColor={colors.muted}
+                  value={customStudentMessage}
+                  onChangeText={setCustomStudentMessage}
+                  multiline
+                  numberOfLines={4}
+                  style={{
+                    padding: 10,
+                    borderRadius: 8,
+                    backgroundColor: colors.inputBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    fontSize: 12,
+                    textAlignVertical: "top",
+                    minHeight: 80,
+                  }}
+                />
+              </View>
+
+              <Pressable
+                onPress={sendMessage}
+                style={{
+                  paddingVertical: 11,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
+                  backgroundColor: "#25D366",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "white", fontWeight: "700", fontSize: 14 }}>
+                  Enviar via WhatsApp
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={closeWhatsAppModal}
+                style={{
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>
+                  Fechar
+                </Text>
+              </Pressable>
+              <StudentsAnchoredDropdown
+                visible={showTemplateListContent}
+                layout={templateTriggerLayout}
+                container={whatsappContainerWindow}
+                animationStyle={templateListAnimStyle}
+                zIndex={9999}
+                maxHeight={220}
+                panelStyle={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.inputBg,
+                }}
+                scrollContentStyle={{ padding: 8, gap: 8 }}
+              >
+                {Object.values(WHATSAPP_TEMPLATES).map((template) => {
+                  const isSelected = selectedTemplateId === template.id;
+                  let canUse = true;
+                  let missingRequirement = "";
+                  if (template.requires) {
+                    for (const req of template.requires) {
+                      if (req === "nextClassDate" && !nextClassDate) {
+                        canUse = false;
+                        missingRequirement = "Dias da semana nao configurados";
+                        break;
+                      }
+                      if (req === "nextClassTime" && !cls?.startTime) {
+                        canUse = false;
+                        missingRequirement = "Horario nao configurado";
+                        break;
+                      }
+                      if (req === "groupInviteLink" && cls && !groupInviteLinks[cls.id]) {
+                        canUse = false;
+                        missingRequirement = "Link do grupo nao configurado";
+                        break;
+                      }
+                    }
+                  }
+                  return (
+                    <Pressable
+                      key={template.id}
+                      disabled={!canUse}
+                      onPress={() => {
+                        if (!canUse) {
+                          Alert.alert("Template indisponivel", missingRequirement);
+                          return;
+                        }
+                        if (template.id === "student_invite") {
+                          setShowTemplateList(false);
+                          void applyStudentInviteTemplate(
+                            student,
+                            cls,
+                            finalPhone
+                          );
+                          return;
+                        }
+                        const fields: Record<string, string> = {};
+                        setSelectedTemplateId(template.id);
+                        setSelectedTemplateLabel(template.title);
+                        setCustomFields(fields);
+                        setCustomStudentMessage(
+                          buildStudentMessage(student, cls, template.id, fields)
+                        );
+                        setShowTemplateList(false);
+                      }}
+                      style={{
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        borderRadius: 10,
+                        backgroundColor: isSelected ? colors.primaryBg : colors.card,
+                        borderWidth: 1,
+                        borderColor: isSelected ? colors.primaryBg : colors.border,
+                        opacity: canUse ? 1 : 0.5,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "700",
+                          color: isSelected ? colors.primaryText : colors.text,
+                        }}
+                      >
+                        {template.title}
+                      </Text>
+                      {!canUse ? (
+                        <Text style={{ fontSize: 11, color: colors.dangerText, marginTop: 2 }}>
+                          {missingRequirement}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </StudentsAnchoredDropdown>
+            </View>
+          );
+        })()}
       </ModalSheet>
       <DatePickerModal
         visible={showCalendar}

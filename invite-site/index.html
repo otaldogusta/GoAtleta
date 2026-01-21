@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GoAtleta - Convite</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap");
+
+      :root {
+        --bg-1: #0f172a;
+        --bg-2: #0b2b3a;
+        --card: #0f1e2d;
+        --card-border: #1f3147;
+        --text: #e2e8f0;
+        --muted: #9fb0c1;
+        --accent: #22c55e;
+        --accent-dark: #159947;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(1200px 600px at 20% -10%, #1f3b5a 0%, transparent 60%),
+          radial-gradient(900px 500px at 100% 0%, #123c4a 0%, transparent 55%),
+          linear-gradient(135deg, var(--bg-1), var(--bg-2));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .card {
+        width: min(520px, 100%);
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow: 0 24px 60px rgba(2, 6, 23, 0.5);
+        animation: rise 0.5s ease-out both;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.18);
+        color: var(--accent);
+        font-weight: 600;
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 16px 0 8px;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      .button {
+        flex: 1;
+        text-align: center;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-weight: 700;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .button.primary {
+        background: var(--accent);
+        color: #071f10;
+        box-shadow: 0 12px 24px rgba(34, 197, 94, 0.25);
+      }
+
+      .button.secondary {
+        background: transparent;
+        border-color: var(--card-border);
+        color: var(--text);
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+      }
+
+      .fallback {
+        margin-top: 18px;
+        font-size: 13px;
+        color: var(--muted);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .fallback.show {
+        opacity: 1;
+      }
+
+      .token {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px dashed var(--card-border);
+        color: var(--muted);
+        font-size: 12px;
+        word-break: break-all;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <span class="badge">Convite GoAtleta</span>
+      <h1>Acesse seus treinos</h1>
+      <p>
+        Este convite abre o app GoAtleta. Se o app nao abrir automaticamente,
+        use o botao abaixo.
+      </p>
+      <div class="actions">
+        <a id="open-app" class="button primary" href="#">Abrir no app</a>
+        <a id="help" class="button secondary" href="#">Precisa de ajuda?</a>
+      </div>
+      <div id="fallback" class="fallback">
+        Se nada acontecer, instale o app e tente novamente.
+      </div>
+      <div id="token" class="token" style="display: none;"></div>
+    </main>
+
+    <script>
+      const pathParts = window.location.pathname.split("/").filter(Boolean);
+      const tokenFromPath =
+        pathParts.length >= 2 && pathParts[0] === "invite" ? pathParts[1] : "";
+      const tokenFromQuery = new URLSearchParams(window.location.search).get("token") || "";
+      const token = tokenFromPath || tokenFromQuery;
+
+      const openApp = document.getElementById("open-app");
+      const help = document.getElementById("help");
+      const fallback = document.getElementById("fallback");
+      const tokenBox = document.getElementById("token");
+
+      if (token) {
+        const deepLink = `goatleta://invite/${token}`;
+        openApp.href = deepLink;
+        tokenBox.style.display = "block";
+        tokenBox.textContent = `Token: ${token}`;
+        setTimeout(() => {
+          fallback.classList.add("show");
+        }, 1200);
+        window.location.href = deepLink;
+      } else {
+        openApp.style.pointerEvents = "none";
+        openApp.style.opacity = "0.6";
+        fallback.classList.add("show");
+        fallback.textContent = "Convite invalido ou expirado.";
+      }
+
+      help.href = "https://supabase.com";
+    </script>
+  </body>
+</html>

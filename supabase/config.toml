@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.claim-trainer-invite]
 verify_jwt = false
+
+[functions.create-student-invite]
+verify_jwt = false
+
+[functions.claim-student-invite]
+verify_jwt = false
+
+[functions.invite-link]
+verify_jwt = false

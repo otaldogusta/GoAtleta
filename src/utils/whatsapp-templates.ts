@@ -8,7 +8,8 @@ export type WhatsAppTemplateId =
   | "class_reminder" 
   | "group_invite" 
   | "positive_feedback" 
-  | "quick_notice";
+  | "quick_notice"
+  | "student_invite";
 
 export interface WhatsAppTemplate {
   id: WhatsAppTemplateId;
@@ -47,6 +48,13 @@ export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateId, WhatsAppTemplate> = 
     body: "Olá! Aqui é o prof. {coachName}.\nAviso da turma {className} ({unitLabel}): {customText}",
     requires: ["customText"],
   },
+  student_invite: {
+    id: "student_invite",
+    title: "Convite do aluno",
+    body:
+      "*Convite GoAtleta*\nSeu treinador te convidou para acessar seus treinos.\n\nAluno: *{studentName}*\n\nLink de acesso:\n{inviteLink}\n\n_Se voce ja tem conta, e so entrar com este link._",
+    requires: ["inviteLink"],
+  },
 };
 
 export interface TemplatePlaceholders {
@@ -58,6 +66,7 @@ export interface TemplatePlaceholders {
   nextClassDate?: string;
   nextClassTime?: string;
   groupInviteLink?: string;
+  inviteLink?: string;
   highlightNote?: string;
   customText?: string;
 }
@@ -83,6 +92,7 @@ export function renderTemplate(
     nextClassDate: placeholders.nextClassDate || "",
     nextClassTime: placeholders.nextClassTime || "",
     groupInviteLink: placeholders.groupInviteLink || "",
+    inviteLink: placeholders.inviteLink || "",
     highlightNote: placeholders.highlightNote || "esforço e evolução",
     customText: placeholders.customText || "",
   };
