@@ -50,7 +50,7 @@ http://localhost:8081
 
 ### 5. **Deploy**
 - Código commitado e pushed para GitHub
-- Vercel faz deploy automático
+- Vercel faz deploy automático (último deploy: 2026-01-21)
 - URL: https://go-atleta.vercel.app
 
 ## 📋 Próximos Passos
