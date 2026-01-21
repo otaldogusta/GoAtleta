@@ -51,6 +51,7 @@ module.exports = {
 		ios: {
 			supportsTablet: true,
 			bundleIdentifier: "com.otaldogusta.goatleta",
+			associatedDomains: ["applinks:go-atleta.vercel.app"],
 		},
 		android: {
 			adaptiveIcon: {
@@ -63,6 +64,19 @@ module.exports = {
 			softwareKeyboardLayoutMode: "resize",
 			predictiveBackGestureEnabled: false,
 			package: "com.otaldogusta.goatleta",
+			intentFilters: [
+				{
+					action: "VIEW",
+					autoVerify: true,
+					data: [
+						{
+							scheme: "https",
+							host: "go-atleta.vercel.app",
+						},
+					],
+					category: ["BROWSABLE", "DEFAULT"],
+				},
+			],
 		},
 		web: {
 			output: "static",
