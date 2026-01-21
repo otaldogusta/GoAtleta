@@ -1,6 +1,6 @@
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { View, Text, ActivityIndicator } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { useAuth } from "../src/auth/auth";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -52,7 +52,7 @@ export default function AuthCallbackScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <ActivityIndicator size="large" color={colors.primaryBg} />
       <Text style={{ color: colors.text, marginTop: 16 }}>Processando login...</Text>
     </View>
   );
