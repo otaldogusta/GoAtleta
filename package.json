@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "build": "expo export -p web",
     "lint": "expo lint",
     "figma:colors": "node scripts/sync-figma-colors.js",
     "postinstall": "patch-package && node scripts/check-yoga-patch.js"
@@ -32,6 +33,7 @@
     "expo-font": "~14.0.10",
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
+    "expo-keep-awake": "^15.0.8",
     "expo-linking": "~8.0.11",
     "expo-network": "~8.0.8",
     "expo-notifications": "^0.32.16",
