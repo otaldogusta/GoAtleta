@@ -103,6 +103,12 @@ function RootLayoutContent() {
   }, [pathname]);
 
   useEffect(() => {
+    // If web OAuth code is present, let the code-exchange effect handle navigation first
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const searchCode = new URLSearchParams(window.location.search).get("code");
+      if (searchCode) return;
+    }
+
     if (!navReady) return;
     if (loading) return;
     if (roleLoading) return;
@@ -149,13 +155,15 @@ function RootLayoutContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     if (code) {
+        console.log("[OAuth] Found code in URL, exchanging for session...");
       exchangeCodeForSession(code).then(() => {
+          console.log("[OAuth] Session exchange successful, redirecting to home");
         // Clean up URL
         const newUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, '', newUrl);
         router.replace("/");
       }).catch((err) => {
-        console.error("Failed to exchange OAuth code:", err);
+        console.error("[OAuth] Failed to exchange code:", err);
         router.replace("/welcome");
       });
       return;
