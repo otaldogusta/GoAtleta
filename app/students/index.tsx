@@ -2291,15 +2291,6 @@ export default function StudentsScreen() {
         cardStyle={[editModalCardStyle, { maxHeight: "92%", paddingBottom: 20 }]}
         position="center"
       >
-        <View
-          ref={editContainerRef}
-          onLayout={() => {
-            editContainerRef.current?.measureInWindow((x, y) => {
-              setEditContainerWindow({ x, y });
-            });
-          }}
-          style={{ position: "relative", flex: 1 }}
-        >
         <ConfirmCloseOverlay
           visible={showEditCloseConfirm}
           onCancel={() => setShowEditCloseConfirm(false)}
@@ -2314,32 +2305,41 @@ export default function StudentsScreen() {
           keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
           <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 20, gap: 4 }}
+            contentContainerStyle={{ paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
             onScroll={syncEditPickerLayouts}
             scrollEventThrottle={16}
           >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Editar aluno
-          </Text>
-          <Pressable
-            onPress={requestCloseEditModal}
-            style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-              Fechar
-            </Text>
-          </Pressable>
-        </View>
-        <View style={{ marginTop: 16, gap: 4 }}>
+            <View
+              ref={editContainerRef}
+              onLayout={() => {
+                editContainerRef.current?.measureInWindow((x, y) => {
+                  setEditContainerWindow({ x, y });
+                });
+              }}
+              style={{ paddingHorizontal: 12, gap: 4 }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  Editar aluno
+                </Text>
+                <Pressable
+                  onPress={requestCloseEditModal}
+                  style={{
+                    height: 32,
+                    paddingHorizontal: 12,
+                    borderRadius: 16,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                    Fechar
+                  </Text>
+                </Pressable>
+              </View>
+              <View style={{ marginTop: 16, gap: 4 }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
@@ -2585,13 +2585,14 @@ export default function StudentsScreen() {
                   </Text>
                 </Pressable>
               ) : null}
-        </View>
+              </View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
         <StudentsAnchoredDropdown
           visible={showEditUnitPickerContent}
           layout={editUnitTriggerLayout}
-          container={editContainerWindow}
+          container={editContainerWindow ?? containerWindow}
           animationStyle={editUnitPickerAnimStyle}
           zIndex={420}
           maxHeight={220}
@@ -2624,7 +2625,7 @@ export default function StudentsScreen() {
         <StudentsAnchoredDropdown
           visible={showEditClassPickerContent}
           layout={editClassTriggerLayout}
-          container={editContainerWindow}
+          container={editContainerWindow ?? containerWindow}
           animationStyle={editClassPickerAnimStyle}
           zIndex={420}
           maxHeight={240}
@@ -2655,7 +2656,7 @@ export default function StudentsScreen() {
         <StudentsAnchoredDropdown
           visible={showEditGuardianRelationPickerContent}
           layout={editGuardianRelationTriggerLayout}
-          container={editContainerWindow}
+          container={editContainerWindow ?? containerWindow}
           animationStyle={editGuardianRelationPickerAnimStyle}
           zIndex={420}
           maxHeight={220}
@@ -2678,7 +2679,6 @@ export default function StudentsScreen() {
             />
           ))}
         </StudentsAnchoredDropdown>
-        </View>
       </ModalSheet>
       <ModalSheet
         visible={showWhatsAppModal}
