@@ -233,7 +233,7 @@ export default function StudentsScreen() {
   const unitTriggerRef = useRef<View>(null);
   const classTriggerRef = useRef<View>(null);
   const guardianRelationTriggerRef = useRef<View>(null);
-  const editContainerRef = useRef<View>(null);
+  const editModalRef = useRef<View>(null);
   const editUnitTriggerRef = useRef<View>(null);
   const editClassTriggerRef = useRef<View>(null);
   const editGuardianRelationTriggerRef = useRef<View>(null);
@@ -392,7 +392,7 @@ export default function StudentsScreen() {
           setEditGuardianRelationTriggerLayout({ x, y, width, height });
         });
       }
-      editContainerRef.current?.measureInWindow((x, y) => {
+      editModalRef.current?.measureInWindow((x, y) => {
         setEditContainerWindow({ x, y });
       });
     });
@@ -2291,6 +2291,15 @@ export default function StudentsScreen() {
         cardStyle={[editModalCardStyle, { maxHeight: "92%", paddingBottom: 20 }]}
         position="center"
       >
+        <View
+          ref={editModalRef}
+          onLayout={() => {
+            editModalRef.current?.measureInWindow((x, y) => {
+              setEditContainerWindow({ x, y });
+            });
+          }}
+          style={{ position: "relative", width: "100%" }}
+        >
         <ConfirmCloseOverlay
           visible={showEditCloseConfirm}
           onCancel={() => setShowEditCloseConfirm(false)}
@@ -2311,15 +2320,7 @@ export default function StudentsScreen() {
             onScroll={syncEditPickerLayouts}
             scrollEventThrottle={16}
           >
-            <View
-              ref={editContainerRef}
-              onLayout={() => {
-                editContainerRef.current?.measureInWindow((x, y) => {
-                  setEditContainerWindow({ x, y });
-                });
-              }}
-              style={{ paddingHorizontal: 12, gap: 4 }}
-            >
+            <View style={{ paddingHorizontal: 12, gap: 4 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8 }}>
                 <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
                   Editar aluno
@@ -2680,6 +2681,7 @@ export default function StudentsScreen() {
             />
           ))}
         </StudentsAnchoredDropdown>
+        </View>
       </ModalSheet>
       <ModalSheet
         visible={showWhatsAppModal}
