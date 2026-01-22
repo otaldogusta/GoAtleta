@@ -153,6 +153,15 @@ const isAuthError = (error: unknown) => {
   );
 };
 
+const isPermissionError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("row-level security") ||
+    message.includes("code\":\"42501\"") ||
+    message.includes(" 42501")
+  );
+};
+
 const readCache = async <T>(key: string): Promise<T | null> => {
   try {
     const stored = await AsyncStorage.getItem(key);
@@ -473,123 +482,128 @@ type ExerciseRow = {
 
 export async function seedIfEmpty() {
   if (!(await getSessionUserId())) return;
-  const existing = await supabaseGet<ClassRow[]>(
-    "/classes?select=id&limit=1"
-  );
-  if (existing.length > 0) return;
+  try {
+    const existing = await supabaseGet<ClassRow[]>(
+      "/classes?select=id&limit=1"
+    );
+    if (existing.length > 0) return;
 
-  const unitsCache = await safeGetUnits();
+    const unitsCache = await safeGetUnits();
 
-  const nowIso = new Date().toISOString();
-  const classes: ClassRow[] = [
-    {
-      id: "c_re_f_8_11",
-      name: "Feminino (8-11)",
-      unit: "Rede Esperanca",
-      modality: "voleibol",
-      ageband: "08-11",
-      gender: "feminino",
-      starttime: "14:00",
-      end_time: computeEndTime("14:00", 60),
-      duration: 60,
-      days: [2, 4],
-      daysperweek: 2,
-      goal: "Fundamentos + jogo reduzido",
-      equipment: "quadra",
-      level: 1,
-      mv_level: "MV1",
-      cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 4,
-      created_at: nowIso,
-    },
-    {
-      id: "c_re_m_8_11",
-      name: "Masculino (8-11)",
-      unit: "Rede Esperanca",
-      modality: "voleibol",
-      ageband: "08-11",
-      gender: "masculino",
-      starttime: "15:30",
-      end_time: computeEndTime("15:30", 60),
-      duration: 60,
-      days: [2, 4],
-      daysperweek: 2,
-      goal: "Fundamentos + jogo reduzido",
-      equipment: "quadra",
-      level: 1,
-      mv_level: "MV1",
-      cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 4,
-      created_at: nowIso,
-    },
-    {
-      id: "c_rp_6_8",
-      name: "6-8 anos",
-      unit: "Rede Esportes Pinhais",
-      modality: "voleibol",
-      ageband: "06-08",
-      gender: "misto",
-      starttime: "09:00",
-      end_time: computeEndTime("09:00", 60),
-      duration: 60,
-      days: [6],
-      daysperweek: 1,
-      goal: "Coordenacao + bola + jogo",
-      equipment: "quadra",
-      level: 1,
-      mv_level: "MV1",
-      cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 4,
-      created_at: nowIso,
-    },
-    {
-      id: "c_rp_9_11",
-      name: "9-11 anos",
-      unit: "Rede Esportes Pinhais",
-      modality: "voleibol",
-      ageband: "09-11",
-      gender: "misto",
-      starttime: "10:00",
-      end_time: computeEndTime("10:00", 60),
-      duration: 60,
-      days: [6],
-      daysperweek: 1,
-      goal: "Fundamentos + continuidade",
-      equipment: "quadra",
-      level: 1,
-      mv_level: "MV1",
-      cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 4,
-      created_at: nowIso,
-    },
-    {
-      id: "c_rp_12_14",
-      name: "12-14 anos",
-      unit: "Rede Esportes Pinhais",
-      modality: "voleibol",
-      ageband: "12-14",
-      gender: "misto",
-      starttime: "11:00",
-      end_time: computeEndTime("11:00", 60),
-      duration: 60,
-      days: [6],
-      daysperweek: 1,
-      goal: "Fundamentos + jogo + ataque progressivo",
-      equipment: "quadra",
-      level: 2,
-      mv_level: "MV2",
-      cycle_start_date: formatIsoDate(new Date()),
-      cycle_length_weeks: 4,
-      created_at: nowIso,
-    },
-  ];
+    const nowIso = new Date().toISOString();
+    const classes: ClassRow[] = [
+      {
+        id: "c_re_f_8_11",
+        name: "Feminino (8-11)",
+        unit: "Rede Esperanca",
+        modality: "voleibol",
+        ageband: "08-11",
+        gender: "feminino",
+        starttime: "14:00",
+        end_time: computeEndTime("14:00", 60),
+        duration: 60,
+        days: [2, 4],
+        daysperweek: 2,
+        goal: "Fundamentos + jogo reduzido",
+        equipment: "quadra",
+        level: 1,
+        mv_level: "MV1",
+        cycle_start_date: formatIsoDate(new Date()),
+        cycle_length_weeks: 4,
+        created_at: nowIso,
+      },
+      {
+        id: "c_re_m_8_11",
+        name: "Masculino (8-11)",
+        unit: "Rede Esperanca",
+        modality: "voleibol",
+        ageband: "08-11",
+        gender: "masculino",
+        starttime: "15:30",
+        end_time: computeEndTime("15:30", 60),
+        duration: 60,
+        days: [2, 4],
+        daysperweek: 2,
+        goal: "Fundamentos + jogo reduzido",
+        equipment: "quadra",
+        level: 1,
+        mv_level: "MV1",
+        cycle_start_date: formatIsoDate(new Date()),
+        cycle_length_weeks: 4,
+        created_at: nowIso,
+      },
+      {
+        id: "c_rp_6_8",
+        name: "6-8 anos",
+        unit: "Rede Esportes Pinhais",
+        modality: "voleibol",
+        ageband: "06-08",
+        gender: "misto",
+        starttime: "09:00",
+        end_time: computeEndTime("09:00", 60),
+        duration: 60,
+        days: [6],
+        daysperweek: 1,
+        goal: "Coordenacao + bola + jogo",
+        equipment: "quadra",
+        level: 1,
+        mv_level: "MV1",
+        cycle_start_date: formatIsoDate(new Date()),
+        cycle_length_weeks: 4,
+        created_at: nowIso,
+      },
+      {
+        id: "c_rp_9_11",
+        name: "9-11 anos",
+        unit: "Rede Esportes Pinhais",
+        modality: "voleibol",
+        ageband: "09-11",
+        gender: "misto",
+        starttime: "10:00",
+        end_time: computeEndTime("10:00", 60),
+        duration: 60,
+        days: [6],
+        daysperweek: 1,
+        goal: "Fundamentos + continuidade",
+        equipment: "quadra",
+        level: 1,
+        mv_level: "MV1",
+        cycle_start_date: formatIsoDate(new Date()),
+        cycle_length_weeks: 4,
+        created_at: nowIso,
+      },
+      {
+        id: "c_rp_12_14",
+        name: "12-14 anos",
+        unit: "Rede Esportes Pinhais",
+        modality: "voleibol",
+        ageband: "12-14",
+        gender: "misto",
+        starttime: "11:00",
+        end_time: computeEndTime("11:00", 60),
+        duration: 60,
+        days: [6],
+        daysperweek: 1,
+        goal: "Fundamentos + jogo + ataque progressivo",
+        equipment: "quadra",
+        level: 2,
+        mv_level: "MV2",
+        cycle_start_date: formatIsoDate(new Date()),
+        cycle_length_weeks: 4,
+        created_at: nowIso,
+      },
+    ];
 
-  for (const row of classes) {
-    const unit = await ensureUnit(row.unit, unitsCache);
-    if (unit) row.unit_id = unit.id;
+    for (const row of classes) {
+      const unit = await ensureUnit(row.unit, unitsCache);
+      if (unit) row.unit_id = unit.id;
+    }
+
+    await supabasePost("/classes", classes);
+  } catch (error) {
+    if (isAuthError(error) || isPermissionError(error)) return;
+    throw error;
   }
-
-  await supabasePost("/classes", classes);
 }
 
 const calculateAge = (birthDate: string) => {
@@ -635,72 +649,77 @@ const computeEndTime = (startTime?: string, duration?: number | null) => {
 
 export async function seedStudentsIfEmpty() {
   if (!(await getSessionUserId())) return;
-  const existing = await supabaseGet<StudentRow[]>(
-    "/students?select=id&limit=1"
-  );
-  if (existing.length > 0) return;
+  try {
+    const existing = await supabaseGet<StudentRow[]>(
+      "/students?select=id&limit=1"
+    );
+    if (existing.length > 0) return;
 
-  const classes = await getClasses();
-  if (!classes.length) return;
+    const classes = await getClasses();
+    if (!classes.length) return;
 
-  const firstNames = [
-    "Gustavo",
-    "Mariana",
-    "Lucas",
-    "Ana",
-    "Pedro",
-    "Beatriz",
-    "Joao",
-    "Julia",
-    "Rafael",
-    "Camila",
-  ];
-  const lastNames = [
-    "Silva",
-    "Souza",
-    "Oliveira",
-    "Pereira",
-    "Costa",
-    "Santos",
-    "Almeida",
-    "Ferreira",
-    "Gomes",
-    "Ribeiro",
-  ];
+    const firstNames = [
+      "Gustavo",
+      "Mariana",
+      "Lucas",
+      "Ana",
+      "Pedro",
+      "Beatriz",
+      "Joao",
+      "Julia",
+      "Rafael",
+      "Camila",
+    ];
+    const lastNames = [
+      "Silva",
+      "Souza",
+      "Oliveira",
+      "Pereira",
+      "Costa",
+      "Santos",
+      "Almeida",
+      "Ferreira",
+      "Gomes",
+      "Ribeiro",
+    ];
 
-  const rows: StudentRow[] = [];
-  const nowIso = new Date().toISOString();
-  const currentYear = new Date().getFullYear();
+    const rows: StudentRow[] = [];
+    const nowIso = new Date().toISOString();
+    const currentYear = new Date().getFullYear();
 
-  for (let i = 0; i < 20; i += 1) {
-    const cls = classes[i % classes.length];
-    const band = parseAgeBand(cls.ageBand);
-    const age =
-      band ? Math.round((band.start + band.end) / 2) : 12 + (i % 5);
-    const year = currentYear - age;
-    const month = String((i % 12) + 1).padStart(2, "0");
-    const day = String((i % 28) + 1).padStart(2, "0");
-    const birthDate = `${year}-${month}-${day}`;
-    const phone = `(41) 9${String(8000 + i).padStart(4, "0")}-${String(
-      1000 + i
-    ).padStart(4, "0")}`;
-    const name =
-      firstNames[i % firstNames.length] +
-      " " +
-      lastNames[i % lastNames.length];
+    for (let i = 0; i < 20; i += 1) {
+      const cls = classes[i % classes.length];
+      const band = parseAgeBand(cls.ageBand);
+      const age =
+        band ? Math.round((band.start + band.end) / 2) : 12 + (i % 5);
+      const year = currentYear - age;
+      const month = String((i % 12) + 1).padStart(2, "0");
+      const day = String((i % 28) + 1).padStart(2, "0");
+      const birthDate = `${year}-${month}-${day}`;
+      const phone = `(41) 9${String(8000 + i).padStart(4, "0")}-${String(
+        1000 + i
+      ).padStart(4, "0")}`;
+      const name =
+        firstNames[i % firstNames.length] +
+        " " +
+        lastNames[i % lastNames.length];
 
-    rows.push({
-      id: "s_" + (Date.now() + i),
-      name,
-      classid: cls.id,
-      age: calculateAge(birthDate),
-      phone,
-      birthdate: birthDate,
-      createdat: nowIso,
-    });
+      rows.push({
+        id: "s_" + (Date.now() + i),
+        name,
+        classid: cls.id,
+        age: calculateAge(birthDate),
+        phone,
+        birthdate: birthDate,
+        createdat: nowIso,
+      });
+    }
+
+    await supabasePost("/students", rows);
+  } catch (error) {
+    if (isAuthError(error) || isPermissionError(error)) return;
+    throw error;
   }
-
-  await supabasePost("/students", rows);
 }
 
 export async function getClasses(): Promise<ClassGroup[]> {

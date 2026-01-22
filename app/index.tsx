@@ -43,6 +43,7 @@ function TrainerHome() {
   const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
+  const { role } = useRole();
   const [inbox, setInbox] = useState<AppNotification[]>([]);
   const [showInbox, setShowInbox] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -73,7 +74,7 @@ function TrainerHome() {
     (async () => {
       const items = await getNotifications();
       if (alive) setInbox(items);
-      if (!session) return;
+      if (!session || role !== "trainer") return;
       await seedIfEmpty();
       const classList = await getClasses();
       if (alive) setClasses(classList);
@@ -86,7 +87,7 @@ function TrainerHome() {
       alive = false;
       unsubscribe();
     };
-  }, [session]);
+  }, [session, role]);
 
   useEffect(() => {
     let alive = true;
