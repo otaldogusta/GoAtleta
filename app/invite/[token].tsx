@@ -69,6 +69,26 @@ export default function StudentInviteScreen() {
     return "Forte";
   }, [password, strengthScore]);
 
+  const parseClaimError = (error: unknown) => {
+    let detail = error instanceof Error ? error.message : String(error);
+    try {
+      const parsed = JSON.parse(detail) as { error?: string };
+      if (parsed?.error) detail = String(parsed.error);
+    } catch {
+      // ignore
+    }
+    const lower = detail.toLowerCase();
+    if (lower.includes("expired")) return "Convite expirado.";
+    if (lower.includes("used")) return "Convite ja utilizado. Peca um novo link.";
+    if (lower.includes("invalid")) return "Convite invalido.";
+    if (lower.includes("already linked")) return "Seu acesso ja esta vinculado.";
+    if (lower.includes("unauthorized") || lower.includes("invalid jwt") || lower.includes("missing auth token")) {
+      return "Sessao expirada. Entre novamente.";
+    }
+    if (lower.includes("forbidden")) return "Sem permissao para validar o convite.";
+    return "Nao foi possivel validar o convite.";
+  };
+
   useEffect(() => {
     Animated.timing(strengthAnim, {
       toValue: strengthScore,
@@ -103,17 +123,7 @@ export default function StudentInviteScreen() {
       await refresh();
       router.replace("/");
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "";
-      const lower = detail.toLowerCase();
-      if (lower.includes("expired")) {
-        setMessage("Convite expirado.");
-      } else if (lower.includes("used")) {
-        setMessage("Convite já utilizado. Peça um novo link.");
-      } else if (lower.includes("invalid")) {
-        setMessage("Convite inválido.");
-      } else {
-        setMessage("Não foi possível validar o convite.");
-      }
+      setMessage(parseClaimError(error));
     } finally {
       setBusy(false);
     }

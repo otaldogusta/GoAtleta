@@ -59,6 +59,26 @@ export default function PendingScreen() {
     return "Cole o link completo ou o código do convite.";
   })();
 
+  const parseInviteError = (error: unknown) => {
+    let detail = error instanceof Error ? error.message : String(error);
+    try {
+      const parsed = JSON.parse(detail) as { error?: string };
+      if (parsed?.error) detail = String(parsed.error);
+    } catch {
+      // ignore
+    }
+    const lower = detail.toLowerCase();
+    if (lower.includes("expired")) return "Convite expirado.";
+    if (lower.includes("used")) return "Convite ja utilizado. Peca um novo link.";
+    if (lower.includes("invalid")) return "Convite invalido.";
+    if (lower.includes("already linked")) return "Seu acesso ja esta vinculado.";
+    if (lower.includes("unauthorized") || lower.includes("invalid jwt") || lower.includes("missing auth token")) {
+      return "Sessao expirada. Entre novamente.";
+    }
+    if (lower.includes("forbidden")) return "Sem permissao para validar o convite.";
+    return "Nao foi possivel validar o convite.";
+  };
+
   const handleInvite = async () => {
     if (inviteBusy) return;
     const type = getInviteType(inviteInput);
@@ -85,16 +105,10 @@ export default function PendingScreen() {
       await refresh();
       setMessage("Convite de treinador validado com sucesso.");
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "";
+      const detail = error instanceof Error ? error.message : String(error);
       const lower = detail.toLowerCase();
       if (type === "student") {
-        setMessage(
-          lower.includes("expired")
-            ? "Convite expirado."
-            : lower.includes("used")
-            ? "Convite já utilizado."
-            : "Não foi possível validar o convite."
-        );
+        setMessage(parseInviteError(error));
         return;
       }
       setMessage(
@@ -118,15 +132,7 @@ export default function PendingScreen() {
       await refresh();
       router.replace("/");
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "";
-      const lower = detail.toLowerCase();
-      setMessage(
-        lower.includes("expired")
-          ? "Convite expirado."
-          : lower.includes("used")
-          ? "Convite ja utilizado. Peca um novo link."
-          : "Nao foi possivel validar o convite."
-      );
+      setMessage(parseInviteError(error));
     } finally {
       setInviteBusy(false);
     }
