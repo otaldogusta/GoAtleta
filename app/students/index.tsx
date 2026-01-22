@@ -22,6 +22,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
 import { createStudentInvite, revokeStudentAccess } from "../../src/api/student-invite";
+import { useAuth } from "../../src/auth/auth";
 import type { ClassGroup, Student } from "../../src/core/models";
 import {
     deleteStudent,
@@ -85,6 +86,7 @@ type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
 
 export default function StudentsScreen() {
+  const { signOut } = useAuth();
   const { colors } = useAppTheme();
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
   const { confirm } = useConfirmUndo();
@@ -1124,6 +1126,7 @@ export default function StudentsScreen() {
         if (lower.includes("invalid jwt") || lower.includes("missing auth token")) {
           Alert.alert("Sessao expirada", "Entre novamente para gerar o convite.");
           setCustomStudentMessage("Sessao expirada. Entre novamente.");
+          void signOut();
         } else if (lower.includes("forbidden") || lower.includes("permission")) {
           Alert.alert("Convite", "Sem permissao para gerar o convite.");
           setCustomStudentMessage("Sem permissao para gerar o convite.");
@@ -1147,7 +1150,7 @@ export default function StudentsScreen() {
         setStudentInviteBusy(false);
       }
     },
-    [buildInviteLink, buildStudentMessage, showWhatsAppNotice, studentInviteBusy]
+    [buildInviteLink, buildStudentMessage, showWhatsAppNotice, signOut, studentInviteBusy]
   );
 
   const buildInviteMessage = (link: string) => {
