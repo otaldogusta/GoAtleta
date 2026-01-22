@@ -21,7 +21,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
-import { createStudentInvite } from "../../src/api/student-invite";
+import { createStudentInvite, revokeStudentAccess } from "../../src/api/student-invite";
 import type { ClassGroup, Student } from "../../src/core/models";
 import {
     deleteStudent,
@@ -152,6 +152,8 @@ export default function StudentsScreen() {
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsappNotice, setWhatsappNotice] = useState("");
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedContactType, setSelectedContactType] = useState<
     "guardian" | "student"
@@ -173,6 +175,7 @@ export default function StudentsScreen() {
     height: number;
   } | null>(null);
   const saveNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const whatsappNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveNoticeAnim = useRef(new Animated.Value(0)).current;
   const [editSnapshot, setEditSnapshot] = useState<{
     unit: string;
@@ -673,6 +676,17 @@ export default function StudentsScreen() {
     }, 2200);
   };
 
+  const showWhatsAppNotice = useCallback((message: string) => {
+    setWhatsappNotice(message);
+    if (whatsappNoticeTimer.current) {
+      clearTimeout(whatsappNoticeTimer.current);
+    }
+    whatsappNoticeTimer.current = setTimeout(() => {
+      setWhatsappNotice("");
+      whatsappNoticeTimer.current = null;
+    }, 2200);
+  }, []);
+
   const resetInviteState = useCallback(() => {
     setInviteLink("");
     setInviteMessage("");
@@ -1021,6 +1035,12 @@ export default function StudentsScreen() {
     setSelectedContactType("guardian");
     setShowTemplateList(false);
     setStudentInviteBusy(false);
+    setWhatsappNotice("");
+    setShowRevokeConfirm(false);
+    if (whatsappNoticeTimer.current) {
+      clearTimeout(whatsappNoticeTimer.current);
+      whatsappNoticeTimer.current = null;
+    }
   }, []);
 
   const buildInviteLink = (token: string) => {
@@ -1038,7 +1058,8 @@ export default function StudentsScreen() {
     async (
       student: Student,
       cls: ClassGroup | null,
-      invitedTo: string
+      invitedTo: string,
+      options?: { revokeFirst?: boolean; copyLink?: boolean }
     ): Promise<string | null> => {
       if (studentInviteBusy) return null;
       setStudentInviteBusy(true);
@@ -1047,36 +1068,46 @@ export default function StudentsScreen() {
       setCustomFields({});
       setCustomStudentMessage("Gerando convite...");
       try {
+        if (options?.revokeFirst) {
+          await revokeStudentAccess(student.id, { clearLoginEmail: true });
+        }
         const response = await createStudentInvite(student.id, {
           invitedVia: "whatsapp",
           invitedTo: invitedTo.trim() ? invitedTo : undefined,
         });
         if (!response?.token) {
-          throw new Error("Convite inválido.");
+          throw new Error("Convite invalido.");
         }
         const link = buildInviteLink(response.token);
         const fields: Record<string, string> = { inviteLink: link };
         setCustomFields(fields);
         const message = buildStudentMessage(student, cls, "student_invite", fields);
         setCustomStudentMessage(message);
+        if (options?.copyLink) {
+          await Clipboard.setStringAsync(link);
+          showWhatsAppNotice("Link copiado.");
+        }
         return message;
       } catch (error) {
         const detail = error instanceof Error ? error.message : "";
         const lower = detail.toLowerCase();
         if (lower.includes("already linked")) {
-          Alert.alert("Convite", "Esse aluno já esta vinculado.");
+          Alert.alert(
+            "Convite",
+            "Esse aluno ja esta vinculado. Use Revogar e gerar novo link."
+          );
         } else if (lower.includes("student not found")) {
-          Alert.alert("Convite", "Aluno não encontrado.");
+          Alert.alert("Convite", "Aluno nao encontrado.");
         } else {
-          Alert.alert("Convite", "Não foi possível gerar o convite.");
+          Alert.alert("Convite", "Nao foi possivel gerar o convite.");
         }
-        setCustomStudentMessage("Não foi possível gerar o convite.");
+        setCustomStudentMessage("Nao foi possivel gerar o convite.");
         return null;
       } finally {
         setStudentInviteBusy(false);
       }
     },
-    [buildInviteLink, buildStudentMessage, studentInviteBusy]
+    [buildInviteLink, buildStudentMessage, showWhatsAppNotice, studentInviteBusy]
   );
 
   const buildInviteMessage = (link: string) => {
@@ -2806,6 +2837,22 @@ export default function StudentsScreen() {
               ref={whatsappContainerRef}
               style={{ gap: 12, overflow: "visible" }}
             >
+              <ConfirmCloseOverlay
+                visible={showRevokeConfirm}
+                title="Revogar acesso do aluno?"
+                message="Isso remove o acesso atual, revoga convites antigos e gera um novo link."
+                confirmLabel="Revogar e gerar"
+                cancelLabel="Cancelar"
+                overlayZIndex={10000}
+                onCancel={() => setShowRevokeConfirm(false)}
+                onConfirm={() => {
+                  setShowRevokeConfirm(false);
+                  void applyStudentInviteTemplate(student, cls, finalPhone, {
+                    revokeFirst: true,
+                    copyLink: true,
+                  });
+                }}
+              />
               <View>
                 <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
                   {student.name}
@@ -2856,6 +2903,47 @@ export default function StudentsScreen() {
                   </Pressable>
                 </View>
               </View>
+
+              {selectedTemplateId === "student_invite" ? (
+                <Pressable
+                  onPress={() => {
+                    if (studentInviteBusy) return;
+                    setShowRevokeConfirm(true);
+                  }}
+                  disabled={studentInviteBusy}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    backgroundColor: studentInviteBusy
+                      ? colors.primaryDisabledBg
+                      : colors.dangerSolidBg,
+                    alignItems: "center",
+                    opacity: studentInviteBusy ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
+                    {studentInviteBusy ? "Processando..." : "Revogar e gerar novo link"}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {whatsappNotice ? (
+                <View
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    borderRadius: 10,
+                    backgroundColor: colors.successBg,
+                    borderWidth: 1,
+                    borderColor: colors.successBg,
+                  }}
+                >
+                  <Text style={{ color: colors.successText, fontWeight: "700", fontSize: 12 }}>
+                    {whatsappNotice}
+                  </Text>
+                </View>
+              ) : null}
 
               {selectedTemplateId &&
                 WHATSAPP_TEMPLATES[selectedTemplateId].requires?.map((field) => {

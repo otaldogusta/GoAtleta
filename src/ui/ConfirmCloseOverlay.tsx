@@ -12,6 +12,7 @@ type ConfirmCloseOverlayProps = {
   message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  overlayZIndex?: number;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -22,6 +23,7 @@ export function ConfirmCloseOverlay({
   message = "Você tem alterações não salvas.",
   confirmLabel = "Descartar",
   cancelLabel = "Continuar",
+  overlayZIndex,
   onConfirm,
   onCancel,
 }: ConfirmCloseOverlayProps) {
@@ -34,6 +36,7 @@ export function ConfirmCloseOverlay({
       visible={visible}
       onClose={onCancel}
       position="center"
+      overlayZIndex={overlayZIndex}
       cardStyle={{
         width: "100%",
         maxWidth: 360,

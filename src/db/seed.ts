@@ -144,6 +144,15 @@ const isNetworkError = (error: unknown) => {
   );
 };
 
+const isAuthError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Missing auth token")) return true;
+  return (
+    message.includes("Supabase") &&
+    (message.includes(" 401 ") || message.includes(" 403 "))
+  );
+};
+
 const readCache = async <T>(key: string): Promise<T | null> => {
   try {
     const stored = await AsyncStorage.getItem(key);
@@ -253,6 +262,7 @@ const safeGetUnits = async (): Promise<UnitRow[]> => {
     return await supabaseGet<UnitRow[]>("/units?select=*&order=name.asc");
   } catch (error) {
     if (isMissingRelation(error, "units")) return [];
+    if (isAuthError(error)) return [];
     throw error;
   }
 };
@@ -748,9 +758,10 @@ export async function getClasses(): Promise<ClassGroup[]> {
     await writeCache(CACHE_KEYS.classes, mapped);
     return mapped;
   } catch (error) {
-    if (isNetworkError(error)) {
+    if (isNetworkError(error) || isAuthError(error)) {
       const cached = await readCache<ClassGroup[]>(CACHE_KEYS.classes);
       if (cached) return cached;
+      return [];
     }
     throw error;
   }
@@ -1621,9 +1632,10 @@ export async function getStudents(): Promise<Student[]> {
     await writeCache(CACHE_KEYS.students, mapped);
     return mapped;
   } catch (error) {
-    if (isNetworkError(error)) {
+    if (isNetworkError(error) || isAuthError(error)) {
       const cached = await readCache<Student[]>(CACHE_KEYS.students);
       if (cached) return cached;
+      return [];
     }
     throw error;
   }
@@ -1648,9 +1660,10 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
       createdAt: row.createdat,
     }));
   } catch (error) {
-    if (isNetworkError(error)) {
+    if (isNetworkError(error) || isAuthError(error)) {
       const cached = await readCache<Student[]>(CACHE_KEYS.students);
       if (cached) return cached.filter((item) => item.classId === classId);
+      return [];
     }
     throw error;
   }

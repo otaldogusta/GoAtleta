@@ -6,6 +6,10 @@ type CreateInviteOptions = {
   invitedTo?: string;
 };
 
+type RevokeAccessOptions = {
+  clearLoginEmail?: boolean;
+};
+
 type CreateInviteResponse = {
   token: string;
   expires_at?: string;
@@ -42,6 +46,29 @@ export async function createStudentInvite(
     }),
   });
   return (await parseResponse(res)) as CreateInviteResponse;
+}
+
+export async function revokeStudentAccess(
+  studentId: string,
+  options?: RevokeAccessOptions
+) {
+  const token = await getValidAccessToken();
+  if (!token) {
+    throw new Error("Missing auth token");
+  }
+  const base = SUPABASE_URL.replace(/\/$/, "");
+  const res = await fetch(base + "/functions/v1/revoke-student-access", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      studentId,
+      clearLoginEmail: options?.clearLoginEmail,
+    }),
+  });
+  return parseResponse(res);
 }
 
 export async function claimStudentInvite(tokenValue: string) {
