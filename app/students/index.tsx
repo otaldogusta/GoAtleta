@@ -1125,7 +1125,6 @@ export default function StudentsScreen() {
         const shortDetail = detail.length > 140 ? `${detail.slice(0, 140)}...` : detail;
         if (lower.includes("invalid jwt") || lower.includes("missing auth token")) {
           Alert.alert("Sessao expirada", "Entre novamente para gerar o convite.");
-          setCustomStudentMessage("Sessao expirada. Entre novamente.");
           void signOut();
         } else if (lower.includes("forbidden") || lower.includes("permission")) {
           Alert.alert("Convite", "Sem permissao para gerar o convite.");

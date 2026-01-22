@@ -27,8 +27,8 @@ export default function StudentInviteScreen() {
   const router = useRouter();
   const { token } = useLocalSearchParams<{ token?: string | string[] }>();
   const tokenValue = Array.isArray(token) ? token[0] : token;
-  const { session, signIn, signUp, signInWithOAuth } = useAuth();
-  const { refresh } = useRole();
+  const { session, signIn, signUp, signInWithOAuth, signOut } = useAuth();
+  const { role, loading: roleLoading, refresh } = useRole();
   const [mode, setMode] = useState<"signup" | "login">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +39,7 @@ export default function StudentInviteScreen() {
   const [message, setMessage] = useState("");
   const strengthAnim = useRef(new Animated.Value(0)).current;
   const enterAnim = useRef(new Animated.Value(0)).current;
-  const autoClaimRef = useRef(false);
+  const lastClaimUserRef = useRef<string | null>(null);
 
   const passwordChecks = useMemo(() => {
     const value = password;
@@ -79,9 +79,9 @@ export default function StudentInviteScreen() {
     }
     const lower = detail.toLowerCase();
     if (lower.includes("expired")) return "Convite expirado.";
-    if (lower.includes("used")) return "Convite ja utilizado. Peca um novo link.";
+    if (lower.includes("used")) return "Esse link ja foi usado por outra conta. Peca um novo link.";
     if (lower.includes("invalid")) return "Convite invalido.";
-    if (lower.includes("already linked")) return "Seu acesso ja esta vinculado.";
+    if (lower.includes("already linked")) return "Este aluno ja esta vinculado a outra conta.";
     if (lower.includes("unauthorized") || lower.includes("invalid jwt") || lower.includes("missing auth token")) {
       return "Sessao expirada. Entre novamente.";
     }
@@ -131,10 +131,16 @@ export default function StudentInviteScreen() {
 
   useEffect(() => {
     if (!session || !tokenValue) return;
-    if (autoClaimRef.current) return;
-    autoClaimRef.current = true;
+    if (roleLoading) return;
+    if (role === "trainer") {
+      setMessage("Esse convite Ã© para alunos. Saia e use outra conta.");
+      return;
+    }
+    const userId = session.user?.id ?? "unknown";
+    if (lastClaimUserRef.current === userId) return;
+    lastClaimUserRef.current = userId;
     void handleClaim();
-  }, [session, tokenValue]);
+  }, [role, roleLoading, session, tokenValue]);
 
   const canSubmit = useMemo(() => {
     if (!email.trim() || !password.trim()) return false;
@@ -168,15 +174,17 @@ export default function StudentInviteScreen() {
     try {
       if (mode === "login") {
         await signIn(email.trim(), password, true);
-        await handleClaim();
+        setMessage("Validando convite...");
         return;
       }
       const sessionData = await signUp(email.trim(), password, `invite/${tokenValue}`);
       if (sessionData) {
-        await handleClaim();
+        setMessage("Validando convite...");
         return;
       }
-      setMessage("Conta criada. Confirme o email e volte para concluir o convite.");
+      setMessage(
+        "Conta criada! Confirme seu email. Assim que confirmar, voltamos direto para concluir o convite."
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
       const lower = detail.toLowerCase();
@@ -510,6 +518,24 @@ export default function StudentInviteScreen() {
                 <Text style={{ color: message.startsWith("!") ? colors.dangerSolidBg : colors.muted }}>
                   {message.startsWith("!") ? message.slice(1) : message}
                 </Text>
+              ) : null}
+
+              {session && (role === "trainer" || message.toLowerCase().includes("outra conta") || message.toLowerCase().includes("ja utilizado") || message.toLowerCase().includes("ja esta vinculado")) ? (
+                <Pressable
+                  onPress={() => void signOut()}
+                  style={{
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    Entrar com outra conta
+                  </Text>
+                </Pressable>
               ) : null}
 
               <Pressable

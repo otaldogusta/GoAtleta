@@ -24,6 +24,7 @@ export default function PendingScreen() {
   const [inviteInput, setInviteInput] = useState("");
   const [message, setMessage] = useState("");
   const [storedToken, setStoredToken] = useState("");
+  const [showInviteInput, setShowInviteInput] = useState(false);
   const autoClaimedRef = useRef(false);
 
   const isUuid = (value: string) =>
@@ -226,45 +227,81 @@ export default function PendingScreen() {
           ) : (
             <>
               <Text style={{ color: colors.muted }}>
-                Cole o link do convite (aluno) ou o codigo do convite (treinador).
+                Se vocÃª recebeu um link de convite, abra-o novamente. Caso precise
+                colar manualmente, use a opÃ§Ã£o abaixo.
               </Text>
-              <TextInput
-                placeholder="Link ou codigo do convite"
-                value={inviteInput}
-                onChangeText={setInviteInput}
-                autoCapitalize="none"
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {inviteHint}
-              </Text>
-              {message ? (
-                <Text style={{ color: colors.muted }}>{message}</Text>
-              ) : null}
-              <Pressable
-                onPress={handleInvite}
-                disabled={inviteBusy}
-                style={{
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {inviteBusy ? "Validando..." : "Validar convite"}
-                </Text>
-              </Pressable>
+              {!showInviteInput ? (
+                <Pressable
+                  onPress={() => setShowInviteInput(true)}
+                  style={{
+                    paddingVertical: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    Tenho um convite
+                  </Text>
+                </Pressable>
+              ) : (
+                <>
+                  <TextInput
+                    placeholder="Link ou codigo do convite"
+                    value={inviteInput}
+                    onChangeText={setInviteInput}
+                    autoCapitalize="none"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {inviteHint}
+                  </Text>
+                  {message ? (
+                    <Text style={{ color: colors.muted }}>{message}</Text>
+                  ) : null}
+                  <Pressable
+                    onPress={handleInvite}
+                    disabled={inviteBusy}
+                    style={{
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {inviteBusy ? "Validando..." : "Validar convite"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setShowInviteInput(false)}
+                    style={{
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      Cancelar
+                    </Text>
+                  </Pressable>
+                </>
+              )}
             </>
           )}
         </View>
