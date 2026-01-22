@@ -1054,6 +1054,8 @@ export default function StudentsScreen() {
     return `${base}/invite-link?token=${encodeURIComponent(token)}`;
   };
 
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const applyStudentInviteTemplate = useCallback(
     async (
       student: Student,
@@ -1067,10 +1069,7 @@ export default function StudentsScreen() {
       setSelectedTemplateLabel(WHATSAPP_TEMPLATES.student_invite.title);
       setCustomFields({});
       setCustomStudentMessage("Gerando convite...");
-      try {
-        if (options?.revokeFirst) {
-          await revokeStudentAccess(student.id, { clearLoginEmail: true });
-        }
+      const createInvite = async () => {
         const response = await createStudentInvite(student.id, {
           invitedVia: "whatsapp",
           invitedTo: invitedTo.trim() ? invitedTo : undefined,
@@ -1088,10 +1087,36 @@ export default function StudentsScreen() {
           showWhatsAppNotice("Link copiado.");
         }
         return message;
+      };
+      try {
+        if (options?.revokeFirst) {
+          await revokeStudentAccess(student.id, { clearLoginEmail: true });
+        }
+        const attempts = options?.revokeFirst ? 2 : 1;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          try {
+            return await createInvite();
+          } catch (error) {
+            if (attempt + 1 < attempts) {
+              await wait(400);
+              continue;
+            }
+            throw error;
+          }
+        }
+        return null;
       } catch (error) {
-        const detail = error instanceof Error ? error.message : "";
+        let detail = error instanceof Error ? error.message : String(error);
+        try {
+          const parsed = JSON.parse(detail) as { error?: string };
+          if (parsed?.error) detail = String(parsed.error);
+        } catch {
+          // ignore
+        }
         const lower = detail.toLowerCase();
-        if (lower.includes("already linked")) {
+        if (lower.includes("invalid jwt") || lower.includes("missing auth token")) {
+          Alert.alert("Sessao expirada", "Entre novamente para gerar o convite.");
+        } else if (lower.includes("already linked")) {
           Alert.alert(
             "Convite",
             "Esse aluno ja esta vinculado. Use Revogar e gerar novo link."
