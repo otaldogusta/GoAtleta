@@ -59,7 +59,7 @@ export default function ClassesScreen() {
   const [newModality, setNewModality] = useState<ClassGroup["modality"] | "">("");
   const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"] | "">("");
   const [newGender, setNewGender] = useState<ClassGroup["gender"] | "">("");
-  const [newGoal, setNewGoal] = useState<ClassGroup["goal"] | "">("");
+  const [newGoal, setNewGoal] = useState<ClassGroup["goal"] | "">("Fundamentos");
   const [newStartTime, setNewStartTime] = useState("");
   const [newDuration, setNewDuration] = useState("");
   const [newDays, setNewDays] = useState<number[]>([]);
@@ -413,23 +413,6 @@ export default function ClassesScreen() {
     const list = [...goalSuggestions, ...goals];
     return list.filter((item, index) => list.indexOf(item) === index);
   }, [goalSuggestions, goals]);
-  const editGoalSuggestions = useMemo(() => {
-    const key = normalizeUnitKey(editUnit);
-    const matches = classes.filter((item) => {
-      if (key) return unitKey(item.unit) === key;
-      if (editAgeBand) return item.ageBand === editAgeBand;
-      return false;
-    });
-    const counts = new Map<string, number>();
-    matches.forEach((item) => {
-      counts.set(item.goal, (counts.get(item.goal) ?? 0) + 1);
-    });
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([goal]) => goal)
-      .filter((goal) => goal && !goals.includes(goal))
-      .slice(0, 4);
-  }, [classes, editAgeBand, editUnit, goals]);
 
   const inferModality = useCallback((item?: ClassGroup | null) => {
     if (!item) return "voleibol";
@@ -671,7 +654,7 @@ export default function ClassesScreen() {
       newModality !== "" ||
       newAgeBand !== "" ||
       newGender !== "" ||
-      newGoal !== "" ||
+      newGoal.trim() !== "Fundamentos" ||
       newStartTime.trim() !== "" ||
       newDuration.trim() !== "" ||
       newDays.length > 0 ||
@@ -700,7 +683,7 @@ export default function ClassesScreen() {
     setNewModality("");
     setNewAgeBand("");
     setNewGender("");
-    setNewGoal("");
+    setNewGoal("Fundamentos");
     setNewStartTime("");
     setNewDuration("");
     setNewDays([]);
@@ -1729,24 +1712,6 @@ export default function ClassesScreen() {
                   />
                 </Pressable>
               </View>
-              {goalSuggestions.length ? (
-                <>
-                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
-                    Sugestoes da turma
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                    {goalSuggestions.map((item) => (
-                      <Pressable
-                        key={item}
-                        onPress={() => setNewGoal(item)}
-                        style={getChipStyle(false)}
-                      >
-                        <Text style={getChipTextStyle(false)}>{item}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              ) : null}
               {showAllGoals ? (
                 <TextInput
                   placeholder="Objetivo (ex: Forca, Potencia)"
@@ -2529,24 +2494,6 @@ export default function ClassesScreen() {
                   />
                 </Pressable>
               </View>
-              {editGoalSuggestions.length ? (
-                <>
-                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 4 }}>
-                    Sugestoes da turma
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                    {editGoalSuggestions.map((item) => (
-                      <Pressable
-                        key={item}
-                        onPress={() => setEditGoal(item)}
-                        style={getChipStyle(false)}
-                      >
-                        <Text style={getChipTextStyle(false)}>{item}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              ) : null}
               {editShowAllGoals ? (
                 <TextInput
                   placeholder="Objetivo (ex: Forca, Potencia)"
