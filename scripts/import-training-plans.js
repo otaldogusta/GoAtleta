@@ -293,13 +293,13 @@ const run = async () => {
       issues.push("date deve estar no formato YYYY-MM-DD");
     }
     if (!titleInfo.unit && !unitHint) {
-      issues.push("unidade nao encontrada no title");
+      issues.push("unidade não encontrada no title");
     }
     if (!titleInfo.timeRange) {
-      issues.push("horario nao encontrado (HH:MM-HH:MM)");
+      issues.push("horário não encontrado (HH:MM-HH:MM)");
     }
     if (!titleInfo.ageBand) {
-      issues.push("faixa etaria nao encontrada (08-11)");
+      issues.push("faixa etaria não encontrada (08-11)");
     }
 
     if (issues.length) {
@@ -314,10 +314,10 @@ const run = async () => {
 
     const objectiveIssues = [];
     if (row.objective_general && !objectiveStartsWithVerb(row.objective_general)) {
-      objectiveIssues.push("objetivo geral nao inicia com verbo");
+      objectiveIssues.push("objetivo geral não inicia com verbo");
     }
     if (row.objective_specific && !objectiveStartsWithVerb(row.objective_specific)) {
-      objectiveIssues.push("objetivo especifico nao inicia com verbo");
+      objectiveIssues.push("objetivo especifico não inicia com verbo");
     }
     if (objectiveIssues.length) {
       warnings.push({
@@ -337,7 +337,7 @@ const run = async () => {
         candidates: candidates.map((cls) => cls.id),
         reason:
           candidates.length === 0
-            ? "nenhuma turma encontrada (verifique unidade/horario/faixa/dia)"
+            ? "nenhuma turma encontrada (verifique unidade/horário/faixa/dia)"
             : "ambiguidade (mais de uma turma encontrada)",
       });
       return;

@@ -21,9 +21,9 @@ DoD
 - Build dev e preview OK
 - README com passos minimos de setup
 
-## Fase 1 — Seguranca e banco (RLS + ownership + vinculo aluno↔auth)
+## Fase 1 — Segurança e banco (RLS + ownership + vínculo aluno↔auth)
 
-Objetivo: ninguem acessa o que nao deve; vinculo automatico aluno-auth funciona.
+Objetivo: ninguem acessa o que não deve; vínculo automatico aluno-auth funciona.
 
 Feito
 - RLS + ownership com trainers, student_user_id e policies por papel (migration 20260120...)
@@ -38,17 +38,17 @@ Recomendado
 - Auditoria minima (created_at, created_by nas tabelas sensiveis)
 
 DoD
-- Politicas RLS revisadas e testadas
+- Políticas RLS revisadas e testadas
 - Acesso anon bloqueado nas tabelas principais
 
-## Fase 2 — Edge Functions (seguranca + SSRF + service role)
+## Fase 2 — Edge Functions (segurança + SSRF + service role)
 
-Objetivo: functions seguras, com JWT e protecao; automacoes confiaveis.
+Objetivo: functions seguras, com JWT e proteção; automacoes confiaveis.
 
 Feito
 - assistant e link-metadata exigindo JWT, SSRF protection, service role no server
 - Function de auto-link do aluno criada e deployada (auto-link-student)
-- verify_jwt = false no config.toml (validacao manual via hook/header)
+- verify_jwt = false no config.toml (validação manual via hook/header)
 - Webhook auth.users INSERT -> auto-link-student com Authorization Bearer secret
 
 Recomendado
@@ -59,22 +59,22 @@ DoD
 - Funcoes com logs consistentes e erros tratados
 - Sem secrets no client
 
-## Fase 3 — App (sessao, bloqueios, estabilidade)
+## Fase 3 — App (sessão, bloqueios, estabilidade)
 
 Objetivo: app so opera com token valido; sem crashes por platform API.
 
 Feito
 - Campo "Email do aluno (login)" no cadastro/edicao
-- App pega token valido e bloqueia seed sem sessao
+- App pega token valido e bloqueia seed sem sessão
 - Fix de acesso a document no Android
 
 Recomendado
-- Centralizar gate de autenticacao (AuthGuard)
-- Estados para conta sem vinculo (aluno sem student_user_id)
+- Centralizar gate de autenticação (AuthGuard)
+- Estados para conta sem vínculo (aluno sem student_user_id)
 
 DoD
-- Fluxo de login e sessao ok em web/ios/android
-- Erros amigaveis para falta de sessao
+- Fluxo de login e sessão ok em web/ios/android
+- Erros amigaveis para falta de sessão
 
 ## Fase 4 — Rotas por papel (aluno vs treinador)
 
@@ -86,13 +86,13 @@ Recomendado
 - Ajustar menus e atalhos
 
 DoD
-- Aluno nao acessa cadastro de turmas/alunos/relatorios
-- Treinador nao perde acesso ao que precisa
+- Aluno não acessa cadastro de turmas/alunos/relatórios
+- Treinador não perde acesso ao que precisa
 - Teste manual: login aluno vs login treinador
 
 ## Fase 5 — Cadastro por papel + convite de treinador
 
-Objetivo: escolha aluno/treinador com seguranca real.
+Objetivo: escolha aluno/treinador com segurança real.
 
 Recomendado
 - Banco:
@@ -106,12 +106,12 @@ Recomendado
   - opcional create-trainer-invite (admin)
 - App:
   - Sign up com seletor Aluno vs Treinador
-  - Treinador pede codigo e valida
-  - Roteamento pos-login por role real, nao pela escolha
+  - Treinador pede código e valida
+  - Roteamento pos-login por role real, não pela escolha
 
 DoD
-- Convite cria/ativa treinador com seguranca
-- Aluno nao consegue virar treinador sem convite valido
+- Convite cria/ativa treinador com segurança
+- Aluno não consegue virar treinador sem convite valido
 
 ## Fase 6 — Presenca / Check-in com cautela
 
@@ -120,11 +120,11 @@ Objetivo: aluno pode avisar ausencia, mas presenca oficial e do treinador.
 Recomendado
 - Tabela absence_notices (student_id, session_id, reason, note, created_at, status)
 - Tela aluno: "Avisar ausencia"
-- Tela treinador: "Avisos pendentes" + acao confirmar/ignorar
-- Rate limit + janela de alteracao
+- Tela treinador: "Avisos pendentes" + ação confirmar/ignorar
+- Rate limit + janela de alteração
 
 DoD
-- Aviso do aluno nao altera presenca automaticamente
+- Aviso do aluno não altera presenca automaticamente
 - Treinador confirma ausencia manualmente
 
 ## Fase 7 — Qualidade, UX e polimento
@@ -150,8 +150,8 @@ Objetivo: deploy e manutencao sem dor.
 Recomendado
 - Checklist de release (preview -> production)
 - Sentry releases e sourcemaps no pipeline
-- Migracoes versionadas + rollback basico
-- Politica de chaves/secrets (rotacao)
+- Migrações versionadas + rollback basico
+- Política de chaves/secrets (rotacao)
 
 DoD
 - Pipeline documentado e repetivel

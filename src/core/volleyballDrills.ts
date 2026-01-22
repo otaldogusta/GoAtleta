@@ -129,7 +129,7 @@ export const volleyballDrills: VolleyballDrill[] = [
     goals: ["Fundamentos", "Voleibol"],
     drill: "Aquecimento neuromuscular (ex: saltos, equilibrio)",
     tempoMin: 10,
-    carga: "1x por sessao",
+    carga: "1x por sessão",
     justificativa: "Reduz risco de lesao, melhora propriocepcao",
     referencias: ["Hughes et al., 2023", "Lutz et al., 2024", "Caldemeyer et al., 2020"],
   },

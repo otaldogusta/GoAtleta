@@ -143,10 +143,10 @@ export default function BirthdaysScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: 24, gap: 16 }}>
         <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Aniversarios
+            Aniversários
           </Text>
           <Text style={{ color: colors.muted }}>
-            Organizado por mes e unidade
+            Organizado por mês e unidade
           </Text>
         </View>
 
@@ -167,7 +167,7 @@ export default function BirthdaysScreen() {
             }}
           >
             <Text style={{ fontSize: 16, fontWeight: "800", color: colors.successText }}>
-              Hoje e dia de aniversario
+              Hoje e dia de aniversário
             </Text>
             {birthdayToday.map((student) => (
               <View
@@ -348,7 +348,7 @@ export default function BirthdaysScreen() {
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Sem aniversarios
+              Sem aniversários
             </Text>
             <Text style={{ color: colors.muted, marginTop: 4 }}>
               Nenhum aluno com data de nascimento.

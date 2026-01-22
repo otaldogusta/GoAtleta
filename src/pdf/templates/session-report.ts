@@ -27,7 +27,7 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
     typeof data.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = data.deadlineLabel?.trim() || "Ultimo dia da escolinha do mes";
+  const deadline = data.deadlineLabel?.trim() || "último dia da escolinha do mês";
 
   return `
   <html>
@@ -90,7 +90,7 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
           <td colspan="2"><span class="label">Conclusao:</span>${nl2br(conclusion || "-")}</td>
         </tr>
         <tr>
-          <td colspan="2"><span class="label">Numero de participantes:</span>${esc(participants)}</td>
+          <td colspan="2"><span class="label">Número de participantes:</span>${esc(participants)}</td>
         </tr>
         <tr>
           <td colspan="2" class="photos"><span class="label">Fotos:</span>${nl2br(photos || "-")}</td>

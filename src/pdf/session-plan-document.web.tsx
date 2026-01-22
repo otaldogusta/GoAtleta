@@ -165,7 +165,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
         {data.notes ? (
           <View style={styles.block}>
             <View style={styles.blockHeader}>
-              <Text style={styles.blockTitle}>Observacoes</Text>
+              <Text style={styles.blockTitle}>Observações</Text>
             </View>
             <Text style={styles.value}>{data.notes}</Text>
           </View>

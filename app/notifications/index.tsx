@@ -61,7 +61,7 @@ export default function NotificationsScreen() {
 
   const disableNotifications = async () => {
     if (isWeb) {
-      setStatus("Notificacoes nao sao suportadas no navegador.");
+      setStatus("Notificações não sao suportadas no navegador.");
       return;
     }
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -81,9 +81,9 @@ export default function NotificationsScreen() {
     if (nextEnabled) {
       const ok = await requestPermissions();
       if (ok) {
-        setStatus("Notificacoes ativadas.");
+        setStatus("Notificações ativadas.");
       } else {
-        setStatus("Permissao negada.");
+        setStatus("Permissão negada.");
       }
     } else {
       await disableNotifications();
@@ -98,7 +98,7 @@ export default function NotificationsScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <Typography variant="title">Configuracoes</Typography>
+      <Typography variant="title">Configurações</Typography>
 
       <View style={{ marginTop: 16, gap: 12 }}>
         <View
@@ -139,7 +139,7 @@ export default function NotificationsScreen() {
             gap: 10,
           }}
         >
-          <Typography variant="body">Notificacoes</Typography>
+          <Typography variant="body">Notificações</Typography>
           <Pressable
             onPress={() => {
               setEnabled((prev) => !prev);
@@ -177,7 +177,7 @@ export default function NotificationsScreen() {
             gap: 10,
           }}
         >
-          <Typography variant="body">Atualizacoes</Typography>
+          <Typography variant="body">Atualizações</Typography>
           <Pressable
             onPress={() => Linking.openURL(UPDATE_DEEPLINK)}
             style={{
@@ -290,7 +290,7 @@ export default function NotificationsScreen() {
           }}
         >
           <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            Salvar alteracoes
+            Salvar alterações
           </Text>
         </Pressable>
       </View>

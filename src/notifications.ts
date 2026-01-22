@@ -55,7 +55,7 @@ const sendLocalNotification = async (title: string, body: string) => {
 export const notifyTrainingCreated = async () => {
   await addNotification(
     "Treino criado",
-    "O assistente gerou um treino para voce."
+    "O assistente gerou um treino para você."
   );
 };
 

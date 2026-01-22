@@ -110,13 +110,13 @@ const chunk = (list, size) => {
 
 const run = async () => {
   if (!fs.existsSync(ENV_PATH)) {
-    throw new Error("Arquivo .env nao encontrado.");
+    throw new Error("Arquivo .env não encontrado.");
   }
   const env = parseEnv(fs.readFileSync(ENV_PATH, "utf8"));
   const token = env.FIGMA_TOKEN;
   const fileId = env.FIGMA_FILE_ID;
   if (!token || !fileId) {
-    throw new Error("FIGMA_TOKEN ou FIGMA_FILE_ID nao encontrado no .env.");
+    throw new Error("FIGMA_TOKEN ou FIGMA_FILE_ID não encontrado no .env.");
   }
 
   const stylesUrl = `https://api.figma.com/v1/files/${fileId}/styles`;

@@ -7,7 +7,7 @@ try {
 
   if (content.includes("import.meta.url")) {
     console.error(`
-yoga-layout patch nao aplicado (import.meta.url ainda existe).
+yoga-layout patch não aplicado (import.meta.url ainda existe).
 
 Isso quebra o Web com:
   "Cannot use import.meta outside a module"
@@ -15,9 +15,9 @@ Isso quebra o Web com:
 Como resolver:
   1) Rode: npm install
   2) Verifique se o patch existe em: patches/yoga-layout+3.2.1.patch
-  3) Confirme que o postinstall esta rodando patch-package
+  3) Confirme que o postinstall está rodando patch-package
 
-Se voce atualizou o yoga-layout, regenere o patch:
+Se você atualizou o yoga-layout, regenere o patch:
   npx patch-package yoga-layout
 `);
     process.exit(1);
@@ -26,9 +26,9 @@ Se voce atualizou o yoga-layout, regenere o patch:
   console.log("yoga-layout patch aplicado com sucesso.");
 } catch (err) {
   console.error(`
-Nao foi possivel validar o patch do yoga-layout.
+Não foi possível validar o patch do yoga-layout.
 
-Arquivo esperado nao encontrado:
+Arquivo esperado não encontrado:
   ${file}
 
 Como resolver:

@@ -47,7 +47,7 @@ const formatResetError = (raw: string) => {
     return "A nova senha precisa ser diferente da anterior.";
   }
   if (normalized.includes("invalid") && normalized.includes("token")) {
-    return "Link invalido ou expirado.";
+    return "Link inválido ou expirado.";
   }
   return raw.replace(/\s+/g, " ");
 };
@@ -129,7 +129,7 @@ export default function ResetPasswordScreen() {
 
   const submit = async () => {
     if (!token) {
-      setMessage("Link invalido ou expirado.");
+      setMessage("Link inválido ou expirado.");
       return;
     }
     if (!password.trim()) {
@@ -141,7 +141,7 @@ export default function ResetPasswordScreen() {
       return;
     }
     if (password !== confirm) {
-      setMessage("As senhas nao coincidem.");
+      setMessage("As senhas não coincidem.");
       return;
     }
     setMessage("");
@@ -292,10 +292,10 @@ export default function ResetPasswordScreen() {
                   </View>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                     {[
-                      { key: "minuscula", ok: passwordChecks.lower },
-                      { key: "maiuscula", ok: passwordChecks.upper },
-                      { key: "numero", ok: passwordChecks.number },
-                      { key: "simbolo", ok: passwordChecks.symbol },
+                      { key: "minúscula", ok: passwordChecks.lower },
+                      { key: "maiúscula", ok: passwordChecks.upper },
+                      { key: "número", ok: passwordChecks.number },
+                      { key: "símbolo", ok: passwordChecks.symbol },
                     ].map((item) => (
                       <View
                         key={item.key}
@@ -305,15 +305,11 @@ export default function ResetPasswordScreen() {
                           gap: 6,
                         }}
                       >
-                        <Text
-                          style={{
-                            color: item.ok ? colors.successBg : colors.dangerSolidBg,
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          {item.ok ? "✔" : "✖"}
-                        </Text>
+                        <Ionicons
+                          name={item.ok ? "checkmark" : "close"}
+                          size={12}
+                          color={item.ok ? colors.successBg : colors.dangerSolidBg}
+                        />
                         <Text style={{ color: colors.muted, fontSize: 12 }}>
                           {item.key}
                         </Text>
@@ -396,4 +392,3 @@ export default function ResetPasswordScreen() {
     </SafeAreaView>
   );
 }
-

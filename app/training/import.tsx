@@ -227,26 +227,26 @@ export default function ImportTrainingCsvScreen() {
     const results: PreviewRow[] = rows.map((row) => {
       const errors: string[] = [];
       if (!row.date || !isValidIsoDate(row.date)) {
-        errors.push("Data invalida");
+        errors.push("Data inválida");
       }
       if (!row.title) {
         errors.push("Titulo ausente");
       }
       const info = extractTitleInfo(row.title || "");
       if (!normalizeUnitKey(info.unit) && !normalizeUnitKey(unitHint)) {
-        errors.push("Unidade nao encontrada no titulo");
+        errors.push("Unidade não encontrada no titulo");
       }
       if (!info.timeRange) {
-        errors.push("Horario nao encontrado no titulo");
+        errors.push("Horário não encontrado no titulo");
       }
       if (!info.ageBand) {
-        errors.push("Faixa etaria nao encontrada no titulo");
+        errors.push("Faixa etaria não encontrada no titulo");
       }
       let matched: ClassGroup[] = [];
       if (!errors.length) {
         matched = matchClass(classList, row, info, unitHint.trim());
         if (matched.length === 0) {
-          errors.push("Turma nao encontrada");
+          errors.push("Turma não encontrada");
         } else if (matched.length > 1) {
           errors.push("Turma ambigua (ajuste o titulo)");
         }
@@ -299,7 +299,7 @@ export default function ImportTrainingCsvScreen() {
 
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Unidade (opcional, se nao estiver no titulo)
+            Unidade (opcional, se não estiver no titulo)
           </Text>
           <TextInput
             placeholder="Ex: Rede Esperanca"

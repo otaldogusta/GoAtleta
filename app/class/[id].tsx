@@ -280,7 +280,7 @@ export default function ClassDetails() {
         style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
       >
         <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-          Turma nao encontrada
+          Turma não encontrada
         </Text>
       </SafeAreaView>
     );
@@ -296,13 +296,13 @@ export default function ClassDetails() {
     if (!cls) return;
     const timeValue = startTime.trim();
     if (!isValidTime(timeValue)) {
-      setFormError("Horario invalido. Use HH:MM.");
+      setFormError("Horário inválido. Use HH:MM.");
       Vibration.vibrate(40);
       return;
     }
     const durationValue = parseDuration(duration.trim());
     if (!durationValue) {
-      setFormError("Duracao invalida. Use minutos entre 30 e 180.");
+      setFormError("Duracao inválida. Use minutos entre 30 e 180.");
       Vibration.vibrate(40);
       return;
     }
@@ -615,7 +615,7 @@ export default function ClassDetails() {
             }}
           >
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Informacoes
+              Informações
             </Text>
             <MaterialCommunityIcons
               name={showDetails ? "chevron-down" : "chevron-right"}
@@ -657,7 +657,7 @@ export default function ClassDetails() {
                   </Text>
                 </View>
                 <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Horario</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
                   <Text style={{ color: colors.text, fontSize: 13 }}>
                     {classStartTime}
                   </Text>
@@ -681,7 +681,7 @@ export default function ClassDetails() {
 
         <View style={getSectionCardStyle(colors, "primary", { radius: 18 })}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Acoes rapidas
+            Ações rapidas
           </Text>
           <View style={{ gap: 10 }}>
             <Pressable
@@ -793,7 +793,7 @@ export default function ClassDetails() {
                         {skill.label}
                       </Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {metrics.total} acoes | media {metrics.avg.toFixed(2)} | boas {goodPct}%
+                        {metrics.total} ações | media {metrics.avg.toFixed(2)} | boas {goodPct}%
                       </Text>
                     </View>
                   );
@@ -808,7 +808,7 @@ export default function ClassDetails() {
                 </View>
               ) : (
                 <Text style={{ color: colors.muted }}>
-                  Registre pelo menos 10 acoes para sugerir foco.
+                  Registre pelo menos 10 ações para sugerir foco.
                 </Text>
               )}
             </View>

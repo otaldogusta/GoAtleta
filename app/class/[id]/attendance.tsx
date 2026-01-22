@@ -213,7 +213,7 @@ export default function AttendanceScreen() {
       variant: "success",
     });
     showSaveToast({
-      message: "Chamada salva - abrir relatorio?",
+      message: "Chamada salva - abrir relatório?",
       variant: "info",
     });
     setHasSaved(true);
@@ -520,7 +520,7 @@ export default function AttendanceScreen() {
                     Idade: {item.student.age} | Tel: {item.student.phone}
                   </Text>
                   <TextInput
-                    placeholder="Observacao (opcional)"
+                    placeholder="Observação (opcional)"
                     value={item.note}
                     onChangeText={(text) =>
                       setNoteById((prev) => ({
@@ -587,7 +587,7 @@ export default function AttendanceScreen() {
           disabled={!isClassDay || !hasChanges}
         />
         <Button
-          label="Abrir relatorio"
+          label="Abrir relatório"
           variant="secondary"
           disabled={!isClassDay || !hasSaved}
           onPress={() => {
@@ -596,7 +596,7 @@ export default function AttendanceScreen() {
               params: {
                 id: cls.id,
                 date,
-                tab: "relatorio",
+                tab: "relatório",
               },
             });
           }}

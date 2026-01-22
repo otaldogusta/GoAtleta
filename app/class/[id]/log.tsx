@@ -262,7 +262,7 @@ export default function LogScreen() {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {cls ? (
           <ClassContextHeader
-            title="Relatorio da aula"
+            title="Relatório da aula"
             className={className}
             unit={cls.unit}
             ageBand={cls.ageBand}
@@ -273,7 +273,7 @@ export default function LogScreen() {
         ) : (
           <View style={{ gap: 6, marginBottom: 12 }}>
             <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              Relatorio da aula
+              Relatório da aula
             </Text>
             <Text style={{ color: colors.muted }}>Resumo da aula aplicada</Text>
           </View>
@@ -360,7 +360,7 @@ export default function LogScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Numero de participantes
+                Número de participantes
               </Text>
               <TextInput
                 placeholder="Ex: 12"
@@ -404,10 +404,10 @@ export default function LogScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Conclusao
+                Conclusão
               </Text>
               <TextInput
-                placeholder="Observacoes finais da aula"
+                placeholder="Observações finais da aula"
                 value={conclusion}
                 onChangeText={(value) => {
                   setConclusion(value);
@@ -455,7 +455,7 @@ export default function LogScreen() {
             </View>
 
             <View style={{ marginTop: 12, gap: 8 }}>
-              <Button label="Salvar e gerar relatorio" onPress={handleSaveAndReport} />
+              <Button label="Salvar e gerar relatório" onPress={handleSaveAndReport} />
               <Button label="Salvar" variant="secondary" onPress={handleSave} />
             </View>
           </View>

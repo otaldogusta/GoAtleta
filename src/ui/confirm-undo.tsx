@@ -102,12 +102,12 @@ export function ConfirmUndoProvider({
 
   const modalTitle = confirmOptions?.title ?? "Confirmar";
   const modalMessage =
-    confirmOptions?.message ?? "Deseja continuar com esta acao?";
+    confirmOptions?.message ?? "Deseja continuar com esta ação?";
   const confirmLabel = confirmOptions?.confirmLabel ?? "Excluir";
   const cancelLabel = confirmOptions?.cancelLabel ?? "Cancelar";
   const undoLabel = pending?.options.undoLabel ?? "Desfazer";
   const undoMessage =
-    pending?.options.undoMessage ?? "Acao concluida. Deseja desfazer?";
+    pending?.options.undoMessage ?? "Ação concluida. Deseja desfazer?";
 
   const contextValue = useMemo(
     () => ({
@@ -141,7 +141,7 @@ export function ConfirmUndoProvider({
               </Text>
               <Text style={{ color: colors.muted }}>{modalMessage}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Voce podera desfazer por alguns segundos.
+                Você podera desfazer por alguns segundos.
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>

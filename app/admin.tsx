@@ -45,7 +45,7 @@ export default function AdminLoginScreen() {
       setMessage(
         detail.toLowerCase().includes("invalid login")
           ? "Email ou senha incorretos."
-          : "Nao foi possivel autenticar."
+          : "Não foi possível autenticar."
       );
     } finally {
       setBusy(false);

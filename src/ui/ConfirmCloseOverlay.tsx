@@ -19,7 +19,7 @@ type ConfirmCloseOverlayProps = {
 export function ConfirmCloseOverlay({
   visible,
   title = "Sair sem salvar?",
-  message = "Voce tem alteracoes nao salvas.",
+  message = "Você tem alterações não salvas.",
   confirmLabel = "Descartar",
   cancelLabel = "Continuar",
   onConfirm,

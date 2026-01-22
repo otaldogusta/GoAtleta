@@ -76,7 +76,7 @@ export default function StudentPlanScreen() {
               Nenhum plano encontrado
             </Text>
             <Text style={{ color: colors.muted, marginTop: 6 }}>
-              O treinador ainda nao publicou o plano mais recente.
+              O treinador ainda não publicou o plano mais recente.
             </Text>
           </View>
         ) : (

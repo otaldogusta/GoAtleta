@@ -153,7 +153,7 @@ export default function LoginScreen() {
         setMessage("!Email ou senha incorretos.");
         setFailedLoginAttempt(true);
       } else {
-        setMessage("Nao foi possivel concluir. Verifique os dados e tente novamente.");
+        setMessage("Não foi possível concluir. Verifique os dados e tente novamente.");
       }
     } finally {
       setBusy(false);
@@ -177,7 +177,7 @@ export default function LoginScreen() {
           ? `${webOrigin || "http://localhost:8081"}/reset-password`
           : Linking.createURL("reset-password");
       await resetPassword(email.trim(), redirectTo);
-      setMessage("Enviamos um link de recuperacao para seu email.");
+      setMessage("Enviamos um link de recuperação para seu email.");
       setResetCountdown(180);
       setResetSent(true);
     } catch (error) {
@@ -185,7 +185,7 @@ export default function LoginScreen() {
       setMessage(
         detail.toLowerCase().includes("rate limit")
           ? "Aguarde alguns minutos e tente novamente."
-          : "Nao foi possivel enviar o link. Verifique o email e tente novamente."
+          : "Não foi possível enviar o link. Verifique o email e tente novamente."
       );
     } finally {
       setBusy(false);
@@ -203,7 +203,7 @@ export default function LoginScreen() {
       setMessage(
         detail.includes("cancel")
           ? "Login cancelado."
-          : "Nao foi possivel entrar com essa conta."
+          : "Não foi possível entrar com essa conta."
       );
     } finally {
       setBusy(false);
@@ -260,7 +260,7 @@ export default function LoginScreen() {
                 }}
               >
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sessao nao sera lembrada.
+                  Sessão não sera lembrada.
                 </Text>
               </Animated.View>
             ) : null}
@@ -531,7 +531,7 @@ export default function LoginScreen() {
                       style={{ alignSelf: "center", paddingVertical: 6 }}
                     >
                       <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                        Nao recebeu o link? Clique aqui
+                        Não recebeu o link? Clique aqui
                       </Text>
                     </Pressable>
                   ) : null}
@@ -550,7 +550,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={{ alignItems: "center", gap: 6 }}>
-              <Text style={{ color: colors.muted }}>Nao tem conta?</Text>
+              <Text style={{ color: colors.muted }}>Não tem conta?</Text>
               <Pressable
                 onPress={() => router.replace("/signup")}
                 style={{ paddingVertical: 4 }}

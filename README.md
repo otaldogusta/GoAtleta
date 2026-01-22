@@ -34,23 +34,23 @@ You can start developing by editing the files inside the **app** directory. This
 
 ## Web patch (yoga-layout)
 
-O `yoga-layout@3.2.1` contem `import.meta.url` no bundle ESM e o Metro nao transpila `node_modules`, causando tela branca no Web com o erro:
+O `yoga-layout@3.2.1` contem `import.meta.url` no bundle ESM e o Metro não transpila `node_modules`, causando tela branca no Web com o erro:
 
 `Cannot use import.meta outside a module`
 
 Para evitar isso, mantemos um patch com `patch-package` que remove esse trecho do arquivo:
 
 - Patch: `patches/yoga-layout+3.2.1.patch`
-- Aplicacao automatica: `npm install` (via `postinstall`)
+- Aplicação automatica: `npm install` (via `postinstall`)
 - Versao fixada: `yoga-layout: 3.2.1`
 
-Atualizacao:
+Atualização:
 
 ```bash
 npx patch-package yoga-layout
 ```
 
-### Checklist de validacao
+### Checklist de validação
 
 - [ ] `rm -rf node_modules && npm install`
 - [ ] `npm run web` (dev)
@@ -80,7 +80,7 @@ periodizacao e no cadastro de turmas.
 Regras do padrao:
 - Ao clicar, abre lista abaixo do campo (ancorada no trigger).
 - So um dropdown aberto por vez.
-- Scroll acontece dentro da lista, nao na tela.
+- Scroll acontece dentro da lista, não na tela.
 - Ao rolar a tela, a lista acompanha o campo (recalcula layout).
 
 Onde usar como referencia:
@@ -107,7 +107,7 @@ select pg_notify('pgrst', 'reload schema');
 
 ## Supabase: auto-link de aluno (login)
 
-Para vincular automaticamente o usuario do aluno ao cadastro (`students.student_user_id`):
+Para vincular automaticamente o usuário do aluno ao cadastro (`students.student_user_id`):
 
 1. No cadastro de aluno, preencha o campo "Email do aluno (login)".
 2. Em Supabase > Authentication > Webhooks, crie um webhook de "User created" para:
@@ -128,8 +128,8 @@ O importador resolve a turma pelo `title` e pela `date` no CSV.
 
 Regras:
 - `date` deve estar em `YYYY-MM-DD`.
-- `title` precisa conter tokens no formato: `<UNIDADE> | <HORARIO> | <FAIXA> | ...`
-- `HORARIO` deve ser `HH:MM-HH:MM` (com zero a esquerda).
+- `title` precisa conter tokens no formato: `<UNIDADE> | <HORÁRIO> | <FAIXA> | ...`
+- `HORÁRIO` deve ser `HH:MM-HH:MM` (com zero a esquerda).
 - `FAIXA` aceita `8-11` e sera normalizada para `08-11`.
 
 Exemplo:
@@ -143,12 +143,12 @@ date,title,warmup_time,warmup,main_time,main,cooldown_time,cooldown,objective_ge
 2026-01-06,"Rede Esperanca | 14:00-15:00 | 08-11 | Semana 01 - Diagnostica","10 min","Pega-pega","45 min","Toque para alvo | Mini jogo 1x1","5 min","Roda de conversa","Diagnostico do mes","Controle de bola e toque",""
 ```
 
-Se existir ambiguidade (mais de uma turma com mesma unidade + horario + faixa + dia),
+Se existir ambiguidade (mais de uma turma com mesma unidade + horário + faixa + dia),
 o importador retorna erro com a lista de turmas candidatas.
 
 ## Pendencias (to-do)
 
-- Home > Agenda do dia: revisar botao "Fazer chamada" para abrir a turma correta do dia/horario, e opcionalmente exibir turma/horario no botao.
+- Home > Agenda do dia: revisar botao "Fazer chamada" para abrir a turma correta do dia/horário, e opcionalmente exibir turma/horário no botao.
 
 ## Get a fresh project
 

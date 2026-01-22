@@ -114,11 +114,11 @@ export default function StudentsScreen() {
     false
   );
   const [studentsTab, setStudentsTab] = useState<
-    "cadastro" | "aniversarios" | "alunos"
+    "cadastro" | "aniversários" | "alunos"
   >("alunos");
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] = useState<
-    "cadastro" | "aniversarios" | "alunos" | null
+    "cadastro" | "aniversários" | "alunos" | null
   >(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
@@ -441,7 +441,7 @@ export default function StudentsScreen() {
     });
   }, [classes]);
   const guardianRelationOptions = useMemo(
-    () => ["Pai", "Mae", "Tia", "Avo", "Irmao", "Irma", "Outro"],
+    () => ["Pai", "Mãe", "Tia", "Avó", "Irmão", "Irmã", "Outro"],
     []
   );
 
@@ -542,7 +542,7 @@ export default function StudentsScreen() {
 
     resetForm();
     await reload();
-    showSaveNotice(wasEditing ? "Alteracoes salvas." : "Aluno cadastrado.");
+    showSaveNotice(wasEditing ? "Alterações salvas." : "Aluno cadastrado.");
     return true;
   };
 
@@ -635,7 +635,7 @@ export default function StudentsScreen() {
   };
 
   const requestSwitchStudentsTab = useCallback(
-    (nextTab: "cadastro" | "aniversarios" | "alunos") => {
+    (nextTab: "cadastro" | "aniversários" | "alunos") => {
       if (nextTab === studentsTab) return;
       if (studentsTab === "cadastro" && isFormDirty) {
         setPendingStudentsTab(nextTab);
@@ -716,7 +716,7 @@ export default function StudentsScreen() {
         invitedTo: phone.trim() || undefined,
       });
       if (!response?.token) {
-        throw new Error("Convite invalido.");
+        throw new Error("Convite inválido.");
       }
       const link = buildInviteLink(response.token);
       setInviteLink(link);
@@ -734,11 +734,11 @@ export default function StudentsScreen() {
       const detail = error instanceof Error ? error.message : "";
       const lower = detail.toLowerCase();
       if (lower.includes("already linked")) {
-        setInviteMessage("Esse aluno ja esta vinculado.");
+        setInviteMessage("Esse aluno já esta vinculado.");
       } else if (lower.includes("student not found")) {
-        setInviteMessage("Aluno nao encontrado.");
+        setInviteMessage("Aluno não encontrado.");
       } else {
-        setInviteMessage("Nao foi possivel gerar o convite.");
+        setInviteMessage("Não foi possível gerar o convite.");
       }
     } finally {
       setInviteBusy(false);
@@ -985,12 +985,12 @@ export default function StudentsScreen() {
       if (contact.status === "missing") {
         Alert.alert(
           "Sem telefone",
-          "Adicione o telefone do aluno ou responsavel para usar o WhatsApp."
+          "Adicione o telefone do aluno ou responsável para usar o WhatsApp."
         );
         return;
       }
       if (contact.status === "invalid") {
-        Alert.alert("Telefone invalido", "Informe um telefone com DDD.");
+        Alert.alert("Telefone inválido", "Informe um telefone com DDD.");
         return;
       }
       const cls = classes.find((entry) => entry.id === student.classId) ?? null;
@@ -1052,7 +1052,7 @@ export default function StudentsScreen() {
           invitedTo: invitedTo.trim() ? invitedTo : undefined,
         });
         if (!response?.token) {
-          throw new Error("Convite invalido.");
+          throw new Error("Convite inválido.");
         }
         const link = buildInviteLink(response.token);
         const fields: Record<string, string> = { inviteLink: link };
@@ -1064,13 +1064,13 @@ export default function StudentsScreen() {
         const detail = error instanceof Error ? error.message : "";
         const lower = detail.toLowerCase();
         if (lower.includes("already linked")) {
-          Alert.alert("Convite", "Esse aluno ja esta vinculado.");
+          Alert.alert("Convite", "Esse aluno já esta vinculado.");
         } else if (lower.includes("student not found")) {
-          Alert.alert("Convite", "Aluno nao encontrado.");
+          Alert.alert("Convite", "Aluno não encontrado.");
         } else {
-          Alert.alert("Convite", "Nao foi possivel gerar o convite.");
+          Alert.alert("Convite", "Não foi possível gerar o convite.");
         }
-        setCustomStudentMessage("Nao foi possivel gerar o convite.");
+        setCustomStudentMessage("Não foi possível gerar o convite.");
         return null;
       } finally {
         setStudentInviteBusy(false);
@@ -1558,7 +1558,7 @@ export default function StudentsScreen() {
           {[
             { id: "alunos" as const, label: "Alunos" },
             { id: "cadastro" as const, label: "Cadastro" },
-            { id: "aniversarios" as const, label: "Aniversarios" },
+            { id: "aniversários" as const, label: "Aniversários" },
           ].map((tab) => {
             const selected = studentsTab === tab.id;
             return (
@@ -1715,7 +1715,7 @@ export default function StudentsScreen() {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
                   <TextInput
-                    placeholder="Nome do responsavel"
+                    placeholder="Nome do responsável"
                     value={guardianName}
                     onChangeText={setGuardianName}
                     onBlur={() => setGuardianName(formatName(guardianName))}
@@ -1733,9 +1733,9 @@ export default function StudentsScreen() {
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Telefone do responsavel</Text>
+                  <Text style={{ color: colors.muted }}>Telefone do responsável</Text>
                   <TextInput
-                    placeholder="Telefone do responsavel"
+                    placeholder="Telefone do responsável"
                     value={guardianPhone}
                     onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                     keyboardType="phone-pad"
@@ -1776,7 +1776,7 @@ export default function StudentsScreen() {
               </View>
 
               <Button
-                label={editingId ? "Salvar alteracoes" : "Adicionar aluno"}
+                label={editingId ? "Salvar alterações" : "Adicionar aluno"}
                 onPress={onSave}
                 disabled={!canSaveStudent}
               />
@@ -1788,7 +1788,7 @@ export default function StudentsScreen() {
                     if (isFormDirty) {
                       confirmDialog({
                         title: "Sair sem salvar?",
-                        message: "Voce tem alteracoes nao salvas.",
+                        message: "Você tem alterações não salvas.",
                         confirmLabel: "Descartar",
                         cancelLabel: "Continuar",
                         onConfirm: () => {
@@ -1805,7 +1805,7 @@ export default function StudentsScreen() {
           </View>
         )}
 
-        {studentsTab === "aniversarios" && (
+        {studentsTab === "aniversários" && (
           <View style={{ gap: 12 }}>
             {birthdayToday.length ? (
               <View
@@ -1824,7 +1824,7 @@ export default function StudentsScreen() {
                 }}
               >
                 <Text style={{ fontSize: 16, fontWeight: "800", color: colors.successText }}>
-                  Hoje e dia de aniversario
+                  Hoje e dia de aniversário
                 </Text>
                 {birthdayToday.map((student) => {
                   const cls = classes.find((item) => item.id === student.classId);
@@ -2037,7 +2037,7 @@ export default function StudentsScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Sem aniversarios
+                  Sem aniversários
                 </Text>
                 <Text style={{ color: colors.muted, marginTop: 4 }}>
                   Nenhum aluno com data de nascimento.
@@ -2463,9 +2463,9 @@ export default function StudentsScreen() {
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do responsavel</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do responsável</Text>
                   <TextInput
-                    placeholder="Nome do responsavel"
+                    placeholder="Nome do responsável"
                     value={guardianName}
                     onChangeText={setGuardianName}
                     onBlur={() => setGuardianName(formatName(guardianName))}
@@ -2482,9 +2482,9 @@ export default function StudentsScreen() {
                   />
                 </View>
                 <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do responsavel</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do responsável</Text>
                   <TextInput
-                    placeholder="Telefone do responsavel"
+                    placeholder="Telefone do responsável"
                     value={guardianPhone}
                     onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                     keyboardType="phone-pad"
@@ -2620,7 +2620,7 @@ export default function StudentsScreen() {
                       fontWeight: "700",
                     }}
                   >
-                    Salvar alteracoes
+                    Salvar alterações
                   </Text>
                 </Pressable>
                 <Pressable
@@ -2776,8 +2776,8 @@ export default function StudentsScreen() {
           const sendMessage = async () => {
             if (!finalPhone) {
               Alert.alert(
-                "Contato invalido",
-                "Atualize o telefone do aluno ou responsavel."
+                "Contato inválido",
+                "Atualize o telefone do aluno ou responsável."
               );
               return;
             }
@@ -2871,7 +2871,7 @@ export default function StudentsScreen() {
                   const fieldPlaceholder =
                     field === "highlightNote"
                       ? "Ex: excelente postura no saque!"
-                      : "Ex: nao havera treino na sexta";
+                      : "Ex: não havera treino na sexta";
                   return (
                     <View key={field} style={{ gap: 6 }}>
                       <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
@@ -2939,7 +2939,7 @@ export default function StudentsScreen() {
                               : colors.text,
                         }}
                       >
-                        Responsavel
+                        Responsável
                       </Text>
                       <Text
                         style={{
@@ -3081,17 +3081,17 @@ export default function StudentsScreen() {
                     for (const req of template.requires) {
                       if (req === "nextClassDate" && !nextClassDate) {
                         canUse = false;
-                        missingRequirement = "Dias da semana nao configurados";
+                        missingRequirement = "Dias da semana não configurados";
                         break;
                       }
                       if (req === "nextClassTime" && !cls?.startTime) {
                         canUse = false;
-                        missingRequirement = "Horario nao configurado";
+                        missingRequirement = "Horário não configurado";
                         break;
                       }
                       if (req === "groupInviteLink" && cls && !groupInviteLinks[cls.id]) {
                         canUse = false;
-                        missingRequirement = "Link do grupo nao configurado";
+                        missingRequirement = "Link do grupo não configurado";
                         break;
                       }
                     }

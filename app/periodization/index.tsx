@@ -126,7 +126,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     },
     {
       week: 4,
-      title: "Recuperacao",
+      title: "Recuperação",
       focus: "Revisao e prazer pelo jogo",
       volume: "baixo",
       notes: ["Menos repeticoes", "Mais variacao"],
@@ -138,7 +138,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
       title: "Base tecnica",
       focus: "Fundamentos e controle de bola",
       volume: "medio",
-      notes: ["2-3 sessoes/semana", "Equilibrio e core"],
+      notes: ["2-3 sessões/semana", "Equilibrio e core"],
     },
     {
       week: 2,
@@ -156,7 +156,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     },
     {
       week: 4,
-      title: "Recuperacao",
+      title: "Recuperação",
       focus: "Tecnica leve e prevencao",
       volume: "baixo",
       notes: ["Volleyveilig simples", "Mobilidade"],
@@ -166,9 +166,9 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     {
       week: 1,
       title: "Base tecnica",
-      focus: "Refino de fundamentos e posicao",
+      focus: "Refino de fundamentos e posição",
       volume: "medio",
-      notes: ["Sessoes 60-90 min", "Ritmo controlado"],
+      notes: ["Sessões 60-90 min", "Ritmo controlado"],
     },
     {
       week: 2,
@@ -186,7 +186,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     },
     {
       week: 4,
-      title: "Recuperacao",
+      title: "Recuperação",
       focus: "Prevencao e consolidacao tecnica",
       volume: "baixo",
       notes: ["Volleyveilig completo", "Menos saltos"],
@@ -922,7 +922,7 @@ export default function PeriodizationScreen() {
     if (ageBand === "06-08") {
       return [
         "Foco em alfabetizacao motora e jogo",
-        "Sessoes curtas e ludicas",
+        "Sessões curtas e ludicas",
         "Sem cargas externas",
       ];
     }
@@ -936,7 +936,7 @@ export default function PeriodizationScreen() {
     return [
       "Tecnica eficiente + sistema de jogo",
       "Forca moderada e pliometria controlada",
-      "Monitorar PSE e recuperacao",
+      "Monitorar PSE e recuperação",
     ];
   }, [ageBand]);
 
@@ -969,10 +969,10 @@ export default function PeriodizationScreen() {
 
   const warningMessage = useMemo(() => {
     if (highLoadStreak) {
-      return "Duas semanas seguidas em carga alta. Considere uma semana de recuperacao.";
+      return "Duas semanas seguidas em carga alta. Considere uma semana de recuperação.";
     }
     if (activeWeek.volume === "alto") {
-      return "Semana atual com carga alta. Monitore recuperacao e PSE.";
+      return "Semana atual com carga alta. Monitore recuperação e PSE.";
     }
     return "";
   }, [highLoadStreak, activeWeek.volume]);
@@ -991,7 +991,7 @@ export default function PeriodizationScreen() {
     const details: Record<string, string> = {};
     if (acwrSummary) {
       details[acwrSummary] =
-        "ACWR e a razao entre a carga da ultima semana e a media das ultimas 4.";
+        "ACWR e a razao entre a carga da última semana e a media das últimas 4.";
     }
     setGuidance({ title: "Alerta de carga", items, tone: "warning", details });
     return () => {
@@ -1739,7 +1739,7 @@ export default function PeriodizationScreen() {
             ]}
           >
             <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
-              Proxima sessao
+              Próxima sessão
             </Text>
             <View
               style={{
@@ -1762,8 +1762,8 @@ export default function PeriodizationScreen() {
               />
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {selectedClass?.startTime
-                  ? "Horario " + selectedClass.startTime
-                  : "Horario indefinido"}
+                  ? "Horário " + selectedClass.startTime
+                  : "Horário indefinido"}
               </Text>
             </View>
           </View>
@@ -2044,7 +2044,7 @@ export default function PeriodizationScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                  Abrir relatorios
+                  Abrir relatórios
                 </Text>
               </Pressable>
             </View>
@@ -2567,7 +2567,7 @@ export default function PeriodizationScreen() {
             />
           </Pressable>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Dias com sessao e foco sugerido
+            Dias com sessão e foco sugerido
           </Text>
           {showWeekContent ? (
             <Animated.View style={[{ gap: 10 }, weekAnimStyle]}>
@@ -2766,7 +2766,7 @@ export default function PeriodizationScreen() {
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-            {selectedDay ? "Sessao de " + selectedDay.label : "Sessao"}
+            {selectedDay ? "Sessão de " + selectedDay.label : "Sessão"}
           </Text>
           <Pressable
             onPress={() => setShowDayModal(false)}
@@ -3002,7 +3002,7 @@ export default function PeriodizationScreen() {
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Fase</Text>
               <TextInput
-                placeholder="Fase (ex: Base, Recuperacao)"
+                placeholder="Fase (ex: Base, Recuperação)"
                 value={editPhase}
                 onChangeText={setEditPhase}
                 placeholderTextColor={colors.placeholder}
@@ -3193,7 +3193,7 @@ export default function PeriodizationScreen() {
             })}
           </View>
           <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Acoes rapidas</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Ações rapidas</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               <Pressable
                 onPress={() =>
@@ -3257,7 +3257,7 @@ export default function PeriodizationScreen() {
                     fontWeight: "700",
                   }}
                 >
-                  Copiar para proxima
+                  Copiar para próxima
                 </Text>
               </Pressable>
             </View>

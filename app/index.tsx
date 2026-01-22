@@ -270,7 +270,7 @@ function TrainerHome() {
         showToast(`Sincronizado: ${result.flushed} item(s).`, "success");
       }
     } catch (error) {
-      showToast("Nao foi possivel sincronizar agora.", "error");
+      showToast("Não foi possível sincronizar agora.", "error");
     } finally {
       setSyncingWrites(false);
     }
@@ -289,13 +289,13 @@ function TrainerHome() {
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
         await Updates.fetchUpdateAsync();
-        showToast("Atualizacao encontrada. Reiniciando...", "success");
+        showToast("Atualização encontrada. Reiniciando...", "success");
         await Updates.reloadAsync();
         return;
       }
-      showToast("Sem atualizacoes novas.", "info");
+      showToast("Sem atualizações novas.", "info");
     } catch (error) {
-      showToast("Nao foi possivel buscar atualizacoes agora.", "error");
+      showToast("Não foi possível buscar atualizações agora.", "error");
     } finally {
       setRefreshing(false);
     }
@@ -470,7 +470,7 @@ function TrainerHome() {
                       }}
                     >
                       <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                        Proxima aula
+                        Próxima aula
                       </Text>
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -497,7 +497,7 @@ function TrainerHome() {
                 </>
               ) : (
                 <Text style={{ color: colors.muted, fontSize: 13 }}>
-                  Nenhuma aula encontrada nos proximos dias.
+                  Nenhuma aula encontrada nos próximos dias.
                 </Text>
               )}
             </View>
@@ -571,7 +571,7 @@ function TrainerHome() {
                     params: {
                       id: nearestAttendanceTarget.classId,
                       date: nearestAttendanceTarget.date,
-                      tab: "relatorio",
+                      tab: "relatório",
                     },
                   });
                 }}
@@ -591,7 +591,7 @@ function TrainerHome() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
-                  Fazer relatorio
+                  Fazer relatório
                 </Text>
               </Pressable>
               <Pressable
@@ -720,7 +720,7 @@ function TrainerHome() {
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Calendario semanal
+                Calendário semanal
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Aulas e chamada
@@ -743,7 +743,7 @@ function TrainerHome() {
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Relatorios
+                Relatórios
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Presenca e dados
@@ -879,7 +879,7 @@ function TrainerHome() {
             <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
               <View>
                 <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  Notificacoes
+                  Notificações
                 </Text>
               </View>
                 <View style={{ flexDirection: "row", gap: 8 }}>
@@ -896,8 +896,8 @@ function TrainerHome() {
                         return;
                       }
                       Alert.alert(
-                        "Limpar notificacoes?",
-                        "Isso remove todas as notificacoes do inbox.",
+                        "Limpar notificações?",
+                        "Isso remove todas as notificações do inbox.",
                         [
                           { text: "Cancelar", style: "cancel" },
                           {
@@ -1003,7 +1003,7 @@ function TrainerHome() {
               </View>
               <View style={{ height: 1, backgroundColor: colors.border }} />
             {inbox.length === 0 ? (
-              <Text style={{ color: colors.muted }}>Sem notificacoes.</Text>
+              <Text style={{ color: colors.muted }}>Sem notificações.</Text>
             ) : (
               <View style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 16 }}>

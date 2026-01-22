@@ -52,7 +52,7 @@ import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
-  { id: "relatorio", label: "Fazer relatorio" },
+  { id: "relatório", label: "Fazer relatório" },
   { id: "scouting", label: "Scouting" },
 ] as const;
 
@@ -411,9 +411,9 @@ export default function SessionScreen() {
   async function handleSaveReport() {
     try {
       await saveReport();
-      showSaveToast({ message: "Relatorio salvo com sucesso.", variant: "success" });
+      showSaveToast({ message: "Relatório salvo com sucesso.", variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Nao foi possivel salvar o relatorio.", variant: "error" });
+      showSaveToast({ message: "Não foi possível salvar o relatório.", variant: "error" });
       Alert.alert("Falha ao salvar", "Tente novamente.");
     }
   }
@@ -428,7 +428,7 @@ export default function SessionScreen() {
         });
       }
     } catch (error) {
-      showSaveToast({ message: "Nao foi possivel salvar o relatorio.", variant: "error" });
+      showSaveToast({ message: "Não foi possível salvar o relatório.", variant: "error" });
       Alert.alert("Falha ao salvar", "Tente novamente.");
     }
   }
@@ -589,7 +589,7 @@ export default function SessionScreen() {
       logAction("Exportar PDF", { classId: cls.id, date: sessionDate });
       showSaveToast({ message: "PDF gerado com sucesso.", variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Nao foi possivel gerar o PDF.", variant: "error" });
+      showSaveToast({ message: "Não foi possível gerar o PDF.", variant: "error" });
       Alert.alert("Falha ao exportar PDF", "Tente novamente.");
     }
   };
@@ -615,7 +615,7 @@ export default function SessionScreen() {
       conclusion: sessionLog.conclusion ?? "",
       participantsCount: participantsCount ?? 0,
       photos: sessionLog.photos ?? "",
-      deadlineLabel: "Ultimo dia da escolinha do mes",
+      deadlineLabel: "último dia da escolinha do mês",
     };
     const html = sessionReportHtml(reportData);
     const webDocument =
@@ -631,10 +631,10 @@ export default function SessionScreen() {
           webDocument,
         })
       );
-      logAction("Exportar relatorio PDF", { classId: cls.id, date: sessionDate });
-      showSaveToast({ message: "Relatorio gerado com sucesso.", variant: "success" });
+      logAction("Exportar relatório PDF", { classId: cls.id, date: sessionDate });
+      showSaveToast({ message: "Relatório gerado com sucesso.", variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Nao foi possivel gerar o relatorio.", variant: "error" });
+      showSaveToast({ message: "Não foi possível gerar o relatório.", variant: "error" });
       Alert.alert("Falha ao exportar PDF", "Tente novamente.");
     }
   };
@@ -662,7 +662,7 @@ export default function SessionScreen() {
       setScoutingBaseline(countsFromLog(saved));
       showSaveToast({ message: "Scouting salvo com sucesso.", variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Nao foi possivel salvar o scouting.", variant: "error" });
+      showSaveToast({ message: "Não foi possível salvar o scouting.", variant: "error" });
       Alert.alert("Falha ao salvar", "Tente novamente.");
     } finally {
       setScoutingSaving(false);
@@ -678,7 +678,7 @@ export default function SessionScreen() {
 
   useEffect(() => {
     if (!tab) return;
-    if (tab === "treino" || tab === "relatorio" || tab === "scouting") {
+    if (tab === "treino" || tab === "relatório" || tab === "scouting") {
       setSessionTab(tab);
     }
   }, [tab]);
@@ -708,7 +708,7 @@ export default function SessionScreen() {
           }}
         >
           <Text style={{ color: colors.primaryText, fontSize: 14, opacity: 0.85 }}>
-            Acoes rapidas
+            Ações rapidas
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             <Pressable
@@ -837,7 +837,7 @@ export default function SessionScreen() {
                           const isMeta =
                             trimmed.toLowerCase().startsWith("objetivo geral") ||
                             trimmed.toLowerCase().startsWith("objetivo especifico") ||
-                            trimmed.toLowerCase().startsWith("observacoes");
+                            trimmed.toLowerCase().startsWith("observações");
                           return (
                             <Text
                               key={`${section.label}-${itemIndex}`}
@@ -1009,7 +1009,7 @@ export default function SessionScreen() {
               {scoutingEnvioTooltip}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Total de acoes: {totalActions}
+              Total de ações: {totalActions}
             </Text>
           </View>
           <View
@@ -1053,7 +1053,7 @@ export default function SessionScreen() {
                       {skill.label}
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {metrics.total} acoes | media {metrics.avg.toFixed(2)}
+                      {metrics.total} ações | media {metrics.avg.toFixed(2)}
                     </Text>
                   </View>
                   <View style={{ flexDirection: "row", gap: 8 }}>
@@ -1104,13 +1104,13 @@ export default function SessionScreen() {
           {focusSuggestion ? (
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Foco da proxima aula: {focusSuggestion.label}
+                Foco da próxima aula: {focusSuggestion.label}
               </Text>
               <Text style={{ color: colors.muted }}>{focusSuggestion.text}</Text>
             </View>
           ) : (
             <Text style={{ color: colors.muted }}>
-              Registre pelo menos 10 acoes para sugerir o foco.
+              Registre pelo menos 10 ações para sugerir o foco.
             </Text>
           )}
           <Pressable
@@ -1140,7 +1140,7 @@ export default function SessionScreen() {
           </Pressable>
         </View>
         ) : null}
-        {sessionTab === "relatorio" ? (
+        {sessionTab === "relatório" ? (
         <View
           ref={containerRef}
           onLayout={syncPickerLayouts}
@@ -1160,14 +1160,14 @@ export default function SessionScreen() {
           }}
         >
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Relatorio da aula
+            Relatório da aula
           </Text>
           <Text style={{ color: colors.muted }}>
             {sessionDate.split("-").reverse().join("/")}
           </Text>
           {!sessionLog ? (
             <Text style={{ color: colors.muted }}>
-              Nenhum relatorio registrado ainda.
+              Nenhum relatório registrado ainda.
             </Text>
           ) : null}
           {sessionLog ? (
@@ -1182,7 +1182,7 @@ export default function SessionScreen() {
               }}
             >
               <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
-                Editando relatorio existente
+                Editando relatório existente
               </Text>
             </View>
           ) : null}
@@ -1256,7 +1256,7 @@ export default function SessionScreen() {
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Numero de participantes
+                Número de participantes
               </Text>
               <TextInput
                 placeholder="Ex: 12"
@@ -1371,10 +1371,10 @@ export default function SessionScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Conclusao
+                Conclusão
               </Text>
               <TextInput
-                placeholder="Observacoes finais da aula"
+                placeholder="Observações finais da aula"
                 value={conclusion}
                 onChangeText={(value) => {
                   setConclusion(value);
@@ -1423,13 +1423,13 @@ export default function SessionScreen() {
 
             <View style={{ gap: 8 }}>
               <Button
-                label={sessionLog ? "Salvar alteracoes" : "Salvar"}
+                label={sessionLog ? "Salvar alterações" : "Salvar"}
                 variant="secondary"
                 onPress={handleSaveReport}
                 disabled={!reportHasChanges}
               />
               <Button
-                label="Gerar relatorio"
+                label="Gerar relatório"
                 onPress={handleSaveAndGenerateReport}
               />
             </View>

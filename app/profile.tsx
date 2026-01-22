@@ -67,12 +67,12 @@ export default function ProfileScreen() {
         >
           <Text style={{ color: colors.muted, fontSize: 12 }}>Nome</Text>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
-            {student?.name || "Nao informado"}
+            {student?.name || "Não informado"}
           </Text>
           <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
           <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
           <Text style={{ color: colors.text, fontWeight: "700" }}>
-            {currentClass?.name || "Nao vinculada"}
+            {currentClass?.name || "Não vinculada"}
           </Text>
           <Text style={{ color: colors.muted }}>
             {currentClass?.unit || "Sem unidade"}
@@ -91,7 +91,7 @@ export default function ProfileScreen() {
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>Preferencias</Text>
           <Text style={{ color: colors.muted }}>
-            Ajustes de notificacoes e tema ficam em Configuracoes.
+            Ajustes de notificações e tema ficam em Configurações.
           </Text>
           <Pressable
             onPress={() => router.push({ pathname: "/notifications" })}
@@ -105,7 +105,7 @@ export default function ProfileScreen() {
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Abrir configuracoes
+              Abrir configurações
             </Text>
           </Pressable>
         </View>

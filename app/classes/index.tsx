@@ -595,19 +595,19 @@ export default function ClassesScreen() {
     }
     const timeValue = newStartTime.trim();
     if (!isValidTime(timeValue)) {
-      setFormError("Horario invalido. Use HH:MM.");
+      setFormError("Horário inválido. Use HH:MM.");
       Vibration.vibrate(40);
       return;
     }
     const durationValue = parseDuration(newDuration.trim());
     if (!durationValue) {
-      setFormError("Duracao invalida. Use minutos entre 30 e 180.");
+      setFormError("Duracao inválida. Use minutos entre 30 e 180.");
       Vibration.vibrate(40);
       return;
     }
     const cycleValue = parseCycleLength(newCycleLengthWeeks);
     if (!cycleValue) {
-      setFormError("Ciclo invalido. Use entre 2 e 12 semanas.");
+      setFormError("Ciclo inválido. Use entre 2 e 12 semanas.");
       Vibration.vibrate(40);
       return;
     }
@@ -803,19 +803,19 @@ export default function ClassesScreen() {
     if (!editName.trim()) return;
     const timeValue = editStartTime.trim();
     if (!isValidTime(timeValue)) {
-      setEditFormError("Horario invalido. Use HH:MM.");
+      setEditFormError("Horário inválido. Use HH:MM.");
       Vibration.vibrate(40);
       return;
     }
     const durationValue = parseDuration(editDuration.trim());
     if (!durationValue) {
-      setEditFormError("Duracao invalida. Use minutos entre 30 e 180.");
+      setEditFormError("Duracao inválida. Use minutos entre 30 e 180.");
       Vibration.vibrate(40);
       return;
     }
     const cycleValue = parseCycleLength(editCycleLengthWeeks);
     if (!cycleValue) {
-      setEditFormError("Ciclo invalido. Use entre 2 e 12 semanas.");
+      setEditFormError("Ciclo inválido. Use entre 2 e 12 semanas.");
       Vibration.vibrate(40);
       return;
     }
@@ -1419,7 +1419,7 @@ export default function ClassesScreen() {
                     fontSize: 11,
                   }}
                 >
-                  Conflito de horario
+                  Conflito de horário
                 </Text>
               </View>
             ) : null}
@@ -1833,7 +1833,7 @@ export default function ClassesScreen() {
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Horario de inicio</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Horário de inicio</Text>
               <TextInput
                 placeholder="HH:MM"
                 value={newStartTime}
@@ -2301,9 +2301,9 @@ export default function ClassesScreen() {
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Horario</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
                 <TextInput
-                  placeholder="Horario (HH:MM)"
+                  placeholder="Horário (HH:MM)"
                   value={editStartTime}
                   onChangeText={(value) => setEditStartTime(normalizeTimeInput(value))}
                   keyboardType="numeric"
@@ -2590,7 +2590,7 @@ export default function ClassesScreen() {
             ) : null}
             <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
             <Button
-              label={editSaving ? "Salvando..." : "Salvar alteracoes"}
+              label={editSaving ? "Salvando..." : "Salvar alterações"}
               onPress={saveEditClass}
               disabled={editSaving || !editName.trim() || !isEditDirty}
             />

@@ -16,27 +16,27 @@ export const scoutingSkillHelp: Record<ScoutingSkill, string[]> = {
   serve: [
     "0 = erro (fora/rede)",
     "1 = entrou",
-    "2 = entrou e dificultou (direcionado/dificil)",
+    "2 = entrou e dificultou (direcionado/difácil)",
   ],
   receive: [
-    "0 = nao controlou",
+    "0 = não controlou",
     "1 = controlou e manteve vivo",
     "2 = controlou bem (bola jogavel)",
   ],
   set: [
-    "0 = nao deu continuidade",
+    "0 = não deu continuidade",
     "1 = manteve vivo",
     "2 = direcionou bem (preparou continuidade/alvo)",
   ],
   attack_send: [
-    "0 = erro (fora/rede/nao passa)",
-    "1 = enviou facil (sem direcao)",
+    "0 = erro (fora/rede/não passa)",
+    "1 = enviou fácil (sem direcao)",
     "2 = enviou com direcao/qualidade (zona/dificultou)",
   ],
 };
 
 export const scoutingInitiationNote =
-  "Registre o scouting no jogo reduzido/jogo final (ultimos 10-15 min) para comparar melhor as aulas.";
+  "Registre o scouting no jogo reduzido/jogo final (últimos 10-15 min) para comparar melhor as aulas.";
 
 export const scoutingPriorityNote =
   "Prioridade: Saque + Recepcao. Depois Toque + Envio.";

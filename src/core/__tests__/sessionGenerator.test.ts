@@ -13,24 +13,24 @@ const mk = (ageBand: any, goal = "Fundamentos") => ({
   level: 1,
 });
 
-test("gera sessao para 8-9 com conteudo de voleibol", () => {
+test("gera sessão para 8-9 com conteudo de voleibol", () => {
   const s = generateSession(mk("08-09"));
   expect(s.warmup.length).toBeGreaterThan(0);
   expect(s.main.join(" ")).toContain("Tecnica - Toque");
   expect(s.cooldown.join(" ")).toContain("PSE");
 });
 
-test("gera sessao para 10-12 com conteudo de voleibol", () => {
+test("gera sessão para 10-12 com conteudo de voleibol", () => {
   const s = generateSession(mk("10-12"));
   expect(s.main.join(" ")).toContain("Tecnica - Saque por cima");
 });
 
-test("gera sessao para 13-15 com conteudo de voleibol", () => {
+test("gera sessão para 13-15 com conteudo de voleibol", () => {
   const s = generateSession(mk("13-15"));
   expect(s.main.join(" ")).toContain("Tecnica - Saque por cima");
 });
 
-test("sessao sempre tem cooldown com 3 itens", () => {
+test("sessão sempre tem cooldown com 3 itens", () => {
   const s = generateSession(mk("08-09"));
   expect(s.cooldown).toHaveLength(3);
 });
@@ -50,7 +50,7 @@ test("warmup tem 3 itens", () => {
   expect(s.warmup).toHaveLength(3);
 });
 
-test("usa fallback fitness quando objetivo nao e voleibol", () => {
+test("usa fallback fitness quando objetivo não e voleibol", () => {
   const s = generateSession(mk("08-09", "Forca Geral"));
   expect(s.main.join(" ")).toContain("Circuito");
 });

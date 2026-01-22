@@ -65,7 +65,7 @@ export const trainingTemplates: TrainingTemplate[] = [
     main: [
       "Aperfeicoar saque por baixo e toque",
       "Introducao a manchete e cobertura",
-      "Jogo 3x3 com organizacao e rotacao simples",
+      "Jogo 3x3 com organização e rotacao simples",
     ],
     cooldown: ["Alongamento leve", "Respiracao e foco"],
     warmupTime: "10'",
@@ -84,7 +84,7 @@ export const trainingTemplates: TrainingTemplate[] = [
     main: [
       "Largada e ataque leve",
       "Defesa basica com direcionamento",
-      "Jogo 3x3 com sequencia de acoes",
+      "Jogo 3x3 com sequencia de ações",
     ],
     cooldown: ["Alongamento leve", "Roda de feedback rapido"],
     warmupTime: "10'",
@@ -114,7 +114,7 @@ export const trainingTemplates: TrainingTemplate[] = [
     id: "mini-4x4-defesa",
     title: "Mini 4x4 - sistema de defesa 1x3",
     ageBands: ["13-15"],
-    tags: ["defesa", "sistema 1x3", "organizacao"],
+    tags: ["defesa", "sistema 1x3", "organização"],
     warmup: [
       "Toque e manchete com deslocamento",
       "Jogo reduzido de reacao",
@@ -209,7 +209,7 @@ export const trainingTemplates: TrainingTemplate[] = [
     id: "cmv-11-12-toque",
     title: "CMV 11-12 - toque e jogo 3x",
     ageBands: ["13-15"],
-    tags: ["cmv", "toque", "jogo", "organizacao"],
+    tags: ["cmv", "toque", "jogo", "organização"],
     warmup: [
       "Bovenhands spelen contra a parede",
       "Opslaan em alvos",
@@ -217,7 +217,7 @@ export const trainingTemplates: TrainingTemplate[] = [
     main: [
       "Toetsen level 3 (toque avancado)",
       "3 keer spelen (sequencia de 3 toques)",
-      "CMV nivel 4 com foco em organizacao",
+      "CMV nivel 4 com foco em organização",
     ],
     cooldown: ["Alongamento leve", "Roda de feedback rapido"],
     warmupTime: "10'",
@@ -379,7 +379,7 @@ export const trainingTemplates: TrainingTemplate[] = [
   },
   {
     id: "rotacao-5x1",
-    title: "Rotacao 5x1 e organizacao",
+    title: "Rotacao 5x1 e organização",
     ageBands: ["13-15"],
     tags: ["tatico", "rotacao", "5x1"],
     warmup: [
@@ -387,7 +387,7 @@ export const trainingTemplates: TrainingTemplate[] = [
       "Saque leve por zona",
     ],
     main: [
-      "Mapa de rotacao 5x1 com posicoes",
+      "Mapa de rotacao 5x1 com posições",
       "Entrada e saida do libero (simulacao)",
       "Jogo reduzido com rodizio a cada ponto",
     ],

@@ -15,6 +15,7 @@ type AuthContextValue = {
   signUp: (email: string, password: string) => Promise<AuthSession | null>;
   signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath?: string) => Promise<void>;
   exchangeCodeForSession: (code: string) => Promise<void>;
+  consumeAuthUrl: (url?: string) => Promise<AuthSession | null>;
   resetPassword: (email: string, redirectTo?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -33,12 +34,12 @@ const authFetch = async (path: string, body: Record<string, unknown>) => {
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(text || "Falha na autenticacao.");
+    throw new Error(text || "Falha na autenticação.");
   }
   return text ? (JSON.parse(text) as Record<string, any>) : {};
 };
 
-const parseOAuthSession = (url?: string) => {
+const parseAuthSession = (url?: string) => {
   if (!url) return null;
   const [base, hash] = url.split("#");
   const query = hash || (base.includes("?") ? base.split("?")[1] : "");
@@ -225,6 +226,19 @@ export function AuthProvider({
     await saveSession(next, true);
   }, []);
 
+  const consumeAuthUrl = useCallback(async (url?: string) => {
+    const sessionData = parseAuthSession(url);
+    if (!sessionData?.access_token) return null;
+    const user = await fetchUser(sessionData.access_token);
+    const next: AuthSession = {
+      ...sessionData,
+      user: user ?? sessionData.user,
+    };
+    setSession(next);
+    await saveSession(next, true);
+    return next;
+  }, []);
+
   const resetPassword = useCallback(async (email: string, redirectTo?: string) => {
     await authFetch("/auth/v1/recover", {
       email,
@@ -245,10 +259,11 @@ export function AuthProvider({
       signUp,
       signInWithOAuth,
       exchangeCodeForSession,
+      consumeAuthUrl,
       resetPassword,
       signOut,
     }),
-    [loading, resetPassword, session, signIn, signInWithOAuth, exchangeCodeForSession, signOut, signUp]
+    [loading, resetPassword, session, signIn, signInWithOAuth, exchangeCodeForSession, consumeAuthUrl, signOut, signUp]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -265,6 +280,7 @@ export const useAuth = () => {
       signInWithOAuth: async () => {},
       exchangeCodeForSession: async () => {},
       resetPassword: async () => {},
+      consumeAuthUrl: async () => null,
       signOut: async () => {},
     };
   }

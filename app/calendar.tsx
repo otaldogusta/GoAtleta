@@ -326,7 +326,7 @@ export default function CalendarScreen() {
     if (isSameApply) {
       closeApplyPicker();
       showSaveToast({
-        message: "Planejamento ja adicionado.",
+        message: "Planejamento já adicionado.",
         actionLabel: "Ver aula do dia",
         variant: "warning",
         onAction: () => {
@@ -376,7 +376,7 @@ export default function CalendarScreen() {
       <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
         <View style={{ marginBottom: 12 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Calendario semanal
+            Calendário semanal
           </Text>
           <Text style={{ color: colors.muted, marginTop: 4 }}>
             Dias por unidade e turmas
@@ -404,7 +404,7 @@ export default function CalendarScreen() {
             {[
               { id: "prev", label: "Semana anterior" },
               { id: "current", label: "Semana atual" },
-              { id: "next", label: "Proxima semana" },
+              { id: "next", label: "Próxima semana" },
             ].map((tab) => {
               const selected = activeWeekTab === tab.id;
               return (

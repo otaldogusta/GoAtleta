@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
 
     if (!parsed || typeof parsed.reply !== "string") {
       parsed = {
-        reply: "Nao consegui gerar a resposta. Tente novamente.",
+        reply: "Não consegui gerar a resposta. Tente novamente.",
         sources: [],
         draftTraining: null,
       };

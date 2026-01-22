@@ -29,22 +29,61 @@ export default function StudentInviteScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const strengthAnim = useRef(new Animated.Value(0)).current;
   const enterAnim = useRef(new Animated.Value(0)).current;
   const autoClaimRef = useRef(false);
+
+  const passwordChecks = useMemo(() => {
+    const value = password;
+    return {
+      length: value.length >= 6,
+      lower: /[a-z]/.test(value),
+      upper: /[A-Z]/.test(value),
+      number: /\d/.test(value),
+      symbol: /[^A-Za-z0-9]/.test(value),
+    };
+  }, [password]);
+
+  const strengthScore = useMemo(() => {
+    const count =
+      Number(passwordChecks.length) +
+      Number(passwordChecks.lower) +
+      Number(passwordChecks.upper) +
+      Number(passwordChecks.number) +
+      Number(passwordChecks.symbol);
+    return count / 5;
+  }, [passwordChecks]);
+
+  const strengthLabel = useMemo(() => {
+    if (!password) return "";
+    if (strengthScore <= 0.33) return "Fraca";
+    if (strengthScore <= 0.66) return "Media";
+    return "Forte";
+  }, [password, strengthScore]);
+
+  useEffect(() => {
+    Animated.timing(strengthAnim, {
+      toValue: strengthScore,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  }, [strengthAnim, strengthScore]);
 
   useEffect(() => {
     Animated.timing(enterAnim, {
       toValue: 1,
-      duration: 240,
+      duration: 260,
       useNativeDriver: true,
     }).start();
   }, [enterAnim]);
 
   const handleClaim = async () => {
     if (!tokenValue) {
-      setMessage("Convite invalido.");
+      setMessage("Convite inválido.");
       return;
     }
     setBusy(true);
@@ -59,11 +98,11 @@ export default function StudentInviteScreen() {
       if (lower.includes("expired")) {
         setMessage("Convite expirado.");
       } else if (lower.includes("used")) {
-        setMessage("Convite ja utilizado.");
+        setMessage("Convite já utilizado.");
       } else if (lower.includes("invalid")) {
-        setMessage("Convite invalido.");
+        setMessage("Convite inválido.");
       } else {
-        setMessage("Nao foi possivel validar o convite.");
+        setMessage("Não foi possível validar o convite.");
       }
     } finally {
       setBusy(false);
@@ -85,7 +124,7 @@ export default function StudentInviteScreen() {
 
   const handleAuth = async () => {
     if (!tokenValue) {
-      setMessage("Convite invalido.");
+      setMessage("Convite inválido.");
       return;
     }
     if (!email.trim()) {
@@ -96,8 +135,12 @@ export default function StudentInviteScreen() {
       setMessage("Informe sua senha.");
       return;
     }
+    if (mode === "signup" && password.trim().length < 6) {
+      setMessage("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
     if (mode === "signup" && confirm && confirm !== password) {
-      setMessage("As senhas nao conferem.");
+      setMessage("As senhas não conferem.");
       return;
     }
     setBusy(true);
@@ -118,13 +161,13 @@ export default function StudentInviteScreen() {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
       const lower = detail.toLowerCase();
       if (lower.includes("user already registered")) {
-        setMessage("Esse email ja esta cadastrado.");
+        setMessage("Esse email já esta cadastrado.");
       } else if (lower.includes("invalid login")) {
         setMessage("Email ou senha incorretos.");
       } else if (lower.includes("weak_password") || lower.includes("at least 6")) {
         setMessage("A senha precisa ter pelo menos 6 caracteres.");
       } else {
-        setMessage("Nao foi possivel concluir. Verifique os dados e tente novamente.");
+        setMessage("Não foi possível concluir. Verifique os dados e tente novamente.");
       }
     } finally {
       setBusy(false);
@@ -133,7 +176,7 @@ export default function StudentInviteScreen() {
 
   const handleOAuth = async (provider: "google" | "facebook" | "apple") => {
     if (!tokenValue) {
-      setMessage("Convite invalido.");
+      setMessage("Convite inválido.");
       return;
     }
     setBusy(true);
@@ -146,7 +189,7 @@ export default function StudentInviteScreen() {
       setMessage(
         detail.includes("cancel")
           ? "Login cancelado."
-          : "Nao foi possivel entrar com essa conta."
+          : "Não foi possível entrar com essa conta."
       );
     } finally {
       setBusy(false);
@@ -167,7 +210,7 @@ export default function StudentInviteScreen() {
             style={{
               flex: 1,
               justifyContent: "center",
-              gap: 20,
+              gap: 24,
               opacity: enterAnim,
               transform: [
                 {
@@ -199,12 +242,14 @@ export default function StudentInviteScreen() {
               </View>
             </Pressable>
 
-            <View style={{ gap: 6 }}>
+            <View style={{ gap: 8 }}>
               <Text style={{ fontSize: 26, fontWeight: "800", color: colors.text }}>
-                Ativar convite
+                {mode === "signup" ? "Ative seu convite" : "Vincule seu acesso"}
               </Text>
               <Text style={{ color: colors.muted }}>
-                Crie sua conta com seu email. Se ja tiver conta, entre para vincular.
+                {mode === "signup"
+                  ? "Crie sua conta para acessar seus treinos."
+                  : "Entre para vincular seu convite e continuar."}
               </Text>
             </View>
 
@@ -217,7 +262,7 @@ export default function StudentInviteScreen() {
                 borderColor: colors.border,
                 gap: 14,
                 shadowColor: "#000",
-                shadowOpacity: 0.08,
+                shadowOpacity: 0.1,
                 shadowRadius: 16,
                 shadowOffset: { width: 0, height: 8 },
                 elevation: 5,
@@ -285,11 +330,13 @@ export default function StudentInviteScreen() {
 
               <View
                 style={{
+                  flexDirection: "row",
+                  alignItems: "center",
                   borderWidth: 1,
                   borderColor: colors.border,
+                  paddingHorizontal: 12,
                   borderRadius: 14,
                   backgroundColor: colors.inputBg,
-                  overflow: "hidden",
                 }}
               >
                 <TextInput
@@ -297,26 +344,40 @@ export default function StudentInviteScreen() {
                   value={password}
                   onChangeText={setPassword}
                   placeholderTextColor={colors.placeholder}
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   style={{
-                    padding: 12,
+                    flex: 1,
+                    paddingVertical: 12,
                     color: colors.inputText,
                     backgroundColor: "transparent",
-                    borderWidth: 0,
                     outlineStyle: "none",
                     outlineWidth: 0,
                   }}
                 />
+                {password.length > 0 ? (
+                  <Pressable
+                    onPress={() => setShowPassword((prev) => !prev)}
+                    style={{ paddingLeft: 8, paddingVertical: 8 }}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={18}
+                      color={colors.muted}
+                    />
+                  </Pressable>
+                ) : null}
               </View>
 
               {mode === "signup" ? (
                 <View
                   style={{
+                    flexDirection: "row",
+                    alignItems: "center",
                     borderWidth: 1,
                     borderColor: colors.border,
+                    paddingHorizontal: 12,
                     borderRadius: 14,
                     backgroundColor: colors.inputBg,
-                    overflow: "hidden",
                   }}
                 >
                   <TextInput
@@ -324,16 +385,104 @@ export default function StudentInviteScreen() {
                     value={confirm}
                     onChangeText={setConfirm}
                     placeholderTextColor={colors.placeholder}
-                    secureTextEntry
+                    secureTextEntry={!showConfirm}
                     style={{
-                      padding: 12,
+                      flex: 1,
+                      paddingVertical: 12,
                       color: colors.inputText,
                       backgroundColor: "transparent",
-                      borderWidth: 0,
                       outlineStyle: "none",
                       outlineWidth: 0,
                     }}
                   />
+                  {confirm.length > 0 ? (
+                    <Pressable
+                      onPress={() => setShowConfirm((prev) => !prev)}
+                      style={{ paddingLeft: 8, paddingVertical: 8 }}
+                    >
+                      <Ionicons
+                        name={showConfirm ? "eye-off" : "eye"}
+                        size={18}
+                        color={colors.muted}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {mode === "signup" && password.length > 0 ? (
+                <View style={{ gap: 8 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      {strengthLabel}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    {[0, 1, 2].map((index) => {
+                      const start = index / 3;
+                      const end = (index + 1) / 3;
+                      const fillWidth = strengthAnim.interpolate({
+                        inputRange: [start, end],
+                        outputRange: ["0%", "100%"],
+                        extrapolate: "clamp",
+                      });
+                      const segmentColor =
+                        index === 0
+                          ? colors.dangerSolidBg
+                          : index === 1
+                          ? colors.warningBg
+                          : colors.successBg;
+                      return (
+                        <View
+                          key={String(index)}
+                          style={{
+                            flex: 1,
+                            height: 6,
+                            borderRadius: 999,
+                            backgroundColor: colors.secondaryBg,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <Animated.View
+                            style={{
+                              height: "100%",
+                              width: fillWidth,
+                              backgroundColor: segmentColor,
+                            }}
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {[
+                      { key: "minúscula", ok: passwordChecks.lower },
+                      { key: "maiúscula", ok: passwordChecks.upper },
+                      { key: "número", ok: passwordChecks.number },
+                      { key: "símbolo", ok: passwordChecks.symbol },
+                    ].map((item) => (
+                      <View
+                        key={item.key}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <Ionicons
+                          name={item.ok ? "checkmark" : "close"}
+                          size={12}
+                          color={item.ok ? colors.successBg : colors.dangerSolidBg}
+                        />
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                          {item.key}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Exemplo: @Senha1234_
+                  </Text>
                 </View>
               ) : null}
 
@@ -355,11 +504,15 @@ export default function StudentInviteScreen() {
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {busy ? "Validando..." : "Continuar"}
+                  {busy
+                    ? "Validando..."
+                    : mode === "signup"
+                    ? "Criar conta e vincular"
+                    : "Entrar e vincular"}
                 </Text>
               </Pressable>
 
-              <View style={{ marginTop: 8, gap: 12 }}>
+              <View style={{ marginTop: 12, gap: 12 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
                   <Text style={{ color: colors.muted, fontSize: 12 }}>Ou continue com</Text>

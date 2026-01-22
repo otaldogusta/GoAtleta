@@ -100,7 +100,7 @@ export function ClassContextHeader({
               }}
             >
               <Text style={{ color: colors.text, fontSize: 12 }}>
-                {"Horario: " + timeLabel}
+                {"Horário: " + timeLabel}
               </Text>
             </View>
           ) : null}

@@ -62,8 +62,8 @@ export default function ReportsScreen() {
   const [month, setMonth] = useState(new Date());
   const [classId, setClassId] = useState<string>("all");
   const reportTabs = [
-    { id: "month" as const, label: "Mes atual" },
-    { id: "reports" as const, label: "Relatorios" },
+    { id: "month" as const, label: "Mês atual" },
+    { id: "reports" as const, label: "Relatórios" },
     { id: "students" as const, label: "Alertas" },
   ];
   type ReportTabId = (typeof reportTabs)[number]["id"];
@@ -373,7 +373,7 @@ export default function ReportsScreen() {
       <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
         <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Relatorios
+            Relatórios
           </Text>
           <Text style={{ color: colors.muted }}>
             Dashboard de presenca e desempenho
@@ -432,7 +432,7 @@ export default function ReportsScreen() {
                 justifyContent: "space-between",
               }}
             >
-              <Text style={sectionTitleStyle}>Mes atual</Text>
+              <Text style={sectionTitleStyle}>Mês atual</Text>
               <Pressable
                 onPress={exportCsv}
                 style={{
@@ -606,7 +606,7 @@ export default function ReportsScreen() {
 
         {reportTab === "reports" ? (
         <View style={cardStyle}>
-          <Text style={sectionTitleStyle}>Relatorios do mes</Text>
+          <Text style={sectionTitleStyle}>Relatórios do mês</Text>
           {sessionLogRows.length ? (
             <View style={{ gap: 10 }}>
               {sessionLogRows.map((row) => (
@@ -615,7 +615,7 @@ export default function ReportsScreen() {
                   onPress={() => {
                     router.push({
                       pathname: "/class/[id]/session",
-                      params: { id: row.log.classId, date: row.dateKey, tab: "relatorio" },
+                      params: { id: row.log.classId, date: row.dateKey, tab: "relatório" },
                     });
                   }}
                   style={insetCardStyle}
@@ -640,7 +640,7 @@ export default function ReportsScreen() {
             </View>
           ) : (
             <Text style={{ color: colors.muted }}>
-              Nenhum relatorio registrado neste mes.
+              Nenhum relatório registrado neste mês.
             </Text>
           )}
         </View>
@@ -648,7 +648,7 @@ export default function ReportsScreen() {
 
         {reportTab === "month" ? (
         <View style={cardStyle}>
-          <Text style={sectionTitleStyle}>Turmas (mes atual)</Text>
+          <Text style={sectionTitleStyle}>Turmas (mês atual)</Text>
           <View style={{ gap: 10 }}>
             {classRows.map((row) => (
               <View

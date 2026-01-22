@@ -120,7 +120,7 @@ export default function ExercisesScreen() {
 
   const save = async () => {
     if (metaLoading) {
-      Alert.alert("Aguarde", "Carregando informacoes do link.");
+      Alert.alert("Aguarde", "Carregando informações do link.");
       return;
     }
     if (!videoUrl.trim()) {
@@ -162,7 +162,7 @@ export default function ExercisesScreen() {
         setMetaStatus("");
         const accessToken = await getValidAccessToken();
         if (!accessToken) {
-          setMetaStatus("Sessao expirada. Faca login novamente.");
+          setMetaStatus("Sessão expirada. Faca login novamente.");
           return;
         }
         const response = await fetch(
@@ -194,12 +194,12 @@ export default function ExercisesScreen() {
         if (!source.trim() && (data.author || data.host)) {
           setSource(data.author || data.host || "");
         }
-        setMetaStatus("Informacoes preenchidas automaticamente.");
+        setMetaStatus("Informações preenchidas automaticamente.");
       } catch (error) {
         setMetaStatus(
           error instanceof Error
             ? error.message
-            : "Nao foi possivel ler o link."
+            : "Não foi possível ler o link."
         );
       } finally {
         setMetaLoading(false);
@@ -215,7 +215,7 @@ export default function ExercisesScreen() {
     const normalized = url.startsWith("http") ? url : `https://${url}`;
     const canOpen = await Linking.canOpenURL(normalized);
     if (!canOpen) {
-      Alert.alert("Link invalido", "Nao foi possivel abrir o link.");
+      Alert.alert("Link inválido", "Não foi possível abrir o link.");
       return;
     }
     await Linking.openURL(normalized);
@@ -248,7 +248,7 @@ export default function ExercisesScreen() {
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Erro desconhecido.";
-          Alert.alert("Nao foi possivel excluir", message);
+          Alert.alert("Não foi possível excluir", message);
         }
       },
       onUndo: async () => {
@@ -346,7 +346,7 @@ export default function ExercisesScreen() {
                     fontSize: 12,
                   }}
                 >
-                  {editingId ? "Salvar alteracoes" : "Salvar exercicio"}
+                  {editingId ? "Salvar alterações" : "Salvar exercicio"}
                 </Text>
               </Pressable>
               <Pressable
@@ -354,7 +354,7 @@ export default function ExercisesScreen() {
                   if (isFormDirty) {
                     confirmDialog({
                       title: "Sair sem salvar?",
-                      message: "Voce tem alteracoes nao salvas.",
+                      message: "Você tem alterações não salvas.",
                       confirmLabel: "Descartar",
                       cancelLabel: "Continuar",
                       onConfirm: () => {

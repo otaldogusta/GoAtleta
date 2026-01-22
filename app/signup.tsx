@@ -95,11 +95,11 @@ export default function SignupScreen() {
       return;
     }
     if (confirm && confirm !== password) {
-      setMessage("As senhas nao conferem.");
+      setMessage("As senhas não conferem.");
       return;
     }
     if (role === "trainer" && !inviteCode.trim()) {
-      setMessage("Informe o codigo de convite para treinador.");
+      setMessage("Informe o código de convite para treinador.");
       return;
     }
     setMessage("");
@@ -122,13 +122,13 @@ export default function SignupScreen() {
       const detail = error instanceof Error ? error.message : "Falha ao cadastrar.";
       const normalized = detail.toLowerCase();
       if (normalized.includes("user already registered")) {
-        setMessage("Esse email ja esta cadastrado.");
+        setMessage("Esse email já esta cadastrado.");
       } else if (normalized.includes("invite")) {
-        setMessage("Convite invalido ou expirado.");
+        setMessage("Convite inválido ou expirado.");
       } else if (normalized.includes("weak_password") || normalized.includes("at least 6")) {
         setMessage("A senha precisa ter pelo menos 6 caracteres.");
       } else {
-        setMessage("Nao foi possivel concluir. Verifique os dados e tente novamente.");
+        setMessage("Não foi possível concluir. Verifique os dados e tente novamente.");
       }
     } finally {
       setBusy(false);
@@ -186,7 +186,7 @@ export default function SignupScreen() {
                 Comece agora
               </Text>
               <Text style={{ color: colors.muted }}>
-                Monte planos, turmas e calendarios no seu ritmo.
+                Monte planos, turmas e calendários no seu ritmo.
               </Text>
             </View>
 
@@ -355,11 +355,11 @@ export default function SignupScreen() {
                     })}
                   </View>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {[
-                      { key: "minuscula", ok: passwordChecks.lower },
-                      { key: "maiuscula", ok: passwordChecks.upper },
-                      { key: "numero", ok: passwordChecks.number },
-                      { key: "simbolo", ok: passwordChecks.symbol },
+                  {[
+                      { key: "minúscula", ok: passwordChecks.lower },
+                      { key: "maiúscula", ok: passwordChecks.upper },
+                      { key: "número", ok: passwordChecks.number },
+                      { key: "símbolo", ok: passwordChecks.symbol },
                     ].map((item) => (
                       <View
                         key={item.key}
@@ -369,15 +369,11 @@ export default function SignupScreen() {
                           gap: 6,
                         }}
                       >
-                        <Text
-                          style={{
-                            color: item.ok ? colors.successBg : colors.dangerSolidBg,
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          {item.ok ? "?" : "?"}
-                        </Text>
+                        <Ionicons
+                          name={item.ok ? "checkmark" : "close"}
+                          size={12}
+                          color={item.ok ? colors.successBg : colors.dangerSolidBg}
+                        />
                         <Text style={{ color: colors.muted, fontSize: 12 }}>
                           {item.key}
                         </Text>
@@ -444,7 +440,7 @@ export default function SignupScreen() {
                   }}
                 >
                   <TextInput
-                    placeholder="Codigo de convite"
+                    placeholder="Código de convite"
                     value={inviteCode}
                     onChangeText={setInviteCode}
                     placeholderTextColor={colors.placeholder}
@@ -490,7 +486,7 @@ export default function SignupScreen() {
             </View>
 
             <View style={{ alignItems: "center", gap: 6 }}>
-              <Text style={{ color: colors.muted }}>Ja tem conta?</Text>
+              <Text style={{ color: colors.muted }}>JÁ tem conta?</Text>
               <Pressable
                 onPress={() => router.replace("/login")}
                 style={{ paddingVertical: 4 }}

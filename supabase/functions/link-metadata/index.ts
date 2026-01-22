@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     const normalized = normalizePublicUrl(String(url ?? ""));
     if (!normalized) {
       return new Response(
-        JSON.stringify({ error: "URL invalida." }),
+        JSON.stringify({ error: "URL inválida." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

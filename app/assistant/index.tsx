@@ -146,12 +146,12 @@ export default function AssistantScreen() {
     try {
       const accessToken = await getValidAccessToken();
       if (!accessToken) {
-        Alert.alert("Sessao expirada", "Faca login novamente para usar o assistente.");
+        Alert.alert("Sessão expirada", "Faca login novamente para usar o assistente.");
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: "Sessao expirada. Faca login novamente e tente de novo.",
+            content: "Sessão expirada. Faca login novamente e tente de novo.",
           },
         ]);
         return;
@@ -225,7 +225,7 @@ export default function AssistantScreen() {
         {
           role: "assistant",
           content:
-            "Nao consegui salvar o planejamento. " +
+            "Não consegui salvar o planejamento. " +
             "Detalhe: " +
             detail.replace(/\s+/g, " "),
         },

@@ -52,7 +52,7 @@ export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateId, WhatsAppTemplate> = 
     id: "student_invite",
     title: "Convite do aluno",
     body:
-      "*Convite GoAtleta*\nSeu treinador te convidou para acessar seus treinos.\n\nAluno: *{studentName}*\n\nLink de acesso:\n{inviteLink}\n\n_Se voce ja tem conta, e so entrar com este link._",
+      "*Convite GoAtleta*\nSeu treinador te convidou para acessar seus treinos.\n\nAluno: *{studentName}*\n\nLink de acesso:\n{inviteLink}\n\n_Se você já tem conta, e so entrar com este link._",
     requires: ["inviteLink"],
   },
 };

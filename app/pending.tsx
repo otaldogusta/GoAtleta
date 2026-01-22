@@ -14,27 +14,100 @@ export default function PendingScreen() {
   const { signOut } = useAuth();
   const { refresh } = useRole();
   const [busy, setBusy] = useState(false);
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteInput, setInviteInput] = useState("");
   const [message, setMessage] = useState("");
-  const [studentInviteInput, setStudentInviteInput] = useState("");
-  const [studentMessage, setStudentMessage] = useState("");
+
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value
+    );
 
   const extractStudentToken = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return "";
-    const match = trimmed.match(/invite\/([^/?#]+)/i);
-    return match?.[1] ?? trimmed;
+    const inviteMatch = trimmed.match(/invite\/([0-9a-f-]{36})/i);
+    if (inviteMatch?.[1]) return inviteMatch[1];
+    const tokenMatch = trimmed.match(/[?&]token=([0-9a-f-]{36})/i);
+    if (tokenMatch?.[1]) return tokenMatch[1];
+    if (isUuid(trimmed)) return trimmed;
+    return "";
+  };
+
+  const getInviteType = (value: string) => {
+    if (!value.trim()) return "unknown" as const;
+    const token = extractStudentToken(value);
+    if (token) return "student" as const;
+    return "trainer" as const;
+  };
+
+  const inviteHint = (() => {
+    if (!inviteInput.trim()) {
+      return "Cole o link do convite do aluno ou o código do treinador.";
+    }
+    const type = getInviteType(inviteInput);
+    if (type === "student") return "Convite de aluno identificado.";
+    if (type === "trainer") return "Convite de treinador identificado.";
+    return "Cole o link completo ou o código do convite.";
+  })();
+
+  const handleInvite = async () => {
+    if (inviteBusy) return;
+    const type = getInviteType(inviteInput);
+    const trimmed = inviteInput.trim();
+    if (!trimmed) {
+      setMessage("Informe o convite.");
+      return;
+    }
+    setInviteBusy(true);
+    setMessage("");
+    try {
+      if (type === "student") {
+        const token = extractStudentToken(trimmed);
+        if (!token) {
+          setMessage("Não foi possível ler o link do convite.");
+          return;
+        }
+        await claimStudentInvite(token);
+        await refresh();
+        setMessage("Convite de aluno vinculado com sucesso.");
+        return;
+      }
+      await claimTrainerInvite(trimmed);
+      await refresh();
+      setMessage("Convite de treinador validado com sucesso.");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      const lower = detail.toLowerCase();
+      if (type === "student") {
+        setMessage(
+          lower.includes("expired")
+            ? "Convite expirado."
+            : lower.includes("used")
+            ? "Convite já utilizado."
+            : "Não foi possível validar o convite."
+        );
+        return;
+      }
+      setMessage(
+        lower.includes("invite")
+          ? "Convite inválido ou expirado."
+          : "Não foi possível validar o convite."
+      );
+    } finally {
+      setInviteBusy(false);
+    }
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}>
         <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-          Conta aguardando vinculo
+          Conta aguardando vínculo
         </Text>
         <Text style={{ color: colors.muted }}>
-          Seu acesso ainda nao foi associado a uma turma. Peça para o treinador
-          revisar o cadastro e vincular seu usuario.
+          Seu acesso ainda não foi associado a uma turma. Peça para o treinador
+          revisar o cadastro e vincular seu usuário.
         </Text>
         <View
           style={{
@@ -47,16 +120,16 @@ export default function PendingScreen() {
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Convite de treinador
+            Convite de acesso
           </Text>
           <Text style={{ color: colors.muted }}>
-            Se voce recebeu um codigo de convite, insira abaixo.
+            Cole o link do convite (aluno) ou o código do convite (treinador).
           </Text>
           <TextInput
-            placeholder="Codigo de convite"
-            value={inviteCode}
-            onChangeText={setInviteCode}
-            autoCapitalize="characters"
+            placeholder="Link ou código do convite"
+            value={inviteInput}
+            onChangeText={setInviteInput}
+            autoCapitalize="none"
             placeholderTextColor={colors.placeholder}
             style={{
               borderWidth: 1,
@@ -67,29 +140,15 @@ export default function PendingScreen() {
               color: colors.inputText,
             }}
           />
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            {inviteHint}
+          </Text>
           {message ? (
             <Text style={{ color: colors.muted }}>{message}</Text>
           ) : null}
           <Pressable
-            onPress={async () => {
-              if (!inviteCode.trim()) {
-                setMessage("Informe o codigo de convite.");
-                return;
-              }
-              setMessage("");
-              try {
-                await claimTrainerInvite(inviteCode.trim());
-                await refresh();
-                setMessage("Convite validado com sucesso.");
-              } catch (error) {
-                const detail = error instanceof Error ? error.message : "";
-                setMessage(
-                  detail.toLowerCase().includes("invite")
-                    ? "Convite invalido ou expirado."
-                    : "Nao foi possivel validar o convite."
-                );
-              }
-            }}
+            onPress={handleInvite}
+            disabled={inviteBusy}
             style={{
               paddingVertical: 10,
               borderRadius: 12,
@@ -100,79 +159,7 @@ export default function PendingScreen() {
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Validar convite
-            </Text>
-          </Pressable>
-        </View>
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 16,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Convite de aluno
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            Cole o link do convite para vincular sua conta.
-          </Text>
-          <TextInput
-            placeholder="Link ou token do convite"
-            value={studentInviteInput}
-            onChangeText={setStudentInviteInput}
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 10,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          {studentMessage ? (
-            <Text style={{ color: colors.muted }}>{studentMessage}</Text>
-          ) : null}
-          <Pressable
-            onPress={async () => {
-              const token = extractStudentToken(studentInviteInput);
-              if (!token) {
-                setStudentMessage("Informe o convite.");
-                return;
-              }
-              setStudentMessage("");
-              try {
-                await claimStudentInvite(token);
-                await refresh();
-                setStudentMessage("Convite vinculado com sucesso.");
-              } catch (error) {
-                const detail = error instanceof Error ? error.message : "";
-                const lower = detail.toLowerCase();
-                setStudentMessage(
-                  lower.includes("expired")
-                    ? "Convite expirado."
-                    : lower.includes("used")
-                    ? "Convite ja utilizado."
-                    : "Nao foi possivel validar o convite."
-                );
-              }
-            }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Vincular convite
+              {inviteBusy ? "Validando..." : "Validar convite"}
             </Text>
           </Pressable>
         </View>

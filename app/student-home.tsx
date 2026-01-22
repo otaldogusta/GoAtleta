@@ -162,7 +162,7 @@ export default function StudentHome() {
           }}
         >
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-            Proximo treino
+            Próximo treino
           </Text>
           {nextSummary ? (
             <>
@@ -280,7 +280,7 @@ export default function StudentHome() {
                 Agenda
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Calendario de treinos
+                Calendário de treinos
               </Text>
             </Pressable>
             <Pressable
@@ -298,7 +298,7 @@ export default function StudentHome() {
                 Plano do treino
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Versao publica
+                Versao pública
               </Text>
             </Pressable>
             <Pressable

@@ -55,7 +55,7 @@ function RootLayoutContent() {
   const pathname = usePathname();
   const lastPathRef = useRef<string | null>(null);
   const rootState = useRootNavigationState();
-  const { session, loading, exchangeCodeForSession } = useAuth();
+  const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
   const navReady = Boolean(rootState?.key);
   const publicRoutes = [
@@ -107,6 +107,13 @@ function RootLayoutContent() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const searchCode = new URLSearchParams(window.location.search).get("code");
       if (searchCode) return;
+      const hash = window.location.hash.replace(/^#/, "");
+      if (hash) {
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get("access_token");
+        const type = params.get("type");
+        if (accessToken && type !== "recovery") return;
+      }
     }
 
     if (!navReady) return;
@@ -180,7 +187,21 @@ function RootLayoutContent() {
       window.location.replace(next);
       return;
     }
-  }, [exchangeCodeForSession, router]);
+    if (accessToken && type !== "recovery") {
+      console.log("[Auth] Found access token in URL, saving session...");
+      consumeAuthUrl(window.location.href).then(() => {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, "", cleanUrl);
+        router.replace("/");
+      }).catch((err) => {
+        console.error("[Auth] Failed to consume auth URL:", err);
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, "", cleanUrl);
+        router.replace("/welcome");
+      });
+      return;
+    }
+  }, [exchangeCodeForSession, router, consumeAuthUrl]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;

@@ -50,7 +50,7 @@ export default function AbsenceReportScreen() {
       Alert.alert("Aviso enviado", "O treinador recebeu seu aviso.");
       router.back();
     } catch {
-      Alert.alert("Nao foi possivel enviar o aviso.");
+      Alert.alert("Não foi possível enviar o aviso.");
     } finally {
       setBusy(false);
     }

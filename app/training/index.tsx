@@ -244,7 +244,7 @@ const getMethodologyTips = (ageBand?: string) => {
   const start = range.start;
   if (start <= 8) {
     return [
-      "Sessao curta e ludica (45-60 min)",
+      "Sessão curta e ludica (45-60 min)",
       "Priorize correr, saltar, lancar, receber",
       "Jogo 1x1 ou 2x2 com bola leve",
       "Sem carga externa, foco em tecnica",
@@ -252,14 +252,14 @@ const getMethodologyTips = (ageBand?: string) => {
   }
   if (start <= 11) {
     return [
-      "2-3 sessoes/semana com fundamentos",
+      "2-3 sessões/semana com fundamentos",
       "Aquecimento preventivo simples (core e equilibrio)",
       "Jogo 2x2 e 3x3 com regras simples",
       "Controle de saltos e pausas ativas",
     ];
   }
   return [
-    "3 sessoes/semana, 60-90 min",
+    "3 sessões/semana, 60-90 min",
     "Volleyveilig 2x/semana + mobilidade",
     "Forca 50-70% 1RM com progressao leve",
     "Monitorar saltos e PSE",
@@ -1378,7 +1378,7 @@ export default function TrainingList() {
   const onDelete = (plan: TrainingPlan) => {
     confirm({
       title: "Excluir planejamento?",
-      message: "Essa acao pode ser desfeita por alguns segundos.",
+      message: "Essa ação pode ser desfeita por alguns segundos.",
       confirmLabel: "Excluir",
       undoMessage: "Planejamento excluido. Deseja desfazer?",
       onOptimistic: () => {
@@ -1506,7 +1506,7 @@ export default function TrainingList() {
   const deleteTemplateItem = (id: string, source: "built" | "custom") => {
     confirm({
       title: "Excluir modelo?",
-      message: "Essa acao pode ser desfeita por alguns segundos.",
+      message: "Essa ação pode ser desfeita por alguns segundos.",
       confirmLabel: "Excluir",
       undoMessage: "Modelo excluido. Deseja desfazer?",
       onOptimistic: () => {
@@ -2477,7 +2477,7 @@ export default function TrainingList() {
               {formMode === "template"
                 ? "Salvar modelo"
                 : editingId
-                  ? "Salvar alteracoes"
+                  ? "Salvar alterações"
                   : "Salvar planejamento"}
             </Text>
           </Pressable>
@@ -3448,7 +3448,7 @@ export default function TrainingList() {
             }
             if (Number.isNaN(new Date(applyDate).getTime())) {
               Alert.alert(
-                "Data invalida",
+                "Data inválida",
                 "Escolha uma data valida."
               );
               return;
@@ -3456,7 +3456,7 @@ export default function TrainingList() {
             if (isSameApply) {
               closeApplyModal();
               showSaveToast({
-                message: "Planejamento ja adicionado.",
+                message: "Planejamento já adicionado.",
                 actionLabel: "Ver aula do dia",
                 variant: "warning",
                 onAction: () => {

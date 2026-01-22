@@ -59,12 +59,12 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
     typeof data.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = data.deadlineLabel?.trim() || "Ultimo dia da escolinha do mes";
+  const deadline = data.deadlineLabel?.trim() || "último dia da escolinha do mês";
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.title}>RELATORIO ESCOLINHA DE VOLEI</Text>
+        <Text style={styles.title}>RELATÓRIO ESCOLINHA DE VOLEI</Text>
         <Text style={styles.meta}>
           Turma: {data.className ?? "-"}{"\n"}
           Unidade: {data.unitLabel ?? "-"}
@@ -72,7 +72,7 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
 
         <View style={styles.row}>
           <View style={styles.cell}>
-            <Text>MES: {data.monthLabel}</Text>
+            <Text>MÊS: {data.monthLabel}</Text>
           </View>
           <View style={styles.cell}>
             <Text>Prazo de entrega: {deadline}</Text>
@@ -95,14 +95,14 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
-            <Text style={styles.label}>Conclusao:</Text>
+            <Text style={styles.label}>Conclusão:</Text>
             <Text>{data.conclusion ?? "-"}</Text>
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
-            <Text style={styles.label}>Numero de participantes:</Text>
+            <Text style={styles.label}>Número de participantes:</Text>
             <Text>{participants}</Text>
           </View>
         </View>
