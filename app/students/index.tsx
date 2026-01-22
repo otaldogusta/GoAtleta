@@ -1,6 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import * as Linking from "expo-linking";
 import {
     memo,
     useCallback,
@@ -148,11 +147,7 @@ export default function StudentsScreen() {
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [studentFormError, setStudentFormError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
-  const [inviteBusy, setInviteBusy] = useState(false);
   const [studentInviteBusy, setStudentInviteBusy] = useState(false);
-  const [inviteLink, setInviteLink] = useState("");
-  const [inviteMessage, setInviteMessage] = useState("");
-  const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [whatsappNotice, setWhatsappNotice] = useState("");
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
@@ -689,83 +684,10 @@ export default function StudentsScreen() {
     }, 2200);
   }, []);
 
-  const resetInviteState = useCallback(() => {
-    setInviteLink("");
-    setInviteMessage("");
-    setInviteExpiresAt(null);
-  }, []);
-
-  const formatInviteExpiry = (value?: string | null) => {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  const handleStudentInvite = async (openWhatsApp: boolean) => {
-    if (!editingId) return;
-    if (inviteBusy) return;
-    if (inviteLink && inviteExpiresAt) {
-      const expiresAt = new Date(inviteExpiresAt);
-      if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() > Date.now()) {
-        await Clipboard.setStringAsync(inviteLink);
-        setInviteMessage("Link copiado.");
-        if (openWhatsApp) {
-          const message = buildInviteMessage(inviteLink);
-          const digits = sanitizePhone(phone);
-          const waBase = digits ? `https://wa.me/${digits}` : "https://wa.me/";
-          const waUrl = `${waBase}?text=${encodeURIComponent(message)}`;
-          await Linking.openURL(waUrl);
-        }
-        return;
-      }
-    }
-    setInviteBusy(true);
-    setInviteMessage("");
-    try {
-      const response = await createStudentInvite(editingId, {
-        invitedVia: "whatsapp",
-        invitedTo: phone.trim() || undefined,
-      });
-      if (!response?.token) {
-        throw new Error("Convite inválido.");
-      }
-      const link = buildInviteLink(response.token);
-      setInviteLink(link);
-      setInviteExpiresAt(response.expires_at ?? null);
-      await Clipboard.setStringAsync(link);
-      setInviteMessage("Link copiado.");
-      if (openWhatsApp) {
-        const message = buildInviteMessage(link);
-        const digits = sanitizePhone(phone);
-        const waBase = digits ? `https://wa.me/${digits}` : "https://wa.me/";
-        const waUrl = `${waBase}?text=${encodeURIComponent(message)}`;
-        await Linking.openURL(waUrl);
-      }
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : "";
-      const lower = detail.toLowerCase();
-      if (lower.includes("already linked")) {
-        setInviteMessage("Esse aluno já esta vinculado.");
-      } else if (lower.includes("student not found")) {
-        setInviteMessage("Aluno não encontrado.");
-      } else {
-        setInviteMessage("Não foi possível gerar o convite.");
-      }
-    } finally {
-      setInviteBusy(false);
-    }
-  };
-
   const closeEditModal = () => {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
     closeAllEditPickers();
-    resetInviteState();
     resetForm();
   };
 
@@ -830,10 +752,9 @@ export default function StudentsScreen() {
     setGuardianPhone(student.guardianPhone ?? "");
     setGuardianRelation(student.guardianRelation ?? "");
     closeAllPickers();
-    resetInviteState();
     setShowEditModal(true);
     setStudentFormError("");
-  }, [ageBandOptions, classes, closeAllPickers, resetInviteState, unitLabel]);
+  }, [ageBandOptions, classes, closeAllPickers, unitLabel]);
 
   const onDelete = (id: string) => {
     const student = students.find((item) => item.id === id);
@@ -1151,13 +1072,6 @@ export default function StudentsScreen() {
     },
     [buildInviteLink, buildStudentMessage, showWhatsAppNotice, signOut, studentInviteBusy]
   );
-
-  const buildInviteMessage = (link: string) => {
-    const studentName = name.trim();
-    const intro = "Ola! Seu treinador te convidou para acessar seus treinos no GoAtleta.";
-    const forStudent = studentName ? `Aluno: ${studentName}.` : "";
-    return [intro, forStudent, "Clique para ativar:", link].filter(Boolean).join(" ");
-  };
 
   const formatName = (value: string) => {
     const particles = new Set([
@@ -2407,7 +2321,7 @@ export default function StudentsScreen() {
         </View>
         <View ref={editContainerRef} style={{ paddingHorizontal: 12, marginTop: 16, gap: 4 }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
                   <TextInput
                     placeholder="Nome do aluno"
@@ -2426,7 +2340,7 @@ export default function StudentsScreen() {
                     }}
                   />
                 </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
                   <View ref={editUnitTriggerRef}>
                     <Pressable
@@ -2447,7 +2361,7 @@ export default function StudentsScreen() {
                 </View>
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
                   <View ref={editClassTriggerRef}>
                     <Pressable
@@ -2466,52 +2380,7 @@ export default function StudentsScreen() {
                     </Pressable>
                   </View>
                 </View>
-              </View>
-              {studentFormError ? (
-                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                  {studentFormError}
-                </Text>
-              ) : null}
-              {studentFormError ? (
-                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                  {studentFormError}
-                </Text>
-              ) : null}
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <DateInput
-                    value={birthDate}
-                    onChange={setBirthDate}
-                    placeholder="Data de nascimento"
-                    onOpenCalendar={() => setShowCalendar(true)}
-                  />
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {ageNumber !== null
-                      ? `Idade: ${ageNumber} anos`
-                      : "Idade calculada automaticamente"}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <TextInput
-                    placeholder="Telefone"
-                    value={phone}
-                    onChangeText={(value) => setPhone(formatPhone(value))}
-                    keyboardType="phone-pad"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      fontSize: 13,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Email do aluno (login)</Text>
                   <TextInput
                     placeholder="email@exemplo.com"
@@ -2534,8 +2403,46 @@ export default function StudentsScreen() {
                   />
                 </View>
               </View>
+              {studentFormError ? (
+                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                  {studentFormError}
+                </Text>
+              ) : null}
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                  <DateInput
+                    value={birthDate}
+                    onChange={setBirthDate}
+                    placeholder="Data de nascimento"
+                    onOpenCalendar={() => setShowCalendar(true)}
+                  />
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {ageNumber !== null
+                      ? `Idade: ${ageNumber} anos`
+                      : "Idade calculada automaticamente"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                  <TextInput
+                    placeholder="Telefone"
+                    value={phone}
+                    onChangeText={(value) => setPhone(formatPhone(value))}
+                    keyboardType="phone-pad"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 10,
+                      fontSize: 13,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do responsável</Text>
                   <TextInput
                     placeholder="Nome do responsável"
@@ -2554,7 +2461,7 @@ export default function StudentsScreen() {
                     }}
                   />
                 </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do responsável</Text>
                   <TextInput
                     placeholder="Telefone do responsável"
@@ -2573,7 +2480,7 @@ export default function StudentsScreen() {
                     }}
                   />
                 </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
                   <View ref={editGuardianRelationTriggerRef}>
                     <Pressable
@@ -2598,76 +2505,6 @@ export default function StudentsScreen() {
                 </View>
               </View>
               <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-              <View
-                style={{
-                  padding: 12,
-                  borderRadius: 16,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 8,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Convite do aluno
-                </Text>
-                <Text style={{ color: colors.muted }}>
-                  Gere um link e envie por WhatsApp.
-                </Text>
-                {inviteLink ? (
-                  <Text
-                    style={{ color: colors.muted, fontSize: 12 }}
-                    numberOfLines={2}
-                    ellipsizeMode="middle"
-                  >
-                    {inviteLink}
-                  </Text>
-                ) : null}
-                {inviteExpiresAt ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Expira em {formatInviteExpiry(inviteExpiresAt)}
-                  </Text>
-                ) : null}
-                {inviteMessage ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {inviteMessage}
-                  </Text>
-                ) : null}
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={() => handleStudentInvite(false)}
-                    disabled={inviteBusy}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      backgroundColor: inviteBusy ? colors.primaryDisabledBg : colors.card,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {inviteBusy ? "Gerando..." : "Copiar link"}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleStudentInvite(true)}
-                    disabled={inviteBusy}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      backgroundColor: inviteBusy ? colors.primaryDisabledBg : colors.primaryBg,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                      WhatsApp
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
                   onPress={async () => {
@@ -3042,93 +2879,98 @@ export default function StudentsScreen() {
                   <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
                     Enviar para:
                   </Text>
-                  {hasGuardian ? (
-                    <Pressable
-                      onPress={() => setSelectedContactType("guardian")}
-                      style={{
-                        padding: 10,
-                        borderRadius: 8,
-                        backgroundColor:
-                          selectedContactType === "guardian"
-                            ? colors.primaryBg
-                            : colors.inputBg,
-                        borderWidth: 1,
-                        borderColor:
-                          selectedContactType === "guardian"
-                            ? colors.primaryBg
-                            : colors.border,
-                      }}
-                    >
-                      <Text
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {hasGuardian ? (
+                      <Pressable
+                        onPress={() => setSelectedContactType("guardian")}
                         style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color:
+                          flex: 1,
+                          minWidth: 140,
+                          padding: 10,
+                          borderRadius: 8,
+                          backgroundColor:
                             selectedContactType === "guardian"
-                              ? colors.primaryText
-                              : colors.text,
-                        }}
-                      >
-                        Responsável
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          color:
+                              ? colors.primaryBg
+                              : colors.inputBg,
+                          borderWidth: 1,
+                          borderColor:
                             selectedContactType === "guardian"
-                              ? colors.primaryText
-                              : colors.muted,
-                          marginTop: 2,
+                              ? colors.primaryBg
+                              : colors.border,
                         }}
                       >
-                        {student.guardianPhone || "Sem telefone"}
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                  {hasStudent ? (
-                    <Pressable
-                      onPress={() => setSelectedContactType("student")}
-                      style={{
-                        padding: 10,
-                        borderRadius: 8,
-                        backgroundColor:
-                          selectedContactType === "student"
-                            ? colors.primaryBg
-                            : colors.inputBg,
-                        borderWidth: 1,
-                        borderColor:
-                          selectedContactType === "student"
-                            ? colors.primaryBg
-                            : colors.border,
-                        marginTop: hasGuardian ? 6 : 0,
-                      }}
-                    >
-                      <Text
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: "600",
+                            color:
+                              selectedContactType === "guardian"
+                                ? colors.primaryText
+                                : colors.text,
+                          }}
+                        >
+                          Responsavel
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color:
+                              selectedContactType === "guardian"
+                                ? colors.primaryText
+                                : colors.muted,
+                            marginTop: 2,
+                          }}
+                        >
+                          {student.guardianPhone || "Sem telefone"}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    {hasStudent ? (
+                      <Pressable
+                        onPress={() => setSelectedContactType("student")}
                         style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color:
+                          flex: 1,
+                          minWidth: 140,
+                          padding: 10,
+                          borderRadius: 8,
+                          backgroundColor:
                             selectedContactType === "student"
-                              ? colors.primaryText
-                              : colors.text,
+                              ? colors.primaryBg
+                              : colors.inputBg,
+                          borderWidth: 1,
+                          borderColor:
+                            selectedContactType === "student"
+                              ? colors.primaryBg
+                              : colors.border,
                         }}
                       >
-                        Aluno
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          color:
-                            selectedContactType === "student"
-                              ? colors.primaryText
-                              : colors.muted,
-                          marginTop: 2,
-                        }}
-                      >
-                        {student.phone || "Sem telefone"}
-                      </Text>
-                    </Pressable>
-                  ) : null}
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            fontWeight: "600",
+                            color:
+                              selectedContactType === "student"
+                                ? colors.primaryText
+                                : colors.text,
+                          }}
+                        >
+                          Aluno
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color:
+                              selectedContactType === "student"
+                                ? colors.primaryText
+                                : colors.muted,
+                            marginTop: 2,
+                          }}
+                        >
+                          {student.phone || "Sem telefone"}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
               ) : (
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
