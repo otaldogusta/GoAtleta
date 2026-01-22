@@ -2300,11 +2300,12 @@ export default function StudentsScreen() {
           }}
         />
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={{ width: "100%" }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
           <ScrollView
+            style={{ width: "100%" }}
             contentContainerStyle={{ paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
             onScroll={syncEditPickerLayouts}
