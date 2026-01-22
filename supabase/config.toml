@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.invite-link]
 verify_jwt = false
+
+[functions.revoke-student-access]
+verify_jwt = false
