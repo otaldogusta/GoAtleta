@@ -47,6 +47,7 @@ app-example
 
 # Supabase CLI cache
 supabase/.temp/
+.tools/
 
 # editor
 .vscode/tasks.json
