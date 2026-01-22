@@ -108,7 +108,7 @@ export default function StudentInviteScreen() {
       if (lower.includes("expired")) {
         setMessage("Convite expirado.");
       } else if (lower.includes("used")) {
-        setMessage("Convite ja utilizado. Peca um novo link.");
+        setMessage("Convite já utilizado. Peça um novo link.");
       } else if (lower.includes("invalid")) {
         setMessage("Convite inválido.");
       } else {
@@ -161,7 +161,7 @@ export default function StudentInviteScreen() {
         await handleClaim();
         return;
       }
-      const sessionData = await signUp(email.trim(), password);
+      const sessionData = await signUp(email.trim(), password, `invite/${tokenValue}`);
       if (sessionData) {
         await handleClaim();
         return;

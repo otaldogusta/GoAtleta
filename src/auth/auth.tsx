@@ -12,7 +12,7 @@ type AuthContextValue = {
   session: AuthSession | null;
   loading: boolean;
   signIn: (email: string, password: string, remember?: boolean) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<AuthSession | null>;
+  signUp: (email: string, password: string, redirectPath?: string) => Promise<AuthSession | null>;
   signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath?: string) => Promise<void>;
   exchangeCodeForSession: (code: string) => Promise<void>;
   consumeAuthUrl: (url?: string) => Promise<AuthSession | null>;
@@ -37,8 +37,18 @@ const normalizeAuthSession = (payload: Record<string, any>): AuthSession => {
   };
 };
 
-const authFetch = async (path: string, body: Record<string, unknown>) => {
-  const res = await fetch(SUPABASE_URL.replace(/\/$/, "") + path, {
+const authFetch = async (
+  path: string,
+  body: Record<string, unknown>,
+  options?: { redirectTo?: string }
+) => {
+  const base = SUPABASE_URL.replace(/\/$/, "");
+  const redirect = options?.redirectTo
+    ? `${path.includes("?") ? "&" : "?"}redirect_to=${encodeURIComponent(
+        options.redirectTo
+      )}`
+    : "";
+  const res = await fetch(base + path + redirect, {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -82,6 +92,12 @@ const parseAuthSession = (url?: string) => {
 const buildRedirectUrl = (path?: string) => {
   const normalized = (path ?? "login").replace(/^\/+/, "");
   return Linking.createURL(normalized);
+};
+
+const buildWebRedirectUrl = (path?: string) => {
+  if (typeof window === "undefined") return "";
+  const normalized = (path ?? "").replace(/^\/+/, "");
+  return normalized ? `${window.location.origin}/${normalized}` : window.location.origin;
 };
 
 const fetchUser = async (accessToken: string) => {
@@ -152,8 +168,17 @@ export function AuthProvider({
     await saveSession(next, remember);
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string) => {
-    const payload = await authFetch("/auth/v1/signup", { email, password });
+  const signUp = useCallback(async (email: string, password: string, redirectPath?: string) => {
+    const redirectTo = redirectPath
+      ? Platform.OS === "web"
+        ? buildWebRedirectUrl(redirectPath)
+        : buildRedirectUrl(redirectPath)
+      : undefined;
+    const payload = await authFetch(
+      "/auth/v1/signup",
+      { email, password },
+      redirectTo ? { redirectTo } : undefined
+    );
     if (payload.access_token) {
       const next = normalizeAuthSession(payload);
       setSession(next);
