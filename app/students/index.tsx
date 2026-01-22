@@ -1108,25 +1108,40 @@ export default function StudentsScreen() {
       } catch (error) {
         let detail = error instanceof Error ? error.message : String(error);
         try {
-          const parsed = JSON.parse(detail) as { error?: string };
-          if (parsed?.error) detail = String(parsed.error);
+          const parsed = JSON.parse(detail) as { error?: string; message?: string; details?: string };
+          if (parsed?.error) {
+            detail = String(parsed.error);
+          } else if (parsed?.message) {
+            detail = String(parsed.message);
+          } else if (parsed?.details) {
+            detail = String(parsed.details);
+          }
         } catch {
           // ignore
         }
         const lower = detail.toLowerCase();
+        const shortDetail = detail.length > 140 ? `${detail.slice(0, 140)}...` : detail;
         if (lower.includes("invalid jwt") || lower.includes("missing auth token")) {
           Alert.alert("Sessao expirada", "Entre novamente para gerar o convite.");
+          setCustomStudentMessage("Sessao expirada. Entre novamente.");
+        } else if (lower.includes("forbidden") || lower.includes("permission")) {
+          Alert.alert("Convite", "Sem permissao para gerar o convite.");
+          setCustomStudentMessage("Sem permissao para gerar o convite.");
         } else if (lower.includes("already linked")) {
-          Alert.alert(
-            "Convite",
-            "Esse aluno ja esta vinculado. Use Revogar e gerar novo link."
-          );
+          const message = options?.revokeFirst
+            ? "Nao foi possivel revogar o acesso. Tente novamente."
+            : "Esse aluno ja esta vinculado. Use Revogar e gerar novo link.";
+          Alert.alert("Convite", message);
+          setCustomStudentMessage(message);
         } else if (lower.includes("student not found")) {
           Alert.alert("Convite", "Aluno nao encontrado.");
+          setCustomStudentMessage("Aluno nao encontrado.");
         } else {
           Alert.alert("Convite", "Nao foi possivel gerar o convite.");
+          setCustomStudentMessage(
+            shortDetail ? `Nao foi possivel gerar o convite. ${shortDetail}` : "Nao foi possivel gerar o convite."
+          );
         }
-        setCustomStudentMessage("Nao foi possivel gerar o convite.");
         return null;
       } finally {
         setStudentInviteBusy(false);

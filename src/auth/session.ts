@@ -108,62 +108,14 @@ export const getSessionUserId = async (): Promise<string> => {
   return currentSession?.user?.id ?? "";
 };
 
-export const getValidAccessToken = async (): Promise<string> => {
+const refreshSession = async (): Promise<AuthSession | null> => {
   if (!currentSession) {
     const stored = await loadSession();
-    if (!stored) return "";
+    if (!stored) return null;
   }
-  if (!currentSession) return "";
-  const expiresAt = currentSession.expires_at;
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  if (!expiresAt) {
-    if (!currentSession.refresh_token) {
-      await saveSession(null, false);
-      return "";
-    }
-    try {
-      const res = await fetch(
-        SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/token?grant_type=refresh_token",
-        {
-          method: "POST",
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ refresh_token: currentSession.refresh_token }),
-        }
-      );
-      const text = await res.text();
-      if (!res.ok) {
-        await saveSession(null, false);
-        return "";
-      }
-      const payload = text ? (JSON.parse(text) as AuthSession) : null;
-      if (!payload?.access_token) {
-        await saveSession(null, false);
-        return "";
-      }
-      const remember = (await AsyncStorage.getItem(REMEMBER_KEY)) === "true";
-      const next: AuthSession = {
-        access_token: payload.access_token,
-        refresh_token: payload.refresh_token ?? currentSession.refresh_token,
-        expires_at: payload.expires_at,
-        user: payload.user ?? currentSession.user,
-      };
-      await saveSession(next, remember);
-      return next.access_token;
-    } catch {
-      await saveSession(null, false);
-      return "";
-    }
-  }
-  if (nowSeconds < expiresAt - 30) {
-    return currentSession.access_token ?? "";
-  }
-  if (!currentSession.refresh_token) {
+  if (!currentSession?.refresh_token) {
     await saveSession(null, false);
-    return "";
+    return null;
   }
   try {
     const res = await fetch(
@@ -181,12 +133,12 @@ export const getValidAccessToken = async (): Promise<string> => {
     const text = await res.text();
     if (!res.ok) {
       await saveSession(null, false);
-      return "";
+      return null;
     }
     const payload = text ? (JSON.parse(text) as AuthSession) : null;
     if (!payload?.access_token) {
       await saveSession(null, false);
-      return "";
+      return null;
     }
     const remember = (await AsyncStorage.getItem(REMEMBER_KEY)) === "true";
     const next: AuthSession = {
@@ -196,9 +148,31 @@ export const getValidAccessToken = async (): Promise<string> => {
       user: payload.user ?? currentSession.user,
     };
     await saveSession(next, remember);
-    return next.access_token;
+    return next;
   } catch {
     await saveSession(null, false);
-    return "";
+    return null;
   }
+};
+
+export const forceRefreshAccessToken = async (): Promise<string> => {
+  const next = await refreshSession();
+  return next?.access_token ?? "";
+};
+
+export const getValidAccessToken = async (): Promise<string> => {
+  if (!currentSession) {
+    const stored = await loadSession();
+    if (!stored) return "";
+  }
+  if (!currentSession) return "";
+  const expiresAt = currentSession.expires_at;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!expiresAt) {
+    return await forceRefreshAccessToken();
+  }
+  if (nowSeconds < expiresAt - 30) {
+    return currentSession.access_token ?? "";
+  }
+  return await forceRefreshAccessToken();
 };

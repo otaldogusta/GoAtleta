@@ -1,5 +1,5 @@
 import { SUPABASE_URL } from "./config";
-import { getValidAccessToken } from "../auth/session";
+import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
 
 type CreateInviteOptions = {
   invitedVia?: string;
@@ -16,6 +16,8 @@ type CreateInviteResponse = {
   student_id?: string;
 };
 
+const baseUrl = SUPABASE_URL.replace(/\/$/, "");
+
 const parseResponse = async (res: Response) => {
   const text = await res.text();
   if (!res.ok) {
@@ -24,26 +26,38 @@ const parseResponse = async (res: Response) => {
   return text ? JSON.parse(text) : {};
 };
 
-export async function createStudentInvite(
-  studentId: string,
-  options?: CreateInviteOptions
-) {
+const requestWithAuth = async (path: string, body: Record<string, unknown>) => {
   const token = await getValidAccessToken();
   if (!token) {
     throw new Error("Missing auth token");
   }
-  const base = SUPABASE_URL.replace(/\/$/, "");
-  const res = await fetch(base + "/functions/v1/create-student-invite", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      studentId,
-      invitedVia: options?.invitedVia,
-      invitedTo: options?.invitedTo,
-    }),
+  const doFetch = (accessToken: string) =>
+    fetch(baseUrl + path, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  let res = await doFetch(token);
+  if (res.status === 401) {
+    const refreshed = await forceRefreshAccessToken();
+    if (refreshed) {
+      res = await doFetch(refreshed);
+    }
+  }
+  return res;
+};
+
+export async function createStudentInvite(
+  studentId: string,
+  options?: CreateInviteOptions
+) {
+  const res = await requestWithAuth("/functions/v1/create-student-invite", {
+    studentId,
+    invitedVia: options?.invitedVia,
+    invitedTo: options?.invitedTo,
   });
   return (await parseResponse(res)) as CreateInviteResponse;
 }
@@ -52,38 +66,16 @@ export async function revokeStudentAccess(
   studentId: string,
   options?: RevokeAccessOptions
 ) {
-  const token = await getValidAccessToken();
-  if (!token) {
-    throw new Error("Missing auth token");
-  }
-  const base = SUPABASE_URL.replace(/\/$/, "");
-  const res = await fetch(base + "/functions/v1/revoke-student-access", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      studentId,
-      clearLoginEmail: options?.clearLoginEmail,
-    }),
+  const res = await requestWithAuth("/functions/v1/revoke-student-access", {
+    studentId,
+    clearLoginEmail: options?.clearLoginEmail,
   });
   return parseResponse(res);
 }
 
 export async function claimStudentInvite(tokenValue: string) {
-  const token = await getValidAccessToken();
-  if (!token) {
-    throw new Error("Missing auth token");
-  }
-  const base = SUPABASE_URL.replace(/\/$/, "");
-  const res = await fetch(base + "/functions/v1/claim-student-invite", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ token: tokenValue }),
+  const res = await requestWithAuth("/functions/v1/claim-student-invite", {
+    token: tokenValue,
   });
   return parseResponse(res);
 }
