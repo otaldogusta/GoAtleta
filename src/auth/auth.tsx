@@ -22,6 +22,21 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const normalizeAuthSession = (payload: Record<string, any>): AuthSession => {
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expiresAt =
+    payload.expires_at ??
+    (payload.expires_in && Number.isFinite(Number(payload.expires_in))
+      ? nowSeconds + Number(payload.expires_in)
+      : undefined);
+  return {
+    access_token: payload.access_token,
+    refresh_token: payload.refresh_token,
+    expires_at: expiresAt,
+    user: payload.user,
+  };
+};
+
 const authFetch = async (path: string, body: Record<string, unknown>) => {
   const res = await fetch(SUPABASE_URL.replace(/\/$/, "") + path, {
     method: "POST",
@@ -132,12 +147,7 @@ export function AuthProvider({
       email,
       password,
     });
-    const next: AuthSession = {
-      access_token: payload.access_token,
-      refresh_token: payload.refresh_token,
-      expires_at: payload.expires_at,
-      user: payload.user,
-    };
+    const next = normalizeAuthSession(payload);
     setSession(next);
     await saveSession(next, remember);
   }, []);
@@ -145,12 +155,7 @@ export function AuthProvider({
   const signUp = useCallback(async (email: string, password: string) => {
     const payload = await authFetch("/auth/v1/signup", { email, password });
     if (payload.access_token) {
-      const next: AuthSession = {
-        access_token: payload.access_token,
-        refresh_token: payload.refresh_token,
-        expires_at: payload.expires_at,
-        user: payload.user,
-      };
+      const next = normalizeAuthSession(payload);
       setSession(next);
       await saveSession(next, true);
       return next;
@@ -200,12 +205,7 @@ export function AuthProvider({
         code,
       });
       
-      const next: AuthSession = {
-        access_token: payload.access_token,
-        refresh_token: payload.refresh_token,
-        expires_at: payload.expires_at,
-        user: payload.user,
-      };
+      const next = normalizeAuthSession(payload);
       setSession(next);
       await saveSession(next, true);
     },
@@ -216,12 +216,7 @@ export function AuthProvider({
     const payload = await authFetch("/auth/v1/token?grant_type=authorization_code", {
       code,
     });
-    const next: AuthSession = {
-      access_token: payload.access_token,
-      refresh_token: payload.refresh_token,
-      expires_at: payload.expires_at,
-      user: payload.user,
-    };
+    const next = normalizeAuthSession(payload);
     setSession(next);
     await saveSession(next, true);
   }, []);
