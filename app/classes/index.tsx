@@ -1646,7 +1646,7 @@ export default function ClassesScreen() {
         {mainTab === "criar" && (
         <View style={{ gap: 12, marginTop: 12 }}>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
               <TextInput
                 placeholder="Nome da turma"
@@ -1664,7 +1664,7 @@ export default function ClassesScreen() {
                 }}
               />
             </View>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
               <TextInput
                 placeholder="Unidade"
@@ -1684,7 +1684,7 @@ export default function ClassesScreen() {
             </View>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Genero</Text>
               <View ref={genderTriggerRef}>
                 <Pressable
@@ -1707,7 +1707,7 @@ export default function ClassesScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
               <View ref={goalTriggerRef}>
                 <Pressable
@@ -1767,7 +1767,7 @@ export default function ClassesScreen() {
             </View>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
               <View ref={modalityTriggerRef}>
                 <Pressable
@@ -1790,7 +1790,7 @@ export default function ClassesScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
               <View ref={ageBandTriggerRef}>
                 <Pressable
@@ -1832,7 +1832,7 @@ export default function ClassesScreen() {
             </View>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Horário de inicio</Text>
               <TextInput
                 placeholder="HH:MM"
@@ -1851,7 +1851,7 @@ export default function ClassesScreen() {
                 }}
               />
             </View>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao</Text>
               <View ref={durationTriggerRef}>
                 <Pressable
@@ -1911,7 +1911,7 @@ export default function ClassesScreen() {
             </View>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Nivel</Text>
               <View ref={mvLevelTriggerRef}>
                 <Pressable
@@ -1934,7 +1934,7 @@ export default function ClassesScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao do ciclo</Text>
               <View ref={cycleLengthTriggerRef}>
                 <Pressable
@@ -2262,7 +2262,7 @@ export default function ClassesScreen() {
         </View>
         <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16, paddingHorizontal: 12 }}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
                 <TextInput
                   placeholder="Nome da turma"
@@ -2280,7 +2280,7 @@ export default function ClassesScreen() {
                   }}
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
                 <TextInput
                   placeholder="Unidade"
@@ -2300,7 +2300,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
                 <TextInput
                   placeholder="Horário (HH:MM)"
@@ -2319,7 +2319,7 @@ export default function ClassesScreen() {
                   }}
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao</Text>
                 <View ref={editDurationTriggerRef}>
                   <Pressable
@@ -2362,7 +2362,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Data inicio do ciclo</Text>
                 <DateInput
                   value={editCycleStartDate}
@@ -2371,7 +2371,7 @@ export default function ClassesScreen() {
                   placeholder="DD/MM/AAAA"
                 />
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao do ciclo</Text>
                 <View ref={editCycleLengthTriggerRef}>
                   <Pressable
@@ -2396,7 +2396,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Nivel</Text>
                 <View ref={editMvLevelTriggerRef}>
                   <Pressable
@@ -2419,7 +2419,7 @@ export default function ClassesScreen() {
                   </Pressable>
                 </View>
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
                 <View ref={editAgeBandTriggerRef}>
                   <Pressable
@@ -2484,7 +2484,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
                 <View ref={editModalityTriggerRef}>
                   <Pressable
@@ -2507,7 +2507,7 @@ export default function ClassesScreen() {
                   </Pressable>
                 </View>
               </View>
-              <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
                 <View ref={editGoalTriggerRef}>
                 <Pressable
