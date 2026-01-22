@@ -2319,7 +2319,15 @@ export default function StudentsScreen() {
             </Text>
           </Pressable>
         </View>
-        <View ref={editContainerRef} style={{ paddingHorizontal: 12, marginTop: 16, gap: 4 }}>
+        <View
+          ref={editContainerRef}
+          onLayout={() => {
+            editContainerRef.current?.measureInWindow((x, y) => {
+              setEditContainerWindow({ x, y });
+            });
+          }}
+          style={{ paddingHorizontal: 12, marginTop: 16, gap: 4 }}
+        >
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>

@@ -1690,13 +1690,13 @@ export default function ClassesScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-              <View ref={goalTriggerRef}>
-                <Pressable
-                  onPress={() => toggleNewPicker("goal")}
-                  style={selectFieldStyle}
-                >
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
+                <View ref={goalTriggerRef} style={{ width: "100%" }}>
+                  <Pressable
+                    onPress={() => toggleNewPicker("goal")}
+                    style={[selectFieldStyle, { width: "100%" }]}
+                  >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {newGoal || "Selecione"}
                   </Text>
@@ -2474,25 +2474,25 @@ export default function ClassesScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-                <View ref={editGoalTriggerRef}>
-                <Pressable
-                  onPress={() => toggleEditPicker("goal")}
-                  style={selectFieldStyle}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {editGoal || "Selecione"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showEditGoalPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
+                <View ref={editGoalTriggerRef} style={{ width: "100%" }}>
+                  <Pressable
+                    onPress={() => toggleEditPicker("goal")}
+                    style={[selectFieldStyle, { width: "100%" }]}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {editGoal || "Selecione"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditGoalPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
               </View>
               {editShowAllGoals ? (
                 <TextInput
