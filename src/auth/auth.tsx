@@ -169,12 +169,16 @@ export function AuthProvider({
     async (provider: "google" | "facebook" | "apple", redirectPath?: string) => {
       // For web, redirect directly to Supabase with custom scheme
       if (Platform.OS === "web") {
+        const normalized = (redirectPath ?? "").replace(/^\/+/, "");
+        const redirectTo = normalized
+          ? `${window.location.origin}/${normalized}`
+          : window.location.origin;
         const authUrl =
           SUPABASE_URL.replace(/\/$/, "") +
           `/auth/v1/authorize?provider=${encodeURIComponent(
             provider
           )}&response_type=code&redirect_to=${encodeURIComponent(
-            window.location.origin
+            redirectTo
           )}`;
         window.location.href = authUrl;
         return;

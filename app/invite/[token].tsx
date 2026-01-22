@@ -15,6 +15,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../../src/auth/auth";
 import { useRole } from "../../src/auth/role";
 import { claimStudentInvite } from "../../src/api/student-invite";
+import {
+  clearPendingInvite,
+  savePendingInvite,
+} from "../../src/auth/pending-invite";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 
@@ -81,6 +85,11 @@ export default function StudentInviteScreen() {
     }).start();
   }, [enterAnim]);
 
+  useEffect(() => {
+    if (!tokenValue) return;
+    void savePendingInvite(tokenValue);
+  }, [tokenValue]);
+
   const handleClaim = async () => {
     if (!tokenValue) {
       setMessage("Convite inválido.");
@@ -90,6 +99,7 @@ export default function StudentInviteScreen() {
     setMessage("");
     try {
       await claimStudentInvite(tokenValue);
+      await clearPendingInvite();
       await refresh();
       router.replace("/");
     } catch (error) {
@@ -98,7 +108,7 @@ export default function StudentInviteScreen() {
       if (lower.includes("expired")) {
         setMessage("Convite expirado.");
       } else if (lower.includes("used")) {
-        setMessage("Convite já utilizado.");
+        setMessage("Convite ja utilizado. Peca um novo link.");
       } else if (lower.includes("invalid")) {
         setMessage("Convite inválido.");
       } else {
@@ -156,7 +166,7 @@ export default function StudentInviteScreen() {
         await handleClaim();
         return;
       }
-      setMessage("Conta criada. Confirme o email e depois volte para ativar.");
+      setMessage("Conta criada. Confirme o email e volte para concluir o convite.");
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
       const lower = detail.toLowerCase();

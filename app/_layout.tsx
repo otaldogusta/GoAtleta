@@ -19,6 +19,7 @@ import { Pressable } from "../src/ui/Pressable";
 
 import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
+import { getPendingInvite } from "../src/auth/pending-invite";
 import { RoleProvider, useRole } from "../src/auth/role";
 import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
@@ -163,12 +164,16 @@ function RootLayoutContent() {
     const code = urlParams.get("code");
     if (code) {
         console.log("[OAuth] Found code in URL, exchanging for session...");
-      exchangeCodeForSession(code).then(() => {
+      const redirectAfterAuth = async () => {
+        const pending = await getPendingInvite();
+        router.replace(pending ? `/invite/${pending}` : "/");
+      };
+      exchangeCodeForSession(code).then(async () => {
           console.log("[OAuth] Session exchange successful, redirecting to home");
         // Clean up URL
         const newUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, '', newUrl);
-        router.replace("/");
+        await redirectAfterAuth();
       }).catch((err) => {
         console.error("[OAuth] Failed to exchange code:", err);
         router.replace("/welcome");
@@ -189,10 +194,14 @@ function RootLayoutContent() {
     }
     if (accessToken && type !== "recovery") {
       console.log("[Auth] Found access token in URL, saving session...");
-      consumeAuthUrl(window.location.href).then(() => {
+      const redirectAfterAuth = async () => {
+        const pending = await getPendingInvite();
+        router.replace(pending ? `/invite/${pending}` : "/");
+      };
+      consumeAuthUrl(window.location.href).then(async () => {
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, "", cleanUrl);
-        router.replace("/");
+        await redirectAfterAuth();
       }).catch((err) => {
         console.error("[Auth] Failed to consume auth URL:", err);
         const cleanUrl = window.location.origin + window.location.pathname;

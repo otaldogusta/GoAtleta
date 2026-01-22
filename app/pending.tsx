@@ -1,22 +1,30 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 
 import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { claimStudentInvite } from "../src/api/student-invite";
+import {
+  clearPendingInvite,
+  getPendingInvite,
+} from "../src/auth/pending-invite";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
 export default function PendingScreen() {
   const { colors } = useAppTheme();
+  const router = useRouter();
   const { signOut } = useAuth();
   const { refresh } = useRole();
   const [busy, setBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteInput, setInviteInput] = useState("");
   const [message, setMessage] = useState("");
+  const [storedToken, setStoredToken] = useState("");
+  const autoClaimedRef = useRef(false);
 
   const isUuid = (value: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -99,6 +107,53 @@ export default function PendingScreen() {
     }
   };
 
+  const handleStoredInvite = async (tokenOverride?: string) => {
+    const tokenValue = (tokenOverride ?? storedToken).trim();
+    if (!tokenValue || inviteBusy) return;
+    setInviteBusy(true);
+    setMessage("");
+    try {
+      await claimStudentInvite(tokenValue);
+      await clearPendingInvite();
+      await refresh();
+      router.replace("/");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      const lower = detail.toLowerCase();
+      setMessage(
+        lower.includes("expired")
+          ? "Convite expirado."
+          : lower.includes("used")
+          ? "Convite ja utilizado. Peca um novo link."
+          : "Nao foi possivel validar o convite."
+      );
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const clearStoredInvite = async () => {
+    await clearPendingInvite();
+    setStoredToken("");
+    setMessage("");
+    autoClaimedRef.current = false;
+  };
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const token = await getPendingInvite();
+      if (!alive || !token) return;
+      setStoredToken(token);
+      if (autoClaimedRef.current) return;
+      autoClaimedRef.current = true;
+      await handleStoredInvite(token);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [refresh]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}>
@@ -122,46 +177,90 @@ export default function PendingScreen() {
           <Text style={{ color: colors.text, fontWeight: "700" }}>
             Convite de acesso
           </Text>
-          <Text style={{ color: colors.muted }}>
-            Cole o link do convite (aluno) ou o código do convite (treinador).
-          </Text>
-          <TextInput
-            placeholder="Link ou código do convite"
-            value={inviteInput}
-            onChangeText={setInviteInput}
-            autoCapitalize="none"
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 10,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {inviteHint}
-          </Text>
-          {message ? (
-            <Text style={{ color: colors.muted }}>{message}</Text>
-          ) : null}
-          <Pressable
-            onPress={handleInvite}
-            disabled={inviteBusy}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              {inviteBusy ? "Validando..." : "Validar convite"}
-            </Text>
-          </Pressable>
+          {storedToken ? (
+            <>
+              <Text style={{ color: colors.muted }}>
+                Convite detectado. Validando automaticamente.
+              </Text>
+              {message ? (
+                <Text style={{ color: colors.muted }}>{message}</Text>
+              ) : null}
+              <Pressable
+                onPress={() => handleStoredInvite()}
+                disabled={inviteBusy}
+                style={{
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {inviteBusy ? "Validando..." : "Tentar novamente"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={clearStoredInvite}
+                style={{
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Usar outro convite
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={{ color: colors.muted }}>
+                Cole o link do convite (aluno) ou o codigo do convite (treinador).
+              </Text>
+              <TextInput
+                placeholder="Link ou codigo do convite"
+                value={inviteInput}
+                onChangeText={setInviteInput}
+                autoCapitalize="none"
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                }}
+              />
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {inviteHint}
+              </Text>
+              {message ? (
+                <Text style={{ color: colors.muted }}>{message}</Text>
+              ) : null}
+              <Pressable
+                onPress={handleInvite}
+                disabled={inviteBusy}
+                style={{
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {inviteBusy ? "Validando..." : "Validar convite"}
+                </Text>
+              </Pressable>
+            </>
+          )}
         </View>
         <Pressable
           onPress={async () => {
