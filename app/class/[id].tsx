@@ -71,6 +71,7 @@ export default function ClassDetails() {
   const { confirm } = useConfirmUndo();
   const { defaultMessageEnabled, setDefaultMessageEnabled, coachName, groupInviteLinks } = useWhatsAppSettings();
   const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "75%", maxWidth: 360 });
+  const rosterModalCardStyle = useModalCardStyle({ maxHeight: "60%", maxWidth: 360 });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
   const [customWhatsAppMessage, setCustomWhatsAppMessage] = useState("");
@@ -85,7 +86,7 @@ export default function ClassDetails() {
     return `${year}-${month}-01`;
   });
   const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
-  const [pendingRosterMode, setPendingRosterMode] = useState<"full" | "whatsapp" | null>(null);
+  const [showRosterExportModal, setShowRosterExportModal] = useState(false);
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const filteredContacts = useMemo(() => {
     const term = contactSearch.trim().toLowerCase();
@@ -435,59 +436,12 @@ export default function ClassDetails() {
     });
   };
 
-  const confirmRosterMonth = (mode: "full" | "whatsapp") => {
-    const monthLabel = formatMonthLabel(rosterMonthValue);
-    Alert.alert(
-      "Mes da lista",
-      `Usar ${monthLabel}?`,
-      [
-        {
-          text: `Mes atual (${monthLabel})`,
-          onPress: () => exportRosterPdf(mode, rosterMonthValue),
-        },
-        {
-          text: "Escolher mes",
-          onPress: () => {
-            setPendingRosterMode(mode);
-            setShowRosterMonthPicker(true);
-          },
-        },
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-      ]
-    );
-  };
-
   const handleExportRoster = async () => {
     if (!cls) return;
-    
-    Alert.alert(
-      "Exportar lista",
-      "Escolha o tipo de lista:",
-      [
-        {
-          text: "Lista de chamada",
-          onPress: () => confirmRosterMonth("full"),
-        },
-        {
-          text: "Lista WhatsApp",
-          onPress: () => confirmRosterMonth("whatsapp"),
-          style: "default",
-        },
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-      ]
-    );
+    setShowRosterExportModal(true);
   };
 
-  const exportRosterPdf = async (
-    mode: "full" | "whatsapp",
-    monthValue = rosterMonthValue
-  ) => {
+  const exportRosterPdf = async (monthValue = rosterMonthValue) => {
     if (!cls) return;
     try {
       const list = await getStudentsByClass(cls.id);
@@ -535,7 +489,7 @@ export default function ClassDetails() {
       });
 
       const data = {
-        title: mode === "whatsapp" ? "Lista WhatsApp da turma" : "Lista de chamada",
+        title: "Lista de chamada",
         className,
         ageBand: classAgeBand,
         unitLabel,
@@ -543,7 +497,7 @@ export default function ClassDetails() {
         timeLabel,
         monthLabel,
         exportDate,
-        mode,
+        mode: "full" as const,
         totalStudents: list.length,
         monthDays,
         fundamentals,
@@ -552,15 +506,14 @@ export default function ClassDetails() {
         rows,
       };
 
-      const suffix = mode === "whatsapp" ? "whatsapp" : "chamada";
-      const fileName = `lista_${suffix}_${safeFileName(className)}_${monthKey}.pdf`;
+      const fileName = `lista_chamada_${safeFileName(className)}_${monthKey}.pdf`;
 
       await exportPdf({
         html: classRosterHtml(data),
         fileName,
         webDocument: <ClassRosterDocument data={data} />,
       });
-      logAction("Exportar lista da turma", { classId: cls.id, mode, month: monthKey });
+      logAction("Exportar lista da turma", { classId: cls.id, month: monthKey });
     } catch (error) {
       Alert.alert("Falha ao exportar lista", "Tente novamente.");
     }
@@ -568,12 +521,6 @@ export default function ClassDetails() {
 
   const handleRosterMonthChange = (value: string) => {
     setRosterMonthValue(value);
-    if (pendingRosterMode) {
-      const mode = pendingRosterMode;
-      setPendingRosterMode(null);
-      setShowRosterMonthPicker(false);
-      void exportRosterPdf(mode, value);
-    }
   };
 
   const handleWhatsAppGroup = async () => {
@@ -820,7 +767,7 @@ export default function ClassDetails() {
                 Exportar lista da turma
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Chamada ou WhatsApp
+                Lista de chamada mensal
               </Text>
             </Pressable>
             <Pressable
@@ -903,6 +850,98 @@ export default function ClassDetails() {
 
       </ScrollView>
       </KeyboardAvoidingView>
+
+
+      <ModalSheet
+        visible={showRosterExportModal}
+        onClose={() => setShowRosterExportModal(false)}
+        position="center"
+        cardStyle={rosterModalCardStyle}
+      >
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            Exportar lista de chamada
+          </Text>
+          <View style={{ gap: 6 }}>
+            <Text style={{ fontSize: 12, color: colors.muted }}>Mes da lista</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <View
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "600" }}>
+                  {formatMonthLabel(rosterMonthValue)}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setShowRosterMonthPicker(true)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 10,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
+                  Escolher
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 11, color: colors.muted }}>
+              Ser?o exibidos apenas os dias em que a turma treina.
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              setShowRosterExportModal(false);
+              void exportRosterPdf();
+            }}
+            style={{
+              paddingVertical: 12,
+              borderRadius: 12,
+              backgroundColor: colors.primaryBg,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
+              Gerar PDF
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setShowRosterExportModal(false)}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
 
       <ModalSheet
         visible={showWhatsAppSettingsModal}
@@ -1297,7 +1336,6 @@ export default function ClassDetails() {
         onChange={handleRosterMonthChange}
         onClose={() => {
           setShowRosterMonthPicker(false);
-          setPendingRosterMode(null);
         }}
         closeOnSelect
         initialViewMode="month"
