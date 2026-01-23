@@ -16,6 +16,8 @@ import type {
   ScoutingLog,
 } from "../core/models";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
+import { canonicalizeUnitLabel } from "../core/unit-label";
+import { normalizeUnitKey } from "../core/unit-key";
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
 
@@ -280,13 +282,26 @@ const ensureUnit = async (
   unitName: string | undefined,
   cachedUnits?: UnitRow[]
 ): Promise<UnitRow | null> => {
-  const name = unitName?.trim();
+  const name = canonicalizeUnitLabel(unitName);
   if (!name) return null;
   const units = cachedUnits ?? (await safeGetUnits());
+  const targetKey = normalizeUnitKey(name);
   const existing = units.find(
-    (unit) => unit.name.toLowerCase() === name.toLowerCase()
+    (unit) => normalizeUnitKey(unit.name) === targetKey
   );
-  if (existing) return existing;
+  if (existing) {
+    if (existing.name !== name) {
+      try {
+        await supabasePatch("/units?id=eq." + encodeURIComponent(existing.id), {
+          name,
+        });
+        existing.name = name;
+      } catch {
+        // ignore rename failures
+      }
+    }
+    return existing;
+  }
 
   const now = new Date().toISOString();
   const createdId = "u_" + Date.now();
@@ -495,7 +510,7 @@ export async function seedIfEmpty() {
       {
         id: "c_re_f_8_11",
         name: "Feminino (8-11)",
-        unit: "Rede Esperanca",
+        unit: "Rede Esperança",
         modality: "voleibol",
         ageband: "08-11",
         gender: "feminino",
@@ -515,7 +530,7 @@ export async function seedIfEmpty() {
       {
         id: "c_re_m_8_11",
         name: "Masculino (8-11)",
-        unit: "Rede Esperanca",
+        unit: "Rede Esperança",
         modality: "voleibol",
         ageband: "08-11",
         gender: "masculino",
@@ -725,14 +740,16 @@ export async function seedStudentsIfEmpty() {
 export async function getClasses(): Promise<ClassGroup[]> {
   try {
     const units = await safeGetUnits();
-    const unitMap = new Map(units.map((unit) => [unit.id, unit.name]));
+    const unitMap = new Map(
+      units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
+    );
     const rows = await supabaseGet<ClassRow[]>("/classes?select=*&order=name.asc");
     const mapped = rows.map((row) => ({
       id: row.id,
       name: row.name,
       unit:
         (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
-        row.unit ??
+        canonicalizeUnitLabel(row.unit) ??
         "Sem unidade",
       unitId: row.unit_id ?? undefined,
       modality:
@@ -788,7 +805,9 @@ export async function getClasses(): Promise<ClassGroup[]> {
 
 export async function getClassById(id: string): Promise<ClassGroup | null> {
   const units = await safeGetUnits();
-  const unitMap = new Map(units.map((unit) => [unit.id, unit.name]));
+  const unitMap = new Map(
+    units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
+  );
   const rows = await supabaseGet<ClassRow[]>(
     "/classes?select=*&id=eq." + encodeURIComponent(id)
   );
@@ -799,7 +818,7 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
     name: row.name,
     unit:
       (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
-      row.unit ??
+      canonicalizeUnitLabel(row.unit) ??
       "Sem unidade",
     unitId: row.unit_id ?? undefined,
     modality:

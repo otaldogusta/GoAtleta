@@ -124,6 +124,7 @@ export default function StudentsScreen() {
   >(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
+  const [studentsClassFilter, setStudentsClassFilter] = useState("Todas");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("");
   const [customAgeBand, setCustomAgeBand] = useState("");
@@ -1244,6 +1245,19 @@ export default function StudentsScreen() {
     () => ["Todas", ...unitOptions],
     [unitOptions]
   );
+  const studentsClassOptions = useMemo(() => {
+    const filteredClasses =
+      studentsUnitFilter === "Todas"
+        ? classes
+        : classes.filter((item) => unitLabel(item.unit) === studentsUnitFilter);
+    const sorted = [...filteredClasses].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+    return [
+      { id: "Todas", label: "Todas" },
+      ...sorted.map((item) => ({ id: item.id, label: item.name })),
+    ];
+  }, [classes, studentsUnitFilter, unitLabel]);
   const birthdayFilteredStudents = useMemo(() => {
     if (birthdayUnitFilter === "Todas") return students;
     return students.filter((student) => {
@@ -1252,12 +1266,18 @@ export default function StudentsScreen() {
     });
   }, [birthdayUnitFilter, classes, students]);
   const studentsFiltered = useMemo(() => {
-    if (studentsUnitFilter === "Todas") return students;
-    return students.filter((student) => {
-      const cls = classes.find((item) => item.id === student.classId);
-      return unitLabel(cls?.unit) === studentsUnitFilter;
-    });
-  }, [studentsUnitFilter, classes, students, unitLabel]);
+    const filteredByUnit =
+      studentsUnitFilter === "Todas"
+        ? students
+        : students.filter((student) => {
+            const cls = classes.find((item) => item.id === student.classId);
+            return unitLabel(cls?.unit) === studentsUnitFilter;
+          });
+    if (studentsClassFilter === "Todas") return filteredByUnit;
+    return filteredByUnit.filter(
+      (student) => student.classId === studentsClassFilter
+    );
+  }, [studentsUnitFilter, studentsClassFilter, classes, students, unitLabel]);
   const studentsGrouped = useMemo(() => {
     const map = new Map<string, Student[]>();
     studentsFiltered.forEach((student) => {
@@ -1292,6 +1312,16 @@ export default function StudentsScreen() {
       );
     });
   }, [birthdayFilteredStudents, today]);
+
+  useEffect(() => {
+    if (studentsClassFilter === "Todas") return;
+    const exists = studentsClassOptions.some(
+      (option) => option.id === studentsClassFilter
+    );
+    if (!exists) {
+      setStudentsClassFilter("Todas");
+    }
+  }, [studentsClassFilter, studentsClassOptions]);
 
   const birthdayMonthGroups = useMemo<BirthdayMonthGroup[]>(() => {
     const byMonth = new Map<number, Map<string, BirthdayEntry[]>>();
@@ -2109,6 +2139,56 @@ export default function StudentsScreen() {
               </ScrollView>
             </View>
 
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 16,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 2,
+                gap: 8,
+              }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Turma
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {studentsClassOptions.map((option) => {
+                    const active = studentsClassFilter === option.id;
+                    const chipBg = active ? colors.primaryBg : colors.secondaryBg;
+                    const chipText = active ? colors.primaryText : colors.text;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => setStudentsClassFilter(option.id)}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: chipBg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: chipText,
+                            fontWeight: active ? "700" : "500",
+                          }}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+
             <View style={{ gap: 8 }}>
               <View
                 style={{
@@ -2166,9 +2246,11 @@ export default function StudentsScreen() {
                     Nenhum aluno encontrado
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {studentsUnitFilter === "Todas"
-                      ? "Comece adicionando alunos"
-                      : "Nenhum aluno nesta unidade"}
+                    {studentsClassFilter !== "Todas"
+                      ? "Nenhum aluno nesta turma"
+                      : studentsUnitFilter === "Todas"
+                        ? "Comece adicionando alunos"
+                        : "Nenhum aluno nesta unidade"}
                   </Text>
                 </View>
               )}

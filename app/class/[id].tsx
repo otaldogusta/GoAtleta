@@ -384,7 +384,7 @@ export default function ClassDetails() {
     try {
       await updateClass(cls.id, {
         name: name.trim() || cls.name,
-        unit: unit.trim() || "Rede Esperanca",
+        unit: unit.trim() || "Rede Esperança",
         daysOfWeek,
         goal,
         ageBand: ageBand.trim() || cls.ageBand,

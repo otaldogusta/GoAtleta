@@ -302,7 +302,7 @@ export default function ImportTrainingCsvScreen() {
             Unidade (opcional, se não estiver no titulo)
           </Text>
           <TextInput
-            placeholder="Ex: Rede Esperanca"
+            placeholder="Ex: Rede Esperança"
             value={unitHint}
             onChangeText={setUnitHint}
             placeholderTextColor={colors.placeholder}

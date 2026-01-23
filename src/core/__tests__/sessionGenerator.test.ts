@@ -3,7 +3,7 @@ import { generateSession } from "../sessionGenerator";
 const mk = (ageBand: any, goal = "Fundamentos") => ({
   id: "t",
   name: "Turma",
-  unit: "Rede Esperanca",
+  unit: "Rede Esperança",
   ageBand,
   startTime: "14:00",
   daysOfWeek: [2, 4],
