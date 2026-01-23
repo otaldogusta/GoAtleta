@@ -51,3 +51,7 @@ supabase/.temp/
 
 # editor
 .vscode/tasks.json
+
+# Local preview artifacts
+tmp/
+scripts/preview-roster.ts
