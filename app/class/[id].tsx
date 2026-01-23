@@ -16,6 +16,7 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ClassGroup, ScoutingLog } from "../../src/core/models";
+import { getBlockForToday } from "../../src/core/periodization";
 import {
   countsFromLog,
   getFocusSuggestion,
@@ -34,6 +35,7 @@ import {
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -51,7 +53,6 @@ import {
   buildWaMeLink,
   getContactPhone,
   getDefaultMessage,
-  normalizePhoneBR,
   openWhatsApp,
 } from "../../src/utils/whatsapp";
 import {
@@ -77,6 +78,14 @@ export default function ClassDetails() {
   const [availableContacts, setAvailableContacts] = useState<Array<{ studentName: string; phone: string; source: "guardian" | "student" }>>([]);
   const [selectedContactIndex, setSelectedContactIndex] = useState(-1);
   const [contactSearch, setContactSearch] = useState("");
+  const [rosterMonthValue, setRosterMonthValue] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}-01`;
+  });
+  const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
+  const [pendingRosterMode, setPendingRosterMode] = useState<"full" | "whatsapp" | null>(null);
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const filteredContacts = useMemo(() => {
     const term = contactSearch.trim().toLowerCase();
@@ -112,6 +121,20 @@ export default function ClassDetails() {
     isVisible: showDetailsContent,
   } = useCollapsibleAnimation(showDetails);
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  const monthNames = [
+    "Janeiro",
+    "Fevereiro",
+    "Marco",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ];
   const ageBandOptions = [
     "06-08",
     "08-09",
@@ -181,6 +204,44 @@ export default function ClassDetails() {
   };
   const formatShortDate = (value: string) =>
     value.includes("-") ? value.split("-").reverse().join("/") : value;
+  const parseIsoDate = (value?: string) => {
+    if (!value) return null;
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const local = new Date(year, month - 1, day);
+      return Number.isNaN(local.getTime()) ? null : local;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const formatMonthLabel = (value: string) => {
+    const date = parseIsoDate(value) ?? new Date();
+    return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+  };
+  const getClassMonthDays = (value: string, classDaysOfWeek: number[]) => {
+    const date = parseIsoDate(value) ?? new Date();
+    const year = date.getFullYear();
+    const monthIndex = date.getMonth();
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const days: number[] = [];
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const dateValue = new Date(year, monthIndex, day);
+      if (classDaysOfWeek.includes(dateValue.getDay())) {
+        days.push(day);
+      }
+    }
+    return days;
+  };
+  const formatBirthDate = (value?: string | null) =>
+    value ? formatShortDate(value) : "-";
+  const formatMonthKey = (value: string) => {
+    const date = parseIsoDate(value) ?? new Date();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${date.getFullYear()}-${month}`;
+  };
   const formatPhoneDisplay = (digits: string) => {
     if (!digits) return "-";
     let cleaned = String(digits).replace(/\D/g, "");
@@ -195,14 +256,6 @@ export default function ClassDetails() {
       return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
     }
     return `(${ddd}) ${rest}`;
-  };
-  const formatPhoneFromRaw = (raw?: string | null) => {
-    if (!raw || !raw.trim()) return "-";
-    const normalized = normalizePhoneBR(raw);
-    if (normalized.isValid) {
-      return formatPhoneDisplay(normalized.phoneDigits);
-    }
-    return raw.trim();
   };
   const toMinutes = (value: string) => {
     if (!isValidTime(value)) return null;
@@ -382,21 +435,45 @@ export default function ClassDetails() {
     });
   };
 
+  const confirmRosterMonth = (mode: "full" | "whatsapp") => {
+    const monthLabel = formatMonthLabel(rosterMonthValue);
+    Alert.alert(
+      "Mes da lista",
+      `Usar ${monthLabel}?`,
+      [
+        {
+          text: `Mes atual (${monthLabel})`,
+          onPress: () => exportRosterPdf(mode, rosterMonthValue),
+        },
+        {
+          text: "Escolher mes",
+          onPress: () => {
+            setPendingRosterMode(mode);
+            setShowRosterMonthPicker(true);
+          },
+        },
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
   const handleExportRoster = async () => {
     if (!cls) return;
     
-    // Ask user what type of list they want
     Alert.alert(
-      "Tipo de exportacao",
+      "Exportar lista",
       "Escolha o tipo de lista:",
       [
         {
-          text: "Lista completa",
-          onPress: () => exportRosterPdf("full"),
+          text: "Lista de chamada",
+          onPress: () => confirmRosterMonth("full"),
         },
         {
-          text: "Apenas WhatsApp",
-          onPress: () => exportRosterPdf("whatsapp"),
+          text: "Lista WhatsApp",
+          onPress: () => confirmRosterMonth("whatsapp"),
           style: "default",
         },
         {
@@ -407,7 +484,10 @@ export default function ClassDetails() {
     );
   };
 
-  const exportRosterPdf = async (mode: "full" | "whatsapp") => {
+  const exportRosterPdf = async (
+    mode: "full" | "whatsapp",
+    monthValue = rosterMonthValue
+  ) => {
     if (!cls) return;
     try {
       const list = await getStudentsByClass(cls.id);
@@ -416,56 +496,83 @@ export default function ClassDetails() {
       const timeLabel = timeParts
         ? formatTimeRange(timeParts.hour, timeParts.minute, classDuration)
         : classStartTime;
+      const monthLabel = formatMonthLabel(monthValue);
+      const monthDays = getClassMonthDays(monthValue, classDays);
+      const monthKey = formatMonthKey(monthValue);
+      const periodizationLabel = getBlockForToday(cls);
+      const fundamentals = [
+        "Fisico",
+        "Toque",
+        "Manchete",
+        "Saque",
+        "Ataque",
+        "Bloqueio",
+        "Apoio e Def",
+        "Passe",
+        "Levantamento",
+        "Transicao",
+        "Jogo",
+      ];
       const rows = list.map((student, index) => {
         const contact = getContactPhone(student);
-        const contactSource =
-          contact.status === "missing"
-            ? "Sem telefone"
-            : contact.status === "invalid"
-              ? "Telefone invalido"
-              : contact.source === "guardian"
-                ? "Responsavel"
-                : "Aluno";
+        const contactLabel =
+          contact.status === "ok"
+            ? contact.source === "guardian"
+              ? "Resp."
+              : "Aluno"
+            : contact.status === "missing"
+              ? "Sem tel"
+              : "Tel invalido";
         const contactPhone =
-          contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "-";
+          contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
         return {
           index: index + 1,
           studentName: student.name,
-          age: student.age ? String(student.age) : "-",
-          studentPhone: formatPhoneFromRaw(student.phone),
-          guardianName: student.guardianName ?? "-",
-          guardianPhone: formatPhoneFromRaw(student.guardianPhone),
-          contactSource,
+          birthDate: formatBirthDate(student.birthDate),
+          contactLabel,
           contactPhone,
-          whatsappLink:
-            contact.status === "ok" ? buildWaMeLink(contact.phoneDigits) : "-",
         };
       });
 
       const data = {
-        title: mode === "whatsapp" ? "Lista WhatsApp da turma" : "Lista da turma",
+        title: mode === "whatsapp" ? "Lista WhatsApp da turma" : "Lista de chamada",
         className,
         ageBand: classAgeBand,
         unitLabel,
         daysLabel: formatDays(classDays),
         timeLabel,
+        monthLabel,
         exportDate,
         mode,
         totalStudents: list.length,
+        monthDays,
+        fundamentals,
+        periodizationLabel,
+        coachName: coachName?.trim() || undefined,
         rows,
       };
 
-      const suffix = mode === "whatsapp" ? "whatsapp" : "completa";
-      const fileName = `lista_turma_${safeFileName(className)}_${safeFileName(unitLabel)}_${suffix}.pdf`;
+      const suffix = mode === "whatsapp" ? "whatsapp" : "chamada";
+      const fileName = `lista_${suffix}_${safeFileName(className)}_${monthKey}.pdf`;
 
       await exportPdf({
         html: classRosterHtml(data),
         fileName,
         webDocument: <ClassRosterDocument data={data} />,
       });
-      logAction("Exportar lista da turma", { classId: cls.id, mode });
+      logAction("Exportar lista da turma", { classId: cls.id, mode, month: monthKey });
     } catch (error) {
       Alert.alert("Falha ao exportar lista", "Tente novamente.");
+    }
+  };
+
+  const handleRosterMonthChange = (value: string) => {
+    setRosterMonthValue(value);
+    if (pendingRosterMode) {
+      const mode = pendingRosterMode;
+      setPendingRosterMode(null);
+      setShowRosterMonthPicker(false);
+      void exportRosterPdf(mode, value);
     }
   };
 
@@ -713,7 +820,7 @@ export default function ClassDetails() {
                 Exportar lista da turma
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Completa ou apenas WhatsApp
+                Chamada ou WhatsApp
               </Text>
             </Pressable>
             <Pressable
@@ -1184,6 +1291,17 @@ export default function ClassDetails() {
           </Pressable>
         </View>
       </ModalSheet>
+      <DatePickerModal
+        visible={showRosterMonthPicker}
+        value={rosterMonthValue}
+        onChange={handleRosterMonthChange}
+        onClose={() => {
+          setShowRosterMonthPicker(false);
+          setPendingRosterMode(null);
+        }}
+        closeOnSelect
+        initialViewMode="month"
+      />
     </SafeAreaView>
   );
 }

@@ -18,12 +18,14 @@ export function DatePickerModal({
   onChange,
   onClose,
   closeOnSelect = false,
+  initialViewMode = "day",
 }: {
   visible: boolean;
   value?: string;
   onChange: (value: string) => void;
   onClose: () => void;
   closeOnSelect?: boolean;
+  initialViewMode?: ViewMode;
 }) {
   const { colors, mode } = useAppTheme();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
@@ -98,10 +100,10 @@ export function DatePickerModal({
       const base = parseIsoDate(value) ?? new Date();
       setCalendarMonth(new Date(base.getFullYear(), base.getMonth(), 1));
       setYearPageStart(Math.floor(base.getFullYear() / 12) * 12);
-      setViewMode("day");
+      setViewMode(initialViewMode);
     }
     wasVisible.current = visible;
-  }, [value, visible]);
+  }, [value, visible, initialViewMode]);
 
   const todayIso = useMemo(() => formatIsoDate(new Date()), []);
   const unselectedText = mode === "dark" ? colors.primaryText : colors.text;
