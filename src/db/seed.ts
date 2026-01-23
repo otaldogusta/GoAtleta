@@ -731,8 +731,8 @@ export async function getClasses(): Promise<ClassGroup[]> {
       id: row.id,
       name: row.name,
       unit:
-        row.unit ??
         (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
+        row.unit ??
         "Sem unidade",
       unitId: row.unit_id ?? undefined,
       modality:
@@ -798,8 +798,8 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
     id: row.id,
     name: row.name,
     unit:
-      row.unit ??
       (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
+      row.unit ??
       "Sem unidade",
     unitId: row.unit_id ?? undefined,
     modality:
@@ -857,9 +857,12 @@ export async function updateClass(
     acwrHigh?: number;
   }
 ) {
+  const resolvedUnitRow = data.unitId
+    ? { id: data.unitId, name: data.unit }
+    : await ensureUnit(data.unit);
   const payload: Record<string, unknown> = {
     name: data.name,
-    unit: data.unit,
+    unit: resolvedUnitRow?.name ?? data.unit,
     days: data.daysOfWeek,
     goal: data.goal,
     ageband: normalizeAgeBand(data.ageBand),
@@ -870,10 +873,7 @@ export async function updateClass(
   };
   if (data.modality) payload.modality = data.modality;
 
-  const resolvedUnit =
-    data.unitId ??
-    (await ensureUnit(data.unit))?.id ??
-    undefined;
+  const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   if (resolvedUnit) payload.unit_id = resolvedUnit;
   if (data.mvLevel) payload.mv_level = data.mvLevel;
   if (data.cycleStartDate) payload.cycle_start_date = data.cycleStartDate;
@@ -911,15 +911,15 @@ export async function saveClass(data: {
   cycleStartDate?: string;
   cycleLengthWeeks?: number;
 }) {
-  const resolvedUnit =
-    data.unitId ??
-    (await ensureUnit(data.unit))?.id ??
-    undefined;
+  const resolvedUnitRow = data.unitId
+    ? { id: data.unitId, name: data.unit }
+    : await ensureUnit(data.unit);
+  const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   await supabasePost("/classes", [
     {
       id: "c_" + Date.now(),
       name: data.name,
-      unit: data.unit,
+      unit: resolvedUnitRow?.name ?? data.unit,
       unit_id: resolvedUnit,
       modality: data.modality ?? "fitness",
       ageband: normalizeAgeBand(data.ageBand),
@@ -941,15 +941,15 @@ export async function saveClass(data: {
 }
 
 export async function duplicateClass(base: ClassGroup) {
-  const resolvedUnit =
-    base.unitId ??
-    (await ensureUnit(base.unit))?.id ??
-    undefined;
+  const resolvedUnitRow = base.unitId
+    ? { id: base.unitId, name: base.unit }
+    : await ensureUnit(base.unit);
+  const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   await supabasePost("/classes", [
     {
       id: "c_" + Date.now(),
       name: base.name + " (copia)",
-      unit: base.unit,
+      unit: resolvedUnitRow?.name ?? base.unit,
       unit_id: resolvedUnit,
       modality: base.modality ?? "fitness",
       ageband: normalizeAgeBand(base.ageBand),

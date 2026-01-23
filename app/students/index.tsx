@@ -46,6 +46,7 @@ import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { normalizeUnitKey } from "../../src/core/unit-key";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -410,12 +411,29 @@ export default function StudentsScreen() {
   }, []);
 
   const unitOptions = useMemo(() => {
-    const set = new Set<string>();
+    const map = new Map<string, string>();
+    const upperScore = (value: string) =>
+      (value.match(/[A-Z]/g) ?? []).length;
+    const preferLabel = (current: string, next: string) => {
+      const currentScore = upperScore(current);
+      const nextScore = upperScore(next);
+      if (nextScore > currentScore) return next;
+      if (nextScore < currentScore) return current;
+      return next.length > current.length ? next : current;
+    };
     classes.forEach((item) => {
-      set.add(unitLabel(item.unit));
+      const label = unitLabel(item.unit);
+      const key = normalizeUnitKey(label);
+      if (!key) return;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, label);
+      } else {
+        map.set(key, preferLabel(existing, label));
+      }
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [classes]);
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [classes, unitLabel]);
 
   const ageBandOptions = useMemo(() => {
     const set = new Set<ClassGroup["ageBand"]>();
