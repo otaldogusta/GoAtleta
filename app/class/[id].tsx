@@ -62,32 +62,27 @@ export default function ClassDetails() {
   const { confirm } = useConfirmUndo();
   const { defaultMessageEnabled, setDefaultMessageEnabled, coachName, groupInviteLinks } = useWhatsAppSettings();
   const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "75%", maxWidth: 360 });
-  const contactListHeightAnim = useMemo(() => new Animated.Value(0), []);
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
   const [customWhatsAppMessage, setCustomWhatsAppMessage] = useState("");
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
   const [availableContacts, setAvailableContacts] = useState<Array<{ studentName: string; phone: string; source: "guardian" | "student" }>>([]);
   const [selectedContactIndex, setSelectedContactIndex] = useState(-1);
-  const [showContactList, setShowContactList] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
   const [cls, setCls] = useState<ClassGroup | null>(null);
-  
-  // Animate contact list opening/closing
-  useEffect(() => {
-    if (showContactList) {
-      Animated.timing(contactListHeightAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: false,
-      }).start();
-    } else {
-      Animated.timing(contactListHeightAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: false,
-      }).start();
+  const filteredContacts = useMemo(() => {
+    const term = contactSearch.trim().toLowerCase();
+    if (!term) {
+      return availableContacts.map((contact, index) => ({ contact, index }));
     }
-  }, [showContactList, contactListHeightAnim]);
+    return availableContacts
+      .map((contact, index) => ({ contact, index }))
+      .filter(({ contact }) => {
+        const name = contact.studentName.toLowerCase();
+        const phone = contact.phone.replace(/\D/g, "");
+        return name.includes(term) || phone.includes(term);
+      });
+  }, [availableContacts, contactSearch]);
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
@@ -1009,122 +1004,104 @@ export default function ClassDetails() {
             </View>
           )}
 
-          {/* Contact Selector */}
+          {/* Lista da turma */}
           {availableContacts.length > 0 && (
-            <View style={{ gap: 6, position: "relative", zIndex: 100 }}>
-              <Pressable
-                onPress={() => setShowContactList(!showContactList)}
+            <View style={{ gap: 8 }}>
+              <View style={{ gap: 2 }}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                  Lista da turma
+                </Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>
+                  Selecione quem vai receber a mensagem.
+                </Text>
+              </View>
+              <TextInput
+                placeholder="Buscar por nome ou telefone"
+                placeholderTextColor={colors.placeholder}
+                value={contactSearch}
+                onChangeText={setContactSearch}
                 style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: 10,
+                  padding: 8,
                   borderRadius: 8,
                   backgroundColor: colors.inputBg,
                   borderWidth: 1,
                   borderColor: colors.border,
+                  color: colors.text,
+                  fontSize: 12,
                 }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
-                    Enviar para:
-                  </Text>
-                  {selectedContactIndex >= 0 ? (
-                    <>
-                      <Text style={{ fontSize: 13, fontWeight: "600", color: colors.text, marginTop: 2 }}>
-                        {availableContacts[selectedContactIndex]?.studentName}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: colors.muted }}>
-                        {availableContacts[selectedContactIndex]?.source === "guardian" ? "Responsável" : "Aluno"} • {availableContacts[selectedContactIndex]?.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
-                      </Text>
-                    </>
-                  ) : (
-                    <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted, marginTop: 2 }}>
-                      Selecione um contato...
-                    </Text>
-                  )}
-                </View>
-                <MaterialCommunityIcons
-                  name={showContactList ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={colors.muted}
-                />
-              </Pressable>
-              
-              <Animated.View
-                pointerEvents={showContactList ? "auto" : "none"}
+              />
+              <View
                 style={{
-                  position: "absolute",
-                  top: 75,
-                  left: 0,
-                  right: 0,
-                  maxHeight: 300,
+                  maxHeight: 260,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.background,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 12,
-                  elevation: 10,
-                  zIndex: 9999,
                   overflow: "hidden",
-                  transform: [
-                    {
-                      translateY: contactListHeightAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-20, 0],
-                      }),
-                    },
-                  ],
-                  opacity: contactListHeightAnim,
                 }}
+              >
+                <ScrollView
+                  style={{ maxHeight: 260 }}
+                  contentContainerStyle={{ padding: 6, gap: 6 }}
+                  showsVerticalScrollIndicator
                 >
-                  <ScrollView
-                    style={{ maxHeight: 300 }}
-                    contentContainerStyle={{ padding: 4 }}
-                    showsVerticalScrollIndicator
-                  >
-                    {availableContacts.map((contact, index) => {
+                  {filteredContacts.length ? (
+                    filteredContacts.map(({ contact, index }) => {
                       const isSelected = selectedContactIndex === index;
                       return (
                         <Pressable
-                          key={index}
-                          onPress={() => {
-                            setSelectedContactIndex(index);
-                            setShowContactList(false);
-                          }}
+                          key={`${contact.studentName}-${contact.phone}-${contact.source}`}
+                          onPress={() => setSelectedContactIndex(index)}
                           style={{
                             padding: 10,
-                            borderRadius: 8,
-                            backgroundColor: isSelected 
-                              ? "#E8F5E9" 
-                              : colors.inputBg,
-                            borderWidth: isSelected ? 1 : 0,
-                            borderColor: "#25D366",
-                            margin: 2,
+                            borderRadius: 10,
+                            backgroundColor: isSelected ? colors.primaryBg : colors.inputBg,
+                            borderWidth: 1,
+                            borderColor: isSelected ? colors.primaryBg : colors.border,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
                           }}
                         >
-                          <Text style={{ 
-                            fontSize: 13, 
-                            fontWeight: "600", 
-                            color: isSelected ? "#1a7a3d" : colors.text 
-                          }}>
-                            {contact.studentName}
-                          </Text>
-                          <Text style={{ 
-                            fontSize: 11, 
-                            color: isSelected ? "#2d6b45" : colors.muted, 
-                            marginTop: 2 
-                          }}>
-                            {contact.source === "guardian" ? "Responsável" : "Aluno"} • {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
-                          </Text>
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "700",
+                                color: isSelected ? colors.primaryText : colors.text,
+                              }}
+                            >
+                              {contact.studentName}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: isSelected ? colors.primaryText : colors.muted,
+                                marginTop: 2,
+                              }}
+                            >
+                              {contact.source === "guardian" ? "Responsável" : "Aluno"} •{" "}
+                              {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
+                            </Text>
+                          </View>
+                          <MaterialCommunityIcons
+                            name={isSelected ? "check-circle" : "circle-outline"}
+                            size={18}
+                            color={isSelected ? colors.primaryText : colors.muted}
+                          />
                         </Pressable>
                       );
-                    })}
-                  </ScrollView>
-                </Animated.View>
+                    })
+                  ) : (
+                    <View style={{ padding: 12 }}>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        Nenhum contato encontrado.
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
             </View>
           )}
 
@@ -1230,7 +1207,5 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
-
-
 
 
