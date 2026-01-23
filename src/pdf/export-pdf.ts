@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import { Linking, Platform } from "react-native";
 import * as FileSystem from "expo-file-system";
-import * as IntentLauncher from "expo-intent-launcher";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
@@ -71,11 +70,7 @@ async function tryOpenPdf(uri: string): Promise<boolean> {
   try {
     if (Platform.OS === "android") {
       const contentUri = await FileSystem.getContentUriAsync(uri);
-      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-        data: contentUri,
-        flags: IntentLauncher.FLAG_GRANT_READ_URI_PERMISSION,
-        type: "application/pdf",
-      });
+      await Linking.openURL(contentUri);
       return true;
     }
     if (Platform.OS === "ios") {
