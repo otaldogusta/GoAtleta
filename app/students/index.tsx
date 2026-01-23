@@ -1372,12 +1372,14 @@ export default function StudentsScreen() {
         onPress,
         onWhatsApp,
         className,
+        unitName,
         palette,
       }: {
         item: Student;
         onPress: (student: Student) => void;
         onWhatsApp: (student: Student) => void;
         className: string;
+        unitName: string;
         palette: { bg: string; text: string };
       }) {
         const contact = getContactPhone(item);
@@ -1400,13 +1402,38 @@ export default function StudentsScreen() {
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <View style={{ flex: 1, gap: 2 }}>
+              <View style={{ flex: 1, gap: 6 }}>
                 <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
                   {item.name}
                 </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {className}
-                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  <View
+                    style={{
+                      paddingVertical: 4,
+                      paddingHorizontal: 8,
+                      borderRadius: 999,
+                      backgroundColor: palette.bg,
+                    }}
+                  >
+                    <Text style={{ color: palette.text, fontSize: 11, fontWeight: "700" }}>
+                      Unidade: {unitName}
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      paddingVertical: 4,
+                      paddingHorizontal: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
+                      Turma: {className}
+                    </Text>
+                  </View>
+                </View>
               </View>
               <Pressable
                 onPress={() => onWhatsApp(item)}
@@ -1426,8 +1453,8 @@ export default function StudentsScreen() {
                 />
               </Pressable>
             </View>
-            <Text style={{ color: colors.muted }}>
-              {"Idade: " + item.age + " | Telefone: " + item.phone}
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {"Idade: " + item.age + " • Telefone: " + item.phone}
             </Text>
           </Pressable>
         );
@@ -1538,6 +1565,7 @@ export default function StudentsScreen() {
           onPress={onEdit}
           onWhatsApp={openStudentWhatsApp}
           className={getClassName(item.classId)}
+          unitName={unitName}
           palette={palette}
         />
       );
