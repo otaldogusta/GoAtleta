@@ -1,5 +1,7 @@
 import type { ReactElement } from "react";
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as IntentLauncher from "expo-intent-launcher";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
@@ -28,13 +30,16 @@ export const exportPdf = async ({
       base64: false,
     });
 
-    const canShare = await Sharing.isAvailableAsync();
-    if (canShare) {
-      await Sharing.shareAsync(uri, {
-        mimeType: "application/pdf",
-        dialogTitle: "Salvar/Compartilhar PDF",
-        UTI: "com.adobe.pdf",
-      });
+    const opened = await tryOpenPdf(uri);
+    if (!opened) {
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Salvar/Compartilhar PDF",
+          UTI: "com.adobe.pdf",
+        });
+      }
     }
 
     return { uri, fileName };
@@ -61,3 +66,24 @@ export const exportPdf = async ({
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return { uri: url, fileName };
 };
+
+async function tryOpenPdf(uri: string): Promise<boolean> {
+  try {
+    if (Platform.OS === "android") {
+      const contentUri = await FileSystem.getContentUriAsync(uri);
+      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        data: contentUri,
+        flags: IntentLauncher.FLAG_GRANT_READ_URI_PERMISSION,
+        type: "application/pdf",
+      });
+      return true;
+    }
+    if (Platform.OS === "ios") {
+      await Linking.openURL(uri);
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
