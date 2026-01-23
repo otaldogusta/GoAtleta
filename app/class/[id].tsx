@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Share,
   Text,
   TextInput,
   Vibration,
@@ -45,7 +44,16 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
-import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
+import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
+import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
+import { classRosterHtml } from "../../src/pdf/templates/class-roster";
+import {
+  buildWaMeLink,
+  getContactPhone,
+  getDefaultMessage,
+  normalizePhoneBR,
+  openWhatsApp,
+} from "../../src/utils/whatsapp";
 import {
   WHATSAPP_TEMPLATES,
   WhatsAppTemplateId,
@@ -171,15 +179,31 @@ export default function ClassDetails() {
     const pad = (value: number) => String(value).padStart(2, "0");
     return `${pad(hour)}:${pad(minute)} - ${pad(endHour)}:${pad(endMinute)}`;
   };
-  const safeFileName = (value: string) =>
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") || "turma";
-  const escapeCsv = (value: string | number | null | undefined) =>
-    `"${String(value ?? "").replace(/"/g, '""')}"`;
   const formatShortDate = (value: string) =>
     value.includes("-") ? value.split("-").reverse().join("/") : value;
+  const formatPhoneDisplay = (digits: string) => {
+    if (!digits) return "-";
+    let cleaned = String(digits).replace(/\D/g, "");
+    if (cleaned.startsWith("55")) cleaned = cleaned.slice(2);
+    if (cleaned.length < 10) return digits;
+    const ddd = cleaned.slice(0, 2);
+    const rest = cleaned.slice(2);
+    if (rest.length === 8) {
+      return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+    }
+    if (rest.length === 9) {
+      return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    }
+    return `(${ddd}) ${rest}`;
+  };
+  const formatPhoneFromRaw = (raw?: string | null) => {
+    if (!raw || !raw.trim()) return "-";
+    const normalized = normalizePhoneBR(raw);
+    if (normalized.isValid) {
+      return formatPhoneDisplay(normalized.phoneDigits);
+    }
+    return raw.trim();
+  };
   const toMinutes = (value: string) => {
     if (!isValidTime(value)) return null;
     const [hour, minute] = value.split(":").map(Number);
@@ -358,70 +382,21 @@ export default function ClassDetails() {
     });
   };
 
-  const buildRosterCsv = (students: Awaited<ReturnType<typeof getStudentsByClass>>) => {
-    const exportDate = new Date().toISOString().slice(0, 10);
-    const classTitle = `${classAgeBand} ${classStartTime}`;
-    const header = [
-      "unit",
-      "class_id",
-      "class_name",
-      "class_title",
-      "age_band",
-      "days_of_week",
-      "start_time",
-      "export_date",
-      "participant_name",
-      "age",
-      "phone",
-      "guardian_name",
-      "guardian_phone",
-      "contact_phone",
-      "contact_source",
-      "whatsapp_link",
-      "phone_status",
-    ];
-    const rows = students.map((student) => {
-      const contact = getContactPhone(student);
-      return [
-        unitLabel,
-        cls.id,
-        className,
-        classTitle,
-        classAgeBand,
-        formatDays(classDays),
-        classStartTime,
-        exportDate,
-        student.name,
-        student.age,
-        student.phone,
-        student.guardianName ?? "",
-        student.guardianPhone ?? "",
-        contact.status === "ok" ? contact.phoneDigits.slice(2) : "",
-        contact.source ?? "",
-        contact.status === "ok" ? buildWaMeLink(contact.phoneDigits) : "",
-        contact.status,
-      ];
-    });
-    return [header, ...rows]
-      .map((row) => row.map(escapeCsv).join(","))
-      .join("\n");
-  };
-
   const handleExportRoster = async () => {
     if (!cls) return;
     
-    // Ask user what type of CSV they want
+    // Ask user what type of list they want
     Alert.alert(
-      "Tipo de exportação",
+      "Tipo de exportacao",
       "Escolha o tipo de lista:",
       [
         {
           text: "Lista completa",
-          onPress: () => exportCsv(false),
+          onPress: () => exportRosterPdf("full"),
         },
         {
           text: "Apenas WhatsApp",
-          onPress: () => exportCsv(true),
+          onPress: () => exportRosterPdf("whatsapp"),
           style: "default",
         },
         {
@@ -432,61 +407,66 @@ export default function ClassDetails() {
     );
   };
 
-  const exportCsv = async (whatsappOnly: boolean) => {
-    if (Platform.OS !== "web") {
-      // Mobile: Use Share API
-      const list = await getStudentsByClass(cls?.id || "");
-      const csv = whatsappOnly ? buildWhatsAppCsv(list) : buildRosterCsv(list);
-      const className = cls?.name || "Turma";
-      await Share.share({
-        title: `Lista de chamada - ${className}`,
-        message: csv,
+  const exportRosterPdf = async (mode: "full" | "whatsapp") => {
+    if (!cls) return;
+    try {
+      const list = await getStudentsByClass(cls.id);
+      const exportDate = new Date().toLocaleDateString("pt-BR");
+      const timeParts = parseTime(classStartTime);
+      const timeLabel = timeParts
+        ? formatTimeRange(timeParts.hour, timeParts.minute, classDuration)
+        : classStartTime;
+      const rows = list.map((student, index) => {
+        const contact = getContactPhone(student);
+        const contactSource =
+          contact.status === "missing"
+            ? "Sem telefone"
+            : contact.status === "invalid"
+              ? "Telefone invalido"
+              : contact.source === "guardian"
+                ? "Responsavel"
+                : "Aluno";
+        const contactPhone =
+          contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "-";
+        return {
+          index: index + 1,
+          studentName: student.name,
+          age: student.age ? String(student.age) : "-",
+          studentPhone: formatPhoneFromRaw(student.phone),
+          guardianName: student.guardianName ?? "-",
+          guardianPhone: formatPhoneFromRaw(student.guardianPhone),
+          contactSource,
+          contactPhone,
+          whatsappLink:
+            contact.status === "ok" ? buildWaMeLink(contact.phoneDigits) : "-",
+        };
       });
-      return;
-    }
-    
-    // Web: Export as file
-    const list = await getStudentsByClass(cls?.id || "");
-    const csv = whatsappOnly ? buildWhatsAppCsv(list) : buildRosterCsv(list);
-    const suffix = whatsappOnly ? "_whatsapp" : "_completa";
-    const fileName = `lista_chamada_${safeFileName(unitLabel)}_${safeFileName(cls?.id || "")}${suffix}.csv`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
 
-  const buildWhatsAppCsv = (students: Awaited<ReturnType<typeof getStudentsByClass>>) => {
-    const exportDate = new Date().toISOString().slice(0, 10);
-    const header = [
-      "unit",
-      "class_name",
-      "participant_name",
-      "contact_source",
-      "contact_phone",
-      "whatsapp_link",
-      "phone_status",
-      "export_date",
-    ];
-    const rows = students.map((student) => {
-      const contact = getContactPhone(student);
-      return [
-        unitLabel,
+      const data = {
+        title: mode === "whatsapp" ? "Lista WhatsApp da turma" : "Lista da turma",
         className,
-        student.name,
-        contact.source ?? "",
-        contact.status === "ok" ? contact.phoneDigits.slice(2) : "",
-        contact.status === "ok" ? buildWaMeLink(contact.phoneDigits) : "",
-        contact.status,
+        ageBand: classAgeBand,
+        unitLabel,
+        daysLabel: formatDays(classDays),
+        timeLabel,
         exportDate,
-      ];
-    });
-    return [header, ...rows]
-      .map((row) => row.map(escapeCsv).join(","))
-      .join("\n");
+        mode,
+        totalStudents: list.length,
+        rows,
+      };
+
+      const suffix = mode === "whatsapp" ? "whatsapp" : "completa";
+      const fileName = `lista_turma_${safeFileName(className)}_${safeFileName(unitLabel)}_${suffix}.pdf`;
+
+      await exportPdf({
+        html: classRosterHtml(data),
+        fileName,
+        webDocument: <ClassRosterDocument data={data} />,
+      });
+      logAction("Exportar lista da turma", { classId: cls.id, mode });
+    } catch (error) {
+      Alert.alert("Falha ao exportar lista", "Tente novamente.");
+    }
   };
 
   const handleWhatsAppGroup = async () => {
@@ -1207,5 +1187,4 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
-
 
