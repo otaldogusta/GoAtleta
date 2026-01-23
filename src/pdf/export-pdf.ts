@@ -70,8 +70,21 @@ async function tryOpenPdf(uri: string): Promise<boolean> {
   try {
     if (Platform.OS === "android") {
       const contentUri = await FileSystem.getContentUriAsync(uri);
-      await Linking.openURL(contentUri);
-      return true;
+      try {
+        const IntentLauncher = await import("expo-intent-launcher");
+        await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+          data: contentUri,
+          type: "application/pdf",
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+        });
+        return true;
+      } catch {
+        const canOpen = await Linking.canOpenURL(contentUri);
+        if (canOpen) {
+          await Linking.openURL(contentUri);
+          return true;
+        }
+      }
     }
     if (Platform.OS === "ios") {
       await Linking.openURL(uri);
