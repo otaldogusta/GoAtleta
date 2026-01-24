@@ -9,6 +9,7 @@ export type ClassGroup = {
   name: string;
   unit: string;
   unitId?: string;
+  colorKey?: string;
   modality?: Modality;
   ageBand: AgeBand;
   gender: ClassGender;

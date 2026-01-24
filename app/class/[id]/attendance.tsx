@@ -355,6 +355,7 @@ export default function AttendanceScreen() {
         unit={cls.unit}
         ageBand={cls.ageBand}
         gender={cls.gender}
+        classColorKey={cls.colorKey}
         dateLabel={dateLabel}
         timeLabel={timeLabel}
       />

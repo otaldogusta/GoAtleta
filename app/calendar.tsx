@@ -27,6 +27,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
+import { getClassPalette } from "../src/ui/class-colors";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { usePersistedState } from "../src/ui/use-persisted-state";
@@ -646,7 +647,7 @@ export default function CalendarScreen() {
                               durationMinutes
                             );
                             const classUnit = unitLabel(cls.unit);
-                            const classPalette = getUnitPalette(classUnit, colors);
+                            const classPalette = getClassPalette(cls.colorKey, colors, classUnit);
                             const appliedPlan = getAppliedPlan(cls.id, date);
                             const isSpecificDate = Boolean(appliedPlan?.applyDate);
                             const isWeekly =
@@ -993,7 +994,6 @@ export default function CalendarScreen() {
     </SafeAreaView>
   );
 }
-
 
 
 

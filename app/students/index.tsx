@@ -46,6 +46,7 @@ import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { getClassPalette } from "../../src/ui/class-colors";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import { getUnitPalette } from "../../src/ui/unit-colors";
@@ -1347,14 +1348,14 @@ export default function StudentsScreen() {
         onWhatsApp,
         className,
         unitName,
-        palette,
+        classPalette,
       }: {
         item: Student;
         onPress: (student: Student) => void;
         onWhatsApp: (student: Student) => void;
         className: string;
         unitName: string;
-        palette: { bg: string; text: string };
+        classPalette: { bg: string; text: string };
       }) {
         const contact = getContactPhone(item);
         const disabled = contact.status === "missing";
@@ -1369,7 +1370,7 @@ export default function StudentsScreen() {
               borderRadius: 18,
               backgroundColor: colors.card,
               borderWidth: 1,
-              borderColor: palette.bg,
+              borderColor: classPalette.bg,
               shadowColor: "#000",
               shadowOpacity: 0.08,
               shadowRadius: 12,
@@ -1410,12 +1411,14 @@ export default function StudentsScreen() {
                         paddingVertical: 4,
                         paddingHorizontal: 8,
                         borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
+                        backgroundColor: classPalette.bg,
                         borderWidth: 1,
-                        borderColor: colors.border,
+                        borderColor: classPalette.bg,
                       }}
                     >
-                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
+                      <Text
+                        style={{ color: classPalette.text, fontSize: 11, fontWeight: "700" }}
+                      >
                         {className}
                       </Text>
                     </View>
@@ -1542,7 +1545,7 @@ export default function StudentsScreen() {
     ({ item }: { item: Student }) => {
       const cls = classes.find((entry) => entry.id === item.classId);
       const unitName = unitLabel(cls?.unit);
-      const palette = getUnitPalette(unitName, colors);
+      const classPalette = getClassPalette(cls?.colorKey, colors, unitName);
       return (
         <StudentRow
           item={item}
@@ -1550,7 +1553,7 @@ export default function StudentsScreen() {
           onWhatsApp={openStudentWhatsApp}
           className={getClassName(item.classId)}
           unitName={unitName}
-          palette={palette}
+          classPalette={classPalette}
         />
       );
     },

@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
 import type { ClassGender } from "../core/models";
 import { useAppTheme } from "./app-theme";
+import { getClassPalette } from "./class-colors";
 import { getUnitPalette } from "./unit-colors";
 import { ClassGenderBadge } from "./ClassGenderBadge";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
@@ -14,6 +15,7 @@ type ClassContextHeaderProps = {
   dateLabel?: string;
   timeLabel?: string;
   notice?: string;
+  classColorKey?: string | null;
 };
 
 export function ClassContextHeader({
@@ -25,10 +27,12 @@ export function ClassContextHeader({
   dateLabel,
   timeLabel,
   notice,
+  classColorKey,
 }: ClassContextHeaderProps) {
   const { colors } = useAppTheme();
   const unitLabel = unit?.trim();
   const unitPalette = unitLabel ? getUnitPalette(unitLabel, colors) : null;
+  const classPalette = getClassPalette(classColorKey, colors, unitLabel);
   const hasChips =
     !!unitLabel || !!ageBand || !!gender || !!dateLabel || !!timeLabel;
 
@@ -39,9 +43,19 @@ export function ClassContextHeader({
           {title}
         </Text>
       ) : null}
-      <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
-        {className}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            backgroundColor: classPalette.bg,
+          }}
+        />
+        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
+          {className}
+        </Text>
+      </View>
       {hasChips ? (
         <FadeHorizontalScroll
           fadeColor={colors.background}

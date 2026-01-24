@@ -693,6 +693,7 @@ export default function SessionScreen() {
         unit={cls?.unit}
         ageBand={classAgeBand}
         gender={classGender}
+        classColorKey={cls?.colorKey}
         dateLabel={dateLabel}
         timeLabel={timeLabel}
         notice={showNoPlanNotice ? "Sem treino aplicado para esse dia" : undefined}

@@ -31,6 +31,7 @@ import {
   getLatestScoutingLog,
   getStudentsByClass,
   updateClass,
+  updateClassColor,
 } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
@@ -40,6 +41,7 @@ import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { getUnitPalette } from "../../src/ui/unit-colors";
@@ -93,6 +95,8 @@ export default function ClassDetails() {
   const [studentsLoadedFor, setStudentsLoadedFor] = useState<string | null>(null);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [showStudentsModal, setShowStudentsModal] = useState(false);
+  const [classColorKey, setClassColorKey] = useState<string | null>(null);
+  const [classColorSaving, setClassColorSaving] = useState(false);
   const filteredContacts = useMemo(() => {
     const term = contactSearch.trim().toLowerCase();
     if (!term) {
@@ -280,6 +284,11 @@ export default function ClassDetails() {
   const classDuration = cls?.durationMinutes ?? 60;
   const classGoal = cls?.goal || goal;
   const unitPalette = getUnitPalette(unitLabel, colors);
+  const classPalette = getClassPalette(classColorKey, colors, currentUnit);
+  const colorOptions = useMemo(
+    () => getClassColorOptions(colors, currentUnit),
+    [colors, currentUnit]
+  );
   const conflictSummary = useMemo(() => {
     if (!clsId) return [];
     const start = toMinutes(startTime.trim());
@@ -345,6 +354,7 @@ export default function ClassDetails() {
         setDuration(String(data?.durationMinutes ?? 60));
         setDaysOfWeek(data?.daysOfWeek ?? []);
         setGoal(data?.goal ?? "Fundamentos");
+        setClassColorKey(data?.colorKey ?? null);
       }
     })();
     return () => {
@@ -420,6 +430,7 @@ export default function ClassDetails() {
       Vibration.vibrate(60);
       const fresh = await getClassById(cls.id);
       setCls(fresh);
+      setClassColorKey(fresh?.colorKey ?? null);
       router.back();
     } finally {
       setSaving(false);
@@ -464,6 +475,22 @@ export default function ClassDetails() {
   const handleExportRoster = async () => {
     if (!cls) return;
     setShowRosterExportModal(true);
+  };
+
+  const handleSelectClassColor = async (value: string | null) => {
+    if (!cls || classColorSaving) return;
+    const previous = classColorKey;
+    setClassColorKey(value);
+    setClassColorSaving(true);
+    try {
+      await updateClassColor(cls.id, value);
+      setCls((prev) => (prev ? { ...prev, colorKey: value ?? undefined } : prev));
+    } catch (error) {
+      setClassColorKey(previous ?? null);
+      Alert.alert("Falha ao atualizar cor", "Tente novamente.");
+    } finally {
+      setClassColorSaving(false);
+    }
   };
 
   const exportRosterPdf = async (monthValue = rosterMonthValue) => {
@@ -630,9 +657,19 @@ export default function ClassDetails() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 8 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            {className}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 999,
+                backgroundColor: classPalette.bg,
+              }}
+            />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              {className}
+            </Text>
+          </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <View style={getChipStyle(true, unitPalette)}>
               <Text style={getChipTextStyle(true, unitPalette)}>{unitLabel}</Text>
@@ -649,7 +686,7 @@ export default function ClassDetails() {
         <View
           style={[
             getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 }),
-            { borderLeftWidth: 3, borderLeftColor: unitPalette.bg },
+            { borderLeftWidth: 3, borderLeftColor: classPalette.bg },
           ]}
         >
           <Pressable
@@ -685,7 +722,7 @@ export default function ClassDetails() {
                     width: 8,
                     height: 8,
                     borderRadius: 999,
-                    backgroundColor: unitPalette.bg,
+                    backgroundColor: classPalette.bg,
                   }}
                 />
                 <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
@@ -730,6 +767,50 @@ export default function ClassDetails() {
                 </View>
               </View>
             </Animated.View>
+          ) : null}
+        </View>
+
+        <View style={getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 })}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            Cor da turma
+          </Text>
+          <FadeHorizontalScroll
+            fadeColor={colors.background}
+            contentContainerStyle={{ flexDirection: "row", gap: 10, marginTop: 8 }}
+          >
+            {colorOptions.map((option, index) => {
+              const value = option.key === "default" ? null : option.key;
+              const active = (classColorKey ?? null) === value;
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => handleSelectClassColor(value)}
+                  disabled={classColorSaving}
+                  style={{
+                    alignItems: "center",
+                    gap: 4,
+                    marginLeft: index === 0 ? 6 : 0,
+                    opacity: classColorSaving ? 0.6 : 1,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 999,
+                      backgroundColor: option.palette.bg,
+                      borderWidth: active ? 3 : 1,
+                      borderColor: active ? colors.text : colors.border,
+                    }}
+                  />
+                </Pressable>
+              );
+            })}
+          </FadeHorizontalScroll>
+          {classColorSaving ? (
+            <Text style={{ color: colors.muted, fontSize: 11, marginTop: 6 }}>
+              Salvando cor...
+            </Text>
           ) : null}
         </View>
 

@@ -24,6 +24,7 @@ import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
@@ -32,6 +33,7 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { getUnitPalette } from "../../src/ui/unit-colors";
+import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -66,6 +68,7 @@ export default function ClassesScreen() {
   const [newMvLevel, setNewMvLevel] = useState("");
   const [newCycleStartDate, setNewCycleStartDate] = useState("");
   const [newCycleLengthWeeks, setNewCycleLengthWeeks] = useState(0);
+  const [newColorKey, setNewColorKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
@@ -83,6 +86,7 @@ export default function ClassesScreen() {
   const [editMvLevel, setEditMvLevel] = useState("MV1");
   const [editCycleStartDate, setEditCycleStartDate] = useState("");
   const [editCycleLengthWeeks, setEditCycleLengthWeeks] = useState(12);
+  const [editColorKey, setEditColorKey] = useState<string | null>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateCloseConfirm, setShowCreateCloseConfirm] = useState(false);
@@ -233,6 +237,14 @@ export default function ClassesScreen() {
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showModalityPicker, setShowModalityPicker] = useState(false);
   const [showGoalPicker, setShowGoalPicker] = useState(false);
+  const newColorOptions = useMemo(
+    () => getClassColorOptions(colors, newUnit.trim() || "Sem unidade"),
+    [colors, newUnit]
+  );
+  const editColorOptions = useMemo(
+    () => getClassColorOptions(colors, editUnit.trim() || editingClass?.unit || "Sem unidade"),
+    [colors, editUnit, editingClass]
+  );
   const [unitFilterLayout, setUnitFilterLayout] = useState<{
     x: number;
     y: number;
@@ -382,15 +394,6 @@ export default function ClassesScreen() {
     const filterKey = normalizeUnitKey(unitFilter);
     return classes.filter((item) => unitKey(item.unit) === filterKey);
   }, [classes, unitFilter, unitKey]);
-
-  const unitRows = useMemo(() => {
-    const size = 3;
-    const rows: string[][] = [];
-    for (let i = 0; i < units.length; i += size) {
-      rows.push(units.slice(i, i + size));
-    }
-    return rows;
-  }, [units]);
 
   const goalSuggestions = useMemo(() => {
     const key = normalizeUnitKey(newUnit);
@@ -600,6 +603,7 @@ export default function ClassesScreen() {
         await saveClass({
           name: newName.trim(),
           unit: newUnit.trim() || "Sem unidade",
+          colorKey: newColorKey ?? null,
           modality: newModality,
           ageBand: newAgeBand,
           gender: newGender,
@@ -651,6 +655,7 @@ export default function ClassesScreen() {
     return (
       newName.trim() !== "" ||
       newUnit.trim() !== "" ||
+      newColorKey !== null ||
       newModality !== "" ||
       newAgeBand !== "" ||
       newGender !== "" ||
@@ -665,6 +670,7 @@ export default function ClassesScreen() {
   }, [
     newName,
     newUnit,
+    newColorKey,
     newModality,
     newAgeBand,
     newGender,
@@ -680,6 +686,7 @@ export default function ClassesScreen() {
   const resetCreateForm = useCallback(() => {
     setNewName("");
     setNewUnit("");
+    setNewColorKey(null);
     setNewModality("");
     setNewAgeBand("");
     setNewGender("");
@@ -726,6 +733,7 @@ export default function ClassesScreen() {
     setEditingClass(item);
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
+    setEditColorKey(item.colorKey ?? null);
     setEditModality(inferModality(item));
     setEditAgeBand(item.ageBand ?? "08-09");
     setEditGender(item.gender ?? "misto");
@@ -748,6 +756,7 @@ export default function ClassesScreen() {
     return (
       editingClass.name !== editName ||
       (editingClass.unit ?? "") !== editUnit ||
+      (editingClass.colorKey ?? null) !== editColorKey ||
       inferModality(editingClass) !== editModality ||
       (editingClass.ageBand ?? "08-09") !== editAgeBand ||
       (editingClass.gender ?? "misto") !== editGender ||
@@ -763,6 +772,7 @@ export default function ClassesScreen() {
     editingClass,
     editName,
     editUnit,
+    editColorKey,
     editModality,
     editAgeBand,
     editGender,
@@ -808,6 +818,7 @@ export default function ClassesScreen() {
         await updateClass(editingClass.id, {
           name: editName.trim(),
           unit: editUnit.trim() || "Sem unidade",
+          colorKey: editColorKey ?? null,
           ageBand: editAgeBand,
           gender: editGender,
           modality: editModality ?? "fitness",
@@ -1260,6 +1271,12 @@ export default function ClassesScreen() {
     },
     [router]
   );
+  const handleSelectNewColor = useCallback((value: string | null) => {
+    setNewColorKey(value);
+  }, []);
+  const handleSelectEditColor = useCallback((value: string | null) => {
+    setEditColorKey(value);
+  }, []);
 
   const UnitOption = useMemo(
     () =>
@@ -1343,23 +1360,65 @@ export default function ClassesScreen() {
     [colors]
   );
 
+  const ColorOption = useMemo(
+    () =>
+      memo(function ColorOptionItem({
+        label,
+        value,
+        active,
+        palette,
+        onSelect,
+        isFirst,
+      }: {
+        label: string;
+        value: string | null;
+        active: boolean;
+        palette: { bg: string; text: string };
+        onSelect: (value: string | null) => void;
+        isFirst?: boolean;
+      }) {
+        return (
+          <Pressable
+            onPress={() => onSelect(value)}
+            style={{
+              alignItems: "center",
+              gap: 4,
+              marginLeft: isFirst ? 6 : 0,
+              marginRight: 2,
+            }}
+          >
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 999,
+                backgroundColor: palette.bg,
+                borderWidth: active ? 3 : 1,
+                borderColor: active ? colors.text : colors.border,
+              }}
+            />
+          </Pressable>
+        );
+      }),
+    [colors]
+  );
+
   const ClassCard = useMemo(
     () =>
       memo(function ClassCardItem({
         item,
-        palette,
         conflicts,
         onOpen,
         onEdit,
         onAttendance,
       }: {
         item: ClassGroup;
-        palette: { bg: string; text: string };
         conflicts?: { name: string; day: number }[];
         onOpen: (value: ClassGroup) => void;
         onEdit: (value: ClassGroup) => void;
         onAttendance: (value: ClassGroup) => void;
       }) {
+        const palette = getClassPalette(item.colorKey, colors, item.unit);
         const parsed = parseTime(item.startTime || "");
         const duration = item.durationMinutes || 60;
         const timeLabel = parsed
@@ -1545,43 +1604,41 @@ export default function ClassesScreen() {
         {mainTab === "lista" && (
         <View style={{ gap: 12, marginTop: 12 }}>
           <View style={[getSectionCardStyle(colors, "info", { padding: 10, radius: 16 })]}>
-            <View style={{ gap: 8 }}>
-              {unitRows.map((row, rowIndex) => (
-                <View key={`unit-row-${rowIndex}`} style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {row.map((unit) => {
-                    const active = unitFilter === unit;
-                    const palette =
-                      unit === "Todas"
-                        ? { bg: colors.primaryBg, text: colors.primaryText }
-                        : getUnitPalette(unit, colors);
-                    return (
-                      <Pressable
-                        key={unit}
-                        onPress={() => handleSelectUnit(unit)}
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: active ? palette.bg : colors.secondaryBg,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: active ? palette.text : colors.text,
-                            fontSize: 12,
-                          }}
-                        >
-                          {unit}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
+            <FadeHorizontalScroll
+              fadeColor={colors.card}
+              contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+            >
+              {units.map((unit) => {
+                const active = unitFilter === unit;
+                const palette =
+                  unit === "Todas"
+                    ? { bg: colors.primaryBg, text: colors.primaryText }
+                    : getUnitPalette(unit, colors);
+                return (
+                  <Pressable
+                    key={unit}
+                    onPress={() => handleSelectUnit(unit)}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: active ? palette.bg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? palette.text : colors.text,
+                        fontSize: 12,
+                      }}
+                    >
+                      {unit}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </FadeHorizontalScroll>
           </View>
           {grouped.map(([unit, items]) => {
-            const palette = getUnitPalette(unit, colors);
             return (
               <View
                 key={unit}
@@ -1612,7 +1669,6 @@ export default function ClassesScreen() {
                     <ClassCard
                       key={item.id}
                       item={item}
-                      palette={palette}
                       conflicts={conflictsById[item.id]}
                       onOpen={handleOpenClass}
                       onEdit={handleEditClass}
@@ -1665,6 +1721,29 @@ export default function ClassesScreen() {
                 }}
               />
             </View>
+          </View>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Cor da turma</Text>
+            <FadeHorizontalScroll
+              fadeColor={colors.background}
+              contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+            >
+              {newColorOptions.map((option, index) => {
+                const value = option.key === "default" ? null : option.key;
+                const active = (newColorKey ?? null) === value;
+                return (
+                  <ColorOption
+                    key={option.key}
+                    label={option.label}
+                    value={value}
+                    active={active}
+                    palette={option.palette}
+                    onSelect={handleSelectNewColor}
+                    isFirst={index === 0}
+                  />
+                );
+              })}
+            </FadeHorizontalScroll>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
@@ -2263,6 +2342,29 @@ export default function ClassesScreen() {
                   }}
                 />
               </View>
+            </View>
+            <View style={{ gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Cor da turma</Text>
+              <FadeHorizontalScroll
+                fadeColor={colors.card}
+                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+              >
+                {editColorOptions.map((option, index) => {
+                  const value = option.key === "default" ? null : option.key;
+                  const active = (editColorKey ?? null) === value;
+                  return (
+                    <ColorOption
+                      key={option.key}
+                      label={option.label}
+                      value={value}
+                      active={active}
+                      palette={option.palette}
+                      onSelect={handleSelectEditColor}
+                      isFirst={index === 0}
+                    />
+                  );
+                })}
+              </FadeHorizontalScroll>
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>

@@ -323,6 +323,7 @@ type ClassRow = {
   name: string;
   unit?: string;
   unit_id?: string | null;
+  color_key?: string | null;
   modality?: string | null;
   ageband: string;
   gender?: string | null;
@@ -752,6 +753,7 @@ export async function getClasses(): Promise<ClassGroup[]> {
         canonicalizeUnitLabel(row.unit) ??
         "Sem unidade",
       unitId: row.unit_id ?? undefined,
+      colorKey: row.color_key ?? undefined,
       modality:
         row.modality === "voleibol" || row.modality === "fitness"
           ? row.modality
@@ -821,6 +823,7 @@ export async function getClassById(id: string): Promise<ClassGroup | null> {
       canonicalizeUnitLabel(row.unit) ??
       "Sem unidade",
     unitId: row.unit_id ?? undefined,
+    colorKey: row.color_key ?? undefined,
     modality:
       row.modality === "voleibol" || row.modality === "fitness"
         ? row.modality
@@ -870,6 +873,7 @@ export async function updateClass(
     durationMinutes: number;
     unitId?: string;
     mvLevel?: string;
+    colorKey?: string | null;
     cycleStartDate?: string;
     cycleLengthWeeks?: number;
     acwrLow?: number;
@@ -894,6 +898,7 @@ export async function updateClass(
 
   const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   if (resolvedUnit) payload.unit_id = resolvedUnit;
+  if (data.colorKey !== undefined) payload.color_key = data.colorKey || null;
   if (data.mvLevel) payload.mv_level = data.mvLevel;
   if (data.cycleStartDate) payload.cycle_start_date = data.cycleStartDate;
   if (typeof data.cycleLengthWeeks === "number") {
@@ -903,6 +908,12 @@ export async function updateClass(
   if (typeof data.acwrHigh === "number") payload.acwr_high = data.acwrHigh;
 
   await supabasePatch("/classes?id=eq." + encodeURIComponent(id), payload);
+}
+
+export async function updateClassColor(id: string, colorKey?: string | null) {
+  await supabasePatch("/classes?id=eq." + encodeURIComponent(id), {
+    color_key: colorKey ?? null,
+  });
 }
 
 export async function updateClassAcwrLimits(
@@ -929,6 +940,7 @@ export async function saveClass(data: {
   mvLevel?: string;
   cycleStartDate?: string;
   cycleLengthWeeks?: number;
+  colorKey?: string | null;
 }) {
   const resolvedUnitRow = data.unitId
     ? { id: data.unitId, name: data.unit }
@@ -940,6 +952,7 @@ export async function saveClass(data: {
       name: data.name,
       unit: resolvedUnitRow?.name ?? data.unit,
       unit_id: resolvedUnit,
+      color_key: data.colorKey ?? null,
       modality: data.modality ?? "fitness",
       ageband: normalizeAgeBand(data.ageBand),
       gender: data.gender,
@@ -970,6 +983,7 @@ export async function duplicateClass(base: ClassGroup) {
       name: base.name + " (copia)",
       unit: resolvedUnitRow?.name ?? base.unit,
       unit_id: resolvedUnit,
+      color_key: base.colorKey ?? null,
       modality: base.modality ?? "fitness",
       ageband: normalizeAgeBand(base.ageBand),
       gender: base.gender,
