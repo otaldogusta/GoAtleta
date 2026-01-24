@@ -124,14 +124,7 @@ export default function StudentsScreen() {
   >(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
-  const [expandedUnitGroups, setExpandedUnitGroups] = usePersistedState<Record<string, boolean>>(
-    "students_expanded_units_v1",
-    {}
-  );
-  const [expandedClassGroups, setExpandedClassGroups] = usePersistedState<Record<string, boolean>>(
-    "students_expanded_classes_v1",
-    {}
-  );
+  const [studentsClassFilter, setStudentsClassFilter] = useState("Todas");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("");
   const [customAgeBand, setCustomAgeBand] = useState("");
@@ -1252,6 +1245,19 @@ export default function StudentsScreen() {
     () => ["Todas", ...unitOptions],
     [unitOptions]
   );
+  const studentsClassOptions = useMemo(() => {
+    const filteredClasses =
+      studentsUnitFilter === "Todas"
+        ? classes
+        : classes.filter((item) => unitLabel(item.unit) === studentsUnitFilter);
+    const sorted = [...filteredClasses].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+    return [
+      { id: "Todas", label: "Todas" },
+      ...sorted.map((item) => ({ id: item.id, label: item.name })),
+    ];
+  }, [classes, studentsUnitFilter, unitLabel]);
   const birthdayFilteredStudents = useMemo(() => {
     if (birthdayUnitFilter === "Todas") return students;
     return students.filter((student) => {
@@ -1260,54 +1266,30 @@ export default function StudentsScreen() {
     });
   }, [birthdayUnitFilter, classes, students]);
   const studentsFiltered = useMemo(() => {
-    if (studentsUnitFilter === "Todas") return students;
-    return students.filter((student) => {
-      const cls = classes.find((item) => item.id === student.classId);
-      return unitLabel(cls?.unit) === studentsUnitFilter;
-    });
-  }, [studentsUnitFilter, classes, students, unitLabel]);
+    const filteredByUnit =
+      studentsUnitFilter === "Todas"
+        ? students
+        : students.filter((student) => {
+            const cls = classes.find((item) => item.id === student.classId);
+            return unitLabel(cls?.unit) === studentsUnitFilter;
+          });
+    if (studentsClassFilter === "Todas") return filteredByUnit;
+    return filteredByUnit.filter(
+      (student) => student.classId === studentsClassFilter
+    );
+  }, [studentsUnitFilter, studentsClassFilter, classes, students, unitLabel]);
   const studentsGrouped = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        label: string;
-        classes: Map<string, { label: string; classId: string | null; students: Student[] }>;
-      }
-    >();
+    const map = new Map<string, Student[]>();
     studentsFiltered.forEach((student) => {
       const cls = classes.find((item) => item.id === student.classId);
       const unitName = unitLabel(cls?.unit);
-      const unitKey = normalizeUnitKey(unitName) || "sem-unidade";
-      const classKey = cls?.id ?? "sem-turma";
-      const classLabel = cls ? getClassLabel(cls) : "Sem turma";
-      if (!map.has(unitKey)) {
-        map.set(unitKey, { label: unitName, classes: new Map() });
-      }
-      const unitGroup = map.get(unitKey)!;
-      if (!unitGroup.classes.has(classKey)) {
-        unitGroup.classes.set(classKey, {
-          label: classLabel,
-          classId: cls?.id ?? null,
-          students: [],
-        });
-      }
-      unitGroup.classes.get(classKey)!.students.push(student);
+      if (!map.has(unitName)) map.set(unitName, []);
+      map.get(unitName)?.push(student);
     });
     return Array.from(map.entries())
-      .map(([key, group]) => ({
-        key,
-        label: group.label,
-        classes: Array.from(group.classes.entries())
-          .map(([classKey, entry]) => ({
-            key: classKey,
-            label: entry.label,
-            classId: entry.classId,
-            students: entry.students.sort((a, b) => a.name.localeCompare(b.name)),
-          }))
-          .sort((a, b) => a.label.localeCompare(b.label)),
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [classes, studentsFiltered, unitLabel, getClassLabel]);
+      .map(([unitName, items]) => [unitName, items] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [classes, studentsFiltered, unitLabel]);
   const birthdayTodayAll = useMemo(() => {
     return students.filter((student) => {
       if (!student.birthDate) return false;
@@ -1332,17 +1314,14 @@ export default function StudentsScreen() {
   }, [birthdayFilteredStudents, today]);
 
   useEffect(() => {
-    const availableUnitKeys = new Set(
-      studentsGrouped.map((group) => normalizeUnitKey(group.label))
+    if (studentsClassFilter === "Todas") return;
+    const exists = studentsClassOptions.some(
+      (option) => option.id === studentsClassFilter
     );
-    setExpandedUnitGroups((prev) => {
-      const next = { ...prev };
-      Object.keys(next).forEach((key) => {
-        if (!availableUnitKeys.has(key)) delete next[key];
-      });
-      return next;
-    });
-  }, [studentsGrouped, setExpandedUnitGroups]);
+    if (!exists) {
+      setStudentsClassFilter("Todas");
+    }
+  }, [studentsClassFilter, studentsClassOptions]);
 
   const birthdayMonthGroups = useMemo<BirthdayMonthGroup[]>(() => {
     const byMonth = new Map<number, Map<string, BirthdayEntry[]>>();
@@ -2188,6 +2167,56 @@ export default function StudentsScreen() {
               </ScrollView>
             </View>
 
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 16,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                shadowColor: "#000",
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 2,
+                gap: 8,
+              }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Turma
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {studentsClassOptions.map((option) => {
+                    const active = studentsClassFilter === option.id;
+                    const chipBg = active ? colors.primaryBg : colors.secondaryBg;
+                    const chipText = active ? colors.primaryText : colors.text;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => setStudentsClassFilter(option.id)}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: chipBg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: chipText,
+                            fontWeight: active ? "700" : "500",
+                          }}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+
             <View style={{ gap: 8 }}>
               <View
                 style={{
@@ -2203,104 +2232,31 @@ export default function StudentsScreen() {
 
               {studentsGrouped.length > 0 ? (
                 <View style={{ gap: 12 }}>
-                  {studentsGrouped.map((unitGroup) => {
-                    const unitKey = unitGroup.key;
-                    const isExpanded = expandedUnitGroups[unitKey] ?? true;
-                    return (
-                      <View key={unitKey} style={{ gap: 10 }}>
-                        <Pressable
-                          onPress={() =>
-                            setExpandedUnitGroups((prev) => ({
-                              ...prev,
-                              [unitKey]: !isExpanded,
-                            }))
-                          }
-                          style={{
-                            paddingVertical: 10,
-                            paddingHorizontal: 12,
-                            borderRadius: 12,
-                            backgroundColor: colors.inputBg,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                              {unitGroup.label}
-                            </Text>
-                            <Text style={{ color: colors.muted, fontSize: 12 }}>
-                              {unitGroup.classes.length} turma(s)
-                            </Text>
-                          </View>
-                          <MaterialCommunityIcons
-                            name={isExpanded ? "chevron-down" : "chevron-right"}
-                            size={18}
-                            color={colors.muted}
-                          />
-                        </Pressable>
-
-                        {isExpanded ? (
-                          <View style={{ gap: 12 }}>
-                            {unitGroup.classes.map((classGroup) => {
-                              const classKey = `${unitKey}-${classGroup.key}`;
-                              const isClassExpanded = expandedClassGroups[classKey] ?? true;
-                              return (
-                                <View key={classKey} style={{ gap: 8 }}>
-                                  <Pressable
-                                    onPress={() =>
-                                      setExpandedClassGroups((prev) => ({
-                                        ...prev,
-                                        [classKey]: !isClassExpanded,
-                                      }))
-                                    }
-                                    style={{
-                                      paddingVertical: 8,
-                                      paddingHorizontal: 10,
-                                      borderRadius: 10,
-                                      backgroundColor: colors.secondaryBg,
-                                      borderWidth: 1,
-                                      borderColor: colors.border,
-                                      flexDirection: "row",
-                                      alignItems: "center",
-                                      justifyContent: "space-between",
-                                      gap: 8,
-                                    }}
-                                  >
-                                    <View style={{ flex: 1 }}>
-                                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                                        {classGroup.label}
-                                      </Text>
-                                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                        {classGroup.students.length} aluno(s)
-                                      </Text>
-                                    </View>
-                                    <MaterialCommunityIcons
-                                      name={isClassExpanded ? "chevron-down" : "chevron-right"}
-                                      size={18}
-                                      color={colors.muted}
-                                    />
-                                  </Pressable>
-
-                                  {isClassExpanded ? (
-                                    <View style={{ gap: 8 }}>
-                                      {classGroup.students.map((student) => (
-                                        <View key={student.id}>
-                                          {renderStudentItem({ item: student })}
-                                        </View>
-                                      ))}
-                                    </View>
-                                  ) : null}
-                                </View>
-                              );
-                            })}
-                          </View>
-                        ) : null}
+                  {studentsGrouped.map(([unitName, unitStudents]) => (
+                    <View key={unitName} style={{ gap: 8 }}>
+                      <View
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 8,
+                          borderRadius: 10,
+                          backgroundColor: colors.inputBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                          {unitName}
+                        </Text>
                       </View>
-                    );
-                  })}
+                      <View style={{ gap: 8 }}>
+                        {unitStudents.map((student) => (
+                          <View key={student.id}>
+                            {renderStudentItem({ item: student })}
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
                 </View>
               ) : (
                 <View
@@ -2318,9 +2274,11 @@ export default function StudentsScreen() {
                     Nenhum aluno encontrado
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {studentsUnitFilter === "Todas"
-                      ? "Comece adicionando alunos"
-                      : "Nenhum aluno nesta unidade"}
+                    {studentsClassFilter !== "Todas"
+                      ? "Nenhum aluno nesta turma"
+                      : studentsUnitFilter === "Todas"
+                        ? "Comece adicionando alunos"
+                        : "Nenhum aluno nesta unidade"}
                   </Text>
                 </View>
               )}
