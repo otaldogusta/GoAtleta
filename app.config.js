@@ -83,9 +83,11 @@ module.exports = {
 			favicon: "./assets/images/favicon.png",
 		},
 		plugins,
-		updates: {
-			url: "https://u.expo.dev/ac21b1cd-e0e3-495f-ba43-e262c8185ef5",
-		},
+		updates: useDevClient
+			? { enabled: false }
+			: {
+					url: "https://u.expo.dev/ac21b1cd-e0e3-495f-ba43-e262c8185ef5",
+				},
 		runtimeVersion: {
 			policy: "appVersion",
 		},
