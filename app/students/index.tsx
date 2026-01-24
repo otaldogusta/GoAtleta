@@ -39,6 +39,7 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
@@ -124,7 +125,6 @@ export default function StudentsScreen() {
   >(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
-  const [studentsClassFilter, setStudentsClassFilter] = useState("Todas");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("");
   const [customAgeBand, setCustomAgeBand] = useState("");
@@ -1245,19 +1245,6 @@ export default function StudentsScreen() {
     () => ["Todas", ...unitOptions],
     [unitOptions]
   );
-  const studentsClassOptions = useMemo(() => {
-    const filteredClasses =
-      studentsUnitFilter === "Todas"
-        ? classes
-        : classes.filter((item) => unitLabel(item.unit) === studentsUnitFilter);
-    const sorted = [...filteredClasses].sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-    return [
-      { id: "Todas", label: "Todas" },
-      ...sorted.map((item) => ({ id: item.id, label: item.name })),
-    ];
-  }, [classes, studentsUnitFilter, unitLabel]);
   const birthdayFilteredStudents = useMemo(() => {
     if (birthdayUnitFilter === "Todas") return students;
     return students.filter((student) => {
@@ -1273,11 +1260,8 @@ export default function StudentsScreen() {
             const cls = classes.find((item) => item.id === student.classId);
             return unitLabel(cls?.unit) === studentsUnitFilter;
           });
-    if (studentsClassFilter === "Todas") return filteredByUnit;
-    return filteredByUnit.filter(
-      (student) => student.classId === studentsClassFilter
-    );
-  }, [studentsUnitFilter, studentsClassFilter, classes, students, unitLabel]);
+    return filteredByUnit;
+  }, [studentsUnitFilter, classes, students, unitLabel]);
   const studentsGrouped = useMemo(() => {
     const map = new Map<string, Student[]>();
     studentsFiltered.forEach((student) => {
@@ -1312,16 +1296,6 @@ export default function StudentsScreen() {
       );
     });
   }, [birthdayFilteredStudents, today]);
-
-  useEffect(() => {
-    if (studentsClassFilter === "Todas") return;
-    const exists = studentsClassOptions.some(
-      (option) => option.id === studentsClassFilter
-    );
-    if (!exists) {
-      setStudentsClassFilter("Todas");
-    }
-  }, [studentsClassFilter, studentsClassOptions]);
 
   const birthdayMonthGroups = useMemo<BirthdayMonthGroup[]>(() => {
     const byMonth = new Map<number, Map<string, BirthdayEntry[]>>();
@@ -1384,6 +1358,9 @@ export default function StudentsScreen() {
       }) {
         const contact = getContactPhone(item);
         const disabled = contact.status === "missing";
+        const nameParts = item.name.trim().split(/\s+/);
+        const shortName = nameParts.slice(0, 2).join(" ");
+        const restName = nameParts.slice(2).join(" ");
         return (
           <Pressable
             onPress={() => onPress(item)}
@@ -1402,36 +1379,46 @@ export default function StudentsScreen() {
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  {item.name}
-                </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              <View style={{ flex: 1, gap: 6, minWidth: 0 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <FadeHorizontalScroll
+                    containerStyle={{ flex: 1, minWidth: 0 }}
+                    fadeColor={colors.card}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "700",
+                        color: colors.text,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {shortName}
+                      {restName ? " " + restName : ""}
+                    </Text>
+                  </FadeHorizontalScroll>
                   <View
                     style={{
-                      paddingVertical: 4,
-                      paddingHorizontal: 8,
-                      borderRadius: 999,
-                      backgroundColor: palette.bg,
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      justifyContent: "flex-end",
                     }}
                   >
-                    <Text style={{ color: palette.text, fontSize: 11, fontWeight: "700" }}>
-                      Unidade: {unitName}
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      paddingVertical: 4,
-                      paddingHorizontal: 8,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
-                      Turma: {className}
-                    </Text>
+                    <View
+                      style={{
+                        paddingVertical: 4,
+                        paddingHorizontal: 8,
+                        borderRadius: 999,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
+                        {className}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -1453,9 +1440,6 @@ export default function StudentsScreen() {
                 />
               </Pressable>
             </View>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {"Idade: " + item.age + " • Telefone: " + item.phone}
-            </Text>
           </Pressable>
         );
       }),
@@ -1932,41 +1916,42 @@ export default function StudentsScreen() {
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Unidade
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {birthdayUnitOptions.map((unit) => {
-                    const active = birthdayUnitFilter === unit;
-                    const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                    const chipBg = active
-                      ? palette?.bg ?? colors.primaryBg
-                      : colors.secondaryBg;
-                    const chipText = active
-                      ? palette?.text ?? colors.primaryText
-                      : colors.text;
-                    return (
-                      <Pressable
-                        key={unit}
-                        onPress={() => setBirthdayUnitFilter(unit)}
+              <FadeHorizontalScroll
+                fadeColor={colors.card}
+                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+              >
+                {birthdayUnitOptions.map((unit) => {
+                  const active = birthdayUnitFilter === unit;
+                  const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
+                  const chipBg = active
+                    ? palette?.bg ?? colors.primaryBg
+                    : colors.secondaryBg;
+                  const chipText = active
+                    ? palette?.text ?? colors.primaryText
+                    : colors.text;
+                  return (
+                    <Pressable
+                      key={unit}
+                      onPress={() => setBirthdayUnitFilter(unit)}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: chipBg,
+                      }}
+                    >
+                      <Text
                         style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: chipBg,
+                          color: chipText,
+                          fontWeight: active ? "700" : "500",
                         }}
                       >
-                        <Text
-                          style={{
-                            color: chipText,
-                            fontWeight: active ? "700" : "500",
-                          }}
-                        >
-                          {unit}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
+                        {unit}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </FadeHorizontalScroll>
             </View>
 
             {birthdayMonthGroups.length ? (
@@ -2130,91 +2115,42 @@ export default function StudentsScreen() {
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Unidade
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {studentsUnitOptions.map((unit) => {
-                    const active = studentsUnitFilter === unit;
-                    const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                    const chipBg = active
-                      ? palette?.bg ?? colors.primaryBg
-                      : colors.secondaryBg;
-                    const chipText = active
-                      ? palette?.text ?? colors.primaryText
-                      : colors.text;
-                    return (
-                      <Pressable
-                        key={unit}
-                        onPress={() => setStudentsUnitFilter(unit)}
+              <FadeHorizontalScroll
+                fadeColor={colors.card}
+                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+              >
+                {studentsUnitOptions.map((unit) => {
+                  const active = studentsUnitFilter === unit;
+                  const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
+                  const chipBg = active
+                    ? palette?.bg ?? colors.primaryBg
+                    : colors.secondaryBg;
+                  const chipText = active
+                    ? palette?.text ?? colors.primaryText
+                    : colors.text;
+                  return (
+                    <Pressable
+                      key={unit}
+                      onPress={() => setStudentsUnitFilter(unit)}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: chipBg,
+                      }}
+                    >
+                      <Text
                         style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: chipBg,
+                          color: chipText,
+                          fontWeight: active ? "700" : "500",
                         }}
                       >
-                        <Text
-                          style={{
-                            color: chipText,
-                            fontWeight: active ? "700" : "500",
-                          }}
-                        >
-                          {unit}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            </View>
-
-            <View
-              style={{
-                padding: 12,
-                borderRadius: 16,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 2,
-                gap: 8,
-              }}
-            >
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Turma
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {studentsClassOptions.map((option) => {
-                    const active = studentsClassFilter === option.id;
-                    const chipBg = active ? colors.primaryBg : colors.secondaryBg;
-                    const chipText = active ? colors.primaryText : colors.text;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        onPress={() => setStudentsClassFilter(option.id)}
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: chipBg,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: chipText,
-                            fontWeight: active ? "700" : "500",
-                          }}
-                        >
-                          {option.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
+                        {unit}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </FadeHorizontalScroll>
             </View>
 
             <View style={{ gap: 8 }}>
@@ -2274,11 +2210,9 @@ export default function StudentsScreen() {
                     Nenhum aluno encontrado
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {studentsClassFilter !== "Todas"
-                      ? "Nenhum aluno nesta turma"
-                      : studentsUnitFilter === "Todas"
-                        ? "Comece adicionando alunos"
-                        : "Nenhum aluno nesta unidade"}
+                    {studentsUnitFilter === "Todas"
+                      ? "Comece adicionando alunos"
+                      : "Nenhum aluno nesta unidade"}
                   </Text>
                 </View>
               )}
@@ -2469,192 +2403,221 @@ export default function StudentsScreen() {
                   </Text>
                 </Pressable>
               </View>
-              <View style={{ marginTop: 16, gap: 4 }}>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
-                  <TextInput
-                    placeholder="Nome do aluno"
-                    value={name}
-                    onChangeText={setName}
-                    onBlur={() => setName(formatName(name))}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      fontSize: 13,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-                  <View ref={editUnitTriggerRef}>
-                    <Pressable
-                      onPress={() => toggleEditPicker("unit")}
-                      style={selectFieldStyle}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        {unit || "Selecione a unidade"}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={colors.muted}
-                        style={{ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
-                  <View ref={editClassTriggerRef}>
-                    <Pressable
-                      onPress={() => toggleEditPicker("class")}
-                      style={selectFieldStyle}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        {selectedClassName || "Selecione a turma"}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={colors.muted}
-                        style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Email do aluno (login)</Text>
-                  <TextInput
-                    placeholder="email@exemplo.com"
-                    value={loginEmail}
-                    onChangeText={setLoginEmail}
-                    onBlur={() => setLoginEmail(formatEmail(loginEmail))}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      fontSize: 13,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              {studentFormError ? (
-                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                  {studentFormError}
-                </Text>
-              ) : null}
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <DateInput
-                    value={birthDate}
-                    onChange={setBirthDate}
-                    placeholder="Data de nascimento"
-                    onOpenCalendar={() => setShowCalendar(true)}
-                  />
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {ageNumber !== null
-                      ? `Idade: ${ageNumber} anos`
-                      : "Idade calculada automaticamente"}
+              <View style={{ marginTop: 16, gap: 16 }}>
+                <View style={{ gap: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+                    Dados do aluno
                   </Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <TextInput
-                    placeholder="Telefone"
-                    value={phone}
-                    onChangeText={(value) => setPhone(formatPhone(value))}
-                    keyboardType="phone-pad"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      fontSize: 13,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do responsável</Text>
-                  <TextInput
-                    placeholder="Nome do responsável"
-                    value={guardianName}
-                    onChangeText={setGuardianName}
-                    onBlur={() => setGuardianName(formatName(guardianName))}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      fontSize: 13,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do responsável</Text>
-                  <TextInput
-                    placeholder="Telefone do responsável"
-                    value={guardianPhone}
-                    onChangeText={(value) => setGuardianPhone(formatPhone(value))}
-                    keyboardType="phone-pad"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      fontSize: 13,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
-                  <View ref={editGuardianRelationTriggerRef}>
-                    <Pressable
-                      onPress={() => toggleEditPicker("guardianRelation")}
-                      style={selectFieldStyle}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        {guardianRelation || "Selecione"}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={colors.muted}
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
+                      <TextInput
+                        placeholder="Nome do aluno"
+                        value={name}
+                        onChangeText={setName}
+                        onBlur={() => setName(formatName(name))}
+                        placeholderTextColor={colors.placeholder}
                         style={{
-                          transform: [
-                            { rotate: showEditGuardianRelationPicker ? "180deg" : "0deg" },
-                          ],
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
                         }}
                       />
-                    </Pressable>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
+                      <View ref={editUnitTriggerRef}>
+                        <Pressable
+                          onPress={() => toggleEditPicker("unit")}
+                          style={selectFieldStyle}
+                        >
+                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                            {unit || "Selecione a unidade"}
+                          </Text>
+                          <Ionicons
+                            name="chevron-down"
+                            size={16}
+                            color={colors.muted}
+                            style={{
+                              transform: [
+                                { rotate: showEditUnitPicker ? "180deg" : "0deg" },
+                              ],
+                            }}
+                          />
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
+                      <View ref={editClassTriggerRef}>
+                        <Pressable
+                          onPress={() => toggleEditPicker("class")}
+                          style={selectFieldStyle}
+                        >
+                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                            {selectedClassName || "Selecione a turma"}
+                          </Text>
+                          <Ionicons
+                            name="chevron-down"
+                            size={16}
+                            color={colors.muted}
+                            style={{
+                              transform: [
+                                { rotate: showEditClassPicker ? "180deg" : "0deg" },
+                              ],
+                            }}
+                          />
+                        </Pressable>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        Email do aluno (login)
+                      </Text>
+                      <TextInput
+                        placeholder="email@exemplo.com"
+                        value={loginEmail}
+                        onChangeText={setLoginEmail}
+                        onBlur={() => setLoginEmail(formatEmail(loginEmail))}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
+                  </View>
+                  {studentFormError ? (
+                    <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                      {studentFormError}
+                    </Text>
+                  ) : null}
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <DateInput
+                        value={birthDate}
+                        onChange={setBirthDate}
+                        placeholder="Data de nascimento"
+                        onOpenCalendar={() => setShowCalendar(true)}
+                      />
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {ageNumber !== null
+                          ? `Idade: ${ageNumber} anos`
+                          : "Idade calculada automaticamente"}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <TextInput
+                        placeholder="Telefone"
+                        value={phone}
+                        onChangeText={(value) => setPhone(formatPhone(value))}
+                        keyboardType="phone-pad"
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
                   </View>
                 </View>
+
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+
+                <View style={{ gap: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+                    Dados do responsavel
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        Nome do responsavel
+                      </Text>
+                      <TextInput
+                        placeholder="Nome do responsavel"
+                        value={guardianName}
+                        onChangeText={setGuardianName}
+                        onBlur={() => setGuardianName(formatName(guardianName))}
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        Telefone do responsavel
+                      </Text>
+                      <TextInput
+                        placeholder="Telefone do responsavel"
+                        value={guardianPhone}
+                        onChangeText={(value) => setGuardianPhone(formatPhone(value))}
+                        keyboardType="phone-pad"
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
+                      <View ref={editGuardianRelationTriggerRef}>
+                        <Pressable
+                          onPress={() => toggleEditPicker("guardianRelation")}
+                          style={selectFieldStyle}
+                        >
+                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                            {guardianRelation || "Selecione"}
+                          </Text>
+                          <Ionicons
+                            name="chevron-down"
+                            size={16}
+                            color={colors.muted}
+                            style={{
+                              transform: [
+                                { rotate: showEditGuardianRelationPicker ? "180deg" : "0deg" },
+                              ],
+                            }}
+                          />
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: colors.border }} />
               </View>
-              <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
                   onPress={async () => {
@@ -2716,7 +2679,6 @@ export default function StudentsScreen() {
                 </Pressable>
               ) : null}
               </View>
-            </View>
           </ScrollView>
         </KeyboardAvoidingView>
         <StudentsAnchoredDropdown

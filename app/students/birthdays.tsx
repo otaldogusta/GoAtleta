@@ -10,6 +10,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import type { ClassGroup, Student } from "../../src/core/models";
 import { getClasses, getStudents } from "../../src/db/seed";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 
 const monthNames = [
   "Janeiro",
@@ -213,29 +214,30 @@ export default function BirthdaysScreen() {
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
             Unidade
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {unitOptions.map((unit) => {
-                const active = unitFilter === unit;
-                return (
-                  <Pressable
-                    key={unit}
-                    onPress={() => setUnitFilter(unit)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: active ? colors.primaryText : colors.text }}>
-                      {unit}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+          <FadeHorizontalScroll
+            fadeColor={colors.card}
+            contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+          >
+            {unitOptions.map((unit) => {
+              const active = unitFilter === unit;
+              return (
+                <Pressable
+                  key={unit}
+                  onPress={() => setUnitFilter(unit)}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: active ? colors.primaryText : colors.text }}>
+                    {unit}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </FadeHorizontalScroll>
         </View>
 
         {monthGroups.length ? (

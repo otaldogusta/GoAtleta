@@ -59,6 +59,7 @@ import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
@@ -2292,30 +2293,31 @@ export default function TrainingList() {
           {suggestions.length > 0 && hasFormContent ? (
             <>
               <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {suggestions.map((tag) => (
-                    <Pressable
-                      key={tag}
-                      onPress={() =>
-                        setTagsText((prev) =>
-                          prev.trim()
-                            ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
-                            : tag
-                        )
-                      }
-                      style={{
-                        paddingVertical: 4,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text }}>{tag}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
+              <FadeHorizontalScroll
+                fadeColor={colors.card}
+                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+              >
+                {suggestions.map((tag) => (
+                  <Pressable
+                    key={tag}
+                    onPress={() =>
+                      setTagsText((prev) =>
+                        prev.trim()
+                          ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
+                          : tag
+                      )
+                    }
+                    style={{
+                      paddingVertical: 4,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text }}>{tag}</Text>
+                  </Pressable>
+                ))}
+              </FadeHorizontalScroll>
             </>
           ) : null}
           {hasFormContent ? (
@@ -2514,49 +2516,50 @@ export default function TrainingList() {
             Modelos prontos
           </Text>
           <Text style={{ color: colors.muted }}>Escolha a faixa etaria</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={() => setTemplateAgeBand("")}
+          <FadeHorizontalScroll
+            fadeColor={colors.card}
+            contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+          >
+            <Pressable
+              onPress={() => setTemplateAgeBand("")}
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 8,
+                borderRadius: 8,
+                backgroundColor: templateAgeBand
+                  ? colors.secondaryBg
+                  : colors.primaryBg,
+              }}
+            >
+              <Text
                 style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 8,
-                  borderRadius: 8,
-                  backgroundColor: templateAgeBand
-                    ? colors.secondaryBg
-                    : colors.primaryBg,
+                  color: templateAgeBand ? colors.text : colors.primaryText,
+                  fontSize: 12,
                 }}
               >
-                <Text
+                Todas
+              </Text>
+            </Pressable>
+            {ageBands.map((band) => {
+              const active = band === templateAgeBand;
+              return (
+                <Pressable
+                  key={band}
+                  onPress={() => setTemplateAgeBand(band)}
                   style={{
-                    color: templateAgeBand ? colors.text : colors.primaryText,
-                    fontSize: 12,
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 8,
+                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
                   }}
                 >
-                  Todas
-                </Text>
-              </Pressable>
-              {ageBands.map((band) => {
-                const active = band === templateAgeBand;
-                return (
-                  <Pressable
-                    key={band}
-                    onPress={() => setTemplateAgeBand(band)}
-                    style={{
-                      paddingVertical: 4,
-                      paddingHorizontal: 8,
-                      borderRadius: 8,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                      {band}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+                  <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
+                    {band}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </FadeHorizontalScroll>
           <Pressable
             onPress={() => {
               if (!templates.length) return;
@@ -2810,30 +2813,31 @@ export default function TrainingList() {
               {templateSuggestions.length > 0 && hasTemplateContent ? (
                 <View style={{ gap: 6 }}>
                   <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {templateSuggestions.map((tag) => (
-                        <Pressable
-                          key={tag}
-                          onPress={() =>
-                            setTemplateTags((prev) =>
-                              prev.trim()
-                                ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
-                                : tag
-                            )
-                          }
-                          style={{
-                            paddingVertical: 4,
-                            paddingHorizontal: 10,
-                            borderRadius: 999,
-                            backgroundColor: colors.secondaryBg,
-                          }}
-                        >
-                          <Text style={{ color: colors.text }}>{tag}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
+                  <FadeHorizontalScroll
+                    fadeColor={colors.card}
+                    contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+                  >
+                    {templateSuggestions.map((tag) => (
+                      <Pressable
+                        key={tag}
+                        onPress={() =>
+                          setTemplateTags((prev) =>
+                            prev.trim()
+                              ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
+                              : tag
+                          )
+                        }
+                        style={{
+                          paddingVertical: 4,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: colors.secondaryBg,
+                        }}
+                      >
+                        <Text style={{ color: colors.text }}>{tag}</Text>
+                      </Pressable>
+                    ))}
+                  </FadeHorizontalScroll>
                 </View>
               ) : null}
               <View style={{ gap: 4 }}>
@@ -3647,5 +3651,3 @@ export default function TrainingList() {
     </SafeAreaView>
   );
 }
-
-

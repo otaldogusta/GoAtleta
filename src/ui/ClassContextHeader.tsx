@@ -1,8 +1,9 @@
-import { ScrollView, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { ClassGender } from "../core/models";
 import { useAppTheme } from "./app-theme";
 import { getUnitPalette } from "./unit-colors";
 import { ClassGenderBadge } from "./ClassGenderBadge";
+import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
 
 type ClassContextHeaderProps = {
   title?: string;
@@ -42,9 +43,8 @@ export function ClassContextHeader({
         {className}
       </Text>
       {hasChips ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
+        <FadeHorizontalScroll
+          fadeColor={colors.background}
           contentContainerStyle={{ flexDirection: "row", gap: 8 }}
         >
           {unitPalette ? (
@@ -104,7 +104,7 @@ export function ClassContextHeader({
               </Text>
             </View>
           ) : null}
-        </ScrollView>
+        </FadeHorizontalScroll>
       ) : null}
       {notice ? (
         <View

@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import type { ClassGroup, ScoutingLog } from "../../src/core/models";
+import type { ClassGroup, ScoutingLog, Student } from "../../src/core/models";
 import { getBlockForToday } from "../../src/core/periodization";
 import {
   countsFromLog,
@@ -36,6 +36,7 @@ import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -88,6 +89,10 @@ export default function ClassDetails() {
   const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
   const [showRosterExportModal, setShowRosterExportModal] = useState(false);
   const [cls, setCls] = useState<ClassGroup | null>(null);
+  const [classStudents, setClassStudents] = useState<Student[]>([]);
+  const [studentsLoadedFor, setStudentsLoadedFor] = useState<string | null>(null);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [showStudentsModal, setShowStudentsModal] = useState(false);
   const filteredContacts = useMemo(() => {
     const term = contactSearch.trim().toLowerCase();
     if (!term) {
@@ -346,6 +351,26 @@ export default function ClassDetails() {
       alive = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!cls || !showStudentsModal) return;
+    if (studentsLoadedFor === cls.id) return;
+    let alive = true;
+    setStudentsLoading(true);
+    getStudentsByClass(cls.id)
+      .then((list) => {
+        if (!alive) return;
+        const sorted = list.slice().sort((a, b) => a.name.localeCompare(b.name));
+        setClassStudents(sorted);
+        setStudentsLoadedFor(cls.id);
+      })
+      .finally(() => {
+        if (alive) setStudentsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [cls, showStudentsModal, studentsLoadedFor]);
 
   if (!cls) {
     return (
@@ -771,6 +796,22 @@ export default function ClassDetails() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() => setShowStudentsModal(true)}
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.infoBg,
+              }}
+            >
+              <Text style={{ color: colors.infoText, fontWeight: "700", fontSize: 15 }}>
+                Alunos da turma
+              </Text>
+              <Text style={{ color: colors.infoText, marginTop: 6, opacity: 0.8 }}>
+                Ver lista completa
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={handleWhatsAppGroup}
               style={{
                 width: "100%",
@@ -944,6 +985,62 @@ export default function ClassDetails() {
       </ModalSheet>
 
       <ModalSheet
+        visible={showStudentsModal}
+        onClose={() => setShowStudentsModal(false)}
+        position="center"
+        cardStyle={rosterModalCardStyle}
+      >
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            Alunos da turma
+          </Text>
+          {studentsLoading ? (
+            <Text style={{ color: colors.muted }}>Carregando alunos...</Text>
+          ) : classStudents.length ? (
+            <ScrollView
+              style={{ maxHeight: 320 }}
+              contentContainerStyle={{ gap: 8 }}
+              nestedScrollEnabled
+            >
+              {classStudents.map((student) => (
+                <View
+                  key={student.id}
+                  style={{
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "600" }}>
+                    {student.name}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={{ color: colors.muted }}>
+              Nenhum aluno cadastrado nesta turma.
+            </Text>
+          )}
+          <Pressable
+            onPress={() => setShowStudentsModal(false)}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+
+      <ModalSheet
         visible={showWhatsAppSettingsModal}
         onClose={() => setShowWhatsAppSettingsModal(false)}
         cardStyle={whatsappModalCardStyle}
@@ -975,11 +1072,10 @@ export default function ClassDetails() {
               >
                 <Text style={{ fontSize: 16, color: colors.text }}>‹</Text>
               </Pressable>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
-                style={{ flex: 1 }}
-                {...(Platform.OS === 'web' ? { 'data-template-scroll-class': true } : {})}
+              <FadeHorizontalScroll
+                fadeColor={colors.card}
+                scrollStyle={{ flex: 1 }}
+                {...(Platform.OS === "web" ? { "data-template-scroll-class": true } : {})}
               >
               {Object.values(WHATSAPP_TEMPLATES)
                 .filter((template) => template.id !== "student_invite")
@@ -1056,7 +1152,7 @@ export default function ClassDetails() {
                   </Pressable>
                 );
               })}
-              </ScrollView>
+              </FadeHorizontalScroll>
               <Pressable
                 onPress={() => {
                   const scrollView = document.querySelector('[data-template-scroll-class]');

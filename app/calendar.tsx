@@ -30,6 +30,7 @@ import { useSaveToast } from "../src/ui/save-toast";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { usePersistedState } from "../src/ui/use-persisted-state";
+import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 
 const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
 const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
@@ -474,36 +475,37 @@ export default function CalendarScreen() {
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
             Unidade
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              {unitOptions.map((unit) => {
-                const active = unitFilter === unit;
-                const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                const chipBg = active
-                  ? palette?.bg ?? colors.primaryBg
-                  : colors.secondaryBg;
-                const chipText = active
-                  ? palette?.text ?? colors.primaryText
-                  : colors.text;
-                return (
-                  <Pressable
-                    key={unit}
-                    onPress={() => setUnitFilter(unit)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: chipBg,
-                    }}
-                  >
-                    <Text style={{ color: chipText }}>
-                      {unit}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+          <FadeHorizontalScroll
+            fadeColor={colors.card}
+            contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+          >
+            {unitOptions.map((unit) => {
+              const active = unitFilter === unit;
+              const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
+              const chipBg = active
+                ? palette?.bg ?? colors.primaryBg
+                : colors.secondaryBg;
+              const chipText = active
+                ? palette?.text ?? colors.primaryText
+                : colors.text;
+              return (
+                <Pressable
+                  key={unit}
+                  onPress={() => setUnitFilter(unit)}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: chipBg,
+                  }}
+                >
+                  <Text style={{ color: chipText }}>
+                    {unit}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </FadeHorizontalScroll>
         </View>
         {scheduleDays.map((dayInfo) => {
             const date = new Date(weekStart);
@@ -991,7 +993,6 @@ export default function CalendarScreen() {
     </SafeAreaView>
   );
 }
-
 
 
 

@@ -20,64 +20,93 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: "bold",
-    marginBottom: 4,
   },
   subtitle: {
     color: "#555",
-    marginBottom: 8,
     lineHeight: 1.35,
     fontSize: 9,
   },
-  topRow: {
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 6,
-    gap: 10,
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e6e6e6",
+    gap: 12,
   },
+  headerLeft: { flex: 1, minWidth: 0 },
+  headerTitle: { flexDirection: "row", alignItems: "baseline", gap: 8 },
+  headerTag: {
+    backgroundColor: "#f4f4f4",
+    borderRadius: 999,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    fontSize: 8,
+    color: "#666",
+  },
+  headerMeta: {
+    marginTop: 6,
+    gap: 2,
+  },
+  metaRow: { flexDirection: "row" },
+  metaItem: { flex: 1, flexDirection: "row", gap: 4 },
+  metaLabel: { color: "#666", fontWeight: "bold" },
+  metaValue: { color: "#555" },
+  headerRight: { width: 200, alignItems: "flex-end" },
   badge: {
     backgroundColor: "#f2f2f2",
     borderRadius: 999,
     paddingVertical: 3,
     paddingHorizontal: 8,
     fontSize: 8,
-    marginBottom: 4,
   },
+  coach: { marginTop: 6, fontSize: 9, color: "#444" },
   layout: {
     flexDirection: "row",
     gap: 10,
+    width: "100%",
   },
   leftColumn: {
-    flexGrow: 1,
-    flexBasis: "60%",
+    flex: 1,
+    minWidth: 0,
   },
   rightColumn: {
-    flexBasis: "40%",
+    width: 260,
+    flexShrink: 0,
   },
   table: {
     borderWidth: 1,
     borderColor: "#d9d9d9",
+    width: "100%",
   },
   row: {
     flexDirection: "row",
+  },
+  rowAlt: {
+    backgroundColor: "#fafafa",
   },
   cell: {
     borderRightWidth: 1,
     borderBottomWidth: 1,
     borderColor: "#d9d9d9",
-    padding: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 3,
   },
   headerCell: {
     backgroundColor: "#f2f2f2",
     fontWeight: "bold",
     textAlign: "center",
   },
-  colIndex: { width: 24, textAlign: "center" },
-  colBirth: { width: 58, textAlign: "center" },
-  colContact: { width: 110 },
-  colTotal: { width: 28, textAlign: "center" },
-  colName: { width: 170 },
+  colIndex: { width: 22, textAlign: "center" },
+  colBirth: { width: 56, textAlign: "center" },
+  colContact: { width: 104 },
+  colTotal: { width: 44, textAlign: "center" },
+  colName: { width: 150 },
   colFund: { width: 110 },
+  colDay: { flexGrow: 1, flexBasis: 0, minWidth: 12, textAlign: "center" },
+  colDayRight: { flexGrow: 1, flexBasis: 0, minWidth: 10, textAlign: "center" },
   block: {
     borderWidth: 1,
     borderColor: "#ddd",
@@ -115,13 +144,16 @@ const renderRowCells = (
   row: ClassRosterRow,
   isWhatsApp: boolean
 ) => {
+  const isEmpty = !row.studentName;
   if (isWhatsApp) {
     return [
       { key: "index", text: String(row.index), style: styles.colIndex },
       { key: "name", text: row.studentName, style: styles.colName },
       {
         key: "contact",
-        text: `${row.contactLabel ?? "-"} ${row.contactPhone ?? ""}`.trim(),
+        text: isEmpty
+          ? ""
+          : `${row.contactLabel ?? "-"} ${row.contactPhone ?? ""}`.trim(),
         style: styles.colContact,
       },
     ];
@@ -130,15 +162,30 @@ const renderRowCells = (
   return [
     { key: "index", text: String(row.index), style: styles.colIndex },
     { key: "name", text: row.studentName, style: styles.colName },
-    { key: "birth", text: row.birthDate ?? "-", style: styles.colBirth },
+    {
+      key: "birth",
+      text: isEmpty ? "" : row.birthDate ?? "-",
+      style: styles.colBirth,
+    },
   ];
 };
 
 export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
   const isWhatsApp = data.mode === "whatsapp";
-  const dayCount = Math.max(1, data.monthDays.length);
-  const leftDayCellWidth = Math.max(12, Math.min(20, Math.floor(260 / dayCount)));
-  const rightDayCellWidth = Math.max(10, Math.min(16, Math.floor(160 / dayCount)));
+  const minRows = 20;
+  const paddedRows =
+    data.rows.length >= minRows
+      ? data.rows
+      : [
+          ...data.rows,
+          ...Array.from({ length: minRows - data.rows.length }, (_, idx) => ({
+            index: data.rows.length + idx + 1,
+            studentName: "",
+            birthDate: "",
+            contactLabel: "",
+            contactPhone: "",
+          })),
+        ];
   const headerCells = renderRowCells(
     {
       index: 0,
@@ -153,24 +200,48 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
   return (
     <Document>
       <Page size="A4" orientation="landscape" style={styles.page}>
-        <View style={styles.topRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{data.title}</Text>
-            <Text style={styles.subtitle}>
-              Turma: {data.className}
-              {data.ageBand ? ` (${data.ageBand})` : ""}
-              {data.unitLabel ? `\nUnidade: ${data.unitLabel}` : ""}
-              {data.daysLabel ? `\nDias: ${data.daysLabel}` : ""}
-              {data.timeLabel ? `\nHorario: ${data.timeLabel}` : ""}
-              {`\nMes: ${data.monthLabel}`}
-            </Text>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <View style={styles.headerTitle}>
+              <Text style={styles.title}>{data.title}</Text>
+              {data.ageBand ? <Text style={styles.headerTag}>{data.ageBand}</Text> : null}
+            </View>
+            <View style={styles.headerMeta}>
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaLabel}>Turma:</Text>
+                  <Text style={styles.metaValue}>{data.className}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaLabel}>Unidade:</Text>
+                  <Text style={styles.metaValue}>{data.unitLabel ?? "-"}</Text>
+                </View>
+              </View>
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaLabel}>Dias:</Text>
+                  <Text style={styles.metaValue}>{data.daysLabel ?? "-"}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaLabel}>Horario:</Text>
+                  <Text style={styles.metaValue}>{data.timeLabel ?? "-"}</Text>
+                </View>
+              </View>
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaLabel}>Mes:</Text>
+                  <Text style={styles.metaValue}>{data.monthLabel}</Text>
+                </View>
+                <View style={styles.metaItem} />
+              </View>
+            </View>
           </View>
-          <View style={{ minWidth: 140 }}>
+          <View style={styles.headerRight}>
             {data.periodizationLabel ? (
               <Text style={styles.badge}>{data.periodizationLabel}</Text>
             ) : null}
             {data.coachName ? (
-              <Text style={styles.subtitle}>Professor: {data.coachName}</Text>
+              <Text style={styles.coach}>Professor: {data.coachName}</Text>
             ) : null}
           </View>
         </View>
@@ -193,21 +264,24 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
                     style={[
                       styles.cell,
                       styles.headerCell,
-                      { width: leftDayCellWidth, textAlign: "center" },
+                      styles.colDay,
                     ]}
                   >
                     {day}
                   </Text>
                 ))}
-                <Text style={[styles.cell, styles.headerCell, styles.colTotal]}>
+                <Text style={[styles.cell, styles.headerCell, styles.colTotal]} wrap={false}>
                   Total
                 </Text>
               </View>
-              {data.rows.length ? (
-                data.rows.map((row) => {
+              {paddedRows.length ? (
+                paddedRows.map((row, idx) => {
                   const cells = renderRowCells(row, isWhatsApp);
                   return (
-                    <View key={`row-${row.index}`} style={styles.row}>
+                    <View
+                      key={`row-${row.index}`}
+                      style={[styles.row, idx % 2 === 1 ? styles.rowAlt : null]}
+                    >
                       {cells.map((cell) => (
                         <Text key={`${row.index}-${cell.key}`} style={[styles.cell, cell.style]}>
                           {cell.text}
@@ -216,7 +290,7 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
                       {data.monthDays.map((day) => (
                         <Text
                           key={`${row.index}-day-${day}`}
-                          style={[styles.cell, { width: leftDayCellWidth }]}
+                          style={[styles.cell, styles.colDay]}
                         >
                           {" "}
                         </Text>
@@ -225,13 +299,7 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
                     </View>
                   );
                 })
-              ) : (
-                <View style={styles.row}>
-                  <Text style={[styles.cell, styles.colName]}>
-                    Nenhum aluno encontrado.
-                  </Text>
-                </View>
-              )}
+              ) : null}
             </View>
 
             <View style={styles.footer}>
@@ -254,7 +322,7 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
                       style={[
                         styles.cell,
                         styles.headerCell,
-                        { width: rightDayCellWidth, textAlign: "center" },
+                        styles.colDayRight,
                       ]}
                     >
                       {day}
@@ -267,7 +335,7 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
                     {data.monthDays.map((day) => (
                       <Text
                         key={`fund-${idx}-day-${day}`}
-                        style={[styles.cell, { width: rightDayCellWidth }]}
+                        style={[styles.cell, styles.colDayRight]}
                       >
                         {" "}
                       </Text>
