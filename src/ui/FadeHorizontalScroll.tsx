@@ -8,7 +8,6 @@ import type {
   ViewStyle,
 } from "react-native";
 import { ScrollView, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { toRgba } from "./unit-colors";
 import { useAppTheme } from "./app-theme";
 
@@ -38,6 +37,15 @@ export function FadeHorizontalScroll({
   const fadeStrong = fadeTo.startsWith("#") ? toRgba(fadeTo, 0.95) : fadeTo;
   const fadeMid = fadeTo.startsWith("#") ? toRgba(fadeTo, 0.7) : fadeTo;
   const fadeSoft = fadeTo.startsWith("#") ? toRgba(fadeTo, 0.4) : fadeTo;
+  const fadeSteps = [
+    { color: fadeStrong, opacity: 1 },
+    { color: fadeMid, opacity: 0.85 },
+    { color: fadeMid, opacity: 0.65 },
+    { color: fadeSoft, opacity: 0.45 },
+    { color: fadeSoft, opacity: 0.25 },
+    { color: fadeSoft, opacity: 0.1 },
+  ];
+  const stepWidth = fadeWidth / fadeSteps.length;
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
   const showLeftRef = useRef(false);
@@ -113,38 +121,40 @@ export function FadeHorizontalScroll({
       >
         {children}
       </ScrollView>
-      {showLeft ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={[fadeStrong, fadeMid, fadeSoft, "rgba(0,0,0,0)"]}
-          locations={[0, 0.2, 0.55, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: fadeWidth,
-          }}
-        />
-      ) : null}
-      {showRight ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={["rgba(0,0,0,0)", fadeTo, fadeTo]}
-          locations={[0, 0.7, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: fadeWidth,
-          }}
-        />
-      ) : null}
+      {showLeft
+        ? fadeSteps.map((step, index) => (
+            <View
+              key={`fade-left-${index}`}
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                left: index * stepWidth,
+                top: 0,
+                bottom: 0,
+                width: stepWidth + 0.5,
+                backgroundColor: step.color,
+                opacity: step.opacity,
+              }}
+            />
+          ))
+        : null}
+      {showRight
+        ? fadeSteps.map((step, index) => (
+            <View
+              key={`fade-right-${index}`}
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                right: index * stepWidth,
+                top: 0,
+                bottom: 0,
+                width: stepWidth + 0.5,
+                backgroundColor: step.color,
+                opacity: step.opacity,
+              }}
+            />
+          ))
+        : null}
     </View>
   );
 }
