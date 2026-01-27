@@ -107,6 +107,7 @@ export function FadeHorizontalScroll({
         showsHorizontalScrollIndicator={false}
         style={scrollStyle}
         contentContainerStyle={[{ paddingRight: fadeWidth }, contentContainerStyle]}
+        onStartShouldSetResponderCapture={() => false}
         onContentSizeChange={(width) => {
           contentWidthRef.current = width;
           updateVisibility();
