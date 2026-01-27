@@ -2921,7 +2921,14 @@ export default function StudentsScreen() {
       <ModalSheet
         visible={showEditModal}
         onClose={requestCloseEditModal}
-        cardStyle={[editModalCardStyle, { maxHeight: "92%", paddingBottom: 20 }]}
+        cardStyle={[
+          editModalCardStyle,
+          {
+            maxHeight: "92%",
+            height: Platform.OS === "web" ? undefined : "92%",
+            paddingBottom: 20,
+          },
+        ]}
         position="center"
       >
         <View
