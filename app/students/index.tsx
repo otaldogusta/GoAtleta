@@ -83,6 +83,38 @@ const monthNames = [
   "Dezembro",
 ];
 
+const weekdayShortLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+const formatStartTimeLabel = (value?: string) => {
+  const raw = value?.trim();
+  if (!raw) return "";
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return raw;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return raw;
+  if (minute === 0) return `${hour}h`;
+  return `${hour}h${String(minute).padStart(2, "0")}`;
+};
+
+const formatClassScheduleLabel = (cls?: ClassGroup | null) => {
+  if (!cls) return "";
+  const days = (cls.daysOfWeek ?? [])
+    .map((day) => weekdayShortLabels[day] ?? "")
+    .filter(Boolean);
+  const daysLabel = days.join(", ");
+  const timeLabel = formatStartTimeLabel(cls.startTime);
+  if (daysLabel && timeLabel) return `${daysLabel} ${timeLabel}`;
+  return daysLabel || timeLabel;
+};
+const normalizeDigits = (value?: string) => (value ?? "").replace(/\D/g, "");
+const classNameHasAgeBand = (className: string, ageBand?: string) => {
+  const ageDigits = normalizeDigits(ageBand);
+  if (!ageDigits) return false;
+  const nameDigits = normalizeDigits(className);
+  return nameDigits.includes(ageDigits);
+};
+
 type BirthdayEntry = { student: Student; date: Date; unitName: string };
 type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
@@ -205,6 +237,14 @@ export default function StudentsScreen() {
   const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
     "students_birthday_notice_v1",
     ""
+  );
+  const [expandedUnits, setExpandedUnits] = usePersistedState<Record<string, boolean>>(
+    "students_units_expanded_v1",
+    {}
+  );
+  const [expandedClasses, setExpandedClasses] = usePersistedState<Record<string, boolean>>(
+    "students_classes_expanded_v1",
+    {}
   );
   const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const [unitTriggerLayout, setUnitTriggerLayout] = useState<{
@@ -772,81 +812,84 @@ export default function StudentsScreen() {
     closeEditModal();
   };
 
-  const onEdit = useCallback((student: Student) => {
-    const cls = classes.find((item) => item.id === student.classId);
-    let nextUnit = "";
-    let nextAgeBand = "";
-    let nextCustomAgeBand = "";
-    let nextClassId = "";
-    if (cls) {
-      nextUnit = unitLabel(cls.unit);
-      nextAgeBand = cls.ageBand;
-      if (!ageBandOptions.includes(cls.ageBand)) {
-        nextCustomAgeBand = cls.ageBand;
+  const onEdit = useCallback(
+    (student: Student) => {
+      try {
+        const cls = classes.find((item) => item.id === student.classId);
+        let nextUnit = "";
+        let nextAgeBand = "";
+        let nextCustomAgeBand = "";
+        let nextClassId = "";
+        if (cls) {
+          nextUnit = unitLabel(cls.unit);
+          nextAgeBand = cls.ageBand;
+          if (!ageBandOptions.includes(cls.ageBand)) {
+            nextCustomAgeBand = cls.ageBand;
+          }
+          nextClassId = cls.id;
+        }
+        setUnit(nextUnit);
+        setAgeBand(nextAgeBand);
+        setCustomAgeBand(nextCustomAgeBand);
+        setClassId(nextClassId);
+        setShowForm(false);
+        setEditingId(student.id);
+        setEditingCreatedAt(student.createdAt);
+        setName(student.name);
+        setEditSnapshot({
+          unit: nextUnit,
+          ageBand: nextAgeBand,
+          customAgeBand: nextCustomAgeBand,
+          classId: nextClassId,
+          name: student.name,
+          birthDate: student.birthDate ?? "",
+          phone: student.phone,
+          loginEmail: student.loginEmail ?? "",
+          guardianName: student.guardianName ?? "",
+          guardianPhone: student.guardianPhone ?? "",
+          guardianRelation: student.guardianRelation ?? "",
+          healthIssue: student.healthIssue ?? false,
+          healthIssueNotes: student.healthIssueNotes ?? "",
+          medicationUse: student.medicationUse ?? false,
+          medicationNotes: student.medicationNotes ?? "",
+          healthObservations: student.healthObservations ?? "",
+        });
+        if (student.birthDate) {
+          setBirthDate(student.birthDate);
+          setAgeNumber(calculateAge(student.birthDate));
+        } else {
+          setBirthDate("");
+          setAgeNumber(student.age);
+        }
+        setPhone(student.phone);
+        setLoginEmail(student.loginEmail ?? "");
+        setGuardianName(student.guardianName ?? "");
+        setGuardianPhone(student.guardianPhone ?? "");
+        setGuardianRelation(student.guardianRelation ?? "");
+        setHealthIssue(student.healthIssue ?? false);
+        setHealthIssueNotes(student.healthIssueNotes ?? "");
+        setMedicationUse(student.medicationUse ?? false);
+        setMedicationNotes(student.medicationNotes ?? "");
+        setHealthObservations(student.healthObservations ?? "");
+        setShowEditHealthSection(
+          Boolean(
+            student.healthIssue ||
+              student.medicationUse ||
+              student.healthIssueNotes?.trim() ||
+              student.medicationNotes?.trim() ||
+              student.healthObservations?.trim()
+          )
+        );
+        closeAllPickers();
+        setShowEditModal(true);
+        setStudentFormError("");
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        Alert.alert("Erro ao abrir aluno", detail);
       }
-      nextClassId = cls.id;
-    } else {
-      nextUnit = "";
-      nextAgeBand = "";
-      nextCustomAgeBand = "";
-      nextClassId = "";
-    }
-    setUnit(nextUnit);
-    setAgeBand(nextAgeBand);
-    setCustomAgeBand(nextCustomAgeBand);
-    setClassId(nextClassId);
-    setShowForm(false);
-    setEditingId(student.id);
-    setEditingCreatedAt(student.createdAt);
-    setName(student.name);
-    setEditSnapshot({
-      unit: nextUnit,
-      ageBand: nextAgeBand,
-      customAgeBand: nextCustomAgeBand,
-      classId: nextClassId,
-      name: student.name,
-      birthDate: student.birthDate ?? "",
-      phone: student.phone,
-      loginEmail: student.loginEmail ?? "",
-      guardianName: student.guardianName ?? "",
-      guardianPhone: student.guardianPhone ?? "",
-      guardianRelation: student.guardianRelation ?? "",
-      healthIssue: student.healthIssue ?? false,
-      healthIssueNotes: student.healthIssueNotes ?? "",
-      medicationUse: student.medicationUse ?? false,
-      medicationNotes: student.medicationNotes ?? "",
-      healthObservations: student.healthObservations ?? "",
-    });
-    if (student.birthDate) {
-      setBirthDate(student.birthDate);
-      setAgeNumber(calculateAge(student.birthDate));
-    } else {
-      setBirthDate("");
-      setAgeNumber(student.age);
-    }
-    setPhone(student.phone);
-    setLoginEmail(student.loginEmail ?? "");
-    setGuardianName(student.guardianName ?? "");
-    setGuardianPhone(student.guardianPhone ?? "");
-    setGuardianRelation(student.guardianRelation ?? "");
-    setHealthIssue(student.healthIssue ?? false);
-    setHealthIssueNotes(student.healthIssueNotes ?? "");
-    setMedicationUse(student.medicationUse ?? false);
-    setMedicationNotes(student.medicationNotes ?? "");
-    setHealthObservations(student.healthObservations ?? "");
-    setShowEditHealthSection(
-      Boolean(
-        student.healthIssue ||
-          student.medicationUse ||
-          student.healthIssueNotes?.trim() ||
-          student.medicationNotes?.trim() ||
-          student.healthObservations?.trim()
-      )
-    );
-    closeAllPickers();
-    setShowEditModal(true);
-    setStudentFormError("");
-  }, [ageBandOptions, classes, closeAllPickers, unitLabel]);
+    },
+    [ageBandOptions, classes, closeAllPickers, unitLabel]
+  );
 
   const onDelete = (id: string) => {
     const student = students.find((item) => item.id === id);
@@ -1337,18 +1380,67 @@ export default function StudentsScreen() {
           });
     return filteredByUnit;
   }, [studentsUnitFilter, classes, students, unitLabel]);
+  const classById = useMemo(() => {
+    return new Map(classes.map((item) => [item.id, item] as const));
+  }, [classes]);
+  const toggleUnitExpanded = useCallback(
+    (unitName: string) => {
+      setExpandedUnits((prev) => ({
+        ...prev,
+        [unitName]: !(prev[unitName] ?? true),
+      }));
+    },
+    [setExpandedUnits]
+  );
+  const toggleClassExpanded = useCallback(
+    (classIdValue: string) => {
+      setExpandedClasses((prev) => ({
+        ...prev,
+        [classIdValue]: !(prev[classIdValue] ?? true),
+      }));
+    },
+    [setExpandedClasses]
+  );
   const studentsGrouped = useMemo(() => {
-    const map = new Map<string, Student[]>();
+    const unitMap = new Map<string, Map<string, Student[]>>();
     studentsFiltered.forEach((student) => {
-      const cls = classes.find((item) => item.id === student.classId);
+      const cls = classById.get(student.classId);
       const unitName = unitLabel(cls?.unit);
-      if (!map.has(unitName)) map.set(unitName, []);
-      map.get(unitName)?.push(student);
+      const classKey = cls?.id ?? `missing:${student.classId || "none"}`;
+      if (!unitMap.has(unitName)) unitMap.set(unitName, new Map());
+      const classMap = unitMap.get(unitName)!;
+      if (!classMap.has(classKey)) classMap.set(classKey, []);
+      classMap.get(classKey)!.push(student);
     });
-    return Array.from(map.entries())
-      .map(([unitName, items]) => [unitName, items] as const)
-      .sort((a, b) => a[0].localeCompare(b[0]));
-  }, [classes, studentsFiltered, unitLabel]);
+    return Array.from(unitMap.entries())
+      .map(([unitName, classMap]) => {
+        const classesInUnit = Array.from(classMap.entries())
+          .map(([classKey, items]) => {
+            const cls = classById.get(items[0]?.classId ?? "");
+            const className = cls?.name?.trim() || "Sem turma";
+            const palette = getClassPalette(cls?.colorKey, colors, unitName);
+            const scheduleLabel = formatClassScheduleLabel(cls);
+            const ageBandValue = cls?.ageBand ?? "";
+            const ageBandLabel =
+              ageBandValue && classNameHasAgeBand(className, ageBandValue) ? "" : ageBandValue;
+            const sortedStudents = [...items].sort((a, b) =>
+              a.name.localeCompare(b.name, "pt-BR")
+            );
+            return {
+              classId: cls?.id ?? classKey,
+              className,
+              ageBand: ageBandLabel,
+              gender: cls?.gender,
+              scheduleLabel,
+              palette,
+              students: sortedStudents,
+            };
+          })
+          .sort((a, b) => a.className.localeCompare(b.className, "pt-BR"));
+        return { unitName, classes: classesInUnit };
+      })
+      .sort((a, b) => a.unitName.localeCompare(b.unitName, "pt-BR"));
+  }, [classById, colors, studentsFiltered, unitLabel]);
   const birthdayTodayAll = useMemo(() => {
     return students.filter((student) => {
       if (!student.birthDate) return false;
@@ -1616,22 +1708,41 @@ export default function StudentsScreen() {
   );
 
   const renderStudentItem = useCallback(
-    ({ item }: { item: Student }) => {
-      const cls = classes.find((entry) => entry.id === item.classId);
-      const unitName = unitLabel(cls?.unit);
-      const classPalette = getClassPalette(cls?.colorKey, colors, unitName);
+    ({
+      item,
+      paletteOverride,
+      classNameOverride,
+      unitNameOverride,
+    }: {
+      item: Student;
+      paletteOverride?: { bg: string; text: string };
+      classNameOverride?: string;
+      unitNameOverride?: string;
+    }) => {
+      const cls = classById.get(item.classId);
+      const unitName = unitNameOverride ?? unitLabel(cls?.unit);
+      const classPalette =
+        paletteOverride ?? getClassPalette(cls?.colorKey, colors, unitName);
       return (
         <StudentRow
           item={item}
           onPress={onEdit}
           onWhatsApp={openStudentWhatsApp}
-          className={getClassName(item.classId)}
+          className={classNameOverride ?? getClassName(item.classId)}
           unitName={unitName}
           classPalette={classPalette}
         />
       );
     },
-    [StudentRow, classes, colors, getClassName, onEdit, openStudentWhatsApp, unitLabel]
+    [
+      StudentRow,
+      classById,
+      colors,
+      getClassName,
+      onEdit,
+      openStudentWhatsApp,
+      unitLabel,
+    ]
   );
 
   const studentKeyExtractor = useCallback(
@@ -2439,29 +2550,207 @@ export default function StudentsScreen() {
 
               {studentsGrouped.length > 0 ? (
                 <View style={{ gap: 12 }}>
-                  {studentsGrouped.map(([unitName, unitStudents]) => (
+                  {studentsGrouped.map(({ unitName, classes: unitClasses }) => (
                     <View key={unitName} style={{ gap: 8 }}>
-                      <View
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 8,
-                          borderRadius: 10,
-                          backgroundColor: colors.inputBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                          {unitName}
-                        </Text>
-                      </View>
-                      <View style={{ gap: 8 }}>
-                        {unitStudents.map((student) => (
-                          <View key={student.id}>
-                            {renderStudentItem({ item: student })}
-                          </View>
-                        ))}
-                      </View>
+                      {(() => {
+                        const unitExpanded = expandedUnits[unitName] ?? true;
+                        return (
+                          <>
+                            <Pressable
+                              onPress={() => toggleUnitExpanded(unitName)}
+                              style={{
+                                paddingVertical: 7,
+                                paddingHorizontal: 10,
+                                borderRadius: 12,
+                                backgroundColor: colors.inputBg,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                              }}
+                            >
+                              <Text
+                                style={{ fontSize: 14, fontWeight: "800", color: colors.text }}
+                              >
+                                {unitName}
+                              </Text>
+                              <Ionicons
+                                name={unitExpanded ? "chevron-down" : "chevron-forward"}
+                                size={16}
+                                color={colors.muted}
+                              />
+                            </Pressable>
+                            {unitExpanded ? (
+                              <View
+                                style={{
+                                  gap: 10,
+                                  marginLeft: 4,
+                                  paddingLeft: 10,
+                                  paddingTop: 6,
+                                  borderLeftWidth: 2,
+                                  borderLeftColor: colors.border,
+                                }}
+                              >
+                                {unitClasses.map((group) => {
+                                  const classExpanded = expandedClasses[group.classId] ?? true;
+                                  return (
+                                    <View key={group.classId} style={{ gap: 6 }}>
+                                      <Pressable
+                                        onPress={() => toggleClassExpanded(group.classId)}
+                                        style={{
+                                          paddingVertical: 6,
+                                          paddingHorizontal: 8,
+                                          borderRadius: 10,
+                                          backgroundColor: colors.card,
+                                          borderWidth: 1,
+                                          borderColor: colors.border,
+                                          flexDirection: "row",
+                                          alignItems: "center",
+                                          justifyContent: "space-between",
+                                          gap: 10,
+                                        }}
+                                      >
+                                        {(() => {
+                                          const items: { key: string; node: JSX.Element }[] = [
+                                            {
+                                              key: "name",
+                                              node: (
+                                                <Text
+                                                  style={{
+                                                    fontSize: 13,
+                                                    fontWeight: "800",
+                                                    color: colors.text,
+                                                  }}
+                                                  numberOfLines={1}
+                                                >
+                                                  {group.className}
+                                                </Text>
+                                              ),
+                                            },
+                                          ];
+                                          if (group.ageBand) {
+                                            items.push({
+                                              key: "age",
+                                              node: (
+                                                <Text
+                                                  style={{
+                                                    fontSize: 11,
+                                                    fontWeight: "700",
+                                                    color: colors.muted,
+                                                  }}
+                                                >
+                                                  {group.ageBand}
+                                                </Text>
+                                              ),
+                                            });
+                                          }
+                                          if (group.gender) {
+                                            items.push({
+                                              key: "gender",
+                                              node: <ClassGenderBadge gender={group.gender} size="sm" />,
+                                            });
+                                          }
+                                          if (group.scheduleLabel) {
+                                            items.push({
+                                              key: "schedule",
+                                              node: (
+                                                <Text
+                                                  style={{
+                                                    fontSize: 11,
+                                                    fontWeight: "700",
+                                                    color: colors.muted,
+                                                  }}
+                                                >
+                                                  {group.scheduleLabel}
+                                                </Text>
+                                              ),
+                                            });
+                                          }
+                                          return (
+                                            <View
+                                              style={{
+                                                flexDirection: "row",
+                                                alignItems: "center",
+                                                flexWrap: "wrap",
+                                                gap: 6,
+                                                minWidth: 0,
+                                                flex: 1,
+                                              }}
+                                            >
+                                              <View
+                                                style={{
+                                                  width: 8,
+                                                  height: 8,
+                                                  borderRadius: 999,
+                                                  backgroundColor: group.palette.bg,
+                                                  marginRight: 2,
+                                                }}
+                                              />
+                                              {items.map((entry, index) => (
+                                                <View
+                                                  key={entry.key}
+                                                  style={{
+                                                    flexDirection: "row",
+                                                    alignItems: "center",
+                                                    gap: 6,
+                                                    minWidth: 0,
+                                                  }}
+                                                >
+                                                  {index > 0 ? (
+                                                    <View
+                                                      style={{
+                                                        width: 4,
+                                                        height: 4,
+                                                        borderRadius: 999,
+                                                        backgroundColor: colors.muted,
+                                                        opacity: 0.9,
+                                                        marginHorizontal: 2,
+                                                      }}
+                                                    />
+                                                  ) : null}
+                                                  {entry.node}
+                                                </View>
+                                              ))}
+                                            </View>
+                                          );
+                                        })()}
+                                        <Ionicons
+                                          name={classExpanded ? "chevron-down" : "chevron-forward"}
+                                          size={16}
+                                          color={colors.muted}
+                                        />
+                                      </Pressable>
+                                      {classExpanded ? (
+                                        <View
+                                          style={{
+                                            gap: 8,
+                                            marginLeft: 4,
+                                            paddingLeft: 10,
+                                            borderLeftWidth: 2,
+                                            borderLeftColor: group.palette.bg,
+                                          }}
+                                        >
+                                          {group.students.map((student) => (
+                                            <View key={student.id}>
+                                              {renderStudentItem({
+                                                item: student,
+                                                paletteOverride: group.palette,
+                                                classNameOverride: group.className,
+                                                unitNameOverride: unitName,
+                                              })}
+                                            </View>
+                                          ))}
+                                        </View>
+                                      ) : null}
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                     </View>
                   ))}
                 </View>
@@ -3494,7 +3783,7 @@ export default function StudentsScreen() {
                                 : colors.text,
                           }}
                         >
-                          Responsavel
+                          Responsável
                         </Text>
                         <Text
                           style={{
@@ -3559,7 +3848,7 @@ export default function StudentsScreen() {
                 </View>
               ) : (
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sem telefone valido cadastrado.
+                  Sem telefone válido cadastrado.
                 </Text>
               )}
 
