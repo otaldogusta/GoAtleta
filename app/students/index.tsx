@@ -9,7 +9,6 @@ import {
     useState
 } from "react";
 import {
-    ActivityIndicator,
     Alert,
     Animated,
     KeyboardAvoidingView,
@@ -44,6 +43,7 @@ import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
+import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -1758,12 +1758,24 @@ export default function StudentsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
-            Carregando alunos...
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
+            <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
+          </View>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 38, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 38, borderRadius: 20 }} />
+          </View>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 38, borderRadius: 20 }} />
+          </View>
+          <View style={{ gap: 12 }}>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <ShimmerBlock key={`student-shimmer-${index}`} style={{ height: 72, borderRadius: 18 }} />
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }

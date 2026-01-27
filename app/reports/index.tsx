@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
     Platform,
     ScrollView,
     Text,
@@ -9,6 +8,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Pressable } from "../../src/ui/Pressable";
+import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import type { AttendanceRecord, ClassGroup, SessionLog, Student } from "../../src/core/models";
 import {
@@ -377,12 +377,17 @@ export default function ReportsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
-            Carregando relatórios...
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 28, width: 170, borderRadius: 12 }} />
+            <ShimmerBlock style={{ height: 16, width: 240, borderRadius: 8 }} />
+          </View>
+          <View style={{ gap: 12 }}>
+            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
+          </View>
+          <ShimmerBlock style={{ height: 220, borderRadius: 20 }} />
+        </ScrollView>
       </SafeAreaView>
     );
   }

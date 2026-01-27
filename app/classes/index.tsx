@@ -3,7 +3,6 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
+import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import type { ClassGroup } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
@@ -1531,12 +1531,21 @@ export default function ClassesScreen() {
   if (loading && !classes.length) {
     return (
       <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
-            Carregando turmas...
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
+            <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
+          </View>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 42, borderRadius: 22 }} />
+            <ShimmerBlock style={{ height: 42, borderRadius: 22 }} />
+          </View>
+          <View style={{ gap: 12 }}>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <ShimmerBlock key={`class-shimmer-${index}`} style={{ height: 90, borderRadius: 18 }} />
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }

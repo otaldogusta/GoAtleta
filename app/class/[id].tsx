@@ -1,7 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Animated,
   KeyboardAvoidingView,
@@ -40,6 +39,7 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
+import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
@@ -394,12 +394,21 @@ export default function ClassDetails() {
       <SafeAreaView
         style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
       >
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted }}>
-            Carregando turma...
-          </Text>
-        </View>
+        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 26, width: 160, borderRadius: 12 }} />
+            <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
+          </View>
+          <ShimmerBlock style={{ height: 88, borderRadius: 20 }} />
+          <View style={{ gap: 12 }}>
+            <ShimmerBlock style={{ height: 120, borderRadius: 18 }} />
+            <ShimmerBlock style={{ height: 120, borderRadius: 18 }} />
+          </View>
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 44, borderRadius: 16 }} />
+            <ShimmerBlock style={{ height: 44, borderRadius: 16 }} />
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
