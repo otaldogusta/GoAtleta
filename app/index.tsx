@@ -43,7 +43,6 @@ import {
 } from "../src/notificationsInbox";
 import { Card } from "../src/ui/Card";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
-import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getUnitPalette } from "../src/ui/unit-colors";
 import StudentHome from "./student-home";
@@ -305,15 +304,6 @@ function TrainerHome() {
     };
   }, [activeToday, todayDateKey]);
 
-  const visibleSchedule = useMemo(() => {
-    if (!todaySchedule.length) return [];
-    const upcoming = todaySchedule.filter((item) => item.endMinutes > nowMinutes);
-    if (activeToday && activeToday.endMinutes <= nowMinutes) {
-      const hasActive = upcoming.some((item) => item.classId === activeToday.classId);
-      return hasActive ? upcoming : [activeToday, ...upcoming];
-    }
-    return upcoming;
-  }, [activeToday, nowMinutes, todaySchedule]);
 
   const [attendanceDone, setAttendanceDone] = useState<boolean | null>(null);
   const [reportDone, setReportDone] = useState<boolean | null>(null);
@@ -556,9 +546,8 @@ function TrainerHome() {
                       gap: 8,
                     }}
                   >
-                    {Platform.OS === "web" ? (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <Pressable
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Pressable
                         onPress={() => {
                           if (activeTodayIndex === null) return;
                           if (activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)) return;
@@ -568,76 +557,28 @@ function TrainerHome() {
                           activeTodayIndex === null ||
                           activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
                         }
-                          style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: 13,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor:
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor:
                             activeTodayIndex === null ||
                             activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
                               ? colors.primaryDisabledBg
                               : colors.card,
-                            borderWidth: 1,
-                            borderColor: colors.border,
+                          borderWidth: 1,
+                          borderColor: colors.border,
                           opacity:
                             activeTodayIndex === null ||
                             activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
                               ? 0.6
                               : 1,
-                          }}
-                        >
-                          <Ionicons name="chevron-back" size={14} color={colors.text} />
-                        </Pressable>
-                        <View
-                          style={{
-                            paddingVertical: 2,
-                            paddingHorizontal: 8,
-                            borderRadius: 999,
-                            backgroundColor: colors.card,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                            {"Pr\u00f3xima aula"}
-                          </Text>
-                        </View>
-                        <Pressable
-                          onPress={() => {
-                            if (activeTodayIndex === null) return;
-                            if (activeTodayIndex >= todaySchedule.length - 1) return;
-                            setManualTodayIndex(activeTodayIndex + 1);
-                          }}
-                          disabled={
-                            activeTodayIndex === null ||
-                            activeTodayIndex >= todaySchedule.length - 1
-                          }
-                          style={{
-                            width: 26,
-                            height: 26,
-                            borderRadius: 13,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor:
-                              activeTodayIndex === null ||
-                              activeTodayIndex >= todaySchedule.length - 1
-                                ? colors.primaryDisabledBg
-                                : colors.card,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            opacity:
-                              activeTodayIndex === null ||
-                              activeTodayIndex >= todaySchedule.length - 1
-                                ? 0.6
-                                : 1,
-                          }}
-                        >
-                          <Ionicons name="chevron-forward" size={14} color={colors.text} />
-                        </Pressable>
-                      </View>
-                    ) : (
+                        }}
+                      >
+                        <Ionicons name="chevron-back" size={14} color={colors.text} />
+                      </Pressable>
                       <View
                         style={{
                           paddingVertical: 2,
@@ -652,59 +593,43 @@ function TrainerHome() {
                           {"Pr\u00f3xima aula"}
                         </Text>
                       </View>
-                    )}
+                      <Pressable
+                        onPress={() => {
+                          if (activeTodayIndex === null) return;
+                          if (activeTodayIndex >= todaySchedule.length - 1) return;
+                          setManualTodayIndex(activeTodayIndex + 1);
+                        }}
+                        disabled={
+                          activeTodayIndex === null ||
+                          activeTodayIndex >= todaySchedule.length - 1
+                        }
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor:
+                            activeTodayIndex === null ||
+                            activeTodayIndex >= todaySchedule.length - 1
+                              ? colors.primaryDisabledBg
+                              : colors.card,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          opacity:
+                            activeTodayIndex === null ||
+                            activeTodayIndex >= todaySchedule.length - 1
+                              ? 0.6
+                              : 1,
+                        }}
+                      >
+                        <Ionicons name="chevron-forward" size={14} color={colors.text} />
+                      </Pressable>
+                    </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
                       {activeSummary.dateLabel}
                     </Text>
                   </View>
-                  {visibleSchedule.length > 0 ? (
-                    <FadeHorizontalScroll
-                      fadeColor={colors.secondaryBg}
-                      contentContainerStyle={{ gap: 8, paddingRight: 8 }}
-                    >
-                      {visibleSchedule.map((item) => {
-                        const index = todaySchedule.findIndex((entry) => entry.classId === item.classId);
-                        const isActive = activeTodayIndex === index;
-                        const isPast = item.endMinutes <= nowMinutes;
-                        return (
-                          <Pressable
-                            key={`today-pill-${item.classId}`}
-                            onPress={() => setManualTodayIndex(index)}
-                            style={{
-                              paddingVertical: 6,
-                              paddingHorizontal: 10,
-                              borderRadius: 12,
-                              backgroundColor: isActive ? colors.card : colors.inputBg,
-                              borderWidth: 1,
-                              borderColor: isActive ? colors.border : colors.border,
-                              opacity: isPast ? 0.45 : 1,
-                              minWidth: 120,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                fontWeight: isActive ? "700" : "600",
-                                color: isPast ? colors.muted : isActive ? colors.text : colors.muted,
-                              }}
-                              numberOfLines={1}
-                            >
-                              {item.className}
-                            </Text>
-                            <Text
-                              style={{
-                                fontSize: 10,
-                                fontWeight: "600",
-                                color: isPast ? colors.muted : colors.text,
-                              }}
-                            >
-                              {item.timeLabel}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </FadeHorizontalScroll>
-                  ) : null}
                   <View style={{ opacity: isActivePast ? 0.55 : 1 }}>
                     <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
                       {activeSummary.className}
