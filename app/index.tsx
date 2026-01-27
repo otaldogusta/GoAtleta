@@ -747,17 +747,10 @@ function TrainerHome() {
                       </Text>
                     </View>
                   </View>
-                  {!hasUpcomingToday ? (
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {"Por hoje \u00e9 isso. N\u00e3o h\u00e1 mais aulas."}
-                    </Text>
-                  ) : null}
+                  {!hasUpcomingToday ? null : null}
                 </>
-              ) : (
-                <Text style={{ color: colors.muted, fontSize: 13 }}>
-                  {"Por hoje \u00e9 isso. N\u00e3o h\u00e1 mais aulas."}
-                </Text>
-              )}</View>
+              ) : null}
+</View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
                 onPress={() => {
