@@ -441,7 +441,7 @@ export default function ClassDetails() {
     if (!cls) return;
     Alert.alert(
       "Duplicar turma",
-      "Deseja criar uma copia desta turma?",
+      "Deseja criar uma cópia desta turma?",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -463,7 +463,7 @@ export default function ClassDetails() {
       message:
         "Isso remove planejamentos, chamadas e alunos da turma. Deseja excluir?",
       confirmLabel: "Excluir",
-      undoMessage: "Turma excluida. Deseja desfazer?",
+      undoMessage: "Turma excluída. Deseja desfazer?",
       onConfirm: async () => {
         await measure("deleteClassCascade", () => deleteClassCascade(cls.id));
         logAction("Excluir turma", { classId: cls.id });
@@ -528,7 +528,7 @@ export default function ClassDetails() {
               : "Aluno"
             : contact.status === "missing"
               ? "Sem tel"
-              : "Tel invalido";
+              : "Telefone inválido";
         const contactPhone =
           contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
         return {

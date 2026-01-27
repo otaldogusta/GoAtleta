@@ -65,7 +65,7 @@ export default function StudentInviteScreen() {
   const strengthLabel = useMemo(() => {
     if (!password) return "";
     if (strengthScore <= 0.33) return "Fraca";
-    if (strengthScore <= 0.66) return "Media";
+    if (strengthScore <= 0.66) return "Média";
     return "Forte";
   }, [password, strengthScore]);
 
@@ -79,14 +79,14 @@ export default function StudentInviteScreen() {
     }
     const lower = detail.toLowerCase();
     if (lower.includes("expired")) return "Convite expirado.";
-    if (lower.includes("used")) return "Esse link ja foi usado por outra conta. Peca um novo link.";
-    if (lower.includes("invalid")) return "Convite invalido.";
-    if (lower.includes("already linked")) return "Este aluno ja esta vinculado a outra conta.";
+    if (lower.includes("used")) return "Esse link já foi usado por outra conta. Peça um novo link.";
+    if (lower.includes("invalid")) return "Convite inválido.";
+    if (lower.includes("already linked")) return "Este aluno já está vinculado a outra conta.";
     if (lower.includes("unauthorized") || lower.includes("invalid jwt") || lower.includes("missing auth token")) {
-      return "Sessao expirada. Entre novamente.";
+      return "Sessão expirada. Entre novamente.";
     }
-    if (lower.includes("forbidden")) return "Sem permissao para validar o convite.";
-    return "Nao foi possivel validar o convite.";
+    if (lower.includes("forbidden")) return "Sem permissão para validar o convite.";
+    return "Não foi possível validar o convite.";
   };
 
   useEffect(() => {
@@ -520,7 +520,13 @@ export default function StudentInviteScreen() {
                 </Text>
               ) : null}
 
-              {session && (role === "trainer" || message.toLowerCase().includes("outra conta") || message.toLowerCase().includes("ja utilizado") || message.toLowerCase().includes("ja esta vinculado")) ? (
+              {session &&
+              (role === "trainer" ||
+                message.toLowerCase().includes("outra conta") ||
+                message.toLowerCase().includes("ja utilizado") ||
+                message.toLowerCase().includes("já utilizado") ||
+                message.toLowerCase().includes("ja esta vinculado") ||
+                message.toLowerCase().includes("já está vinculado")) ? (
                 <Pressable
                   onPress={() => void signOut()}
                   style={{

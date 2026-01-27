@@ -185,7 +185,7 @@ export default function StudentPlanScreen() {
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Avisar ausencia
+            Avisar ausência
           </Text>
         </Pressable>
       </ScrollView>

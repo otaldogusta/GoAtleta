@@ -230,17 +230,17 @@ export default function ImportTrainingCsvScreen() {
         errors.push("Data inválida");
       }
       if (!row.title) {
-        errors.push("Titulo ausente");
+        errors.push("Título ausente");
       }
       const info = extractTitleInfo(row.title || "");
       if (!normalizeUnitKey(info.unit) && !normalizeUnitKey(unitHint)) {
-        errors.push("Unidade não encontrada no titulo");
+        errors.push("Unidade não encontrada no título");
       }
       if (!info.timeRange) {
-        errors.push("Horário não encontrado no titulo");
+        errors.push("Horário não encontrado no título");
       }
       if (!info.ageBand) {
-        errors.push("Faixa etaria não encontrada no titulo");
+        errors.push("Faixa etária não encontrada no título");
       }
       let matched: ClassGroup[] = [];
       if (!errors.length) {
@@ -248,7 +248,7 @@ export default function ImportTrainingCsvScreen() {
         if (matched.length === 0) {
           errors.push("Turma não encontrada");
         } else if (matched.length > 1) {
-          errors.push("Turma ambigua (ajuste o titulo)");
+          errors.push("Turma ambígua (ajuste o título)");
         }
       }
       return {
@@ -299,7 +299,7 @@ export default function ImportTrainingCsvScreen() {
 
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Unidade (opcional, se não estiver no titulo)
+            Unidade (opcional, se não estiver no título)
           </Text>
           <TextInput
             placeholder="Ex: Rede Esperança"

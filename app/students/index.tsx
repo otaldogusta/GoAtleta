@@ -137,6 +137,13 @@ export default function StudentsScreen() {
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
   const [guardianRelation, setGuardianRelation] = useState("");
+  const [healthIssue, setHealthIssue] = useState(false);
+  const [healthIssueNotes, setHealthIssueNotes] = useState("");
+  const [medicationUse, setMedicationUse] = useState(false);
+  const [medicationNotes, setMedicationNotes] = useState("");
+  const [healthObservations, setHealthObservations] = useState("");
+  const [showHealthSection, setShowHealthSection] = useState(false);
+  const [showEditHealthSection, setShowEditHealthSection] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -189,6 +196,11 @@ export default function StudentsScreen() {
     guardianName: string;
     guardianPhone: string;
     guardianRelation: string;
+    healthIssue: boolean;
+    healthIssueNotes: string;
+    medicationUse: boolean;
+    medicationNotes: string;
+    healthObservations: string;
   } | null>(null);
   const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
     "students_birthday_notice_v1",
@@ -260,6 +272,14 @@ export default function StudentsScreen() {
   } = useCollapsibleAnimation(showEditGuardianRelationPicker);
   const { animatedStyle: templateListAnimStyle, isVisible: showTemplateListContent } =
     useCollapsibleAnimation(showTemplateList, { translateY: -6 });
+  const {
+    animatedStyle: healthSectionAnimStyle,
+    isVisible: showHealthSectionContent,
+  } = useCollapsibleAnimation(showHealthSection, { translateY: -6 });
+  const {
+    animatedStyle: editHealthSectionAnimStyle,
+    isVisible: showEditHealthSectionContent,
+  } = useCollapsibleAnimation(showEditHealthSection, { translateY: -6 });
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -546,6 +566,11 @@ export default function StudentsScreen() {
       guardianName: guardianName.trim(),
       guardianPhone: guardianPhone.trim(),
       guardianRelation: guardianRelation.trim(),
+      healthIssue,
+      healthIssueNotes: healthIssue ? healthIssueNotes.trim() : "",
+      medicationUse,
+      medicationNotes: medicationUse ? medicationNotes.trim() : "",
+      healthObservations: healthObservations.trim(),
       birthDate: birthDate || undefined,
       createdAt: editingCreatedAt ?? nowIso,
     };
@@ -576,6 +601,11 @@ export default function StudentsScreen() {
     guardianName.trim() ||
     guardianPhone.trim() ||
     guardianRelation.trim() ||
+    healthIssue ||
+    medicationUse ||
+    healthIssueNotes.trim() ||
+    medicationNotes.trim() ||
+    healthObservations.trim() ||
     editingId;
 
   const canSaveStudent =
@@ -598,7 +628,12 @@ export default function StudentsScreen() {
       editSnapshot.loginEmail !== loginEmail ||
       editSnapshot.guardianName !== guardianName ||
       editSnapshot.guardianPhone !== guardianPhone ||
-      editSnapshot.guardianRelation !== guardianRelation
+      editSnapshot.guardianRelation !== guardianRelation ||
+      editSnapshot.healthIssue !== healthIssue ||
+      editSnapshot.healthIssueNotes !== healthIssueNotes ||
+      editSnapshot.medicationUse !== medicationUse ||
+      editSnapshot.medicationNotes !== medicationNotes ||
+      editSnapshot.healthObservations !== healthObservations
     );
   }, [
     ageBand,
@@ -610,6 +645,11 @@ export default function StudentsScreen() {
     guardianName,
     guardianPhone,
     guardianRelation,
+    healthIssue,
+    healthIssueNotes,
+    medicationUse,
+    medicationNotes,
+    healthObservations,
     loginEmail,
     name,
     phone,
@@ -629,6 +669,13 @@ export default function StudentsScreen() {
     setGuardianName("");
     setGuardianPhone("");
     setGuardianRelation("");
+    setHealthIssue(false);
+    setHealthIssueNotes("");
+    setMedicationUse(false);
+    setMedicationNotes("");
+    setHealthObservations("");
+    setShowHealthSection(false);
+    setShowEditHealthSection(false);
     setCustomAgeBand("");
     setUnit("");
     setAgeBand("");
@@ -652,6 +699,12 @@ export default function StudentsScreen() {
     setGuardianName("");
     setGuardianPhone("");
     setGuardianRelation("");
+    setHealthIssue(false);
+    setHealthIssueNotes("");
+    setMedicationUse(false);
+    setMedicationNotes("");
+    setHealthObservations("");
+    setShowHealthSection(false);
   };
 
   const requestSwitchStudentsTab = useCallback(
@@ -758,6 +811,11 @@ export default function StudentsScreen() {
       guardianName: student.guardianName ?? "",
       guardianPhone: student.guardianPhone ?? "",
       guardianRelation: student.guardianRelation ?? "",
+      healthIssue: student.healthIssue ?? false,
+      healthIssueNotes: student.healthIssueNotes ?? "",
+      medicationUse: student.medicationUse ?? false,
+      medicationNotes: student.medicationNotes ?? "",
+      healthObservations: student.healthObservations ?? "",
     });
     if (student.birthDate) {
       setBirthDate(student.birthDate);
@@ -771,6 +829,20 @@ export default function StudentsScreen() {
     setGuardianName(student.guardianName ?? "");
     setGuardianPhone(student.guardianPhone ?? "");
     setGuardianRelation(student.guardianRelation ?? "");
+    setHealthIssue(student.healthIssue ?? false);
+    setHealthIssueNotes(student.healthIssueNotes ?? "");
+    setMedicationUse(student.medicationUse ?? false);
+    setMedicationNotes(student.medicationNotes ?? "");
+    setHealthObservations(student.healthObservations ?? "");
+    setShowEditHealthSection(
+      Boolean(
+        student.healthIssue ||
+          student.medicationUse ||
+          student.healthIssueNotes?.trim() ||
+          student.medicationNotes?.trim() ||
+          student.healthObservations?.trim()
+      )
+    );
     closeAllPickers();
     setShowEditModal(true);
     setStudentFormError("");
@@ -1018,7 +1090,7 @@ export default function StudentsScreen() {
           invitedTo: invitedTo.trim() ? invitedTo : undefined,
         });
         if (!response?.token) {
-          throw new Error("Convite invalido.");
+          throw new Error("Convite inválido.");
         }
         const link = buildInviteLink(response.token);
         const fields: Record<string, string> = { inviteLink: link };
@@ -1065,24 +1137,26 @@ export default function StudentsScreen() {
         const lower = detail.toLowerCase();
         const shortDetail = detail.length > 140 ? `${detail.slice(0, 140)}...` : detail;
         if (lower.includes("invalid jwt") || lower.includes("missing auth token")) {
-          Alert.alert("Sessao expirada", "Entre novamente para gerar o convite.");
+          Alert.alert("Sessão expirada", "Entre novamente para gerar o convite.");
           void signOut();
         } else if (lower.includes("forbidden") || lower.includes("permission")) {
-          Alert.alert("Convite", "Sem permissao para gerar o convite.");
-          setCustomStudentMessage("Sem permissao para gerar o convite.");
+          Alert.alert("Convite", "Sem permissão para gerar o convite.");
+          setCustomStudentMessage("Sem permissão para gerar o convite.");
         } else if (lower.includes("already linked")) {
           const message = options?.revokeFirst
-            ? "Nao foi possivel revogar o acesso. Tente novamente."
-            : "Esse aluno ja esta vinculado. Use Revogar e gerar novo link.";
+            ? "Não foi possível revogar o acesso. Tente novamente."
+            : "Esse aluno já está vinculado. Use Revogar e gerar novo link.";
           Alert.alert("Convite", message);
           setCustomStudentMessage(message);
         } else if (lower.includes("student not found")) {
-          Alert.alert("Convite", "Aluno nao encontrado.");
-          setCustomStudentMessage("Aluno nao encontrado.");
+          Alert.alert("Convite", "Aluno não encontrado.");
+          setCustomStudentMessage("Aluno não encontrado.");
         } else {
-          Alert.alert("Convite", "Nao foi possivel gerar o convite.");
+          Alert.alert("Convite", "Não foi possível gerar o convite.");
           setCustomStudentMessage(
-            shortDetail ? `Nao foi possivel gerar o convite. ${shortDetail}` : "Nao foi possivel gerar o convite."
+            shortDetail
+              ? `Não foi possível gerar o convite. ${shortDetail}`
+              : "Não foi possível gerar o convite."
           );
         }
         return null;
@@ -1825,6 +1899,200 @@ export default function StudentsScreen() {
                 </View>
               </View>
 
+              <View style={{ gap: 8 }}>
+                <Pressable
+                  onPress={() => setShowHealthSection((prev) => !prev)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Saúde do aluno</Text>
+                  <Ionicons
+                    name={showHealthSection ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.muted}
+                  />
+                </Pressable>
+                {showHealthSectionContent ? (
+                  <Animated.View style={[healthSectionAnimStyle, { gap: 8 }]}>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                      <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
+                        <Text style={{ color: colors.muted }}>
+                          Observações sobre saúde do aluno
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <Pressable
+                            onPress={() => {
+                              setHealthIssue(false);
+                              setHealthIssueNotes("");
+                            }}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 999,
+                              backgroundColor: !healthIssue
+                                ? colors.primaryBg
+                                : colors.secondaryBg,
+                              borderWidth: 1,
+                              borderColor: !healthIssue ? colors.primaryBg : colors.border,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: !healthIssue ? colors.primaryText : colors.text,
+                                fontWeight: "700",
+                              }}
+                            >
+                              Não
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => setHealthIssue(true)}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 999,
+                              backgroundColor: healthIssue
+                                ? colors.primaryBg
+                                : colors.secondaryBg,
+                              borderWidth: 1,
+                              borderColor: healthIssue ? colors.primaryBg : colors.border,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: healthIssue ? colors.primaryText : colors.text,
+                                fontWeight: "700",
+                              }}
+                            >
+                              Sim
+                            </Text>
+                          </Pressable>
+                        </View>
+                        {healthIssue ? (
+                          <TextInput
+                            placeholder="Descreva a observação"
+                            value={healthIssueNotes}
+                            onChangeText={setHealthIssueNotes}
+                            placeholderTextColor={colors.placeholder}
+                            multiline
+                            style={{
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              padding: 12,
+                              borderRadius: 12,
+                              backgroundColor: colors.inputBg,
+                              color: colors.inputText,
+                              minHeight: 70,
+                              textAlignVertical: "top",
+                            }}
+                          />
+                        ) : null}
+                      </View>
+                      <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
+                        <Text style={{ color: colors.muted }}>Uso contínuo de medicação</Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <Pressable
+                            onPress={() => {
+                              setMedicationUse(false);
+                              setMedicationNotes("");
+                            }}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 999,
+                              backgroundColor: !medicationUse
+                                ? colors.primaryBg
+                                : colors.secondaryBg,
+                              borderWidth: 1,
+                              borderColor: !medicationUse ? colors.primaryBg : colors.border,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: !medicationUse ? colors.primaryText : colors.text,
+                                fontWeight: "700",
+                              }}
+                            >
+                              Não
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => setMedicationUse(true)}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 999,
+                              backgroundColor: medicationUse
+                                ? colors.primaryBg
+                                : colors.secondaryBg,
+                              borderWidth: 1,
+                              borderColor: medicationUse ? colors.primaryBg : colors.border,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: medicationUse ? colors.primaryText : colors.text,
+                                fontWeight: "700",
+                              }}
+                            >
+                              Sim
+                            </Text>
+                          </Pressable>
+                        </View>
+                        {medicationUse ? (
+                          <TextInput
+                            placeholder="Qual medicação?"
+                            value={medicationNotes}
+                            onChangeText={setMedicationNotes}
+                            placeholderTextColor={colors.placeholder}
+                            multiline
+                            style={{
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              padding: 12,
+                              borderRadius: 12,
+                              backgroundColor: colors.inputBg,
+                              color: colors.inputText,
+                              minHeight: 70,
+                              textAlignVertical: "top",
+                            }}
+                          />
+                        ) : null}
+                      </View>
+                    </View>
+                    <View style={{ gap: 6 }}>
+                      <Text style={{ color: colors.muted }}>Observações</Text>
+                      <TextInput
+                        placeholder="Outras observações"
+                        value={healthObservations}
+                        onChangeText={setHealthObservations}
+                        placeholderTextColor={colors.placeholder}
+                        multiline
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 12,
+                          borderRadius: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
+                          minHeight: 80,
+                          textAlignVertical: "top",
+                        }}
+                      />
+                    </View>
+                  </Animated.View>
+                ) : null}
+              </View>
+
               <Button
                 label={editingId ? "Salvar alterações" : "Adicionar aluno"}
                 onPress={onSave}
@@ -1832,7 +2100,7 @@ export default function StudentsScreen() {
               />
               {editingId ? (
                 <Button
-                  label="Cancelar edicao"
+                  label="Cancelar edição"
                   variant="secondary"
                   onPress={() => {
                     if (isFormDirty) {
@@ -2363,7 +2631,7 @@ export default function StudentsScreen() {
               setEditContainerWindow({ x, y });
             });
           }}
-          style={{ position: "relative", width: "100%" }}
+          style={{ position: "relative", width: "100%", flex: 1 }}
         >
         <ConfirmCloseOverlay
           visible={showEditCloseConfirm}
@@ -2374,13 +2642,13 @@ export default function StudentsScreen() {
           }}
         />
         <KeyboardAvoidingView
-          style={{ width: "100%" }}
+          style={{ width: "100%", flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
           <ScrollView
-            style={{ width: "100%" }}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            style={{ width: "100%", flex: 1 }}
+            contentContainerStyle={{ paddingBottom: 32 }}
             keyboardShouldPersistTaps="handled"
             onScroll={syncEditPickerLayouts}
             scrollEventThrottle={16}
@@ -2544,19 +2812,217 @@ export default function StudentsScreen() {
                   </View>
                 </View>
 
+                <View style={{ gap: 8 }}>
+                  <Pressable
+                    onPress={() => setShowEditHealthSection((prev) => !prev)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                      Saúde do aluno
+                    </Text>
+                    <Ionicons
+                      name={showEditHealthSection ? "chevron-up" : "chevron-down"}
+                      size={16}
+                      color={colors.muted}
+                    />
+                  </Pressable>
+                  {showEditHealthSectionContent ? (
+                    <Animated.View style={[editHealthSectionAnimStyle, { gap: 8 }]}>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                        <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Observações sobre saúde do aluno
+                          </Text>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <Pressable
+                              onPress={() => {
+                                setHealthIssue(false);
+                                setHealthIssueNotes("");
+                              }}
+                              style={{
+                                paddingVertical: 8,
+                                paddingHorizontal: 12,
+                                borderRadius: 999,
+                                backgroundColor: !healthIssue
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                                borderWidth: 1,
+                                borderColor: !healthIssue ? colors.primaryBg : colors.border,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: !healthIssue ? colors.primaryText : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Não
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => setHealthIssue(true)}
+                              style={{
+                                paddingVertical: 8,
+                                paddingHorizontal: 12,
+                                borderRadius: 999,
+                                backgroundColor: healthIssue
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                                borderWidth: 1,
+                                borderColor: healthIssue ? colors.primaryBg : colors.border,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: healthIssue ? colors.primaryText : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Sim
+                              </Text>
+                            </Pressable>
+                          </View>
+                          {healthIssue ? (
+                            <TextInput
+                              placeholder="Descreva a observação"
+                              value={healthIssueNotes}
+                              onChangeText={setHealthIssueNotes}
+                              placeholderTextColor={colors.placeholder}
+                              multiline
+                              style={{
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                padding: 10,
+                                borderRadius: 12,
+                                backgroundColor: colors.inputBg,
+                                color: colors.inputText,
+                                minHeight: 70,
+                                textAlignVertical: "top",
+                              }}
+                            />
+                          ) : null}
+                        </View>
+                        <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Uso contínuo de medicação
+                          </Text>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <Pressable
+                              onPress={() => {
+                                setMedicationUse(false);
+                                setMedicationNotes("");
+                              }}
+                              style={{
+                                paddingVertical: 8,
+                                paddingHorizontal: 12,
+                                borderRadius: 999,
+                                backgroundColor: !medicationUse
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                                borderWidth: 1,
+                                borderColor: !medicationUse ? colors.primaryBg : colors.border,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: !medicationUse ? colors.primaryText : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Não
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => setMedicationUse(true)}
+                              style={{
+                                paddingVertical: 8,
+                                paddingHorizontal: 12,
+                                borderRadius: 999,
+                                backgroundColor: medicationUse
+                                  ? colors.primaryBg
+                                  : colors.secondaryBg,
+                                borderWidth: 1,
+                                borderColor: medicationUse ? colors.primaryBg : colors.border,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: medicationUse ? colors.primaryText : colors.text,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                Sim
+                              </Text>
+                            </Pressable>
+                          </View>
+                          {medicationUse ? (
+                            <TextInput
+                              placeholder="Qual medicação?"
+                              value={medicationNotes}
+                              onChangeText={setMedicationNotes}
+                              placeholderTextColor={colors.placeholder}
+                              multiline
+                              style={{
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                padding: 10,
+                                borderRadius: 12,
+                                backgroundColor: colors.inputBg,
+                                color: colors.inputText,
+                                minHeight: 70,
+                                textAlignVertical: "top",
+                              }}
+                            />
+                          ) : null}
+                        </View>
+                      </View>
+                      <View style={{ gap: 6 }}>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>Observações</Text>
+                        <TextInput
+                          placeholder="Outras observações"
+                          value={healthObservations}
+                          onChangeText={setHealthObservations}
+                          placeholderTextColor={colors.placeholder}
+                          multiline
+                          style={{
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            padding: 10,
+                            borderRadius: 12,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                            minHeight: 80,
+                            textAlignVertical: "top",
+                          }}
+                        />
+                      </View>
+                    </Animated.View>
+                  ) : null}
+                </View>
+
                 <View style={{ height: 1, backgroundColor: colors.border }} />
 
                 <View style={{ gap: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-                    Dados do responsavel
+                    Dados do responsável
                   </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Nome do responsavel
+                        Nome do responsável
                       </Text>
                       <TextInput
-                        placeholder="Nome do responsavel"
+                        placeholder="Nome do responsável"
                         value={guardianName}
                         onChangeText={setGuardianName}
                         onBlur={() => setGuardianName(formatName(guardianName))}
@@ -2574,10 +3040,10 @@ export default function StudentsScreen() {
                     </View>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Telefone do responsavel
+                        Telefone do responsável
                       </Text>
                       <TextInput
-                        placeholder="Telefone do responsavel"
+                        placeholder="Telefone do responsável"
                         value={guardianPhone}
                         onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                         keyboardType="phone-pad"

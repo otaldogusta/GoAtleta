@@ -7,7 +7,7 @@ export type ScoutingCounts = Record<ScoutingSkill, ScoreCounts>;
 
 export const scoutingSkills: { id: ScoutingSkill; label: string }[] = [
   { id: "serve", label: "Saque" },
-  { id: "receive", label: "Recepcao" },
+  { id: "receive", label: "Recepção" },
   { id: "set", label: "Toque" },
   { id: "attack_send", label: "Envio" },
 ];
@@ -16,12 +16,12 @@ export const scoutingSkillHelp: Record<ScoutingSkill, string[]> = {
   serve: [
     "0 = erro (fora/rede)",
     "1 = entrou",
-    "2 = entrou e dificultou (direcionado/difácil)",
+    "2 = entrou e dificultou (direcionado/difícil)",
   ],
   receive: [
     "0 = não controlou",
     "1 = controlou e manteve vivo",
-    "2 = controlou bem (bola jogavel)",
+    "2 = controlou bem (bola jogável)",
   ],
   set: [
     "0 = não deu continuidade",
@@ -30,8 +30,8 @@ export const scoutingSkillHelp: Record<ScoutingSkill, string[]> = {
   ],
   attack_send: [
     "0 = erro (fora/rede/não passa)",
-    "1 = enviou fácil (sem direcao)",
-    "2 = enviou com direcao/qualidade (zona/dificultou)",
+    "1 = enviou fácil (sem direção)",
+    "2 = enviou com direção/qualidade (zona/dificultou)",
   ],
 };
 
@@ -39,10 +39,10 @@ export const scoutingInitiationNote =
   "Registre o scouting no jogo reduzido/jogo final (últimos 10-15 min) para comparar melhor as aulas.";
 
 export const scoutingPriorityNote =
-  "Prioridade: Saque + Recepcao. Depois Toque + Envio.";
+  "Prioridade: Saque + Recepção. Depois Toque + Envio.";
 
 export const scoutingEnvioTooltip =
-  "Envio = devolver a bola para o outro lado (toque/manchete/lancamento permitido em regras adaptadas).";
+  "Envio = devolver a bola para o outro lado (toque/manchete/lançamento permitido em regras adaptadas).";
 
 export const createEmptyCounts = (): ScoutingCounts => ({
   serve: { 0: 0, 1: 0, 2: 0 },
@@ -109,9 +109,9 @@ export const getFocusSuggestion = (
   scored.sort((a, b) => a.metrics.avg - b.metrics.avg);
   const weakest = scored[0].skill.id;
   const suggestionMap: Record<ScoutingSkill, string> = {
-    receive: "Recepcao/manchete direcionada + jogos guiados",
+    receive: "Recepção/manchete direcionada + jogos guiados",
     serve: "Saque por baixo curto e por zonas + jogo iniciando com saque",
-    set: "Toque para alvo e em dupla + sequencia manchete->toque",
+    set: "Toque para alvo e em dupla + sequência manchete->toque",
     attack_send: "Envio direcional para zonas + jogo reduzido",
   };
   return {

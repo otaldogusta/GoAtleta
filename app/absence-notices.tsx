@@ -70,7 +70,7 @@ export default function AbsenceNoticesScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-            Avisos de ausencia
+            Avisos de ausência
           </Text>
           <Pressable
             onPress={() => router.back()}
@@ -101,7 +101,7 @@ export default function AbsenceNoticesScreen() {
               Nenhum aviso pendente
             </Text>
             <Text style={{ color: colors.muted, marginTop: 6 }}>
-              Avisos de ausencia vao aparecer aqui.
+              Avisos de ausência vão aparecer aqui.
             </Text>
           </View>
         ) : (

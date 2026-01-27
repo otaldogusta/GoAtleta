@@ -32,8 +32,8 @@ export const volleyballDrills: VolleyballDrill[] = [
     goals: ["Fundamentos", "Voleibol"],
     drill: "Roda de passes em 3",
     tempoMin: 8,
-    carga: "3 series de 10 repeticoes",
-    justificativa: "Aumenta contato com a bola e precisao motora",
+    carga: "3 séries de 10 repetições",
+    justificativa: "Aumenta contato com a bola e precisão motora",
     referencias: [
       "De Oliveira Castro et al., 2021",
       "Barba-Martin et al., 2020",
@@ -47,8 +47,8 @@ export const volleyballDrills: VolleyballDrill[] = [
     goals: ["Fundamentos", "Voleibol"],
     drill: "Manchete em duplas com alvo",
     tempoMin: 8,
-    carga: "3 series de 10 repeticoes",
-    justificativa: "Melhora controle e percepcao espacial",
+    carga: "3 séries de 10 repetições",
+    justificativa: "Melhora controle e percepção espacial",
     referencias: [
       "De Oliveira Castro et al., 2021",
       "Barba-Martin et al., 2020",
@@ -62,8 +62,8 @@ export const volleyballDrills: VolleyballDrill[] = [
     goals: ["Fundamentos", "Voleibol"],
     drill: "Saque em alvos na quadra",
     tempoMin: 6,
-    carga: "2 series de 8 repeticoes",
-    justificativa: "Desenvolve coordenacao e forca inicial",
+    carga: "2 séries de 8 repetições",
+    justificativa: "Desenvolve coordenação e força inicial",
     referencias: [
       "De Oliveira Castro et al., 2021",
       "Barba-Martin et al., 2020",
@@ -77,8 +77,8 @@ export const volleyballDrills: VolleyballDrill[] = [
     goals: ["Fundamentos", "Voleibol"],
     drill: "Saque alternado (zonas)",
     tempoMin: 10,
-    carga: "3 series de 6 repeticoes",
-    justificativa: "Trabalha potencia e precisao",
+    carga: "3 séries de 6 repetições",
+    justificativa: "Trabalha potência e precisão",
     referencias: ["Rebelo et al., 2025", "Oliveira et al., 2023"],
   },
   {
@@ -86,10 +86,10 @@ export const volleyballDrills: VolleyballDrill[] = [
     habilidade: "Ataque",
     mvLevel: "MV2",
     goals: ["Fundamentos", "Voleibol"],
-    drill: "Ataque apos levantamento lateral",
+    drill: "Ataque após levantamento lateral",
     tempoMin: 10,
-    carga: "3 series de 8 repeticoes",
-    justificativa: "Integracao tecnica e biomecanica",
+    carga: "3 séries de 8 repetições",
+    justificativa: "Integração técnica e biomecânica",
     referencias: [
       "Hegi et al., 2023",
       "Rebelo et al., 2025",
@@ -103,7 +103,7 @@ export const volleyballDrills: VolleyballDrill[] = [
     goals: ["Fundamentos", "Voleibol"],
     drill: "Circuito de cones com bola",
     tempoMin: 6,
-    carga: "3 series de 5 voltas",
+    carga: "3 séries de 5 voltas",
     justificativa: "Melhora agilidade e controle",
     referencias: ["Yilmaz et al., 2024", "Thieschafer & Busch, 2022"],
   },
@@ -114,8 +114,8 @@ export const volleyballDrills: VolleyballDrill[] = [
     goals: ["Fundamentos", "Voleibol"],
     drill: "Bloqueio em duplas com ataque simulado",
     tempoMin: 8,
-    carga: "3 series de 6 repeticoes",
-    justificativa: "Foco em aterrissagem segura e tempo de reacao",
+    carga: "3 séries de 6 repetições",
+    justificativa: "Foco em aterrissagem segura e tempo de reação",
     referencias: [
       "Hegi et al., 2023",
       "Rebelo et al., 2025",
@@ -127,10 +127,10 @@ export const volleyballDrills: VolleyballDrill[] = [
     habilidade: "Prevencao de lesao",
     mvLevel: "ALL",
     goals: ["Fundamentos", "Voleibol"],
-    drill: "Aquecimento neuromuscular (ex: saltos, equilibrio)",
+    drill: "Aquecimento neuromuscular (ex: saltos, equilíbrio)",
     tempoMin: 10,
     carga: "1x por sessão",
-    justificativa: "Reduz risco de lesao, melhora propriocepcao",
+    justificativa: "Reduz risco de lesão, melhora propriocepção",
     referencias: ["Hughes et al., 2023", "Lutz et al., 2024", "Caldemeyer et al., 2020"],
   },
 ];
@@ -210,18 +210,18 @@ export function pickVolleyballMain(cls: ClassGroup): string[] | null {
 
   if (prevention) {
     main.push(
-      `Prevencao (${prevention.tempoMin}min): ${prevention.drill} - ${prevention.carga}`
+      `Prevenção (${prevention.tempoMin}min): ${prevention.drill} - ${prevention.carga}`
     );
     main.push(`Justificativa: ${prevention.justificativa}`);
-    main.push(`Referencias: ${prevention.referencias.join("; ")}`);
+    main.push(`Referências: ${prevention.referencias.join("; ")}`);
   }
 
   if (tech) {
     main.push(
-      `Tecnica - ${tech.habilidade} (${tech.tempoMin}min): ${tech.drill} - ${tech.carga}`
+      `Técnica - ${tech.habilidade} (${tech.tempoMin}min): ${tech.drill} - ${tech.carga}`
     );
     main.push(`Justificativa: ${tech.justificativa}`);
-    main.push(`Referencias: ${tech.referencias.join("; ")}`);
+    main.push(`Referências: ${tech.referencias.join("; ")}`);
   }
 
   if (movement) {
@@ -229,7 +229,7 @@ export function pickVolleyballMain(cls: ClassGroup): string[] | null {
       `Deslocamento (${movement.tempoMin}min): ${movement.drill} - ${movement.carga}`
     );
     main.push(`Justificativa: ${movement.justificativa}`);
-    main.push(`Referencias: ${movement.referencias.join("; ")}`);
+    main.push(`Referências: ${movement.referencias.join("; ")}`);
   }
 
   main.push("Mini jogo tecnico (15min): jogo reduzido com foco no fundamento do dia");

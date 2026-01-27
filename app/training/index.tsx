@@ -245,16 +245,16 @@ const getMethodologyTips = (ageBand?: string) => {
   const start = range.start;
   if (start <= 8) {
     return [
-      "Sessão curta e ludica (45-60 min)",
-      "Priorize correr, saltar, lancar, receber",
+      "Sessão curta e lúdica (45-60 min)",
+      "Priorize correr, saltar, lançar, receber",
       "Jogo 1x1 ou 2x2 com bola leve",
-      "Sem carga externa, foco em tecnica",
+      "Sem carga externa, foco em técnica",
     ];
   }
   if (start <= 11) {
     return [
       "2-3 sessões/semana com fundamentos",
-      "Aquecimento preventivo simples (core e equilibrio)",
+      "Aquecimento preventivo simples (core e equilíbrio)",
       "Jogo 2x2 e 3x3 com regras simples",
       "Controle de saltos e pausas ativas",
     ];
@@ -262,7 +262,7 @@ const getMethodologyTips = (ageBand?: string) => {
   return [
     "3 sessões/semana, 60-90 min",
     "Volleyveilig 2x/semana + mobilidade",
-    "Forca 50-70% 1RM com progressao leve",
+    "Força 50-70% 1RM com progressão leve",
     "Monitorar saltos e PSE",
   ];
 };
@@ -1260,7 +1260,7 @@ export default function TrainingList() {
     const plan: TrainingPlan = {
       id: editingId ?? "t_" + Date.now(),
       classId,
-      title: title.trim() || "Planejamento sem titulo",
+      title: title.trim() || "Planejamento sem título",
       tags: tagsText
         .split(",")
         .map((tag) => tag.trim())
@@ -1319,13 +1319,13 @@ export default function TrainingList() {
       templateAgeBand ||
       (classes[0] ? classes[0].ageBand : "");
     if (!band) {
-      Alert.alert("Selecione uma turma", "Defina a faixa etaria primeiro.");
+      Alert.alert("Selecione uma turma", "Defina a faixa etária primeiro.");
       return;
     }
     const nowIso = new Date().toISOString();
     const template: TrainingTemplate = {
       id: editingTemplateId ?? "tpl_" + Date.now(),
-      title: title.trim() || "Modelo sem titulo",
+      title: title.trim() || "Modelo sem título",
       ageBand: band,
       tags: tagsText
         .split(",")
@@ -1464,7 +1464,7 @@ export default function TrainingList() {
   const duplicatePlan = (plan: TrainingPlan) => {
     useTemplateAsPlan({
       id: "dup_" + Date.now(),
-      title: plan.title + " (copia)",
+      title: plan.title + " (cópia)",
       tags: plan.tags ?? [],
       warmup: plan.warmup ?? [],
       main: plan.main ?? [],
@@ -1547,12 +1547,12 @@ export default function TrainingList() {
   const duplicateTemplateFromEditor = async () => {
     const band = templateAge.trim() || templateAgeBand;
     if (!band) {
-      Alert.alert("Defina a faixa etaria", "Informe a faixa etaria do modelo.");
+      Alert.alert("Defina a faixa etária", "Informe a faixa etária do modelo.");
       return;
     }
     const copy: TrainingTemplate = {
       id: "tpl_" + Date.now(),
-      title: (templateTitle.trim() || "Modelo sem titulo") + " (copia)",
+      title: (templateTitle.trim() || "Modelo sem título") + " (cópia)",
       ageBand: band,
       tags: templateTags
         .split(",")
@@ -1717,13 +1717,13 @@ export default function TrainingList() {
   const saveTemplateEditor = async () => {
     const ageBand = templateAge.trim() || templateAgeBand;
     if (!ageBand) {
-      Alert.alert("Defina a faixa etaria", "Informe a faixa etaria do modelo.");
+      Alert.alert("Defina a faixa etária", "Informe a faixa etária do modelo.");
       return;
     }
     const nowIso = new Date().toISOString();
     const template: TrainingTemplate = {
       id: templateEditorId ?? "tpl_" + Date.now(),
-      title: templateTitle.trim() || "Modelo sem titulo",
+      title: templateTitle.trim() || "Modelo sem título",
       ageBand,
       tags: templateTags
         .split(",")
@@ -1789,13 +1789,13 @@ export default function TrainingList() {
       templateAgeBand ||
       (classes[0] ? classes[0].ageBand : "");
     if (!band) {
-      Alert.alert("Selecione uma turma", "Defina a faixa etaria primeiro.");
+      Alert.alert("Selecione uma turma", "Defina a faixa etária primeiro.");
       return;
     }
     const nowIso = new Date().toISOString();
     const template: TrainingTemplate = {
       id: "tpl_" + Date.now(),
-      title: title.trim() || "Modelo sem titulo",
+      title: title.trim() || "Modelo sem título",
       ageBand: band,
       tags: tagsText
         .split(",")
@@ -1821,7 +1821,7 @@ export default function TrainingList() {
       templateAgeBand ||
       (classes[0] ? classes[0].ageBand : "");
     if (!band) {
-      Alert.alert("Selecione uma turma", "Defina a faixa etaria primeiro.");
+      Alert.alert("Selecione uma turma", "Defina a faixa etária primeiro.");
       return;
     }
     const template: TrainingTemplate = {
@@ -2263,7 +2263,7 @@ export default function TrainingList() {
           </AnchoredDropdown>
 
           <TextInput
-            placeholder="Titulo do planejamento"
+            placeholder="Título do planejamento"
             value={title}
             onChangeText={setTitle}
             placeholderTextColor={colors.placeholder}
@@ -2339,7 +2339,7 @@ export default function TrainingList() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Dicas da faixa etaria
+                    Dicas da faixa etária
                   </Text>
                   {tips.map((tip) => (
                     <Text key={tip} style={{ color: colors.muted, fontSize: 12 }}>
@@ -2515,7 +2515,7 @@ export default function TrainingList() {
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Modelos prontos
           </Text>
-          <Text style={{ color: colors.muted }}>Escolha a faixa etaria</Text>
+          <Text style={{ color: colors.muted }}>Escolha a faixa etária</Text>
           <FadeHorizontalScroll
             fadeColor={colors.card}
             contentContainerStyle={{ flexDirection: "row", gap: 8 }}
@@ -2608,7 +2608,7 @@ export default function TrainingList() {
                   </>
                 ) : (
                   <Text style={{ color: colors.muted }}>
-                    Nenhum modelo para essa faixa etaria.
+                    Nenhum modelo para essa faixa etária.
                   </Text>
                 )}
               </Animated.View>
@@ -2758,7 +2758,7 @@ export default function TrainingList() {
                 <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Titulo do modelo</Text>
                   <TextInput
-                    placeholder="Titulo do modelo"
+                    placeholder="Título do modelo"
                     value={templateTitle}
                     onChangeText={setTemplateTitle}
                     placeholderTextColor={colors.placeholder}
@@ -2774,9 +2774,9 @@ export default function TrainingList() {
                   />
                 </View>
                 <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
                   <TextInput
-                    placeholder="Faixa etaria (ex: 10-12)"
+                    placeholder="Faixa etária (ex: 10-12)"
                     value={templateAge}
                     onChangeText={setTemplateAge}
                     placeholderTextColor={colors.placeholder}

@@ -1024,7 +1024,7 @@ export default function SessionScreen() {
             }}
           >
             <Text style={{ fontWeight: "700", color: colors.text, fontSize: 12 }}>
-              Guia rapido (0/1/2)
+              Guia rápido (0/1/2)
             </Text>
             {scoutingSkills.map((skill) => (
               <Text key={skill.id} style={{ color: colors.muted, fontSize: 12 }}>

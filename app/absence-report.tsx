@@ -61,7 +61,7 @@ export default function AbsenceReportScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-            Avisar ausencia
+            Avisar ausência
           </Text>
           <Pressable
             onPress={() => router.back()}

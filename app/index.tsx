@@ -767,7 +767,7 @@ function TrainerHome() {
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Avisos de ausencia
+                Avisos de ausência
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Alunos ausentes

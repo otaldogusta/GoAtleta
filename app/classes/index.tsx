@@ -560,12 +560,12 @@ export default function ClassesScreen() {
       return;
     }
     if (!newAgeBand) {
-      setFormError("Selecione a faixa etaria.");
+      setFormError("Selecione a faixa etária.");
       Vibration.vibrate(40);
       return;
     }
     if (!newGender) {
-      setFormError("Selecione o genero.");
+      setFormError("Selecione o gênero.");
       Vibration.vibrate(40);
       return;
     }
@@ -575,7 +575,7 @@ export default function ClassesScreen() {
       return;
     }
     if (!newMvLevel) {
-      setFormError("Selecione o nivel.");
+      setFormError("Selecione o nível.");
       Vibration.vibrate(40);
       return;
     }
@@ -587,7 +587,7 @@ export default function ClassesScreen() {
     }
     const durationValue = parseDuration(newDuration.trim());
     if (!durationValue) {
-      setFormError("Duracao inválida. Use minutos entre 30 e 180.");
+      setFormError("Duração inválida. Use minutos entre 30 e 180.");
       Vibration.vibrate(40);
       return;
     }
@@ -802,7 +802,7 @@ export default function ClassesScreen() {
     }
     const durationValue = parseDuration(editDuration.trim());
     if (!durationValue) {
-      setEditFormError("Duracao inválida. Use minutos entre 30 e 180.");
+      setEditFormError("Duração inválida. Use minutos entre 30 e 180.");
       Vibration.vibrate(40);
       return;
     }
@@ -848,7 +848,7 @@ export default function ClassesScreen() {
         title: "Excluir turma?",
         message: "Isso remove a turma e todos os dados relacionados.",
         confirmLabel: "Excluir",
-        undoMessage: "Turma excluida. Deseja desfazer?",
+        undoMessage: "Turma excluída. Deseja desfazer?",
         onOptimistic: () => {
           setClasses((prev) => prev.filter((item) => item.id !== target.id));
         },
@@ -1835,7 +1835,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
               <View ref={ageBandTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("age")}
@@ -1858,7 +1858,7 @@ export default function ClassesScreen() {
               </View>
               {showAllAges ? (
                 <TextInput
-                  placeholder="Faixa etaria (ex: 14-16)"
+                  placeholder="Faixa etária (ex: 14-16)"
                   value={newAgeBand}
                   onChangeText={setNewAgeBand}
                   placeholderTextColor={colors.placeholder}
@@ -1896,7 +1896,7 @@ export default function ClassesScreen() {
               />
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
               <View ref={durationTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("duration")}
@@ -1919,7 +1919,7 @@ export default function ClassesScreen() {
               </View>
               {showCustomDuration ? (
                 <TextInput
-                  placeholder="Duracao (min)"
+                  placeholder="Duração (min)"
                   value={newDuration}
                   onChangeText={setNewDuration}
                   keyboardType="numeric"
@@ -1979,7 +1979,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao do ciclo</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Duração do ciclo</Text>
               <View ref={cycleLengthTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("cycle")}
@@ -2387,7 +2387,7 @@ export default function ClassesScreen() {
                 />
               </View>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
                 <View ref={editDurationTriggerRef}>
                   <Pressable
                     onPress={() => toggleEditPicker("duration")}
@@ -2410,7 +2410,7 @@ export default function ClassesScreen() {
                 </View>
                 {editShowCustomDuration ? (
                   <TextInput
-                    placeholder="Duracao (min)"
+                    placeholder="Duração (min)"
                     value={editDuration}
                     onChangeText={setEditDuration}
                     keyboardType="numeric"
@@ -2439,7 +2439,7 @@ export default function ClassesScreen() {
                 />
               </View>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao do ciclo</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Duração do ciclo</Text>
                 <View ref={editCycleLengthTriggerRef}>
                   <Pressable
                     onPress={() => toggleEditPicker("cycle")}
@@ -2487,7 +2487,7 @@ export default function ClassesScreen() {
                 </View>
               </View>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etaria</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
                 <View ref={editAgeBandTriggerRef}>
                   <Pressable
                     onPress={() => toggleEditPicker("age")}
@@ -2510,7 +2510,7 @@ export default function ClassesScreen() {
                 </View>
                 {editShowAllAges ? (
                   <TextInput
-                    placeholder="Faixa etaria (ex: 14-16)"
+                    placeholder="Faixa etária (ex: 14-16)"
                     value={editAgeBand}
                     onChangeText={setEditAgeBand}
                     placeholderTextColor={colors.placeholder}

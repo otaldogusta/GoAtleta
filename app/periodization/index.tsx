@@ -35,7 +35,7 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
-type VolumeLevel = "baixo" | "medio" | "alto";
+type VolumeLevel = "baixo" | "médio" | "alto";
 
 type WeekPlan = {
   week: number;
@@ -53,7 +53,7 @@ const cycleOptions = [2, 3, 4, 5, 6, 8, 10, 12] as const;
 const sessionsOptions = [
   2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
 ] as const;
-const volumeOrder: VolumeLevel[] = ["baixo", "medio", "alto"];
+const volumeOrder: VolumeLevel[] = ["baixo", "médio", "alto"];
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
 const dayNumbersByLabelIndex = [1, 2, 3, 4, 5, 6, 0];
 
@@ -61,13 +61,13 @@ const pseTitle = "Percepcao Subjetiva de Esforco";
 
 const volumeToPSE: Record<VolumeLevel, string> = {
   baixo: "PSE 4-5",
-  medio: "PSE 5-6",
+  médio: "PSE 5-6",
   alto: "PSE 6-7",
 };
 
 const volumeToRatio: Record<VolumeLevel, number> = {
   baixo: 0.35,
-  medio: 0.65,
+  médio: 0.65,
   alto: 0.9,
 };
 
@@ -87,7 +87,7 @@ const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
       border: colors.successBg,
     };
   }
-  if (level === "medio") {
+  if (level === "médio") {
     return {
       bg: colors.warningBg,
       text: colors.warningText,
@@ -106,7 +106,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     {
       week: 1,
       title: "Base ludica",
-      focus: "Coordenacao, brincadeiras e jogos simples",
+      focus: "Coordenação, brincadeiras e jogos simples",
       volume: "baixo",
       notes: ["Bola leve, rede baixa", "1x1 e 2x2"],
     },
@@ -114,37 +114,37 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
       week: 2,
       title: "Fundamentos",
       focus: "Toque, manchete e controle basico",
-      volume: "medio",
+      volume: "médio",
       notes: ["Series curtas", "Feedback simples"],
     },
     {
       week: 3,
       title: "Jogo reduzido",
-      focus: "Cooperacao e tomada de decisao",
-      volume: "medio",
+      focus: "Cooperação e tomada de decisão",
+      volume: "médio",
       notes: ["Jogos 2x2/3x3", "Regras simples"],
     },
     {
       week: 4,
       title: "Recuperação",
-      focus: "Revisao e prazer pelo jogo",
+      focus: "Revisão e prazer pelo jogo",
       volume: "baixo",
-      notes: ["Menos repeticoes", "Mais variacao"],
+      notes: ["Menos repetições", "Mais variação"],
     },
   ],
   "09-11": [
     {
       week: 1,
-      title: "Base tecnica",
+      title: "Base técnica",
       focus: "Fundamentos e controle de bola",
-      volume: "medio",
-      notes: ["2-3 sessões/semana", "Equilibrio e core"],
+      volume: "médio",
+      notes: ["2-3 sessões/semana", "Equilíbrio e core"],
     },
     {
       week: 2,
-      title: "Tomada de decisao",
-      focus: "Leitura simples de jogo e cooperacao",
-      volume: "medio",
+      title: "Tomada de decisão",
+      focus: "Leitura simples de jogo e cooperação",
+      volume: "médio",
       notes: ["Jogos condicionados", "Ritmo moderado"],
     },
     {
@@ -157,7 +157,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     {
       week: 4,
       title: "Recuperação",
-      focus: "Tecnica leve e prevencao",
+      focus: "Técnica leve e prevenção",
       volume: "baixo",
       notes: ["Volleyveilig simples", "Mobilidade"],
     },
@@ -165,15 +165,15 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
   "12-14": [
     {
       week: 1,
-      title: "Base tecnica",
+      title: "Base técnica",
       focus: "Refino de fundamentos e posição",
-      volume: "medio",
+      volume: "médio",
       notes: ["Sessões 60-90 min", "Ritmo controlado"],
     },
     {
       week: 2,
       title: "Potencia controlada",
-      focus: "Salto, deslocamento e reacao",
+      focus: "Salto, deslocamento e reação",
       volume: "alto",
       notes: ["Pliometria leve", "Forca 50-70% 1RM"],
     },
@@ -187,7 +187,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     {
       week: 4,
       title: "Recuperação",
-      focus: "Prevencao e consolidacao tecnica",
+      focus: "Prevenção e consolidação técnica",
       volume: "baixo",
       notes: ["Volleyveilig completo", "Menos saltos"],
     },
@@ -225,7 +225,7 @@ const resolvePlanBand = (value?: string): (typeof ageBands)[number] => {
 };
 
 const getPhysicalFocus = (band: (typeof ageBands)[number]) => {
-  if (band === "06-08") return "Coordenacao e equilibrio";
+  if (band === "06-08") return "Coordenação e equilíbrio";
   if (band === "09-11") return "Forca leve e agilidade";
   return "Potencia controlada";
 };
@@ -254,12 +254,12 @@ const getPhaseForWeek = (weekNumber: number, cycleLength: number) => {
   if (cycleLength >= 9) {
     if (weekNumber <= 4) return "Base";
     if (weekNumber <= 8) return "Desenvolvimento";
-    return "Consolidacao";
+    return "Consolidação";
   }
   const chunk = Math.max(1, Math.ceil(cycleLength / 3));
   if (weekNumber <= chunk) return "Base";
   if (weekNumber <= chunk * 2) return "Desenvolvimento";
-  return "Consolidacao";
+  return "Consolidação";
 };
 
 const getPSETarget = (phase: string) => {
@@ -835,7 +835,7 @@ export default function PeriodizationScreen() {
         .slice(0, 3);
       const painHits = painLogs.filter((log) => (log.painScore ?? 0) >= 2);
       if (painHits.length >= 3) {
-        setPainAlert("Dor nivel 2+ por 3 registros. Considere avaliar com profissional.");
+        setPainAlert("Dor nível 2+ por 3 registros. Considere avaliar com profissional.");
         setPainAlertDates(painHits.map((log) => formatDisplayDate(log.createdAt)));
       } else {
         setPainAlert("");
@@ -928,7 +928,7 @@ export default function PeriodizationScreen() {
     }
     if (ageBand === "09-11") {
       return [
-        "Fundamentos + tomada de decisao",
+        "Fundamentos + tomada de decisão",
         "Controle de volume e saltos",
         "Aquecimento preventivo simples",
       ];
@@ -1575,7 +1575,7 @@ export default function PeriodizationScreen() {
         acc[week.volume] += 1;
         return acc;
       },
-      { baixo: 0, medio: 0, alto: 0 } as Record<VolumeLevel, number>
+      { baixo: 0, médio: 0, alto: 0 } as Record<VolumeLevel, number>
     );
   }, [weekPlans]);
 
@@ -1730,7 +1730,7 @@ export default function PeriodizationScreen() {
             Visao geral
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Panorama rapido do ciclo e da turma atual
+            Panorama rápido do ciclo e da turma atual
           </Text>
           <View
             style={[
@@ -1988,7 +1988,7 @@ export default function PeriodizationScreen() {
             <Text style={{ color: colors.muted, fontSize: 12 }}>Tendencia de carga</Text>
             <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
               {progressBars.map((ratio, index) => {
-                const level = weekPlans[index]?.volume ?? "medio";
+                const level = weekPlans[index]?.volume ?? "médio";
                 const palette = getVolumePalette(level, colors);
                 const size = 28;
                 return (
@@ -2158,7 +2158,7 @@ export default function PeriodizationScreen() {
             <Animated.View style={[{ gap: 12 }, loadAnimStyle]}>
               <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
             {progressBars.map((ratio, index) => {
-              const level = weekPlans[index]?.volume ?? "medio";
+              const level = weekPlans[index]?.volume ?? "médio";
               const isActive = index + 1 === currentWeek;
               const palette = getVolumePalette(level, colors);
               return (
@@ -3348,5 +3348,3 @@ export default function PeriodizationScreen() {
     </SafeAreaView>
   );
 }
-
-

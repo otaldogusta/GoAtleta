@@ -106,6 +106,11 @@ export type Student = {
   guardianPhone?: string;
   guardianRelation?: string;
   birthDate?: string;
+  healthIssue?: boolean;
+  healthIssueNotes?: string;
+  medicationUse?: boolean;
+  medicationNotes?: string;
+  healthObservations?: string;
   createdAt: string;
 };
 

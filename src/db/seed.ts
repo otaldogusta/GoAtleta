@@ -398,6 +398,11 @@ type StudentRow = {
   guardian_name?: string | null;
   guardian_phone?: string | null;
   guardian_relation?: string | null;
+  health_issue?: boolean | null;
+  health_issue_notes?: string | null;
+  medication_use?: boolean | null;
+  medication_notes?: string | null;
+  health_observations?: string | null;
   birthdate?: string | null;
   createdat: string;
 };
@@ -980,7 +985,7 @@ export async function duplicateClass(base: ClassGroup) {
   await supabasePost("/classes", [
     {
       id: "c_" + Date.now(),
-      name: base.name + " (copia)",
+      name: base.name + " (c?pia)",
       unit: resolvedUnitRow?.name ?? base.unit,
       unit_id: resolvedUnit,
       color_key: base.colorKey ?? null,
@@ -1678,6 +1683,11 @@ export async function getStudents(): Promise<Student[]> {
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
       guardianRelation: row.guardian_relation ?? undefined,
+      healthIssue: row.health_issue ?? undefined,
+      healthIssueNotes: row.health_issue_notes ?? undefined,
+      medicationUse: row.medication_use ?? undefined,
+      medicationNotes: row.medication_notes ?? undefined,
+      healthObservations: row.health_observations ?? undefined,
       birthDate: row.birthdate ?? "",
       createdAt: row.createdat,
     }));
@@ -1708,6 +1718,11 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
       guardianRelation: row.guardian_relation ?? undefined,
+      healthIssue: row.health_issue ?? undefined,
+      healthIssueNotes: row.health_issue_notes ?? undefined,
+      medicationUse: row.medication_use ?? undefined,
+      medicationNotes: row.medication_notes ?? undefined,
+      healthObservations: row.health_observations ?? undefined,
       birthDate: row.birthdate ?? "",
       createdAt: row.createdat,
     }));
@@ -1737,6 +1752,11 @@ export async function getStudentById(id: string): Promise<Student | null> {
       guardianName: row.guardian_name ?? undefined,
       guardianPhone: row.guardian_phone ?? undefined,
       guardianRelation: row.guardian_relation ?? undefined,
+      healthIssue: row.health_issue ?? undefined,
+      healthIssueNotes: row.health_issue_notes ?? undefined,
+      medicationUse: row.medication_use ?? undefined,
+      medicationNotes: row.medication_notes ?? undefined,
+      healthObservations: row.health_observations ?? undefined,
       birthDate: row.birthdate ?? "",
       createdAt: row.createdat,
     };
@@ -1755,6 +1775,11 @@ export async function saveStudent(student: Student) {
         guardian_name: student.guardianName?.trim() || null,
         guardian_phone: student.guardianPhone?.trim() || null,
         guardian_relation: student.guardianRelation?.trim() || null,
+        health_issue: student.healthIssue ?? false,
+        health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
+        medication_use: student.medicationUse ?? false,
+        medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
+        health_observations: student.healthObservations?.trim() || null,
         birthdate: student.birthDate ? student.birthDate : null,
         createdat: student.createdAt,
       },
@@ -1774,6 +1799,11 @@ export async function updateStudent(student: Student) {
         guardian_name: student.guardianName?.trim() || null,
         guardian_phone: student.guardianPhone?.trim() || null,
         guardian_relation: student.guardianRelation?.trim() || null,
+        health_issue: student.healthIssue ?? false,
+        health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
+        medication_use: student.medicationUse ?? false,
+        medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
+        health_observations: student.healthObservations?.trim() || null,
         birthdate: student.birthDate ? student.birthDate : null,
         createdat: student.createdAt,
       }

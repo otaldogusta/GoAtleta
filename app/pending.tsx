@@ -70,14 +70,14 @@ export default function PendingScreen() {
     }
     const lower = detail.toLowerCase();
     if (lower.includes("expired")) return "Convite expirado.";
-    if (lower.includes("used")) return "Convite ja utilizado. Peca um novo link.";
-    if (lower.includes("invalid")) return "Convite invalido.";
-    if (lower.includes("already linked")) return "Seu acesso ja esta vinculado.";
+    if (lower.includes("used")) return "Convite já utilizado. Peça um novo link.";
+    if (lower.includes("invalid")) return "Convite inválido.";
+    if (lower.includes("already linked")) return "Seu acesso já está vinculado.";
     if (lower.includes("unauthorized") || lower.includes("invalid jwt") || lower.includes("missing auth token")) {
-      return "Sessao expirada. Entre novamente.";
+      return "Sessão expirada. Entre novamente.";
     }
-    if (lower.includes("forbidden")) return "Sem permissao para validar o convite.";
-    return "Nao foi possivel validar o convite.";
+    if (lower.includes("forbidden")) return "Sem permissão para validar o convite.";
+    return "Não foi possível validar o convite.";
   };
 
   const handleInvite = async () => {
@@ -249,7 +249,7 @@ export default function PendingScreen() {
               ) : (
                 <>
                   <TextInput
-                    placeholder="Link ou codigo do convite"
+                    placeholder="Link ou código do convite"
                     value={inviteInput}
                     onChangeText={setInviteInput}
                     autoCapitalize="none"
