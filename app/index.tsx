@@ -212,97 +212,112 @@ function TrainerHome() {
   };
 
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
-  const todayDateLabel = useMemo(() => formatShortDate(todayDateKey), [todayDateKey]);
-  const nowMinutes = useMemo(() => now.getHours() * 60 + now.getMinutes(), [now]);
+  const nowTime = useMemo(() => now.getTime(), [now]);
 
-  const todaySchedule = useMemo(() => {
+  const scheduleWindow = useMemo(() => {
     if (!classes.length) return [];
-    const dayIndex = now.getDay();
-    const items = classes
-      .map((cls) => {
-        const days = cls.daysOfWeek ?? [];
-        if (!days.includes(dayIndex)) return null;
-        const time = parseTime(cls.startTime);
-        if (!time) return null;
-        const startMinutes = time.hour * 60 + time.minute;
-        const duration = cls.durationMinutes ?? 60;
-        const endMinutes = startMinutes + duration;
-        return {
-          classId: cls.id,
-          className: cls.name,
-          unit: cls.unit || "Sem unidade",
-          gender: cls.gender ?? null,
-          startMinutes,
-          endMinutes,
-          timeLabel: formatRange(time.hour, time.minute, duration),
-        };
-      })
-      .filter(Boolean) as Array<{
+    const items: Array<{
       classId: string;
       className: string;
       unit: string;
       gender: ClassGroup["gender"] | null;
-      startMinutes: number;
-      endMinutes: number;
+      dateKey: string;
+      dateLabel: string;
+      startTime: number;
+      endTime: number;
       timeLabel: string;
-    }>;
-    return items.sort((a, b) => a.startMinutes - b.startMinutes);
+    }> = [];
+    for (let offset = -7; offset <= 7; offset += 1) {
+      const dayDate = new Date(now);
+      dayDate.setDate(now.getDate() + offset);
+      dayDate.setHours(0, 0, 0, 0);
+      const dayIndex = dayDate.getDay();
+      classes.forEach((cls) => {
+        const days = cls.daysOfWeek ?? [];
+        if (!days.includes(dayIndex)) return;
+        const time = parseTime(cls.startTime);
+        if (!time) return;
+        const start = new Date(dayDate);
+        start.setHours(time.hour, time.minute, 0, 0);
+        const duration = cls.durationMinutes ?? 60;
+        const end = new Date(start.getTime() + duration * 60000);
+        items.push({
+          classId: cls.id,
+          className: cls.name,
+          unit: cls.unit || "Sem unidade",
+          gender: cls.gender ?? null,
+          dateKey: formatIsoDate(start),
+          dateLabel: formatShortDate(formatIsoDate(start)),
+          startTime: start.getTime(),
+          endTime: end.getTime(),
+          timeLabel: formatRange(time.hour, time.minute, duration),
+        });
+      });
+    }
+    return items.sort((a, b) => a.startTime - b.startTime);
   }, [classes, now]);
 
-  const nextTodayIndex = useMemo(() => {
-    if (!todaySchedule.length) return -1;
-    return todaySchedule.findIndex((item) => nowMinutes < item.endMinutes);
-  }, [todaySchedule, nowMinutes]);
-
-  const hasTodayClasses = todaySchedule.length > 0;
-  const hasUpcomingToday = nextTodayIndex >= 0;
-  const [manualTodayIndex, setManualTodayIndex] = useState<number | null>(null);
+  const nextIndex = useMemo(() => {
+    if (!scheduleWindow.length) return -1;
+    return scheduleWindow.findIndex((item) => nowTime < item.endTime);
+  }, [scheduleWindow, nowTime]);
+  const [manualIndex, setManualIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (manualTodayIndex == null) return;
-    if (!todaySchedule.length) {
-      setManualTodayIndex(null);
+    if (manualIndex == null) return;
+    if (!scheduleWindow.length) {
+      setManualIndex(null);
       return;
     }
-    if (manualTodayIndex >= todaySchedule.length) {
-      setManualTodayIndex(null);
+    if (manualIndex >= scheduleWindow.length) {
+      setManualIndex(null);
       return;
     }
-    if (manualTodayIndex < nextTodayIndex) {
-      setManualTodayIndex(null);
-    }
-  }, [manualTodayIndex, nextTodayIndex, todaySchedule.length]);
+  }, [manualIndex, scheduleWindow.length]);
 
   useEffect(() => {
-    setManualTodayIndex(null);
-  }, [todayDateKey]);
+    setManualIndex(null);
+  }, [todayDateKey, scheduleWindow.length]);
 
-  const fallbackIndex = hasTodayClasses
-    ? hasUpcomingToday
-      ? nextTodayIndex
-      : todaySchedule.length - 1
-    : null;
-  const activeTodayIndex = manualTodayIndex ?? fallbackIndex;
-  const activeToday = activeTodayIndex !== null ? todaySchedule[activeTodayIndex] : null;
-  const isActivePast = activeToday ? activeToday.endMinutes <= nowMinutes : false;
+  const fallbackIndex =
+    scheduleWindow.length > 0
+      ? nextIndex >= 0
+        ? nextIndex
+        : scheduleWindow.length - 1
+      : null;
+  const activeIndex = manualIndex ?? fallbackIndex;
+  const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
+  const isActivePast = activeItem ? activeItem.endTime <= nowTime : false;
+  const statusLabel = useMemo(() => {
+    if (!activeItem) return "";
+    if (activeItem.dateKey === todayDateKey) {
+      if (nowTime >= activeItem.startTime && nowTime < activeItem.endTime) {
+        return "Aula de hoje";
+      }
+      if (activeItem.endTime <= nowTime) return "Aula anterior";
+      return "Próxima aula";
+    }
+    return activeItem.dateKey < todayDateKey ? "Aula anterior" : "Próxima aula";
+  }, [activeItem, nowTime, todayDateKey]);
+
   const activeSummary = useMemo(() => {
-    if (!activeToday) return null;
+    if (!activeItem) return null;
     return {
-      unit: activeToday.unit,
-      className: activeToday.className,
-      dateLabel: todayDateLabel,
-      timeLabel: activeToday.timeLabel,
-      gender: activeToday.gender,
+      unit: activeItem.unit,
+      className: activeItem.className,
+      dateLabel: activeItem.dateLabel,
+      timeLabel: activeItem.timeLabel,
+      gender: activeItem.gender,
     };
-  }, [activeToday, todayDateLabel]);
+  }, [activeItem]);
 
   const activeAttendanceTarget = useMemo(() => {
-    if (!activeToday) return null;
+    if (!activeItem) return null;
     return {
-      classId: activeToday.classId,
-      date: todayDateKey,
+      classId: activeItem.classId,
+      date: activeItem.dateKey,
     };
-  }, [activeToday, todayDateKey]);
+  }, [activeItem]);
 
 
   const [attendanceDone, setAttendanceDone] = useState<boolean | null>(null);
@@ -549,14 +564,11 @@ function TrainerHome() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <Pressable
                         onPress={() => {
-                          if (activeTodayIndex === null) return;
-                          if (activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)) return;
-                          setManualTodayIndex(activeTodayIndex - 1);
+                          if (activeIndex === null) return;
+                          if (activeIndex <= 0) return;
+                          setManualIndex(activeIndex - 1);
                         }}
-                        disabled={
-                          activeTodayIndex === null ||
-                          activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
-                        }
+                        disabled={activeIndex === null || activeIndex <= 0}
                         style={{
                           width: 26,
                           height: 26,
@@ -564,17 +576,12 @@ function TrainerHome() {
                           alignItems: "center",
                           justifyContent: "center",
                           backgroundColor:
-                            activeTodayIndex === null ||
-                            activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
+                            activeIndex === null || activeIndex <= 0
                               ? colors.primaryDisabledBg
                               : colors.card,
                           borderWidth: 1,
                           borderColor: colors.border,
-                          opacity:
-                            activeTodayIndex === null ||
-                            activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
-                              ? 0.6
-                              : 1,
+                          opacity: activeIndex === null || activeIndex <= 0 ? 0.6 : 1,
                         }}
                       >
                         <Ionicons name="chevron-back" size={14} color={colors.text} />
@@ -590,18 +597,18 @@ function TrainerHome() {
                         }}
                       >
                         <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                          {"Pr\u00f3xima aula"}
+                          {statusLabel}
                         </Text>
                       </View>
                       <Pressable
                         onPress={() => {
-                          if (activeTodayIndex === null) return;
-                          if (activeTodayIndex >= todaySchedule.length - 1) return;
-                          setManualTodayIndex(activeTodayIndex + 1);
+                          if (activeIndex === null) return;
+                          if (activeIndex >= scheduleWindow.length - 1) return;
+                          setManualIndex(activeIndex + 1);
                         }}
                         disabled={
-                          activeTodayIndex === null ||
-                          activeTodayIndex >= todaySchedule.length - 1
+                          activeIndex === null ||
+                          activeIndex >= scheduleWindow.length - 1
                         }
                         style={{
                           width: 26,
@@ -610,15 +617,15 @@ function TrainerHome() {
                           alignItems: "center",
                           justifyContent: "center",
                           backgroundColor:
-                            activeTodayIndex === null ||
-                            activeTodayIndex >= todaySchedule.length - 1
+                            activeIndex === null ||
+                            activeIndex >= scheduleWindow.length - 1
                               ? colors.primaryDisabledBg
                               : colors.card,
                           borderWidth: 1,
                           borderColor: colors.border,
                           opacity:
-                            activeTodayIndex === null ||
-                            activeTodayIndex >= todaySchedule.length - 1
+                            activeIndex === null ||
+                            activeIndex >= scheduleWindow.length - 1
                               ? 0.6
                               : 1,
                         }}
@@ -672,7 +679,7 @@ function TrainerHome() {
                       </Text>
                     </View>
                   </View>
-                  {!hasUpcomingToday ? null : null}
+                  {null}
                 </>
               ) : null}
 </View>
