@@ -35,7 +35,9 @@ import {
   subscribeNotifications,
 } from "../src/notificationsInbox";
 import { Card } from "../src/ui/Card";
+import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { useAppTheme } from "../src/ui/app-theme";
+import { getUnitPalette } from "../src/ui/unit-colors";
 import StudentHome from "./student-home";
 
 function TrainerHome() {
@@ -59,15 +61,21 @@ function TrainerHome() {
   const panelWidth = Math.min(screenWidth * 0.85, 360);
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
 
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const todayLabel = useMemo(() => {
-    const date = new Date();
-    const label = date.toLocaleDateString("pt-BR", {
+    const label = now.toLocaleDateString("pt-BR", {
       weekday: "long",
       day: "2-digit",
       month: "long",
     });
     return label.charAt(0).toUpperCase() + label.slice(1);
-  }, []);
+  }, [now]);
 
   useEffect(() => {
     let alive = true;
@@ -196,67 +204,87 @@ function TrainerHome() {
     });
   };
 
-  const nearestAttendanceTarget = useMemo(() => {
-    if (!classes.length) return null;
-    const now = new Date();
-    const candidates: {
-      classId: string;
-      date: string;
-      time: number;
-    }[] = [];
+  const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
+  const todayDateLabel = useMemo(() => formatShortDate(todayDateKey), [todayDateKey]);
 
-    for (let offset = -7; offset <= 7; offset += 1) {
-      const dayDate = new Date(now);
-      dayDate.setDate(now.getDate() + offset);
-      dayDate.setHours(0, 0, 0, 0);
-      const dayIndex = dayDate.getDay();
-
-      classes.forEach((cls) => {
+  const todaySchedule = useMemo(() => {
+    if (!classes.length) return [];
+    const dayIndex = now.getDay();
+    const items = classes
+      .map((cls) => {
         const days = cls.daysOfWeek ?? [];
-        if (!days.includes(dayIndex)) return;
+        if (!days.includes(dayIndex)) return null;
         const time = parseTime(cls.startTime);
-        if (!time) return;
-        const candidate = new Date(dayDate);
-        candidate.setHours(time.hour, time.minute, 0, 0);
-        candidates.push({
+        if (!time) return null;
+        const startMinutes = time.hour * 60 + time.minute;
+        const duration = cls.durationMinutes ?? 60;
+        const endMinutes = startMinutes + duration;
+        return {
           classId: cls.id,
-          date: formatIsoDate(candidate),
-          time: candidate.getTime(),
-        });
-      });
+          className: cls.name,
+          unit: cls.unit || "Sem unidade",
+          gender: cls.gender ?? null,
+          startMinutes,
+          endMinutes,
+          timeLabel: formatRange(time.hour, time.minute, duration),
+        };
+      })
+      .filter(Boolean) as Array<{
+      classId: string;
+      className: string;
+      unit: string;
+      gender: ClassGroup["gender"] | null;
+      startMinutes: number;
+      endMinutes: number;
+      timeLabel: string;
+    }>;
+    return items.sort((a, b) => a.startMinutes - b.startMinutes);
+  }, [classes, now]);
+
+  const nextTodayIndex = useMemo(() => {
+    if (!todaySchedule.length) return -1;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return todaySchedule.findIndex((item) => nowMinutes < item.endMinutes);
+  }, [todaySchedule, now]);
+
+  const [manualTodayIndex, setManualTodayIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (manualTodayIndex == null) return;
+    if (!todaySchedule.length || nextTodayIndex === -1) {
+      setManualTodayIndex(null);
+      return;
     }
+    if (manualTodayIndex >= todaySchedule.length) {
+      setManualTodayIndex(null);
+      return;
+    }
+    if (manualTodayIndex < nextTodayIndex) {
+      setManualTodayIndex(null);
+    }
+  }, [manualTodayIndex, nextTodayIndex, todaySchedule.length]);
 
-    if (!candidates.length) return null;
-
-    const nowTime = now.getTime();
-    candidates.sort((a, b) => {
-      const diffA = Math.abs(a.time - nowTime);
-      const diffB = Math.abs(b.time - nowTime);
-      if (diffA !== diffB) return diffA - diffB;
-      return a.time - b.time;
-    });
-
-    return candidates[0];
-  }, [classes]);
-
-  const nearestClass = useMemo(() => {
-    if (!nearestAttendanceTarget) return null;
-    return classes.find((item) => item.id === nearestAttendanceTarget.classId) ?? null;
-  }, [classes, nearestAttendanceTarget]);
-
-  const nearestSummary = useMemo(() => {
-    if (!nearestClass || !nearestAttendanceTarget) return null;
-    const time = parseTime(nearestClass.startTime);
-    const timeLabel = time
-      ? formatRange(time.hour, time.minute, nearestClass.durationMinutes ?? 60)
-      : nearestClass.startTime;
+  const activeTodayIndex =
+    manualTodayIndex ?? (nextTodayIndex >= 0 ? nextTodayIndex : null);
+  const activeToday = activeTodayIndex !== null ? todaySchedule[activeTodayIndex] : null;
+  const activeSummary = useMemo(() => {
+    if (!activeToday) return null;
     return {
-      unit: nearestClass.unit || "Sem unidade",
-      className: nearestClass.name,
-      dateLabel: formatShortDate(nearestAttendanceTarget.date),
-      timeLabel,
+      unit: activeToday.unit,
+      className: activeToday.className,
+      dateLabel: todayDateLabel,
+      timeLabel: activeToday.timeLabel,
+      gender: activeToday.gender,
     };
-  }, [nearestAttendanceTarget, nearestClass]);
+  }, [activeToday, todayDateLabel]);
+
+  const activeAttendanceTarget = useMemo(() => {
+    if (!activeToday) return null;
+    return {
+      classId: activeToday.classId,
+      date: todayDateKey,
+    };
+  }, [activeToday, todayDateKey]);
 
   const showToast = (message: string, type: "info" | "success" | "error") => {
     setToast({ message, type });
@@ -450,7 +478,7 @@ function TrainerHome() {
                 gap: 8,
               }}
             >
-              {nearestSummary ? (
+              {activeSummary ? (
                 <>
                   <View
                     style={{
@@ -460,73 +488,152 @@ function TrainerHome() {
                       gap: 8,
                     }}
                   >
-                    <View
-                      style={{
-                        paddingVertical: 2,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: colors.card,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                        Próxima aula
-                      </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Pressable
+                        onPress={() => {
+                          if (activeTodayIndex === null || activeTodayIndex <= 0) return;
+                          setManualTodayIndex(activeTodayIndex - 1);
+                        }}
+                        disabled={activeTodayIndex === null || activeTodayIndex <= 0}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor:
+                            activeTodayIndex === null || activeTodayIndex <= 0
+                              ? colors.primaryDisabledBg
+                              : colors.card,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          opacity: activeTodayIndex === null || activeTodayIndex <= 0 ? 0.6 : 1,
+                        }}
+                      >
+                        <Ionicons name="chevron-back" size={14} color={colors.text} />
+                      </Pressable>
+                      <View
+                        style={{
+                          paddingVertical: 2,
+                          paddingHorizontal: 8,
+                          borderRadius: 999,
+                          backgroundColor: colors.card,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                          {"Pr\u00f3xima aula"}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          if (activeTodayIndex === null) return;
+                          if (activeTodayIndex >= todaySchedule.length - 1) return;
+                          setManualTodayIndex(activeTodayIndex + 1);
+                        }}
+                        disabled={
+                          activeTodayIndex === null ||
+                          activeTodayIndex >= todaySchedule.length - 1
+                        }
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor:
+                            activeTodayIndex === null ||
+                            activeTodayIndex >= todaySchedule.length - 1
+                              ? colors.primaryDisabledBg
+                              : colors.card,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          opacity:
+                            activeTodayIndex === null ||
+                            activeTodayIndex >= todaySchedule.length - 1
+                              ? 0.6
+                              : 1,
+                        }}
+                      >
+                        <Ionicons name="chevron-forward" size={14} color={colors.text} />
+                      </Pressable>
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {nearestSummary.dateLabel}
+                      {activeSummary.dateLabel}
                     </Text>
                   </View>
                   <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
-                    {nearestSummary.className}
+                    {activeSummary.className}
                   </Text>
                   <View
                     style={{
                       flexDirection: "row",
+                      alignItems: "center",
                       justifyContent: "space-between",
-                      gap: 12,
+                      gap: 10,
                     }}
                   >
-                    <Text style={{ color: colors.text, fontSize: 13, flex: 1 }}>
-                      {nearestSummary.unit}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View
+                        style={{
+                          paddingVertical: 4,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: getUnitPalette(activeSummary.unit, colors).bg,
+                          borderWidth: 1,
+                          borderColor: getUnitPalette(activeSummary.unit, colors).bg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: getUnitPalette(activeSummary.unit, colors).text,
+                            fontSize: 11,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {activeSummary.unit}
+                        </Text>
+                      </View>
+                      {activeSummary.gender ? (
+                        <ClassGenderBadge gender={activeSummary.gender} size="sm" />
+                      ) : null}
+                    </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {nearestSummary.timeLabel}
+                      {activeSummary.timeLabel}
                     </Text>
                   </View>
                 </>
               ) : (
                 <Text style={{ color: colors.muted, fontSize: 13 }}>
-                  Nenhuma aula encontrada nos próximos dias.
+                  {"Por hoje \u00e9 isso. N\u00e3o h\u00e1 mais aulas."}
                 </Text>
-              )}
-            </View>
+              )}</View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
                 onPress={() => {
-                  if (!nearestAttendanceTarget) return;
+                  if (!activeAttendanceTarget) return;
                   router.push({
                     pathname: "/class/[id]/session",
                     params: {
-                      id: nearestAttendanceTarget.classId,
-                      date: nearestAttendanceTarget.date,
+                      id: activeAttendanceTarget.classId,
+                      date: activeAttendanceTarget.date,
                       tab: "treino",
                     },
                   });
                 }}
-                disabled={!nearestAttendanceTarget}
+                disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 999,
-                  backgroundColor: nearestAttendanceTarget
+                  backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
                     : colors.primaryDisabledBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  opacity: activeAttendanceTarget ? 1 : 0.7,
                   alignItems: "center",
                 }}
               >
@@ -536,27 +643,27 @@ function TrainerHome() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  if (!nearestAttendanceTarget) return;
+                  if (!activeAttendanceTarget) return;
                   router.push({
                     pathname: "/class/[id]/attendance",
                     params: {
-                      id: nearestAttendanceTarget.classId,
-                      date: nearestAttendanceTarget.date,
+                      id: activeAttendanceTarget.classId,
+                      date: activeAttendanceTarget.date,
                     },
                   });
                 }}
-                disabled={!nearestAttendanceTarget}
+                disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 999,
-                  backgroundColor: nearestAttendanceTarget
+                  backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
                     : colors.primaryDisabledBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  opacity: activeAttendanceTarget ? 1 : 0.7,
                   alignItems: "center",
                 }}
               >
@@ -566,28 +673,28 @@ function TrainerHome() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  if (!nearestAttendanceTarget) return;
+                  if (!activeAttendanceTarget) return;
                   router.push({
                     pathname: "/class/[id]/session",
                     params: {
-                      id: nearestAttendanceTarget.classId,
-                      date: nearestAttendanceTarget.date,
+                      id: activeAttendanceTarget.classId,
+                      date: activeAttendanceTarget.date,
                       tab: "relatório",
                     },
                   });
                 }}
-                disabled={!nearestAttendanceTarget}
+                disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 999,
-                  backgroundColor: nearestAttendanceTarget
+                  backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
                     : colors.primaryDisabledBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  opacity: activeAttendanceTarget ? 1 : 0.7,
                   alignItems: "center",
                 }}
               >
@@ -597,28 +704,28 @@ function TrainerHome() {
               </Pressable>
               <Pressable
                 onPress={() => {
-                  if (!nearestAttendanceTarget) return;
+                  if (!activeAttendanceTarget) return;
                   router.push({
                     pathname: "/class/[id]/session",
                     params: {
-                      id: nearestAttendanceTarget.classId,
-                      date: nearestAttendanceTarget.date,
+                      id: activeAttendanceTarget.classId,
+                      date: activeAttendanceTarget.date,
                       tab: "scouting",
                     },
                   });
                 }}
-                disabled={!nearestAttendanceTarget}
+                disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 999,
-                  backgroundColor: nearestAttendanceTarget
+                  backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
                     : colors.primaryDisabledBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  opacity: nearestAttendanceTarget ? 1 : 0.7,
+                  opacity: activeAttendanceTarget ? 1 : 0.7,
                   alignItems: "center",
                 }}
               >
@@ -747,7 +854,7 @@ function TrainerHome() {
                 Relatórios
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Presenca e dados
+                Presença e dados
               </Text>
             </Pressable>
             <Pressable
