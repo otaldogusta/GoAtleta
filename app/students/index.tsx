@@ -814,7 +814,13 @@ export default function StudentsScreen() {
 
   const onEdit = useCallback(
     (student: Student) => {
+      // Open first so a bad field doesn't block the modal entirely.
+      setShowForm(false);
+      setStudentFormError("");
+      setShowEditModal(true);
       try {
+        const safeText = (value: unknown) =>
+          typeof value === "string" ? value : value == null ? "" : String(value);
         const cls = classes.find((item) => item.id === student.classId);
         let nextUnit = "";
         let nextAgeBand = "";
@@ -822,67 +828,72 @@ export default function StudentsScreen() {
         let nextClassId = "";
         if (cls) {
           nextUnit = unitLabel(cls.unit);
-          nextAgeBand = cls.ageBand;
-          if (!ageBandOptions.includes(cls.ageBand)) {
-            nextCustomAgeBand = cls.ageBand;
+          nextAgeBand = safeText(cls.ageBand);
+          if (!ageBandOptions.includes(nextAgeBand)) {
+            nextCustomAgeBand = nextAgeBand;
           }
           nextClassId = cls.id;
         }
+        const birthDateValue = safeText(student.birthDate);
+        const loginEmailValue = safeText(student.loginEmail);
+        const guardianNameValue = safeText(student.guardianName);
+        const guardianPhoneValue = safeText(student.guardianPhone);
+        const guardianRelationValue = safeText(student.guardianRelation);
+        const healthIssueNotesValue = safeText(student.healthIssueNotes);
+        const medicationNotesValue = safeText(student.medicationNotes);
+        const healthObservationsValue = safeText(student.healthObservations);
         setUnit(nextUnit);
         setAgeBand(nextAgeBand);
         setCustomAgeBand(nextCustomAgeBand);
         setClassId(nextClassId);
-        setShowForm(false);
         setEditingId(student.id);
         setEditingCreatedAt(student.createdAt);
-        setName(student.name);
+        setName(safeText(student.name));
         setEditSnapshot({
           unit: nextUnit,
           ageBand: nextAgeBand,
           customAgeBand: nextCustomAgeBand,
           classId: nextClassId,
-          name: student.name,
-          birthDate: student.birthDate ?? "",
+          name: safeText(student.name),
+          birthDate: birthDateValue,
           phone: student.phone,
-          loginEmail: student.loginEmail ?? "",
-          guardianName: student.guardianName ?? "",
-          guardianPhone: student.guardianPhone ?? "",
-          guardianRelation: student.guardianRelation ?? "",
+          loginEmail: loginEmailValue,
+          guardianName: guardianNameValue,
+          guardianPhone: guardianPhoneValue,
+          guardianRelation: guardianRelationValue,
           healthIssue: student.healthIssue ?? false,
-          healthIssueNotes: student.healthIssueNotes ?? "",
+          healthIssueNotes: healthIssueNotesValue,
           medicationUse: student.medicationUse ?? false,
-          medicationNotes: student.medicationNotes ?? "",
-          healthObservations: student.healthObservations ?? "",
+          medicationNotes: medicationNotesValue,
+          healthObservations: healthObservationsValue,
         });
-        if (student.birthDate) {
-          setBirthDate(student.birthDate);
-          setAgeNumber(calculateAge(student.birthDate));
+        if (birthDateValue) {
+          setBirthDate(birthDateValue);
+          setAgeNumber(calculateAge(birthDateValue));
         } else {
           setBirthDate("");
           setAgeNumber(student.age);
         }
         setPhone(student.phone);
-        setLoginEmail(student.loginEmail ?? "");
-        setGuardianName(student.guardianName ?? "");
-        setGuardianPhone(student.guardianPhone ?? "");
-        setGuardianRelation(student.guardianRelation ?? "");
+        setLoginEmail(loginEmailValue);
+        setGuardianName(guardianNameValue);
+        setGuardianPhone(guardianPhoneValue);
+        setGuardianRelation(guardianRelationValue);
         setHealthIssue(student.healthIssue ?? false);
-        setHealthIssueNotes(student.healthIssueNotes ?? "");
+        setHealthIssueNotes(healthIssueNotesValue);
         setMedicationUse(student.medicationUse ?? false);
-        setMedicationNotes(student.medicationNotes ?? "");
-        setHealthObservations(student.healthObservations ?? "");
+        setMedicationNotes(medicationNotesValue);
+        setHealthObservations(healthObservationsValue);
         setShowEditHealthSection(
           Boolean(
             student.healthIssue ||
               student.medicationUse ||
-              student.healthIssueNotes?.trim() ||
-              student.medicationNotes?.trim() ||
-              student.healthObservations?.trim()
+              healthIssueNotesValue.trim() ||
+              medicationNotesValue.trim() ||
+              healthObservationsValue.trim()
           )
         );
         closeAllPickers();
-        setShowEditModal(true);
-        setStudentFormError("");
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         Alert.alert("Erro ao abrir aluno", detail);
