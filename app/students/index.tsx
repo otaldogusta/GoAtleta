@@ -2925,7 +2925,7 @@ export default function StudentsScreen() {
           editModalCardStyle,
           {
             maxHeight: "92%",
-            height: Platform.OS === "web" ? undefined : "92%",
+            minHeight: Platform.OS === "web" ? undefined : 320,
             paddingBottom: 20,
           },
         ]}
@@ -2938,7 +2938,7 @@ export default function StudentsScreen() {
               setEditContainerWindow({ x, y });
             });
           }}
-          style={{ position: "relative", width: "100%", flex: 1 }}
+          style={{ position: "relative", width: "100%" }}
         >
         <ConfirmCloseOverlay
           visible={showEditCloseConfirm}
@@ -2949,12 +2949,12 @@ export default function StudentsScreen() {
           }}
         />
         <KeyboardAvoidingView
-          style={{ width: "100%", flex: 1 }}
+          style={{ width: "100%" }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
           <ScrollView
-            style={{ width: "100%", flex: 1 }}
+            style={{ width: "100%" }}
             contentContainerStyle={{ paddingBottom: 32 }}
             keyboardShouldPersistTaps="handled"
             onScroll={syncEditPickerLayouts}
