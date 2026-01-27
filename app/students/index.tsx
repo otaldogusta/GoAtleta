@@ -2640,22 +2640,6 @@ export default function StudentsScreen() {
                                               ),
                                             },
                                           ];
-                                          if (group.ageBand) {
-                                            items.push({
-                                              key: "age",
-                                              node: (
-                                                <Text
-                                                  style={{
-                                                    fontSize: 11,
-                                                    fontWeight: "700",
-                                                    color: colors.muted,
-                                                  }}
-                                                >
-                                                  {group.ageBand}
-                                                </Text>
-                                              ),
-                                            });
-                                          }
                                           if (group.gender) {
                                             items.push({
                                               key: "gender",
