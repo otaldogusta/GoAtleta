@@ -107,14 +107,6 @@ const formatClassScheduleLabel = (cls?: ClassGroup | null) => {
   if (daysLabel && timeLabel) return `${daysLabel} ${timeLabel}`;
   return daysLabel || timeLabel;
 };
-const normalizeDigits = (value?: string) => (value ?? "").replace(/\D/g, "");
-const classNameHasAgeBand = (className: string, ageBand?: string) => {
-  const ageDigits = normalizeDigits(ageBand);
-  if (!ageDigits) return false;
-  const nameDigits = normalizeDigits(className);
-  return nameDigits.includes(ageDigits);
-};
-
 type BirthdayEntry = { student: Student; date: Date; unitName: string };
 type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
@@ -1431,16 +1423,12 @@ export default function StudentsScreen() {
             const className = cls?.name?.trim() || "Sem turma";
             const palette = getClassPalette(cls?.colorKey, colors, unitName);
             const scheduleLabel = formatClassScheduleLabel(cls);
-            const ageBandValue = cls?.ageBand ?? "";
-            const ageBandLabel =
-              ageBandValue && classNameHasAgeBand(className, ageBandValue) ? "" : ageBandValue;
             const sortedStudents = [...items].sort((a, b) =>
               a.name.localeCompare(b.name, "pt-BR")
             );
             return {
               classId: cls?.id ?? classKey,
               className,
-              ageBand: ageBandLabel,
               gender: cls?.gender,
               scheduleLabel,
               palette,
