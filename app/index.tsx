@@ -285,6 +285,7 @@ function TrainerHome() {
     : null;
   const activeTodayIndex = manualTodayIndex ?? fallbackIndex;
   const activeToday = activeTodayIndex !== null ? todaySchedule[activeTodayIndex] : null;
+  const isActivePast = activeToday ? activeToday.endMinutes <= nowMinutes : false;
   const activeSummary = useMemo(() => {
     if (!activeToday) return null;
     return {
@@ -303,6 +304,16 @@ function TrainerHome() {
       date: todayDateKey,
     };
   }, [activeToday, todayDateKey]);
+
+  const visibleSchedule = useMemo(() => {
+    if (!todaySchedule.length) return [];
+    const upcoming = todaySchedule.filter((item) => item.endMinutes > nowMinutes);
+    if (activeToday && activeToday.endMinutes <= nowMinutes) {
+      const hasActive = upcoming.some((item) => item.classId === activeToday.classId);
+      return hasActive ? upcoming : [activeToday, ...upcoming];
+    }
+    return upcoming;
+  }, [activeToday, nowMinutes, todaySchedule]);
 
   const [attendanceDone, setAttendanceDone] = useState<boolean | null>(null);
   const [reportDone, setReportDone] = useState<boolean | null>(null);
@@ -548,11 +559,15 @@ function TrainerHome() {
                     {Platform.OS === "web" ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                         <Pressable
-                          onPress={() => {
-                            if (activeTodayIndex === null || activeTodayIndex <= 0) return;
-                            setManualTodayIndex(activeTodayIndex - 1);
-                          }}
-                          disabled={activeTodayIndex === null || activeTodayIndex <= 0}
+                        onPress={() => {
+                          if (activeTodayIndex === null) return;
+                          if (activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)) return;
+                          setManualTodayIndex(activeTodayIndex - 1);
+                        }}
+                        disabled={
+                          activeTodayIndex === null ||
+                          activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
+                        }
                           style={{
                             width: 26,
                             height: 26,
@@ -560,12 +575,17 @@ function TrainerHome() {
                             alignItems: "center",
                             justifyContent: "center",
                             backgroundColor:
-                              activeTodayIndex === null || activeTodayIndex <= 0
-                                ? colors.primaryDisabledBg
-                                : colors.card,
+                            activeTodayIndex === null ||
+                            activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
+                              ? colors.primaryDisabledBg
+                              : colors.card,
                             borderWidth: 1,
                             borderColor: colors.border,
-                            opacity: activeTodayIndex === null || activeTodayIndex <= 0 ? 0.6 : 1,
+                          opacity:
+                            activeTodayIndex === null ||
+                            activeTodayIndex <= (hasUpcomingToday ? nextTodayIndex : 0)
+                              ? 0.6
+                              : 1,
                           }}
                         >
                           <Ionicons name="chevron-back" size={14} color={colors.text} />
@@ -637,12 +657,13 @@ function TrainerHome() {
                       {activeSummary.dateLabel}
                     </Text>
                   </View>
-                  {todaySchedule.length > 0 ? (
+                  {visibleSchedule.length > 0 ? (
                     <FadeHorizontalScroll
                       fadeColor={colors.secondaryBg}
                       contentContainerStyle={{ gap: 8, paddingRight: 8 }}
                     >
-                      {todaySchedule.map((item, index) => {
+                      {visibleSchedule.map((item) => {
+                        const index = todaySchedule.findIndex((entry) => entry.classId === item.classId);
                         const isActive = activeTodayIndex === index;
                         const isPast = item.endMinutes <= nowMinutes;
                         return (
@@ -684,45 +705,47 @@ function TrainerHome() {
                       })}
                     </FadeHorizontalScroll>
                   ) : null}
-                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
-                    {activeSummary.className}
-                  </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 10,
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <View
-                        style={{
-                          paddingVertical: 4,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: getUnitPalette(activeSummary.unit, colors).bg,
-                          borderWidth: 1,
-                          borderColor: getUnitPalette(activeSummary.unit, colors).bg,
-                        }}
-                      >
-                        <Text
+                  <View style={{ opacity: isActivePast ? 0.55 : 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                      {activeSummary.className}
+                    </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <View
                           style={{
-                            color: getUnitPalette(activeSummary.unit, colors).text,
-                            fontSize: 11,
-                            fontWeight: "700",
+                            paddingVertical: 4,
+                            paddingHorizontal: 10,
+                            borderRadius: 999,
+                            backgroundColor: getUnitPalette(activeSummary.unit, colors).bg,
+                            borderWidth: 1,
+                            borderColor: getUnitPalette(activeSummary.unit, colors).bg,
                           }}
                         >
-                          {activeSummary.unit}
-                        </Text>
+                          <Text
+                            style={{
+                              color: getUnitPalette(activeSummary.unit, colors).text,
+                              fontSize: 11,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {activeSummary.unit}
+                          </Text>
+                        </View>
+                        {activeSummary.gender ? (
+                          <ClassGenderBadge gender={activeSummary.gender} size="sm" />
+                        ) : null}
                       </View>
-                      {activeSummary.gender ? (
-                        <ClassGenderBadge gender={activeSummary.gender} size="sm" />
-                      ) : null}
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {activeSummary.timeLabel}
+                      </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {activeSummary.timeLabel}
-                    </Text>
                   </View>
                   {!hasUpcomingToday ? (
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
