@@ -25,7 +25,14 @@ import { Pressable } from "../src/ui/Pressable";
 import type { ClassGroup } from "../src/core/models";
 import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
-import { flushPendingWrites, getClasses, getPendingWritesCount, seedIfEmpty } from "../src/db/seed";
+import {
+  flushPendingWrites,
+  getAttendanceByDate,
+  getClasses,
+  getPendingWritesCount,
+  getSessionLogsByRange,
+  seedIfEmpty,
+} from "../src/db/seed";
 import { requestNotificationPermission } from "../src/notifications";
 import {
   AppNotification,
@@ -207,6 +214,7 @@ function TrainerHome() {
 
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
   const todayDateLabel = useMemo(() => formatShortDate(todayDateKey), [todayDateKey]);
+  const nowMinutes = useMemo(() => now.getHours() * 60 + now.getMinutes(), [now]);
 
   const todaySchedule = useMemo(() => {
     if (!classes.length) return [];
@@ -244,9 +252,8 @@ function TrainerHome() {
 
   const nextTodayIndex = useMemo(() => {
     if (!todaySchedule.length) return -1;
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
     return todaySchedule.findIndex((item) => nowMinutes < item.endMinutes);
-  }, [todaySchedule, now]);
+  }, [todaySchedule, nowMinutes]);
 
   const hasTodayClasses = todaySchedule.length > 0;
   const hasUpcomingToday = nextTodayIndex >= 0;
@@ -296,6 +303,45 @@ function TrainerHome() {
       date: todayDateKey,
     };
   }, [activeToday, todayDateKey]);
+
+  const [attendanceDone, setAttendanceDone] = useState<boolean | null>(null);
+  const [reportDone, setReportDone] = useState<boolean | null>(null);
+  const showAttendanceWarning = Boolean(activeAttendanceTarget) && attendanceDone === false;
+  const showReportWarning = Boolean(activeAttendanceTarget) && reportDone === false;
+
+  useEffect(() => {
+    let alive = true;
+    if (!activeAttendanceTarget) {
+      setAttendanceDone(null);
+      setReportDone(null);
+      return () => {
+        alive = false;
+      };
+    }
+    (async () => {
+      try {
+        const [attendanceRecords, sessionLogs] = await Promise.all([
+          getAttendanceByDate(activeAttendanceTarget.classId, activeAttendanceTarget.date),
+          getSessionLogsByRange(
+            activeAttendanceTarget.date + "T00:00:00.000Z",
+            activeAttendanceTarget.date + "T23:59:59.999Z"
+          ),
+        ]);
+        if (!alive) return;
+        setAttendanceDone(attendanceRecords.length > 0);
+        setReportDone(
+          sessionLogs.some((log) => log.classId === activeAttendanceTarget.classId)
+        );
+      } catch {
+        if (!alive) return;
+        setAttendanceDone(null);
+        setReportDone(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [activeAttendanceTarget]);
 
   const showToast = (message: string, type: "info" | "success" | "error") => {
     setToast({ message, type });
@@ -591,13 +637,14 @@ function TrainerHome() {
                       {activeSummary.dateLabel}
                     </Text>
                   </View>
-                  {Platform.OS !== "web" && todaySchedule.length > 1 ? (
+                  {todaySchedule.length > 0 ? (
                     <FadeHorizontalScroll
                       fadeColor={colors.secondaryBg}
                       contentContainerStyle={{ gap: 8, paddingRight: 8 }}
                     >
                       {todaySchedule.map((item, index) => {
                         const isActive = activeTodayIndex === index;
+                        const isPast = item.endMinutes <= nowMinutes;
                         return (
                           <Pressable
                             key={`today-pill-${item.classId}`}
@@ -605,17 +652,29 @@ function TrainerHome() {
                             style={{
                               paddingVertical: 6,
                               paddingHorizontal: 10,
-                              borderRadius: 999,
+                              borderRadius: 12,
                               backgroundColor: isActive ? colors.card : colors.inputBg,
                               borderWidth: 1,
                               borderColor: isActive ? colors.border : colors.border,
+                              opacity: isPast ? 0.45 : 1,
+                              minWidth: 120,
                             }}
                           >
                             <Text
                               style={{
                                 fontSize: 11,
                                 fontWeight: isActive ? "700" : "600",
-                                color: isActive ? colors.text : colors.muted,
+                                color: isPast ? colors.muted : isActive ? colors.text : colors.muted,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {item.className}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                fontWeight: "600",
+                                color: isPast ? colors.muted : colors.text,
                               }}
                             >
                               {item.timeLabel}
@@ -732,8 +791,36 @@ function TrainerHome() {
                   borderColor: colors.border,
                   opacity: activeAttendanceTarget ? 1 : 0.7,
                   alignItems: "center",
+                  position: "relative",
                 }}
               >
+                {showAttendanceWarning ? (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: -6,
+                      right: -6,
+                      width: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      backgroundColor: colors.warningBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: colors.card,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.warningText ?? colors.text,
+                        fontSize: 10,
+                        fontWeight: "800",
+                      }}
+                    >
+                      !
+                    </Text>
+                  </View>
+                ) : null}
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
                   Fazer chamada
                 </Text>
@@ -763,8 +850,36 @@ function TrainerHome() {
                   borderColor: colors.border,
                   opacity: activeAttendanceTarget ? 1 : 0.7,
                   alignItems: "center",
+                  position: "relative",
                 }}
               >
+                {showReportWarning ? (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: -6,
+                      right: -6,
+                      width: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      backgroundColor: colors.warningBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: colors.card,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.warningText ?? colors.text,
+                        fontSize: 10,
+                        fontWeight: "800",
+                      }}
+                    >
+                      !
+                    </Text>
+                  </View>
+                ) : null}
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
                   Fazer relatório
                 </Text>
