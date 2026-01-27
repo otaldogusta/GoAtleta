@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   KeyboardAvoidingView,
@@ -91,6 +92,7 @@ export default function ClassDetails() {
   const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
   const [showRosterExportModal, setShowRosterExportModal] = useState(false);
   const [cls, setCls] = useState<ClassGroup | null>(null);
+  const [loading, setLoading] = useState(true);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [studentsLoadedFor, setStudentsLoadedFor] = useState<string | null>(null);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -339,22 +341,27 @@ export default function ClassDetails() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const data = await getClassById(id);
-      const list = await getClasses();
-      const scouting = data ? await getLatestScoutingLog(data.id) : null;
-      if (alive) {
-        setCls(data);
-        setAllClasses(list);
-        setLatestScouting(scouting);
-        setName(data?.name ?? "");
-        setUnit(data?.unit ?? "");
-        setAgeBand(data?.ageBand ?? "08-09");
-        setGender(data?.gender ?? "misto");
-        setStartTime(data?.startTime ?? "14:00");
-        setDuration(String(data?.durationMinutes ?? 60));
-        setDaysOfWeek(data?.daysOfWeek ?? []);
-        setGoal(data?.goal ?? "Fundamentos");
-        setClassColorKey(data?.colorKey ?? null);
+      setLoading(true);
+      try {
+        const data = await getClassById(id);
+        const list = await getClasses();
+        const scouting = data ? await getLatestScoutingLog(data.id) : null;
+        if (alive) {
+          setCls(data);
+          setAllClasses(list);
+          setLatestScouting(scouting);
+          setName(data?.name ?? "");
+          setUnit(data?.unit ?? "");
+          setAgeBand(data?.ageBand ?? "08-09");
+          setGender(data?.gender ?? "misto");
+          setStartTime(data?.startTime ?? "14:00");
+          setDuration(String(data?.durationMinutes ?? 60));
+          setDaysOfWeek(data?.daysOfWeek ?? []);
+          setGoal(data?.goal ?? "Fundamentos");
+          setClassColorKey(data?.colorKey ?? null);
+        }
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
     return () => {
@@ -381,6 +388,21 @@ export default function ClassDetails() {
       alive = false;
     };
   }, [cls, showStudentsModal, studentsLoadedFor]);
+
+  if (loading) {
+    return (
+      <SafeAreaView
+        style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
+      >
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ fontSize: 13, fontWeight: "600", color: colors.muted }}>
+            Carregando turma...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!cls) {
     return (
@@ -410,7 +432,7 @@ export default function ClassDetails() {
     }
     const durationValue = parseDuration(duration.trim());
     if (!durationValue) {
-      setFormError("Duracao inválida. Use minutos entre 30 e 180.");
+      setFormError("Duração inválida. Use minutos entre 30 e 180.");
       Vibration.vibrate(40);
       return;
     }
@@ -737,7 +759,7 @@ export default function ClassDetails() {
                 {"Faixa: " + classAgeBand}
               </Text>
               <View style={{ flexDirection: "row", gap: 6, marginTop: 6, alignItems: "center" }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Genero:</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Gênero:</Text>
                 <ClassGenderBadge gender={classGender} />
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
@@ -754,7 +776,7 @@ export default function ClassDetails() {
                   </Text>
                 </View>
                 <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Duracao</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
                   <Text style={{ color: colors.text, fontSize: 13 }}>
                     {classDuration + " min"}
                   </Text>
@@ -855,7 +877,7 @@ export default function ClassDetails() {
                 Fazer chamada
               </Text>
               <Text style={{ color: colors.successText, marginTop: 6, opacity: 0.7 }}>
-                Presenca rapida
+                Presença rápida
               </Text>
             </Pressable>
             <Pressable

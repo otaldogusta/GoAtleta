@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+    ActivityIndicator,
     Platform,
     ScrollView,
     Text,
@@ -58,6 +59,7 @@ export default function ReportsScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
   const [month, setMonth] = useState(new Date());
   const [classId, setClassId] = useState<string>("all");
@@ -103,15 +105,19 @@ export default function ReportsScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [cls, st, att] = await Promise.all([
-        getClasses(),
-        getStudents(),
-        getAttendanceAll(),
-      ]);
-      if (!alive) return;
-      setClasses(cls);
-      setStudents(st);
-      setAttendance(att);
+      try {
+        const [cls, st, att] = await Promise.all([
+          getClasses(),
+          getStudents(),
+          getAttendanceAll(),
+        ]);
+        if (!alive) return;
+        setClasses(cls);
+        setStudents(st);
+        setAttendance(att);
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => {
       alive = false;
@@ -352,7 +358,7 @@ export default function ReportsScreen() {
   }, [studentRows]);
 
   const statCards = [
-    { label: "Presencas", value: String(summary.present), color: colors.primaryBg },
+    { label: "Presenças", value: String(summary.present), color: colors.primaryBg },
     { label: "Faltas", value: String(summary.absent), color: colors.dangerSolidBg },
     { label: "Aulas", value: String(summary.total), color: colors.infoBg },
     { label: "Turmas", value: String(classes.length), color: colors.secondaryBg },
@@ -368,6 +374,20 @@ export default function ReportsScreen() {
     },
   ];
 
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
+            Carregando relatórios...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
@@ -376,7 +396,7 @@ export default function ReportsScreen() {
             Relatórios
           </Text>
           <Text style={{ color: colors.muted }}>
-            Dashboard de presenca e desempenho
+            Dashboard de presença e desempenho
           </Text>
         </View>
 
@@ -497,7 +517,7 @@ export default function ReportsScreen() {
           </View>
 
           <View style={insetCardStyle}>
-            <Text style={sectionTitleStyle}>Presenca geral</Text>
+            <Text style={sectionTitleStyle}>Presença geral</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
               <View
                 style={{
@@ -517,7 +537,7 @@ export default function ReportsScreen() {
               </View>
               <View style={{ gap: 6, flex: 1 }}>
                 <Text style={{ color: colors.text }}>
-                  Presencas: {summary.present}
+                  Presenças: {summary.present}
                 </Text>
                 <Text style={{ color: colors.text }}>
                   Faltas: {summary.absent}
@@ -632,7 +652,7 @@ export default function ReportsScreen() {
                     <Text style={{ color: colors.muted }}>{row.dateLabel}</Text>
                   </View>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    PSE: {row.log.PSE} | Tecnica: {row.log.technique} | Presenca:{" "}
+                    PSE: {row.log.PSE} | Técnica: {row.log.technique} | Presença:{" "}
                     {Math.round(row.log.attendance)}%
                   </Text>
                 </Pressable>
@@ -681,7 +701,7 @@ export default function ReportsScreen() {
                   />
                 </View>
                 <Text style={{ color: colors.muted }}>
-                  Presencas: {row.present} | Total: {row.total}
+                  Presenças: {row.present} | Total: {row.total}
                 </Text>
               </View>
             ))}
@@ -758,7 +778,7 @@ export default function ReportsScreen() {
                   />
                 </View>
                 <Text style={{ color: colors.muted }}>
-                  Presencas: {row.present} | Total: {row.total}
+                  Presenças: {row.present} | Total: {row.total}
                 </Text>
               </View>
             ))}

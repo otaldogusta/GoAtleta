@@ -9,6 +9,7 @@ import {
     useState
 } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Animated,
     KeyboardAvoidingView,
@@ -136,6 +137,7 @@ export default function StudentsScreen() {
   });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [classId, setClassId] = useState("");
   const [showForm, setShowForm] = usePersistedState<boolean>(
     "students_show_form_v1",
@@ -315,13 +317,17 @@ export default function StudentsScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [classList, studentList] = await Promise.all([
-        getClasses(),
-        getStudents(),
-      ]);
-      if (!alive) return;
-      setClasses(classList);
-      setStudents(studentList);
+      try {
+        const [classList, studentList] = await Promise.all([
+          getClasses(),
+          getStudents(),
+        ]);
+        if (!alive) return;
+        setClasses(classList);
+        setStudents(studentList);
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => {
       alive = false;
@@ -1748,6 +1754,19 @@ export default function StudentsScreen() {
     (item: Student) => String(item.id),
     []
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
+            Carregando alunos...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>

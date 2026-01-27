@@ -3,6 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -74,6 +75,7 @@ export default function ClassesScreen() {
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
   const [editModality, setEditModality] = useState<ClassGroup["modality"]>("voleibol");
@@ -532,8 +534,14 @@ export default function ClassesScreen() {
   }, [filteredClasses, unitKey, unitLabel]);
 
   const loadClasses = useCallback(async (alive?: { current: boolean }) => {
-    const data = await getClasses();
-    if (!alive || alive.current) setClasses(data);
+    const isAlive = () => !alive || alive.current;
+    setLoading(true);
+    try {
+      const data = await getClasses();
+      if (isAlive()) setClasses(data);
+    } finally {
+      if (isAlive()) setLoading(false);
+    }
   }, []);
 
   useFocusEffect(
@@ -1520,6 +1528,19 @@ export default function ClassesScreen() {
     newCycleStartDate.trim() ||
     newCycleLengthWeeks !== 12;
 
+  if (loading && !classes.length) {
+    return (
+      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
+            Carregando turmas...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
@@ -1747,7 +1768,7 @@ export default function ClassesScreen() {
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Genero</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
               <View ref={genderTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("gender")}
@@ -1793,7 +1814,7 @@ export default function ClassesScreen() {
               </View>
               {showAllGoals ? (
                 <TextInput
-                  placeholder="Objetivo (ex: Forca, Potencia)"
+                  placeholder="Objetivo (ex: Força, Potência)"
                   value={newGoal}
                   onChangeText={setNewGoal}
                   placeholderTextColor={colors.placeholder}
@@ -1956,7 +1977,7 @@ export default function ClassesScreen() {
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Nivel</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Nível</Text>
               <View ref={mvLevelTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("level")}
@@ -2464,7 +2485,7 @@ export default function ClassesScreen() {
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Nivel</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Nível</Text>
                 <View ref={editMvLevelTriggerRef}>
                   <Pressable
                     onPress={() => toggleEditPicker("level")}
@@ -2528,7 +2549,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Genero</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
               <View ref={editGenderTriggerRef}>
                 <Pressable
                   onPress={() => toggleEditPicker("gender")}
@@ -2598,7 +2619,7 @@ export default function ClassesScreen() {
               </View>
               {editShowAllGoals ? (
                 <TextInput
-                  placeholder="Objetivo (ex: Forca, Potencia)"
+                  placeholder="Objetivo (ex: Força, Potência)"
                   value={editGoal}
                   onChangeText={setEditGoal}
                   placeholderTextColor={colors.placeholder}
