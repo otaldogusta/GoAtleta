@@ -1,9 +1,6 @@
-import {
-  useEffect,
-  useState } from "react";
+import { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Text,
   View
@@ -12,28 +9,27 @@ import { Pressable } from "../../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 import { Typography } from "../../src/ui/Typography";
 import { Button } from "../../src/ui/Button";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useAuth } from "../../src/auth/auth";
+import { getRoleOverride, setRoleOverride } from "../../src/auth/role-override";
+import { useRole } from "../../src/auth/role";
 
 const STORAGE_KEY = "notify_settings_v1";
-const UPDATE_CHANNEL = "main";
-const UPDATE_URL =
-  "https://u.expo.dev/a5b1cd35-0ae7-4c50-a12e-df9741e0dfca?channel-name=" +
-  UPDATE_CHANNEL;
-const UPDATE_DEEPLINK =
-  "goatleta://expo-development-client/?url=" +
-  encodeURIComponent(UPDATE_URL);
-
 const isWeb = Platform.OS === "web";
 
 export default function NotificationsScreen() {
   const { colors, mode, toggleMode } = useAppTheme();
   const { signOut } = useAuth();
+  const { refresh: refreshRole } = useRole();
+  const router = useRouter();
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<string>("");
+  const [rolePreview, setRolePreview] = useState<"trainer" | "student" | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -44,6 +40,19 @@ export default function NotificationsScreen() {
         enabled: boolean;
       };
       setEnabled(Boolean(data.enabled));
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    let alive = true;
+    (async () => {
+      const override = await getRoleOverride();
+      if (!alive) return;
+      setRolePreview(override);
     })();
     return () => {
       alive = false;
@@ -90,6 +99,78 @@ export default function NotificationsScreen() {
     }
   };
 
+  const applyRolePreview = async (next: "trainer" | "student" | null) => {
+    await setRoleOverride(next);
+    setRolePreview(next);
+    await refreshRole();
+    router.replace("/");
+  };
+
+  const SectionTitle = ({ children }: { children: string }) => (
+    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>{children}</Text>
+  );
+
+  const SettingsRow = ({
+    icon,
+    iconBg,
+    label,
+    onPress,
+    rightContent,
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    iconBg: string;
+    label: string;
+    onPress?: () => void;
+    rightContent?: React.ReactNode;
+  }) => (
+    <Pressable
+      onPress={onPress}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 10,
+        paddingHorizontal: 8,
+        borderRadius: 14,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: iconBg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name={icon} size={18} color={colors.text} />
+        </View>
+        <Text style={{ color: colors.text, fontWeight: "600" }}>{label}</Text>
+      </View>
+      {rightContent ? (
+        rightContent
+      ) : (
+        <View
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            backgroundColor: colors.secondaryBg,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name="chevron-forward" size={16} color={colors.text} />
+        </View>
+      )}
+    </Pressable>
+  );
+
   return (
     <SafeAreaView
       style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
@@ -100,196 +181,137 @@ export default function NotificationsScreen() {
       >
       <Typography variant="title">Configurações</Typography>
 
-      <View style={{ marginTop: 16, gap: 12 }}>
-        <View
-          style={{
-            padding: 12,
-            borderRadius: 14,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
-          }}
-        >
-          <Typography variant="body">Tema</Typography>
-          <Pressable
-            onPress={toggleMode}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 12,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              {mode === "dark" ? "Claro" : "Escuro"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <View
-          style={{
-            padding: 12,
-            borderRadius: 14,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
-          }}
-        >
-          <Typography variant="body">Notificações</Typography>
-          <Pressable
-            onPress={() => {
-              setEnabled((prev) => !prev);
-            }}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 12,
-              borderRadius: 10,
-              backgroundColor: enabled ? colors.primaryBg : colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text
-              style={{
-                color: enabled ? colors.primaryText : colors.text,
-                fontWeight: "700",
-              }}
-            >
-              {enabled ? "Lembrete ligado" : "Lembrete desligado"}
-            </Text>
-          </Pressable>
-          {status ? (
-            <Text style={{ color: colors.muted }}>{status}</Text>
-          ) : null}
-        </View>
-
-        <View
-          style={{
-            padding: 12,
-            borderRadius: 14,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
-          }}
-        >
-          <Typography variant="body">Atualizações</Typography>
-          <Pressable
-            onPress={() => Linking.openURL(UPDATE_DEEPLINK)}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Carregar update (main)
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() =>
-              Linking.openURL(
-                "https://qr.expo.dev/development-client?appScheme=" +
-                  encodeURIComponent("goatleta") +
-                  "&url=" +
-                  encodeURIComponent(UPDATE_URL)
-              )
+      <View style={{ marginTop: 12, gap: 12 }}>
+        <View style={{ gap: 8 }}>
+          <SectionTitle>Configurações</SectionTitle>
+          <SettingsRow
+            icon="notifications-outline"
+            iconBg="rgba(135, 120, 255, 0.14)"
+            label="Notificações"
+            onPress={() => setEnabled((prev) => !prev)}
+            rightContent={
+              <View
+                style={{
+                  paddingVertical: 5,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  backgroundColor: enabled ? colors.primaryBg : colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text
+                  style={{
+                    color: enabled ? colors.primaryText : colors.text,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  {enabled ? "Ligado" : "Desligado"}
+                </Text>
+              </View>
             }
-            style={{
-              paddingVertical: 10,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Abrir QR do update
-            </Text>
-          </Pressable>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Use o update quando mudar apenas telas e textos.
-          </Text>
+          />
+          <SettingsRow
+            icon="moon-outline"
+            iconBg="rgba(96, 187, 255, 0.16)"
+            label="Modo escuro"
+            onPress={toggleMode}
+            rightContent={
+              <View
+                style={{
+                  width: 42,
+                  height: 24,
+                  borderRadius: 999,
+                  backgroundColor: mode === "dark" ? colors.primaryBg : colors.secondaryBg,
+                  alignItems: mode === "dark" ? "flex-end" : "flex-start",
+                  justifyContent: "center",
+                  paddingHorizontal: 3,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <View
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: colors.card,
+                  }}
+                />
+              </View>
+            }
+          />
+          {status ? <Text style={{ color: colors.muted }}>{status}</Text> : null}
         </View>
 
-        <View
-          style={{
-            padding: 12,
-            borderRadius: 14,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
-          }}
-        >
-          <Typography variant="body">Diagnostico</Typography>
-          <Pressable
-            onPress={() => {
-              throw new Error("Erro de teste do inbox");
-            }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Gerar erro de teste
-            </Text>
-          </Pressable>
-        </View>
+        {__DEV__ ? (
+          <View style={{ gap: 8 }}>
+            <SectionTitle>Preview de perfil (DEV)</SectionTitle>
+            <View style={{ gap: 8 }}>
+              <SettingsRow
+                icon="school-outline"
+                iconBg="rgba(255, 210, 150, 0.16)"
+                label="Ver como Professor"
+                onPress={() => applyRolePreview("trainer")}
+                rightContent={
+                  rolePreview === "trainer" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="person-outline"
+                iconBg="rgba(150, 200, 255, 0.16)"
+                label="Ver como Aluno"
+                onPress={() => applyRolePreview("student")}
+                rightContent={
+                  rolePreview === "student" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="sync-outline"
+                iconBg="rgba(200, 200, 200, 0.16)"
+                label="Auto (backend)"
+                onPress={() => applyRolePreview(null)}
+                rightContent={
+                  rolePreview == null ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+            </View>
+          </View>
+        ) : null}
 
-        <View
-          style={{
-            padding: 12,
-            borderRadius: 14,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
-          }}
-        >
-          <Typography variant="body">Conta</Typography>
-          <Pressable
+        <View style={{ gap: 8 }}>
+          <SectionTitle>Conta</SectionTitle>
+          <SettingsRow
+            icon="log-out-outline"
+            iconBg="rgba(255, 130, 130, 0.16)"
+            label="Sair"
             onPress={async () => {
               await signOut();
             }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Sair
-            </Text>
-          </Pressable>
+          />
         </View>
 
         <Pressable
           onPress={() => void apply(enabled)}
           style={{
-            paddingVertical: 12,
-            borderRadius: 14,
-            backgroundColor: colors.primaryBg,
+            alignSelf: "center",
+            paddingVertical: 10,
+            paddingHorizontal: 22,
+            borderRadius: 12,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
             alignItems: "center",
           }}
         >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
             Salvar alterações
           </Text>
         </Pressable>
@@ -298,6 +320,5 @@ export default function NotificationsScreen() {
     </SafeAreaView>
   );
 }
-
 
 

@@ -21,6 +21,13 @@ const plugins = [
 			},
 		},
 	],
+	[
+		"expo-image-picker",
+		{
+			cameraPermission: "Permitir acesso \u00e0 c\u00e2mera para tirar a foto do perfil.",
+			photosPermission: "Permitir acesso \u00e0 galeria para escolher a foto do perfil.",
+		},
+	],
 	"@react-native-community/datetimepicker",
 	"@sentry/react-native",
 	[

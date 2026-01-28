@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 import type { ClassGroup } from "../src/core/models";
 import { useRole } from "../src/auth/role";
+import { setRoleOverride } from "../src/auth/role-override";
 import { getClasses } from "../src/db/seed";
 import {
   AppNotification,
@@ -49,7 +51,7 @@ const formatShortDate = (iso: string) => {
 export default function StudentHome() {
   const router = useRouter();
   const { colors } = useAppTheme();
-  const { student } = useRole();
+  const { student, refresh: refreshRole } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [inbox, setInbox] = useState<AppNotification[]>([]);
 
@@ -142,14 +144,69 @@ export default function StudentHome() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-        <View>
-          <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text }}>
-            Ola{student?.name ? `, ${student.name.split(" ")[0]}` : ""}
-          </Text>
-          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
-            {todayLabel}
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View>
+            <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text }}>
+              Ola{student?.name ? `, ${student.name.split(" ")[0]}` : ""}
+            </Text>
+            <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
+              {todayLabel}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => router.push({ pathname: "/profile" })}
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 999,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#000",
+              shadowOpacity: 0.1,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 4,
+            }}
+          >
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="person" size={22} color={colors.text} />
+            </View>
+          </Pressable>
         </View>
+        {__DEV__ ? (
+          <Pressable
+            onPress={async () => {
+              await setRoleOverride(null);
+              await refreshRole();
+              router.replace("/");
+            }}
+            style={{
+              alignSelf: "flex-start",
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Voltar como professor
+            </Text>
+          </Pressable>
+        ) : null}
 
         <View
           style={{

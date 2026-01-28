@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import type { Student } from "../core/models";
 import { useAuth } from "./auth";
+import { getRoleOverride } from "./role-override";
 import { getSessionUserId, getValidAccessToken } from "./session";
 
 export type UserRole = "trainer" | "student" | "pending";
@@ -91,6 +92,20 @@ const fetchStudentSelf = async (token: string, userId: string) => {
   return mapStudent(rows[0]);
 };
 
+const buildPreviewStudent = (userId?: string | null): Student => ({
+  id: userId ?? "preview-student",
+  name: "Aluno (Preview)",
+  classId: "",
+  age: 0,
+  phone: "",
+  loginEmail: "",
+  guardianName: "",
+  guardianPhone: "",
+  guardianRelation: "",
+  birthDate: "",
+  createdAt: new Date().toISOString(),
+});
+
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const [role, setRole] = useState<UserRole | null>(null);
@@ -105,6 +120,25 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     }
     setLoading(true);
     try {
+      const override = await getRoleOverride();
+      if (override) {
+        if (override === "trainer") {
+          setRole("trainer");
+          setStudent(null);
+          return;
+        }
+        const token = await getValidAccessToken();
+        const userId = await getSessionUserId();
+        if (token && userId) {
+          const studentRow = await fetchStudentSelf(token, userId);
+          setRole("student");
+          setStudent(studentRow ?? buildPreviewStudent(userId));
+          return;
+        }
+        setRole("student");
+        setStudent(buildPreviewStudent(userId));
+        return;
+      }
       const token = await getValidAccessToken();
       const userId = await getSessionUserId();
       if (!token || !userId) {
