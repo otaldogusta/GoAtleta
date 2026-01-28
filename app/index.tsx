@@ -591,73 +591,19 @@ function TrainerHome() {
                       gap: 8,
                     }}
                   >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Pressable
-                        onPress={() => {
-                          goPrevClass();
-                        }}
-                        disabled={activeIndex === null || activeIndex <= 0}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 13,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor:
-                            activeIndex === null || activeIndex <= 0
-                              ? colors.primaryDisabledBg
-                              : colors.card,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          opacity: activeIndex === null || activeIndex <= 0 ? 0.6 : 1,
-                        }}
-                      >
-                        <Ionicons name="chevron-back" size={14} color={colors.text} />
-                      </Pressable>
-                      <View
-                        style={{
-                          paddingVertical: 2,
-                          paddingHorizontal: 8,
-                          borderRadius: 999,
-                          backgroundColor: colors.card,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                          {statusLabel}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => {
-                          goNextClass();
-                        }}
-                        disabled={
-                          activeIndex === null ||
-                          activeIndex >= scheduleWindow.length - 1
-                        }
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 13,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor:
-                            activeIndex === null ||
-                            activeIndex >= scheduleWindow.length - 1
-                              ? colors.primaryDisabledBg
-                              : colors.card,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          opacity:
-                            activeIndex === null ||
-                            activeIndex >= scheduleWindow.length - 1
-                              ? 0.6
-                              : 1,
-                        }}
-                      >
-                        <Ionicons name="chevron-forward" size={14} color={colors.text} />
-                      </Pressable>
+                    <View
+                      style={{
+                        paddingVertical: 2,
+                        paddingHorizontal: 8,
+                        borderRadius: 999,
+                        backgroundColor: colors.card,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                        {statusLabel}
+                      </Text>
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
                       {activeSummary.dateLabel}
