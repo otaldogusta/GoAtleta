@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import * as Updates from "expo-updates";
 import {
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState
