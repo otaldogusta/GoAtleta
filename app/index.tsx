@@ -490,12 +490,18 @@ function TrainerHome() {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      const update = await Updates.checkForUpdateAsync();
-      if (update.isAvailable) {
-        await Updates.fetchUpdateAsync();
-        showToast("Atualização encontrada. Reiniciando...", "success");
-        await Updates.reloadAsync();
-        return;
+      if (Updates.isEnabled && Platform.OS !== "web") {
+        try {
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            showToast("Atualização encontrada. Reiniciando...", "success");
+            await Updates.reloadAsync();
+            return;
+          }
+        } catch (error) {
+          // ignore update check errors in dev
+        }
       }
       await refreshHomeData();
       showToast("Atualizado.", "success");
@@ -818,7 +824,17 @@ function TrainerHome() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: "700",
+                    fontSize: 10,
+                    lineHeight: 14,
+                    textAlign: "center",
+                    textAlignVertical: "center",
+                    includeFontPadding: false,
+                  }}
+                >
                   Planejamento
                 </Text>
               </Pressable>
@@ -877,7 +893,17 @@ function TrainerHome() {
                     </Text>
                   </View>
                 ) : null}
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: "700",
+                    fontSize: 10,
+                    lineHeight: 14,
+                    textAlign: "center",
+                    textAlignVertical: "center",
+                    includeFontPadding: false,
+                  }}
+                >
                   Chamada
                 </Text>
               </Pressable>
@@ -937,7 +963,17 @@ function TrainerHome() {
                     </Text>
                   </View>
                 ) : null}
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: "700",
+                    fontSize: 10,
+                    lineHeight: 14,
+                    textAlign: "center",
+                    textAlignVertical: "center",
+                    includeFontPadding: false,
+                  }}
+                >
                   Relatório
                 </Text>
               </Pressable>
@@ -969,7 +1005,17 @@ function TrainerHome() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: "700",
+                    fontSize: 10,
+                    lineHeight: 14,
+                    textAlign: "center",
+                    textAlignVertical: "center",
+                    includeFontPadding: false,
+                  }}
+                >
                   Scouting
                 </Text>
               </Pressable>
