@@ -640,9 +640,23 @@ function TrainerHome() {
                               {label}
                             </Text>
                           </View>
-                          <Text style={{ color: colors.muted, fontSize: 12 }}>{item.dateLabel}</Text>
+                          <Text
+                            style={{
+                              color: colors.muted,
+                              fontSize: 12,
+                              minWidth: 64,
+                              textAlign: "right",
+                              flexShrink: 0,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {item.dateLabel}
+                          </Text>
                         </View>
-                        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                        <Text
+                          style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}
+                          numberOfLines={1}
+                        >
                           {item.className}
                         </Text>
                         <View
@@ -678,7 +692,18 @@ function TrainerHome() {
                               <ClassGenderBadge gender={item.gender} size="sm" />
                             ) : null}
                           </View>
-                          <Text style={{ color: colors.muted, fontSize: 12 }}>{item.timeLabel}</Text>
+                          <Text
+                            style={{
+                              color: colors.muted,
+                              fontSize: 12,
+                              minWidth: 84,
+                              textAlign: "right",
+                              flexShrink: 0,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {item.timeLabel}
+                          </Text>
                         </View>
                       </View>
                     </View>
@@ -687,7 +712,7 @@ function TrainerHome() {
               </ScrollView>
             </View>
 </View>
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 12 }}>
               <Pressable
                 onPress={() => {
                   if (!activeAttendanceTarget) return;
