@@ -293,8 +293,10 @@ function TrainerHome() {
       setManualIndex(null);
       return;
     }
-    setManualIndex(autoIndex);
-  }, [autoIndex, nowTime, scheduleWindow.length]);
+    if (manualIndex == null) {
+      setManualIndex(autoIndex);
+    }
+  }, [autoIndex, manualIndex, scheduleWindow.length]);
 
   useEffect(() => {
     if (manualIndex == null) return;
@@ -508,6 +510,7 @@ function TrainerHome() {
         }
       }
       await refreshHomeData();
+      setManualIndex(null);
       showToast("Atualizado.", "success");
     } catch (error) {
       showToast("Não foi possível atualizar agora.", "error");
