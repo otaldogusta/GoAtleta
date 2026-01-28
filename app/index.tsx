@@ -1045,7 +1045,6 @@ function TrainerHome() {
           subtitle="Ciclos e cargas"
           onPress={() => router.push({ pathname: "/periodization" })}
         />
-        </View>
       </ScrollView>
 
       <View
