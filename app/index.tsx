@@ -64,6 +64,7 @@ function TrainerHome() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
+  const didInitialAgendaScroll = useRef(false);
   const [pendingWrites, setPendingWrites] = useState(0);
   const [syncingWrites, setSyncingWrites] = useState(false);
   const [toast, setToast] = useState<{
@@ -350,10 +351,6 @@ function TrainerHome() {
       if (!size) return;
       const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
       setManualIndex(index);
-      if (Platform.OS === "web") return;
-      requestAnimationFrame(() => {
-        agendaScrollRef.current?.scrollTo({ x: index * size, animated: true });
-      });
     },
     [agendaCardGap, agendaCardWidth, scheduleWindow.length]
   );
@@ -384,12 +381,19 @@ function TrainerHome() {
   );
 
   useEffect(() => {
-    if (activeIndex == null || !agendaWidth) return;
-    const offset = (agendaCardWidth + agendaCardGap) * activeIndex;
+    if (didInitialAgendaScroll.current) return;
+    if (manualIndex != null) return;
+    if (autoIndex == null || !agendaWidth) return;
+    didInitialAgendaScroll.current = true;
+    const offset = (agendaCardWidth + agendaCardGap) * autoIndex;
     requestAnimationFrame(() => {
       agendaScrollRef.current?.scrollTo({ x: offset, animated: false });
     });
-  }, [agendaCardGap, agendaCardWidth, activeIndex, agendaWidth]);
+  }, [agendaCardGap, agendaCardWidth, agendaWidth, autoIndex, manualIndex]);
+
+  useEffect(() => {
+    didInitialAgendaScroll.current = false;
+  }, [scheduleWindow.length, todayDateKey]);
 
   useEffect(() => {
     if (agendaRefreshToken === 0) return;
