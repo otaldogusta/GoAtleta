@@ -271,13 +271,21 @@ function TrainerHome() {
 
   const autoIndex = useMemo(() => {
     if (!scheduleWindow.length) return null;
-    const current = scheduleWindow.findIndex(
-      (item) => nowTime >= item.startTime && nowTime < item.endTime
-    );
-    if (current >= 0) return current;
-    const next = scheduleWindow.findIndex((item) => item.startTime > nowTime);
-    return next >= 0 ? next : null;
-  }, [scheduleWindow, nowTime]);
+    const todayItems = scheduleWindow.filter((item) => item.dateKey === todayDateKey);
+    if (todayItems.length) {
+      const current = todayItems.find(
+        (item) => nowTime >= item.startTime && nowTime < item.endTime
+      );
+      if (current) return scheduleWindow.indexOf(current);
+      const nextToday = todayItems.find((item) => item.startTime > nowTime);
+      if (nextToday) return scheduleWindow.indexOf(nextToday);
+      const lastToday = todayItems[todayItems.length - 1];
+      return scheduleWindow.indexOf(lastToday);
+    }
+    const next = scheduleWindow.find((item) => item.startTime > nowTime);
+    if (next) return scheduleWindow.indexOf(next);
+    return scheduleWindow.length ? scheduleWindow.length - 1 : null;
+  }, [scheduleWindow, nowTime, todayDateKey]);
   const [manualIndex, setManualIndex] = useState<number | null>(null);
 
   useEffect(() => {
