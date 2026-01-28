@@ -37,6 +37,7 @@ import { DateInput } from "../../../src/ui/DateInput";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
+import { ShimmerBlock } from "../../../src/ui/Shimmer";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
@@ -335,7 +336,19 @@ export default function AttendanceScreen() {
   }, [baseline, noteById, painById, statusById]);
 
 
-  if (!cls) return null;
+  if (!cls) {
+    return (
+      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+        <View style={{ gap: 12 }}>
+          <ShimmerBlock style={{ height: 26, width: 160, borderRadius: 12 }} />
+          <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
+          <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
+          <ShimmerBlock style={{ height: 220, borderRadius: 18 }} />
+          <ShimmerBlock style={{ height: 220, borderRadius: 18 }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
   const dateLabel = formatDisplayDate(date);
   const parsedStart = parseTime(cls.startTime);
   const timeLabel =

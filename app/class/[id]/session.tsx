@@ -49,6 +49,7 @@ import { Button } from "../../../src/ui/Button";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
+import { ShimmerBlock } from "../../../src/ui/Shimmer";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
@@ -683,7 +684,19 @@ export default function SessionScreen() {
     }
   }, [tab]);
 
-  if (!cls) return null;
+  if (!cls) {
+    return (
+      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+        <View style={{ gap: 12 }}>
+          <ShimmerBlock style={{ height: 26, width: 180, borderRadius: 12 }} />
+          <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
+          <ShimmerBlock style={{ height: 110, borderRadius: 18 }} />
+          <ShimmerBlock style={{ height: 140, borderRadius: 18 }} />
+          <ShimmerBlock style={{ height: 200, borderRadius: 18 }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>

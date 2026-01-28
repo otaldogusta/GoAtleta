@@ -289,16 +289,12 @@ function TrainerHome() {
   const [manualIndex, setManualIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!scheduleWindow.length) {
-      setManualIndex(null);
-      return;
-    }
-    if (autoIndex === null) {
+    if (!scheduleWindow.length || autoIndex === null) {
       setManualIndex(null);
       return;
     }
     setManualIndex(autoIndex);
-  }, [autoIndex, scheduleWindow.length]);
+  }, [autoIndex, nowTime, scheduleWindow.length]);
 
   useEffect(() => {
     if (manualIndex == null) return;
