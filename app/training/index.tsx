@@ -2756,7 +2756,7 @@ export default function TrainingList() {
         >
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Titulo do modelo</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Título do modelo</Text>
                   <TextInput
                     placeholder="Título do modelo"
                     value={templateTitle}

@@ -72,13 +72,13 @@ export default function StudentAttendanceScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <Typography variant="title">Presenca do aluno</Typography>
+      <Typography variant="title">Presença do aluno</Typography>
       <Typography variant="subtitle">
         {student.name}
         {classGroup ? " - " + classGroup.name : ""}
       </Typography>
       <Typography variant="body">
-        Presencas: {summary.present}/{summary.total} ({summary.percent}%)
+        Presenças: {summary.present}/{summary.total} ({summary.percent}%)
       </Typography>
 
       <View style={{ marginTop: 8 }}>
@@ -132,6 +132,5 @@ export default function StudentAttendanceScreen() {
     </SafeAreaView>
   );
 }
-
 
 

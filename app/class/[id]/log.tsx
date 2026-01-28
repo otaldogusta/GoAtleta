@@ -328,7 +328,7 @@ export default function LogScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Tecnica geral
+                Técnica geral
               </Text>
               <View ref={techniqueTriggerRef}>
                 <Pressable
@@ -545,4 +545,3 @@ export default function LogScreen() {
     </SafeAreaView>
   );
 }
-

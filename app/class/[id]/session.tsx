@@ -1222,7 +1222,7 @@ export default function SessionScreen() {
 
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Tecnica geral
+                Técnica geral
               </Text>
               <View ref={techniqueTriggerRef}>
                 <Pressable

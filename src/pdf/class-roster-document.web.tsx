@@ -346,7 +346,7 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
             </View>
 
             <View style={[styles.block, styles.notes]}>
-              <Text style={styles.blockTitle}>Observacoes</Text>
+              <Text style={styles.blockTitle}>Observações</Text>
               {Array.from({ length: 8 }).map((_, idx) => (
                 <View key={`note-${idx}`} style={styles.notesLine} />
               ))}

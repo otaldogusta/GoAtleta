@@ -108,7 +108,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
         <View style={styles.grid}>
           {hasTitle ? (
             <View style={styles.card}>
-              <Text style={styles.label}>Titulo / Tema</Text>
+              <Text style={styles.label}>Título / Tema</Text>
               <Text style={styles.value}>{data.title}</Text>
             </View>
           ) : null}

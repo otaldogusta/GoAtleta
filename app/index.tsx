@@ -44,6 +44,7 @@ import {
 } from "../src/notificationsInbox";
 import { Card } from "../src/ui/Card";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
+import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getUnitPalette } from "../src/ui/unit-colors";
 import StudentHome from "./student-home";
@@ -290,12 +291,12 @@ function TrainerHome() {
       : null;
   const activeIndex = manualIndex ?? fallbackIndex;
   const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
-  const prevItem =
-    activeIndex !== null && activeIndex > 0 ? scheduleWindow[activeIndex - 1] : null;
-  const nextItem =
-    activeIndex !== null && activeIndex < scheduleWindow.length - 1
-      ? scheduleWindow[activeIndex + 1]
-      : null;
+  const agendaCardGap = 10;
+  const agendaCardWidth = useMemo(() => {
+    if (!agendaWidth) return 240;
+    const target = Math.max(180, Math.min(agendaWidth * 0.72, 260));
+    return Math.round(target);
+  }, [agendaWidth]);
   const getStatusLabelForItem = useCallback(
     (item: (typeof scheduleWindow)[number]) => {
       if (item.dateKey === todayDateKey) {
@@ -310,40 +311,25 @@ function TrainerHome() {
     [nowTime, todayDateKey]
   );
 
-  const goPrevClass = useCallback(() => {
-    if (activeIndex === null) return;
-    if (activeIndex <= 0) return;
-    setManualIndex(activeIndex - 1);
-  }, [activeIndex]);
-
-  const goNextClass = useCallback(() => {
-    if (activeIndex === null) return;
-    if (activeIndex >= scheduleWindow.length - 1) return;
-    setManualIndex(activeIndex + 1);
-  }, [activeIndex, scheduleWindow.length]);
-
   const handleAgendaScrollEnd = useCallback(
     (event: any) => {
-      if (!agendaWidth) return;
-      const page = Math.round(event.nativeEvent.contentOffset.x / agendaWidth);
-      if (page === 0) {
-        goPrevClass();
-      } else if (page === 2) {
-        goNextClass();
-      }
-      requestAnimationFrame(() => {
-        agendaScrollRef.current?.scrollTo({ x: agendaWidth, animated: false });
-      });
+      if (!scheduleWindow.length) return;
+      const offset = event.nativeEvent.contentOffset.x;
+      const size = agendaCardWidth + agendaCardGap;
+      if (!size) return;
+      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
+      setManualIndex(index);
     },
-    [agendaWidth, goNextClass, goPrevClass]
+    [agendaCardGap, agendaCardWidth, scheduleWindow.length]
   );
 
   useEffect(() => {
-    if (!agendaWidth) return;
+    if (activeIndex == null || !agendaWidth) return;
+    const offset = (agendaCardWidth + agendaCardGap) * activeIndex;
     requestAnimationFrame(() => {
-      agendaScrollRef.current?.scrollTo({ x: agendaWidth, animated: false });
+      agendaScrollRef.current?.scrollTo({ x: offset, animated: false });
     });
-  }, [agendaWidth, activeIndex]);
+  }, [agendaCardGap, agendaCardWidth, activeIndex, agendaWidth]);
 
   const activeSummary = useMemo(() => {
     if (!activeItem) return null;
@@ -599,117 +585,122 @@ function TrainerHome() {
                 borderColor: colors.border,
               }}
             >
-              <ScrollView
-                horizontal
-                pagingEnabled
+              <FadeHorizontalScroll
                 ref={agendaScrollRef}
-                showsHorizontalScrollIndicator={false}
                 scrollEnabled={scheduleWindow.length > 1}
                 onMomentumScrollEnd={handleAgendaScrollEnd}
-                contentOffset={{ x: agendaWidth, y: 0 }}
+                snapToInterval={agendaCardWidth + agendaCardGap}
+                decelerationRate="fast"
+                fadeColor={colors.secondaryBg}
+                fadeWidth={18}
+                contentContainerStyle={{ paddingRight: agendaCardGap }}
               >
-                {[prevItem, activeItem, nextItem].map((item, idx) => {
-                  const key = item ? item.classId : `empty-${idx}`;
-                  if (!item) {
-                    return <View key={key} style={{ width: agendaWidth || "100%" }} />;
-                  }
-                  const label = getStatusLabelForItem(item);
-                  const isPast = item.endTime <= nowTime;
-                  return (
-                    <View key={key} style={{ width: agendaWidth || "100%" }}>
-                      <View style={{ gap: 8, opacity: isPast ? 0.55 : 1 }}>
+                {scheduleWindow.length === 0 ? (
+                  <View style={{ paddingVertical: 6 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Nenhuma aula programada no per\u00edodo.
+                    </Text>
+                  </View>
+                ) : (
+                  scheduleWindow.map((item, idx) => {
+                    const label = getStatusLabelForItem(item);
+                    const isPast = item.endTime <= nowTime;
+                    const isActive = activeIndex === idx;
+                    return (
+                      <Pressable
+                        key={`${item.classId}-${item.dateKey}`}
+                        onPress={() => setManualIndex(idx)}
+                        style={{
+                          width: agendaCardWidth,
+                          marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
+                        }}
+                      >
                         <View
                           style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 8,
+                            padding: 10,
+                            borderRadius: 14,
+                            backgroundColor: colors.card,
+                            borderWidth: 1,
+                            borderColor: isActive ? colors.primaryBg : colors.border,
+                            opacity: isPast ? 0.6 : 1,
                           }}
                         >
-                          <View
-                            style={{
-                              paddingVertical: 2,
-                              paddingHorizontal: 8,
-                              borderRadius: 999,
-                              backgroundColor: colors.card,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                            }}
-                          >
-                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                              {label}
-                            </Text>
-                          </View>
-                          <Text
-                            style={{
-                              color: colors.muted,
-                              fontSize: 12,
-                              minWidth: 64,
-                              textAlign: "right",
-                              flexShrink: 0,
-                            }}
-                            numberOfLines={1}
-                          >
-                            {item.dateLabel}
-                          </Text>
-                        </View>
-                        <Text
-                          style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}
-                          numberOfLines={1}
-                        >
-                          {item.className}
-                        </Text>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 10,
-                          }}
-                        >
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <View style={{ gap: 6 }}>
                             <View
                               style={{
-                                paddingVertical: 4,
-                                paddingHorizontal: 10,
-                                borderRadius: 999,
-                                backgroundColor: getUnitPalette(item.unit, colors).bg,
-                                borderWidth: 1,
-                                borderColor: getUnitPalette(item.unit, colors).bg,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 6,
+                              }}
+                            >
+                              <View
+                                style={{
+                                  paddingVertical: 2,
+                                  paddingHorizontal: 8,
+                                  borderRadius: 999,
+                                  backgroundColor: colors.secondaryBg,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                }}
+                              >
+                                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                                  {label}
+                                </Text>
+                              </View>
+                              <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                                {item.dateLabel}
+                              </Text>
+                            </View>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 8,
                               }}
                             >
                               <Text
+                                style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
+                                numberOfLines={1}
+                              >
+                                {item.className}
+                              </Text>
+                              <View
                                 style={{
-                                  color: getUnitPalette(item.unit, colors).text,
-                                  fontSize: 11,
-                                  fontWeight: "700",
+                                  paddingVertical: 3,
+                                  paddingHorizontal: 8,
+                                  borderRadius: 999,
+                                  backgroundColor: getUnitPalette(item.unit, colors).bg,
+                                  borderWidth: 1,
+                                  borderColor: getUnitPalette(item.unit, colors).bg,
                                 }}
                               >
-                                {item.unit}
+                                <Text
+                                  style={{
+                                    color: getUnitPalette(item.unit, colors).text,
+                                    fontSize: 10,
+                                    fontWeight: "700",
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {item.unit}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                              {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
+                              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
+                                {item.timeLabel}
                               </Text>
                             </View>
-                            {item.gender ? (
-                              <ClassGenderBadge gender={item.gender} size="sm" />
-                            ) : null}
                           </View>
-                          <Text
-                            style={{
-                              color: colors.muted,
-                              fontSize: 12,
-                              minWidth: 84,
-                              textAlign: "right",
-                              flexShrink: 0,
-                            }}
-                            numberOfLines={1}
-                          >
-                            {item.timeLabel}
-                          </Text>
                         </View>
-                      </View>
-                    </View>
-                  );
-                })}
-              </ScrollView>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </FadeHorizontalScroll>
             </View>
 </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 12 }}>
@@ -728,8 +719,9 @@ function TrainerHome() {
                 disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  paddingHorizontal: 8,
+                  minHeight: 36,
                   borderRadius: 999,
                   backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
@@ -740,8 +732,8 @@ function TrainerHome() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
-                  Abrir plano
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
+                  Planejamento
                 </Text>
               </Pressable>
               <Pressable
@@ -758,8 +750,9 @@ function TrainerHome() {
                 disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  paddingHorizontal: 8,
+                  minHeight: 36,
                   borderRadius: 999,
                   backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
@@ -798,8 +791,8 @@ function TrainerHome() {
                     </Text>
                   </View>
                 ) : null}
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
-                  Fazer chamada
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
+                  Chamada
                 </Text>
               </Pressable>
               <Pressable
@@ -817,8 +810,9 @@ function TrainerHome() {
                 disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  paddingHorizontal: 8,
+                  minHeight: 36,
                   borderRadius: 999,
                   backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
@@ -857,8 +851,8 @@ function TrainerHome() {
                     </Text>
                   </View>
                 ) : null}
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
-                  Fazer relatório
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
+                  Relatório
                 </Text>
               </Pressable>
               <Pressable
@@ -876,8 +870,9 @@ function TrainerHome() {
                 disabled={!activeAttendanceTarget}
                 style={{
                   flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  paddingHorizontal: 8,
+                  minHeight: 36,
                   borderRadius: 999,
                   backgroundColor: activeAttendanceTarget
                     ? colors.secondaryBg
@@ -888,7 +883,7 @@ function TrainerHome() {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11, lineHeight: 12 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 10, lineHeight: 12, textAlign: "center" }}>
                   Scouting
                 </Text>
               </Pressable>

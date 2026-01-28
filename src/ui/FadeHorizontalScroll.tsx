@@ -34,18 +34,16 @@ export function FadeHorizontalScroll({
 }: FadeHorizontalScrollProps) {
   const { colors } = useAppTheme();
   const fadeTo = fadeColor ?? colors.card;
-  const fadeStrong = fadeTo.startsWith("#") ? toRgba(fadeTo, 0.95) : fadeTo;
-  const fadeMid = fadeTo.startsWith("#") ? toRgba(fadeTo, 0.7) : fadeTo;
-  const fadeSoft = fadeTo.startsWith("#") ? toRgba(fadeTo, 0.4) : fadeTo;
-  const fadeSteps = [
-    { color: fadeStrong, opacity: 1 },
-    { color: fadeMid, opacity: 0.85 },
-    { color: fadeMid, opacity: 0.65 },
-    { color: fadeSoft, opacity: 0.45 },
-    { color: fadeSoft, opacity: 0.25 },
-    { color: fadeSoft, opacity: 0.1 },
-  ];
-  const stepWidth = fadeWidth / fadeSteps.length;
+  const fadeBase = fadeTo.startsWith("#") ? toRgba(fadeTo, 1) : fadeTo;
+  const stepsCount = 12;
+  const maxOpacity = 0.85;
+  const fadeSteps = Array.from({ length: stepsCount }, (_, index) => {
+    const t = stepsCount === 1 ? 1 : index / (stepsCount - 1);
+    const eased = t * t;
+    const opacity = maxOpacity * (1 - eased);
+    return { color: fadeBase, opacity };
+  });
+  const stepWidth = fadeWidth / stepsCount;
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
   const showLeftRef = useRef(false);

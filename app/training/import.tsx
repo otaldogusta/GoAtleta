@@ -133,10 +133,10 @@ const buildMain = (row: CsvRow) => {
     extras.push(`Objetivo geral: ${row.objective_general}`);
   }
   if (row.objective_specific) {
-    extras.push(`Objetivo especifico: ${row.objective_specific}`);
+    extras.push(`Objetivo específico: ${row.objective_specific}`);
   }
   if (row.observations) {
-    extras.push(`Observacoes: ${row.observations}`);
+    extras.push(`Observações: ${row.observations}`);
   }
   return [...extras, ...mainItems];
 };

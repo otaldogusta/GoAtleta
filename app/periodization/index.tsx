@@ -172,10 +172,10 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
     },
     {
       week: 2,
-      title: "Potencia controlada",
+      title: "Potência controlada",
       focus: "Salto, deslocamento e reação",
       volume: "alto",
-      notes: ["Pliometria leve", "Forca 50-70% 1RM"],
+      notes: ["Pliometria leve", "Força 50-70% 1RM"],
     },
     {
       week: 3,
@@ -226,8 +226,8 @@ const resolvePlanBand = (value?: string): (typeof ageBands)[number] => {
 
 const getPhysicalFocus = (band: (typeof ageBands)[number]) => {
   if (band === "06-08") return "Coordenação e equilíbrio";
-  if (band === "09-11") return "Forca leve e agilidade";
-  return "Potencia controlada";
+  if (band === "09-11") return "Força leve e agilidade";
+  return "Potência controlada";
 };
 
 const getMvFormat = (band: (typeof ageBands)[number]) => {
@@ -934,8 +934,8 @@ export default function PeriodizationScreen() {
       ];
     }
     return [
-      "Tecnica eficiente + sistema de jogo",
-      "Forca moderada e pliometria controlada",
+      "Técnica eficiente + sistema de jogo",
+      "Força moderada e pliometria controlada",
       "Monitorar PSE e recuperação",
     ];
   }, [ageBand]);

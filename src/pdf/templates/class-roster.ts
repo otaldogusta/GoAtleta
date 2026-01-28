@@ -336,7 +336,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
             </table>
           </div>
           <div class="block notes">
-            <div class="block-title">Observacoes</div>
+            <div class="block-title">Observações</div>
             ${Array.from({ length: 8 }).map(() => `<div class="notes-line"></div>`).join("")}
           </div>
         </div>
