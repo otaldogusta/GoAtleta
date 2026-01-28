@@ -300,6 +300,34 @@ function TrainerHome() {
     return activeItem.dateKey < todayDateKey ? "Aula anterior" : "Próxima aula";
   }, [activeItem, nowTime, todayDateKey]);
 
+  const goPrevClass = useCallback(() => {
+    if (activeIndex === null) return;
+    if (activeIndex <= 0) return;
+    setManualIndex(activeIndex - 1);
+  }, [activeIndex]);
+
+  const goNextClass = useCallback(() => {
+    if (activeIndex === null) return;
+    if (activeIndex >= scheduleWindow.length - 1) return;
+    setManualIndex(activeIndex + 1);
+  }, [activeIndex, scheduleWindow.length]);
+
+  const nextClassSwipe = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dx) > 12 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dx > 30) {
+          goPrevClass();
+          return;
+        }
+        if (gesture.dx < -30) {
+          goNextClass();
+        }
+      },
+    })
+  ).current;
+
   const activeSummary = useMemo(() => {
     if (!activeItem) return null;
     return {
@@ -550,6 +578,7 @@ function TrainerHome() {
                 borderColor: colors.border,
                 gap: 8,
               }}
+              {...nextClassSwipe.panHandlers}
             >
               {activeSummary ? (
                 <>
@@ -564,9 +593,7 @@ function TrainerHome() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <Pressable
                         onPress={() => {
-                          if (activeIndex === null) return;
-                          if (activeIndex <= 0) return;
-                          setManualIndex(activeIndex - 1);
+                          goPrevClass();
                         }}
                         disabled={activeIndex === null || activeIndex <= 0}
                         style={{
@@ -602,9 +629,7 @@ function TrainerHome() {
                       </View>
                       <Pressable
                         onPress={() => {
-                          if (activeIndex === null) return;
-                          if (activeIndex >= scheduleWindow.length - 1) return;
-                          setManualIndex(activeIndex + 1);
+                          goNextClass();
                         }}
                         disabled={
                           activeIndex === null ||
