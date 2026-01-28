@@ -63,6 +63,7 @@ function TrainerHome() {
   const agendaScrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
+  const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
   const [pendingWrites, setPendingWrites] = useState(0);
   const [syncingWrites, setSyncingWrites] = useState(false);
   const [toast, setToast] = useState<{
@@ -390,6 +391,15 @@ function TrainerHome() {
     });
   }, [agendaCardGap, agendaCardWidth, activeIndex, agendaWidth]);
 
+  useEffect(() => {
+    if (agendaRefreshToken === 0) return;
+    if (autoIndex == null || !agendaWidth) return;
+    const offset = (agendaCardWidth + agendaCardGap) * autoIndex;
+    requestAnimationFrame(() => {
+      agendaScrollRef.current?.scrollTo({ x: offset, animated: true });
+    });
+  }, [agendaCardGap, agendaCardWidth, agendaRefreshToken, autoIndex, agendaWidth]);
+
   const activeSummary = useMemo(() => {
     if (!activeItem) return null;
     return {
@@ -511,6 +521,7 @@ function TrainerHome() {
       }
       await refreshHomeData();
       setManualIndex(null);
+      setAgendaRefreshToken((value) => value + 1);
       showToast("Atualizado.", "success");
     } catch (error) {
       showToast("Não foi possível atualizar agora.", "error");
