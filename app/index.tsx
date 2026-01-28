@@ -68,6 +68,8 @@ function TrainerHome() {
   const screenWidth = Dimensions.get("window").width;
   const panelWidth = Math.min(screenWidth * 0.85, 360);
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
+  const agendaScrollRef = useRef<ScrollView>(null);
+  const [agendaWidth, setAgendaWidth] = useState(0);
 
   const [now, setNow] = useState(() => new Date());
 
@@ -288,18 +290,25 @@ function TrainerHome() {
       : null;
   const activeIndex = manualIndex ?? fallbackIndex;
   const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
-  const isActivePast = activeItem ? activeItem.endTime <= nowTime : false;
-  const statusLabel = useMemo(() => {
-    if (!activeItem) return "";
-    if (activeItem.dateKey === todayDateKey) {
-      if (nowTime >= activeItem.startTime && nowTime < activeItem.endTime) {
-        return "Aula de hoje";
+  const prevItem =
+    activeIndex !== null && activeIndex > 0 ? scheduleWindow[activeIndex - 1] : null;
+  const nextItem =
+    activeIndex !== null && activeIndex < scheduleWindow.length - 1
+      ? scheduleWindow[activeIndex + 1]
+      : null;
+  const getStatusLabelForItem = useCallback(
+    (item: (typeof scheduleWindow)[number]) => {
+      if (item.dateKey === todayDateKey) {
+        if (nowTime >= item.startTime && nowTime < item.endTime) {
+          return "Aula de hoje";
+        }
+        if (item.endTime <= nowTime) return "Aula anterior";
+        return "Próxima aula";
       }
-      if (activeItem.endTime <= nowTime) return "Aula anterior";
-      return "Próxima aula";
-    }
-    return activeItem.dateKey < todayDateKey ? "Aula anterior" : "Próxima aula";
-  }, [activeItem, nowTime, todayDateKey]);
+      return item.dateKey < todayDateKey ? "Aula anterior" : "Próxima aula";
+    },
+    [nowTime, todayDateKey]
+  );
 
   const goPrevClass = useCallback(() => {
     if (activeIndex === null) return;
@@ -313,26 +322,28 @@ function TrainerHome() {
     setManualIndex(activeIndex + 1);
   }, [activeIndex, scheduleWindow.length]);
 
-  const nextClassSwipe = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
-      onMoveShouldSetPanResponderCapture: (_, gesture) =>
-        Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderRelease: (_, gesture) => {
-        if (gesture.dx > 24) {
-          goPrevClass();
-          return;
-        }
-        if (gesture.dx < -24) {
-          goNextClass();
-        }
-      },
-    })
-  ).current;
+  const handleAgendaScrollEnd = useCallback(
+    (event: any) => {
+      if (!agendaWidth) return;
+      const page = Math.round(event.nativeEvent.contentOffset.x / agendaWidth);
+      if (page === 0) {
+        goPrevClass();
+      } else if (page === 2) {
+        goNextClass();
+      }
+      requestAnimationFrame(() => {
+        agendaScrollRef.current?.scrollTo({ x: agendaWidth, animated: false });
+      });
+    },
+    [agendaWidth, goNextClass, goPrevClass]
+  );
+
+  useEffect(() => {
+    if (!agendaWidth) return;
+    requestAnimationFrame(() => {
+      agendaScrollRef.current?.scrollTo({ x: agendaWidth, animated: false });
+    });
+  }, [agendaWidth, activeIndex]);
 
   const activeSummary = useMemo(() => {
     if (!activeItem) return null;
@@ -576,89 +587,105 @@ function TrainerHome() {
               </Text>
             </View>
             <View
+              onLayout={(event) => {
+                const width = event.nativeEvent.layout.width;
+                if (width && width !== agendaWidth) setAgendaWidth(width);
+              }}
               style={{
                 padding: 12,
                 borderRadius: 14,
                 backgroundColor: colors.secondaryBg,
                 borderWidth: 1,
                 borderColor: colors.border,
-                gap: 8,
               }}
-              {...nextClassSwipe.panHandlers}
             >
-              {activeSummary ? (
-                <>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                    }}
-                  >
-                    <View
-                      style={{
-                        paddingVertical: 2,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: colors.card,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                        {statusLabel}
-                      </Text>
-                    </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {activeSummary.dateLabel}
-                    </Text>
-                  </View>
-                  <View style={{ opacity: isActivePast ? 0.55 : 1 }}>
-                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
-                      {activeSummary.className}
-                    </Text>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 10,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                ref={agendaScrollRef}
+                showsHorizontalScrollIndicator={false}
+                scrollEnabled={scheduleWindow.length > 1}
+                onMomentumScrollEnd={handleAgendaScrollEnd}
+                contentOffset={{ x: agendaWidth, y: 0 }}
+              >
+                {[prevItem, activeItem, nextItem].map((item, idx) => {
+                  const key = item ? item.classId : `empty-${idx}`;
+                  if (!item) {
+                    return <View key={key} style={{ width: agendaWidth || "100%" }} />;
+                  }
+                  const label = getStatusLabelForItem(item);
+                  const isPast = item.endTime <= nowTime;
+                  return (
+                    <View key={key} style={{ width: agendaWidth || "100%" }}>
+                      <View style={{ gap: 8, opacity: isPast ? 0.55 : 1 }}>
                         <View
                           style={{
-                            paddingVertical: 4,
-                            paddingHorizontal: 10,
-                            borderRadius: 999,
-                            backgroundColor: getUnitPalette(activeSummary.unit, colors).bg,
-                            borderWidth: 1,
-                            borderColor: getUnitPalette(activeSummary.unit, colors).bg,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
                           }}
                         >
-                          <Text
+                          <View
                             style={{
-                              color: getUnitPalette(activeSummary.unit, colors).text,
-                              fontSize: 11,
-                              fontWeight: "700",
+                              paddingVertical: 2,
+                              paddingHorizontal: 8,
+                              borderRadius: 999,
+                              backgroundColor: colors.card,
+                              borderWidth: 1,
+                              borderColor: colors.border,
                             }}
                           >
-                            {activeSummary.unit}
-                          </Text>
+                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                              {label}
+                            </Text>
+                          </View>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>{item.dateLabel}</Text>
                         </View>
-                        {activeSummary.gender ? (
-                          <ClassGenderBadge gender={activeSummary.gender} size="sm" />
-                        ) : null}
+                        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                          {item.className}
+                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 10,
+                          }}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            <View
+                              style={{
+                                paddingVertical: 4,
+                                paddingHorizontal: 10,
+                                borderRadius: 999,
+                                backgroundColor: getUnitPalette(item.unit, colors).bg,
+                                borderWidth: 1,
+                                borderColor: getUnitPalette(item.unit, colors).bg,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: getUnitPalette(item.unit, colors).text,
+                                  fontSize: 11,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {item.unit}
+                              </Text>
+                            </View>
+                            {item.gender ? (
+                              <ClassGenderBadge gender={item.gender} size="sm" />
+                            ) : null}
+                          </View>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>{item.timeLabel}</Text>
+                        </View>
                       </View>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {activeSummary.timeLabel}
-                      </Text>
                     </View>
-                  </View>
-                  {null}
-                </>
-              ) : null}
+                  );
+                })}
+              </ScrollView>
+            </View>
 </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
