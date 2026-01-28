@@ -45,6 +45,7 @@ import {
 import { Card } from "../src/ui/Card";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
+import { ShimmerBlock } from "../src/ui/Shimmer";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getUnitPalette } from "../src/ui/unit-colors";
 import StudentHome from "./student-home";
@@ -59,7 +60,9 @@ function TrainerHome() {
   const [showInbox, setShowInbox] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const agendaScrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
   const [pendingWrites, setPendingWrites] = useState(0);
   const [syncingWrites, setSyncingWrites] = useState(false);
   const [toast, setToast] = useState<{
@@ -94,9 +97,14 @@ function TrainerHome() {
       const items = await getNotifications();
       if (alive) setInbox(items);
       if (!session || role !== "trainer") return;
-      await seedIfEmpty();
-      const classList = await getClasses();
-      if (alive) setClasses(classList);
+      if (alive) setLoadingClasses(true);
+      try {
+        await seedIfEmpty();
+        const classList = await getClasses();
+        if (alive) setClasses(classList);
+      } finally {
+        if (alive) setLoadingClasses(false);
+      }
     })();
     const unsubscribe = subscribeNotifications((items) => {
       if (!alive) return;
@@ -231,7 +239,7 @@ function TrainerHome() {
       endTime: number;
       timeLabel: string;
     }> = [];
-    for (let offset = -7; offset <= 7; offset += 1) {
+    for (let offset = -2; offset <= 2; offset += 1) {
       const dayDate = new Date(now);
       dayDate.setDate(now.getDate() + offset);
       dayDate.setHours(0, 0, 0, 0);
@@ -261,11 +269,28 @@ function TrainerHome() {
     return items.sort((a, b) => a.startTime - b.startTime);
   }, [classes, now]);
 
-  const nextIndex = useMemo(() => {
-    if (!scheduleWindow.length) return -1;
-    return scheduleWindow.findIndex((item) => nowTime < item.endTime);
+  const autoIndex = useMemo(() => {
+    if (!scheduleWindow.length) return null;
+    const current = scheduleWindow.findIndex(
+      (item) => nowTime >= item.startTime && nowTime < item.endTime
+    );
+    if (current >= 0) return current;
+    const next = scheduleWindow.findIndex((item) => item.startTime > nowTime);
+    return next >= 0 ? next : null;
   }, [scheduleWindow, nowTime]);
   const [manualIndex, setManualIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!scheduleWindow.length) {
+      setManualIndex(null);
+      return;
+    }
+    if (autoIndex === null) {
+      setManualIndex(null);
+      return;
+    }
+    setManualIndex(autoIndex);
+  }, [autoIndex, scheduleWindow.length]);
 
   useEffect(() => {
     if (manualIndex == null) return;
@@ -279,17 +304,7 @@ function TrainerHome() {
     }
   }, [manualIndex, scheduleWindow.length]);
 
-  useEffect(() => {
-    setManualIndex(null);
-  }, [todayDateKey, scheduleWindow.length]);
-
-  const fallbackIndex =
-    scheduleWindow.length > 0
-      ? nextIndex >= 0
-        ? nextIndex
-        : scheduleWindow.length - 1
-      : null;
-  const activeIndex = manualIndex ?? fallbackIndex;
+  const activeIndex = manualIndex ?? autoIndex;
   const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
   const agendaCardGap = 10;
   const agendaCardWidth = useMemo(() => {
@@ -297,6 +312,15 @@ function TrainerHome() {
     const target = Math.max(180, Math.min(agendaWidth * 0.72, 260));
     return Math.round(target);
   }, [agendaWidth]);
+  const agendaScrollStyle = useMemo(() => {
+    if (Platform.OS !== "web") return undefined;
+    return { scrollSnapType: "x mandatory", scrollBehavior: "smooth" } as const;
+  }, []);
+  const agendaSnapOffsets = useMemo(() => {
+    if (!agendaWidth || !scheduleWindow.length) return undefined;
+    const size = agendaCardWidth + agendaCardGap;
+    return scheduleWindow.map((_, index) => index * size);
+  }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow.length]);
   const getStatusLabelForItem = useCallback(
     (item: (typeof scheduleWindow)[number]) => {
       if (item.dateKey === todayDateKey) {
@@ -319,8 +343,37 @@ function TrainerHome() {
       if (!size) return;
       const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
       setManualIndex(index);
+      if (Platform.OS === "web") return;
+      requestAnimationFrame(() => {
+        agendaScrollRef.current?.scrollTo({ x: index * size, animated: true });
+      });
     },
     [agendaCardGap, agendaCardWidth, scheduleWindow.length]
+  );
+  const handleAgendaCardPress = useCallback(
+    (index: number) => {
+      setManualIndex(index);
+      const size = agendaCardWidth + agendaCardGap;
+      if (!size) return;
+      agendaScrollRef.current?.scrollTo({ x: index * size, animated: true });
+    },
+    [agendaCardGap, agendaCardWidth]
+  );
+  const handleAgendaScroll = useCallback(
+    (event: any) => {
+      if (Platform.OS !== "web" || !scheduleWindow.length) return;
+      const offset = event.nativeEvent.contentOffset.x;
+      const size = agendaCardWidth + agendaCardGap;
+      if (!size) return;
+      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
+      if (agendaScrollEndTimer.current) {
+        clearTimeout(agendaScrollEndTimer.current);
+      }
+      agendaScrollEndTimer.current = setTimeout(() => {
+        if (manualIndex !== index) setManualIndex(index);
+      }, 120);
+    },
+    [agendaCardGap, agendaCardWidth, manualIndex, scheduleWindow.length]
   );
 
   useEffect(() => {
@@ -353,8 +406,10 @@ function TrainerHome() {
 
   const [attendanceDone, setAttendanceDone] = useState<boolean | null>(null);
   const [reportDone, setReportDone] = useState<boolean | null>(null);
-  const showAttendanceWarning = Boolean(activeAttendanceTarget) && attendanceDone === false;
-  const showReportWarning = Boolean(activeAttendanceTarget) && reportDone === false;
+  const hasSessionEnded = Boolean(activeItem) && activeItem.endTime <= nowTime;
+  const showAttendanceWarning =
+    Boolean(activeAttendanceTarget) && attendanceDone === false && hasSessionEnded;
+  const showReportWarning = Boolean(activeAttendanceTarget) && reportDone === false && hasSessionEnded;
 
   useEffect(() => {
     let alive = true;
@@ -415,6 +470,22 @@ function TrainerHome() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  const refreshHomeData = useCallback(async () => {
+    const tasks: Promise<unknown>[] = [getNotifications().then(setInbox)];
+    if (session && role === "trainer") {
+      setLoadingClasses(true);
+      tasks.push(
+        seedIfEmpty()
+          .then(getClasses)
+          .then(setClasses)
+          .finally(() => setLoadingClasses(false))
+      );
+      tasks.push(getPendingWritesCount().then(setPendingWrites));
+    }
+    await Promise.all(tasks);
+    setNow(new Date());
+  }, [role, session]);
+
   const onRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -426,9 +497,10 @@ function TrainerHome() {
         await Updates.reloadAsync();
         return;
       }
-      showToast("Sem atualizações novas.", "info");
+      await refreshHomeData();
+      showToast("Atualizado.", "success");
     } catch (error) {
-      showToast("Não foi possível buscar atualizações agora.", "error");
+      showToast("Não foi possível atualizar agora.", "error");
     } finally {
       setRefreshing(false);
     }
@@ -568,9 +640,6 @@ function TrainerHome() {
               <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
                 Agenda do dia
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 13 }}>
-                Turmas, treino e chamada em um lugar
-              </Text>
             </View>
             <View
               onLayout={(event) => {
@@ -588,14 +657,30 @@ function TrainerHome() {
               <FadeHorizontalScroll
                 ref={agendaScrollRef}
                 scrollEnabled={scheduleWindow.length > 1}
+                scrollStyle={agendaScrollStyle}
                 onMomentumScrollEnd={handleAgendaScrollEnd}
-                snapToInterval={agendaCardWidth + agendaCardGap}
+                onScroll={handleAgendaScroll}
+                snapToOffsets={agendaSnapOffsets}
+                snapToAlignment="start"
+                disableIntervalMomentum
                 decelerationRate="fast"
                 fadeColor={colors.secondaryBg}
-                fadeWidth={18}
+                fadeWidth={8}
                 contentContainerStyle={{ paddingRight: agendaCardGap }}
               >
-                {scheduleWindow.length === 0 ? (
+                {loadingClasses ? (
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <ShimmerBlock
+                      key={`agenda-shimmer-${index}`}
+                      style={{
+                        width: agendaCardWidth,
+                        height: 86,
+                        borderRadius: 14,
+                        marginRight: index === 2 ? 0 : agendaCardGap,
+                      }}
+                    />
+                  ))
+                ) : scheduleWindow.length === 0 ? (
                   <View style={{ paddingVertical: 6 }}>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
                       Nenhuma aula programada no per\u00edodo.
@@ -609,10 +694,11 @@ function TrainerHome() {
                     return (
                       <Pressable
                         key={`${item.classId}-${item.dateKey}`}
-                        onPress={() => setManualIndex(idx)}
+                        onPress={() => handleAgendaCardPress(idx)}
                         style={{
                           width: agendaCardWidth,
                           marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
+                          ...(Platform.OS === "web" ? ({ scrollSnapAlign: "start" } as const) : null),
                         }}
                       >
                         <View

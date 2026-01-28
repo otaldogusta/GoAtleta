@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useRef, useState } from "react";
 import type {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -7,7 +7,7 @@ import type {
   StyleProp,
   ViewStyle,
 } from "react-native";
-import { ScrollView, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
 import { toRgba } from "./unit-colors";
 import { useAppTheme } from "./app-theme";
 
@@ -23,20 +23,24 @@ type FadeHorizontalScrollProps = Omit<
   fadeColor?: string;
 };
 
-export function FadeHorizontalScroll({
-  children,
-  containerStyle,
-  scrollStyle,
-  contentContainerStyle,
-  fadeWidth = 36,
-  fadeColor,
-  ...scrollProps
-}: FadeHorizontalScrollProps) {
+export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollProps>(
+  (
+    {
+      children,
+      containerStyle,
+      scrollStyle,
+      contentContainerStyle,
+      fadeWidth = 36,
+      fadeColor,
+      ...scrollProps
+    },
+    ref
+  ) => {
   const { colors } = useAppTheme();
   const fadeTo = fadeColor ?? colors.card;
   const fadeBase = fadeTo.startsWith("#") ? toRgba(fadeTo, 1) : fadeTo;
-  const stepsCount = 12;
-  const maxOpacity = 0.85;
+  const stepsCount = Math.max(14, Math.round(fadeWidth * 2));
+  const maxOpacity = 0.7;
   const fadeSteps = Array.from({ length: stepsCount }, (_, index) => {
     const t = stepsCount === 1 ? 1 : index / (stepsCount - 1);
     const eased = t * t;
@@ -90,6 +94,8 @@ export function FadeHorizontalScroll({
     [scrollProps, updateVisibility]
   );
 
+  const webSmoothStyle = Platform.OS === "web" ? ({ scrollBehavior: "smooth" } as const) : undefined;
+
   return (
     <View
       style={[
@@ -101,9 +107,10 @@ export function FadeHorizontalScroll({
       ]}
     >
       <ScrollView
+        ref={ref}
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={scrollStyle}
+        style={[webSmoothStyle, scrollStyle]}
         contentContainerStyle={[{ paddingRight: fadeWidth }, contentContainerStyle]}
         onStartShouldSetResponderCapture={() => false}
         onContentSizeChange={(width) => {
@@ -156,4 +163,7 @@ export function FadeHorizontalScroll({
         : null}
     </View>
   );
-}
+  }
+);
+
+FadeHorizontalScroll.displayName = "FadeHorizontalScroll";
