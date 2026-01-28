@@ -315,14 +315,19 @@ function TrainerHome() {
 
   const nextClassSwipe = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
       onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dx) > 12 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+        Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onMoveShouldSetPanResponderCapture: (_, gesture) =>
+        Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderTerminationRequest: () => false,
       onPanResponderRelease: (_, gesture) => {
-        if (gesture.dx > 30) {
+        if (gesture.dx > 24) {
           goPrevClass();
           return;
         }
-        if (gesture.dx < -30) {
+        if (gesture.dx < -24) {
           goNextClass();
         }
       },
