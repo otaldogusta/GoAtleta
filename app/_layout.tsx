@@ -70,7 +70,6 @@ function RootLayoutContent() {
   const studentOnlyRoutes = [
     "/absence-report",
     "/communications",
-    "/profile",
     "/student-plan",
     "/student-home",
   ];

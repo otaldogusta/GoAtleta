@@ -227,8 +227,8 @@ export default function PendingScreen() {
           ) : (
             <>
               <Text style={{ color: colors.muted }}>
-                Se vocÃª recebeu um link de convite, abra-o novamente. Caso precise
-                colar manualmente, use a opÃ§Ã£o abaixo.
+                Se você recebeu um link de convite, abra-o novamente. Caso precise
+                colar manualmente, use a opção abaixo.
               </Text>
               {!showInviteInput ? (
                 <Pressable

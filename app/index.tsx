@@ -1,7 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Updates from "expo-updates";
+import { Image } from "expo-image";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   useEffect,
   useCallback,
@@ -76,6 +79,7 @@ function TrainerHome() {
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
   const agendaScrollRef = useRef<ScrollView>(null);
   const [agendaWidth, setAgendaWidth] = useState(0);
+  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
 
   const [now, setNow] = useState(() => new Date());
 
@@ -108,6 +112,19 @@ function TrainerHome() {
         if (alive) setLoadingClasses(false);
       }
     })();
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem("profile_photo_uri_v1");
+        if (!alive) return;
+        if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+          setProfilePhotoUri(null);
+        } else {
+          setProfilePhotoUri(stored || null);
+        }
+      } catch {
+        if (alive) setProfilePhotoUri(null);
+      }
+    })();
     const unsubscribe = subscribeNotifications((items) => {
       if (!alive) return;
       setInbox(items);
@@ -117,6 +134,29 @@ function TrainerHome() {
       unsubscribe();
     };
   }, [session, role]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const stored = await AsyncStorage.getItem("profile_photo_uri_v1");
+          if (!active) return;
+          if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+            setProfilePhotoUri(null);
+            return;
+          }
+          setProfilePhotoUri(stored || null);
+        } catch {
+          if (active) setProfilePhotoUri(null);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
 
   useEffect(() => {
     let alive = true;
@@ -492,6 +532,17 @@ function TrainerHome() {
 
   const refreshHomeData = useCallback(async () => {
     const tasks: Promise<unknown>[] = [getNotifications().then(setInbox)];
+    tasks.push(
+      AsyncStorage.getItem("profile_photo_uri_v1")
+        .then((value) => {
+          if (Platform.OS === "web" && value?.startsWith("blob:")) {
+            setProfilePhotoUri(null);
+            return;
+          }
+          setProfilePhotoUri(value || null);
+        })
+        .catch(() => setProfilePhotoUri(null))
+    );
     if (session && role === "trainer") {
       setLoadingClasses(true);
       tasks.push(
@@ -541,7 +592,9 @@ function TrainerHome() {
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          Platform.OS === "web"
+            ? undefined
+            : <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
         <View
@@ -561,19 +614,52 @@ function TrainerHome() {
           </Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable
-            onPress={() => router.push({ pathname: "/notifications" })}
+          <Link href="/profile" asChild>
+            <Pressable
             style={{
-              paddingHorizontal: 10,
-              paddingVertical: 8,
+              width: 56,
+              height: 56,
               borderRadius: 999,
               backgroundColor: colors.card,
               borderWidth: 1,
               borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#000",
+              shadowOpacity: 0.1,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 4,
             }}
           >
-            <Ionicons name="settings-outline" size={18} color={colors.text} />
-          </Pressable>
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              <Ionicons name="person" size={22} color={colors.text} />
+              {profilePhotoUri ? (
+                <Image
+                  source={{ uri: profilePhotoUri }}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                  }}
+                  contentFit="cover"
+                />
+              ) : null}
+            </View>
+            </Pressable>
+          </Link>
           <Pressable
             onPress={openInbox}
             style={{
@@ -1225,7 +1311,7 @@ function TrainerHome() {
         {...openSwipe.panHandlers}
         style={{
           position: "absolute",
-          top: 0,
+          top: insets.top + 90,
           right: 0,
           width: 24,
           height: "100%",

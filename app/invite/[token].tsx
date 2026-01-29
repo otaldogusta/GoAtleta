@@ -133,7 +133,7 @@ export default function StudentInviteScreen() {
     if (!session || !tokenValue) return;
     if (roleLoading) return;
     if (role === "trainer") {
-      setMessage("Esse convite Ã© para alunos. Saia e use outra conta.");
+      setMessage("Esse convite é para alunos. Saia e use outra conta.");
       return;
     }
     const userId = session.user?.id ?? "unknown";

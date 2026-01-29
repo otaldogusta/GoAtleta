@@ -1,40 +1,41 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import type { ClassGroup } from "../src/core/models";
-import { useAuth } from "../src/auth/auth";
-import { useRole } from "../src/auth/role";
+
+import type { ClassGroup } from "../src/core/models";
+import { useAuth } from "../src/auth/auth";
+import { useRole } from "../src/auth/role";
 import { getClasses } from "../src/db/seed";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
-
+
 export default function ProfileScreen() {
   const { colors } = useAppTheme();
-  const { signOut } = useAuth();
+  const { signOut, session } = useAuth();
   const { student } = useRole();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const photoSheetStyle = useModalCardStyle({ maxHeight: "70%", radius: 22 });
-
+
   useEffect(() => {
     let alive = true;
     (async () => {
       const data = await getClasses();
       if (alive) setClasses(data);
-    })();
-    return () => {
+    })();
+    return () => {
       alive = false;
     };
   }, []);
@@ -44,7 +45,13 @@ export default function ProfileScreen() {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(PHOTO_STORAGE_KEY);
-        if (alive) setPhotoUri(stored || null);
+        if (!alive) return;
+        if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+          await AsyncStorage.removeItem(PHOTO_STORAGE_KEY);
+          setPhotoUri(null);
+          return;
+        }
+        setPhotoUri(stored || null);
       } catch (error) {
         console.error("Failed to load profile photo", error);
       }
@@ -60,30 +67,36 @@ export default function ProfileScreen() {
   }, [classes, student?.classId]);
 
   const nameParts = useMemo(() => {
-    const full = (student?.name ?? "").trim();
+    const full = (
+      student?.name ??
+      session?.user?.user_metadata?.full_name ??
+      session?.user?.email ??
+      ""
+    ).trim();
     if (!full) return { first: "Aluno", last: "" };
     const parts = full.split(" ");
     const first = parts[0] ?? "Aluno";
     const last = parts.slice(1).join(" ");
     return { first, last };
-  }, [student?.name]);
+  }, [session?.user?.email, session?.user?.user_metadata?.full_name, student?.name]);
 
   const joinedLabel = useMemo(() => {
-    if (!student?.createdAt) return "Entrou recentemente";
-    const joined = new Date(student.createdAt);
+    const joinedAt = student?.createdAt ?? session?.user?.created_at;
+    if (!joinedAt) return "Entrou recentemente";
+    const joined = new Date(joinedAt);
     if (Number.isNaN(joined.getTime())) return "Entrou recentemente";
     const now = new Date();
-    const diffDays = Math.max(0, Math.floor((now.getTime() - joined.getTime()) / 86400000));
-    if (diffDays >= 365) {
-      const years = Math.max(1, Math.floor(diffDays / 365));
-      return years == 1 ? "1 ano" : `${years} anos`;
-    }
-    if (diffDays >= 30) {
-      const months = Math.max(1, Math.floor(diffDays / 30));
-      return months == 1 ? "1 m\u00eas" : `${months} meses`;
+    const diffDays = Math.max(0, Math.floor((now.getTime() - joined.getTime()) / 86400000));
+    if (diffDays >= 365) {
+      const years = Math.max(1, Math.floor(diffDays / 365));
+      return years == 1 ? "1 ano" : `${years} anos`;
+    }
+    if (diffDays >= 30) {
+      const months = Math.max(1, Math.floor(diffDays / 30));
+      return months == 1 ? "1 m\u00eas" : `${months} meses`;
     }
     return diffDays <= 1 ? "Hoje" : `${diffDays} dias`;
-  }, [student?.createdAt]);
+  }, [session?.user?.created_at, student?.createdAt]);
 
   const savePhoto = async (uri: string | null) => {
     setPhotoUri(uri);
@@ -115,9 +128,28 @@ export default function ProfileScreen() {
           quality: 1,
           allowsEditing: true,
           aspect: [1, 1],
+          base64: Platform.OS === "web",
         });
-        if (!result.canceled && result.assets?.[0]?.uri) {
-          await savePhoto(result.assets[0].uri);
+        const asset = result.assets?.[0];
+        if (!result.canceled && asset?.uri) {
+          let uri = asset.uri;
+          if (Platform.OS === "web") {
+            if (asset.base64) {
+              const mime = asset.mimeType ?? "image/jpeg";
+              uri = `data:${mime};base64,${asset.base64}`;
+            } else {
+              const response = await fetch(asset.uri);
+              const blob = await response.blob();
+              const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(String(reader.result));
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+              uri = dataUrl;
+            }
+          }
+          await savePhoto(uri);
         }
         return;
       }
@@ -135,9 +167,28 @@ export default function ProfileScreen() {
         quality: 1,
         allowsEditing: true,
         aspect: [1, 1],
+        base64: Platform.OS === "web",
       });
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        await savePhoto(result.assets[0].uri);
+      const asset = result.assets?.[0];
+      if (!result.canceled && asset?.uri) {
+        let uri = asset.uri;
+        if (Platform.OS === "web") {
+          if (asset.base64) {
+            const mime = asset.mimeType ?? "image/jpeg";
+            uri = `data:${mime};base64,${asset.base64}`;
+          } else {
+            const response = await fetch(asset.uri);
+            const blob = await response.blob();
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(String(reader.result));
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            uri = dataUrl;
+          }
+        }
+        await savePhoto(uri);
       }
     } catch (error) {
       console.error("Failed to pick profile photo", error);
@@ -148,26 +199,26 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Pressable
-            onPress={() => router.back()}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="chevron-back" size={18} color={colors.text} />
-          </Pressable>
-        </View>
-
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <Pressable
+            onPress={() => router.back()}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
+          </Pressable>
+        </View>
+
         <View style={{ gap: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
             <View style={{ position: "relative" }}>
@@ -234,16 +285,16 @@ export default function ProfileScreen() {
               <Text style={{ color: colors.text, fontWeight: "700" }}>{joinedLabel}</Text>
             </View>
           </View>
-          <View>
-            <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text }}>
-              {nameParts.first}
-            </Text>
-            {nameParts.last ? (
-              <Text style={{ fontSize: 22, color: colors.muted }}>{nameParts.last}</Text>
-            ) : null}
-          </View>
-        </View>
-
+          <View>
+            <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text }}>
+              {nameParts.first}
+            </Text>
+            {nameParts.last ? (
+              <Text style={{ fontSize: 22, color: colors.muted }}>{nameParts.last}</Text>
+            ) : null}
+          </View>
+        </View>
+
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Perfil</Text>
           <View
@@ -274,10 +325,10 @@ export default function ProfileScreen() {
               </View>
               <View>
                 <Text style={{ color: colors.text, fontWeight: "600" }}>
-                  {currentClass?.name || "Sem turma"}
+                  {currentClass?.name || (student ? "Sem turma" : "Professor")}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {currentClass?.unit || "Sem unidade"}
+                  {currentClass?.unit || (student ? "Sem unidade" : "Treinador")}
                 </Text>
               </View>
             </View>
@@ -286,7 +337,7 @@ export default function ProfileScreen() {
 
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-            Configura\u00e7\u00f5es
+            Configurações
           </Text>
           <Pressable
             onPress={() => router.push({ pathname: "/notifications" })}
@@ -316,7 +367,7 @@ export default function ProfileScreen() {
                 <Ionicons name="settings-outline" size={18} color={colors.text} />
               </View>
               <Text style={{ color: colors.text, fontWeight: "600" }}>
-                Abrir configura\u00e7\u00f5es
+                Abrir configurações
               </Text>
             </View>
             <View
@@ -478,7 +529,12 @@ export default function ProfileScreen() {
           <Text style={{ color: colors.text, fontWeight: "700" }}>Foto do perfil</Text>
           <View style={{ width: 36, height: 36 }} />
         </View>
-        <View style={{ gap: 12 }}>
+        <ScrollView
+          contentContainerStyle={{
+            gap: 12,
+            paddingBottom: Math.max(12, insets.bottom),
+          }}
+        >
           {[
             { label: "C\u00e2mera", icon: "camera-outline" },
             { label: "Galeria", icon: "images-outline" },
@@ -515,10 +571,12 @@ export default function ProfileScreen() {
               <Text style={{ color: colors.text, fontWeight: "600" }}>{item.label}</Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       </ModalSheet>
     </SafeAreaView>
   );
 }
-
-
+
+
+
+

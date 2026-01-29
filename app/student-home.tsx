@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { ScrollView, Text, View } from "react-native";
+import { Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { Image } from "expo-image";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { ClassGroup } from "../src/core/models";
 import { useRole } from "../src/auth/role";
@@ -54,6 +58,7 @@ export default function StudentHome() {
   const { student, refresh: refreshRole } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [inbox, setInbox] = useState<AppNotification[]>([]);
+  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -72,6 +77,28 @@ export default function StudentHome() {
       unsubscribe();
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const stored = await AsyncStorage.getItem("profile_photo_uri_v1");
+          if (!active) return;
+          if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+            setProfilePhotoUri(null);
+            return;
+          }
+          setProfilePhotoUri(stored || null);
+        } catch {
+          if (active) setProfilePhotoUri(null);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   const todayLabel = useMemo(() => {
     const date = new Date();
@@ -179,9 +206,23 @@ export default function StudentHome() {
                 backgroundColor: colors.secondaryBg,
                 alignItems: "center",
                 justifyContent: "center",
+                overflow: "hidden",
               }}
             >
               <Ionicons name="person" size={22} color={colors.text} />
+              {profilePhotoUri ? (
+                <Image
+                  source={{ uri: profilePhotoUri }}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                  }}
+                  contentFit="cover"
+                />
+              ) : null}
             </View>
           </Pressable>
         </View>
