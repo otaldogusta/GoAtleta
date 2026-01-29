@@ -17,6 +17,7 @@ import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import type { ClassGroup } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
+import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
 import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
@@ -519,15 +520,7 @@ export default function ClassesScreen() {
       if (!labels.has(key)) labels.set(key, label);
     });
     const sortedEntries = Object.entries(map).map(([unitKeyValue, items]) => {
-      const sortedItems = [...items].sort((a, b) => {
-        const aDay = a.daysOfWeek.length ? Math.min(...a.daysOfWeek) : 7;
-        const bDay = b.daysOfWeek.length ? Math.min(...b.daysOfWeek) : 7;
-        if (aDay !== bDay) return aDay - bDay;
-        const aStart = toMinutes(a.startTime || "") ?? 9999;
-        const bStart = toMinutes(b.startTime || "") ?? 9999;
-        if (aStart !== bStart) return aStart - bStart;
-        return a.name.localeCompare(b.name);
-      });
+      const sortedItems = [...items].sort(compareClassesBySchedule);
       return [labels.get(unitKeyValue) ?? "Sem unidade", sortedItems] as [string, ClassGroup[]];
     });
     return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));

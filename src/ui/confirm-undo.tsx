@@ -5,7 +5,7 @@ import {
   useEffect,
   useMemo,
   useState,
-  } from "react";
+} from "react";
 import { Text, View } from "react-native";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
@@ -41,8 +41,7 @@ export function ConfirmUndoProvider({
   children: React.ReactNode;
 }) {
   const { colors } = useAppTheme();
-  const [confirmOptions, setConfirmOptions] =
-    useState<ConfirmUndoOptions | null>(null);
+  const [confirmOptions, setConfirmOptions] = useState<ConfirmUndoOptions | null>(null);
   const [pending, setPending] = useState<PendingState | null>(null);
 
   useEffect(() => {
@@ -107,7 +106,8 @@ export function ConfirmUndoProvider({
   const cancelLabel = confirmOptions?.cancelLabel ?? "Cancelar";
   const undoLabel = pending?.options.undoLabel ?? "Desfazer";
   const undoMessage =
-    pending?.options.undoMessage ?? "Ação concluida. Deseja desfazer?";
+    pending?.options.undoMessage ??
+    "Ação concluída. Deseja desfazer?";
 
   const contextValue = useMemo(
     () => ({
@@ -135,43 +135,43 @@ export function ConfirmUndoProvider({
           gap: 12,
         }}
       >
-            <View style={{ gap: 6 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {modalTitle}
-              </Text>
-              <Text style={{ color: colors.muted }}>{modalMessage}</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Você podera desfazer por alguns segundos.
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
-              <Pressable
-                onPress={() => setConfirmOptions(null)}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
-                  {cancelLabel}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={handleConfirm}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  backgroundColor: colors.dangerSolidBg,
-                }}
-              >
-                <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
-                  {confirmLabel}
-                </Text>
-              </Pressable>
-            </View>
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            {modalTitle}
+          </Text>
+          <Text style={{ color: colors.muted }}>{modalMessage}</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Você poderá desfazer por alguns segundos.
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+          <Pressable
+            onPress={() => setConfirmOptions(null)}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
+              {cancelLabel}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleConfirm}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: 12,
+              backgroundColor: colors.dangerSolidBg,
+            }}
+          >
+            <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
+              {confirmLabel}
+            </Text>
+          </Pressable>
+        </View>
       </ModalSheet>
       {pending ? (
         <View

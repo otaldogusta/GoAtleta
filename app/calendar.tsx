@@ -32,6 +32,7 @@ import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { usePersistedState } from "../src/ui/use-persisted-state";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
+import { ShimmerBlock } from "../src/ui/Shimmer";
 
 const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
 const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
@@ -92,6 +93,7 @@ export default function CalendarScreen() {
     typeof params.openApply === "string" ? params.openApply === "1" : false;
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
   const [unitFilter, setUnitFilter] = useState("Todas");
   const [activeWeekTab, setActiveWeekTab] = useState<"prev" | "current" | "next">("current");
   const [expandedPastDays, setExpandedPastDays, expandedPastDaysLoaded] =
@@ -177,13 +179,17 @@ export default function CalendarScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [classList, planList] = await Promise.all([
-        getClasses(),
-        getTrainingPlans(),
-      ]);
-      if (!alive) return;
-      setClasses(classList);
-      setPlans(planList);
+      try {
+        const [classList, planList] = await Promise.all([
+          getClasses(),
+          getTrainingPlans(),
+        ]);
+        if (!alive) return;
+        setClasses(classList);
+        setPlans(planList);
+      } finally {
+        if (alive) setLoadingData(false);
+      }
     })();
     return () => {
       alive = false;
@@ -388,10 +394,18 @@ export default function CalendarScreen() {
           </Text>
         </View>
 
-        <ScrollView
-          contentContainerStyle={{ paddingVertical: 12, gap: 16 }}
-          pointerEvents={showApplyPicker ? "none" : "auto"}
-        >
+        {loadingData ? (
+          <View style={{ paddingVertical: 12, gap: 16 }}>
+            <ShimmerBlock style={{ height: 34, borderRadius: 999 }} />
+            <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
+            <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
+            <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={{ paddingVertical: 12, gap: 16 }}
+            pointerEvents={showApplyPicker ? "none" : "auto"}
+          >
           <View
             style={{
               flexDirection: "row",
@@ -733,33 +747,6 @@ export default function CalendarScreen() {
                                   </Text>
                                   <ClassGenderBadge gender={cls.gender} size="sm" />
                                 </View>
-                                <Pressable
-                                  onPress={(event) => {
-                                    event?.stopPropagation?.();
-                                    router.push({
-                                      pathname: "/class/[id]/session",
-                                      params: { id: cls.id, date: formatIsoDate(date) },
-                                    });
-                                  }}
-                                  style={{
-                                    marginTop: 10,
-                                    paddingVertical: 8,
-                                    borderRadius: 10,
-                                    alignItems: "center",
-                                    backgroundColor: colors.secondaryBg,
-                                    borderWidth: 1,
-                                    borderColor: colors.border,
-                                  }}
-                                >
-                                  <Text
-                                    style={{
-                                      color: colors.text,
-                                      fontWeight: "700",
-                                    }}
-                                  >
-                                    Abrir aula
-                                  </Text>
-                                </Pressable>
                               </Pressable>
                             );
                           })}
@@ -867,6 +854,7 @@ export default function CalendarScreen() {
           );
         })}
       </ScrollView>
+        )}
       <ModalSheet
         visible={showApplyPicker}
         onClose={closeApplyPicker}
@@ -994,6 +982,3 @@ export default function CalendarScreen() {
     </SafeAreaView>
   );
 }
-
-
-

@@ -1,4 +1,5 @@
 import { normalizeAgeBand } from "../core/age-band";
+import { sortClassesBySchedule } from "../core/class-schedule-sort";
 
 type ClassRow = {
   id: string;
@@ -73,7 +74,7 @@ export const db = {
   getAllSync<T>(sql: string) {
     const normalized = normalize(sql);
     if (normalized.startsWith("select * from classes order by name asc")) {
-      return [...classes].sort((a, b) => a.name.localeCompare(b.name)) as T[];
+      return sortClassesBySchedule(classes) as T[];
     }
     if (normalized.startsWith("select * from training_plans order by createdat desc")) {
       return [...trainingPlans].sort((a, b) =>

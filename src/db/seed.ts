@@ -16,6 +16,7 @@ import type {
   ScoutingLog,
 } from "../core/models";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
+import { sortClassesBySchedule } from "../core/class-schedule-sort";
 import { canonicalizeUnitLabel } from "../core/unit-label";
 import { normalizeUnitKey } from "../core/unit-key";
 
@@ -750,7 +751,7 @@ export async function getClasses(): Promise<ClassGroup[]> {
       units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
     );
     const rows = await supabaseGet<ClassRow[]>("/classes?select=*&order=name.asc");
-    const mapped = rows.map((row) => ({
+    const mapped = sortClassesBySchedule(rows.map((row) => ({
       id: row.id,
       name: row.name,
       unit:
@@ -791,13 +792,7 @@ export async function getClasses(): Promise<ClassGroup[]> {
       acwrLow: row.acwr_low ?? undefined,
       acwrHigh: row.acwr_high ?? undefined,
       createdAt: row.createdat ?? undefined,
-    })).sort((a, b) => {
-      const aRange = parseAgeBandRange(a.ageBand || a.name);
-      const bRange = parseAgeBandRange(b.ageBand || b.name);
-      if (aRange.start !== bRange.start) return aRange.start - bRange.start;
-      if (aRange.end !== bRange.end) return aRange.end - bRange.end;
-      return aRange.label.localeCompare(bRange.label);
-    });
+    })));
     await writeCache(CACHE_KEYS.classes, mapped);
     return mapped;
   } catch (error) {
@@ -1288,7 +1283,7 @@ export async function getSessionLogsByRange(
     photos: row.photos ?? undefined,
     painScore: row.pain_score ?? undefined,
     createdAt: row.createdat,
-  }));
+  })));
 }
 
 export async function getTrainingPlans(): Promise<TrainingPlan[]> {

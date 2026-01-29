@@ -50,6 +50,10 @@ import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getClassPalette } from "../../src/ui/class-colors";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { normalizeUnitKey } from "../../src/core/unit-key";
+import {
+    compareClassesBySchedule,
+    sortClassesBySchedule,
+} from "../../src/core/class-schedule-sort";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -1267,17 +1271,12 @@ export default function StudentsScreen() {
 
   const classOptions = useMemo(() => {
     if (!classes.length) return [];
-    const byTimeThenName = (a: ClassGroup, b: ClassGroup) => {
-      const timeOrder = (a.startTime || "").localeCompare(b.startTime || "");
-      if (timeOrder !== 0) return timeOrder;
-      return a.name.localeCompare(b.name);
-    };
     if (unit) {
-      return classes
-        .filter((item) => unitLabel(item.unit) === unit)
-        .sort(byTimeThenName);
+      return sortClassesBySchedule(
+        classes.filter((item) => unitLabel(item.unit) === unit)
+      );
     }
-    return classes.slice().sort(byTimeThenName);
+    return sortClassesBySchedule(classes);
   }, [classes, unit, unitLabel]);
 
   const getClassLabel = (cls: ClassGroup) => {
@@ -1441,7 +1440,11 @@ export default function StudentsScreen() {
               students: sortedStudents,
             };
           })
-          .sort((a, b) => a.className.localeCompare(b.className, "pt-BR"));
+          .sort((a, b) => {
+            const aClass = classById.get(a.classId) ?? { name: a.className };
+            const bClass = classById.get(b.classId) ?? { name: b.className };
+            return compareClassesBySchedule(aClass, bClass);
+          });
         return { unitName, classes: classesInUnit };
       })
       .sort((a, b) => a.unitName.localeCompare(b.unitName, "pt-BR"));

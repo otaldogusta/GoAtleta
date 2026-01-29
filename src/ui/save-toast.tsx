@@ -11,17 +11,19 @@ import { Animated, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
+import { getFriendlyErrorMessage } from "./error-messages";
 
 type SaveToastOptions = {
-  message: string;
+  message?: string;
+  error?: unknown;
   actionLabel?: string;
   onAction?: () => void;
   durationMs?: number;
-  variant?: "info" | "success" | "error";
+  variant?: "info" | "success" | "error" | "warning";
 };
 
 type SaveToastContextValue = {
-  showSaveToast: (options: SaveToastOptions) => void;
+  showSaveToast: (options: SaveToastOptions | string) => void;
 };
 
 const SaveToastContext = createContext<SaveToastContextValue | null>(null);
@@ -48,16 +50,25 @@ export function SaveToastProvider({
   }, [anim]);
 
   const showSaveToast = useCallback(
-    (options: SaveToastOptions) => {
+    (options: SaveToastOptions | string) => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      setToast(options);
+      const normalized: SaveToastOptions =
+        typeof options === "string" ? { message: options } : options;
+      const variant =
+        normalized.variant ?? (normalized.error ? "error" : "info");
+      const message =
+        normalized.message ??
+        (normalized.error
+          ? getFriendlyErrorMessage(normalized.error)
+          : "Concluído.");
+      setToast({ ...normalized, message, variant });
       anim.setValue(0);
       Animated.timing(anim, {
         toValue: 1,
         duration: 200,
         useNativeDriver: true,
       }).start();
-      const duration = options.durationMs ?? 3600;
+      const duration = normalized.durationMs ?? 2800;
       timerRef.current = setTimeout(() => {
         hideToast();
       }, duration);
@@ -174,3 +185,4 @@ export function useSaveToast() {
   }
   return context;
 }
+

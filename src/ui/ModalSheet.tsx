@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, Modal, Pressable as RawPressable, View } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
 type ModalSheetProps = {
@@ -12,6 +13,7 @@ type ModalSheetProps = {
   slideOffset?: number;
   position?: "bottom" | "center";
   overlayZIndex?: number;
+  bottomOffset?: number;
 };
 
 export function ModalSheet({
@@ -23,9 +25,14 @@ export function ModalSheet({
   slideOffset = 24,
   position = "bottom",
   overlayZIndex,
+  bottomOffset,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
   const isCenter = position === "center";
+  const insets = useSafeAreaInsets();
+  const resolvedBottomOffset = isCenter
+    ? 0
+    : Math.max(bottomOffset ?? 0, insets.bottom);
   const baseCardStyle = useModalCardStyle();
   const resolvedCardStyle = [baseCardStyle, cardStyle];
 
@@ -66,7 +73,7 @@ export function ModalSheet({
           style={
             isCenter
               ? { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }
-              : { position: "absolute", left: 0, right: 0, bottom: 0 }
+              : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
           }
           pointerEvents="box-none"
         >

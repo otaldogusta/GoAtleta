@@ -1,9 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
@@ -14,6 +9,7 @@ type ConfirmDialogOptions = {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  tone?: "default" | "danger";
   onConfirm: () => void | Promise<void>;
 };
 
@@ -49,6 +45,12 @@ export function ConfirmDialogProvider({
     [confirm]
   );
 
+  const dangerMatch = /(excluir|remover|revogar|apagar|deletar|desvincular)/i;
+  const isDanger =
+    options?.tone === "danger" ||
+    dangerMatch.test(options?.title ?? "") ||
+    dangerMatch.test(options?.confirmLabel ?? "");
+
   return (
     <ConfirmDialogContext.Provider value={contextValue}>
       {children}
@@ -68,42 +70,47 @@ export function ConfirmDialogProvider({
           gap: 12,
         }}
       >
-            <View style={{ gap: 6 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {options?.title ?? "Confirmar"}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {options?.message ?? "Deseja continuar?"}
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
-              <Pressable
-                onPress={() => setOptions(null)}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
-                  {options?.cancelLabel ?? "Cancelar"}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={handleConfirm}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  backgroundColor: colors.primaryBg,
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {options?.confirmLabel ?? "Confirmar"}
-                </Text>
-              </Pressable>
-            </View>
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            {options?.title ?? "Confirmar"}
+          </Text>
+          <Text style={{ color: colors.muted }}>
+            {options?.message ?? "Deseja continuar?"}
+          </Text>
+        </View>
+        <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+          <Pressable
+            onPress={() => setOptions(null)}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
+              {options?.cancelLabel ?? "Cancelar"}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleConfirm}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: 12,
+              backgroundColor: isDanger ? colors.dangerSolidBg : colors.primaryBg,
+            }}
+          >
+            <Text
+              style={{
+                color: isDanger ? colors.dangerSolidText : colors.primaryText,
+                fontWeight: "700",
+              }}
+            >
+              {options?.confirmLabel ?? "Confirmar"}
+            </Text>
+          </Pressable>
+        </View>
       </ModalSheet>
     </ConfirmDialogContext.Provider>
   );
