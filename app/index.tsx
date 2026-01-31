@@ -121,8 +121,8 @@ function TrainerHome() {
   const { colors, mode } = useAppTheme();
 
   const glassCardGradient = mode === "dark"
-    ? ["rgba(255,255,255,0.08)", "rgba(255,255,255,0.02)"]
-    : ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.08)"];
+    ? ["rgba(255,255,255,0.05)", "rgba(255,255,255,0.01)"]
+    : ["rgba(255,255,255,0.18)", "rgba(255,255,255,0.04)"];
 
   const renderGlassOverlay = () => (
     <LinearGradient

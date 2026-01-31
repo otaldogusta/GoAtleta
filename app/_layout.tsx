@@ -63,6 +63,7 @@ function RootLayoutContent() {
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
   const navReady = Boolean(rootState?.key);
+  const isBooting = !navReady || loading || roleLoading || (session && role === null);
   const publicRoutes = [
     "/welcome",
     "/login",
@@ -274,6 +275,18 @@ textarea:-webkit-autofill:active {
   };
 
   const gradientStops = gradientByRoute();
+
+  if (isBooting) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
+        <StatusBar
+          style={mode === "dark" ? "light" : "dark"}
+          backgroundColor="transparent"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>

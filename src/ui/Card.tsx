@@ -15,8 +15,8 @@ export function Card({
   const { colors, mode } = useAppTheme();
   const glassGradient =
     mode === "dark"
-      ? ["rgba(255,255,255,0.08)", "rgba(255,255,255,0.02)"]
-      : ["rgba(255,255,255,0.6)", "rgba(255,255,255,0.2)"];
+      ? ["rgba(255,255,255,0.05)", "rgba(255,255,255,0.01)"]
+      : ["rgba(255,255,255,0.25)", "rgba(255,255,255,0.08)"];
 
   return (
     <Pressable

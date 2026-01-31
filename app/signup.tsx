@@ -455,7 +455,7 @@ export default function SignupScreen() {
                     borderColor: colors.border,
                     borderRadius: 14,
                     backgroundColor: solidInputBg,
-                    overflow: "hidden",
+                  overflow: "hidden",
                     paddingHorizontal: 12,
                     paddingVertical: 10,
                     minHeight: 48,
