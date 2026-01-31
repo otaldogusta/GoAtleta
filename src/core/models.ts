@@ -161,6 +161,27 @@ export type ScoutingLog = {
   updatedAt?: string;
 };
 
+export type StudentScoutingLog = {
+  id: string;
+  studentId: string;
+  classId: string;
+  date: string;
+  serve0: number;
+  serve1: number;
+  serve2: number;
+  receive0: number;
+  receive1: number;
+  receive2: number;
+  set0: number;
+  set1: number;
+  set2: number;
+  attackSend0: number;
+  attackSend1: number;
+  attackSend2: number;
+  createdAt: string;
+  updatedAt?: string;
+};
+
 export type ClassPlan = {
   id: string;
   classId: string;

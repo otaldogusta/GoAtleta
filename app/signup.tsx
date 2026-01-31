@@ -22,8 +22,9 @@ import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { useAppTheme } from "../src/ui/app-theme";
 
 export default function SignupScreen() {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const { signUp } = useAuth();
+  const solidInputBg = mode === "dark" ? "#0a101d" : colors.inputBg;
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,7 +62,7 @@ export default function SignupScreen() {
   const strengthLabel = useMemo(() => {
     if (!password) return "";
     if (strengthScore <= 0.33) return "Fraca";
-    if (strengthScore <= 0.66) return "Media";
+    if (strengthScore <= 0.66) return "Média";
     return "Forte";
   }, [password, strengthScore]);
 
@@ -210,8 +211,11 @@ export default function SignupScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   borderRadius: 14,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: solidInputBg,
                   overflow: "hidden",
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  minHeight: 48,
                 }}
               >
                 <TextInput
@@ -221,8 +225,11 @@ export default function SignupScreen() {
                   placeholderTextColor={colors.placeholder}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  underlineColorAndroid="transparent"
+                  selectionColor={colors.primaryBg}
                   style={{
-                    padding: 12,
+                    flex: 1,
+                    padding: 0,
                     color: colors.inputText,
                     backgroundColor: "transparent",
                     borderWidth: 0,
@@ -239,8 +246,11 @@ export default function SignupScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   paddingHorizontal: 12,
+                  paddingVertical: 10,
                   borderRadius: 14,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: solidInputBg,
+                  overflow: "hidden",
+                  minHeight: 48,
                 }}
               >
                 <TextInput
@@ -249,10 +259,13 @@ export default function SignupScreen() {
                   onChangeText={setPassword}
                   placeholderTextColor={colors.placeholder}
                   secureTextEntry={!showPassword}
+                  underlineColorAndroid="transparent"
+                  selectionColor={colors.primaryBg}
                   style={{
                     flex: 1,
-                    paddingVertical: 12,
+                    padding: 0,
                     color: colors.inputText,
+                    backgroundColor: "transparent",
                     outlineStyle: "none",
                     outlineWidth: 0,
                   }}
@@ -278,8 +291,11 @@ export default function SignupScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   paddingHorizontal: 12,
+                  paddingVertical: 10,
                   borderRadius: 14,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: solidInputBg,
+                  overflow: "hidden",
+                  minHeight: 48,
                 }}
               >
                 <TextInput
@@ -288,10 +304,13 @@ export default function SignupScreen() {
                   onChangeText={setConfirm}
                   placeholderTextColor={colors.placeholder}
                   secureTextEntry={!showConfirm}
+                  underlineColorAndroid="transparent"
+                  selectionColor={colors.primaryBg}
                   style={{
                     flex: 1,
-                    paddingVertical: 12,
+                    padding: 0,
                     color: colors.inputText,
+                    backgroundColor: "transparent",
                     outlineStyle: "none",
                     outlineWidth: 0,
                   }}
@@ -435,8 +454,11 @@ export default function SignupScreen() {
                     borderWidth: 1,
                     borderColor: colors.border,
                     borderRadius: 14,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: solidInputBg,
                     overflow: "hidden",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    minHeight: 48,
                   }}
                 >
                   <TextInput
@@ -446,7 +468,8 @@ export default function SignupScreen() {
                     placeholderTextColor={colors.placeholder}
                     autoCapitalize="characters"
                     style={{
-                      padding: 12,
+                      flex: 1,
+                      padding: 0,
                       color: colors.inputText,
                       backgroundColor: "transparent",
                       borderWidth: 0,

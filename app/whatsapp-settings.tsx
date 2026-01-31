@@ -92,7 +92,7 @@ export default function WhatsAppSettingsScreen() {
                 }}
               >
                 <Text style={{ fontSize: 11, color: colors.text }}>
-                  Global: "Olá! Sou o professor Gustavo da turma [turma] ([unidade])."
+                  {`Global: "Ol\u00e1! Sou o professor Gustavo da turma [turma] ([unidade])."`}
                 </Text>
               </View>
               <View
@@ -105,7 +105,7 @@ export default function WhatsAppSettingsScreen() {
                 }}
               >
                 <Text style={{ fontSize: 11, color: colors.text }}>
-                  Individual: "Olá, [Responsável/Aluno]! Sou o treinador da turma [turma]. ([data])."
+                  {`Individual: "Ol\u00e1, [Respons\u00e1vel/Aluno]! Sou o treinador da turma [turma]. ([data])."`}
                 </Text>
               </View>
             </View>

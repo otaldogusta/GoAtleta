@@ -14,6 +14,7 @@ import type {
   Exercise,
   ClassPlan,
   ScoutingLog,
+  StudentScoutingLog,
 } from "../core/models";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
@@ -132,7 +133,7 @@ const WRITE_QUEUE_KEY = "pending_writes_v1";
 
 type PendingWrite = {
   id: string;
-  kind: "session_log" | "attendance_records" | "scouting_log";
+  kind: "session_log" | "attendance_records" | "scouting_log" | "student_scouting_log";
   payload: unknown;
   createdAt: string;
 };
@@ -212,6 +213,14 @@ const buildScoutingLogClientId = (log: ScoutingLog) => {
   return `scout_${log.classId}_${datePart}_${mode}`;
 };
 
+
+const buildStudentScoutingClientId = (log: StudentScoutingLog) => {
+  const existing = (log.id || "").trim();
+  if (existing) return existing;
+  const datePart = log.date ? log.date.trim() : "unknown";
+  return `student_scout_${log.studentId}_${log.classId}_${datePart}`;
+};
+
 const enqueueWrite = async (write: PendingWrite) => {
   const queue = await readWriteQueue();
   queue.push(write);
@@ -243,6 +252,10 @@ export async function flushPendingWrites() {
         });
       } else if (item.kind === "scouting_log") {
         await saveScoutingLog(item.payload as ScoutingLog, { allowQueue: false });
+      } else if (item.kind === "student_scouting_log") {
+        await saveStudentScoutingLog(item.payload as StudentScoutingLog, {
+          allowQueue: false,
+        });
       }
     } catch (error) {
       if (isNetworkError(error)) {
@@ -453,6 +466,27 @@ type ScoutingLogRow = {
   updatedat?: string | null;
 };
 
+type StudentScoutingRow = {
+  id: string;
+  studentid: string;
+  classid: string;
+  date: string;
+  serve_0?: number | null;
+  serve_1?: number | null;
+  serve_2?: number | null;
+  receive_0?: number | null;
+  receive_1?: number | null;
+  receive_2?: number | null;
+  set_0?: number | null;
+  set_1?: number | null;
+  set_2?: number | null;
+  attack_send_0?: number | null;
+  attack_send_1?: number | null;
+  attack_send_2?: number | null;
+  createdat: string;
+  updatedat?: string | null;
+};
+
 type ClassPlanRow = {
   id: string;
   classid: string;
@@ -517,7 +551,7 @@ export async function seedIfEmpty() {
       {
         id: "c_re_f_8_11",
         name: "Feminino (8-11)",
-        unit: "Rede Esperança",
+        unit: "Rede Esperana",
         modality: "voleibol",
         ageband: "08-11",
         gender: "feminino",
@@ -537,7 +571,7 @@ export async function seedIfEmpty() {
       {
         id: "c_re_m_8_11",
         name: "Masculino (8-11)",
-        unit: "Rede Esperança",
+        unit: "Rede Esperana",
         modality: "voleibol",
         ageband: "08-11",
         gender: "masculino",
@@ -1052,6 +1086,28 @@ const scoutingRowToLog = (row: ScoutingLogRow): ScoutingLog => ({
   updatedAt: row.updatedat ?? undefined,
 });
 
+const studentScoutingRowToLog = (row: StudentScoutingRow): StudentScoutingLog => ({
+  id: row.id,
+  studentId: row.studentid,
+  classId: row.classid,
+  date: row.date,
+  serve0: row.serve_0 ?? 0,
+  serve1: row.serve_1 ?? 0,
+  serve2: row.serve_2 ?? 0,
+  receive0: row.receive_0 ?? 0,
+  receive1: row.receive_1 ?? 0,
+  receive2: row.receive_2 ?? 0,
+  set0: row.set_0 ?? 0,
+  set1: row.set_1 ?? 0,
+  set2: row.set_2 ?? 0,
+  attackSend0: row.attack_send_0 ?? 0,
+  attackSend1: row.attack_send_1 ?? 0,
+  attackSend2: row.attack_send_2 ?? 0,
+  createdAt: row.createdat,
+  updatedAt: row.updatedat ?? undefined,
+});
+
+
 export async function getScoutingLogByDate(
   classId: string,
   date: string,
@@ -1144,6 +1200,100 @@ export async function saveScoutingLog(
         id: "queue_scout_" + Date.now(),
         kind: "scouting_log",
         payload: { ...log, id: log.id || "", clientId: log.clientId || "" },
+        createdAt: new Date().toISOString(),
+      });
+      return { ...log };
+    }
+    throw error;
+  }
+}
+
+export async function getStudentScoutingByRange(
+  classId: string,
+  startIso: string,
+  endIso: string
+): Promise<StudentScoutingLog[]> {
+  try {
+    const rows = await supabaseGet<StudentScoutingRow[]>(
+      "/student_scouting_logs?select=*&classid=eq." +
+        encodeURIComponent(classId) +
+        "&date=gte." +
+        encodeURIComponent(startIso) +
+        "&date=lt." +
+        encodeURIComponent(endIso)
+    );
+    return rows.map(studentScoutingRowToLog);
+  } catch (error) {
+    if (isMissingRelation(error, "student_scouting_logs")) return [];
+    throw error;
+  }
+}
+
+export async function getStudentScoutingByDate(
+  studentId: string,
+  classId: string,
+  date: string
+): Promise<StudentScoutingLog | null> {
+  try {
+    const rows = await supabaseGet<StudentScoutingRow[]>(
+      "/student_scouting_logs?select=*&studentid=eq." +
+        encodeURIComponent(studentId) +
+        "&classid=eq." +
+        encodeURIComponent(classId) +
+        "&date=eq." +
+        encodeURIComponent(date) +
+        "&limit=1"
+    );
+    const row = rows[0];
+    return row ? studentScoutingRowToLog(row) : null;
+  } catch (error) {
+    if (isMissingRelation(error, "student_scouting_logs")) return null;
+    throw error;
+  }
+}
+
+export async function saveStudentScoutingLog(
+  log: StudentScoutingLog,
+  options?: { allowQueue?: boolean }
+) {
+  const allowQueue = options?.allowQueue !== false;
+  try {
+    const now = new Date().toISOString();
+    const clientId = buildStudentScoutingClientId(log);
+    const logId = log.id?.trim() || clientId;
+    const payload = {
+      id: logId,
+      studentid: log.studentId,
+      classid: log.classId,
+      date: log.date,
+      serve_0: log.serve0,
+      serve_1: log.serve1,
+      serve_2: log.serve2,
+      receive_0: log.receive0,
+      receive_1: log.receive1,
+      receive_2: log.receive2,
+      set_0: log.set0,
+      set_1: log.set1,
+      set_2: log.set2,
+      attack_send_0: log.attackSend0,
+      attack_send_1: log.attackSend1,
+      attack_send_2: log.attackSend2,
+      createdat: log.createdAt || now,
+      updatedat: now,
+    };
+
+    await supabasePost(
+      "/student_scouting_logs?on_conflict=id",
+      [payload],
+      { Prefer: "resolution=merge-duplicates" }
+    );
+    return { ...log, id: logId, createdAt: payload.createdat, updatedAt: now };
+  } catch (error) {
+    if (allowQueue && isNetworkError(error)) {
+      await enqueueWrite({
+        id: "queue_student_scout_" + Date.now(),
+        kind: "student_scouting_log",
+        payload: { ...log, id: log.id || "" },
         createdAt: new Date().toISOString(),
       });
       return { ...log };
@@ -1283,7 +1433,7 @@ export async function getSessionLogsByRange(
     photos: row.photos ?? undefined,
     painScore: row.pain_score ?? undefined,
     createdAt: row.createdat,
-  })));
+  }));
 }
 
 export async function getTrainingPlans(): Promise<TrainingPlan[]> {

@@ -538,7 +538,7 @@ export default function ClassDetails() {
       const monthKey = formatMonthKey(monthValue);
       const periodizationLabel = getBlockForToday(cls);
       const fundamentals = [
-        "Fisico",
+        "Físico",
         "Toque",
         "Manchete",
         "Saque",
@@ -547,7 +547,7 @@ export default function ClassDetails() {
         "Apoio e Def",
         "Passe",
         "Levantamento",
-        "Transicao",
+        "Transição",
         "Jogo",
       ];
       const rows = list.map((student, index) => {
@@ -1016,7 +1016,7 @@ export default function ClassDetails() {
             Exportar lista de chamada
           </Text>
           <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 12, color: colors.muted }}>Mes da lista</Text>
+            <Text style={{ fontSize: 12, color: colors.muted }}>Mês da lista</Text>
             <View
               style={{
                 flexDirection: "row",
@@ -1498,7 +1498,7 @@ export default function ClassDetails() {
             />
             {defaultMessageEnabled && !customWhatsAppMessage.trim() && (
               <Text style={{ fontSize: 10, color: colors.muted, fontStyle: "italic" }}>
-                Mensagem padrão: "Olá! Sou o professor Gustavo da turma {className} ({unitLabel})."
+                {`Mensagem padr\u00e3o: "Ol\u00e1! Sou o professor Gustavo da turma ${className} (${unitLabel})."`}
               </Text>
             )}
           </View>
@@ -1551,4 +1551,3 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
-

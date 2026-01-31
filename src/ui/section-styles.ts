@@ -1,4 +1,4 @@
-import { type ViewStyle } from "react-native";
+import { Platform, type ViewStyle } from "react-native";
 
 import { type ThemeColors } from "./app-theme";
 
@@ -34,13 +34,19 @@ export function getSectionCardStyle(
     borderColor: colors.border,
     borderLeftWidth: selected.accentWidth,
     borderLeftColor: selected.accent,
+    ...(Platform.OS === "web"
+      ? ({
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+        } as ViewStyle)
+      : null),
     ...(shadow
       ? {
           shadowColor: "#000",
-          shadowOpacity: 0.06,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 3,
+          shadowOpacity: 0.22,
+          shadowRadius: 22,
+          shadowOffset: { width: 0, height: 12 },
+          elevation: 8,
         }
       : null),
   };

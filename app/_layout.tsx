@@ -6,11 +6,15 @@ import {
     useRouter,
 } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
+import { StyleSheet } from "react-native";
 import {
     useEffect,
     useRef
 } from "react";
 import {
+    Image,
+    LogBox,
     Platform,
     Text,
     View
@@ -94,6 +98,12 @@ function RootLayoutContent() {
     Platform.OS === "web" &&
     pathname !== "/" &&
     !isPublicRoute;
+
+  useEffect(() => {
+    LogBox.ignoreLogs([
+      "Looks like you have configured linking in multiple places.",
+    ]);
+  }, []);
 
   useEffect(() => {
     if (!pathname) return;
@@ -255,11 +265,29 @@ textarea:-webkit-autofill:active {
     style.textContent = css;
   }, [colors.inputBg, colors.inputText]);
 
+
+  const noiseUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDAwAAABv0C/0sV9K8AAAAASUVORK5CYII=";
+  const gradientByRoute = () => {
+    return mode === "dark"
+      ? ["#0f221f", "#123428", "#0b1b18"]
+      : ["#eaf8f1", "#d7f2e5", "#eefaf6"];
+  };
+
+  const gradientStops = gradientByRoute();
+
   return (
-    <>
+    <View style={{ flex: 1 }}>
+      <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
+      {Platform.OS === "web" ? (
+        <Image
+          source={{ uri: noiseUri }}
+          resizeMode="repeat"
+          style={[StyleSheet.absoluteFill, { opacity: mode === "dark" ? 0.035 : 0.05 }]}
+        />
+      ) : null}
       <StatusBar
         style={mode === "dark" ? "light" : "dark"}
-        backgroundColor={colors.card}
+        backgroundColor="transparent"
       />
       {Platform.OS === "web" && canGoBack ? (
         <View
@@ -297,8 +325,8 @@ textarea:-webkit-autofill:active {
         screenOptions={{
           headerShown: false,
           headerTitleAlign: "center",
-          contentStyle: { backgroundColor: colors.background },
-          headerStyle: { backgroundColor: colors.card },
+          contentStyle: { backgroundColor: "transparent" },
+          headerStyle: { backgroundColor: "transparent" },
           headerTintColor: colors.text,
         }}
       >
@@ -315,7 +343,7 @@ textarea:-webkit-autofill:active {
           }}
         />
       ) : null}
-    </>
+    </View>
   );
 }
 

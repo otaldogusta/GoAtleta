@@ -1,4 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
+
+import { LinearGradient } from "expo-linear-gradient";
 
 import * as Clipboard from "expo-clipboard";
 
@@ -41,6 +43,8 @@ import {
   RefreshControl,
 
   ScrollView,
+
+  StyleSheet,
 
   Text,
 
@@ -115,6 +119,20 @@ function TrainerHome() {
   const router = useRouter();
 
   const { colors, mode } = useAppTheme();
+
+  const glassCardGradient = mode === "dark"
+    ? ["rgba(255,255,255,0.08)", "rgba(255,255,255,0.02)"]
+    : ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.08)"];
+
+  const renderGlassOverlay = () => (
+    <LinearGradient
+      colors={glassCardGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+    />
+  );
 
   const insets = useSafeAreaInsets();
 
@@ -1239,6 +1257,8 @@ function TrainerHome() {
 
               borderColor: colors.border,
 
+                overflow: "hidden",
+
               alignItems: "center",
 
               justifyContent: "center",
@@ -1401,6 +1421,8 @@ function TrainerHome() {
 
               borderColor: colors.border,
 
+                overflow: "hidden",
+
               gap: 6,
 
             }}
@@ -1477,6 +1499,8 @@ function TrainerHome() {
 
             borderColor: colors.border,
 
+                overflow: "hidden",
+
             shadowColor: "#000",
 
             shadowOpacity: 0.2,
@@ -1490,6 +1514,8 @@ function TrainerHome() {
           }}
 
         >
+
+          {renderGlassOverlay()}
 
           <View style={{ gap: 12 }}>
 
@@ -1525,9 +1551,13 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
               }}
 
             >
+
+              {renderGlassOverlay()}
 
               <FadeHorizontalScroll
 
@@ -1587,7 +1617,7 @@ function TrainerHome() {
 
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-                      Nenhuma aula programada no per\u00edodo.
+                      Nenhuma aula programada no período.
 
                     </Text>
 
@@ -1676,6 +1706,8 @@ function TrainerHome() {
                                   borderWidth: 1,
 
                                   borderColor: colors.border,
+
+                overflow: "hidden",
 
                                 }}
 
@@ -1849,6 +1881,8 @@ function TrainerHome() {
 
                   borderColor: colors.border,
 
+                overflow: "hidden",
+
                   opacity: activeAttendanceTarget ? 1 : 0.7,
 
                   alignItems: "center",
@@ -1930,6 +1964,8 @@ function TrainerHome() {
                   borderWidth: 1,
 
                   borderColor: colors.border,
+
+                overflow: "hidden",
 
                   opacity: activeAttendanceTarget ? 1 : 0.7,
 
@@ -2071,6 +2107,8 @@ function TrainerHome() {
 
                   borderColor: colors.border,
 
+                overflow: "hidden",
+
                   opacity: activeAttendanceTarget ? 1 : 0.7,
 
                   alignItems: "center",
@@ -2211,6 +2249,8 @@ function TrainerHome() {
 
                   borderColor: colors.border,
 
+                overflow: "hidden",
+
                   opacity: activeAttendanceTarget ? 1 : 0.7,
 
                   alignItems: "center",
@@ -2283,6 +2323,8 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2296,6 +2338,10 @@ function TrainerHome() {
               }}
 
             >
+
+              {renderGlassOverlay()}
+
+              
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2329,6 +2375,8 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2342,6 +2390,10 @@ function TrainerHome() {
               }}
 
             >
+
+              {renderGlassOverlay()}
+
+              
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2375,6 +2427,8 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2388,6 +2442,10 @@ function TrainerHome() {
               }}
 
             >
+
+              {renderGlassOverlay()}
+
+              
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2421,6 +2479,8 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2434,6 +2494,10 @@ function TrainerHome() {
               }}
 
             >
+
+              {renderGlassOverlay()}
+
+              
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2467,6 +2531,8 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2481,6 +2547,10 @@ function TrainerHome() {
 
             >
 
+              {renderGlassOverlay()}
+
+              
+
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
                 Relatórios
@@ -2490,6 +2560,59 @@ function TrainerHome() {
               <Text style={{ color: colors.muted, marginTop: 6 }}>
 
                 Presença e dados
+
+              </Text>
+
+            </Pressable>
+
+
+            <Pressable
+
+              onPress={() => router.push({ pathname: "/qr-scan" })}
+
+              style={{
+
+                flexBasis: "48%",
+
+                padding: 14,
+
+                borderRadius: 18,
+
+                backgroundColor: colors.card,
+
+                borderWidth: 1,
+
+                borderColor: colors.border,
+
+                overflow: "hidden",
+
+                shadowColor: "#000",
+
+                shadowOpacity: 0.06,
+
+                shadowRadius: 10,
+
+                shadowOffset: { width: 0, height: 6 },
+
+                elevation: 3,
+
+              }}
+
+            >
+
+              {renderGlassOverlay()}
+
+              
+
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+
+                Scanner QR
+
+              </Text>
+
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+
+                Ler QR Code
 
               </Text>
 
@@ -2513,6 +2636,8 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2526,6 +2651,10 @@ function TrainerHome() {
               }}
 
             >
+
+              {renderGlassOverlay()}
+
+              
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2559,6 +2688,8 @@ function TrainerHome() {
 
                 borderColor: colors.border,
 
+                overflow: "hidden",
+
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2573,15 +2704,19 @@ function TrainerHome() {
 
             >
 
+              {renderGlassOverlay()}
+
+              
+
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                Exercicios
+                Exercícios
 
               </Text>
 
               <Text style={{ color: colors.muted, marginTop: 6 }}>
 
-                Biblioteca com videos
+                Biblioteca com vídeos
 
               </Text>
 
@@ -2595,7 +2730,7 @@ function TrainerHome() {
 
         <Card
 
-          title="Periodizacao"
+          title="Periodização"
 
           subtitle="Ciclos e cargas"
 
@@ -2832,6 +2967,8 @@ function TrainerHome() {
                       borderWidth: 1,
 
                       borderColor: colors.border,
+
+                overflow: "hidden",
 
                     }}
 
@@ -3166,4 +3303,20 @@ export default function Home() {
   return <TrainerHome />;
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

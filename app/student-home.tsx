@@ -310,7 +310,63 @@ export default function StudentHome() {
                 Ver plano
               </Text>
             </Pressable>
+            <Pressable
+              onPress={() => router.push({ pathname: "/student-scouting" })}
+              style={{
+                flex: 1,
+                paddingVertical: 10,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Scouting
+              </Text>
+            </Pressable>
           </View>
+        </View>
+
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 20,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
+          }}
+        >
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              Conquistas
+            </Text>
+            <Pressable onPress={() => router.push({ pathname: "/student-badges" })}>
+              <Text style={{ color: colors.primaryBg, fontWeight: "700", fontSize: 12 }}>
+                Ver tudo
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={{ color: colors.muted }}>
+            Acompanhe seu desempenho técnico e badges do mês.
+          </Text>
+          <Pressable
+            onPress={() => router.push({ pathname: "/student-badges" })}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Abrir conquistas
+            </Text>
+          </Pressable>
         </View>
 
         <View

@@ -1,6 +1,5 @@
-import {
-  Text
-} from "react-native";
+import { Platform, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 
@@ -13,7 +12,11 @@ export function Card({
   subtitle?: string;
   onPress?: () => void;
 }) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
+  const glassGradient =
+    mode === "dark"
+      ? ["rgba(255,255,255,0.08)", "rgba(255,255,255,0.02)"]
+      : ["rgba(255,255,255,0.6)", "rgba(255,255,255,0.2)"];
 
   return (
     <Pressable
@@ -21,21 +24,48 @@ export function Card({
       style={{
         padding: 14,
         borderRadius: 16,
-        backgroundColor: colors.primaryBg,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+        overflow: "hidden",
+        ...(Platform.OS === "web"
+          ? {
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+            }
+          : null),
+        shadowColor: "#000",
+        shadowOpacity: 0.2,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 7,
       }}
     >
+      <LinearGradient
+        colors={glassGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+        }}
+        pointerEvents="none"
+      />
       <Text
         style={{
           fontSize: 16,
           fontWeight: "700",
-          color: colors.primaryText,
+          color: colors.text,
         }}
       >
         {title}
       </Text>
       {subtitle ? (
         <Text
-          style={{ color: colors.primaryText, marginTop: 6, opacity: 0.85 }}
+          style={{ color: colors.text, marginTop: 6, opacity: 0.8 }}
         >
           {subtitle}
         </Text>

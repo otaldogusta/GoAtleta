@@ -1,6 +1,13 @@
 import type { ReactElement } from "react";
 import { Linking, Platform } from "react-native";
-import * as FileSystem from "expo-file-system";
+import {
+  cacheDirectory,
+  copyAsync,
+  documentDirectory,
+  EncodingType,
+  getContentUriAsync,
+  writeAsStringAsync,
+} from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
@@ -24,16 +31,17 @@ export const exportPdf = async ({
 }) => {
   if (Platform.OS !== "web") {
     // Mobile: Use Print and Share APIs
-    const { uri } = await Print.printToFileAsync({
+    const printResult = await Print.printToFileAsync({
       html,
-      base64: false,
+      base64: true,
     });
 
-    const opened = await tryOpenPdf(uri);
+    const targetUri = await writePdfWithName(printResult, fileName);
+    const opened = await tryOpenPdf(targetUri);
     if (!opened) {
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(uri, {
+        await Sharing.shareAsync(targetUri, {
           mimeType: "application/pdf",
           dialogTitle: "Salvar/Compartilhar PDF",
           UTI: "com.adobe.pdf",
@@ -41,7 +49,7 @@ export const exportPdf = async ({
       }
     }
 
-    return { uri, fileName };
+    return { uri: targetUri, fileName };
   }
 
   // Web: Export as file download
@@ -69,13 +77,19 @@ export const exportPdf = async ({
 async function tryOpenPdf(uri: string): Promise<boolean> {
   try {
     if (Platform.OS === "android") {
-      const contentUri = await FileSystem.getContentUriAsync(uri);
+      const contentUri = await getContentUriAsync(uri);
       try {
         const IntentLauncher = await import("expo-intent-launcher");
-        await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        const VIEW =
+          // @ts-expect-error expo-intent-launcher Action enum
+          IntentLauncher.Action?.VIEW ??
+          // @ts-expect-error expo-intent-launcher ActivityAction enum
+          IntentLauncher.ActivityAction?.VIEW ??
+          "android.intent.action.VIEW";
+        await IntentLauncher.startActivityAsync(VIEW, {
           data: contentUri,
           type: "application/pdf",
-          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          flags: 1 | 268435456, // GRANT_READ_URI_PERMISSION | ACTIVITY_NEW_TASK
         });
         return true;
       } catch {
@@ -94,4 +108,28 @@ async function tryOpenPdf(uri: string): Promise<boolean> {
     return false;
   }
   return false;
+}
+
+async function writePdfWithName(
+  result: { uri: string; base64?: string | null },
+  fileName: string
+) {
+  const cleanName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+  const targetBase = documentDirectory ?? cacheDirectory ?? "";
+  if (!targetBase) return result.uri;
+  const targetUri = `${targetBase}${cleanName}`;
+  try {
+    if (result.base64) {
+      await writeAsStringAsync(targetUri, result.base64, {
+        encoding: EncodingType.Base64,
+      });
+      return targetUri;
+    }
+    if (result.uri !== targetUri) {
+      await copyAsync({ from: result.uri, to: targetUri });
+    }
+    return targetUri;
+  } catch {
+    return result.uri;
+  }
 }

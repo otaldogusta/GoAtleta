@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useRef,
@@ -47,7 +47,7 @@ const formatResetError = (raw: string) => {
     return "A nova senha precisa ser diferente da anterior.";
   }
   if (normalized.includes("invalid") && normalized.includes("token")) {
-    return "Link inválido ou expirado.";
+    return "Link inv\u00e1lido ou expirado.";
   }
   return raw.replace(/\s+/g, " ");
 };
@@ -89,7 +89,7 @@ export default function ResetPasswordScreen() {
   const strengthLabel = useMemo(() => {
     if (!password) return "";
     if (strengthScore <= 0.33) return "Fraca";
-    if (strengthScore <= 0.66) return "Media";
+    if (strengthScore <= 0.66) return "M\u00e9dia";
     return "Forte";
   }, [password, strengthScore]);
 
@@ -106,6 +106,7 @@ export default function ResetPasswordScreen() {
       setToken(params.access_token);
       return;
     }
+    if (Platform.OS !== "web") return;
     let active = true;
     (async () => {
       const initial = await Linking.getInitialURL();
@@ -129,7 +130,7 @@ export default function ResetPasswordScreen() {
 
   const submit = async () => {
     if (!token) {
-      setMessage("Link inválido ou expirado.");
+      setMessage("Link inv\u00e1lido ou expirado.");
       return;
     }
     if (!password.trim()) {
@@ -141,7 +142,7 @@ export default function ResetPasswordScreen() {
       return;
     }
     if (password !== confirm) {
-      setMessage("As senhas não coincidem.");
+      setMessage("As senhas n\u00e3o coincidem.");
       return;
     }
     setMessage("");
@@ -215,8 +216,11 @@ export default function ResetPasswordScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   paddingHorizontal: 12,
+                  paddingVertical: 10,
                   borderRadius: 12,
                   backgroundColor: colors.inputBg,
+                  overflow: "hidden",
+                  minHeight: 48,
                 }}
               >
                 <TextInput
@@ -225,10 +229,13 @@ export default function ResetPasswordScreen() {
                   onChangeText={setPassword}
                   placeholderTextColor={colors.placeholder}
                   secureTextEntry={!showPassword}
+                  underlineColorAndroid="transparent"
+                  selectionColor={colors.primaryBg}
                   style={{
                     flex: 1,
-                    paddingVertical: 12,
+                    padding: 0,
                     color: colors.inputText,
+                    backgroundColor: colors.inputBg,
                     outlineStyle: "none",
                     outlineWidth: 0,
                   }}
@@ -328,8 +335,11 @@ export default function ResetPasswordScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   paddingHorizontal: 12,
+                  paddingVertical: 10,
                   borderRadius: 12,
                   backgroundColor: colors.inputBg,
+                  overflow: "hidden",
+                  minHeight: 48,
                 }}
               >
                 <TextInput
@@ -338,10 +348,13 @@ export default function ResetPasswordScreen() {
                   onChangeText={setConfirm}
                   placeholderTextColor={colors.placeholder}
                   secureTextEntry={!showConfirm}
+                  underlineColorAndroid="transparent"
+                  selectionColor={colors.primaryBg}
                   style={{
                     flex: 1,
-                    paddingVertical: 12,
+                    padding: 0,
                     color: colors.inputText,
+                    backgroundColor: colors.inputBg,
                     outlineStyle: "none",
                     outlineWidth: 0,
                   }}
@@ -392,3 +405,4 @@ export default function ResetPasswordScreen() {
     </SafeAreaView>
   );
 }
+

@@ -1440,7 +1440,7 @@ export default function TrainingList() {
     setScrollRequested(true);
   }, []);
 
-  const useTemplateAsPlan = useCallback((template: {
+  const applyTemplateAsPlan = useCallback((template: {
     id: string;
     title: string;
     tags: string[];
@@ -1462,7 +1462,7 @@ export default function TrainingList() {
   }, [applyTemplate, pickClassIdForAgeBand, templateAgeBand]);
 
   const duplicatePlan = (plan: TrainingPlan) => {
-    useTemplateAsPlan({
+    applyTemplateAsPlan({
       id: "dup_" + Date.now(),
       title: plan.title + " (cópia)",
       tags: plan.tags ?? [],
@@ -1947,9 +1947,9 @@ export default function TrainingList() {
 
   const handleUseTemplate = useCallback(
     (template: (typeof templates)[number]) => {
-      useTemplateAsPlan(template);
+      applyTemplateAsPlan(template);
     },
-    [useTemplateAsPlan]
+    [applyTemplateAsPlan]
   );
 
   const handleOpenTemplateEditor = useCallback(

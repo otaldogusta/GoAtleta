@@ -32,6 +32,8 @@ export function useModalCardStyle(options: ModalCardOptions = {}) {
     maxHeight,
     width: "100%",
     backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding,
     paddingBottom: padding + insets.bottom + webBottomSpacing,
     borderTopLeftRadius: radius,
@@ -42,5 +44,16 @@ export function useModalCardStyle(options: ModalCardOptions = {}) {
     alignSelf: fullWidth ? "stretch" : "center",
     maxWidth: fullWidth ? undefined : resolvedMaxWidth,
     marginBottom: flushBottom ? 0 : webBottomSpacing,
+    ...(Platform.OS === "web"
+      ? ({
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+        } as ViewStyle)
+      : null),
+    shadowColor: "#000",
+    shadowOpacity: 0.24,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 10,
   } as ViewStyle;
 }

@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View
@@ -15,6 +16,7 @@ import {
 import { Pressable } from "../src/ui/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,7 +28,23 @@ import { Button } from "../src/ui/Button";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 
 export default function LoginScreen() {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
+
+
+  const glassCardGradient = mode === "dark"
+    ? ["rgba(255,255,255,0.08)", "rgba(255,255,255,0.02)"]
+    : ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.08)"];
+  const solidInputBg = mode === "dark" ? "#0a101d" : colors.inputBg;
+
+  const renderGlassOverlay = () => (
+    <LinearGradient
+      colors={glassCardGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+    />
+  );
   const { signIn, resetPassword, signInWithOAuth } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -247,7 +265,7 @@ export default function LoginScreen() {
                   borderRadius: 999,
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
-                  borderColor: colors.border,
+                  borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
                   opacity: rememberToastAnim,
                   transform: [
                     {
@@ -260,7 +278,7 @@ export default function LoginScreen() {
                 }}
               >
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sessão não sera lembrada.
+                  Sess\u00e3o n\u00e3o ser\u00e1 lembrada.
                 </Text>
               </Animated.View>
             ) : null}
@@ -277,8 +295,23 @@ export default function LoginScreen() {
                   paddingHorizontal: 10,
                   borderRadius: 999,
                   backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  overflow: "hidden",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.12,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 3,
                 }}
               >
+                <LinearGradient
+                  colors={glassCardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
                 <Ionicons name="chevron-back" size={16} color={colors.text} />
                 <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar</Text>
               </View>
@@ -296,9 +329,10 @@ export default function LoginScreen() {
                 backgroundColor: colors.card,
                 borderWidth: 1,
                 borderColor: colors.border,
+                overflow: "hidden",
                 gap: 14,
                 shadowColor: "#000",
-                shadowOpacity: 0.1,
+                shadowOpacity: 0.08,
                 shadowRadius: 16,
                 shadowOffset: { width: 0, height: 8 },
                 elevation: 5,
@@ -307,10 +341,13 @@ export default function LoginScreen() {
               <View
                 style={{
                   borderWidth: 1,
-                  borderColor: colors.border,
+                  borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
                   borderRadius: 14,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: solidInputBg,
                   overflow: "hidden",
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  minHeight: 48,
                 }}
               >
                 <TextInput
@@ -320,8 +357,11 @@ export default function LoginScreen() {
                   placeholderTextColor={colors.placeholder}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  underlineColorAndroid="transparent"
+                  selectionColor={colors.primaryBg}
                   style={{
-                    padding: 12,
+                    flex: 1,
+                    padding: 0,
                     color: colors.inputText,
                     backgroundColor: "transparent",
                     borderWidth: 0,
@@ -338,10 +378,13 @@ export default function LoginScreen() {
                       flexDirection: "row",
                       alignItems: "center",
                       borderWidth: 1,
-                      borderColor: colors.border,
+                      borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
                       paddingHorizontal: 12,
+                      paddingVertical: 10,
                       borderRadius: 14,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: solidInputBg,
+                      overflow: "hidden",
+                      minHeight: 48,
                     }}
                   >
                     <TextInput
@@ -350,13 +393,16 @@ export default function LoginScreen() {
                       onChangeText={setPassword}
                       placeholderTextColor={colors.placeholder}
                       secureTextEntry={!showPassword}
+                      underlineColorAndroid="transparent"
+                      selectionColor={colors.primaryBg}
                       style={{
                         flex: 1,
-                        paddingVertical: 12,
+                        padding: 0,
                         color: colors.inputText,
+                        backgroundColor: "transparent",
                         outlineStyle: "none",
                         outlineWidth: 0,
-                      }}
+                    }}
                     />
                     {password.length > 0 ? (
                       <Pressable
@@ -478,7 +524,7 @@ export default function LoginScreen() {
                             borderRadius: 16,
                             backgroundColor: colors.secondaryBg,
                             borderWidth: 1,
-                            borderColor: colors.border,
+                            borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
                             alignItems: "center",
                             justifyContent: "center",
                           }}
@@ -583,7 +629,7 @@ export default function LoginScreen() {
               borderRadius: 16,
               backgroundColor: colors.card,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
               alignItems: "center",
               gap: 10,
             }}

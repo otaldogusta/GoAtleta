@@ -48,12 +48,15 @@ const styles = StyleSheet.create({
   },
   headerMeta: {
     marginTop: 6,
-    gap: 2,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
   },
-  metaRow: { flexDirection: "row" },
-  metaItem: { flex: 1, flexDirection: "row", gap: 4 },
+  metaItem: { flexDirection: "row", gap: 4 },
   metaLabel: { color: "#666", fontWeight: "bold" },
   metaValue: { color: "#555" },
+  metaSep: { color: "#bbb", fontWeight: "bold", paddingHorizontal: 4 },
   headerRight: { width: 200, alignItems: "flex-end" },
   badge: {
     backgroundColor: "#f2f2f2",
@@ -207,32 +210,29 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
               {data.ageBand ? <Text style={styles.headerTag}>{data.ageBand}</Text> : null}
             </View>
             <View style={styles.headerMeta}>
-              <View style={styles.metaRow}>
-                <View style={styles.metaItem}>
-                  <Text style={styles.metaLabel}>Turma:</Text>
-                  <Text style={styles.metaValue}>{data.className}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Text style={styles.metaLabel}>Unidade:</Text>
-                  <Text style={styles.metaValue}>{data.unitLabel ?? "-"}</Text>
-                </View>
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Turma:</Text>
+                <Text style={styles.metaValue}>{data.className}</Text>
               </View>
-              <View style={styles.metaRow}>
-                <View style={styles.metaItem}>
-                  <Text style={styles.metaLabel}>Dias:</Text>
-                  <Text style={styles.metaValue}>{data.daysLabel ?? "-"}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Text style={styles.metaLabel}>Horario:</Text>
-                  <Text style={styles.metaValue}>{data.timeLabel ?? "-"}</Text>
-                </View>
+              <Text style={styles.metaSep}>|</Text>
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Unidade:</Text>
+                <Text style={styles.metaValue}>{data.unitLabel ?? "-"}</Text>
               </View>
-              <View style={styles.metaRow}>
-                <View style={styles.metaItem}>
-                  <Text style={styles.metaLabel}>Mes:</Text>
-                  <Text style={styles.metaValue}>{data.monthLabel}</Text>
-                </View>
-                <View style={styles.metaItem} />
+              <Text style={styles.metaSep}>|</Text>
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Dias:</Text>
+                <Text style={styles.metaValue}>{data.daysLabel ?? "-"}</Text>
+              </View>
+              <Text style={styles.metaSep}>|</Text>
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Horário:</Text>
+                <Text style={styles.metaValue}>{data.timeLabel ?? "-"}</Text>
+              </View>
+              <Text style={styles.metaSep}>|</Text>
+              <View style={styles.metaItem}>
+                <Text style={styles.metaLabel}>Mês:</Text>
+                <Text style={styles.metaValue}>{data.monthLabel}</Text>
               </View>
             </View>
           </View>

@@ -70,6 +70,27 @@ export function initDb() {
       updatedAt TEXT NOT NULL DEFAULT ''
     );
 
+    CREATE TABLE IF NOT EXISTS student_scouting_logs (
+      id TEXT PRIMARY KEY NOT NULL,
+      studentId TEXT NOT NULL,
+      classId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      serve0 INTEGER NOT NULL DEFAULT 0,
+      serve1 INTEGER NOT NULL DEFAULT 0,
+      serve2 INTEGER NOT NULL DEFAULT 0,
+      receive0 INTEGER NOT NULL DEFAULT 0,
+      receive1 INTEGER NOT NULL DEFAULT 0,
+      receive2 INTEGER NOT NULL DEFAULT 0,
+      set0 INTEGER NOT NULL DEFAULT 0,
+      set1 INTEGER NOT NULL DEFAULT 0,
+      set2 INTEGER NOT NULL DEFAULT 0,
+      attackSend0 INTEGER NOT NULL DEFAULT 0,
+      attackSend1 INTEGER NOT NULL DEFAULT 0,
+      attackSend2 INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS training_plans (
       id TEXT PRIMARY KEY NOT NULL,
       classId TEXT NOT NULL,

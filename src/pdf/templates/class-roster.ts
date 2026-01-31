@@ -130,10 +130,10 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           color: #111;
         }
         h1 {
-          font-size: 18px;
+          font-size: 15px;
           margin: 0;
         }
-        .sub { color: #555; line-height: 1.35; font-size: 10px; }
+        .sub { color: #555; line-height: 1.35; font-size: 9px; }
         .header {
           display: flex;
           justify-content: space-between;
@@ -150,26 +150,32 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           gap: 10px;
         }
         .header-tag {
-          font-size: 9px;
+          font-size: 8px;
           color: #666;
           background: #f4f4f4;
           border-radius: 999px;
           padding: 2px 8px;
         }
-        .header-meta-table {
-          width: 100%;
-          border-collapse: collapse;
+        .header-meta {
           margin-top: 6px;
-          font-size: 10px;
+          font-size: 9px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px 10px;
         }
-        .header-meta-table td {
-          padding: 2px 0;
-          vertical-align: top;
+        .meta-item {
+          display: flex;
+          gap: 4px;
+          min-width: 0;
+        }
+        .meta-sep {
+          color: #bbb;
+          font-weight: 700;
         }
         .meta-label {
           color: #666;
-          font-weight: 600;
-          padding-right: 4px;
+          font-weight: 700;
           white-space: nowrap;
         }
         .meta-value { color: #555; }
@@ -182,11 +188,11 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           padding: 4px 8px;
           border-radius: 999px;
           background: #f2f2f2;
-          font-size: 9px;
+          font-size: 8px;
         }
         .coach {
           margin-top: 6px;
-          font-size: 10px;
+          font-size: 9px;
           color: #444;
         }
         .layout {
@@ -212,6 +218,15 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           vertical-align: middle;
           word-break: break-word;
         }
+        .roster-table th.col-day,
+        .fund-table th.col-day {
+          word-break: keep-all;
+          white-space: nowrap;
+        }
+        .fund-table th.col-day {
+          font-size: 7px;
+          line-height: 1;
+        }
         th { background: #f2f2f2; text-align: center; }
         .col-index { width: 22px; text-align: center; }
         .col-birth { width: 56px; text-align: center; }
@@ -225,13 +240,17 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
         }
         .col-name { width: 150px; text-align: left; }
         .col-fund { width: 110px; text-align: left; }
+        .fund-table .col-fund { width: 95px; }
         .roster-table .col-day {
           text-align: center;
           width: calc((100% - var(--fixed-cols)) / var(--day-count));
+          white-space: nowrap;
         }
         .fund-table .col-day {
           text-align: center;
           width: calc((100% - var(--fixed-cols)) / var(--day-count));
+          min-width: 16px;
+          white-space: nowrap;
         }
         .row-alt { background: #fafafa; }
 
@@ -275,26 +294,32 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
             <h1>${esc(data.title)}</h1>
             ${data.ageBand ? `<span class="header-tag">${esc(data.ageBand)}</span>` : ""}
           </div>
-          <table class="header-meta-table">
-            <tr>
-              <td class="meta-label">Turma:</td>
-              <td class="meta-value">${esc(data.className)}</td>
-              <td class="meta-label">Unidade:</td>
-              <td class="meta-value">${esc(data.unitLabel ?? "-")}</td>
-            </tr>
-            <tr>
-              <td class="meta-label">Dias:</td>
-              <td class="meta-value">${esc(data.daysLabel ?? "-")}</td>
-              <td class="meta-label">Horario:</td>
-              <td class="meta-value">${esc(data.timeLabel ?? "-")}</td>
-            </tr>
-            <tr>
-              <td class="meta-label">Mes:</td>
-              <td class="meta-value">${esc(data.monthLabel)}</td>
-              <td></td>
-              <td></td>
-            </tr>
-          </table>
+          <div class="header-meta">
+            <div class="meta-item">
+              <span class="meta-label">Turma:</span>
+              <span class="meta-value">${esc(data.className)}</span>
+            </div>
+            <span class="meta-sep">|</span>
+            <div class="meta-item">
+              <span class="meta-label">Unidade:</span>
+              <span class="meta-value">${esc(data.unitLabel ?? "-")}</span>
+            </div>
+            <span class="meta-sep">|</span>
+            <div class="meta-item">
+              <span class="meta-label">Dias:</span>
+              <span class="meta-value">${esc(data.daysLabel ?? "-")}</span>
+            </div>
+            <span class="meta-sep">|</span>
+            <div class="meta-item">
+              <span class="meta-label">Horário:</span>
+              <span class="meta-value">${esc(data.timeLabel ?? "-")}</span>
+            </div>
+            <span class="meta-sep">|</span>
+            <div class="meta-item">
+              <span class="meta-label">Mês:</span>
+              <span class="meta-value">${esc(data.monthLabel)}</span>
+            </div>
+          </div>
         </div>
         <div class="header-right">
           ${data.periodizationLabel ? `<div class="badge">${esc(data.periodizationLabel)}</div>` : ""}

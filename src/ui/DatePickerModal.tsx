@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useMemo,
   useRef,
@@ -38,7 +38,7 @@ export function DatePickerModal({
   const monthNames = [
     "Janeiro",
     "Fevereiro",
-    "Marco",
+    "Março",
     "Abril",
     "Maio",
     "Junho",
@@ -294,9 +294,9 @@ export function DatePickerModal({
           {viewMode === "day" ? (
             <>
               <View style={{ flexDirection: "row", marginTop: 8 }}>
-                {dayLabels.map((label) => (
+                {dayLabels.map((label, index) => (
                   <Text
-                    key={label}
+                    key={`${label}-${index}`}
                     style={{
                       width: "14.2857%",
                       textAlign: "center",
@@ -463,3 +463,5 @@ export function DatePickerModal({
     </ModalSheet>
   );
 }
+
+

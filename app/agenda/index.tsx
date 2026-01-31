@@ -1,4 +1,4 @@
-import {
+﻿import {
     useEffect,
     useMemo,
     useState
@@ -288,8 +288,8 @@ export default function AgendaScreen() {
                 marginTop: 8,
               }}
             >
-              {["D", "S", "T", "Q", "Q", "S", "S"].map((d) => (
-                <Text key={d} style={{ width: "14%", textAlign: "center" }}>
+              {["D", "S", "T", "Q", "Q", "S", "S"].map((d, index) => (
+                <Text key={`${d}-${index}`} style={{ width: "14%", textAlign: "center" }}>
                   {d}
                 </Text>
               ))}

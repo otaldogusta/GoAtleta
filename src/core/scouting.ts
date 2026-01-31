@@ -1,4 +1,4 @@
-import type { ScoutingLog } from "./models";
+import type { ScoutingLog, StudentScoutingLog } from "./models";
 
 export type ScoutingSkill = "serve" | "receive" | "set" | "attack_send";
 export type ScoutingScore = 0 | 1 | 2;
@@ -11,6 +11,13 @@ export const scoutingSkills: { id: ScoutingSkill; label: string }[] = [
   { id: "set", label: "Toque" },
   { id: "attack_send", label: "Envio" },
 ];
+
+export const studentScoutingLimits: Record<ScoutingSkill, number> = {
+  serve: 20,
+  receive: 20,
+  set: 15,
+  attack_send: 15,
+};
 
 export const scoutingSkillHelp: Record<ScoutingSkill, string[]> = {
   serve: [
@@ -58,6 +65,13 @@ export const countsFromLog = (log: ScoutingLog): ScoutingCounts => ({
   attack_send: { 0: log.attackSend0, 1: log.attackSend1, 2: log.attackSend2 },
 });
 
+export const countsFromStudentLog = (log: StudentScoutingLog): ScoutingCounts => ({
+  serve: { 0: log.serve0, 1: log.serve1, 2: log.serve2 },
+  receive: { 0: log.receive0, 1: log.receive1, 2: log.receive2 },
+  set: { 0: log.set0, 1: log.set1, 2: log.set2 },
+  attack_send: { 0: log.attackSend0, 1: log.attackSend1, 2: log.attackSend2 },
+});
+
 export const buildLogFromCounts = (
   base: Omit<ScoutingLog, "serve0" | "serve1" | "serve2" | "receive0" | "receive1" | "receive2" | "set0" | "set1" | "set2" | "attackSend0" | "attackSend1" | "attackSend2">,
   counts: ScoutingCounts
@@ -92,6 +106,21 @@ export const getTotalActions = (counts: ScoutingCounts) =>
     const metrics = getSkillMetrics(counts[skill.id]);
     return sum + metrics.total;
   }, 0);
+
+export const getTechnicalPerformanceScore = (counts: ScoutingCounts) => {
+  const weights: Record<ScoutingSkill, number> = {
+    serve: 25,
+    receive: 25,
+    set: 20,
+    attack_send: 20,
+  };
+  const weightedSum = scoutingSkills.reduce((sum, skill) => {
+    const metrics = getSkillMetrics(counts[skill.id]);
+    return sum + metrics.avg * weights[skill.id];
+  }, 0);
+  // metrics.avg is 0..2, normalize to 0..100
+  return Math.round((weightedSum / 2) * 10) / 10;
+};
 
 export const getFocusSuggestion = (
   counts: ScoutingCounts,

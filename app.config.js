@@ -6,6 +6,10 @@ const supabaseAnonKey =
 	process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
 const buildProfile = process.env.EAS_BUILD_PROFILE || "";
 const useDevClient = buildProfile === "development";
+const sentryDsn =
+	process.env.SENTRY_DSN ||
+	process.env.EXPO_PUBLIC_SENTRY_DSN ||
+	"https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320";
 
 const plugins = [
 	"expo-router",
@@ -28,6 +32,13 @@ const plugins = [
 			photosPermission: "Permitir acesso \u00e0 galeria para escolher a foto do perfil.",
 		},
 	],
+	"expo-font",
+	[
+		"expo-camera",
+		{
+			cameraPermission: "Permitir acesso \u00e0 c\u00e2mera para escanear QR Code.",
+		},
+	],
 	"@react-native-community/datetimepicker",
 	"@sentry/react-native",
 	[
@@ -36,7 +47,7 @@ const plugins = [
 			url: "https://sentry.io/",
 			project: "react-native",
 			organization: "otaldogustas-company",
-			dsn: "https://75f40b42770cc00892ƒ?<43e3a49bb654f0a45f0656f0577f7920.ingest.us.sentry.io/4510656f0760832f0",
+			dsn: sentryDsn,
 		},
 	],
 ];
@@ -59,6 +70,10 @@ module.exports = {
 			supportsTablet: true,
 			bundleIdentifier: "com.otaldogusta.goatleta",
 			associatedDomains: ["applinks:go-atleta.vercel.app"],
+			usesNonExemptEncryption: false,
+			infoPlist: {
+				ITSAppUsesNonExemptEncryption: false,
+			},
 		},
 		android: {
 			adaptiveIcon: {
