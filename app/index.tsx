@@ -1,6 +1,5 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
-import { LinearGradient } from "expo-linear-gradient";
 
 import * as Clipboard from "expo-clipboard";
 
@@ -15,41 +14,32 @@ import { Image } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
+    useCallback,
+    useEffect,
+    useMemo,
 
-  useEffect,
+    useRef,
 
-  useCallback,
-
-  useMemo,
-
-  useRef,
-
-  useState
-
+    useState
 } from "react";
 
 import {
+    Alert,
 
-  Alert,
+    Animated,
 
-  Animated,
+    Dimensions,
 
-  Dimensions,
+    PanResponder,
 
-  PanResponder,
+    Platform,
 
-  Platform,
+    RefreshControl,
 
-  RefreshControl,
+    ScrollView,
+    Text,
 
-  ScrollView,
-
-  StyleSheet,
-
-  Text,
-
-  View
-
+    View
 } from "react-native";
 
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -65,35 +55,31 @@ import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
 
 import {
+    flushPendingWrites,
 
-  flushPendingWrites,
+    getAttendanceByDate,
 
-  getAttendanceByDate,
+    getClasses,
 
-  getClasses,
+    getPendingWritesCount,
 
-  getPendingWritesCount,
+    getSessionLogsByRange,
 
-  getSessionLogsByRange,
-
-  seedIfEmpty,
-
+    seedIfEmpty,
 } from "../src/db/seed";
 
 import { requestNotificationPermission } from "../src/notifications";
 
 import {
+    AppNotification,
 
-  AppNotification,
+    clearNotifications,
 
-  clearNotifications,
+    getNotifications,
 
-  getNotifications,
+    markAllRead,
 
-  markAllRead,
-
-  subscribeNotifications,
-
+    subscribeNotifications,
 } from "../src/notificationsInbox";
 
 import { Card } from "../src/ui/Card";
@@ -120,19 +106,7 @@ function TrainerHome() {
 
   const { colors, mode } = useAppTheme();
 
-  const glassCardGradient = mode === "dark"
-    ? ["rgba(255,255,255,0.05)", "rgba(255,255,255,0.01)"]
-    : ["rgba(255,255,255,0.18)", "rgba(255,255,255,0.04)"];
-
-  const renderGlassOverlay = () => (
-    <LinearGradient
-      colors={glassCardGradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={StyleSheet.absoluteFill}
-      pointerEvents="none"
-    />
-  );
+  // Glass overlay function no longer needed - using native component styling instead
 
   const insets = useSafeAreaInsets();
 
@@ -1333,27 +1307,28 @@ function TrainerHome() {
 
           </Link>
 
-          <Pressable
+          <View style={{ position: "relative" }}>
+            <Pressable
 
-            onPress={openInbox}
+              onPress={openInbox}
 
-            style={{
+              style={{
 
-              paddingHorizontal: 12,
+                paddingHorizontal: 12,
 
-              paddingVertical: 8,
+                paddingVertical: 8,
 
-              borderRadius: 999,
+                borderRadius: 999,
 
-              backgroundColor: colors.primaryBg,
+                backgroundColor: colors.primaryBg,
 
-              position: "relative",
+              }}
 
-            }}
+            >
 
-          >
+              <Ionicons name="notifications-outline" size={18} color={colors.primaryText} />
 
-            <Ionicons name="notifications-outline" size={18} color={colors.primaryText} />
+            </Pressable>
 
             {unreadCount > 0 ? (
 
@@ -1363,39 +1338,44 @@ function TrainerHome() {
 
                   position: "absolute",
 
-                  right: -4,
+                  right: -12,
 
-                  top: -4,
+                  top: -12,
 
-                  minWidth: 18,
+                  minWidth: 20,
 
-                  height: 18,
+                  height: 20,
 
-                  borderRadius: 9,
+                  borderRadius: 10,
 
-                  backgroundColor: colors.dangerSolidBg,
+                  backgroundColor: colors.warningBg,
 
                   alignItems: "center",
 
                   justifyContent: "center",
 
-                  paddingHorizontal: 4,
+                  zIndex: 10,
+
+                  borderWidth: 1,
+
+                  borderColor: "rgba(17, 26, 45, 0.5)",
+
+                  pointerEvents: "none",
 
                 }}
 
               >
 
-                <Text style={{ color: colors.dangerSolidText, fontSize: 11, fontWeight: "700" }}>
+                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "800" }}>
 
-                  {unreadCount}
+                  !
 
                 </Text>
 
               </View>
 
             ) : null}
-
-          </Pressable>
+          </View>
 
         </View>
 
@@ -1515,8 +1495,6 @@ function TrainerHome() {
 
         >
 
-          {renderGlassOverlay()}
-
           <View style={{ gap: 12 }}>
 
             <View style={{ gap: 6 }}>
@@ -1545,7 +1523,7 @@ function TrainerHome() {
 
                 borderRadius: 14,
 
-                backgroundColor: colors.secondaryBg,
+                backgroundColor: colors.card,
 
                 borderWidth: 1,
 
@@ -1556,8 +1534,6 @@ function TrainerHome() {
               }}
 
             >
-
-              {renderGlassOverlay()}
 
               <FadeHorizontalScroll
 
@@ -2059,65 +2035,89 @@ function TrainerHome() {
 
               </Pressable>
 
-              <Pressable
+              <View style={{ flex: 1, position: "relative" }}>
+                <Pressable
 
-                onPress={() => {
+                  onPress={() => {
 
-                  if (!activeAttendanceTarget) return;
+                    if (!activeAttendanceTarget) return;
 
-                  router.push({
+                    router.push({
 
-                    pathname: "/class/[id]/session",
+                      pathname: "/class/[id]/session",
 
-                    params: {
+                      params: {
 
-                      id: activeAttendanceTarget.classId,
+                        id: activeAttendanceTarget.classId,
 
-                      date: activeAttendanceTarget.date,
+                        date: activeAttendanceTarget.date,
 
-                      tab: "relatório",
+                        tab: "relatório",
 
-                    },
+                      },
 
-                  });
+                    });
 
-                }}
+                  }}
 
-                disabled={!activeAttendanceTarget}
+                  disabled={!activeAttendanceTarget}
 
-                style={{
+                  style={{
 
-                  flex: 1,
+                    flex: 1,
 
-                  paddingVertical: 8,
+                    paddingVertical: 8,
 
-                  paddingHorizontal: 8,
+                    paddingHorizontal: 8,
 
-                  minHeight: 36,
+                    minHeight: 36,
 
-                  borderRadius: 999,
+                    borderRadius: 999,
 
-                  backgroundColor: activeAttendanceTarget
+                    backgroundColor: activeAttendanceTarget
 
-                    ? colors.secondaryBg
+                      ? colors.secondaryBg
 
-                    : colors.primaryDisabledBg,
+                      : colors.primaryDisabledBg,
 
-                  borderWidth: 1,
+                    borderWidth: 1,
 
-                  borderColor: colors.border,
+                    borderColor: colors.border,
 
-                overflow: "hidden",
+                    opacity: activeAttendanceTarget ? 1 : 0.7,
 
-                  opacity: activeAttendanceTarget ? 1 : 0.7,
+                    alignItems: "center",
 
-                  alignItems: "center",
+                  }}
 
-                  position: "relative",
+                >
+                  <Text
 
-                }}
+                    style={{
 
-              >
+                      color: colors.text,
+
+                      fontWeight: "700",
+
+                      fontSize: 10,
+
+                      lineHeight: 14,
+
+                      textAlign: "center",
+
+                      textAlignVertical: "center",
+
+                      includeFontPadding: false,
+
+                    }}
+
+                  >
+
+                    Relatório
+
+                  </Text>
+
+                </Pressable>
 
                 {showReportWarning ? (
 
@@ -2127,9 +2127,9 @@ function TrainerHome() {
 
                       position: "absolute",
 
-                      top: -6,
+                      top: -10,
 
-                      right: -6,
+                      right: -10,
 
                       width: 18,
 
@@ -2146,6 +2146,8 @@ function TrainerHome() {
                       borderWidth: 1,
 
                       borderColor: colors.card,
+
+                      pointerEvents: "none",
 
                     }}
 
@@ -2172,34 +2174,7 @@ function TrainerHome() {
                   </View>
 
                 ) : null}
-
-                <Text
-
-                  style={{
-
-                    color: colors.text,
-
-                    fontWeight: "700",
-
-                    fontSize: 10,
-
-                    lineHeight: 14,
-
-                    textAlign: "center",
-
-                    textAlignVertical: "center",
-
-                    includeFontPadding: false,
-
-                  }}
-
-                >
-
-                  Relatório
-
-                </Text>
-
-              </Pressable>
+              </View>
 
               <Pressable
 
@@ -2339,7 +2314,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
@@ -2391,7 +2366,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
@@ -2443,7 +2418,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
@@ -2495,7 +2470,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
@@ -2547,7 +2522,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
@@ -2600,7 +2575,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
@@ -2652,7 +2627,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
@@ -2704,7 +2679,7 @@ function TrainerHome() {
 
             >
 
-              {renderGlassOverlay()}
+              
 
               
 
