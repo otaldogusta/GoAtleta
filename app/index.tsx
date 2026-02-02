@@ -2037,6 +2037,8 @@ function TrainerHome() {
 
         />
 
+      </View>
+
       </ScrollView>
 
 
