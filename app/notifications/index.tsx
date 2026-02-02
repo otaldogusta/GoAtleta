@@ -1,23 +1,23 @@
-import { useEffect, useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  View
-} from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
+import {
+    KeyboardAvoidingView,
+    Platform,
+    Text,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../../src/ui/Pressable";
 
-import { Typography } from "../../src/ui/Typography";
-import { Button } from "../../src/ui/Button";
-import { useAppTheme } from "../../src/ui/app-theme";
 import { useAuth } from "../../src/auth/auth";
-import { getRoleOverride, setRoleOverride } from "../../src/auth/role-override";
 import { useRole } from "../../src/auth/role";
+import { getRoleOverride, setRoleOverride } from "../../src/auth/role-override";
+import { SettingsRow } from "../../src/ui/SettingsRow";
+import { Typography } from "../../src/ui/Typography";
+import { useAppTheme } from "../../src/ui/app-theme";
 
 const STORAGE_KEY = "notify_settings_v1";
 const isWeb = Platform.OS === "web";
@@ -108,67 +108,6 @@ export default function NotificationsScreen() {
 
   const SectionTitle = ({ children }: { children: string }) => (
     <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>{children}</Text>
-  );
-
-  const SettingsRow = ({
-    icon,
-    iconBg,
-    label,
-    onPress,
-    rightContent,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    iconBg: string;
-    label: string;
-    onPress?: () => void;
-    rightContent?: React.ReactNode;
-  }) => (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingVertical: 10,
-        paddingHorizontal: 8,
-        borderRadius: 14,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
-      }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <View
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: iconBg,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Ionicons name={icon} size={18} color={colors.text} />
-        </View>
-        <Text style={{ color: colors.text, fontWeight: "600" }}>{label}</Text>
-      </View>
-      {rightContent ? (
-        rightContent
-      ) : (
-        <View
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: colors.secondaryBg,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Ionicons name="chevron-forward" size={16} color={colors.text} />
-        </View>
-      )}
-    </Pressable>
   );
 
   return (

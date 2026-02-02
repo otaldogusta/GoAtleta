@@ -1,11 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import { Image } from "expo-image";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 import type { ClassGroup } from "../src/core/models";
@@ -15,11 +15,12 @@ import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
 
 import { getClasses } from "../src/db/seed";
-import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
-import { useModalCardStyle } from "../src/ui/use-modal-card-style";
+import { Pressable } from "../src/ui/Pressable";
+import { SettingsRow } from "../src/ui/SettingsRow";
 import { ShimmerBlock } from "../src/ui/Shimmer";
+import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 
 
 export default function ProfileScreen() {
@@ -229,8 +230,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
 
@@ -373,42 +373,13 @@ export default function ProfileScreen() {
         ) : (
           <View style={{ gap: 8 }}>
             <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Perfil</Text>
-            <View
-              style={{
-                paddingVertical: 10,
-                paddingHorizontal: 8,
-                borderRadius: 14,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: "rgba(255, 185, 136, 0.16)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="school-outline" size={18} color={colors.text} />
-                </View>
-                <View>
-                  <Text style={{ color: colors.text, fontWeight: "600" }}>
-                    {currentClass?.name || (student ? "Sem turma" : "Professor")}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {currentClass?.unit || (student ? "Sem unidade" : "Treinador")}
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <SettingsRow
+              icon="school-outline"
+              iconBg="rgba(255, 185, 136, 0.16)"
+              label={currentClass?.name || (student ? "Sem turma" : "Professor")}
+              subtitle={currentClass?.unit || (student ? "Sem unidade" : "Treinador")}
+              rightContent={<View />}
+            />
           </View>
         )}
 
@@ -417,84 +388,25 @@ export default function ProfileScreen() {
           <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
             Configurações
           </Text>
-          <Pressable
+          <SettingsRow
+            icon="settings-outline"
+            iconBg="rgba(135, 120, 255, 0.14)"
+            label="Abrir configurações"
             onPress={() => router.push({ pathname: "/notifications" })}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 8,
-              borderRadius: 14,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: "rgba(135, 120, 255, 0.14)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="settings-outline" size={18} color={colors.text} />
-              </View>
-              <Text style={{ color: colors.text, fontWeight: "600" }}>
-                Abrir configurações
-              </Text>
-            </View>
-            <View
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 13,
-                backgroundColor: colors.secondaryBg,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="chevron-forward" size={16} color={colors.text} />
-            </View>
-          </Pressable>
+          />
         </View>
 
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Conta</Text>
-          <Pressable
+          <SettingsRow
+            icon="log-out-outline"
+            iconBg="rgba(255, 130, 130, 0.16)"
+            label="Sair"
             onPress={async () => {
               await signOut();
             }}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 8,
-              borderRadius: 14,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <View
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor: "rgba(255, 130, 130, 0.16)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="log-out-outline" size={18} color={colors.text} />
-            </View>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Sair</Text>
-          </Pressable>
+            rightContent={<View />}
+          />
         </View>
       </ScrollView>
       <Modal
