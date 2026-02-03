@@ -1,30 +1,45 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
-import {
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { Pressable } from "../src/ui/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import {
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
+import {
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../src/ui/Pressable";
 
-import { useAuth } from "../src/auth/auth";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
+import { useAuth } from "../src/auth/auth";
 import { useAppTheme } from "../src/ui/app-theme";
 
 export default function SignupScreen() {
   const { colors, mode } = useAppTheme();
   const { signUp } = useAuth();
-  const solidInputBg = mode === "dark" ? "#0a101d" : colors.inputBg;
+  const solidInputBg =
+    mode === "dark" ? "rgba(10, 16, 29, 0.25)" : "rgba(255, 255, 255, 0.12)";
+  const webAutofillStyle =
+    Platform.OS === "web"
+      ? {
+          WebkitBoxShadow: `0 0 0 1000px ${solidInputBg} inset`,
+          boxShadow: `0 0 0 1000px ${solidInputBg} inset`,
+          WebkitTextFillColor: colors.inputText,
+          caretColor: colors.inputText,
+          backgroundColor: "transparent",
+          WebkitBackgroundClip: "padding-box",
+          backgroundClip: "padding-box",
+          filter: "none",
+        }
+      : null;
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -218,6 +233,7 @@ export default function SignupScreen() {
                   minHeight: 48,
                 }}
               >
+
                 <TextInput
                   placeholder="Email"
                   value={email}
@@ -235,6 +251,7 @@ export default function SignupScreen() {
                     borderWidth: 0,
                     outlineStyle: "none",
                     outlineWidth: 0,
+                    ...(webAutofillStyle || {}),
                   }}
                 />
               </View>
@@ -253,6 +270,7 @@ export default function SignupScreen() {
                   minHeight: 48,
                 }}
               >
+
                 <TextInput
                   placeholder="Senha"
                   value={password}
@@ -268,6 +286,7 @@ export default function SignupScreen() {
                     backgroundColor: "transparent",
                     outlineStyle: "none",
                     outlineWidth: 0,
+                    ...(webAutofillStyle || {}),
                   }}
                 />
                 {password.length > 0 ? (
@@ -298,6 +317,7 @@ export default function SignupScreen() {
                   minHeight: 48,
                 }}
               >
+
                 <TextInput
                   placeholder="Confirmar senha"
                   value={confirm}
@@ -313,6 +333,7 @@ export default function SignupScreen() {
                     backgroundColor: "transparent",
                     outlineStyle: "none",
                     outlineWidth: 0,
+                    ...(webAutofillStyle || {}),
                   }}
                 />
                 {confirm.length > 0 ? (
@@ -455,12 +476,13 @@ export default function SignupScreen() {
                     borderColor: colors.border,
                     borderRadius: 14,
                     backgroundColor: solidInputBg,
-                  overflow: "hidden",
+                    overflow: "hidden",
                     paddingHorizontal: 12,
                     paddingVertical: 10,
                     minHeight: 48,
                   }}
                 >
+
                   <TextInput
                     placeholder="Código de convite"
                     value={inviteCode}
@@ -475,6 +497,7 @@ export default function SignupScreen() {
                       borderWidth: 0,
                       outlineStyle: "none",
                       outlineWidth: 0,
+                        ...(webAutofillStyle || {}),
                     }}
                   />
                 </View>

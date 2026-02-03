@@ -1,29 +1,28 @@
-import {
-  useEffect,
-  useRef,
-  useState } from "react";
-import {
-  Animated,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { Pressable } from "../src/ui/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import * as Linking from "expo-linking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
+import {
+    useEffect,
+    useRef,
+    useState
+} from "react";
+import {
+    ActivityIndicator,
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../src/ui/Pressable";
 
 import { useAuth } from "../src/auth/auth";
-import { useAppTheme } from "../src/ui/app-theme";
 import { setRememberPreference } from "../src/auth/session";
+import { useAppTheme } from "../src/ui/app-theme";
 import { Button } from "../src/ui/Button";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 
@@ -31,20 +30,21 @@ export default function LoginScreen() {
   const { colors, mode } = useAppTheme();
 
 
-  const glassCardGradient = mode === "dark"
-    ? ["rgba(255,255,255,0.08)", "rgba(255,255,255,0.02)"]
-    : ["rgba(255,255,255,0.35)", "rgba(255,255,255,0.08)"];
-  const solidInputBg = mode === "dark" ? "#0a101d" : colors.inputBg;
-
-  const renderGlassOverlay = () => (
-    <LinearGradient
-      colors={glassCardGradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={StyleSheet.absoluteFill}
-      pointerEvents="none"
-    />
-  );
+  const solidInputBg =
+    mode === "dark" ? "rgba(10, 16, 29, 0.25)" : "rgba(255, 255, 255, 0.12)";
+  const webAutofillStyle =
+    Platform.OS === "web"
+      ? {
+          WebkitBoxShadow: `0 0 0 1000px ${solidInputBg} inset`,
+          boxShadow: `0 0 0 1000px ${solidInputBg} inset`,
+          WebkitTextFillColor: colors.inputText,
+          caretColor: colors.inputText,
+          backgroundColor: "transparent",
+          WebkitBackgroundClip: "padding-box",
+          backgroundClip: "padding-box",
+          filter: "none",
+        }
+      : null;
   const { signIn, resetPassword, signInWithOAuth } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -305,13 +305,6 @@ export default function LoginScreen() {
                   elevation: 3,
                 }}
               >
-                <LinearGradient
-                  colors={glassCardGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
                 <Ionicons name="chevron-back" size={16} color={colors.text} />
                 <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar</Text>
               </View>
@@ -367,6 +360,7 @@ export default function LoginScreen() {
                     borderWidth: 0,
                     outlineStyle: "none",
                     outlineWidth: 0,
+                    ...(webAutofillStyle || {}),
                   }}
                 />
               </View>
@@ -402,6 +396,7 @@ export default function LoginScreen() {
                         backgroundColor: "transparent",
                         outlineStyle: "none",
                         outlineWidth: 0,
+                        ...(webAutofillStyle || {}),
                     }}
                     />
                     {password.length > 0 ? (

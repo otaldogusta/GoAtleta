@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import * as Notifications from "expo-notifications";
 import {
     Stack,
@@ -6,8 +7,6 @@ import {
     useRouter,
 } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet } from "react-native";
 import {
     useEffect,
     useRef
@@ -15,8 +14,7 @@ import {
 import {
     Image,
     LogBox,
-    Platform,
-    Text,
+    Platform, StyleSheet, Text,
     View
 } from "react-native";
 import { Pressable } from "../src/ui/Pressable";
@@ -247,14 +245,21 @@ input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active,
+input:-internal-autofill-selected,
+input:-internal-autofill-previewed,
 textarea:-webkit-autofill,
 textarea:-webkit-autofill:hover,
 textarea:-webkit-autofill:focus,
 textarea:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px ${colors.inputBg} inset;
-  box-shadow: 0 0 0 1000px ${colors.inputBg} inset;
-  -webkit-text-fill-color: ${colors.inputText};
-  caret-color: ${colors.inputText};
+  -webkit-box-shadow: 0 0 0 1000px ${colors.inputBg} inset !important;
+  box-shadow: 0 0 0 1000px ${colors.inputBg} inset !important;
+  background-color: ${colors.inputBg} !important;
+  -webkit-text-fill-color: ${colors.inputText} !important;
+  caret-color: ${colors.inputText} !important;
+  transition: background-color 9999s ease-out 0s;
+  background-clip: padding-box;
+  -webkit-background-clip: padding-box;
+  filter: none !important;
 }
 `;
     let style = document.getElementById(styleId) as HTMLStyleElement | null;
@@ -270,8 +275,8 @@ textarea:-webkit-autofill:active {
   const noiseUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDAwAAABv0C/0sV9K8AAAAASUVORK5CYII=";
   const gradientByRoute = () => {
     return mode === "dark"
-      ? ["#0f221f", "#123428", "#0b1b18"]
-      : ["#eaf8f1", "#d7f2e5", "#eefaf6"];
+      ? ["#0a0e1a", "#0f1629", "#121821"]
+      : ["#f5f7fa", "#e8ecf4", "#f0f4f8"];
   };
 
   const gradientStops = gradientByRoute();
