@@ -2581,8 +2581,6 @@ function TrainerHome() {
 
       ) : null}
 
-      </ScrollView>
-
     </SafeAreaView>
 
   );
