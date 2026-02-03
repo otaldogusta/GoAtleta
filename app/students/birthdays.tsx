@@ -140,8 +140,8 @@ export default function BirthdaysScreen() {
   }, [classes, filteredStudents, today]);
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 24, gap: 16 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}>
         <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
             Aniversários

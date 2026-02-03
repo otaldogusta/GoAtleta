@@ -516,8 +516,8 @@ export default function ReportsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
           <View style={{ gap: 10 }}>
             <ShimmerBlock style={{ height: 28, width: 170, borderRadius: 12 }} />
             <ShimmerBlock style={{ height: 16, width: 240, borderRadius: 8 }} />
@@ -534,8 +534,8 @@ export default function ReportsScreen() {
 
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
         <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
             Relatórios

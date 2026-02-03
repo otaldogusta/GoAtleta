@@ -260,6 +260,39 @@ textarea:-webkit-autofill:active {
   background-clip: padding-box;
   -webkit-background-clip: padding-box;
   filter: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 14px;
+}
+html, body {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 240ms ease, opacity 240ms ease;
+  opacity: 0;
+}
+body.app-scrolling {
+  scrollbar-width: thin;
+  scrollbar-color: ${colors.border} transparent;
+}
+body.app-scrolling *::-webkit-scrollbar-thumb {
+  background-color: ${colors.border};
+  opacity: 1;
+}
+body.app-scrolling *::-webkit-scrollbar-thumb:hover {
+  background-color: ${colors.muted};
 }
 `;
     let style = document.getElementById(styleId) as HTMLStyleElement | null;
@@ -269,10 +302,36 @@ textarea:-webkit-autofill:active {
       document.head.appendChild(style);
     }
     style.textContent = css;
-  }, [colors.inputBg, colors.inputText]);
+  }, [colors.inputBg, colors.inputText, colors.border, colors.muted]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (typeof document === "undefined") return;
+    let timeout: number | null = null;
+    const handleScroll = () => {
+      document.body.classList.add("app-scrolling");
+      document.documentElement.classList.add("app-scrolling");
+      if (timeout) window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => {
+        document.body.classList.remove("app-scrolling");
+        document.documentElement.classList.remove("app-scrolling");
+      }, 1200);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
+    document.addEventListener("wheel", handleScroll, { passive: true });
+    document.addEventListener("touchmove", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("scroll", handleScroll, { capture: true } as AddEventListenerOptions);
+      document.removeEventListener("wheel", handleScroll);
+      document.removeEventListener("touchmove", handleScroll);
+      if (timeout) window.clearTimeout(timeout);
+    };
+  }, []);
 
-  const noiseUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDAwAAABv0C/0sV9K8AAAAASUVORK5CYII=";
+  const noiseUri =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDAwAAABv0C/0sV9K8AAAAASUVORK5CYII=";
   const gradientByRoute = () => {
     return mode === "dark"
       ? ["#0a0e1a", "#0f1629", "#121821"]

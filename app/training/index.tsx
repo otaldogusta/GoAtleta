@@ -1991,14 +1991,14 @@ export default function TrainingList() {
   }, []);
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={{ paddingBottom: 24, gap: 16 }}
+        contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
         keyboardShouldPersistTaps="handled"
       >
         <ScreenHeader

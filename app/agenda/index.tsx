@@ -190,9 +190,9 @@ export default function AgendaScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, padding: 16 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View style={{ marginBottom: 12 }}>

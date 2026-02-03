@@ -686,8 +686,8 @@ export default function SessionScreen() {
 
   if (!cls) {
     return (
-      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <View style={{ gap: 12 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ gap: 12, padding: 16 }}>
           <ShimmerBlock style={{ height: 26, width: 180, borderRadius: 12 }} />
           <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
           <ShimmerBlock style={{ height: 110, borderRadius: 18 }} />
@@ -699,7 +699,8 @@ export default function SessionScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
       <ClassContextHeader
         title={title}
         className={className}
@@ -806,8 +807,10 @@ export default function SessionScreen() {
         })}
       </View>
 
+      </View>
+
       <ScrollView
-        contentContainerStyle={{ paddingVertical: 12, gap: 12 }}
+        contentContainerStyle={{ paddingVertical: 12, paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}
         onScroll={syncPickerLayouts}
         scrollEventThrottle={16}
         scrollEnabled={!showPsePicker && !showTechniquePicker}

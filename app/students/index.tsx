@@ -22,7 +22,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
 import { createStudentInvite, revokeStudentAccess } from "../../src/api/student-invite";
 import { useAuth } from "../../src/auth/auth";
+import {
+    compareClassesBySchedule,
+    sortClassesBySchedule,
+} from "../../src/core/class-schedule-sort";
 import type { ClassGroup, Student } from "../../src/core/models";
+import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     deleteStudent,
     getClasses,
@@ -45,15 +50,10 @@ import { Pressable } from "../../src/ui/Pressable";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { getClassPalette } from "../../src/ui/class-colors";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
-import { getClassPalette } from "../../src/ui/class-colors";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
-import { normalizeUnitKey } from "../../src/core/unit-key";
-import {
-    compareClassesBySchedule,
-    sortClassesBySchedule,
-} from "../../src/core/class-schedule-sort";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -1760,8 +1760,8 @@ export default function StudentsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
           <View style={{ gap: 10 }}>
             <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
             <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
@@ -1784,14 +1784,14 @@ export default function StudentsScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24, gap: 16 }}
+        contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
         keyboardShouldPersistTaps="handled"
         onScroll={syncPickerLayouts}
         scrollEventThrottle={16}
@@ -3736,7 +3736,7 @@ export default function StudentsScreen() {
                   const fieldPlaceholder =
                     field === "highlightNote"
                       ? "Ex: excelente postura no saque!"
-                      : "Ex: não havera treino na sexta";
+                      : "Ex: não haverá treino na sexta";
                   return (
                     <View key={field} style={{ gap: 6 }}>
                       <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>

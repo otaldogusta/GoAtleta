@@ -32,19 +32,6 @@ export default function LoginScreen() {
 
   const solidInputBg =
     mode === "dark" ? "rgba(10, 16, 29, 0.25)" : "rgba(255, 255, 255, 0.12)";
-  const webAutofillStyle =
-    Platform.OS === "web"
-      ? {
-          WebkitBoxShadow: `0 0 0 1000px ${solidInputBg} inset`,
-          boxShadow: `0 0 0 1000px ${solidInputBg} inset`,
-          WebkitTextFillColor: colors.inputText,
-          caretColor: colors.inputText,
-          backgroundColor: "transparent",
-          WebkitBackgroundClip: "padding-box",
-          backgroundClip: "padding-box",
-          filter: "none",
-        }
-      : null;
   const { signIn, resetPassword, signInWithOAuth } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -360,7 +347,6 @@ export default function LoginScreen() {
                     borderWidth: 0,
                     outlineStyle: "none",
                     outlineWidth: 0,
-                    ...(webAutofillStyle || {}),
                   }}
                 />
               </View>
@@ -396,7 +382,6 @@ export default function LoginScreen() {
                         backgroundColor: "transparent",
                         outlineStyle: "none",
                         outlineWidth: 0,
-                        ...(webAutofillStyle || {}),
                     }}
                     />
                     {password.length > 0 ? (

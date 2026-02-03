@@ -234,8 +234,8 @@ export default function AssistantScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-      <View style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ flex: 1, padding: 16 }}>
       <View style={{ gap: 6, marginBottom: 12 }}>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
           Assistente

@@ -338,8 +338,8 @@ export default function AttendanceScreen() {
 
   if (!cls) {
     return (
-      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <View style={{ gap: 12 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ gap: 12, padding: 16 }}>
           <ShimmerBlock style={{ height: 26, width: 160, borderRadius: 12 }} />
           <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
           <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
@@ -357,9 +357,9 @@ export default function AttendanceScreen() {
       : "";
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, padding: 16 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <ClassContextHeader

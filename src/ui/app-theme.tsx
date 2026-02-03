@@ -1,10 +1,10 @@
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 import { useColorScheme as useSystemColorScheme } from "react-native";
 import { figmaColors } from "./figma-colors";
@@ -50,18 +50,18 @@ type AppThemeContextValue = {
 export const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
 const baseLightColors: ThemeColors = {
-  background: "rgba(232, 247, 241, 0.9)",
-  card: "rgba(255, 255, 255, 0.22)",
-  border: "rgba(15, 23, 42, 0.06)",
+  background: "rgba(245, 247, 250, 0.95)",
+  card: "rgba(255, 255, 255, 0.65)",
+  border: "rgba(15, 23, 42, 0.08)",
   text: "#0f172a",
   muted: "#64748b",
   placeholder: "#94a3b8",
-  inputBg: "rgba(255, 255, 255, 0.16)",
+  inputBg: "rgba(255, 255, 255, 0.25)",
   inputText: "#0f172a",
   primaryBg: "#0f172a",
   primaryText: "#ffffff",
   primaryDisabledBg: "#94a3b8",
-  secondaryBg: "rgba(255, 255, 255, 0.1)",
+  secondaryBg: "rgba(255, 255, 255, 0.45)",
   secondaryText: "#0f172a",
   dangerBg: "#fee2e2",
   dangerBorder: "#fecaca",
@@ -78,8 +78,8 @@ const baseLightColors: ThemeColors = {
 };
 
 const baseDarkColors: ThemeColors = {
-  background: "rgba(11, 18, 32, 0.9)",
-  card: "rgba(17, 26, 45, 0.5)",
+  background: "rgba(11, 18, 32, 0.95)",
+  card: "rgba(17, 26, 45, 0.55)",
   border: "rgba(255, 255, 255, 0.12)",
   text: "#f8fafc",
   muted: "#cbd5e1",
@@ -89,7 +89,7 @@ const baseDarkColors: ThemeColors = {
   primaryBg: "rgba(86, 214, 154, 0.28)",
   primaryText: "#eafff5",
   primaryDisabledBg: "rgba(148, 163, 184, 0.3)",
-  secondaryBg: "rgba(17, 26, 42, 0.55)",
+  secondaryBg: "rgba(17, 26, 42, 0.45)",
   secondaryText: "#e2e8f0",
   dangerBg: "#3f1d1d",
   dangerBorder: "#7f1d1d",

@@ -27,19 +27,6 @@ export default function SignupScreen() {
   const { signUp } = useAuth();
   const solidInputBg =
     mode === "dark" ? "rgba(10, 16, 29, 0.25)" : "rgba(255, 255, 255, 0.12)";
-  const webAutofillStyle =
-    Platform.OS === "web"
-      ? {
-          WebkitBoxShadow: `0 0 0 1000px ${solidInputBg} inset`,
-          boxShadow: `0 0 0 1000px ${solidInputBg} inset`,
-          WebkitTextFillColor: colors.inputText,
-          caretColor: colors.inputText,
-          backgroundColor: "transparent",
-          WebkitBackgroundClip: "padding-box",
-          backgroundClip: "padding-box",
-          filter: "none",
-        }
-      : null;
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -251,7 +238,6 @@ export default function SignupScreen() {
                     borderWidth: 0,
                     outlineStyle: "none",
                     outlineWidth: 0,
-                    ...(webAutofillStyle || {}),
                   }}
                 />
               </View>
@@ -286,7 +272,6 @@ export default function SignupScreen() {
                     backgroundColor: "transparent",
                     outlineStyle: "none",
                     outlineWidth: 0,
-                    ...(webAutofillStyle || {}),
                   }}
                 />
                 {password.length > 0 ? (
@@ -333,7 +318,6 @@ export default function SignupScreen() {
                     backgroundColor: "transparent",
                     outlineStyle: "none",
                     outlineWidth: 0,
-                    ...(webAutofillStyle || {}),
                   }}
                 />
                 {confirm.length > 0 ? (
@@ -497,7 +481,6 @@ export default function SignupScreen() {
                       borderWidth: 0,
                       outlineStyle: "none",
                       outlineWidth: 0,
-                        ...(webAutofillStyle || {}),
                     }}
                   />
                 </View>

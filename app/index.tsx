@@ -1480,27 +1480,165 @@ function TrainerHome() {
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
-            gap: 10,
+            gap: 12,
           }}
         >
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-            Próxima aula
-          </Text>
-          {activeClass ? (
-            <>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
-                {activeClass.name}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {activeClass.unit}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {activeAttendanceTarget?.dateLabel} • {activeClass.startTime}
-              </Text>
-            </>
-          ) : (
-            <Text style={{ color: colors.muted }}>Nenhuma aula programada.</Text>
-          )}
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              Agenda do dia
+            </Text>
+          </View>
+          <View
+            onLayout={(event) => {
+              const width = event.nativeEvent.layout.width;
+              if (width && width !== agendaWidth) setAgendaWidth(width);
+            }}
+            style={{
+              padding: 12,
+              borderRadius: 14,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              overflow: "hidden",
+            }}
+          >
+            <FadeHorizontalScroll
+              ref={agendaScrollRef}
+              scrollEnabled={scheduleWindow.length > 1}
+              scrollStyle={agendaScrollStyle}
+              onMomentumScrollEnd={handleAgendaScrollEnd}
+              onScroll={handleAgendaScroll}
+              snapToOffsets={agendaSnapOffsets}
+              snapToAlignment="start"
+              disableIntervalMomentum
+              decelerationRate="fast"
+              fadeColor={colors.secondaryBg}
+              fadeWidth={8}
+              contentContainerStyle={{ paddingRight: agendaCardGap }}
+            >
+              {loadingClasses ? (
+                Array.from({ length: 3 }).map((_, index) => (
+                  <ShimmerBlock
+                    key={`agenda-shimmer-${index}`}
+                    style={{
+                      width: agendaCardWidth,
+                      height: 86,
+                      borderRadius: 14,
+                      marginRight: index === 2 ? 0 : agendaCardGap,
+                    }}
+                  />
+                ))
+              ) : scheduleWindow.length === 0 ? (
+                <View style={{ paddingVertical: 6 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Nenhuma aula programada no período.
+                  </Text>
+                </View>
+              ) : (
+                scheduleWindow.map((item, idx) => {
+                  const label = getStatusLabelForItem(item);
+                  const isPast = item.endTime <= nowTime;
+                  const isActive = activeIndex === idx;
+                  return (
+                    <Pressable
+                      key={`${item.classId}-${item.dateKey}`}
+                      onPress={() => handleAgendaCardPress(idx)}
+                      style={{
+                        width: agendaCardWidth,
+                        marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
+                        ...(Platform.OS === "web"
+                          ? ({ scrollSnapAlign: "start" } as const)
+                          : null),
+                      }}
+                    >
+                      <View
+                        style={{
+                          padding: 10,
+                          borderRadius: 14,
+                          backgroundColor: colors.card,
+                          borderWidth: 1,
+                          borderColor: isActive ? colors.primaryBg : colors.border,
+                          opacity: isPast ? 0.6 : 1,
+                        }}
+                      >
+                        <View style={{ gap: 6 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 6,
+                            }}
+                          >
+                            <View
+                              style={{
+                                paddingVertical: 2,
+                                paddingHorizontal: 8,
+                                borderRadius: 999,
+                                backgroundColor: colors.secondaryBg,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                                {label}
+                              </Text>
+                            </View>
+                            <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                              {item.dateLabel}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                            }}
+                          >
+                            <Text
+                              style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
+                              numberOfLines={1}
+                            >
+                              {item.className}
+                            </Text>
+                            <View
+                              style={{
+                                paddingVertical: 3,
+                                paddingHorizontal: 8,
+                                borderRadius: 999,
+                                backgroundColor: getUnitPalette(item.unit, colors).bg,
+                                borderWidth: 1,
+                                borderColor: getUnitPalette(item.unit, colors).bg,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: getUnitPalette(item.unit, colors).text,
+                                  fontSize: 10,
+                                  fontWeight: "700",
+                                }}
+                                numberOfLines={1}
+                              >
+                                {item.unit}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
+                            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
+                              {item.timeLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
+            </FadeHorizontalScroll>
+          </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               onPress={() => {
@@ -1570,7 +1708,7 @@ function TrainerHome() {
                   params: {
                     id: activeAttendanceTarget.classId,
                     date: activeAttendanceTarget.date,
-                    tab: "scouting",
+                    tab: "relatório",
                   },
                 });
               }}
@@ -1589,7 +1727,7 @@ function TrainerHome() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Scouting
+                Relatórios
               </Text>
             </Pressable>
           </View>
@@ -2043,25 +2181,18 @@ function TrainerHome() {
 
 
 
-      <View
-
-        {...openSwipe.panHandlers}
-
-        style={{
-
-          position: "absolute",
-
-          top: insets.top + 90,
-
-          right: 0,
-
-          width: 24,
-
-          height: "100%",
-
-        }}
-
-      />
+      {Platform.OS === "web" ? null : (
+        <View
+          {...openSwipe.panHandlers}
+          style={{
+            position: "absolute",
+            top: insets.top + 90,
+            right: 0,
+            width: 24,
+            height: "100%",
+          }}
+        />
+      )}
 
 
 

@@ -381,7 +381,7 @@ export default function CalendarScreen() {
   const baseHour = 14;
 
     return (
-      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ marginBottom: 12 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
             Calendário semanal
@@ -403,7 +403,7 @@ export default function CalendarScreen() {
           </View>
         ) : (
           <ScrollView
-            contentContainerStyle={{ paddingVertical: 12, gap: 16 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}
             pointerEvents={showApplyPicker ? "none" : "auto"}
           >
           <View

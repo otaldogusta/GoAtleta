@@ -678,13 +678,13 @@ export default function ClassDetails() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <ScrollView
-        contentContainerStyle={{ gap: 16, paddingBottom: 24 }}
+        contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 8 }}>

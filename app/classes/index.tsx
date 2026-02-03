@@ -1523,8 +1523,8 @@ export default function ClassesScreen() {
 
   if (loading && !classes.length) {
     return (
-      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
-        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
           <View style={{ gap: 10 }}>
             <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
             <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
@@ -1544,7 +1544,7 @@ export default function ClassesScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1554,6 +1554,8 @@ export default function ClassesScreen() {
           contentContainerStyle={{
             gap: 16,
             paddingBottom: 24,
+            paddingHorizontal: 16,
+            paddingTop: 16,
           }}
           keyboardShouldPersistTaps="handled"
           onScroll={syncPickerLayouts}
