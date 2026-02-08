@@ -1,4 +1,7 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import {
     Platform,
     ScrollView,
@@ -6,36 +9,32 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { Pressable } from "../../src/ui/Pressable";
-import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
-import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import type {
-  AttendanceRecord,
-  ClassGroup,
-  SessionLog,
-  Student,
-  StudentScoutingLog,
+    AttendanceRecord,
+    ClassGroup,
+    SessionLog,
+    Student,
+    StudentScoutingLog,
 } from "../../src/core/models";
 import {
-  getAttendanceAll,
-  getClasses,
-  getSessionLogsByRange,
-  getStudentScoutingByRange,
-  getStudents,
+    countsFromStudentLog,
+    createEmptyCounts,
+    getTechnicalPerformanceScore,
+} from "../../src/core/scouting";
+import {
+    getAttendanceAll,
+    getClasses,
+    getSessionLogsByRange,
+    getStudentScoutingByRange,
+    getStudents,
 } from "../../src/db/seed";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
-import {
-  createEmptyCounts,
-  getTechnicalPerformanceScore,
-  countsFromStudentLog,
-} from "../../src/core/scouting";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -73,17 +72,17 @@ const monthLabel = (date: Date) => {
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "";
-  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? "";
-  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  if (parts.length === 1) return parts[0][0].toUpperCase() ?? "";
+  return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase();
 };
 
 const badgeDefs = [
   { id: "rookie", label: "Iniciante", threshold: 1, icon: "?" },
-  { id: "steady", label: "Constante", threshold: 30, icon: "???" },
-  { id: "focus", label: "Foco", threshold: 50, icon: "??" },
+  { id: "steady", label: "Constante", threshold: 30, icon: "?" },
+  { id: "focus", label: "Foco", threshold: 50, icon: "?" },
   { id: "ace", label: "Ace", threshold: 70, icon: "?" },
-  { id: "elite", label: "Elite", threshold: 90, icon: "??" },
-  { id: "master", label: "Mestre", threshold: 100, icon: "??" },
+  { id: "elite", label: "Elite", threshold: 90, icon: "?" },
+  { id: "master", label: "Mestre", threshold: 100, icon: "?" },
 ];
 
 const formatDateLabel = (iso: string) => {
@@ -347,7 +346,7 @@ export default function ReportsScreen() {
       const records = attendance
         .filter((r) => r.studentId === student.id)
         .sort((a, b) => b.date.localeCompare(a.date));
-      const lastDate = records[0]?.date ?? "";
+      const lastDate = records[0].date ?? "";
       let streak = 0;
       for (const record of records) {
         if (record.status === "faltou") {
@@ -407,12 +406,12 @@ export default function ReportsScreen() {
     return uniqueSessionLogs
       .map((log) => {
         const cls = classMap[log.classId];
-        const className = cls?.name ?? "Turma";
+        const className = cls.name ?? "Turma";
         const dateKey = log.createdAt.split("T")[0];
         return {
           log,
           className,
-          classGender: cls?.gender,
+          classGender: cls.gender,
           dateKey,
           dateLabel: formatDateLabel(log.createdAt),
         };
@@ -430,8 +429,8 @@ export default function ReportsScreen() {
       ["date", "class", "student", "status", "note"],
       ...monthAttendance.map((r) => [
         r.date,
-        classMap[r.classId]?.name ?? "",
-        studentMap[r.studentId]?.name ?? "",
+        classMap[r.classId].name ?? "",
+        studentMap[r.studentId].name ?? "",
         r.status,
         r.note ?? "",
       ]),
@@ -587,7 +586,7 @@ export default function ReportsScreen() {
           })}
         </View>
 
-        {reportTab === "month" ? (
+        { reportTab === "month" ? (
         <View style={cardStyle}>
           <View style={{ gap: 8 }}>
             <View
@@ -763,10 +762,10 @@ export default function ReportsScreen() {
         </View>
         ) : null}
 
-        {reportTab === "reports" ? (
+        { reportTab === "reports" ? (
         <View style={cardStyle}>
           <Text style={sectionTitleStyle}>Relatórios do mês</Text>
-          {sessionLogRows.length ? (
+          { sessionLogRows.length ? (
             <View style={{ gap: 10 }}>
               {sessionLogRows.map((row) => (
                 <Pressable
@@ -784,7 +783,7 @@ export default function ReportsScreen() {
                       <Text style={{ fontWeight: "700", color: colors.text }}>
                         {row.className}
                       </Text>
-                      {row.classGender ? (
+                      { row.classGender ? (
                         <ClassGenderBadge gender={row.classGender} size="sm" />
                       ) : null}
                     </View>
@@ -805,7 +804,7 @@ export default function ReportsScreen() {
         </View>
         ) : null}
 
-        {reportTab === "month" ? (
+        { reportTab === "month" ? (
         <View style={cardStyle}>
           <Text style={sectionTitleStyle}>Turmas (mês atual)</Text>
           <View style={{ gap: 10 }}>
@@ -848,7 +847,7 @@ export default function ReportsScreen() {
         </View>
         ) : null}
 
-        {reportTab === "students" ? (
+        { reportTab === "students" ? (
         <>
           <View style={[cardStyle, { zIndex: 40, elevation: 8 }]}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
@@ -875,7 +874,7 @@ export default function ReportsScreen() {
                   </Text>
                   <Ionicons name="chevron-down" size={16} color={colors.muted} />
                 </Pressable>
-                {unitPickerOpen ? (
+                { unitPickerOpen ? (
                   <View
                     style={{
                       position: "absolute",
@@ -943,11 +942,11 @@ export default function ReportsScreen() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                    {classesForUnit.find((c) => c.id === classId)?.name || "Selecione a turma"}
+                    {classesForUnit.find((c) => c.id === classId).name || "Selecione a turma"}
                   </Text>
                   <Ionicons name="chevron-down" size={16} color={colors.muted} />
                 </Pressable>
-                {classPickerOpen ? (
+                { classPickerOpen ? (
                   <View
                     style={{
                       position: "absolute",
@@ -1035,7 +1034,7 @@ export default function ReportsScreen() {
                       borderRadius: 999,
                       backgroundColor:
                         rankRange === (label === "Hoje" ? "day" : label === "Semana" ? "week" : "month")
-                          ? colors.primaryBg
+                           ? colors.primaryBg
                           : "transparent",
                     }}
                   >
@@ -1043,7 +1042,7 @@ export default function ReportsScreen() {
                       style={{
                         color:
                           rankRange === (label === "Hoje" ? "day" : label === "Semana" ? "week" : "month")
-                            ? colors.primaryText
+                             ? colors.primaryText
                             : colors.muted,
                         fontSize: 12,
                         fontWeight: "700",
@@ -1056,7 +1055,7 @@ export default function ReportsScreen() {
               </View>
             </View>
 
-            {topStudents.length ? (
+            { topStudents.length ? (
               <>
                 <View
                   style={{
@@ -1106,9 +1105,9 @@ export default function ReportsScreen() {
                       if (!row) return <View key={slot.rank} style={{ flex: 1 }} />;
                       const ringColor =
                         slot.rank === 1
-                          ? "#D4AF37"
+                           ? "#D4AF37"
                           : slot.rank === 2
-                          ? "#C0C0C0"
+                           ? "#C0C0C0"
                           : "#CD7F32";
                       const medalText = "#0b1220";
                       return (
@@ -1122,7 +1121,7 @@ export default function ReportsScreen() {
                             transform: [{ translateY: slot.offset }],
                           }}
                         >
-                          {slot.rank === 1 ? (
+                          { slot.rank === 1 ? (
                             <MaterialCommunityIcons name="crown" size={30} color={ringColor} />
                           ) : (
                             <View style={{ height: 28 }} />
@@ -1299,15 +1298,15 @@ export default function ReportsScreen() {
               Conquistas
             </Text>
             <Text style={{ color: colors.muted }}>
-              {selectedHighlight?.name}
+              {selectedHighlight.name}
             </Text>
             <Text style={{ color: colors.primaryBg, fontWeight: "800", fontSize: 20 }}>
-              {selectedHighlight?.score ?? 0} pts
+              {selectedHighlight.score ?? 0} pts
             </Text>
 
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               {badgeDefs.map((badge) => {
-                const earned = (selectedHighlight?.score ?? 0) >= badge.threshold;
+                const earned = (selectedHighlight.score ?? 0) >= badge.threshold;
                 return (
                   <View
                     key={badge.id}

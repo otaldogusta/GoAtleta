@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
 
 type CollapsibleOptions = {
-  durationIn?: number;
-  durationOut?: number;
-  translateY?: number;
+  durationIn: number;
+  durationOut: number;
+  translateY: number;
 };
 
 export function useCollapsibleAnimation(

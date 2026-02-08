@@ -60,7 +60,7 @@ function RootLayoutContent() {
   const rootState = useRootNavigationState();
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
-  const navReady = Boolean(rootState?.key);
+  const navReady = Boolean(rootState.key);
   const isBooting = !navReady || loading || roleLoading || (session && role === null);
   const publicRoutes = [
     "/welcome",
@@ -334,7 +334,7 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDAwAAABv0C/0sV9K8AAAAASUVORK5CYII=";
   const gradientByRoute = () => {
     return mode === "dark"
-      ? ["#0a0e1a", "#0f1629", "#121821"]
+       ? ["#0a0e1a", "#0f1629", "#121821"]
       : ["#f5f7fa", "#e8ecf4", "#f0f4f8"];
   };
 
@@ -355,7 +355,7 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
-      {Platform.OS === "web" ? (
+      { Platform.OS === "web" ? (
         <Image
           source={{ uri: noiseUri }}
           resizeMode="repeat"
@@ -366,7 +366,7 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
         style={mode === "dark" ? "light" : "dark"}
         backgroundColor="transparent"
       />
-      {Platform.OS === "web" && canGoBack ? (
+      { Platform.OS === "web" && canGoBack ? (
         <View
           style={{
             position: "absolute",
@@ -408,7 +408,7 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
         }}
       >
       </Stack>
-      {loading || roleLoading ? (
+      { loading || roleLoading ? (
         <View
           style={{
             position: "absolute",
@@ -428,15 +428,15 @@ export default Sentry.wrap(function RootLayout() {
   useEffect(() => {
     setSentryBaseTags();
     const globalHandler = (global as {
-      ErrorUtils?: {
-        setGlobalHandler?: (
-          handler: (error: unknown, isFatal?: boolean) => void
+      ErrorUtils: {
+        setGlobalHandler: (
+          handler: (error: unknown, isFatal: boolean) => void
         ) => void;
-        getGlobalHandler?: () => (error: unknown, isFatal?: boolean) => void;
+        getGlobalHandler: () => (error: unknown, isFatal: boolean) => void;
       };
     }).ErrorUtils;
     let lastError = "";
-    if (globalHandler?.setGlobalHandler) {
+    if (globalHandler.setGlobalHandler) {
       const previous = globalHandler.getGlobalHandler?.();
       globalHandler.setGlobalHandler((error, isFatal) => {
         const message =
@@ -444,7 +444,7 @@ export default Sentry.wrap(function RootLayout() {
         const stack =
           error instanceof Error && error.stack ? error.stack : undefined;
         const body = stack
-          ? `${message}\n\nStack:\n${stack}`.slice(0, 2000)
+           ? `${message}\n\nStack:\n${stack}`.slice(0, 2000)
           : message;
         const key = message + "_" + String(isFatal ?? false);
         if (key !== lastError) {
@@ -483,7 +483,7 @@ export default Sentry.wrap(function RootLayout() {
 function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
-    <AuthProvider initialSession={data?.session ?? null}>
+    <AuthProvider initialSession={data.session ?? null}>
       <RoleProvider>
         <WhatsAppSettingsProvider>
           <ConfirmDialogProvider>

@@ -102,7 +102,7 @@ export default function StudentAttendanceScreen() {
         contentContainerStyle={{ paddingVertical: 12, gap: 12 }}
         keyboardShouldPersistTaps="handled"
       >
-        {grouped.length === 0 ? (
+        { grouped.length === 0 ? (
           <Card title="Sem registros" />
         ) : (
           grouped.map(([date, list]) => (

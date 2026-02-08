@@ -49,7 +49,7 @@ const COLOR_DEFS: Array<{
 
 export const getClassColorOptions = (
   colors: ThemeColors,
-  fallbackUnit?: string
+  fallbackUnit: string
 ): ClassColorOption[] => {
   const fallbackPalette = fallbackUnit
     ? getUnitPalette(fallbackUnit, colors)
@@ -67,7 +67,7 @@ export const getClassColorOptions = (
 export const getClassPalette = (
   colorKey: string | null | undefined,
   colors: ThemeColors,
-  fallbackUnit?: string
+  fallbackUnit: string
 ): UnitPalette => {
   const match = COLOR_DEFS.find((item) => item.key === colorKey);
   if (match) return match.palette(colors);

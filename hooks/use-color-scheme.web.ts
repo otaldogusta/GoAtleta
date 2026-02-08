@@ -16,7 +16,7 @@ export function useColorScheme() {
 
   const colorScheme = useRNColorScheme();
 
-  if (context?.mode) {
+  if (context.mode) {
     return context.mode;
   }
   if (hasHydrated) {

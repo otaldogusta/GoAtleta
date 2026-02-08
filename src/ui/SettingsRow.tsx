@@ -14,9 +14,9 @@ export function SettingsRow({
   icon: keyof typeof Ionicons.glyphMap;
   iconBg: string;
   label: string;
-  subtitle?: string;
-  onPress?: () => void;
-  rightContent?: React.ReactNode;
+  subtitle: string;
+  onPress: () => void;
+  rightContent: React.ReactNode;
 }) {
   const { colors } = useAppTheme();
 

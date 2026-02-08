@@ -13,10 +13,10 @@ export type PeriodizationWeekRow = {
 
 export type PeriodizationPdfData = {
   className: string;
-  unitLabel?: string;
-  ageGroup?: string;
-  cycleStart?: string;
-  cycleLength?: number;
+  unitLabel: string;
+  ageGroup: string;
+  cycleStart: string;
+  cycleLength: number;
   generatedAt: string;
   rows: PeriodizationWeekRow[];
 };

@@ -9,7 +9,7 @@ import { DateInput } from "../src/ui/DateInput";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
-const reasons = ["Doenca", "Compromisso", "Lesao", "Outro"];
+const reasons = ["Doença", "Compromisso", "Lesão", "Outro"];
 
 const formatIsoDate = (value: Date) => {
   const y = value.getFullYear();
@@ -28,11 +28,11 @@ export default function AbsenceReportScreen() {
   const [busy, setBusy] = useState(false);
 
   const canSubmit = useMemo(() => {
-    return Boolean(student?.id && student?.classId && date && reason && !busy);
-  }, [busy, date, reason, student?.classId, student?.id]);
+    return Boolean(student.id && student.classId && date && reason && !busy);
+  }, [busy, date, reason, student.classId, student.id]);
 
   const submit = async () => {
-    if (!student?.id || !student?.classId) return;
+    if (!student.id || !student.classId) return;
     if (!date) {
       Alert.alert("Informe a data do treino.");
       return;

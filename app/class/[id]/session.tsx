@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
@@ -456,8 +457,8 @@ export default function SessionScreen() {
   const parsedStart = cls?.startTime ? parseTime(cls.startTime) : null;
   const timeLabel =
     parsedStart && cls
-      ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes ?? 60)
-      : "";
+    ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes ?? 60)
+    : "";
 
   const parseMinutes = (value: string, fallback: number) => {
     const match = value.match(/\d+/);
@@ -700,6 +701,11 @@ export default function SessionScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
+      >
       <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
       <ClassContextHeader
         title={title}
@@ -723,7 +729,7 @@ export default function SessionScreen() {
           }}
         >
           <Text style={{ color: colors.primaryText, fontSize: 14, opacity: 0.85 }}>
-            Ações rapidas
+            Ações rápidas
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             <Pressable
@@ -814,9 +820,10 @@ export default function SessionScreen() {
         onScroll={syncPickerLayouts}
         scrollEventThrottle={16}
         scrollEnabled={!showPsePicker && !showTechniquePicker}
+        keyboardShouldPersistTaps="handled"
       >
-        {sessionTab === "treino" && plan
-          ? [
+        {sessionTab === "treino" && plan ? (
+          [
               { label: warmupLabel, items: warmup },
               { label: mainLabel, items: main },
               { label: cooldownLabel, items: cooldown },
@@ -893,7 +900,7 @@ export default function SessionScreen() {
                 </Pressable>
               </View>
             ))
-          : null}
+        ) : null}
         {sessionTab === "treino" && !plan ? (
           <View
             style={{
@@ -1535,6 +1542,7 @@ export default function SessionScreen() {
         </View>
         ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

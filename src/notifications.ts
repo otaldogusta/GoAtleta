@@ -9,7 +9,7 @@ let channelSet = false;
 export const requestNotificationPermission = async () => {
   if (Platform.OS === "web") return false;
   const current = await Notifications.getPermissionsAsync();
-  if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+  if (current.granted || current.ios.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
     return true;
   }
   const requested = await Notifications.requestPermissionsAsync();

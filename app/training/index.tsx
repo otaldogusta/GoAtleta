@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -75,14 +75,14 @@ const toLines = (value: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
-const formatDate = (value?: string) => {
+const formatDate = (value: string) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("pt-BR");
 };
 
-const formatShortDate = (value?: string) => {
+const formatShortDate = (value: string) => {
   if (!value) return "";
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (match) {
@@ -122,7 +122,7 @@ const weekdays = [
   { id: 7, label: "Dom" },
 ];
 
-const formatWeekdays = (days?: number[]) => {
+const formatWeekdays = (days: number[]) => {
   if (!days || !days.length) return "";
   const labels = days
     .map((day) => weekdays.find((item) => item.id === day)?.label)
@@ -163,13 +163,13 @@ const extractKeywords = (value: string) => {
     .filter((token) => token.length >= 3 && !stopwords.has(token));
 };
 
-const parseAgeBand = (value?: string) => {
+const parseAgeBand = (value: string) => {
   const range = parseAgeBandRange(value);
   if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) return null;
   return { start: range.start, end: range.end };
 };
 
-const getPiagetTags = (ageBand?: string) => {
+const getPiagetTags = (ageBand: string) => {
   const range = parseAgeBand(ageBand);
   if (!range) return [];
   const start = range.start;
@@ -205,7 +205,7 @@ const getPiagetTags = (ageBand?: string) => {
   ];
 };
 
-const getMethodologyTags = (ageBand?: string) => {
+const getMethodologyTags = (ageBand: string) => {
   const range = parseAgeBand(ageBand);
   if (!range) return [];
   const start = range.start;
@@ -239,7 +239,7 @@ const getMethodologyTags = (ageBand?: string) => {
   ];
 };
 
-const getMethodologyTips = (ageBand?: string) => {
+const getMethodologyTips = (ageBand: string) => {
   const range = parseAgeBand(ageBand);
   if (!range) return [];
   const start = range.start;
@@ -290,7 +290,7 @@ export default function TrainingList() {
     typeof params.viewPlanId === "string" ? params.viewPlanId : "";
   const targetDate =
     targetDateRaw && !Number.isNaN(new Date(targetDateRaw).getTime())
-      ? targetDateRaw
+       targetDateRaw
       : "";
   const [title, setTitle] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -474,7 +474,7 @@ export default function TrainingList() {
     return map;
   }, [classes]);
 
-  const unitLabel = (value?: string) =>
+  const unitLabel = (value: string) =>
     value && value.trim() ? value.trim() : "Sem unidade";
 
   const ALL_UNITS_VALUE = "__all__";
@@ -510,7 +510,8 @@ export default function TrainingList() {
     if (!classId) return;
     if (formUnit) return;
     const selected = classes.find((item) => item.id === classId);
-    const selectedUnit = unitLabel(selected?.unit);
+    if (!selected) return;
+    const selectedUnit = unitLabel(selected.unit);
     if (selectedUnit && selectedUnit !== formUnit) {
       setFormUnit(selectedUnit);
     }
@@ -531,7 +532,7 @@ export default function TrainingList() {
     const targetClass = classes.find((item) => item.id === targetClassId);
     const resolvedClass = targetClass ?? defaultClass;
     const resolvedClassId = resolvedClass?.id ?? applyPlan.classId;
-    const resolvedUnit = unitLabel(resolvedClass?.unit);
+    const resolvedUnit = unitLabel(resolvedClass?.unit ?? "");
     const resolvedDate = targetDate || applyPlan.applyDate || "";
     const isFreshPlan =
       lastCreatedPlanId && applyPlan.id === lastCreatedPlanId;
@@ -594,7 +595,7 @@ export default function TrainingList() {
     if (!permission.granted) return null;
     if (Platform.OS === "ios") {
       const defaultCalendar = await Calendar.getDefaultCalendarAsync();
-      if (defaultCalendar?.id) return defaultCalendar.id;
+      if (defaultCalendar.id) return defaultCalendar.id;
     }
     const calendars = await Calendar.getCalendarsAsync(
       Calendar.EntityTypes.EVENT
@@ -607,7 +608,8 @@ export default function TrainingList() {
     if (Platform.OS === "web") return;
     if (!plan.applyDate) return;
     const classItem = classes.find((item) => item.id === plan.classId);
-    if (!classItem?.startTime) return;
+    if (!classItem) return;
+    if (!classItem.startTime) return;
     const time = parseTimeParts(classItem.startTime);
     if (!time) return;
     const startDate = new Date(
@@ -700,7 +702,9 @@ export default function TrainingList() {
     if (!applyPlan) return false;
     if (applyPlan.classId !== applyClassId) return false;
     if ((applyPlan.applyDate ?? "") !== applyDate) return false;
-    const currentDays = (applyPlan.applyDays ?? []).slice().sort((a, b) => a - b);
+    const currentDays = (applyPlan.applyDays ?? [])
+      .slice()
+      .sort((a, b) => a - b);
     const nextDays = applyDays.slice().sort((a, b) => a - b);
     if (currentDays.length !== nextDays.length) return false;
     return currentDays.every((value, index) => value === nextDays[index]);
@@ -775,7 +779,7 @@ export default function TrainingList() {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const onShow = (event: any) => {
-      const height = event?.endCoordinates?.height ?? 0;
+      const height = event.endCoordinates?.height ?? 0;
       setTemplateEditorKeyboardHeight(height);
     };
     const onHide = () => setTemplateEditorKeyboardHeight(0);
@@ -896,7 +900,7 @@ export default function TrainingList() {
                 </Text>
                 <Text style={{ color: colors.muted, marginTop: 2, fontSize: 10 }}>
                   {template.source === "built"
-                    ? "Fonte: Instituto Compartilhar e CMV (Volei Veilig)"
+                     ? "Fonte: Instituto Compartilhar e CMV (Volei Veilig)"
                     : "Fonte: Modelo criado"}
                 </Text>
               </Pressable>
@@ -915,7 +919,7 @@ export default function TrainingList() {
                     Usar modelo
                   </Text>
                 </Pressable>
-                {template.source === "custom" ? (
+                { template.source === "custom" ? (
                   <Pressable
                     onPress={() => onRename(template.id, template.title)}
                     style={{
@@ -933,7 +937,7 @@ export default function TrainingList() {
                   </Pressable>
                 ) : null}
               </View>
-              {renameTemplateId === template.id ? (
+              { renameTemplateId === template.id ? (
                 <View style={{ gap: 8, marginTop: 10 }}>
                   <TextInput
                     placeholder="Novo nome"
@@ -1054,11 +1058,11 @@ export default function TrainingList() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 Criado em {formatDate(plan.createdAt)}
               </Text>
-              {plan.applyDays?.length || plan.applyDate ? (
+              { plan.applyDays.length || plan.applyDate ? (
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   Aplicado:{" "}
-                  {plan.applyDays?.length ? formatWeekdays(plan.applyDays) : ""}
-                  {plan.applyDays?.length && plan.applyDate ? " | " : ""}
+                  {plan.applyDays.length ? formatWeekdays(plan.applyDays) : ""}
+                  {plan.applyDays.length && plan.applyDate ? " | " : ""}
                   {plan.applyDate ? formatShortDate(plan.applyDate) : ""}
                 </Text>
               ) : null}
@@ -1260,7 +1264,7 @@ export default function TrainingList() {
     const plan: TrainingPlan = {
       id: editingId ?? "t_" + Date.now(),
       classId,
-      title: title.trim() || "Planejamento sem título",
+      title: title.trim() || "Planejamento sem titulo",
       tags: tagsText
         .split(",")
         .map((tag) => tag.trim())
@@ -1325,7 +1329,7 @@ export default function TrainingList() {
     const nowIso = new Date().toISOString();
     const template: TrainingTemplate = {
       id: editingTemplateId ?? "tpl_" + Date.now(),
-      title: title.trim() || "Modelo sem título",
+      title: title.trim() || "Modelo sem titulo",
       ageBand: band,
       tags: tagsText
         .split(",")
@@ -1363,7 +1367,7 @@ export default function TrainingList() {
     setEditingId(plan.id);
     setEditingCreatedAt(plan.createdAt);
     setTitle(plan.title);
-    setTagsText(plan.tags?.join(", ") ?? "");
+    setTagsText(plan.tags.join(", "));
     setWarmup(plan.warmup.join("\n"));
     setMain(plan.main.join("\n"));
     setCooldown(plan.cooldown.join("\n"));
@@ -1401,14 +1405,13 @@ export default function TrainingList() {
   };
 
   const pickClassIdForAgeBand = useCallback(
-    (band?: string) => {
+    (band: string) => {
       if (!band) return "";
       const normalized = normalizeAgeBand(band);
-      return (
-        classes.find(
-          (item) => normalizeAgeBand(item.ageBand) === normalized
-        )?.id ?? ""
+      const match = classes.find(
+        (item) => normalizeAgeBand(item.ageBand) === normalized
       );
+      return match ? match.id : "";
     },
     [classes]
   );
@@ -1424,8 +1427,8 @@ export default function TrainingList() {
     mainTime: string;
     cooldownTime: string;
     ageBands: string[];
-    source?: "built" | "custom";
-    createdAt?: string;
+    source: "built" | "custom";
+    createdAt: string;
   }) => {
     setEditingId(null);
     setEditingCreatedAt(null);
@@ -1451,8 +1454,8 @@ export default function TrainingList() {
     mainTime: string;
     cooldownTime: string;
     ageBands: string[];
-    source?: "built" | "custom";
-    createdAt?: string;
+    source: "built" | "custom";
+    createdAt: string;
   }) => {
     setFormMode("plan");
     setClassId(
@@ -1464,7 +1467,7 @@ export default function TrainingList() {
   const duplicatePlan = (plan: TrainingPlan) => {
     applyTemplateAsPlan({
       id: "dup_" + Date.now(),
-      title: plan.title + " (cópia)",
+      title: plan.title + " (copia)",
       tags: plan.tags ?? [],
       warmup: plan.warmup ?? [],
       main: plan.main ?? [],
@@ -1474,9 +1477,9 @@ export default function TrainingList() {
       cooldownTime: plan.cooldownTime ?? "",
       ageBands: ["08-09", "10-12", "13-15", "16-18"],
       source: "custom",
+      createdAt: new Date().toISOString(),
     });
   };
-
   const openTemplateForEdit = useCallback((template: {
     id: string;
     title: string;
@@ -1488,12 +1491,12 @@ export default function TrainingList() {
     mainTime: string;
     cooldownTime: string;
     ageBands: string[];
-    source?: "built" | "custom";
-    createdAt?: string;
+    source: "built" | "custom";
+    createdAt: string;
   }) => {
     setEditingTemplateId(template.source === "custom" ? template.id : null);
     setEditingTemplateCreatedAt(
-      template.source === "custom" ? template.createdAt ?? null : null
+      template.source === "custom" ? template.createdAt : null
     );
     setFormMode("template");
     if (template.ageBands.length) {
@@ -1584,13 +1587,13 @@ export default function TrainingList() {
     mainTime: string;
     cooldownTime: string;
     ageBands: string[];
-    source?: "built" | "custom";
-    createdAt?: string;
+    source: "built" | "custom";
+    createdAt: string;
   }) => {
     const isCustom = template.source === "custom";
     const nextAge = template.ageBands[0] || templateAgeBand;
     setTemplateEditorId(isCustom ? template.id : null);
-    setTemplateEditorCreatedAt(isCustom ? template.createdAt ?? null : null);
+    setTemplateEditorCreatedAt(isCustom ? template.createdAt : null);
     setTemplateEditorSource(isCustom ? "custom" : "built");
     setTemplateEditorTemplateId(template.id);
     setTemplateTitle(template.title);
@@ -1655,16 +1658,16 @@ export default function TrainingList() {
     if (!showApplyUnitPicker && !showApplyClassPicker) return;
     requestAnimationFrame(() => {
       if (showApplyUnitPicker) {
-        applyUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        applyUnitTriggerRef.current.measureInWindow((x, y, width, height) => {
           setApplyUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showApplyClassPicker) {
-        applyClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        applyClassTriggerRef.current.measureInWindow((x, y, width, height) => {
           setApplyClassTriggerLayout({ x, y, width, height });
         });
       }
-      applyContainerRef.current?.measureInWindow((x, y) => {
+      applyContainerRef.current.measureInWindow((x, y) => {
         setApplyContainerWindow({ x, y });
       });
     });
@@ -1674,16 +1677,16 @@ export default function TrainingList() {
     if (!showFormUnitPicker && !showFormClassPicker) return;
     requestAnimationFrame(() => {
       if (showFormUnitPicker) {
-        formUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        formUnitTriggerRef.current.measureInWindow((x, y, width, height) => {
           setFormUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showFormClassPicker) {
-        formClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        formClassTriggerRef.current.measureInWindow((x, y, width, height) => {
           setFormClassTriggerLayout({ x, y, width, height });
         });
       }
-      formContainerRef.current?.measureInWindow((x, y) => {
+      formContainerRef.current.measureInWindow((x, y) => {
         setFormContainerWindow({ x, y });
       });
     });
@@ -1771,7 +1774,7 @@ export default function TrainingList() {
       "Volta a calma " + (plan.cooldownTime ? "(" + plan.cooldownTime + ")" : ""),
       plan.cooldown.length ? "- " + plan.cooldown.join("\n- ") : "- Sem itens",
     ];
-    if (plan.tags?.length) {
+    if (plan.tags.length) {
       lines.push("");
       lines.push("Tags: " + plan.tags.join(", "));
     }
@@ -1878,7 +1881,7 @@ export default function TrainingList() {
 
   const scrollToForm = () => {
     setTimeout(() => {
-      scrollRef.current?.scrollTo({
+      scrollRef.current.scrollTo({
         y: Math.max(formY - 8, 0),
         animated: true,
       });
@@ -1910,7 +1913,7 @@ export default function TrainingList() {
     if (targetClassId) {
       setClassId(targetClassId);
       const targetClass = classes.find((item) => item.id === targetClassId);
-      setFormUnit(unitLabel(targetClass?.unit));
+      setFormUnit(unitLabel(targetClass.unit));
     }
   }, [openForm, targetClassId, classes]);
 
@@ -1935,7 +1938,7 @@ export default function TrainingList() {
       const pendingClass = classes.find(
         (item) => item.id === pendingPlanCreate.classId
       );
-      setFormUnit(unitLabel(pendingClass?.unit));
+      setFormUnit(unitLabel(pendingClass.unit));
     }
     setPendingPlanCreate(null);
   }, [pendingPlanCreate, setPendingPlanCreate, classes]);
@@ -2100,7 +2103,7 @@ export default function TrainingList() {
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {formUnit === ALL_UNITS_VALUE
-                      ? "Todas unidades"
+                       ? "Todas unidades"
                       : formUnit || "Selecione uma unidade"}
                   </Text>
                   <MaterialCommunityIcons
@@ -2137,7 +2140,7 @@ export default function TrainingList() {
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                       {selectedFormClass?.name ?? "Selecione uma turma"}
                     </Text>
-                    {selectedFormClass ? (
+                    { selectedFormClass ? (
                       <ClassGenderBadge gender={selectedFormClass.gender} />
                     ) : null}
                   </View>
@@ -2220,7 +2223,7 @@ export default function TrainingList() {
             }}
             scrollContentStyle={{ padding: 4 }}
           >
-            {classOptionsForForm.length ? (
+            { classOptionsForForm.length ? (
               classOptionsForForm.map((item, index) => {
                 const active = classId === item.id;
                 return (
@@ -2290,7 +2293,7 @@ export default function TrainingList() {
               color: colors.inputText,
             }}
           />
-          {suggestions.length > 0 && hasFormContent ? (
+          { suggestions.length > 0 && hasFormContent ? (
             <>
               <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
               <FadeHorizontalScroll
@@ -2585,11 +2588,11 @@ export default function TrainingList() {
               {templates.length})
             </Text>
           </Pressable>
-            {showTemplatesContent ? (
+            { showTemplatesContent ? (
               <Animated.View
                 style={templatesAnimStyle}
               >
-                {templates.length ? (
+                { templates.length ? (
                   <>
                     <Text style={{ color: colors.muted }}>Para a faixa selecionada</Text>
                     <FlatList
@@ -2651,9 +2654,9 @@ export default function TrainingList() {
             />
           </Pressable>
 
-          {showSavedPlansContent ? (
+          { showSavedPlansContent ? (
             <Animated.View style={savedPlansAnimStyle}>
-              {groupedSavedPlans.length ? (
+              { groupedSavedPlans.length ? (
                 <View style={{ gap: 16 }}>
                   {groupedSavedPlans.map((group) => (
                     <View key={group.key} style={{ gap: 10 }}>
@@ -2742,7 +2745,7 @@ export default function TrainingList() {
             </Text>
           </Pressable>
         </View>
-        <View
+        <ScrollView
           contentContainerStyle={{
             gap: 10,
             paddingVertical: 10,
@@ -2750,9 +2753,11 @@ export default function TrainingList() {
               templateEditorComposerHeight +
               templateEditorKeyboardHeight +
               12,
+            paddingHorizontal: 12,
           }}
-          style={{ gap: 6, paddingHorizontal: 12, marginTop: 16 }}
+          style={{ maxHeight: "92%", marginTop: 16 }}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
         >
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
@@ -3040,131 +3045,133 @@ export default function TrainingList() {
                   </Text>
                 </Pressable>
               </View>
-        </View>
-      </ModalSheet>
-      <ModalSheet
-        visible={Boolean(selectedPlan)}
-        onClose={() => setSelectedPlan(null)}
-        cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
-        position="center"
-      >
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <View style={{ gap: 4, paddingRight: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-              {selectedPlan?.title}
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              {selectedPlan ? getClassName(selectedPlan.classId) : ""}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => {
-              setSelectedPlan(null);
-            }}
-            style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text
-              style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
-            >
-              Fechar
-            </Text>
-          </Pressable>
-        </View>
-        <ScrollView
-          contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
-          style={{ maxHeight: "94%" }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-        >
-              <View
-                style={{
-                  padding: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 6,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  Aquecimento{" "}
-                  {selectedPlan?.warmupTime ? "(" + selectedPlan.warmupTime + ")" : ""}
-                </Text>
-                <Text style={{ color: colors.text }}>
-                  {selectedPlan?.warmup.length
-                    ? selectedPlan.warmup.join(" - ")
-                    : "Sem itens"}
-                </Text>
-              </View>
-              <View
-                style={{
-                  padding: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 6,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  Parte principal{" "}
-                  {selectedPlan?.mainTime ? "(" + selectedPlan.mainTime + ")" : ""}
-                </Text>
-                <Text style={{ color: colors.text }}>
-                  {selectedPlan?.main.length
-                    ? selectedPlan.main.join(" - ")
-                    : "Sem itens"}
-                </Text>
-              </View>
-              <View
-                style={{
-                  padding: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 6,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  Volta a calma{" "}
-                  {selectedPlan?.cooldownTime
-                    ? "(" + selectedPlan.cooldownTime + ")"
-                    : ""}
-                </Text>
-                <Text style={{ color: colors.text }}>
-                  {selectedPlan?.cooldown.length
-                    ? selectedPlan.cooldown.join(" - ")
-                    : "Sem itens"}
-                </Text>
-              </View>
-              {selectedPlan?.tags?.length ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  {selectedPlan.tags.map((tag) => (
-                    <View
-                      key={tag}
-                      style={{
-                        paddingVertical: 3,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 12 }}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
         </ScrollView>
       </ModalSheet>
+      {selectedPlan ? (
+        <ModalSheet
+          visible
+          onClose={() => setSelectedPlan(null)}
+          cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
+          position="center"
+        >
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            <View style={{ gap: 4, paddingRight: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
+                {selectedPlan.title}
+              </Text>
+              <Text style={{ color: colors.muted }}>
+                {getClassName(selectedPlan.classId)}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                setSelectedPlan(null);
+              }}
+              style={{
+                height: 32,
+                paddingHorizontal: 12,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text
+                style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
+              >
+                Fechar
+              </Text>
+            </Pressable>
+          </View>
+          <ScrollView
+            contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
+            style={{ maxHeight: "94%" }}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            <View
+              style={{
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontWeight: "700", color: colors.text }}>
+                Aquecimento{" "}
+                {selectedPlan.warmupTime ? "(" + selectedPlan.warmupTime + ")" : ""}
+              </Text>
+              <Text style={{ color: colors.text }}>
+                {selectedPlan.warmup.length
+                  ? selectedPlan.warmup.join(" - ")
+                  : "Sem itens"}
+              </Text>
+            </View>
+            <View
+              style={{
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontWeight: "700", color: colors.text }}>
+                Parte principal{" "}
+                {selectedPlan.mainTime ? "(" + selectedPlan.mainTime + ")" : ""}
+              </Text>
+              <Text style={{ color: colors.text }}>
+                {selectedPlan.main.length
+                  ? selectedPlan.main.join(" - ")
+                  : "Sem itens"}
+              </Text>
+            </View>
+            <View
+              style={{
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontWeight: "700", color: colors.text }}>
+                Volta a calma{" "}
+                {selectedPlan.cooldownTime
+                  ? "(" + selectedPlan.cooldownTime + ")"
+                  : ""}
+              </Text>
+              <Text style={{ color: colors.text }}>
+                {selectedPlan.cooldown.length
+                  ? selectedPlan.cooldown.join(" - ")
+                  : "Sem itens"}
+              </Text>
+            </View>
+            {selectedPlan.tags.length ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {selectedPlan.tags.map((tag) => (
+                  <View
+                    key={tag}
+                    style={{
+                      paddingVertical: 3,
+                      paddingHorizontal: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12 }}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </ScrollView>
+        </ModalSheet>
+      ) : null}
       <ModalSheet
         visible={showApplyModal}
         onClose={requestCloseApplyModal}
@@ -3232,7 +3239,7 @@ export default function TrainingList() {
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                       {applyUnit === ALL_UNITS_VALUE
-                        ? "Todas unidades"
+                         ? "Todas unidades"
                         : applyUnit || "Selecione uma unidade"}
                     </Text>
                     <MaterialCommunityIcons
@@ -3390,7 +3397,7 @@ export default function TrainingList() {
               }}
               scrollContentStyle={{ padding: 4 }}
             >
-              {classOptionsForUnit.length ? (
+              { classOptionsForUnit.length ? (
                 classOptionsForUnit.map((item, index) => {
                   const active = applyClassId === item.id;
                   return (
@@ -3651,3 +3658,6 @@ export default function TrainingList() {
     </SafeAreaView>
   );
 }
+
+
+

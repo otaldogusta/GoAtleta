@@ -1,4 +1,4 @@
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+﻿import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { getValidAccessToken, getSessionUserId } from "../auth/session";
 import * as Sentry from "@sentry/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -323,7 +323,8 @@ const ensureUnit = async (
     const created = await supabasePost<UnitRow[]>("/units", [
       { id: createdId, name, createdat: now },
     ]);
-    const row = created[0] ?? { id: createdId, name, createdat: now };
+    if (!created[0]) return null;
+    const row = { id: createdId, name, createdat: now };
     units.push(row);
     return row;
   } catch (error) {
@@ -785,48 +786,50 @@ export async function getClasses(): Promise<ClassGroup[]> {
       units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
     );
     const rows = await supabaseGet<ClassRow[]>("/classes?select=*&order=name.asc");
-    const mapped = sortClassesBySchedule(rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      unit:
-        (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
-        canonicalizeUnitLabel(row.unit) ??
-        "Sem unidade",
-      unitId: row.unit_id ?? undefined,
-      colorKey: row.color_key ?? undefined,
-      modality:
-        row.modality === "voleibol" || row.modality === "fitness"
-          ? row.modality
-          : undefined,
-      ageBand: normalizeAgeBand(row.ageband),
-      gender:
-        row.gender === "masculino" || row.gender === "feminino"
-          ? row.gender
-          : "misto",
-      startTime: row.starttime ?? "14:00",
-      endTime:
-        row.end_time ??
-        row.endtime ??
-        computeEndTime(row.starttime, row.duration ?? 60) ??
-        undefined,
-      durationMinutes: row.duration ?? 60,
-      daysOfWeek:
-        Array.isArray(row.days) && row.days.length
-          ? row.days
-          : row.daysperweek === 3
-            ? [1, 3, 5]
-            : [2, 4],
-      daysPerWeek: row.daysperweek,
-      goal: row.goal,
-      equipment: row.equipment,
-      level: row.level,
-      mvLevel: row.mv_level ?? undefined,
-      cycleStartDate: row.cycle_start_date ?? undefined,
-      cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
-      acwrLow: row.acwr_low ?? undefined,
-      acwrHigh: row.acwr_high ?? undefined,
-      createdAt: row.createdat ?? undefined,
-    })));
+    const mapped = sortClassesBySchedule(
+      rows.map((row) => {
+        const unitFromId = row.unit_id ? unitMap.get(row.unit_id) : undefined;
+        const unitLabel =
+          canonicalizeUnitLabel(unitFromId ?? row.unit) ??
+          canonicalizeUnitLabel(row.unit ?? "") ??
+          "Sem unidade";
+        return {
+          id: row.id,
+          name: row.name,
+          unit: unitLabel,
+          unitId: row.unit_id ?? undefined,
+          colorKey: row.color_key ?? undefined,
+          modality:
+            row.modality === "voleibol" || row.modality === "fitness" ? row.modality : undefined,
+          ageBand: normalizeAgeBand(row.ageband),
+          gender:
+            row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto",
+          startTime: row.starttime ?? "14:00",
+          endTime:
+            row.end_time ??
+            row.endtime ??
+            computeEndTime(row.starttime, row.duration ?? 60) ??
+            undefined,
+          durationMinutes: row.duration ?? 60,
+          daysOfWeek:
+            Array.isArray(row.days) && row.days.length
+              ? row.days
+              : row.daysperweek === 3
+                ? [1, 3, 5]
+                : [2, 4],
+          daysPerWeek: row.daysperweek,
+          goal: row.goal,
+          equipment: row.equipment,
+          level: row.level,
+          mvLevel: row.mv_level ?? undefined,
+          cycleStartDate: row.cycle_start_date ?? undefined,
+          cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
+          acwrLow: row.acwr_low ?? undefined,
+          acwrHigh: row.acwr_high ?? undefined,
+          createdAt: row.createdat ?? undefined,
+        };
+      })
+    );
     await writeCache(CACHE_KEYS.classes, mapped);
     return mapped;
   } catch (error) {

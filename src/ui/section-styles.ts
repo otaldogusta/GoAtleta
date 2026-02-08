@@ -5,9 +5,9 @@ import { type ThemeColors } from "./app-theme";
 export type SectionTone = "neutral" | "info" | "success" | "warning" | "primary";
 
 type SectionStyleOptions = {
-  padding?: number;
-  radius?: number;
-  shadow?: boolean;
+  padding: number;
+  radius: number;
+  shadow: boolean;
 };
 
 export function getSectionCardStyle(

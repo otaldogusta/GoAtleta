@@ -1,4 +1,4 @@
-﻿import {
+import {
   useEffect,
   useMemo,
   useRef,
@@ -21,7 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/api/config";
 import { useAppTheme } from "../src/ui/app-theme";
 
-const parseAccessToken = (url?: string | null) => {
+const parseAccessToken = (url: string | null) => {
   if (!url) return "";
   const [base, hash] = url.split("#");
   const query = hash || (base.includes("?") ? base.split("?")[1] : "");
@@ -32,7 +32,7 @@ const parseAccessToken = (url?: string | null) => {
 
 const formatResetError = (raw: string) => {
   try {
-    const parsed = JSON.parse(raw) as { error_code?: string; msg?: string };
+    const parsed = JSON.parse(raw) as { error_code: string; msg: string };
     if (parsed.error_code === "same_password") {
       return "A nova senha precisa ser diferente da anterior.";
     }
@@ -47,7 +47,7 @@ const formatResetError = (raw: string) => {
     return "A nova senha precisa ser diferente da anterior.";
   }
   if (normalized.includes("invalid") && normalized.includes("token")) {
-    return "Link inv\u00e1lido ou expirado.";
+    return "Link inválido ou expirado.";
   }
   return raw.replace(/\s+/g, " ");
 };
@@ -89,7 +89,7 @@ export default function ResetPasswordScreen() {
   const strengthLabel = useMemo(() => {
     if (!password) return "";
     if (strengthScore <= 0.33) return "Fraca";
-    if (strengthScore <= 0.66) return "M\u00e9dia";
+    if (strengthScore <= 0.66) return "Média";
     return "Forte";
   }, [password, strengthScore]);
 
@@ -130,7 +130,7 @@ export default function ResetPasswordScreen() {
 
   const submit = async () => {
     if (!token) {
-      setMessage("Link inv\u00e1lido ou expirado.");
+      setMessage("Link inválido ou expirado.");
       return;
     }
     if (!password.trim()) {
@@ -142,7 +142,7 @@ export default function ResetPasswordScreen() {
       return;
     }
     if (password !== confirm) {
-      setMessage("As senhas n\u00e3o coincidem.");
+      setMessage("As senhas não coincidem.");
       return;
     }
     setMessage("");
@@ -240,7 +240,7 @@ export default function ResetPasswordScreen() {
                     outlineWidth: 0,
                   }}
                 />
-                {password.length > 0 ? (
+                { password.length > 0 ? (
                   <Pressable
                     onPress={() => setShowPassword((prev) => !prev)}
                     style={{ paddingLeft: 8, paddingVertical: 8 }}
@@ -253,7 +253,7 @@ export default function ResetPasswordScreen() {
                   </Pressable>
                 ) : null}
               </View>
-              {password.length > 0 ? (
+              { password.length > 0 ? (
                 <View style={{ gap: 8 }}>
                   <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
                     <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
@@ -271,9 +271,9 @@ export default function ResetPasswordScreen() {
                       });
                       const segmentColor =
                         index === 0
-                          ? colors.dangerSolidBg
+                           ? colors.dangerSolidBg
                           : index === 1
-                          ? colors.warningBg
+                           ? colors.warningBg
                           : colors.successBg;
                       return (
                         <View
@@ -359,7 +359,7 @@ export default function ResetPasswordScreen() {
                     outlineWidth: 0,
                   }}
                 />
-                {confirm.length > 0 ? (
+                { confirm.length > 0 ? (
                   <Pressable
                     onPress={() => setShowConfirm((prev) => !prev)}
                     style={{ paddingLeft: 8, paddingVertical: 8 }}
@@ -373,7 +373,7 @@ export default function ResetPasswordScreen() {
                 ) : null}
               </View>
 
-              {message ? (
+              { message ? (
                 <Text style={{ color: colors.muted }}>{message}</Text>
               ) : null}
 

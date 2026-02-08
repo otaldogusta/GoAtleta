@@ -20,7 +20,7 @@ import {
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
-const parseTime = (value?: string) => {
+const parseTime = (value: string) => {
   if (!value) return null;
   const match = value.match(/^(\d{2}):(\d{2})$/);
   if (!match) return null;
@@ -85,7 +85,7 @@ export default function StudentHome() {
         try {
           const stored = await AsyncStorage.getItem("profile_photo_uri_v1");
           if (!active) return;
-          if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+          if (Platform.OS === "web" && stored.startsWith("blob:")) {
             setProfilePhotoUri(null);
             return;
           }
@@ -124,7 +124,7 @@ export default function StudentHome() {
       dayDate.setHours(0, 0, 0, 0);
       const dayIndex = dayDate.getDay();
       classes.forEach((cls) => {
-        if (!cls.daysOfWeek?.includes(dayIndex)) return;
+        if (!cls.daysOfWeek.includes(dayIndex)) return;
         const time = parseTime(cls.startTime);
         if (!time) return;
         const candidate = new Date(dayDate);
@@ -156,7 +156,7 @@ export default function StudentHome() {
     if (!nextClass || !nextTarget) return null;
     const time = parseTime(nextClass.startTime);
     const timeLabel = time
-      ? formatRange(time.hour, time.minute, nextClass.durationMinutes ?? 60)
+       ? formatRange(time.hour, time.minute, nextClass.durationMinutes ?? 60)
       : nextClass.startTime;
     return {
       unit: nextClass.unit || "Sem unidade",
@@ -174,7 +174,7 @@ export default function StudentHome() {
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View>
             <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text }}>
-              Ola{student?.name ? `, ${student.name.split(" ")[0]}` : ""}
+              Ola{student.name ? `, ${student.name.split(" ")[0]}` : ""}
             </Text>
             <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
               {todayLabel}
@@ -210,7 +210,7 @@ export default function StudentHome() {
               }}
             >
               <Ionicons name="person" size={22} color={colors.text} />
-              {profilePhotoUri ? (
+              { profilePhotoUri ? (
                 <Image
                   source={{ uri: profilePhotoUri }}
                   style={{
@@ -226,7 +226,7 @@ export default function StudentHome() {
             </View>
           </Pressable>
         </View>
-        {__DEV__ ? (
+        { __DEV__ ? (
           <Pressable
             onPress={async () => {
               await setRoleOverride(null);
@@ -262,7 +262,7 @@ export default function StudentHome() {
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
             Próximo treino
           </Text>
-          {nextSummary ? (
+          { nextSummary ? (
             <>
               <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
                 {nextSummary.className}
@@ -389,7 +389,7 @@ export default function StudentHome() {
               </Text>
             </Pressable>
           </View>
-          {recentNotifs.length === 0 ? (
+          { recentNotifs.length === 0 ? (
             <Text style={{ color: colors.muted }}>Nenhum comunicado.</Text>
           ) : (
             recentNotifs.map((item) => (

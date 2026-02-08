@@ -8,32 +8,32 @@ export type ClassGroup = {
   id: string;
   name: string;
   unit: string;
-  unitId?: string;
-  colorKey?: string;
-  modality?: Modality;
+  unitId: string;
+  colorKey: string;
+  modality: Modality;
   ageBand: AgeBand;
   gender: ClassGender;
   startTime: string;
-  endTime?: string;
+  endTime: string;
   durationMinutes: number;
   daysOfWeek: number[];
   daysPerWeek: number;
   goal: Goal;
   equipment: Equipment;
   level: 1 | 2 | 3;
-  mvLevel?: string;
-  cycleStartDate?: string;
-  cycleLengthWeeks?: number;
-  acwrLow?: number;
-  acwrHigh?: number;
-  createdAt?: string;
+  mvLevel: string;
+  cycleStartDate: string;
+  cycleLengthWeeks: number;
+  acwrLow: number;
+  acwrHigh: number;
+  createdAt: string;
 };
 
 export type Unit = {
   id: string;
   name: string;
-  address?: string;
-  notes?: string;
+  address: string;
+  notes: string;
   createdAt: string;
 };
 
@@ -45,17 +45,17 @@ export type SessionPlan = {
 };
 
 export type SessionLog = {
-  id?: string;
-  clientId?: string;
+  id: string;
+  clientId: string;
   classId: string;
   PSE: number;
   technique: "boa" | "ok" | "ruim";
   attendance: number;
-  activity?: string;
-  conclusion?: string;
-  participantsCount?: number;
-  photos?: string;
-  painScore?: number;
+  activity: string;
+  conclusion: string;
+  participantsCount: number;
+  photos: string;
+  painScore: number;
   createdAt: string;
 };
 
@@ -70,8 +70,8 @@ export type TrainingPlan = {
   warmupTime: string;
   mainTime: string;
   cooldownTime: string;
-  applyDays?: number[];
-  applyDate?: string;
+  applyDays: number[];
+  applyDate: string;
   createdAt: string;
 };
 
@@ -101,16 +101,16 @@ export type Student = {
   classId: string;
   age: number;
   phone: string;
-  loginEmail?: string;
-  guardianName?: string;
-  guardianPhone?: string;
-  guardianRelation?: string;
-  birthDate?: string;
-  healthIssue?: boolean;
-  healthIssueNotes?: string;
-  medicationUse?: boolean;
-  medicationNotes?: string;
-  healthObservations?: string;
+  loginEmail: string;
+  guardianName: string;
+  guardianPhone: string;
+  guardianRelation: string;
+  birthDate: string;
+  healthIssue: boolean;
+  healthIssueNotes: string;
+  medicationUse: boolean;
+  medicationNotes: string;
+  healthObservations: string;
   createdAt: string;
 };
 
@@ -121,7 +121,7 @@ export type AttendanceRecord = {
   date: string;
   status: "presente" | "faltou";
   note: string;
-  painScore?: number;
+  painScore: number;
   createdAt: string;
 };
 
@@ -133,17 +133,17 @@ export type AbsenceNotice = {
   classId: string;
   date: string;
   reason: string;
-  note?: string;
+  note: string;
   status: AbsenceNoticeStatus;
   createdAt: string;
 };
 
 export type ScoutingLog = {
   id: string;
-  clientId?: string;
+  clientId: string;
   classId: string;
-  unit?: string;
-  mode?: "treino" | "jogo";
+  unit: string;
+  mode: "treino" | "jogo";
   date: string;
   serve0: number;
   serve1: number;
@@ -158,7 +158,7 @@ export type ScoutingLog = {
   attackSend1: number;
   attackSend2: number;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 };
 
 export type StudentScoutingLog = {
@@ -179,7 +179,7 @@ export type StudentScoutingLog = {
   attackSend1: number;
   attackSend2: number;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 };
 
 export type ClassPlan = {
@@ -198,7 +198,7 @@ export type ClassPlan = {
   rpeTarget: string;
   source: "AUTO" | "MANUAL";
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 };
 
 export type Exercise = {

@@ -7,9 +7,9 @@ import { ModalSheet } from "./ModalSheet";
 type ConfirmDialogOptions = {
   title: string;
   message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  tone?: "default" | "danger";
+  confirmLabel: string;
+  cancelLabel: string;
+  tone: "default" | "danger";
   onConfirm: () => void | Promise<void>;
 };
 
@@ -18,6 +18,38 @@ type ConfirmDialogContextValue = {
 };
 
 const ConfirmDialogContext = createContext<ConfirmDialogContextValue | null>(null);
+const DEFAULT_CONFIRM_OPTIONS = {
+  title: "Confirmar",
+  message: "Deseja continuar?",
+  confirmLabel: "Confirmar",
+  cancelLabel: "Cancelar",
+  tone: "default" as const,
+};
+
+function normalizeConfirmOptions(
+  options: ConfirmDialogOptions | null
+): typeof DEFAULT_CONFIRM_OPTIONS {
+  if (!options) return DEFAULT_CONFIRM_OPTIONS;
+  return {
+    title:
+      typeof options.title === "string" && options.title.trim()
+        ? options.title
+        : DEFAULT_CONFIRM_OPTIONS.title,
+    message:
+      typeof options.message === "string" && options.message.trim()
+        ? options.message
+        : DEFAULT_CONFIRM_OPTIONS.message,
+    confirmLabel:
+      typeof options.confirmLabel === "string" && options.confirmLabel.trim()
+        ? options.confirmLabel
+        : DEFAULT_CONFIRM_OPTIONS.confirmLabel,
+    cancelLabel:
+      typeof options.cancelLabel === "string" && options.cancelLabel.trim()
+        ? options.cancelLabel
+        : DEFAULT_CONFIRM_OPTIONS.cancelLabel,
+    tone: options.tone === "danger" ? "danger" : "default",
+  };
+}
 
 export function ConfirmDialogProvider({
   children,
@@ -46,10 +78,11 @@ export function ConfirmDialogProvider({
   );
 
   const dangerMatch = /(excluir|remover|revogar|apagar|deletar|desvincular)/i;
+  const currentOptions = normalizeConfirmOptions(options);
   const isDanger =
-    options?.tone === "danger" ||
-    dangerMatch.test(options?.title ?? "") ||
-    dangerMatch.test(options?.confirmLabel ?? "");
+    currentOptions.tone === "danger" ||
+    dangerMatch.test(currentOptions.title) ||
+    dangerMatch.test(currentOptions.confirmLabel);
 
   return (
     <ConfirmDialogContext.Provider value={contextValue}>
@@ -72,10 +105,10 @@ export function ConfirmDialogProvider({
       >
         <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            {options?.title ?? "Confirmar"}
+            {currentOptions.title}
           </Text>
           <Text style={{ color: colors.muted }}>
-            {options?.message ?? "Deseja continuar?"}
+            {currentOptions.message}
           </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
@@ -89,7 +122,7 @@ export function ConfirmDialogProvider({
             }}
           >
             <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
-              {options?.cancelLabel ?? "Cancelar"}
+              {currentOptions.cancelLabel}
             </Text>
           </Pressable>
           <Pressable
@@ -107,7 +140,7 @@ export function ConfirmDialogProvider({
                 fontWeight: "700",
               }}
             >
-              {options?.confirmLabel ?? "Confirmar"}
+              {currentOptions.confirmLabel}
             </Text>
           </Pressable>
         </View>

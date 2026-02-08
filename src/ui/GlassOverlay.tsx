@@ -1,7 +1,7 @@
 
 type GlassOverlayProps = {
-  intensity?: number;
-  variant?: "card" | "soft";
+  intensity: number;
+  variant: "card" | "soft";
 };
 
 export function GlassOverlay({ intensity, variant = "card" }: GlassOverlayProps) {

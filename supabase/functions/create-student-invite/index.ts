@@ -25,7 +25,7 @@ const sha256 = async (value: string) => {
   return toHex(hash);
 };
 
-const normalizeChannel = (value?: string) => {
+const normalizeChannel = (value: string) => {
   const normalized = (value ?? "").trim().toLowerCase();
   if (!normalized) return "whatsapp";
   if (!ALLOWED_CHANNELS.has(normalized)) return "whatsapp";
@@ -47,7 +47,7 @@ const requireUser = async (req: Request) => {
   const supabase = createAnonClient();
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return null;
+  if (error || !data.user) return null;
   return data.user;
 };
 
@@ -70,12 +70,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  let payload: { studentId?: string; invitedVia?: string; invitedTo?: string } = {};
+  let payload: { studentId: string; invitedVia: string; invitedTo: string } = {};
   try {
     payload = (await req.json()) as {
-      studentId?: string;
-      invitedVia?: string;
-      invitedTo?: string;
+      studentId: string;
+      invitedVia: string;
+      invitedTo: string;
     };
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
   const tokenHash = await sha256(token);
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
   const invitedVia = normalizeChannel(payload.invitedVia);
-  const invitedTo = payload.invitedTo?.trim() || null;
+  const invitedTo = payload.invitedTo.trim() || null;
 
   const { error: insertError } = await supabase.from("student_invites").insert({
     student_id: studentId,

@@ -1,32 +1,32 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState
+    useEffect,
+    useMemo,
+    useRef,
+    useState
 } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import type {
-  AttendanceRecord,
-  ClassGroup,
-  Student,
+    AttendanceRecord,
+    ClassGroup,
+    Student,
 } from "../../../src/core/models";
 import {
-  getAttendanceByDate,
-  getClassById,
-  getStudentsByClass,
-  saveAttendanceRecords,
+    getAttendanceByDate,
+    getClassById,
+    getStudentsByClass,
+    saveAttendanceRecords,
 } from "../../../src/db/seed";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
@@ -36,8 +36,8 @@ import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { DateInput } from "../../../src/ui/DateInput";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
 import { useSaveToast } from "../../../src/ui/save-toast";
-import { usePersistedState } from "../../../src/ui/use-persisted-state";
 import { ShimmerBlock } from "../../../src/ui/Shimmer";
+import { usePersistedState } from "../../../src/ui/use-persisted-state";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
@@ -56,7 +56,7 @@ export default function AttendanceScreen() {
   const { colors } = useAppTheme();
   const { id, date: dateParam } = useLocalSearchParams<{
     id: string;
-    date?: string;
+    date: string;
   }>();
   const router = useRouter();
   const [cls, setCls] = useState<ClassGroup | null>(null);
@@ -79,7 +79,7 @@ export default function AttendanceScreen() {
   const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = useRef(false);
   const { showSaveToast } = useSaveToast();
-  const parseTime = (value?: string) => {
+  const parseTime = (value: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{2}):(\d{2})$/);
     if (!match) return null;
@@ -190,7 +190,7 @@ export default function AttendanceScreen() {
       classId: cls.id,
       studentId: item.student.id,
       date,
-      status: item.status ?? "faltou",
+      status: item.status ?? "presente",
       note: item.note.trim(),
       painScore: item.pain,
       createdAt,
@@ -398,7 +398,7 @@ export default function AttendanceScreen() {
           placeholder="Selecione a data"
           onOpenCalendar={() => setShowCalendar(true)}
         />
-        {loadMessage ? (
+        { loadMessage ? (
           <View
             style={{
               flexDirection: "row",
@@ -419,7 +419,7 @@ export default function AttendanceScreen() {
         ) : null}
       </View>
 
-      {isClassDay ? (
+      { isClassDay ? (
         <ScrollView
           contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
@@ -528,7 +528,7 @@ export default function AttendanceScreen() {
                 </View>
               </View>
 
-              {expandedById[item.student.id] ? (
+              { expandedById[item.student.id] ? (
                 <View style={{ marginTop: 10, gap: 8 }}>
                   <Text style={{ color: colors.text }}>
                     Idade: {item.student.age} | Tel: {item.student.phone}

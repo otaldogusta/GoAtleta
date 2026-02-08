@@ -1,26 +1,28 @@
 export type ClassRosterRow = {
   index: number;
   studentName: string;
-  birthDate?: string;
-  contactLabel?: string;
-  contactPhone?: string;
+  birthDate: string;
+  contactLabel: string;
+  contactPhone: string;
+  attendance: Record<number, "P" | "F" | "-">;
+  total: number;
 };
 
 export type ClassRosterPdfData = {
   title: string;
   className: string;
-  ageBand?: string;
-  unitLabel?: string;
-  daysLabel?: string;
-  timeLabel?: string;
+  ageBand: string;
+  unitLabel: string;
+  daysLabel: string;
+  timeLabel: string;
   monthLabel: string;
   exportDate: string;
   mode: "full" | "whatsapp";
   totalStudents: number;
   monthDays: number[];
   fundamentals: string[];
-  periodizationLabel?: string;
-  coachName?: string;
+  periodizationLabel: string;
+  coachName: string;
   rows: ClassRosterRow[];
 };
 
@@ -44,8 +46,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
     .map((day) => `<th class="col-day">${day}</th>`)
     .join("");
 
-  const headerCells = isWhatsApp
-    ? `
+  const headerCells = isWhatsApp ? `
       <th class="col-index">#</th>
       <th class="col-name">Atletas</th>
       <th class="col-contact">Contato</th>
@@ -61,8 +62,8 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
     `;
 
   const minRows = 20;
-  const paddedRows = data.rows.length >= minRows
-    ? data.rows
+  const paddedRows = data.rows.length >= minRows ?
+    data.rows
     : [
         ...data.rows,
         ...Array.from({ length: minRows - data.rows.length }, (_, idx) => ({
@@ -77,7 +78,10 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
   const rows = paddedRows
     .map((row, rowIndex) => {
       const isEmpty = !row.studentName;
-      const dayCells = data.monthDays.map(() => `<td class="col-day"></td>`).join("");
+      const dayCells = data.monthDays
+        .map((day) => `<td class="col-day">${row.attendance?.[day] ?? ""}</td>`)
+        .join("");
+      const totalCell = typeof row.total === "number" ? String(row.total) : "";
       if (isWhatsApp) {
         return `
           <tr class="${rowIndex % 2 === 0 ? "row-alt" : ""}">
@@ -87,7 +91,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
               isEmpty ? "" : `${esc(row.contactLabel ?? "-")} ${esc(row.contactPhone ?? "")}`.trim()
             }</td>
             ${dayCells}
-            <td class="col-total"></td>
+            <td class="col-total">${totalCell}</td>
           </tr>
         `;
       }
@@ -98,7 +102,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           <td class="col-name">${esc(row.studentName)}</td>
           <td class="col-birth">${isEmpty ? "" : esc(row.birthDate ?? "-")}</td>
           ${dayCells}
-          <td class="col-total"></td>
+          <td class="col-total">${totalCell}</td>
         </tr>
       `;
     })

@@ -3,7 +3,7 @@ import { generateSession } from "../sessionGenerator";
 const mk = (ageBand: any, goal = "Fundamentos") => ({
   id: "t",
   name: "Turma",
-  unit: "Rede Esperan�a",
+  unit: "Rede Esperança",
   ageBand,
   startTime: "14:00",
   daysOfWeek: [2, 4],
@@ -16,18 +16,18 @@ const mk = (ageBand: any, goal = "Fundamentos") => ({
 test("gera sessão para 8-9 com conteudo de voleibol", () => {
   const s = generateSession(mk("08-09"));
   expect(s.warmup.length).toBeGreaterThan(0);
-  expect(s.main.join(" ")).toContain("T�cnica - Toque");
+  expect(s.main.join(" ")).toContain("Técnica - Toque");
   expect(s.cooldown.join(" ")).toContain("PSE");
 });
 
 test("gera sessão para 10-12 com conteudo de voleibol", () => {
   const s = generateSession(mk("10-12"));
-  expect(s.main.join(" ")).toContain("T�cnica - Saque por cima");
+  expect(s.main.join(" ")).toContain("Técnica - Saque por cima");
 });
 
 test("gera sessão para 13-15 com conteudo de voleibol", () => {
   const s = generateSession(mk("13-15"));
-  expect(s.main.join(" ")).toContain("T�cnica - Saque por cima");
+  expect(s.main.join(" ")).toContain("Técnica - Saque por cima");
 });
 
 test("sessão sempre tem cooldown com 3 itens", () => {

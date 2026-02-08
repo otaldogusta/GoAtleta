@@ -5,14 +5,14 @@ type ClassRow = {
   id: string;
   name: string;
   ageBand: string;
-  modality?: string;
+  modality: string;
   gender: string;
   daysPerWeek: number;
   goal: string;
   equipment: string;
   level: number;
-  acwrLow?: number;
-  acwrHigh?: number;
+  acwrLow: number;
+  acwrHigh: number;
 };
 
 type SessionLogRow = {
@@ -20,11 +20,11 @@ type SessionLogRow = {
   rpe: number;
   technique: string;
   attendance: number;
-  activity?: string;
-  conclusion?: string;
-  participantsCount?: number;
-  photos?: string;
-  painScore?: number;
+  activity: string;
+  conclusion: string;
+  participantsCount: number;
+  photos: string;
+  painScore: number;
   createdAt: string;
 };
 

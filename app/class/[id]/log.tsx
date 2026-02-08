@@ -21,7 +21,7 @@ import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 
 export default function LogScreen() {
-  const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
+  const { id, date } = useLocalSearchParams<{ id: string; date: string }>();
   const router = useRouter();
   const { colors } = useAppTheme();
   const [cls, setCls] = useState<ClassGroup | null>(null);
@@ -61,14 +61,14 @@ export default function LogScreen() {
 
   const sessionDate =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
-      ? date
+       ? date
       : new Date().toISOString().slice(0, 10);
   const formatDisplayDate = (value: string) => {
     const parts = value.split("-");
     if (parts.length !== 3) return value;
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   };
-  const parseTime = (value?: string) => {
+  const parseTime = (value: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{2}):(\d{2})$/);
     if (!match) return null;
@@ -113,16 +113,16 @@ export default function LogScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showPsePicker) {
-        pseTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        pseTriggerRef.current.measureInWindow((x, y, width, height) => {
           setPseTriggerLayout({ x, y, width, height });
         });
       }
       if (showTechniquePicker) {
-        techniqueTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        techniqueTriggerRef.current.measureInWindow((x, y, width, height) => {
           setTechniqueTriggerLayout({ x, y, width, height });
         });
       }
-      containerRef.current?.measureInWindow((x, y) => {
+      containerRef.current.measureInWindow((x, y) => {
         setContainerWindow({ x, y });
       });
     });
@@ -155,7 +155,7 @@ export default function LogScreen() {
           setConclusion(existingLog.conclusion ?? "");
           setParticipantsCount(
             typeof existingLog.participantsCount === "number"
-              ? String(existingLog.participantsCount)
+               ? String(existingLog.participantsCount)
               : ""
           );
           setPhotos(existingLog.photos ?? "");
@@ -186,8 +186,8 @@ export default function LogScreen() {
       const plan = byDate ?? byWeekday ?? null;
       if (!plan) return;
       const fallback =
-        plan.title?.trim() ||
-        plan.main?.filter(Boolean).slice(0, 2).join(" / ") ||
+        plan.title.trim() ||
+        plan.main.filter(Boolean).slice(0, 2).join(" / ") ||
         "";
       if (!fallback) return;
       if (!alive) return;
@@ -206,23 +206,23 @@ export default function LogScreen() {
   const saveLog = async () => {
     const dateValue =
       typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
-        ? date
+         ? date
         : null;
     const createdAt = dateValue
-      ? new Date(`${dateValue}T12:00:00`).toISOString()
+       ? new Date(`${dateValue}T12:00:00`).toISOString()
       : new Date().toISOString();
     const participantsRaw = participantsCount.trim();
     const participantsValue = participantsRaw ? Number(participantsRaw) : Number.NaN;
     const parsedParticipants =
       Number.isFinite(participantsValue) && participantsValue >= 0
-        ? participantsValue
+         ? participantsValue
         : undefined;
     const activityValue = activity.trim() || autoActivity.trim();
     const attendanceValue =
       typeof attendancePercent === "number" ? attendancePercent : 0;
     await saveSessionLog({
-      id: sessionLog?.id,
-      clientId: sessionLog?.clientId,
+      id: sessionLog.id,
+      clientId: sessionLog.clientId,
       classId: id,
       PSE,
       technique,
@@ -231,7 +231,7 @@ export default function LogScreen() {
       conclusion,
       participantsCount: parsedParticipants,
       photos,
-      createdAt: sessionLog?.createdAt ?? createdAt,
+      createdAt: sessionLog.createdAt ?? createdAt,
     });
     return dateValue ?? new Date().toISOString().slice(0, 10);
   };
@@ -251,16 +251,16 @@ export default function LogScreen() {
 
   const className = cls?.name ?? "Turma";
   const dateLabel = formatDisplayDate(sessionDate);
-  const parsedStart = parseTime(cls?.startTime);
+  const parsedStart = parseTime(cls.startTime);
   const timeLabel =
-    parsedStart && cls?.durationMinutes
+    parsedStart && cls.durationMinutes
       ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes)
       : "";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        {cls ? (
+        { cls ? (
           <ClassContextHeader
             title="Relatório da aula"
             className={className}

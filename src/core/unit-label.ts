@@ -6,7 +6,7 @@ const UNIT_CANONICAL: Record<string, string> = {
   "rede esportes pinhas": "Rede Esportes Pinhais",
 };
 
-export const canonicalizeUnitLabel = (value?: string | null) => {
+export const canonicalizeUnitLabel = (value: string | null) => {
   if (!value) return "";
   const trimmed = value.trim();
   if (!trimmed) return "";

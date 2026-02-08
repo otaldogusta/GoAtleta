@@ -5,7 +5,7 @@ import { useAppTheme } from "./app-theme";
 import { toRgba } from "./unit-colors";
 
 type ShimmerBlockProps = {
-  style?: StyleProp<ViewStyle>;
+  style: StyleProp<ViewStyle>;
 };
 
 export function ShimmerBlock({ style }: ShimmerBlockProps) {

@@ -4,10 +4,10 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 export type AuthSession = {
   access_token: string;
   refresh_token: string;
-  expires_at?: number;
-  user?: {
-    id?: string;
-    email?: string;
+  expires_at: number;
+  user: {
+    id: string;
+    email: string;
   };
 };
 
@@ -53,7 +53,7 @@ export const loadSession = async (): Promise<AuthSession | null> => {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as AuthSession;
-    accessToken = parsed?.access_token ?? "";
+    accessToken = parsed.access_token ?? "";
     currentSession = parsed ?? null;
     return parsed;
   } catch {
@@ -105,7 +105,7 @@ export const getSessionUserId = async (): Promise<string> => {
     const stored = await loadSession();
     if (!stored) return "";
   }
-  return currentSession?.user?.id ?? "";
+  return currentSession.user.id ?? "";
 };
 
 const refreshSession = async (): Promise<AuthSession | null> => {
@@ -113,7 +113,7 @@ const refreshSession = async (): Promise<AuthSession | null> => {
     const stored = await loadSession();
     if (!stored) return null;
   }
-  if (!currentSession?.refresh_token) {
+  if (!currentSession.refresh_token) {
     await saveSession(null, false);
     return null;
   }
@@ -136,7 +136,7 @@ const refreshSession = async (): Promise<AuthSession | null> => {
       return null;
     }
     const payload = text ? (JSON.parse(text) as AuthSession) : null;
-    if (!payload?.access_token) {
+    if (!payload.access_token) {
       await saveSession(null, false);
       return null;
     }
@@ -157,7 +157,7 @@ const refreshSession = async (): Promise<AuthSession | null> => {
 
 export const forceRefreshAccessToken = async (): Promise<string> => {
   const next = await refreshSession();
-  return next?.access_token ?? "";
+  return next.access_token ?? "";
 };
 
 export const getValidAccessToken = async (): Promise<string> => {

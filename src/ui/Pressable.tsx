@@ -3,7 +3,7 @@ import type { PressableProps as RNPressableProps, StyleProp, ViewStyle } from "r
 
 type WebContextMenuHandler = (event: unknown) => void;
 type PressableProps = RNPressableProps & {
-  onContextMenu?: WebContextMenuHandler;
+  onContextMenu: WebContextMenuHandler;
 };
 
 const flattenStyle = (style: StyleProp<ViewStyle>) => {
@@ -113,7 +113,8 @@ export function Pressable({
           ? (() => {
               const parsed = parseColor(hoveredBg);
               const luminance = parsed
-                ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
+                ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) /
+                  255
                 : 0;
               if (luminance > 0.82) {
                 return { backgroundColor: darkenColor(hoveredBg, 0.12) };

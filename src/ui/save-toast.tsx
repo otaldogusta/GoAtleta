@@ -56,11 +56,9 @@ export function SaveToastProvider({
         typeof options === "string" ? { message: options } : options;
       const variant =
         normalized.variant ?? (normalized.error ? "error" : "info");
-      const message =
-        normalized.message ??
-        (normalized.error
-          ? getFriendlyErrorMessage(normalized.error)
-          : "Concluído.");
+      const message = normalized.error
+        ? getFriendlyErrorMessage(normalized.error)
+        : normalized.message ?? "Concluído.";
       setToast({ ...normalized, message, variant });
       anim.setValue(0);
       Animated.timing(anim, {

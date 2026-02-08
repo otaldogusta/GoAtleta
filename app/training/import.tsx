@@ -26,8 +26,8 @@ type TitleInfo = {
 
 type PreviewRow = {
   row: CsvRow;
-  classId?: string;
-  className?: string;
+  classId: string;
+  className: string;
   errors: string[];
 };
 
@@ -69,7 +69,7 @@ const parseCsv = (text: string) => {
     rows.push(row);
   }
 
-  const header = rows.shift()?.map((value) => value.trim()) ?? [];
+  const header = rows.shift().map((value) => value.trim()) ?? [];
   return rows
     .filter((items) => items.some((value) => value.trim().length))
     .map((items) => {
@@ -253,8 +253,8 @@ export default function ImportTrainingCsvScreen() {
       }
       return {
         row,
-        classId: matched[0]?.id,
-        className: matched[0]?.name,
+        classId: matched[0].id,
+        className: matched[0].name,
         errors,
       };
     });
@@ -264,7 +264,7 @@ export default function ImportTrainingCsvScreen() {
   const runImport = async () => {
     if (!preview.length) return;
     const rowsToImport = allowPartial
-      ? preview.filter((item) => item.errors.length === 0)
+       ? preview.filter((item) => item.errors.length === 0)
       : preview;
     if (!rowsToImport.length || (!allowPartial && previewStats.errors > 0)) return;
     setLoading(true);
@@ -376,7 +376,7 @@ export default function ImportTrainingCsvScreen() {
           </Text>
         </Pressable>
 
-        {hasPreview ? (
+        { hasPreview ? (
           <View
             style={{
               borderWidth: 1,
@@ -408,7 +408,7 @@ export default function ImportTrainingCsvScreen() {
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   {item.className ? `Turma: ${item.className}` : "Turma: -"}
                 </Text>
-                {item.errors.length ? (
+                { item.errors.length ? (
                   <Text style={{ color: colors.dangerText, fontSize: 12 }}>
                     {item.errors.join(" | ")}
                   </Text>
@@ -437,7 +437,7 @@ export default function ImportTrainingCsvScreen() {
               !hasPreview ||
               loading ||
               (allowPartial ? previewStats.ok === 0 : previewStats.errors > 0)
-                ? colors.primaryDisabledBg
+                 ? colors.primaryDisabledBg
                 : colors.primaryBg,
           }}
         >
@@ -445,7 +445,7 @@ export default function ImportTrainingCsvScreen() {
             style={{
               color:
                 !hasPreview || previewStats.errors > 0 || loading
-                  ? colors.secondaryText
+                   ? colors.secondaryText
                   : colors.primaryText,
               fontWeight: "700",
             }}

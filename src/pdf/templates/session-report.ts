@@ -1,13 +1,13 @@
 export type SessionReportPdfData = {
   monthLabel: string;
   dateLabel: string;
-  className?: string;
-  unitLabel?: string;
-  activity?: string;
-  conclusion?: string;
-  participantsCount?: number;
-  photos?: string;
-  deadlineLabel?: string;
+  className: string;
+  unitLabel: string;
+  activity: string;
+  conclusion: string;
+  participantsCount: number;
+  photos: string;
+  deadlineLabel: string;
 };
 
 const esc = (value: string) =>
@@ -20,14 +20,14 @@ const esc = (value: string) =>
 const nl2br = (value: string) => esc(value).replace(/\n/g, "<br/>");
 
 export const sessionReportHtml = (data: SessionReportPdfData) => {
-  const activity = data.activity?.trim() ?? "";
-  const conclusion = data.conclusion?.trim() ?? "";
-  const photos = data.photos?.trim() ?? "";
+  const activity = data.activity.trim() ?? "";
+  const conclusion = data.conclusion.trim() ?? "";
+  const photos = data.photos.trim() ?? "";
   const participants =
     typeof data.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = data.deadlineLabel?.trim() || "último dia da escolinha do mês";
+  const deadline = data.deadlineLabel.trim() || "último dia da escolinha do mês";
 
   return `
   <html>
@@ -72,8 +72,8 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
     <body>
       <h1>RELATORIO ESCOLINHA DE VOLEI</h1>
       <div class="meta">
-        <strong>Turma:</strong> ${esc(data.className ?? "-")}<br/>
-        <strong>Unidade:</strong> ${esc(data.unitLabel ?? "-")}
+        <strong>Turma:</strong> ${esc(data.className || "-")}<br/>
+        <strong>Unidade:</strong> ${esc(data.unitLabel || "-")}
       </div>
       <table>
         <tr>

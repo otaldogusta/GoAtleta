@@ -12,8 +12,8 @@ const jsonHeaders = {
 };
 
 const getHookSecret = () =>
-  Deno.env.get("AUTH_HOOK_SECRET") ??
-  Deno.env.get("SUPABASE_AUTH_HOOK_SECRET") ??
+  Deno.env.get("AUTH_HOOK_SECRET") ?
+  Deno.env.get("SUPABASE_AUTH_HOOK_SECRET") ?
   "";
 
 const isAuthorized = (req: Request) => {
@@ -74,14 +74,14 @@ Deno.serve(async (req) => {
   const record = extractRecord(payload);
   const recordObj = record as Record<string, unknown> | null;
   const userId =
-    (recordObj?.id && String(recordObj.id)) ||
+    (recordObj.id && String(recordObj.id)) ||
     (payload && typeof payload === "object" && "user_id" in payload
-      ? String((payload as Record<string, unknown>).user_id)
+       String((payload as Record<string, unknown>).user_id)
       : "");
   const email =
-    (recordObj?.email && String(recordObj.email)) ||
+    (recordObj.email && String(recordObj.email)) ||
     (payload && typeof payload === "object" && "email" in payload
-      ? String((payload as Record<string, unknown>).email)
+       String((payload as Record<string, unknown>).email)
       : "");
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
   }
 
   return new Response(
-    JSON.stringify({ status: "ok", linked: data?.length ?? 0 }),
+    JSON.stringify({ status: "ok", linked: data.length ? 0 }),
     { headers: jsonHeaders }
   );
 });

@@ -89,7 +89,7 @@ const moveDirectories = async (userInput) => {
     console.log(
       `1. Run \`npx expo start\` to start a development server.\n2. Edit app/index.tsx to edit the main screen.${
         userInput === "y"
-          ? `\n3. Delete the /${exampleDir} directory when you're done referencing it.`
+           `\n3. Delete the /${exampleDir} directory when you're done referencing it.`
           : ""
       }`
     );
@@ -99,7 +99,7 @@ const moveDirectories = async (userInput) => {
 };
 
 rl.question(
-  "Do you want to move existing files to /app-example instead of deleting them? (Y/n): ",
+  "Do you want to move existing files to /app-example instead of deleting them (Y/n): ",
   (answer) => {
     const userInput = answer.trim().toLowerCase() || "y";
     if (userInput === "y" || userInput === "n") {

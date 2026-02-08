@@ -6,7 +6,7 @@ type AgeBandRange = {
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
-export const normalizeAgeBand = (value?: string | null) => {
+export const normalizeAgeBand = (value: string | null) => {
   if (!value) return "";
   const match = value.match(/(\d{1,2})\s*-\s*(\d{1,2})/);
   if (!match) return value.trim();
@@ -15,7 +15,7 @@ export const normalizeAgeBand = (value?: string | null) => {
   return `${start}-${end}`;
 };
 
-export const parseAgeBandRange = (value?: string | null): AgeBandRange => {
+export const parseAgeBandRange = (value: string | null): AgeBandRange => {
   const raw = value ?? "";
   const match = raw.match(/(\d{1,2})\s*-\s*(\d{1,2})/);
   if (!match) {

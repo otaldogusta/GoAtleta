@@ -3,10 +3,10 @@ import { Text, View, ViewStyle, TextStyle } from "react-native";
 import { useAppTheme } from "./app-theme";
 
 type BadgeProps = {
-  label?: number | string | null;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
-  maxChars?: number;
+  label: number | string | null;
+  style: ViewStyle;
+  textStyle: TextStyle;
+  maxChars: number;
 };
 
 const formatLabel = (value: number | string, maxChars: number) => {

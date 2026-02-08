@@ -1,12 +1,12 @@
 export type ScheduleSortable = {
-  daysOfWeek?: number[] | null;
-  startTime?: string | null;
-  name?: string | null;
+  daysOfWeek: number[] | null;
+  startTime: string | null;
+  name: string | null;
 };
 
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
-const getDayRank = (days?: number[] | null) => {
+const getDayRank = (days: number[] | null) => {
   if (!days || !days.length) return 999;
   let min = 999;
   for (const day of days) {
@@ -17,7 +17,7 @@ const getDayRank = (days?: number[] | null) => {
   return min;
 };
 
-const getTimeRank = (startTime?: string | null) => {
+const getTimeRank = (startTime: string | null) => {
   if (!startTime) return 9999;
   const match = startTime.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return 9999;

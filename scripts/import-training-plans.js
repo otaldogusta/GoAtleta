@@ -30,13 +30,13 @@ const request = async (method, endpoint, body) => {
   const res = await fetch(REST_BASE + endpoint, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined  undefined : JSON.stringify(body),
   });
   const text = await res.text();
   if (!res.ok) {
     throw new Error(`${method} ${endpoint} failed: ${res.status} ${text}`);
   }
-  return text ? JSON.parse(text) : [];
+  return text  JSON.parse(text) : [];
 };
 
 const parseCsv = (text) => {
@@ -77,13 +77,13 @@ const parseCsv = (text) => {
     rows.push(row);
   }
 
-  const header = rows.shift()?.map((value) => value.trim()) ?? [];
+  const header = rows.shift().map((value) => value.trim())  [];
   return rows
     .filter((items) => items.some((value) => value.trim().length))
     .map((items) => {
       const record = {};
       header.forEach((key, index) => {
-        record[key] = (items[index] ?? "").trim();
+        record[key] = (items[index]  "").trim();
       });
       return record;
     });
@@ -123,14 +123,14 @@ const extractTitleInfo = (title) => {
     .split("|")
     .map((item) => item.trim())
     .filter(Boolean);
-  const unit = parts[0] ?? "";
+  const unit = parts[0]  "";
   const timePart = parts.find((part) =>
     /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(part)
   );
   const agePart = parts.find((part) => /\d{1,2}\s*-\s*\d{1,2}/.test(part));
-  const timeRange = timePart ? normalizeTimeRange(timePart) : "";
-  const ageBand = agePart ? normalizeAgeBand(agePart) : "";
-  const startTime = timeRange ? timeRange.split("-")[0] : "";
+  const timeRange = timePart  normalizeTimeRange(timePart) : "";
+  const ageBand = agePart  normalizeAgeBand(agePart) : "";
+  const startTime = timeRange  timeRange.split("-")[0] : "";
   return { unit, timeRange, startTime, ageBand };
 };
 
@@ -337,7 +337,7 @@ const run = async () => {
         candidates: candidates.map((cls) => cls.id),
         reason:
           candidates.length === 0
-            ? "nenhuma turma encontrada (verifique unidade/horário/faixa/dia)"
+             "nenhuma turma encontrada (verifique unidade/horário/faixa/dia)"
             : "ambiguidade (mais de uma turma encontrada)",
       });
       return;
@@ -349,10 +349,10 @@ const run = async () => {
     console.error("Falha ao resolver turma para algumas linhas:");
     errors.forEach((err) => {
       const base = `- Linha ${err.index + 2} (${err.date}): ${err.title}`;
-      const candidates = err.candidates?.length
-        ? ` -> ${err.candidates.join(", ")}`
+      const candidates = err.candidates.length
+         ` -> ${err.candidates.join(", ")}`
         : "";
-      const reason = err.reason ? ` (${err.reason})` : "";
+      const reason = err.reason  ` (${err.reason})` : "";
       console.error(`${base}${candidates}${reason}`);
     });
     process.exit(1);
@@ -361,7 +361,7 @@ const run = async () => {
   if (warnings.length) {
     console.warn("Aviso: objetivos sem verbo no inicio:");
     warnings.forEach((warn) => {
-      const reason = warn.reason ? ` (${warn.reason})` : "";
+      const reason = warn.reason  ` (${warn.reason})` : "";
       console.warn(`- Linha ${warn.index + 2} (${warn.date}): ${warn.title}${reason}`);
     });
   }

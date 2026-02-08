@@ -184,7 +184,7 @@ export default function NotificationsScreen() {
           {status ? <Text style={{ color: colors.muted }}>{status}</Text> : null}
         </View>
 
-        {__DEV__ ? (
+        { __DEV__ ? (
           <View style={{ gap: 8 }}>
             <SectionTitle>Preview de perfil (DEV)</SectionTitle>
             <View style={{ gap: 8 }}>

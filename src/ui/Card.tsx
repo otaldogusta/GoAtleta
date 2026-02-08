@@ -9,8 +9,8 @@ export function Card({
   onPress,
 }: {
   title: string;
-  subtitle?: string;
-  onPress?: () => void;
+  subtitle: string;
+  onPress: () => void;
 }) {
   const { colors } = useAppTheme();
 

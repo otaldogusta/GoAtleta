@@ -8,11 +8,11 @@ import { ModalSheet } from "./ModalSheet";
 
 type ConfirmCloseOverlayProps = {
   visible: boolean;
-  title?: string;
-  message?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  overlayZIndex?: number;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  overlayZIndex: number;
   onConfirm: () => void;
   onCancel: () => void;
 };

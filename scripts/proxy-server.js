@@ -26,13 +26,13 @@ const requestWithRedirects = (targetUrl, method, body, res, depth) => {
     },
   };
 
-  const client = targetUrl.protocol === "https:" ? https : http;
+  const client = targetUrl.protocol === "https:"  https : http;
   const proxyReq = client.request(targetUrl, options, (proxyRes) => {
     const status = proxyRes.statusCode || 0;
     const location = proxyRes.headers.location;
     if (location && [301, 302, 303, 307, 308].includes(status)) {
       const nextUrl = new URL(location, targetUrl);
-      const nextMethod = status === 303 ? "GET" : method;
+      const nextMethod = status === 303  "GET" : method;
       requestWithRedirects(nextUrl, nextMethod, body, res, depth + 1);
       return;
     }

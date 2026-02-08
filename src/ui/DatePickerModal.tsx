@@ -1,8 +1,4 @@
-﻿import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { Pressable } from "./Pressable";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -21,11 +17,11 @@ export function DatePickerModal({
   initialViewMode = "day",
 }: {
   visible: boolean;
-  value?: string;
+  value: string;
   onChange: (value: string) => void;
   onClose: () => void;
-  closeOnSelect?: boolean;
-  initialViewMode?: ViewMode;
+  closeOnSelect: boolean;
+  initialViewMode: ViewMode;
 }) {
   const { colors, mode } = useAppTheme();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
@@ -58,7 +54,7 @@ export function DatePickerModal({
     return `${y}-${m}-${d}`;
   };
 
-  const parseIsoDate = (value?: string) => {
+  const parseIsoDate = (value: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (match) {
@@ -324,7 +320,7 @@ export function DatePickerModal({
                     cell.date && formatIsoDate(cell.date) === todayIso;
                   return (
                     <Pressable
-                      key={`${cell.date?.toISOString() ?? "empty"}_${index}`}
+                      key={`${cell.date ? cell.date.toISOString() : "empty"}_${index}`}
                       disabled={!cell.date}
                       onPress={() => {
                         if (!cell.date) return;
@@ -347,9 +343,9 @@ export function DatePickerModal({
                       <Text
                         style={{
                           color: cell.date
-                            ? isSelected
-                              ? colors.primaryText
-                              : colors.text
+                            ? (isSelected
+                                ? colors.primaryText
+                                : colors.text)
                             : "transparent",
                           fontSize: 12,
                         }}

@@ -26,7 +26,7 @@ const requireUser = async (req: Request) => {
   const supabase = createAnonClient();
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return null;
+  if (error || !data.user) return null;
   return data.user;
 };
 
@@ -49,11 +49,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  let payload: { studentId?: string; clearLoginEmail?: boolean } = {};
+  let payload: { studentId: string; clearLoginEmail: boolean } = {};
   try {
     payload = (await req.json()) as {
-      studentId?: string;
-      clearLoginEmail?: boolean;
+      studentId: string;
+      clearLoginEmail: boolean;
     };
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {

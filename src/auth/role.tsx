@@ -24,11 +24,11 @@ type StudentRow = {
   classid: string;
   age: number;
   phone: string;
-  login_email?: string | null;
-  guardian_name?: string | null;
-  guardian_phone?: string | null;
-  guardian_relation?: string | null;
-  birthdate?: string | null;
+  login_email: string | null;
+  guardian_name: string | null;
+  guardian_phone: string | null;
+  guardian_relation: string | null;
+  birthdate: string | null;
   createdat: string;
 };
 
@@ -92,7 +92,7 @@ const fetchStudentSelf = async (token: string, userId: string) => {
   return mapStudent(rows[0]);
 };
 
-const buildPreviewStudent = (userId?: string | null): Student => ({
+const buildPreviewStudent = (userId: string | null): Student => ({
   id: userId ?? "preview-student",
   name: "Aluno (Preview)",
   classId: "",

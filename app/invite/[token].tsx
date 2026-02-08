@@ -25,7 +25,7 @@ import { useAppTheme } from "../../src/ui/app-theme";
 export default function StudentInviteScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
-  const { token } = useLocalSearchParams<{ token?: string | string[] }>();
+  const { token } = useLocalSearchParams<{ token: string | string[] }>();
   const tokenValue = Array.isArray(token) ? token[0] : token;
   const { session, signIn, signUp, signInWithOAuth, signOut } = useAuth();
   const { role, loading: roleLoading, refresh } = useRole();
@@ -72,8 +72,8 @@ export default function StudentInviteScreen() {
   const parseClaimError = (error: unknown) => {
     let detail = error instanceof Error ? error.message : String(error);
     try {
-      const parsed = JSON.parse(detail) as { error?: string };
-      if (parsed?.error) detail = String(parsed.error);
+      const parsed = JSON.parse(detail) as { error: string };
+      if (parsed.error) detail = String(parsed.error);
     } catch {
       // ignore
     }
@@ -136,7 +136,7 @@ export default function StudentInviteScreen() {
       setMessage("Esse convite é para alunos. Saia e use outra conta.");
       return;
     }
-    const userId = session.user?.id ?? "unknown";
+    const userId = session.user.id ?? "unknown";
     if (lastClaimUserRef.current === userId) return;
     lastClaimUserRef.current = userId;
     void handleClaim();
@@ -276,7 +276,7 @@ export default function StudentInviteScreen() {
               </Text>
               <Text style={{ color: colors.muted }}>
                 {mode === "signup"
-                  ? "Crie sua conta para acessar seus treinos."
+                   ? "Crie sua conta para acessar seus treinos."
                   : "Entre para vincular seu convite e continuar."}
               </Text>
             </View>
@@ -382,7 +382,7 @@ export default function StudentInviteScreen() {
                     outlineWidth: 0,
                   }}
                 />
-                {password.length > 0 ? (
+                { password.length > 0 ? (
                   <Pressable
                     onPress={() => setShowPassword((prev) => !prev)}
                     style={{ paddingLeft: 8, paddingVertical: 8 }}
@@ -396,7 +396,7 @@ export default function StudentInviteScreen() {
                 ) : null}
               </View>
 
-              {mode === "signup" ? (
+              { mode === "signup" ? (
                 <View
                   style={{
                     flexDirection: "row",
@@ -423,7 +423,7 @@ export default function StudentInviteScreen() {
                       outlineWidth: 0,
                     }}
                   />
-                  {confirm.length > 0 ? (
+                  { confirm.length > 0 ? (
                     <Pressable
                       onPress={() => setShowConfirm((prev) => !prev)}
                       style={{ paddingLeft: 8, paddingVertical: 8 }}
@@ -438,7 +438,7 @@ export default function StudentInviteScreen() {
                 </View>
               ) : null}
 
-              {mode === "signup" && password.length > 0 ? (
+              { mode === "signup" && password.length > 0 ? (
                 <View style={{ gap: 8 }}>
                   <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
                     <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
@@ -456,9 +456,9 @@ export default function StudentInviteScreen() {
                       });
                       const segmentColor =
                         index === 0
-                          ? colors.dangerSolidBg
+                           ? colors.dangerSolidBg
                           : index === 1
-                          ? colors.warningBg
+                           ? colors.warningBg
                           : colors.successBg;
                       return (
                         <View
@@ -514,7 +514,7 @@ export default function StudentInviteScreen() {
                 </View>
               ) : null}
 
-              {message ? (
+              { message ? (
                 <Text style={{ color: message.startsWith("!") ? colors.dangerSolidBg : colors.muted }}>
                   {message.startsWith("!") ? message.slice(1) : message}
                 </Text>
@@ -559,7 +559,7 @@ export default function StudentInviteScreen() {
                   {busy
                     ? "Validando..."
                     : mode === "signup"
-                    ? "Criar conta e vincular"
+                     ? "Criar conta e vincular"
                     : "Entrar e vincular"}
                 </Text>
               </Pressable>

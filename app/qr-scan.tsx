@@ -53,7 +53,7 @@ export default function QrScanScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ padding: 20 }}>
-          <Text style={{ color: colors.text }}>Carregando câmera...</Text>
+          <Text style={{ color: colors.text }}>Carregando cÃ¢mera...</Text>
         </View>
       </SafeAreaView>
     );
@@ -78,10 +78,10 @@ export default function QrScanScreen() {
             <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
           </Pressable>
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-            Permitir câmera
+            Permitir cÃ¢mera
           </Text>
           <Text style={{ color: colors.muted }}>
-            Precisamos da câmera para escanear QR Code.
+            Precisamos da cÃ¢mera para escanear QR Code.
           </Text>
           <Pressable
             onPress={() => requestPermission()}
@@ -122,7 +122,7 @@ export default function QrScanScreen() {
           Escanear QR Code
         </Text>
         <Text style={{ color: colors.muted }}>
-          Aponte a câmera para o QR.
+          Aponte a cÃ¢mera para o QR.
         </Text>
       </View>
 

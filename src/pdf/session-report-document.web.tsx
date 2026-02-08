@@ -59,15 +59,15 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
     typeof data.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = data.deadlineLabel?.trim() || "último dia da escolinha do mês";
+  const deadline = data.deadlineLabel.trim() || "último dia da escolinha do mês";
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <Text style={styles.title}>RELATÓRIO ESCOLINHA DE VOLEI</Text>
         <Text style={styles.meta}>
-          Turma: {data.className ?? "-"}{"\n"}
-          Unidade: {data.unitLabel ?? "-"}
+          Turma: {data.className || "-"}{"\n"}
+          Unidade: {data.unitLabel || "-"}
         </Text>
 
         <View style={styles.row}>

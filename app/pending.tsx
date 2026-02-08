@@ -63,8 +63,8 @@ export default function PendingScreen() {
   const parseInviteError = (error: unknown) => {
     let detail = error instanceof Error ? error.message : String(error);
     try {
-      const parsed = JSON.parse(detail) as { error?: string };
-      if (parsed?.error) detail = String(parsed.error);
+      const parsed = JSON.parse(detail) as { error: string };
+      if (parsed.error) detail = String(parsed.error);
     } catch {
       // ignore
     }
@@ -122,7 +122,7 @@ export default function PendingScreen() {
     }
   };
 
-  const handleStoredInvite = async (tokenOverride?: string) => {
+  const handleStoredInvite = async (tokenOverride: string) => {
     const tokenValue = (tokenOverride ?? storedToken).trim();
     if (!tokenValue || inviteBusy) return;
     setInviteBusy(true);
@@ -184,12 +184,12 @@ export default function PendingScreen() {
           <Text style={{ color: colors.text, fontWeight: "700" }}>
             Convite de acesso
           </Text>
-          {storedToken ? (
+          { storedToken ? (
             <>
               <Text style={{ color: colors.muted }}>
                 Convite detectado. Validando automaticamente.
               </Text>
-              {message ? (
+              { message ? (
                 <Text style={{ color: colors.muted }}>{message}</Text>
               ) : null}
               <Pressable
@@ -230,7 +230,7 @@ export default function PendingScreen() {
                 Se você recebeu um link de convite, abra-o novamente. Caso precise
                 colar manualmente, use a opção abaixo.
               </Text>
-              {!showInviteInput ? (
+              { !showInviteInput ? (
                 <Pressable
                   onPress={() => setShowInviteInput(true)}
                   style={{
@@ -266,7 +266,7 @@ export default function PendingScreen() {
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     {inviteHint}
                   </Text>
-                  {message ? (
+                  { message ? (
                     <Text style={{ color: colors.muted }}>{message}</Text>
                   ) : null}
                   <Pressable

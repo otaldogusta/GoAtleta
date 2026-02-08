@@ -90,8 +90,8 @@ const monthNames = [
 
 const weekdayShortLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-const formatStartTimeLabel = (value?: string) => {
-  const raw = value?.trim();
+const formatStartTimeLabel = (value: string) => {
+  const raw = value.trim();
   if (!raw) return "";
   const match = raw.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return raw;
@@ -102,7 +102,7 @@ const formatStartTimeLabel = (value?: string) => {
   return `${hour}h${String(minute).padStart(2, "0")}`;
 };
 
-const formatClassScheduleLabel = (cls?: ClassGroup | null) => {
+const formatClassScheduleLabel = (cls: ClassGroup | null) => {
   if (!cls) return "";
   const days = (cls.daysOfWeek ?? [])
     .map((day) => weekdayShortLabels[day] ?? "")
@@ -344,7 +344,7 @@ export default function StudentsScreen() {
   };
 
   const unitLabel = useCallback(
-    (value?: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
+    (value: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
     []
   );
 
@@ -417,21 +417,21 @@ export default function StudentsScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showUnitPicker) {
-        unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        unitTriggerRef.current.measureInWindow((x, y, width, height) => {
           setUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showClassPicker) {
-        classTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        classTriggerRef.current.measureInWindow((x, y, width, height) => {
           setClassTriggerLayout({ x, y, width, height });
         });
       }
       if (showGuardianRelationPicker) {
-        guardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        guardianRelationTriggerRef.current.measureInWindow((x, y, width, height) => {
           setGuardianRelationTriggerLayout({ x, y, width, height });
         });
       }
-      containerRef.current?.measureInWindow((x, y) => {
+      containerRef.current.measureInWindow((x, y) => {
         setContainerWindow({ x, y });
       });
     });
@@ -443,21 +443,21 @@ export default function StudentsScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showEditUnitPicker) {
-        editUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editUnitTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditClassPicker) {
-        editClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editClassTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditClassTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditGuardianRelationPicker) {
-        editGuardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editGuardianRelationTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditGuardianRelationTriggerLayout({ x, y, width, height });
         });
       }
-      editModalRef.current?.measureInWindow((x, y) => {
+      editModalRef.current.measureInWindow((x, y) => {
         setEditContainerWindow({ x, y });
       });
     });
@@ -465,10 +465,10 @@ export default function StudentsScreen() {
 
   const syncTemplateLayout = useCallback(() => {
     requestAnimationFrame(() => {
-      templateTriggerRef.current?.measureInWindow((x, y, width, height) => {
+      templateTriggerRef.current.measureInWindow((x, y, width, height) => {
         setTemplateTriggerLayout({ x, y, width, height });
       });
-      whatsappContainerRef.current?.measureInWindow((x, y) => {
+      whatsappContainerRef.current.measureInWindow((x, y) => {
         setWhatsappContainerWindow({ x, y });
       });
     });
@@ -591,15 +591,18 @@ export default function StudentsScreen() {
       return false;
     }
     setStudentFormError("");
-    const resolvedAge =
-      ageNumber ?? (birthDate ? calculateAge(birthDate) : null);
+    const resolvedAge = ageNumber
+      ? birthDate
+        ? calculateAge(birthDate)
+        : null
+      : null;
     if (resolvedAge === null || Number.isNaN(resolvedAge)) {
       setStudentFormError("Informe a data de nascimento.");
       return false;
     }
     const nowIso = new Date().toISOString();
     const student: Student = {
-      id: editingId ?? "s_" + Date.now(),
+      id: editingId ? editingId : "s_" + Date.now(),
       name: name.trim(),
       classId,
       age: resolvedAge,
@@ -614,7 +617,8 @@ export default function StudentsScreen() {
       medicationNotes: medicationUse ? medicationNotes.trim() : "",
       healthObservations: healthObservations.trim(),
       birthDate: birthDate || undefined,
-      createdAt: editingCreatedAt ?? nowIso,
+      createdAt: editingCreatedAt ? editingCreatedAt : nowIso,
+      updatedAt: nowIso,
     };
 
     if (editingId) {
@@ -974,7 +978,7 @@ export default function StudentsScreen() {
     [classId, classes]
   );
 
-  const formatShortDate = (value?: string) => {
+  const formatShortDate = (value: string) => {
     if (!value) return "";
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return value;
@@ -989,7 +993,7 @@ export default function StudentsScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  const parseIsoDate = (value?: string) => {
+  const parseIsoDate = (value: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (match) {
@@ -1051,11 +1055,11 @@ export default function StudentsScreen() {
         coachName,
         studentName: student.name,
         className: cls?.name ?? "Turma",
-        unitLabel: cls?.unit ?? "Sem unidade",
+        unitLabel: unitLabel(cls?.unit ?? ""),
         dateLabel: formatTodayLabel(),
         nextClassDate: nextClassDate ? formatNextClassDate(nextClassDate) : "",
-        nextClassTime: cls?.startTime ?? "",
-        groupInviteLink: cls ? groupInviteLinks[cls.id] ?? "" : "",
+        nextClassTime: cls?.startTime ? formatStartTimeLabel(cls.startTime) : "",
+        groupInviteLink: cls ? groupInviteLinks?.[cls.id] ?? "" : "",
         inviteLink: fields.inviteLink ?? "",
         highlightNote: fields.highlightNote ?? "",
         customText: fields.customText ?? "",
@@ -1080,7 +1084,7 @@ export default function StudentsScreen() {
       }
       const cls = classes.find((entry) => entry.id === student.classId) ?? null;
       const hasReminder =
-        !!cls?.daysOfWeek?.length && Boolean(cls?.startTime?.trim());
+        !!cls?.daysOfWeek?.length && Boolean((cls?.startTime ?? "").trim());
       const suggested: WhatsAppTemplateId = hasReminder
         ? "class_reminder"
         : "quick_notice";
@@ -1132,7 +1136,7 @@ export default function StudentsScreen() {
       student: Student,
       cls: ClassGroup | null,
       invitedTo: string,
-      options?: { revokeFirst?: boolean; copyLink?: boolean }
+      options: { revokeFirst: boolean; copyLink: boolean }
     ): Promise<string | null> => {
       if (studentInviteBusy) return null;
       setStudentInviteBusy(true);
@@ -1145,7 +1149,7 @@ export default function StudentsScreen() {
           invitedVia: "whatsapp",
           invitedTo: invitedTo.trim() ? invitedTo : undefined,
         });
-        if (!response?.token) {
+        if (!response.token) {
           throw new Error("Convite inválido.");
         }
         const link = buildInviteLink(response.token);
@@ -1153,17 +1157,17 @@ export default function StudentsScreen() {
         setCustomFields(fields);
         const message = buildStudentMessage(student, cls, "student_invite", fields);
         setCustomStudentMessage(message);
-        if (options?.copyLink) {
+        if (options.copyLink) {
           await Clipboard.setStringAsync(link);
           showWhatsAppNotice("Link copiado.");
         }
         return message;
       };
       try {
-        if (options?.revokeFirst) {
+        if (options.revokeFirst) {
           await revokeStudentAccess(student.id, { clearLoginEmail: true });
         }
-        const attempts = options?.revokeFirst ? 2 : 1;
+        const attempts = options.revokeFirst ? 2 : 1;
         for (let attempt = 0; attempt < attempts; attempt += 1) {
           try {
             return await createInvite();
@@ -1179,12 +1183,12 @@ export default function StudentsScreen() {
       } catch (error) {
         let detail = error instanceof Error ? error.message : String(error);
         try {
-          const parsed = JSON.parse(detail) as { error?: string; message?: string; details?: string };
-          if (parsed?.error) {
+          const parsed = JSON.parse(detail) as { error: string; message: string; details: string };
+          if (parsed.error) {
             detail = String(parsed.error);
-          } else if (parsed?.message) {
+          } else if (parsed.message) {
             detail = String(parsed.message);
-          } else if (parsed?.details) {
+          } else if (parsed.details) {
             detail = String(parsed.details);
           }
         } catch {
@@ -1199,8 +1203,8 @@ export default function StudentsScreen() {
           Alert.alert("Convite", "Sem permissão para gerar o convite.");
           setCustomStudentMessage("Sem permissão para gerar o convite.");
         } else if (lower.includes("already linked")) {
-          const message = options?.revokeFirst
-            ? "Não foi possível revogar o acesso. Tente novamente."
+          const message = options.revokeFirst
+             ? "Não foi possível revogar o acesso. Tente novamente."
             : "Esse aluno já está vinculado. Use Revogar e gerar novo link.";
           Alert.alert("Convite", message);
           setCustomStudentMessage(message);
@@ -1349,7 +1353,7 @@ export default function StudentsScreen() {
             );
           })}
         </View>
-        {selectedClassName ? (
+        { selectedClassName ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Turma selecionada: {selectedClassName}
           </Text>
@@ -1374,17 +1378,17 @@ export default function StudentsScreen() {
   const birthdayFilteredStudents = useMemo(() => {
     if (birthdayUnitFilter === "Todas") return students;
     return students.filter((student) => {
-      const cls = classes.find((item) => item.id === student.classId);
-      return unitLabel(cls?.unit) === birthdayUnitFilter;
+      const cls = classes.find((item) => item.id === student.classId) ?? null;
+      return unitLabel(cls?.unit ?? "") === birthdayUnitFilter;
     });
-  }, [birthdayUnitFilter, classes, students]);
+  }, [birthdayUnitFilter, classes, students, unitLabel]);
   const studentsFiltered = useMemo(() => {
     const filteredByUnit =
       studentsUnitFilter === "Todas"
         ? students
         : students.filter((student) => {
-            const cls = classes.find((item) => item.id === student.classId);
-            return unitLabel(cls?.unit) === studentsUnitFilter;
+            const cls = classes.find((item) => item.id === student.classId) ?? null;
+            return unitLabel(cls?.unit ?? "") === studentsUnitFilter;
           });
     return filteredByUnit;
   }, [studentsUnitFilter, classes, students, unitLabel]);
@@ -1395,7 +1399,7 @@ export default function StudentsScreen() {
     (unitName: string) => {
       setExpandedUnits((prev) => ({
         ...prev,
-        [unitName]: !(prev[unitName] ?? true),
+        [unitName]: !prev[unitName],
       }));
     },
     [setExpandedUnits]
@@ -1404,7 +1408,7 @@ export default function StudentsScreen() {
     (classIdValue: string) => {
       setExpandedClasses((prev) => ({
         ...prev,
-        [classIdValue]: !(prev[classIdValue] ?? true),
+        [classIdValue]: !prev[classIdValue],
       }));
     },
     [setExpandedClasses]
@@ -1412,8 +1416,8 @@ export default function StudentsScreen() {
   const studentsGrouped = useMemo(() => {
     const unitMap = new Map<string, Map<string, Student[]>>();
     studentsFiltered.forEach((student) => {
-      const cls = classById.get(student.classId);
-      const unitName = unitLabel(cls?.unit);
+      const cls = classById.get(student.classId) ?? null;
+      const unitName = unitLabel(cls?.unit ?? "");
       const classKey = cls?.id ?? `missing:${student.classId || "none"}`;
       if (!unitMap.has(unitName)) unitMap.set(unitName, new Map());
       const classMap = unitMap.get(unitName)!;
@@ -1424,25 +1428,35 @@ export default function StudentsScreen() {
       .map(([unitName, classMap]) => {
         const classesInUnit = Array.from(classMap.entries())
           .map(([classKey, items]) => {
-            const cls = classById.get(items[0]?.classId ?? "");
+            const cls = classById.get(items[0].classId) ?? null;
             const className = cls?.name?.trim() || "Sem turma";
-            const palette = getClassPalette(cls?.colorKey, colors, unitName);
+            const palette =
+              cls
+                ? getClassPalette(cls.colorKey, colors, unitName)
+                : getUnitPalette(unitName, colors) ?? {
+                    bg: colors.primaryBg,
+                    text: colors.primaryText,
+                  };
             const scheduleLabel = formatClassScheduleLabel(cls);
             const sortedStudents = [...items].sort((a, b) =>
               a.name.localeCompare(b.name, "pt-BR")
             );
             return {
-              classId: cls?.id ?? classKey,
+              classId: classKey,
               className,
-              gender: cls?.gender,
+              gender: cls?.gender ?? "misto",
               scheduleLabel,
               palette,
               students: sortedStudents,
             };
           })
           .sort((a, b) => {
-            const aClass = classById.get(a.classId) ?? { name: a.className };
-            const bClass = classById.get(b.classId) ?? { name: b.className };
+            const aClass =
+              classById.get(a.classId) ??
+              ({ name: a.className, daysOfWeek: null, startTime: null } as ClassGroup);
+            const bClass =
+              classById.get(b.classId) ??
+              ({ name: b.className, daysOfWeek: null, startTime: null } as ClassGroup);
             return compareClassesBySchedule(aClass, bClass);
           });
         return { unitName, classes: classesInUnit };
@@ -1480,7 +1494,7 @@ export default function StudentsScreen() {
       if (!date) return;
       const month = date.getMonth();
       const cls = classes.find((item) => item.id === student.classId);
-      const unitName = unitLabel(cls?.unit);
+      const unitName = unitLabel(cls.unit);
       if (!byMonth.has(month)) byMonth.set(month, new Map());
       const monthMap = byMonth.get(month)!;
       if (!monthMap.has(unitName)) monthMap.set(unitName, []);
@@ -1636,7 +1650,7 @@ export default function StudentsScreen() {
         value: string;
         active: boolean;
         onSelect: (value: string) => void;
-        isFirst?: boolean;
+        isFirst: boolean;
       }) {
         return (
           <Pressable
@@ -1675,7 +1689,7 @@ export default function StudentsScreen() {
         item: ClassGroup;
         active: boolean;
         onSelect: (value: ClassGroup) => void;
-        isFirst?: boolean;
+        isFirst: boolean;
       }) {
         return (
           <Pressable
@@ -1723,20 +1737,27 @@ export default function StudentsScreen() {
       unitNameOverride,
     }: {
       item: Student;
-      paletteOverride?: { bg: string; text: string };
-      classNameOverride?: string;
-      unitNameOverride?: string;
+      paletteOverride: { bg: string; text: string };
+      classNameOverride: string;
+      unitNameOverride: string;
     }) => {
-      const cls = classById.get(item.classId);
-      const unitName = unitNameOverride ?? unitLabel(cls?.unit);
+      const cls = classById.get(item.classId) ?? null;
+      const unitName = unitNameOverride || unitLabel(cls?.unit ?? "");
       const classPalette =
-        paletteOverride ?? getClassPalette(cls?.colorKey, colors, unitName);
+        paletteOverride ??
+        (cls
+          ? getClassPalette(cls.colorKey, colors, unitName)
+          : getUnitPalette(unitName, colors) ?? {
+              bg: colors.primaryBg,
+              text: colors.primaryText,
+            });
+      const className = classNameOverride || getClassName(item.classId);
       return (
         <StudentRow
           item={item}
           onPress={onEdit}
           onWhatsApp={openStudentWhatsApp}
-          className={classNameOverride ?? getClassName(item.classId)}
+          className={className}
           unitName={unitName}
           classPalette={classPalette}
         />
@@ -1920,7 +1941,7 @@ export default function StudentsScreen() {
                   </View>
                 </View>
               </View>
-              {studentFormError ? (
+              { studentFormError ? (
                 <Text style={{ color: colors.dangerText, fontSize: 12 }}>
                   {studentFormError}
                 </Text>
@@ -1935,7 +1956,7 @@ export default function StudentsScreen() {
                   />
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     {ageNumber !== null
-                      ? `Idade: ${ageNumber} anos`
+                       ? `Idade: ${ageNumber} anos`
                       : "Idade calculada automaticamente"}
                   </Text>
                 </View>
@@ -2065,7 +2086,7 @@ export default function StudentsScreen() {
                     color={colors.muted}
                   />
                 </Pressable>
-                {showHealthSectionContent ? (
+                { showHealthSectionContent ? (
                   <Animated.View style={[healthSectionAnimStyle, { gap: 8 }]}>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                       <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
@@ -2121,7 +2142,7 @@ export default function StudentsScreen() {
                             </Text>
                           </Pressable>
                         </View>
-                        {healthIssue ? (
+                        { healthIssue ? (
                           <TextInput
                             placeholder="Descreva a observação"
                             value={healthIssueNotes}
@@ -2192,7 +2213,7 @@ export default function StudentsScreen() {
                             </Text>
                           </Pressable>
                         </View>
-                        {medicationUse ? (
+                        { medicationUse ? (
                           <TextInput
                             placeholder="Qual medicação?"
                             value={medicationNotes}
@@ -2242,7 +2263,7 @@ export default function StudentsScreen() {
                 onPress={onSave}
                 disabled={!canSaveStudent}
               />
-              {editingId ? (
+              { editingId ? (
                 <Button
                   label="Cancelar edição"
                   variant="secondary"
@@ -2269,7 +2290,7 @@ export default function StudentsScreen() {
 
         {studentsTab === "aniversários" && (
           <View style={{ gap: 12 }}>
-            {birthdayToday.length ? (
+            { birthdayToday.length ? (
               <View
                 style={{
                   padding: 16,
@@ -2289,8 +2310,8 @@ export default function StudentsScreen() {
                   Hoje e dia de aniversário
                 </Text>
                 {birthdayToday.map((student) => {
-                  const cls = classes.find((item) => item.id === student.classId);
-                  const unitName = unitLabel(cls?.unit);
+                  const cls = classes.find((item) => item.id === student.classId) ?? null;
+                  const unitName = unitLabel(cls?.unit ?? "");
                   const className = cls?.name ?? "Turma";
                   return (
                     <View
@@ -2369,7 +2390,7 @@ export default function StudentsScreen() {
               </FadeHorizontalScroll>
             </View>
 
-            {birthdayMonthGroups.length ? (
+            { birthdayMonthGroups.length ? (
               birthdayMonthGroups.map(([month, unitGroups]) => {
                 const monthKey = `m-${month}`;
                 const totalCount = unitGroups.reduce(
@@ -2442,7 +2463,7 @@ export default function StudentsScreen() {
                               </View>
                               <Text style={{ color: colors.muted, fontSize: 12 }}>
                                 {entries.length === 1
-                                  ? "1 aluno"
+                                   ? "1 aluno"
                                   : `${entries.length} alunos`}
                               </Text>
                             </View>
@@ -2460,7 +2481,7 @@ export default function StudentsScreen() {
                             {entries
                               .sort((a, b) => a.date.getDate() - b.date.getDate())
                               .map(({ student, date }) => {
-                                const cls = classes.find((item) => item.id === student.classId);
+                                const cls = classes.find((item) => item.id === student.classId) ?? null;
                                 const className = cls?.name ?? "Turma";
                                 return (
                                   <View
@@ -2581,12 +2602,12 @@ export default function StudentsScreen() {
                 </Text>
               </View>
 
-              {studentsGrouped.length > 0 ? (
+              { studentsGrouped.length > 0 ? (
                 <View style={{ gap: 12 }}>
                   {studentsGrouped.map(({ unitName, classes: unitClasses }) => (
                     <View key={unitName} style={{ gap: 8 }}>
                       {(() => {
-                        const unitExpanded = expandedUnits[unitName] ?? true;
+                        const unitExpanded = !!expandedUnits[unitName];
                         return (
                           <>
                             <Pressable
@@ -2614,7 +2635,7 @@ export default function StudentsScreen() {
                                 color={colors.muted}
                               />
                             </Pressable>
-                            {unitExpanded ? (
+                            { unitExpanded ? (
                               <View
                                 style={{
                                   gap: 10,
@@ -2626,7 +2647,7 @@ export default function StudentsScreen() {
                                 }}
                               >
                                 {unitClasses.map((group) => {
-                                  const classExpanded = expandedClasses[group.classId] ?? true;
+                                  const classExpanded = !!expandedClasses[group.classId];
                                   return (
                                     <View key={group.classId} style={{ gap: 6 }}>
                                       <Pressable
@@ -2684,6 +2705,11 @@ export default function StudentsScreen() {
                                               ),
                                             });
                                           }
+                                          const groupPalette =
+                                            group.palette ?? {
+                                              bg: colors.primaryBg,
+                                              text: colors.primaryText,
+                                            };
                                           return (
                                             <View
                                               style={{
@@ -2697,13 +2723,13 @@ export default function StudentsScreen() {
                                             >
                                               <View
                                                 style={{
-                                                  width: 8,
-                                                  height: 8,
-                                                  borderRadius: 999,
-                                                  backgroundColor: group.palette.bg,
-                                                  marginRight: 2,
-                                                }}
-                                              />
+                                                width: 8,
+                                                height: 8,
+                                                borderRadius: 999,
+                                                backgroundColor: groupPalette.bg,
+                                                marginRight: 2,
+                                              }}
+                                            />
                                               {items.map((entry, index) => (
                                                 <View
                                                   key={entry.key}
@@ -2714,7 +2740,7 @@ export default function StudentsScreen() {
                                                     minWidth: 0,
                                                   }}
                                                 >
-                                                  {index > 0 ? (
+                                                  { index > 0 ? (
                                                     <View
                                                       style={{
                                                         width: 4,
@@ -2738,21 +2764,21 @@ export default function StudentsScreen() {
                                           color={colors.muted}
                                         />
                                       </Pressable>
-                                      {classExpanded ? (
+                                      { classExpanded ? (
                                         <View
                                           style={{
                                             gap: 8,
                                             marginLeft: 4,
                                             paddingLeft: 10,
                                             borderLeftWidth: 2,
-                                            borderLeftColor: group.palette.bg,
+                                            borderLeftColor: groupPalette.bg,
                                           }}
                                         >
                                           {group.students.map((student) => (
                                             <View key={student.id}>
                                               {renderStudentItem({
                                                 item: student,
-                                                paletteOverride: group.palette,
+                                                paletteOverride: groupPalette,
                                                 classNameOverride: group.className,
                                                 unitNameOverride: unitName,
                                               })}
@@ -2788,7 +2814,7 @@ export default function StudentsScreen() {
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     {studentsUnitFilter === "Todas"
-                      ? "Comece adicionando alunos"
+                       ? "Comece adicionando alunos"
                       : "Nenhum aluno nesta unidade"}
                   </Text>
                 </View>
@@ -2813,7 +2839,7 @@ export default function StudentsScreen() {
           }}
           scrollContentStyle={{ padding: 4 }}
         >
-          {unitOptions.length ? (
+          { unitOptions.length ? (
             unitOptions.map((item, index) => (
               <SelectOption
                 key={item}
@@ -2846,7 +2872,7 @@ export default function StudentsScreen() {
           }}
           scrollContentStyle={{ padding: 4 }}
         >
-          {classOptions.length ? (
+          { classOptions.length ? (
             classOptions.map((item, index) => (
               <ClassOption
                 key={item.id}
@@ -2889,7 +2915,7 @@ export default function StudentsScreen() {
           ))}
         </StudentsAnchoredDropdown>
       </View>
-      {saveNotice ? (
+      { saveNotice ? (
         <Animated.View
           style={{
             position: "absolute",
@@ -2932,7 +2958,7 @@ export default function StudentsScreen() {
           {
             maxHeight: "92%",
             minHeight: Platform.OS === "web" ? undefined : 320,
-            paddingBottom: 20,
+            paddingBottom: 12,
           },
         ]}
         position="center"
@@ -2940,7 +2966,7 @@ export default function StudentsScreen() {
         <View
           ref={editModalRef}
           onLayout={() => {
-            editModalRef.current?.measureInWindow((x, y) => {
+            editModalRef.current.measureInWindow((x, y) => {
               setEditContainerWindow({ x, y });
             });
           }}
@@ -2954,40 +2980,41 @@ export default function StudentsScreen() {
             closeEditModal();
           }}
         />
-        <KeyboardAvoidingView
-          style={{ width: "100%" }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-        >
-          <ScrollView
-            style={{ width: "100%" }}
-            contentContainerStyle={{ paddingBottom: 32 }}
-            keyboardShouldPersistTaps="handled"
-            onScroll={syncEditPickerLayouts}
-            scrollEventThrottle={16}
+        <View style={{ maxHeight: 520, overflow: "hidden" }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              Editar aluno
+            </Text>
+            <Pressable
+              onPress={requestCloseEditModal}
+              style={{
+                height: 32,
+                paddingHorizontal: 12,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                Fechar
+              </Text>
+            </Pressable>
+          </View>
+          <KeyboardAvoidingView
+            style={{ width: "100%", flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
           >
-            <View style={{ paddingHorizontal: 12, gap: 4 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingTop: 8 }}>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  Editar aluno
-                </Text>
-                <Pressable
-                  onPress={requestCloseEditModal}
-                  style={{
-                    height: 32,
-                    paddingHorizontal: 12,
-                    borderRadius: 16,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                    Fechar
-                  </Text>
-                </Pressable>
-              </View>
-              <View style={{ marginTop: 16, gap: 16 }}>
+            <ScrollView
+              style={{ width: "100%", flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 12, paddingTop: 16 }}
+              keyboardShouldPersistTaps="handled"
+              onScroll={syncEditPickerLayouts}
+              scrollEventThrottle={16}
+            >
+              <View style={{ gap: 4 }}>
+                <View style={{ gap: 16 }}>
                 <View style={{ gap: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
                     Dados do aluno
@@ -3085,7 +3112,7 @@ export default function StudentsScreen() {
                       />
                     </View>
                   </View>
-                  {studentFormError ? (
+                  { studentFormError ? (
                     <Text style={{ color: colors.dangerText, fontSize: 12 }}>
                       {studentFormError}
                     </Text>
@@ -3100,7 +3127,7 @@ export default function StudentsScreen() {
                       />
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
                         {ageNumber !== null
-                          ? `Idade: ${ageNumber} anos`
+                           ? `Idade: ${ageNumber} anos`
                           : "Idade calculada automaticamente"}
                       </Text>
                     </View>
@@ -3149,7 +3176,7 @@ export default function StudentsScreen() {
                       color={colors.muted}
                     />
                   </Pressable>
-                  {showEditHealthSectionContent ? (
+                  { showEditHealthSectionContent ? (
                     <Animated.View style={[editHealthSectionAnimStyle, { gap: 8 }]}>
                       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                         <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
@@ -3205,7 +3232,7 @@ export default function StudentsScreen() {
                               </Text>
                             </Pressable>
                           </View>
-                          {healthIssue ? (
+                          { healthIssue ? (
                             <TextInput
                               placeholder="Descreva a observação"
                               value={healthIssueNotes}
@@ -3278,7 +3305,7 @@ export default function StudentsScreen() {
                               </Text>
                             </Pressable>
                           </View>
-                          {medicationUse ? (
+                          { medicationUse ? (
                             <TextInput
                               placeholder="Qual medicação?"
                               value={medicationNotes}
@@ -3445,7 +3472,7 @@ export default function StudentsScreen() {
                   </Text>
                 </Pressable>
               </View>
-              {editingId ? (
+              { editingId ? (
                 <Pressable
                   onPress={deleteEditingStudent}
                   style={{
@@ -3460,13 +3487,21 @@ export default function StudentsScreen() {
                   </Text>
                 </Pressable>
               ) : null}
-              </View>
+            </View>
           </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
         <StudentsAnchoredDropdown
           visible={showEditUnitPickerContent}
-          layout={editUnitTriggerLayout}
-          container={editContainerWindow ?? containerWindow}
+          layout={
+            editUnitTriggerLayout
+              ? {
+                  ...editUnitTriggerLayout,
+                  x: Math.max(12, editUnitTriggerLayout.x),
+                }
+              : null
+          }
+          container={editContainerWindow ? containerWindow : undefined}
           animationStyle={editUnitPickerAnimStyle}
           zIndex={420}
           maxHeight={220}
@@ -3478,7 +3513,7 @@ export default function StudentsScreen() {
           }}
           scrollContentStyle={{ padding: 4 }}
         >
-          {unitOptions.length ? (
+          { unitOptions.length ? (
             unitOptions.map((item, index) => (
               <SelectOption
                 key={item}
@@ -3498,8 +3533,15 @@ export default function StudentsScreen() {
 
         <StudentsAnchoredDropdown
           visible={showEditClassPickerContent}
-          layout={editClassTriggerLayout}
-          container={editContainerWindow ?? containerWindow}
+          layout={
+            editClassTriggerLayout
+              ? {
+                  ...editClassTriggerLayout,
+                  x: Math.max(12, editClassTriggerLayout.x),
+                }
+              : null
+          }
+          container={editContainerWindow ? containerWindow : undefined}
           animationStyle={editClassPickerAnimStyle}
           zIndex={420}
           maxHeight={240}
@@ -3511,7 +3553,7 @@ export default function StudentsScreen() {
           }}
           scrollContentStyle={{ padding: 4 }}
         >
-          {classOptions.length ? (
+          { classOptions.length ? (
             classOptions.map((item, index) => (
               <ClassOption
                 key={item.id}
@@ -3529,11 +3571,18 @@ export default function StudentsScreen() {
         </StudentsAnchoredDropdown>
         <StudentsAnchoredDropdown
           visible={showEditGuardianRelationPickerContent}
-          layout={editGuardianRelationTriggerLayout}
-          container={editContainerWindow ?? containerWindow}
+          layout={
+            editGuardianRelationTriggerLayout
+              ? {
+                  ...editGuardianRelationTriggerLayout,
+                  x: Math.max(12, editGuardianRelationTriggerLayout.x),
+                }
+              : null
+          }
+          container={editContainerWindow ? containerWindow : undefined}
           animationStyle={editGuardianRelationPickerAnimStyle}
           zIndex={420}
-          maxHeight={220}
+          maxHeight={160}
           nestedScrollEnabled
           panelStyle={{
             borderWidth: 1,
@@ -3574,9 +3623,9 @@ export default function StudentsScreen() {
           const useGuardian = selectedContactType === "guardian" && hasGuardian;
           const useStudent = selectedContactType === "student" && hasStudent;
           const finalPhone = useGuardian
-            ? guardianContact.phoneDigits
+             ? guardianContact.phoneDigits
             : useStudent
-            ? studentContact.phoneDigits
+              ? studentContact.phoneDigits
             : "";
           const nextClassDate = cls?.daysOfWeek?.length
             ? calculateNextClassDate(cls.daysOfWeek)
@@ -3664,10 +3713,9 @@ export default function StudentsScreen() {
                     }}
                   >
                     <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      {selectedTemplateLabel ??
-                        (selectedTemplateId
-                          ? WHATSAPP_TEMPLATES[selectedTemplateId]?.title
-                          : "Template")}
+                      {selectedTemplateId
+                        ? WHATSAPP_TEMPLATES[selectedTemplateId]?.title
+                        : selectedTemplateLabel ?? "Template"}
                     </Text>
                     <Ionicons
                       name="chevron-down"
@@ -3681,7 +3729,7 @@ export default function StudentsScreen() {
                 </View>
               </View>
 
-              {selectedTemplateId === "student_invite" ? (
+              { selectedTemplateId === "student_invite" ? (
                 <Pressable
                   onPress={() => {
                     if (studentInviteBusy) return;
@@ -3705,7 +3753,7 @@ export default function StudentsScreen() {
                 </Pressable>
               ) : null}
 
-              {whatsappNotice ? (
+              { whatsappNotice ? (
                 <View
                   style={{
                     paddingVertical: 8,
@@ -3722,8 +3770,8 @@ export default function StudentsScreen() {
                 </View>
               ) : null}
 
-              {selectedTemplateId &&
-                WHATSAPP_TEMPLATES[selectedTemplateId].requires?.map((field) => {
+              {selectedTemplateId ? (
+                WHATSAPP_TEMPLATES[selectedTemplateId].requires.map((field) => {
                   if (
                     field === "nextClassDate" ||
                     field === "nextClassTime" ||
@@ -3735,7 +3783,7 @@ export default function StudentsScreen() {
                   const fieldLabel = field === "highlightNote" ? "Destaque" : "Texto";
                   const fieldPlaceholder =
                     field === "highlightNote"
-                      ? "Ex: excelente postura no saque!"
+                       ? "Ex: excelente postura no saque!"
                       : "Ex: não haverá treino na sexta";
                   return (
                     <View key={field} style={{ gap: 6 }}>
@@ -3770,15 +3818,16 @@ export default function StudentsScreen() {
                       />
                     </View>
                   );
-                })}
+                })
+              ) : null}
 
-              {hasGuardian || hasStudent ? (
+              { hasGuardian || hasStudent ? (
                 <View style={{ gap: 6 }}>
                   <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
                     Enviar para:
                   </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {hasGuardian ? (
+                    { hasGuardian ? (
                       <Pressable
                         onPress={() => setSelectedContactType("guardian")}
                         style={{
@@ -3788,12 +3837,12 @@ export default function StudentsScreen() {
                           borderRadius: 8,
                           backgroundColor:
                             selectedContactType === "guardian"
-                              ? colors.primaryBg
+                               ? colors.primaryBg
                               : colors.inputBg,
                           borderWidth: 1,
                           borderColor:
                             selectedContactType === "guardian"
-                              ? colors.primaryBg
+                               ? colors.primaryBg
                               : colors.border,
                         }}
                       >
@@ -3803,7 +3852,7 @@ export default function StudentsScreen() {
                             fontWeight: "600",
                             color:
                               selectedContactType === "guardian"
-                                ? colors.primaryText
+                                 ? colors.primaryText
                                 : colors.text,
                           }}
                         >
@@ -3814,7 +3863,7 @@ export default function StudentsScreen() {
                             fontSize: 11,
                             color:
                               selectedContactType === "guardian"
-                                ? colors.primaryText
+                                 ? colors.primaryText
                                 : colors.muted,
                             marginTop: 2,
                           }}
@@ -3823,7 +3872,7 @@ export default function StudentsScreen() {
                         </Text>
                       </Pressable>
                     ) : null}
-                    {hasStudent ? (
+                    { hasStudent ? (
                       <Pressable
                         onPress={() => setSelectedContactType("student")}
                         style={{
@@ -3833,12 +3882,12 @@ export default function StudentsScreen() {
                           borderRadius: 8,
                           backgroundColor:
                             selectedContactType === "student"
-                              ? colors.primaryBg
+                               ? colors.primaryBg
                               : colors.inputBg,
                           borderWidth: 1,
                           borderColor:
                             selectedContactType === "student"
-                              ? colors.primaryBg
+                               ? colors.primaryBg
                               : colors.border,
                         }}
                       >
@@ -3848,7 +3897,7 @@ export default function StudentsScreen() {
                             fontWeight: "600",
                             color:
                               selectedContactType === "student"
-                                ? colors.primaryText
+                                 ? colors.primaryText
                                 : colors.text,
                           }}
                         >
@@ -3859,7 +3908,7 @@ export default function StudentsScreen() {
                             fontSize: 11,
                             color:
                               selectedContactType === "student"
-                                ? colors.primaryText
+                                 ? colors.primaryText
                                 : colors.muted,
                             marginTop: 2,
                           }}
@@ -3954,7 +4003,7 @@ export default function StudentsScreen() {
                         missingRequirement = "Dias da semana não configurados";
                         break;
                       }
-                      if (req === "nextClassTime" && !cls?.startTime) {
+                      if (req === "nextClassTime" && !cls.startTime) {
                         canUse = false;
                         missingRequirement = "Horário não configurado";
                         break;
@@ -4012,7 +4061,7 @@ export default function StudentsScreen() {
                       >
                         {template.title}
                       </Text>
-                      {!canUse ? (
+                      { !canUse ? (
                         <Text style={{ fontSize: 11, color: colors.dangerText, marginTop: 2 }}>
                           {missingRequirement}
                         </Text>

@@ -1,4 +1,4 @@
-﻿import { ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
@@ -21,7 +21,7 @@ const formatIsoDate = (value: Date) => {
   return `${y}-${m}-${d}`;
 };
 
-const parseTime = (value?: string) => {
+const parseTime = (value: string) => {
   if (!value) return null;
   const match = value.match(/^(\d{2}):(\d{2})$/);
   if (!match) return null;
@@ -61,7 +61,7 @@ export default function StudentScouting() {
     if (!currentClass) return null;
     const now = new Date();
     const dayIndex = now.getDay();
-    if (!currentClass.daysOfWeek?.includes(dayIndex)) return null;
+    if (!currentClass.daysOfWeek.includes(dayIndex)) return null;
     const time = parseTime(currentClass.startTime);
     if (!time) return null;
     const start = new Date();
@@ -168,13 +168,11 @@ export default function StudentScouting() {
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turma</Text>
           <Text style={{ color: colors.text }}>{currentClass?.name ?? "-"}</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {sessionWindow
-              ? `Disponível até ${sessionWindow.end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-              : "Scouting liberado apenas no dia do treino"}
+            {sessionWindow ? `Dispon??vel at?? ${sessionWindow.end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "Scouting liberado apenas no dia do treino"}
           </Text>
         </View>
 
-        {loading ? (
+        { loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : (
           scoutingSkills.map((skill) => {

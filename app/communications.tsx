@@ -94,7 +94,7 @@ export default function CommunicationsScreen() {
           </Pressable>
         </View>
 
-        {items.length === 0 ? (
+        { items.length === 0 ? (
           <View
             style={{
               padding: 16,

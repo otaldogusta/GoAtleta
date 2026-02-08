@@ -2,18 +2,18 @@ import { SUPABASE_URL } from "./config";
 import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
 
 type CreateInviteOptions = {
-  invitedVia?: string;
-  invitedTo?: string;
+  invitedVia: string;
+  invitedTo: string;
 };
 
 type RevokeAccessOptions = {
-  clearLoginEmail?: boolean;
+  clearLoginEmail: boolean;
 };
 
 type CreateInviteResponse = {
   token: string;
-  expires_at?: string;
-  student_id?: string;
+  expires_at: string;
+  student_id: string;
 };
 
 const baseUrl = SUPABASE_URL.replace(/\/$/, "");
@@ -52,23 +52,23 @@ const requestWithAuth = async (path: string, body: Record<string, unknown>) => {
 
 export async function createStudentInvite(
   studentId: string,
-  options?: CreateInviteOptions
+  options: CreateInviteOptions
 ) {
   const res = await requestWithAuth("/functions/v1/create-student-invite", {
     studentId,
-    invitedVia: options?.invitedVia,
-    invitedTo: options?.invitedTo,
+    invitedVia: options.invitedVia,
+    invitedTo: options.invitedTo,
   });
   return (await parseResponse(res)) as CreateInviteResponse;
 }
 
 export async function revokeStudentAccess(
   studentId: string,
-  options?: RevokeAccessOptions
+  options: RevokeAccessOptions
 ) {
   const res = await requestWithAuth("/functions/v1/revoke-student-access", {
     studentId,
-    clearLoginEmail: options?.clearLoginEmail,
+    clearLoginEmail: options.clearLoginEmail,
   });
   return parseResponse(res);
 }

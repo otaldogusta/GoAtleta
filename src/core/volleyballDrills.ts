@@ -181,8 +181,9 @@ export function pickVolleyballMain(cls: ClassGroup): string[] | null {
   if (eligible.length === 0) return null;
 
   const prevention =
-    eligible.find((drill) => drill.habilidade === "Prevencao de lesao") ??
-    volleyballDrills.find((drill) => drill.habilidade === "Prevencao de lesao");
+    eligible.find((drill) => drill.habilidade === "Prevencao de lesao")
+      ? volleyballDrills.find((drill) => drill.habilidade === "Prevencao de lesao")
+      : undefined;
 
   const techPriority =
     mvForMatch === "MV1"
@@ -190,21 +191,23 @@ export function pickVolleyballMain(cls: ClassGroup): string[] | null {
       : ["Saque por cima", "Ataque", "Bloqueio"];
 
   const tech =
-    eligible.find((drill) => techPriority.includes(drill.habilidade)) ??
-    eligible.find((drill) =>
-      [
-        "Toque",
-        "Manchete",
-        "Saque por baixo",
-        "Saque por cima",
-        "Ataque",
-        "Bloqueio",
-      ].includes(drill.habilidade)
-    );
+    eligible.find((drill) => techPriority.includes(drill.habilidade))
+      ? eligible.find((drill) =>
+          [
+            "Toque",
+            "Manchete",
+            "Saque por baixo",
+            "Saque por cima",
+            "Ataque",
+            "Bloqueio",
+          ].includes(drill.habilidade)
+        )
+      : undefined;
 
   const movement =
-    eligible.find((drill) => drill.habilidade === "Deslocamento") ??
-    volleyballDrills.find((drill) => drill.habilidade === "Deslocamento");
+    eligible.find((drill) => drill.habilidade === "Deslocamento")
+      ? volleyballDrills.find((drill) => drill.habilidade === "Deslocamento")
+      : undefined;
 
   const main: string[] = [];
 

@@ -2,11 +2,11 @@ import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
 // @ts-expect-error no types for browser bundle entry
 import {
-  Document,
-  Page,
-  StyleSheet,
-  Text,
-  View,
+    Document,
+    Page,
+    StyleSheet,
+    Text,
+    View,
 } from "@react-pdf/renderer/lib/react-pdf.browser";
 import type { ClassRosterPdfData, ClassRosterRow } from "./templates/class-roster";
 
@@ -178,7 +178,7 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
   const minRows = 20;
   const paddedRows =
     data.rows.length >= minRows
-      ? data.rows
+    ? data.rows
       : [
           ...data.rows,
           ...Array.from({ length: minRows - data.rows.length }, (_, idx) => ({
@@ -292,10 +292,12 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
                           key={`${row.index}-day-${day}`}
                           style={[styles.cell, styles.colDay]}
                         >
-                          {" "}
+                          {row.attendance?.[day] ?? ""}
                         </Text>
                       ))}
-                      <Text style={[styles.cell, styles.colTotal]}> </Text>
+                      <Text style={[styles.cell, styles.colTotal]}>
+                        {typeof row.total === "number" ? String(row.total) : ""}
+                      </Text>
                     </View>
                   );
                 })

@@ -8,12 +8,12 @@ type ModalSheetProps = {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  cardStyle?: StyleProp<ViewStyle>;
-  backdropOpacity?: number;
-  slideOffset?: number;
-  position?: "bottom" | "center";
-  overlayZIndex?: number;
-  bottomOffset?: number;
+  cardStyle: StyleProp<ViewStyle>;
+  backdropOpacity: number;
+  slideOffset: number;
+  position: "bottom" | "center";
+  overlayZIndex: number;
+  bottomOffset: number;
 };
 
 export function ModalSheet({

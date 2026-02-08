@@ -1,4 +1,5 @@
-﻿import {
+import { useRouter } from "expo-router";
+import {
     useEffect,
     useMemo,
     useState
@@ -91,6 +92,7 @@ const isClassDay = (date: Date, classes: ClassGroup[]) => {
 };
 
 export default function AgendaScreen() {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [month, setMonth] = useState(new Date());
@@ -126,16 +128,21 @@ export default function AgendaScreen() {
     const day = selectedDate.getDay();
     const filtered = classes.filter((cls) => cls.daysOfWeek.includes(day));
     if (!filtered.length) return [];
-    return filtered.map((cls, index) => ({
-      id: cls.id,
-      title: cls.name,
-      start: parseTime(cls.startTime || "") ?? { hour: 14 + index, minute: 0 },
-      end: addMinutes(
-        parseTime(cls.startTime || "")?.hour ?? 14 + index,
-        parseTime(cls.startTime || "")?.minute ?? 0,
+    return filtered.map((cls, index) => {
+      const parsed = parseTime(cls.startTime || "");
+      const start = parsed ?? { hour: 14 + index, minute: 0 };
+      const end = addMinutes(
+        start.hour ?? 14 + index,
+        start.minute ?? 0,
         cls.durationMinutes || 60
-      ),
-    }));
+      );
+      return {
+        id: cls.id,
+        title: cls.name,
+        start,
+        end,
+      };
+    });
   }, [classes, selectedDate]);
 
   const exportIcs = () => {
@@ -157,8 +164,8 @@ export default function AgendaScreen() {
       const filtered = classes.filter((cls) => cls.daysOfWeek.includes(day));
       filtered.forEach((cls, index) => {
         const parsed = parseTime(cls.startTime || "");
-        const startHour = parsed?.hour ?? 14 + index;
-        const startMinute = parsed?.minute ?? 0;
+        const startHour = parsed.hour ?? 14 + index;
+        const startMinute = parsed.minute ?? 0;
         const endTime = addMinutes(startHour, startMinute, cls.durationMinutes || 60);
         const start = formatIcsDateTime(date, startHour, startMinute);
         const end = formatIcsDateTime(date, endTime.hour, endTime.minute);
@@ -217,7 +224,7 @@ export default function AgendaScreen() {
             justifyContent: "space-between",
           }}
         >
-          {viewMode === "day" ? (
+          { viewMode === "day" ? (
             <Pressable
               onPress={() =>
                 setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
@@ -250,11 +257,11 @@ export default function AgendaScreen() {
           >
             <Text style={{ fontSize: 16, fontWeight: "700" }}>
               {viewMode === "year"
-                ? `${yearPageStart} - ${yearPageStart + 11}`
+                 ? `${yearPageStart} - ${yearPageStart + 11}`
                 : `${monthNames[month.getMonth()]} ${month.getFullYear()}`}
             </Text>
           </Pressable>
-          {viewMode === "day" ? (
+          { viewMode === "day" ? (
             <Pressable
               onPress={() =>
                 setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
@@ -279,7 +286,7 @@ export default function AgendaScreen() {
           )}
         </View>
 
-        {viewMode === "day" ? (
+        { viewMode === "day" ? (
           <>
             <View
               style={{
@@ -405,33 +412,44 @@ export default function AgendaScreen() {
         )}
       </View>
 
-      <View style={{ marginTop: 12 }}>
+      <View style={{ marginTop: 12, flex: 1 }}>
         <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
           {formatDateLabel(selectedDate)}
         </Text>
-        <ScrollView contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
-          {dayEvents.length === 0 ? (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
+          { dayEvents.length === 0 ? (
             <Text style={{ color: colors.muted }}>Nenhuma aula neste dia</Text>
           ) : (
             dayEvents.map((event) => (
-              <View
+              <Pressable
                 key={event.id}
-                style={[
-                  getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
-                  {
-                    shadowOpacity: 0.04,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 6 },
-                    elevation: 2,
-                  },
-                ]}
+                onPress={() => {
+                  console.log("Agenda - Event clicked, event.id:", event.id, "typeof:", typeof event.id);
+                  router.push({
+                    pathname: "/class/[id]/attendance",
+                    params: { id: String(event.id) }
+                  });
+                }}
+                style={{}}
               >
-                <Text style={{ fontWeight: "700" }}>{event.title}</Text>
-                <Text>
-                  {pad2(event.start.hour)}:{pad2(event.start.minute)} -{" "}
-                  {pad2(event.end.hour)}:{pad2(event.end.minute)}
-                </Text>
-              </View>
+                <View
+                  style={[
+                    getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
+                    {
+                      shadowOpacity: 0.04,
+                      shadowRadius: 10,
+                      shadowOffset: { width: 0, height: 6 },
+                      elevation: 2,
+                    },
+                  ]}
+                >
+                  <Text style={{ fontWeight: "700" }}>{event.title}</Text>
+                  <Text>
+                    {pad2(event.start.hour)}:{pad2(event.start.minute)} -{" "}
+                    {pad2(event.end.hour)}:{pad2(event.end.minute)}
+                  </Text>
+                </View>
+              </Pressable>
             ))
           )}
         </ScrollView>
@@ -441,7 +459,7 @@ export default function AgendaScreen() {
         <Button label="Exportar Google Calendar (.ics)" onPress={exportIcs} />
       </View>
 
-      {icsPreview ? (
+      { icsPreview ? (
         <View style={{ marginTop: 12 }}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Arquivo .ics

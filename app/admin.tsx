@@ -58,7 +58,7 @@ export default function AdminLoginScreen() {
         <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}>
           <ScreenHeader
             title="Rota de teste desativada"
-            subtitle="Disponivel apenas em desenvolvimento."
+            subtitle="Disponível apenas em desenvolvimento."
           />
           <Pressable
             onPress={() => router.replace("/welcome")}

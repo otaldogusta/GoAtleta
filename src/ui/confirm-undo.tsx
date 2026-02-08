@@ -14,14 +14,14 @@ import { ModalSheet } from "./ModalSheet";
 type ConfirmUndoOptions = {
   title: string;
   message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  undoLabel?: string;
-  undoMessage?: string;
-  delayMs?: number;
+  confirmLabel: string;
+  cancelLabel: string;
+  undoLabel: string;
+  undoMessage: string;
+  delayMs: number;
   onConfirm: () => void | Promise<void>;
-  onOptimistic?: () => void;
-  onUndo?: () => void | Promise<void>;
+  onOptimistic: () => void;
+  onUndo: () => void | Promise<void>;
 };
 
 type PendingState = {
@@ -76,7 +76,7 @@ export function ConfirmUndoProvider({
     const options = confirmOptions;
     setConfirmOptions(null);
     if (!options) return;
-    options.onOptimistic?.();
+    options.onOptimistic();
     const delay = options.delayMs ?? 4500;
     const timeoutId = setTimeout(() => {
       void (async () => {
@@ -96,18 +96,17 @@ export function ConfirmUndoProvider({
     if (!pending) return;
     clearTimeout(pending.timeoutId);
     setPending(null);
-    await pending.options.onUndo?.();
+    await pending.options.onUndo();
   }, [pending]);
 
   const modalTitle = confirmOptions?.title ?? "Confirmar";
   const modalMessage =
-    confirmOptions?.message ?? "Deseja continuar com esta ação?";
+    confirmOptions?.message ?? "Deseja continuar com esta a??o?";
   const confirmLabel = confirmOptions?.confirmLabel ?? "Excluir";
   const cancelLabel = confirmOptions?.cancelLabel ?? "Cancelar";
   const undoLabel = pending?.options.undoLabel ?? "Desfazer";
   const undoMessage =
-    pending?.options.undoMessage ??
-    "Ação concluída. Deseja desfazer?";
+    pending?.options.undoMessage ?? "A??o conclu?da. Deseja desfazer?";
 
   const contextValue = useMemo(
     () => ({

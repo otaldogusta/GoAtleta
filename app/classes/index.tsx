@@ -3,21 +3,21 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  Vibration,
-  View
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    Vibration,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
+import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
 import type { ClassGroup } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
-import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
 import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
@@ -25,17 +25,17 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { getUnitPalette } from "../../src/ui/unit-colors";
-import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -245,7 +245,11 @@ export default function ClassesScreen() {
     [colors, newUnit]
   );
   const editColorOptions = useMemo(
-    () => getClassColorOptions(colors, editUnit.trim() || editingClass?.unit || "Sem unidade"),
+    () =>
+      getClassColorOptions(
+        colors,
+        editUnit.trim() || editingClass?.unit || "Sem unidade"
+      ),
     [colors, editUnit, editingClass]
   );
   const [unitFilterLayout, setUnitFilterLayout] = useState<{
@@ -340,11 +344,11 @@ export default function ClassesScreen() {
     useCollapsibleAnimation(showEditGoalPicker);
 
   const unitLabel = useCallback(
-    (value?: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
+    (value: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
     []
   );
   const unitKey = useCallback(
-    (value?: string) => normalizeUnitKey(unitLabel(value)),
+    (value: string) => normalizeUnitKey(unitLabel(value)),
     [unitLabel]
   );
   const units = useMemo(() => {
@@ -359,18 +363,18 @@ export default function ClassesScreen() {
   const [unitFilter, setUnitFilter] = useState("Todas");
   const getChipStyle = (
     active: boolean,
-    palette?: { bg: string; text: string }
+    palette: { bg: string; text: string }
   ) => ({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
-    backgroundColor: active ? palette?.bg ?? colors.primaryBg : colors.secondaryBg,
+    backgroundColor: active ? palette.bg ?? colors.primaryBg : colors.secondaryBg,
   });
   const getChipTextStyle = (
     active: boolean,
-    palette?: { bg: string; text: string }
+    palette: { bg: string; text: string }
   ) => ({
-    color: active ? palette?.text ?? colors.primaryText : colors.text,
+    color: active ? palette.text ?? colors.primaryText : colors.text,
     fontWeight: "600" as const,
     fontSize: 12,
   });
@@ -420,7 +424,7 @@ export default function ClassesScreen() {
     return list.filter((item, index) => list.indexOf(item) === index);
   }, [goalSuggestions, goals]);
 
-  const inferModality = useCallback((item?: ClassGroup | null) => {
+  const inferModality = useCallback((item: ClassGroup | null) => {
     if (!item) return "voleibol";
     if (item.modality) return item.modality;
     const goal = (item.goal ?? "").toLowerCase();
@@ -486,23 +490,23 @@ export default function ClassesScreen() {
       const aStart = toMinutes(a.startTime || "");
       if (aStart === null) continue;
       const aEnd = aStart + (a.durationMinutes || 60);
+      const aDays = Array.isArray(a.daysOfWeek) ? a.daysOfWeek : [];
       for (let j = i + 1; j < classes.length; j += 1) {
         const b = classes[j];
         if (unitKey(a.unit) !== unitKey(b.unit)) continue;
         const bStart = toMinutes(b.startTime || "");
         if (bStart === null) continue;
         const bEnd = bStart + (b.durationMinutes || 60);
-        const sharedDays = a.daysOfWeek.filter((day) =>
-          b.daysOfWeek.includes(day)
-        );
+        const bDays = Array.isArray(b.daysOfWeek) ? b.daysOfWeek : [];
+        const sharedDays = aDays.filter((day) => bDays.includes(day));
         if (!sharedDays.length) continue;
         const overlap = aStart < bEnd && bStart < aEnd;
         if (!overlap) continue;
         sharedDays.forEach((day) => {
           if (!map[a.id]) map[a.id] = [];
           if (!map[b.id]) map[b.id] = [];
-          map[a.id].push({ name: b.name, day });
-          map[b.id].push({ name: a.name, day });
+          map[a.id].push({ name: b.name ?? "Turma sem nome", day });
+          map[b.id].push({ name: a.name ?? "Turma sem nome", day });
         });
       }
     }
@@ -526,7 +530,7 @@ export default function ClassesScreen() {
     return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredClasses, unitKey, unitLabel]);
 
-  const loadClasses = useCallback(async (alive?: { current: boolean }) => {
+  const loadClasses = useCallback(async (alive: { current: boolean }) => {
     const isAlive = () => !alive || alive.current;
     setLoading(true);
     try {
@@ -610,11 +614,11 @@ export default function ClassesScreen() {
           gender: newGender,
           daysOfWeek: newDays,
           goal: newGoal,
-        startTime: timeValue,
-        durationMinutes: durationValue,
+          startTime: timeValue,
+          durationMinutes: durationValue,
         mvLevel: newMvLevel,
         cycleStartDate: newCycleStartDate || undefined,
-        cycleLengthWeeks: cycleValue,
+          cycleLengthWeeks: cycleValue,
       });
         Vibration.vibrate(60);
         resetCreateForm();
@@ -822,14 +826,14 @@ export default function ClassesScreen() {
           colorKey: editColorKey ?? null,
           ageBand: editAgeBand,
           gender: editGender,
-          modality: editModality ?? "fitness",
+          modality: editModality ?? undefined,
           daysOfWeek: editDays,
           goal: editGoal,
-        startTime: timeValue,
-        durationMinutes: durationValue,
-        mvLevel: editMvLevel,
-        cycleStartDate: editCycleStartDate || undefined,
-        cycleLengthWeeks: cycleValue,
+          startTime: timeValue,
+          durationMinutes: durationValue,
+          mvLevel: editMvLevel,
+          cycleStartDate: editCycleStartDate || undefined,
+          cycleLengthWeeks: cycleValue,
       });
       await loadClasses();
       setShowEditModal(false);
@@ -1099,41 +1103,41 @@ export default function ClassesScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showEditDurationPicker) {
-        editDurationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editDurationTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditDurationTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditCycleLengthPicker) {
-        editCycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editCycleLengthTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditCycleLengthTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditMvLevelPicker) {
-        editMvLevelTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editMvLevelTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditMvLevelTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditAgeBandPicker) {
-        editAgeBandTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editAgeBandTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditAgeBandTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditGenderPicker) {
-        editGenderTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editGenderTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditGenderTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditModalityPicker) {
-        editModalityTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editModalityTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditModalityTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditGoalPicker) {
-        editGoalTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        editGoalTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditGoalTriggerLayout({ x, y, width, height });
         });
       }
-      editContainerRef.current?.measureInWindow((x, y) => {
+      editContainerRef.current.measureInWindow((x, y) => {
         setEditContainerWindow({ x, y });
       });
     });
@@ -1173,46 +1177,46 @@ export default function ClassesScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showUnitFilterPicker) {
-        unitFilterTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        unitFilterTriggerRef.current.measureInWindow((x, y, width, height) => {
           setUnitFilterLayout({ x, y, width, height });
         });
       }
       if (showDurationPicker) {
-        durationTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        durationTriggerRef.current.measureInWindow((x, y, width, height) => {
           setDurationTriggerLayout({ x, y, width, height });
         });
       }
       if (showCycleLengthPicker) {
-        cycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        cycleLengthTriggerRef.current.measureInWindow((x, y, width, height) => {
           setCycleLengthTriggerLayout({ x, y, width, height });
         });
       }
       if (showMvLevelPicker) {
-        mvLevelTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        mvLevelTriggerRef.current.measureInWindow((x, y, width, height) => {
           setMvLevelTriggerLayout({ x, y, width, height });
         });
       }
       if (showAgeBandPicker) {
-        ageBandTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        ageBandTriggerRef.current.measureInWindow((x, y, width, height) => {
           setAgeBandTriggerLayout({ x, y, width, height });
         });
       }
       if (showGenderPicker) {
-        genderTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        genderTriggerRef.current.measureInWindow((x, y, width, height) => {
           setGenderTriggerLayout({ x, y, width, height });
         });
       }
       if (showModalityPicker) {
-        modalityTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        modalityTriggerRef.current.measureInWindow((x, y, width, height) => {
           setModalityTriggerLayout({ x, y, width, height });
         });
       }
       if (showGoalPicker) {
-        goalTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        goalTriggerRef.current.measureInWindow((x, y, width, height) => {
           setGoalTriggerLayout({ x, y, width, height });
         });
       }
-      containerRef.current?.measureInWindow((x, y) => {
+      containerRef.current.measureInWindow((x, y) => {
         setContainerWindow({ x, y });
       });
     });
@@ -1292,7 +1296,7 @@ export default function ClassesScreen() {
         active: boolean;
         palette: { bg: string; text: string };
         onSelect: (value: string) => void;
-        isFirst?: boolean;
+        isFirst: boolean;
       }) {
         return (
           <Pressable
@@ -1333,7 +1337,7 @@ export default function ClassesScreen() {
         value: SelectOptionValue;
         active: boolean;
         onSelect: (value: SelectOptionValue) => void;
-        isFirst?: boolean;
+        isFirst: boolean;
       }) {
         return (
           <Pressable
@@ -1376,7 +1380,7 @@ export default function ClassesScreen() {
         active: boolean;
         palette: { bg: string; text: string };
         onSelect: (value: string | null) => void;
-        isFirst?: boolean;
+        isFirst: boolean;
       }) {
         return (
           <Pressable
@@ -1414,7 +1418,7 @@ export default function ClassesScreen() {
         onAttendance,
       }: {
         item: ClassGroup;
-        conflicts?: { name: string; day: number }[];
+        conflicts: { name: string; day: number }[] | null | undefined;
         onOpen: (value: ClassGroup) => void;
         onEdit: (value: ClassGroup) => void;
         onAttendance: (value: ClassGroup) => void;
@@ -1422,10 +1426,11 @@ export default function ClassesScreen() {
         const palette = getClassPalette(item.colorKey, colors, item.unit);
         const parsed = parseTime(item.startTime || "");
         const duration = item.durationMinutes || 60;
+        const safeConflicts = conflicts ?? [];
         const timeLabel = parsed
-          ? `${formatTimeRange(parsed.hour, parsed.minute, duration)} - ${item.name}`
+           ? `${formatTimeRange(parsed.hour, parsed.minute, duration)} - ${item.name}`
           : item.name;
-        const hasConflicts = Boolean(conflicts?.length);
+        const hasConflicts = safeConflicts.length > 0;
         return (
           <Pressable
             onPress={() => onOpen(item)}
@@ -1444,7 +1449,7 @@ export default function ClassesScreen() {
               elevation: 3,
             }}
           >
-            {hasConflicts ? (
+            { hasConflicts ? (
               <View
                 style={{
                   alignSelf: "flex-start",
@@ -1473,28 +1478,12 @@ export default function ClassesScreen() {
                   </Text>
                   <ClassGenderBadge gender={item.gender} />
                 </View>
-                <Pressable
-                  onPress={() => onEdit(item)}
-                  hitSlop={8}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 999,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Ionicons name="pencil" size={14} color={colors.muted} />
-                </Pressable>
               </View>
-            {hasConflicts ? (
+            { hasConflicts ? (
               <Text style={{ color: colors.dangerText, marginTop: 6 }}>
                 {"Conflitos: " +
-                  conflicts
-                    ?.map(
+                  safeConflicts
+                    .map(
                       (conflict) =>
                         `${conflict.name} (${dayNames[conflict.day]})`
                     )
@@ -1637,7 +1626,7 @@ export default function ClassesScreen() {
                 const active = unitFilter === unit;
                 const palette =
                   unit === "Todas"
-                    ? { bg: colors.primaryBg, text: colors.primaryText }
+                     ? { bg: colors.primaryBg, text: colors.primaryText }
                     : getUnitPalette(unit, colors);
                 return (
                   <Pressable
@@ -1816,7 +1805,7 @@ export default function ClassesScreen() {
                   />
                 </Pressable>
               </View>
-              {showAllGoals ? (
+              { showAllGoals ? (
                 <TextInput
                   placeholder="Objetivo (ex: Força, Potência)"
                   value={newGoal}
@@ -1881,7 +1870,7 @@ export default function ClassesScreen() {
                   />
                 </Pressable>
               </View>
-              {showAllAges ? (
+              { showAllAges ? (
                 <TextInput
                   placeholder="Faixa etária (ex: 14-16)"
                   value={newAgeBand}
@@ -1942,7 +1931,7 @@ export default function ClassesScreen() {
                   />
                 </Pressable>
               </View>
-              {showCustomDuration ? (
+              { showCustomDuration ? (
                 <TextInput
                   placeholder="Duração (min)"
                   value={newDuration}
@@ -2037,7 +2026,7 @@ export default function ClassesScreen() {
               placeholder="DD/MM/AAAA"
             />
           </View>
-          {formError ? (
+          { formError ? (
             <Text style={{ color: colors.dangerText, fontSize: 12 }}>
               {formError}
             </Text>
@@ -2071,7 +2060,7 @@ export default function ClassesScreen() {
             const active = unitFilter === unit;
             const palette =
               unit === "Todas"
-                ? { bg: colors.primaryBg, text: colors.primaryText }
+                 ? { bg: colors.primaryBg, text: colors.primaryText }
                 : getUnitPalette(unit, colors);
             return (
               <UnitOption
@@ -2329,7 +2318,15 @@ export default function ClassesScreen() {
             </Text>
           </Pressable>
         </View>
-        <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16, paddingHorizontal: 12 }}>
+        <ScrollView
+          style={{ maxHeight: "92%" }}
+          contentContainerStyle={{ gap: 4, paddingHorizontal: 12, paddingBottom: 16 }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          onScroll={syncEditPickerLayouts}
+          scrollEventThrottle={16}
+        >
+        <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16 }}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
@@ -2433,7 +2430,7 @@ export default function ClassesScreen() {
                     />
                   </Pressable>
                 </View>
-                {editShowCustomDuration ? (
+                { editShowCustomDuration ? (
                   <TextInput
                     placeholder="Duração (min)"
                     value={editDuration}
@@ -2533,7 +2530,7 @@ export default function ClassesScreen() {
                     />
                   </Pressable>
                 </View>
-                {editShowAllAges ? (
+                { editShowAllAges ? (
                   <TextInput
                     placeholder="Faixa etária (ex: 14-16)"
                     value={editAgeBand}
@@ -2621,7 +2618,7 @@ export default function ClassesScreen() {
                     />
                   </Pressable>
               </View>
-              {editShowAllGoals ? (
+              { editShowAllGoals ? (
                 <TextInput
                   placeholder="Objetivo (ex: Força, Potência)"
                   value={editGoal}
@@ -2657,7 +2654,7 @@ export default function ClassesScreen() {
                 })}
               </View>
             </View>
-            {editFormError ? (
+            { editFormError ? (
               <Text style={{ color: colors.dangerText, fontSize: 12 }}>
                 {editFormError}
               </Text>
@@ -2674,6 +2671,8 @@ export default function ClassesScreen() {
               onPress={handleDeleteClass}
               disabled={editSaving}
             />
+          </View>
+        </ScrollView>
 
         <AnchoredDropdown
           visible={showEditDurationPickerContent}
@@ -2881,7 +2880,6 @@ export default function ClassesScreen() {
             onSelect={handleEditSelectGoal}
           />
         </AnchoredDropdown>
-        </View>
       </ModalSheet>
       <DatePickerModal
         visible={showNewCycleCalendar}

@@ -87,7 +87,7 @@ const toColorValue = (paint) => {
   const r = Math.round(paint.color.r * 255);
   const g = Math.round(paint.color.g * 255);
   const b = Math.round(paint.color.b * 255);
-  const a = paint.opacity ?? paint.color.a ?? 1;
+  const a = paint.opacity  paint.color.a  1;
   if (a < 1) {
     return `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(3))})`;
   }
@@ -122,7 +122,7 @@ const run = async () => {
   const stylesUrl = `https://api.figma.com/v1/files/${fileId}/styles`;
   const stylesResponse = await requestJson(stylesUrl, token);
   const styles = stylesResponse.meta && stylesResponse.meta.styles
-    ? stylesResponse.meta.styles
+     stylesResponse.meta.styles
     : [];
   const colorStyles = styles.filter((style) => style.style_type === "FILL");
   const nodeIds = colorStyles.map((style) => style.node_id);

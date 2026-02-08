@@ -6,5 +6,5 @@ import { AppThemeContext } from "@/src/ui/app-theme";
 export function useColorScheme() {
   const systemScheme = useSystemColorScheme() ?? "light";
   const context = useContext(AppThemeContext);
-  return context?.mode ?? systemScheme;
+  return context.mode ?? systemScheme;
 }

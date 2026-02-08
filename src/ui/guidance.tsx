@@ -4,10 +4,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "./app-theme";
 
 type GuidanceContent = {
-  title?: string;
+  title: string;
   items: string[];
-  tone?: "neutral" | "warning";
-  details?: Record<string, string>;
+  tone: "neutral" | "warning";
+  details: Record<string, string>;
 };
 
 type GuidanceContextValue = {
@@ -15,6 +15,12 @@ type GuidanceContextValue = {
 };
 
 const GuidanceContext = createContext<GuidanceContextValue | null>(null);
+const EMPTY_GUIDANCE: GuidanceContent = {
+  title: "",
+  items: [],
+  tone: "neutral",
+  details: {},
+};
 
 export function GuidanceProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
@@ -23,9 +29,24 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const scale = useState(() => new Animated.Value(0))[0];
   const pulse = useState(() => new Animated.Value(0))[0];
+  const currentGuidance = useMemo<GuidanceContent>(() => {
+    if (!guidance) return EMPTY_GUIDANCE;
+    return {
+      title: typeof guidance.title === "string" ? guidance.title : "",
+      items: Array.isArray(guidance.items) ? guidance.items : [],
+      tone: guidance.tone === "warning" ? "warning" : "neutral",
+      details:
+        guidance.details && typeof guidance.details === "object"
+          ? guidance.details
+          : {},
+    };
+  }, [guidance]);
   const guidanceKey = useMemo(
-    () => (guidance?.items?.length ? `${guidance?.title ?? ""}|${guidance.items.join("|")}` : ""),
-    [guidance]
+    () =>
+      currentGuidance.items.length
+        ? `${currentGuidance.title}|${currentGuidance.items.join("|")}`
+        : "",
+    [currentGuidance.items, currentGuidance.title]
   );
 
   const toggle = useCallback(() => {
@@ -78,8 +99,14 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
     ]).start();
   }, [guidanceKey, pulse]);
 
+  useEffect(() => {
+    if (guidance !== null) return;
+    setOpen(false);
+    setExpandedItem(null);
+  }, [guidance]);
+
   const value = useMemo(() => ({ setGuidance }), [setGuidance]);
-  const hasGuidance = guidance?.items?.length;
+  const hasGuidance = currentGuidance.items.length > 0;
 
   return (
     <GuidanceContext.Provider value={value}>
@@ -127,10 +154,12 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
                     padding: 12,
                     borderRadius: 14,
                     backgroundColor:
-                      guidance?.tone === "warning" ? colors.warningBg : colors.card,
+                      currentGuidance.tone === "warning" ? colors.warningBg : colors.card,
                     borderWidth: 1,
                     borderColor:
-                      guidance?.tone === "warning" ? colors.warningText : colors.border,
+                      currentGuidance.tone === "warning"
+                        ? colors.warningText
+                        : colors.border,
                     width: 260,
                     gap: 6,
                     alignSelf: "flex-end",
@@ -138,14 +167,17 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
                 >
                   <Text
                     style={{
-                      color: guidance?.tone === "warning" ? colors.warningText : colors.text,
+                      color:
+                        currentGuidance.tone === "warning"
+                          ? colors.warningText
+                          : colors.text,
                       fontWeight: "700",
                     }}
                   >
-                    {guidance?.title ?? "Diretrizes"}
+                    {currentGuidance.title || "Diretrizes"}
                   </Text>
-                  {guidance?.items?.map((item) => {
-                    const detail = guidance.details?.[item];
+                  {currentGuidance.items.map((item) => {
+                    const detail = currentGuidance.details?.[item];
                     return (
                       <View key={item} style={{ gap: 4 }}>
                         {detail ? (
@@ -156,7 +188,10 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
                           >
                             <Text
                               style={{
-                                color: guidance?.tone === "warning" ? colors.warningText : colors.muted,
+                                color:
+                                  currentGuidance.tone === "warning"
+                                    ? colors.warningText
+                                    : colors.muted,
                                 fontSize: 12,
                                 fontWeight: "600",
                               }}
@@ -167,7 +202,10 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
                         ) : (
                           <Text
                             style={{
-                              color: guidance?.tone === "warning" ? colors.warningText : colors.muted,
+                              color:
+                                currentGuidance.tone === "warning"
+                                  ? colors.warningText
+                                  : colors.muted,
                               fontSize: 12,
                             }}
                           >
@@ -177,7 +215,10 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
                         {detail && expandedItem === item ? (
                           <Text
                             style={{
-                              color: guidance?.tone === "warning" ? colors.warningText : colors.text,
+                              color:
+                                currentGuidance.tone === "warning"
+                                  ? colors.warningText
+                                  : colors.text,
                               fontSize: 11,
                             }}
                           >

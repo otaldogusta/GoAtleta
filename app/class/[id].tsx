@@ -136,7 +136,7 @@ export default function ClassDetails() {
   const monthNames = [
     "Janeiro",
     "Fevereiro",
-    "Marco",
+    "Março",
     "Abril",
     "Maio",
     "Junho",
@@ -286,7 +286,11 @@ export default function ClassDetails() {
   const classDuration = cls?.durationMinutes ?? 60;
   const classGoal = cls?.goal || goal;
   const unitPalette = getUnitPalette(unitLabel, colors);
-  const classPalette = getClassPalette(classColorKey, colors, currentUnit);
+  const classPalette =
+    getClassPalette(classColorKey, colors, currentUnit) ?? {
+      bg: colors.primaryBg,
+      text: colors.primaryText,
+    };
   const colorOptions = useMemo(
     () => getClassColorOptions(colors, currentUnit),
     [colors, currentUnit]
@@ -847,7 +851,7 @@ export default function ClassDetails() {
 
         <View style={getSectionCardStyle(colors, "primary", { radius: 18 })}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Ações rapidas
+            Ações rápidas
           </Text>
           <View style={{ gap: 10 }}>
             <Pressable
@@ -887,6 +891,27 @@ export default function ClassDetails() {
               </Text>
               <Text style={{ color: colors.successText, marginTop: 6, opacity: 0.7 }}>
                 Presença rápida
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/periodization",
+                  params: { classId: cls?.id ?? "", unit: cls?.unit ?? "" },
+                })
+              }
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.warningBg,
+              }}
+            >
+              <Text style={{ color: colors.warningText, fontWeight: "700", fontSize: 15 }}>
+                Periodização da turma
+              </Text>
+              <Text style={{ color: colors.warningText, marginTop: 6, opacity: 0.8 }}>
+                Ver ciclo, semana e metas
               </Text>
             </Pressable>
             <Pressable
@@ -975,7 +1000,7 @@ export default function ClassDetails() {
                         {skill.label}
                       </Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {metrics.total} ações | media {metrics.avg.toFixed(2)} | boas {goodPct}%
+                        {metrics.total} ações | média {metrics.avg.toFixed(2)} | boas {goodPct}%
                       </Text>
                     </View>
                   );
@@ -1498,7 +1523,7 @@ export default function ClassDetails() {
             />
             {defaultMessageEnabled && !customWhatsAppMessage.trim() && (
               <Text style={{ fontSize: 10, color: colors.muted, fontStyle: "italic" }}>
-                {`Mensagem padr\u00e3o: "Ol\u00e1! Sou o professor Gustavo da turma ${className} (${unitLabel})."`}
+                {`Mensagem padrão: "Olá! Sou o professor Gustavo da turma ${className} (${unitLabel})."`}
               </Text>
             )}
           </View>

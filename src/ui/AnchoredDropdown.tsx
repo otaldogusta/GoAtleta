@@ -14,13 +14,13 @@ type Point = { x: number; y: number };
 type AnchoredDropdownProps = {
   visible: boolean;
   layout: Layout | null;
-  container?: Point | null;
-  animationStyle?: StyleProp<ViewStyle>;
-  zIndex?: number;
-  maxHeight?: number;
-  nestedScrollEnabled?: boolean;
-  panelStyle?: StyleProp<ViewStyle>;
-  scrollContentStyle?: StyleProp<ViewStyle>;
+  container: Point | null;
+  animationStyle: StyleProp<ViewStyle>;
+  zIndex: number;
+  maxHeight: number;
+  nestedScrollEnabled: boolean;
+  panelStyle: StyleProp<ViewStyle>;
+  scrollContentStyle: StyleProp<ViewStyle>;
   children: React.ReactNode;
 };
 

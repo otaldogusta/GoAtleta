@@ -1,28 +1,28 @@
 export type SessionBlock = {
   title: string;
-  time?: string;
+  time: string;
   items: Array<{
     name: string;
-    duration?: string;
-    reps?: string;
-    intensity?: string;
-    notes?: string;
+    duration: string;
+    reps: string;
+    intensity: string;
+    notes: string;
   }>;
 };
 
 export type SessionPlanPdfData = {
   className: string;
-  ageGroup?: string;
-  unitLabel?: string;
+  ageGroup: string;
+  unitLabel: string;
   dateLabel: string;
-  title?: string;
-  objective?: string;
-  totalTime?: string;
-  plannedLoad?: string;
-  materials?: string[];
-  notes?: string;
+  title: string;
+  objective: string;
+  totalTime: string;
+  plannedLoad: string;
+  materials: string[];
+  notes: string;
   blocks: SessionBlock[];
-  coachName?: string;
+  coachName: string;
 };
 
 const esc = (value: string) =>
@@ -37,9 +37,9 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
     .map((item) => `<span class="chip">${esc(item)}</span>`)
     .join("");
   const hasMaterials = materials.length > 0;
-  const hasObjective = Boolean(data.objective?.trim());
-  const hasLoad = Boolean(data.plannedLoad?.trim());
-  const hasTitle = Boolean(data.title?.trim());
+  const hasObjective = Boolean(data.objective.trim());
+  const hasLoad = Boolean(data.plannedLoad.trim());
+  const hasTitle = Boolean(data.title.trim());
 
   const blocksHtml = data.blocks
     .map((block) => {
@@ -161,22 +161,22 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           hasTitle
             ? `
         <div class="card">
-          <div class="label">TÃ­tulo / Tema</div>
-          <div class="value">${esc(data.title ?? "")}</div>
+          <div class="label">Título / Tema</div>
+          <div class="value">${esc(data.title || "")}</div>
         </div>
         `
             : ""
         }
         <div class="card">
           <div class="label">Tempo total</div>
-          <div class="value">${esc(data.totalTime ?? "-")}</div>
+          <div class="value">${esc(data.totalTime || "-")}</div>
         </div>
         ${
           hasObjective
             ? `
         <div class="card">
           <div class="label">Objetivo</div>
-          <div class="value">${esc(data.objective ?? "")}</div>
+          <div class="value">${esc(data.objective || "")}</div>
         </div>
         `
             : ""
@@ -186,7 +186,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
             ? `
         <div class="card">
           <div class="label">Carga planejada</div>
-          <div class="value">${esc(data.plannedLoad ?? "")}</div>
+          <div class="value">${esc(data.plannedLoad || "")}</div>
         </div>
         `
             : ""
@@ -235,3 +235,5 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   </html>
   `;
 };
+
+

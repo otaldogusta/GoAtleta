@@ -10,18 +10,18 @@ const extra =
   {};
 
 const getRuntimeVersion = () => {
-  const runtime = Constants.expoConfig?.runtimeVersion;
+  const runtime = Constants.expoConfig.runtimeVersion;
   if (typeof runtime === "string") return runtime;
   if (typeof Updates.runtimeVersion === "string") return Updates.runtimeVersion;
   return "unknown";
 };
 
 export const setSentryBaseTags = () => {
-  const appVersion = Constants.expoConfig?.version ?? extra?.APP_VERSION ?? "unknown";
+  const appVersion = Constants.expoConfig.version ?? extra.APP_VERSION ?? "unknown";
   const channel =
     Updates.channel ??
-    extra?.EAS_UPDATE_CHANNEL ??
-    extra?.CHANNEL ??
+    extra.EAS_UPDATE_CHANNEL ??
+    extra.CHANNEL ??
     "unknown";
 
   Sentry.setTag("platform", Platform.OS);

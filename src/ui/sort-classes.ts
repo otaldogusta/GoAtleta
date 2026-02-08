@@ -1,6 +1,6 @@
 import { parseAgeBandRange } from "../core/age-band";
 
-export const sortClassesByAgeBand = <T extends { ageBand?: string; name?: string }>(
+export const sortClassesByAgeBand = <T extends { ageBand: string; name: string }>(
   items: T[]
 ) => {
   return [...items].sort((a, b) => {

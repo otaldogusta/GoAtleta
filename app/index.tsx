@@ -222,7 +222,7 @@ function TrainerHome() {
 
         if (!alive) return;
 
-        if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+        if (Platform.OS === "web" && stored.startsWith("blob:")) {
 
           setProfilePhotoUri(null);
 
@@ -274,7 +274,7 @@ function TrainerHome() {
 
           if (!active) return;
 
-          if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+          if (Platform.OS === "web" && stored.startsWith("blob:")) {
 
             setProfilePhotoUri(null);
 
@@ -470,7 +470,7 @@ function TrainerHome() {
 
 
 
-  const parseTime = (value?: string) => {
+  const parseTime = (value: string) => {
 
     if (!value) return null;
 
@@ -788,7 +788,7 @@ function TrainerHome() {
 
       if (!size) return;
 
-      agendaScrollRef.current?.scrollTo({ x: index * size, animated: true });
+      agendaScrollRef.current.scrollTo({ x: index * size, animated: true });
 
     },
 
@@ -844,7 +844,7 @@ function TrainerHome() {
 
     requestAnimationFrame(() => {
 
-      agendaScrollRef.current?.scrollTo({ x: offset, animated: false });
+      agendaScrollRef.current.scrollTo({ x: offset, animated: false });
 
     });
 
@@ -870,7 +870,7 @@ function TrainerHome() {
 
     requestAnimationFrame(() => {
 
-      agendaScrollRef.current?.scrollTo({ x: offset, animated: true });
+      agendaScrollRef.current.scrollTo({ x: offset, animated: true });
 
     });
 
@@ -1063,7 +1063,7 @@ function TrainerHome() {
 
         .then((value) => {
 
-          if (Platform.OS === "web" && value?.startsWith("blob:")) {
+          if (Platform.OS === "web" && value.startsWith("blob:")) {
 
             setProfilePhotoUri(null);
 
@@ -1176,13 +1176,9 @@ function TrainerHome() {
         contentContainerStyle={{ padding: 16, gap: 14 }}
 
         refreshControl={
-
           Platform.OS === "web"
-
             ? undefined
-
             : <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-
         }
 
       >
@@ -1283,7 +1279,7 @@ function TrainerHome() {
 
               <Ionicons name="person" size={22} color={colors.text} />
 
-              {profilePhotoUri ? (
+              { profilePhotoUri ? (
 
                 <Image
 
@@ -1338,7 +1334,7 @@ function TrainerHome() {
 
             </Pressable>
 
-            {unreadCount > 0 ? (
+            { unreadCount > 0 ? (
 
               <View
 
@@ -1393,7 +1389,7 @@ function TrainerHome() {
 
         <View style={{ gap: 14 }}>
 
-        {pendingWrites > 0 ? (
+        { pendingWrites > 0 ? (
 
           <View
 
@@ -1516,7 +1512,7 @@ function TrainerHome() {
               fadeWidth={8}
               contentContainerStyle={{ paddingRight: agendaCardGap }}
             >
-              {loadingClasses ? (
+              { loadingClasses ? (
                 Array.from({ length: 3 }).map((_, index) => (
                   <ShimmerBlock
                     key={`agenda-shimmer-${index}`}
@@ -1547,7 +1543,7 @@ function TrainerHome() {
                         width: agendaCardWidth,
                         marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
                         ...(Platform.OS === "web"
-                          ? ({ scrollSnapAlign: "start" } as const)
+                           ? ({ scrollSnapAlign: "start" } as const)
                           : null),
                       }}
                     >
@@ -1559,6 +1555,15 @@ function TrainerHome() {
                           borderWidth: 1,
                           borderColor: isActive ? colors.primaryBg : colors.border,
                           opacity: isPast ? 0.6 : 1,
+                          ...(isActive
+                            ? {
+                                shadowColor: colors.primaryBg,
+                                shadowOpacity: 0.55,
+                                shadowRadius: 14,
+                                shadowOffset: { width: 0, height: 4 },
+                                elevation: 10,
+                              }
+                            : null),
                         }}
                       >
                         <View style={{ gap: 6 }}>
@@ -1674,11 +1679,10 @@ function TrainerHome() {
               onPress={() => {
                 if (!activeAttendanceTarget) return;
                 router.push({
-                  pathname: "/class/[id]/session",
+                  pathname: "/class/[id]/attendance",
                   params: {
                     id: activeAttendanceTarget.classId,
                     date: activeAttendanceTarget.date,
-                    tab: "chamada",
                   },
                 });
               }}
@@ -2244,7 +2248,7 @@ function TrainerHome() {
 
 
 
-      {showInbox ? (
+      { showInbox ? (
 
         <View
 
@@ -2568,7 +2572,7 @@ function TrainerHome() {
 
               <View style={{ height: 1, backgroundColor: colors.border }} />
 
-            {inbox.length === 0 ? (
+            { inbox.length === 0 ? (
 
               <Text style={{ color: colors.muted }}>Sem notificações.</Text>
 
@@ -2611,25 +2615,17 @@ function TrainerHome() {
                             borderRadius: 12,
 
                             backgroundColor: item.read
-
                               ? colors.inputBg
-
                               : mode === "dark"
-
-                              ? "#1e293b"
-
+                               ? "#1e293b"
                               : (colors.background === "#0b1220" ? "#1e293b" : "#eef2ff"),
 
                             borderWidth: 1,
 
                             borderColor: item.read
-
                               ? colors.border
-
                               : mode === "dark"
-
-                              ? "#334155"
-
+                               ? "#334155"
                               : (colors.background === "#0b1220" ? "#334155" : "#c7d2fe"),
 
                             gap: 4,
@@ -2662,7 +2658,7 @@ function TrainerHome() {
 
                           </Text>
 
-                          {showMore ? (
+                          { showMore ? (
 
                             <Text style={{ color: colors.muted, fontSize: 12 }}>
 

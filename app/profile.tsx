@@ -64,7 +64,7 @@ export default function ProfileScreen() {
       try {
         const stored = await AsyncStorage.getItem(PHOTO_STORAGE_KEY);
         if (!alive) return;
-        if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+        if (Platform.OS === "web" && stored.startsWith("blob:")) {
           await AsyncStorage.removeItem(PHOTO_STORAGE_KEY);
           setPhotoUri(null);
           return;
@@ -84,15 +84,15 @@ export default function ProfileScreen() {
   const loadingProfile = loadingClasses || loadingPhoto;
 
   const currentClass = useMemo(() => {
-    if (!student?.classId) return null;
+    if (!student.classId) return null;
     return classes.find((item) => item.id === student.classId) ?? null;
-  }, [classes, student?.classId]);
+  }, [classes, student.classId]);
 
   const nameParts = useMemo(() => {
     const full = (
-      student?.name ??
-      session?.user?.user_metadata?.full_name ??
-      session?.user?.email ??
+      student.name ||
+      session.user.user_metadata.full_name ||
+      session.user.email ||
       ""
     ).trim();
     if (!full) return { first: "Aluno", last: "" };
@@ -100,10 +100,10 @@ export default function ProfileScreen() {
     const first = parts[0] ?? "Aluno";
     const last = parts.slice(1).join(" ");
     return { first, last };
-  }, [session?.user?.email, session?.user?.user_metadata?.full_name, student?.name]);
+  }, [session.user.email, session.user.user_metadata.full_name, student.name]);
 
   const joinedLabel = useMemo(() => {
-    const joinedAt = student?.createdAt ?? session?.user?.created_at;
+    const joinedAt = student.createdAt ?? session.user.created_at;
     if (!joinedAt) return "Entrou recentemente";
     const joined = new Date(joinedAt);
     if (Number.isNaN(joined.getTime())) return "Entrou recentemente";
@@ -122,11 +122,11 @@ export default function ProfileScreen() {
 
       const months = Math.max(1, Math.floor(diffDays / 30));
 
-      return months == 1 ? "1 m\u00eas" : `${months} meses`;
+      return months == 1 ? "1 mês" : `${months} meses`;
 
     }
     return diffDays <= 1 ? "Hoje" : `${diffDays} dias`;
-  }, [session?.user?.created_at, student?.createdAt]);
+  }, [session.user.created_at, student.createdAt]);
 
   const savePhoto = async (uri: string | null) => {
     setPhotoUri(uri);
@@ -144,13 +144,13 @@ export default function ProfileScreen() {
   const pickPhoto = async (source: "camera" | "library") => {
     try {
       if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("C\u00e2mera indispon\u00edvel", "Use a Galeria no navegador.");
+        Alert.alert("Câmera indisponível", "Use a Galeria no navegador.");
         return;
       }
       if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
-          Alert.alert("Permiss\u00e3o necess\u00e1ria", "Ative a c\u00e2mera para tirar a foto.");
+          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -161,7 +161,7 @@ export default function ProfileScreen() {
           base64: Platform.OS === "web",
         });
         const asset = result.assets?.[0];
-        if (!result.canceled && asset?.uri) {
+        if (!result.canceled && asset.uri) {
           let uri = asset.uri;
           if (Platform.OS === "web") {
             if (asset.base64) {
@@ -187,7 +187,7 @@ export default function ProfileScreen() {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
         Alert.alert(
-          "Permiss\u00e3o necess\u00e1ria",
+          "Permissão necessária",
           "Ative a galeria para escolher uma foto."
         );
         return;
@@ -200,7 +200,7 @@ export default function ProfileScreen() {
         base64: Platform.OS === "web",
       });
       const asset = result.assets?.[0];
-      if (!result.canceled && asset?.uri) {
+      if (!result.canceled && asset.uri) {
         let uri = asset.uri;
         if (Platform.OS === "web") {
           if (asset.base64) {
@@ -222,7 +222,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error("Failed to pick profile photo", error);
-      Alert.alert("Erro", "N\u00e3o foi poss\u00edvel selecionar a foto.");
+      Alert.alert("Erro", "Não foi possível selecionar a foto.");
     } finally {
       setShowPhotoSheet(false);
     }
@@ -268,7 +268,7 @@ export default function ProfileScreen() {
 
 
 
-        {loadingProfile ? (
+        { loadingProfile ? (
           <View style={{ gap: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
               <ShimmerBlock style={{ width: 120, height: 120, borderRadius: 60 }} />
@@ -304,7 +304,7 @@ export default function ProfileScreen() {
                     elevation: 5,
                   }}
                 >
-                  {photoUri ? (
+                  { photoUri ? (
                     <Image
                       source={{ uri: photoUri }}
                       style={{ width: 96, height: 96, borderRadius: 48 }}
@@ -355,7 +355,7 @@ export default function ProfileScreen() {
               <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text }}>
                 {nameParts.first}
               </Text>
-              {nameParts.last ? (
+              { nameParts.last ? (
                 <Text style={{ fontSize: 22, color: colors.muted }}>{nameParts.last}</Text>
               ) : null}
             </View>
@@ -365,7 +365,7 @@ export default function ProfileScreen() {
 
 
 
-        {loadingProfile ? (
+        { loadingProfile ? (
           <View style={{ gap: 8 }}>
             <ShimmerBlock style={{ width: 70, height: 12, borderRadius: 6 }} />
             <ShimmerBlock style={{ height: 56, borderRadius: 14 }} />
@@ -376,8 +376,8 @@ export default function ProfileScreen() {
             <SettingsRow
               icon="school-outline"
               iconBg="rgba(255, 185, 136, 0.16)"
-              label={currentClass?.name || (student ? "Sem turma" : "Professor")}
-              subtitle={currentClass?.unit || (student ? "Sem unidade" : "Treinador")}
+              label={currentClass.name || (student ? "Sem turma" : "Professor")}
+              subtitle={currentClass.unit || (student ? "Sem unidade" : "Treinador")}
               rightContent={<View />}
             />
           </View>
@@ -474,7 +474,7 @@ export default function ProfileScreen() {
             </View>
           </View>
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            {photoUri ? (
+            { photoUri ? (
               <Image
                 source={{ uri: photoUri }}
                 style={{ width: "100%", height: "100%" }}
@@ -522,7 +522,7 @@ export default function ProfileScreen() {
         </View>
         <View style={{ gap: 12 }}>
           {[
-            { label: "C\u00e2mera", icon: "camera-outline", value: "camera" },
+            { label: "Câmera", icon: "camera-outline", value: "camera" },
             { label: "Galeria", icon: "images-outline", value: "library" },
           ].map((item) => (
             <Pressable

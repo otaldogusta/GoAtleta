@@ -25,8 +25,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 export default function SignupScreen() {
   const { colors, mode } = useAppTheme();
   const { signUp } = useAuth();
-  const solidInputBg =
-    mode === "dark" ? "rgba(10, 16, 29, 0.25)" : "rgba(255, 255, 255, 0.12)";
+  const solidInputBg = colors.inputBg;
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -274,7 +273,7 @@ export default function SignupScreen() {
                     outlineWidth: 0,
                   }}
                 />
-                {password.length > 0 ? (
+                { password.length > 0 ? (
                   <Pressable
                     onPress={() => setShowPassword((prev) => !prev)}
                     style={{ paddingLeft: 8, paddingVertical: 8 }}
@@ -320,7 +319,7 @@ export default function SignupScreen() {
                     outlineWidth: 0,
                   }}
                 />
-                {confirm.length > 0 ? (
+                { confirm.length > 0 ? (
                   <Pressable
                     onPress={() => setShowConfirm((prev) => !prev)}
                     style={{ paddingLeft: 8, paddingVertical: 8 }}
@@ -334,7 +333,7 @@ export default function SignupScreen() {
                 ) : null}
               </View>
 
-              {password.length > 0 ? (
+              { password.length > 0 ? (
                 <View style={{ gap: 8 }}>
                   <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
                     <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
@@ -352,9 +351,9 @@ export default function SignupScreen() {
                       });
                       const segmentColor =
                         index === 0
-                          ? colors.dangerSolidBg
+                           ? colors.dangerSolidBg
                           : index === 1
-                          ? colors.warningBg
+                           ? colors.warningBg
                           : colors.successBg;
                       return (
                         <View
@@ -453,7 +452,7 @@ export default function SignupScreen() {
                 </View>
               </View>
 
-              {role === "trainer" ? (
+              { role === "trainer" ? (
                 <View
                   style={{
                     borderWidth: 1,
@@ -486,7 +485,7 @@ export default function SignupScreen() {
                 </View>
               ) : null}
 
-              {message ? (
+              { message ? (
                 <Text
                   style={{
                     color: message.startsWith("!")

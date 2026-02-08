@@ -18,8 +18,8 @@ type ChatMessage = {
 };
 
 type DraftTraining = {
-  id?: string;
-  classId?: string;
+  id: string;
+  classId: string;
   title: string;
   tags: string[];
   warmup: string[];
@@ -33,7 +33,7 @@ type DraftTraining = {
 type AssistantResponse = {
   reply: string;
   sources: AssistantSource[];
-  draftTraining?: DraftTraining | null;
+  draftTraining: DraftTraining | null;
 };
 
 const isPrivateIpv4 = (host: string) => {
@@ -103,7 +103,7 @@ const requireUser = async (req: Request) => {
   const supabase = createSupabaseClient();
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return null;
+  if (error || !data.user) return null;
   return data.user;
 };
 
@@ -235,7 +235,7 @@ Deno.serve(async (req) => {
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content ?? "";
+    const content = data.choices.[0].message.content ?? "";
     let parsed: AssistantResponse;
     try {
       parsed = JSON.parse(content) as AssistantResponse;

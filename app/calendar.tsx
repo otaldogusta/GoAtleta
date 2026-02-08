@@ -24,15 +24,15 @@ import {
     updateTrainingPlan,
 } from "../src/db/seed";
 import { useAppTheme } from "../src/ui/app-theme";
+import { getClassPalette } from "../src/ui/class-colors";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
+import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
-import { getClassPalette } from "../src/ui/class-colors";
+import { ShimmerBlock } from "../src/ui/Shimmer";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { usePersistedState } from "../src/ui/use-persisted-state";
-import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
-import { ShimmerBlock } from "../src/ui/Shimmer";
 
 const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
 const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
@@ -154,11 +154,11 @@ export default function CalendarScreen() {
     return weekEnd.getTime() < earliestClassStart.getTime();
   }, [earliestClassStart, weekEnd]);
   const earliestLabel = earliestClassStart ? formatDate(earliestClassStart) : "";
-  const unitLabel = useCallback((value?: string) => {
+  const unitLabel = useCallback((value: string) => {
     return value && value.trim() ? value.trim() : "Sem unidade";
   }, []);
   const unitKey = useCallback(
-    (value?: string) => normalizeUnitKey(unitLabel(value)),
+    (value: string) => normalizeUnitKey(unitLabel(value)),
     [unitLabel]
   );
   const classById = useMemo(() => {
@@ -247,7 +247,7 @@ export default function CalendarScreen() {
     const byDate = list.find((plan) => plan.applyDate === iso);
     if (byDate) return byDate;
     const byWeekday = list.find((plan) =>
-      (plan.applyDays ?? []).includes(weekDay)
+      ((plan.applyDays ?? []).includes(weekDay))
     );
     return byWeekday ?? null;
   };
@@ -330,7 +330,7 @@ export default function CalendarScreen() {
     const isSameApply =
       plan.classId === targetClassId &&
       plan.applyDate === targetDate &&
-      (plan.applyDays ?? []).length === 0;
+      ((plan.applyDays ?? []).length === 0);
     if (isSameApply) {
       closeApplyPicker();
       showSaveToast({
@@ -453,7 +453,7 @@ export default function CalendarScreen() {
               );
             })}
           </View>
-          {showNoTrainingNotice ? (
+        {showNoTrainingNotice ? (
             <View
               style={{
                 padding: 12,
@@ -498,10 +498,10 @@ export default function CalendarScreen() {
               const active = unitFilter === unit;
               const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
               const chipBg = active
-                ? palette?.bg ?? colors.primaryBg
+                ? (palette ? palette.bg : colors.primaryBg)
                 : colors.secondaryBg;
               const chipText = active
-                ? palette?.text ?? colors.primaryText
+                ? (palette ? palette.text : colors.primaryText)
                 : colors.text;
               return (
                 <Pressable
@@ -569,7 +569,7 @@ export default function CalendarScreen() {
               const buckets = items.reduce<Record<string, ClassGroup[]>>(
                 (acc, cls, index) => {
                   const parsed = parseTime(cls.startTime || "");
-                  const startHour = parsed?.hour ?? baseHour + index;
+                  const startHour = parsed ? parsed.hour : baseHour + index;
                   const label = getBucketLabel(startHour);
                   if (!acc[label]) acc[label] = [];
                   acc[label].push(cls);
@@ -580,7 +580,7 @@ export default function CalendarScreen() {
               const bucketOrder = ["Manha", "Tarde", "Noite", "Madrugada"];
               const orderedBuckets = bucketOrder
                 .map((label) => [label, buckets[label]] as const)
-                .filter((entry) => entry[1]?.length);
+                .filter((entry) => entry[1].length);
               const countLabel = items.length === 1 ? "1 turma" : `${items.length} turmas`;
 
               return (
@@ -652,8 +652,8 @@ export default function CalendarScreen() {
                           </View>
                           {bucketItems.map((cls, index) => {
                             const parsed = parseTime(cls.startTime || "");
-                            const startHour = parsed?.hour ?? baseHour + index;
-                            const startMinute = parsed?.minute ?? 0;
+                            const startHour = parsed ? parsed.hour : baseHour + index;
+                            const startMinute = parsed ? parsed.minute : 0;
                             const durationMinutes = cls.durationMinutes || 60;
                             const time = formatTimeRange(
                               startHour,
@@ -663,18 +663,18 @@ export default function CalendarScreen() {
                             const classUnit = unitLabel(cls.unit);
                             const classPalette = getClassPalette(cls.colorKey, colors, classUnit);
                             const appliedPlan = getAppliedPlan(cls.id, date);
-                            const isSpecificDate = Boolean(appliedPlan?.applyDate);
+                            const isSpecificDate = Boolean(appliedPlan.applyDate);
                             const isWeekly =
                               !isSpecificDate &&
-                              (appliedPlan?.applyDays?.length ?? 0) > 0;
+                              (appliedPlan.applyDays?.length ?? 0) > 0;
                             const hasApplied =
-                              Boolean(appliedPlan?.applyDate) ||
-                              (appliedPlan?.applyDays?.length ?? 0) > 0;
+                              Boolean(appliedPlan.applyDate) ||
+                              (appliedPlan.applyDays?.length ?? 0) > 0;
                             const cardBackground = isPast
                               ? colors.secondaryBg
                               : hasApplied
-                              ? colors.inputBg
-                              : colors.card;
+                                ? colors.inputBg
+                                : colors.card;
                             const cardBorder = isPast
                               ? toRgba(classPalette.bg, 0.35)
                               : classPalette.bg;
@@ -945,7 +945,7 @@ export default function CalendarScreen() {
                         {plan.title}
                       </Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {plan.tags?.length ? "Tags: " + plan.tags.join(", ") : "Sem tags"}
+                        {plan.tags.length ? "Tags: " + plan.tags.join(", ") : "Sem tags"}
                       </Text>
                       <Pressable
                         onPress={() => applyPlanToDay(plan)}

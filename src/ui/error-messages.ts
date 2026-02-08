@@ -1,8 +1,8 @@
 type SupabaseErrorPayload = {
-  code?: string | number;
-  message?: string;
-  details?: string | null;
-  hint?: string | null;
+  code: string | number;
+  message: string;
+  details: string | null;
+  hint: string | null;
 };
 
 const extractErrorText = (error: unknown): string => {
@@ -10,7 +10,7 @@ const extractErrorText = (error: unknown): string => {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
   if (typeof error === "object") {
-    const maybe = error as SupabaseErrorPayload & { error?: unknown };
+    const maybe = error as SupabaseErrorPayload & { error: unknown };
     if (maybe.message) return maybe.message;
     if (typeof maybe.error === "string") return maybe.error;
     if (maybe.error instanceof Error) return maybe.error.message;
@@ -41,7 +41,7 @@ export const getFriendlyErrorMessage = (
   if (!raw) return fallback;
 
   const parsed = parseJsonMessage(raw);
-  const message = parsed?.message || raw;
+  const message = parsed.message || raw;
   const lower = message.toLowerCase();
 
   if (
@@ -57,7 +57,7 @@ export const getFriendlyErrorMessage = (
     lower.includes("row-level security") ||
     lower.includes("permission denied") ||
     lower.includes("not authorized") ||
-    parsed?.code === "42501"
+    parsed.code === "42501"
   ) {
     return "Você não tem permissão para essa ação.";
   }

@@ -6,7 +6,7 @@ export type PhoneNormalization = {
   isValid: boolean;
 };
 
-export function normalizePhoneBR(raw?: string | null): PhoneNormalization {
+export function normalizePhoneBR(raw: string | null): PhoneNormalization {
   if (!raw || !String(raw).trim()) return { phoneDigits: "", isValid: false };
   const onlyDigits = String(raw).replace(/\D/g, "");
   const withoutCountry = onlyDigits.startsWith("55") ? onlyDigits.slice(2) : onlyDigits;
@@ -36,7 +36,7 @@ export function getContactPhone(student: Student): ContactResult {
   return { phoneDigits: "", source: null, status: hasAny ? "invalid" : "missing" };
 }
 
-export function buildWaMeLink(waDigits: string, text?: string): string {
+export function buildWaMeLink(waDigits: string, text: string): string {
   const base = `https://wa.me/${String(waDigits).replace(/\D/g, "")}`;
   if (text && text.length) {
     return `${base}?text=${encodeURIComponent(text)}`;
@@ -47,7 +47,7 @@ export function buildWaMeLink(waDigits: string, text?: string): string {
 export async function openWhatsApp(url: string): Promise<void> {
   try {
     if (Platform.OS === "web") {
-      if (typeof window !== "undefined" && window?.open) {
+      if (typeof window !== "undefined" && window.open) {
         window.open(url, "_blank");
         return;
       }
@@ -65,33 +65,33 @@ export async function openWhatsApp(url: string): Promise<void> {
  */
 export function getDefaultMessage(
   type: "global" | "student",
-  options?: {
-    className?: string;
-    unitLabel?: string;
-    role?: "guardian" | "student" | null;
-    date?: string;
-    enabledOverride?: boolean; // For runtime toggle
+  options: {
+    className: string;
+    unitLabel: string;
+    role: "guardian" | "student" | null;
+    date: string;
+    enabledOverride: boolean; // For runtime toggle
   }
 ): string {
   // Check if explicitly enabled/disabled via override
-  const enabled = options?.enabledOverride !== undefined ? options.enabledOverride : _checkEnvEnabled();
+  const enabled = options.enabledOverride !== undefined ? options.enabledOverride : _checkEnvEnabled();
   
   if (!enabled) {
     return "";
   }
 
   if (type === "global") {
-    return `Olá! Sou o professor Gustavo da turma ${options?.className || ""} (${options?.unitLabel || ""}).`;
+    return `Olá! Sou o professor Gustavo da turma ${options.className || ""} (${options.unitLabel || ""}).`;
   }
   if (type === "student") {
-    const roleLabel = options?.role === "guardian" ? "Responsável" : "Aluno";
-    return `Olá, ${roleLabel}! Sou o treinador da turma ${options?.className || ""}. (${options?.date || ""}).`;
+    const roleLabel = options.role === "guardian" ? "Responsável" : "Aluno";
+    return `Olá, ${roleLabel}! Sou o treinador da turma ${options.className || ""}. (${options.date || ""}).`;
   }
   return "";
 }
 
 function _checkEnvEnabled(): boolean {
-  const envValue = typeof process !== "undefined" && process.env?.EXPO_PUBLIC_WHATSAPP_DEFAULT_TEXT;
+  const envValue = typeof process !== "undefined" && process.env.EXPO_PUBLIC_WHATSAPP_DEFAULT_TEXT;
   if (!envValue || envValue === "false" || envValue === "disabled") {
     return false;
   }

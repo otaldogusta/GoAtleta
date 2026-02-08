@@ -89,9 +89,9 @@ const styles = StyleSheet.create({
 });
 
 export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
-  const hasObjective = Boolean(data.objective?.trim());
-  const hasLoad = Boolean(data.plannedLoad?.trim());
-  const hasTitle = Boolean(data.title?.trim());
+  const hasObjective = Boolean(data.objective.trim());
+  const hasLoad = Boolean(data.plannedLoad.trim());
+  const hasTitle = Boolean(data.title.trim());
   const hasMaterials = (data.materials ?? []).length > 0;
 
   return (
@@ -135,7 +135,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             <View style={styles.blockHeader}>
               <Text style={styles.blockTitle}>Materiais</Text>
             </View>
-            <Text style={styles.value}>{data.materials?.join(", ")}</Text>
+            <Text style={styles.value}>{data.materials.join(", ")}</Text>
           </View>
         ) : null}
 
@@ -175,7 +175,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
           <Text>Gerado pelo app</Text>
           <Text style={styles.signature}>
             {data.coachName
-              ? `Professor(a): ${data.coachName}`
+            ? `Professor(a): ${data.coachName}`
               : "Assinatura: ____________________"}
           </Text>
         </View>

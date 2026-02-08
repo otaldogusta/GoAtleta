@@ -73,13 +73,13 @@ const requireUser = async (req: Request) => {
   const supabase = createSupabaseClient();
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return null;
+  if (error || !data.user) return null;
   return data.user;
 };
 
 const extractMeta = (html: string, key: string) => {
   const metaTag = new RegExp(
-    `<meta[^>]+(?:property|name)=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+    `<meta[^>]+(:property|name)=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
     "i"
   );
   const match = html.match(metaTag);
@@ -168,9 +168,9 @@ Deno.serve(async (req) => {
       );
       if (oembed.ok) {
         const data = (await oembed.json()) as {
-          title?: string;
-          author_name?: string;
-          thumbnail_url?: string;
+          title: string;
+          author_name: string;
+          thumbnail_url: string;
         };
         title = data.title ?? "";
         author = data.author_name ?? "";
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       description = description || extractDescription(html);
       publishedAt = publishedAt || extractPublished(html);
       if (isYouTube(normalized)) {
-        const shortMatch = html.match(/"shortDescription":"(.*?)"/);
+        const shortMatch = html.match(/"shortDescription":"(.*)"/);
         if (shortMatch && !description) {
           try {
             description = JSON.parse(`"${shortMatch[1]}"`);
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
         if (dateMatch && !publishedAt) {
           publishedAt = dateMatch[1];
         }
-        const channelMatch = html.match(/"ownerChannelName":"(.*?)"/);
+        const channelMatch = html.match(/"ownerChannelName":"(.*)"/);
         if (channelMatch && !author) {
           try {
             author = JSON.parse(`"${channelMatch[1]}"`);

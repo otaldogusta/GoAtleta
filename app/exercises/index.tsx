@@ -124,10 +124,10 @@ export default function ExercisesScreen() {
       return;
     }
     if (!videoUrl.trim()) {
-      Alert.alert("Link obrigatorio", "Cole o link do video.");
+      Alert.alert("Link obrigat?rio", "Cole o link do v?deo.");
       return;
     }
-    const fallbackTitle = title.trim() || "Video";
+    const fallbackTitle = title.trim() || "V?deo";
     const nowIso = new Date().toISOString();
     const exercise: Exercise = {
       id: editingId ?? "ex_" + Date.now(),
@@ -147,7 +147,7 @@ export default function ExercisesScreen() {
     }
     clearForm();
     await load();
-    Alert.alert("Exercicio salvo", "Exercicio salvo com sucesso.");
+    Alert.alert("Exerc?cio salvo", "Exerc?cio salvo com sucesso.");
   };
 
   useEffect(() => {
@@ -182,11 +182,11 @@ export default function ExercisesScreen() {
           throw new Error(text || "Falha ao buscar dados do link.");
         }
         const data = JSON.parse(text) as {
-          title?: string;
-          author?: string;
-          host?: string;
-          description?: string;
-          publishedAt?: string;
+          title: string;
+          author: string;
+          host: string;
+          description: string;
+          publishedAt: string;
         };
         if (!title.trim() && data.title) {
           setTitle(data.title);
@@ -197,8 +197,8 @@ export default function ExercisesScreen() {
         setMetaStatus("Informações preenchidas automaticamente.");
       } catch (error) {
         setMetaStatus(
-          error instanceof Error
-            ? error.message
+          error instanceof Error ?
+            error.message
             : "Não foi possível ler o link."
         );
       } finally {
@@ -403,7 +403,7 @@ export default function ExercisesScreen() {
               }}
             >
               <View style={{ flexDirection: "row", gap: 10 }}>
-                {getThumbnail(item.videoUrl) ? (
+                { getThumbnail(item.videoUrl) ? (
                   <Image
                     source={{ uri: getThumbnail(item.videoUrl) }}
                     style={{
@@ -433,19 +433,19 @@ export default function ExercisesScreen() {
                   <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
                     {item.title}
                   </Text>
-                  {item.source ? (
+                  { item.source ? (
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
                       Fonte: {item.source}
                     </Text>
                   ) : null}
-                  {item.notes ? (
+                  { item.notes ? (
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
                       {item.notes}
                     </Text>
                   ) : null}
                 </View>
               </View>
-              {expandedId === item.id ? (
+              { expandedId === item.id ? (
                 <View style={{ gap: 8 }}>
                   <View style={{ flexDirection: "row", gap: 8 }}>
                     <Pressable
@@ -546,7 +546,7 @@ export default function ExercisesScreen() {
               ) : null}
             </Pressable>
           ))}
-          {!filteredItems.length ? (
+          { !filteredItems.length ? (
             <Text style={{ color: colors.muted }}>
               Nenhum exercicio cadastrado.
             </Text>

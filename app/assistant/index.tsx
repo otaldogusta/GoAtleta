@@ -1,29 +1,30 @@
-import {
-  useEffect,
-  useMemo,
-  useState } from "react";
-import {
-  Alert,
-  Keyboard,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import {
+    useEffect,
+    useMemo,
+    useState
+} from "react";
+import {
+    Alert,
+    Keyboard,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable } from "../../src/ui/Pressable";
 
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../../src/api/config";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { getValidAccessToken } from "../../src/auth/session";
-import { getClasses, saveTrainingPlan } from "../../src/db/seed";
 import type { ClassGroup, TrainingPlan } from "../../src/core/models";
-import { Button } from "../../src/ui/Button";
+import { getClasses, saveTrainingPlan } from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useAppTheme } from "../../src/ui/app-theme";
-import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
+import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -50,7 +51,7 @@ type DraftTraining = {
 type AssistantResponse = {
   reply: string;
   sources: AssistantSource[];
-  draftTraining?: DraftTraining | null;
+  draftTraining: DraftTraining | null;
 };
 
 const sanitizeList = (value: unknown) =>
@@ -64,14 +65,14 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
   return {
     id: "t_ai_" + Date.now(),
     classId,
-    title: String(draft.title ?? "Planejamento sugerido"),
+    title: String(draft.title || "Planejamento sugerido"),
     tags: sanitizeList(draft.tags),
     warmup: sanitizeList(draft.warmup),
     main: sanitizeList(draft.main),
     cooldown: sanitizeList(draft.cooldown),
-    warmupTime: String(draft.warmupTime ?? ""),
-    mainTime: String(draft.mainTime ?? ""),
-    cooldownTime: String(draft.cooldownTime ?? ""),
+    warmupTime: String(draft.warmupTime || ""),
+    mainTime: String(draft.mainTime || ""),
+    cooldownTime: String(draft.cooldownTime || ""),
     createdAt: nowIso,
   };
 };
@@ -110,7 +111,7 @@ export default function AssistantScreen() {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const onShow = (event: any) => {
-      const height = event?.endCoordinates?.height ?? 0;
+      const height = event.endCoordinates.height ?? 0;
       setKeyboardHeight(height);
     };
     const onHide = () => setKeyboardHeight(0);
@@ -180,7 +181,7 @@ export default function AssistantScreen() {
       const data = JSON.parse(payloadText) as AssistantResponse;
       const reply =
         typeof data.reply === "string" && data.reply.trim()
-          ? data.reply
+           ? data.reply
           : "Sem resposta do assistente. Tente novamente.";
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setSources(Array.isArray(data.sources) ? data.sources : []);
@@ -241,7 +242,7 @@ export default function AssistantScreen() {
           Assistente
         </Text>
         <Text style={{ color: colors.muted }}>
-          Crie planejamentos e planos com referencias
+          Crie planejamentos e planos com refer?ncias
         </Text>
       </View>
 
@@ -317,7 +318,7 @@ export default function AssistantScreen() {
           </View>
         ))}
 
-        {draft ? (
+        { draft ? (
           <View
             style={{
               padding: 14,
@@ -337,7 +338,7 @@ export default function AssistantScreen() {
               <Text style={{ color: colors.muted }}>
                 {"Turma: " + className}
               </Text>
-              {selectedClass ? (
+              { selectedClass ? (
                 <ClassGenderBadge gender={selectedClass.gender} size="sm" />
               ) : null}
             </View>
@@ -394,7 +395,7 @@ export default function AssistantScreen() {
                 {renderList(draft.cooldown)}
               </Text>
             </View>
-            {draft.tags?.length ? (
+            { draft.tags.length ? (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                 {draft.tags.map((tag) => (
                   <View
@@ -417,7 +418,7 @@ export default function AssistantScreen() {
           </View>
         ) : null}
 
-        {showSavedLink ? (
+        { showSavedLink ? (
           <View
             style={{
               padding: 14,
@@ -443,7 +444,7 @@ export default function AssistantScreen() {
           </View>
         ) : null}
 
-        {sources.length > 0 ? (
+        { sources.length > 0 ? (
           <View
             style={{
               padding: 14,

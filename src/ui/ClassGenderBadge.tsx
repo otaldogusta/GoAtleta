@@ -14,8 +14,8 @@ export function ClassGenderBadge({
   gender,
   size = "sm",
 }: {
-  gender?: ClassGender;
-  size?: BadgeSize;
+  gender: ClassGender;
+  size: BadgeSize;
 }) {
   const { colors } = useAppTheme();
   if (!gender) return null;
@@ -25,8 +25,8 @@ export function ClassGenderBadge({
     resolved === "masculino"
       ? { bg: colors.infoBg, text: colors.infoText }
       : resolved === "feminino"
-        ? { bg: colors.warningBg, text: colors.warningText }
-        : { bg: colors.secondaryBg, text: colors.text };
+      ? { bg: colors.warningBg, text: colors.warningText }
+      : { bg: colors.secondaryBg, text: colors.text };
   const padding = size === "md" ? { y: 4, x: 8 } : { y: 2, x: 6 };
   const fontSize = size === "md" ? 11 : 10;
   return (

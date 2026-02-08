@@ -11,12 +11,12 @@ import { loadSession, saveSession } from "./session";
 type AuthContextValue = {
   session: AuthSession | null;
   loading: boolean;
-  signIn: (email: string, password: string, remember?: boolean) => Promise<void>;
-  signUp: (email: string, password: string, redirectPath?: string) => Promise<AuthSession | null>;
-  signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath?: string) => Promise<void>;
+  signIn: (email: string, password: string, remember: boolean) => Promise<void>;
+  signUp: (email: string, password: string, redirectPath: string) => Promise<AuthSession | null>;
+  signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath: string) => Promise<void>;
   exchangeCodeForSession: (code: string) => Promise<void>;
-  consumeAuthUrl: (url?: string) => Promise<AuthSession | null>;
-  resetPassword: (email: string, redirectTo?: string) => Promise<void>;
+  consumeAuthUrl: (url: string) => Promise<AuthSession | null>;
+  resetPassword: (email: string, redirectTo: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -40,10 +40,10 @@ const normalizeAuthSession = (payload: Record<string, any>): AuthSession => {
 const authFetch = async (
   path: string,
   body: Record<string, unknown>,
-  options?: { redirectTo?: string }
+  options: { redirectTo: string }
 ) => {
   const base = SUPABASE_URL.replace(/\/$/, "");
-  const redirect = options?.redirectTo
+  const redirect = options.redirectTo
     ? `${path.includes("?") ? "&" : "?"}redirect_to=${encodeURIComponent(
         options.redirectTo
       )}`
@@ -64,7 +64,7 @@ const authFetch = async (
   return text ? (JSON.parse(text) as Record<string, any>) : {};
 };
 
-const parseAuthSession = (url?: string) => {
+const parseAuthSession = (url: string) => {
   if (!url) return null;
   const [base, hash] = url.split("#");
   const query = hash || (base.includes("?") ? base.split("?")[1] : "");
@@ -76,12 +76,12 @@ const parseAuthSession = (url?: string) => {
   const expiresAtRaw = params.get("expires_at");
   const expiresInRaw = params.get("expires_in");
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const expiresAt =
-    expiresAtRaw && Number.isFinite(Number(expiresAtRaw))
-      ? Number(expiresAtRaw)
-      : expiresInRaw && Number.isFinite(Number(expiresInRaw))
-      ? nowSeconds + Number(expiresInRaw)
-      : undefined;
+  let expiresAt: number | undefined;
+  if (expiresAtRaw && Number.isFinite(Number(expiresAtRaw))) {
+    expiresAt = Number(expiresAtRaw);
+  } else if (expiresInRaw && Number.isFinite(Number(expiresInRaw))) {
+    expiresAt = nowSeconds + Number(expiresInRaw);
+  }
   return {
     access_token: accessToken,
     refresh_token: refreshToken,
@@ -89,12 +89,12 @@ const parseAuthSession = (url?: string) => {
   } as AuthSession;
 };
 
-const buildRedirectUrl = (path?: string) => {
+const buildRedirectUrl = (path: string) => {
   const normalized = (path ?? "login").replace(/^\/+/, "");
   return Linking.createURL(normalized);
 };
 
-const buildWebRedirectUrl = (path?: string) => {
+const buildWebRedirectUrl = (path: string) => {
   if (typeof window === "undefined") return "";
   const normalized = (path ?? "").replace(/^\/+/, "");
   return normalized ? `${window.location.origin}/${normalized}` : window.location.origin;
@@ -112,8 +112,8 @@ const fetchUser = async (accessToken: string) => {
   if (!res.ok) return null;
   const text = await res.text();
   if (!text) return null;
-  const payload = JSON.parse(text) as { id?: string; email?: string };
-  return payload?.id ? payload : null;
+  const payload = JSON.parse(text) as { id: string; email: string };
+  return payload.id ? payload : null;
 };
 
 export function AuthProvider({
@@ -121,7 +121,7 @@ export function AuthProvider({
   initialSession,
 }: {
   children: React.ReactNode;
-  initialSession?: AuthSession | null;
+  initialSession: AuthSession | null;
 }) {
   const [session, setSession] = useState<AuthSession | null>(
     initialSession ?? null
@@ -150,7 +150,7 @@ export function AuthProvider({
   }, [initialSession]);
 
   useEffect(() => {
-    const userId = session?.user?.id;
+    const userId = session.user.id;
     if (userId) {
       setSentryUser(userId);
     } else {
@@ -168,7 +168,7 @@ export function AuthProvider({
     await saveSession(next, remember);
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, redirectPath?: string) => {
+  const signUp = useCallback(async (email: string, password: string, redirectPath: string) => {
     const redirectTo = redirectPath
       ? Platform.OS === "web"
         ? buildWebRedirectUrl(redirectPath)
@@ -191,7 +191,7 @@ export function AuthProvider({
   }, []);
 
   const signInWithOAuth = useCallback(
-    async (provider: "google" | "facebook" | "apple", redirectPath?: string) => {
+    async (provider: "google" | "facebook" | "apple", redirectPath: string) => {
       // For web, redirect directly to Supabase with custom scheme
       if (Platform.OS === "web") {
         const normalized = (redirectPath ?? "").replace(/^\/+/, "");
@@ -250,9 +250,9 @@ export function AuthProvider({
     await saveSession(next, true);
   }, []);
 
-  const consumeAuthUrl = useCallback(async (url?: string) => {
+  const consumeAuthUrl = useCallback(async (url: string) => {
     const sessionData = parseAuthSession(url);
-    if (!sessionData?.access_token) return null;
+    if (!sessionData.access_token) return null;
     const user = await fetchUser(sessionData.access_token);
     const next: AuthSession = {
       ...sessionData,
@@ -263,7 +263,7 @@ export function AuthProvider({
     return next;
   }, []);
 
-  const resetPassword = useCallback(async (email: string, redirectTo?: string) => {
+  const resetPassword = useCallback(async (email: string, redirectTo: string) => {
     await authFetch("/auth/v1/recover", {
       email,
       redirect_to: redirectTo,

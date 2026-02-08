@@ -1,4 +1,4 @@
-export const normalizeUnitKey = (value?: string | null) => {
+export const normalizeUnitKey = (value: string | null) => {
   if (!value) return "";
   return value
     .normalize("NFD")

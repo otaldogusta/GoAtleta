@@ -16,11 +16,11 @@ type FadeHorizontalScrollProps = Omit<
   "horizontal" | "showsHorizontalScrollIndicator" | "contentContainerStyle" | "style"
 > & {
   children: ReactNode;
-  containerStyle?: StyleProp<ViewStyle>;
-  scrollStyle?: StyleProp<ViewStyle>;
-  contentContainerStyle?: StyleProp<ViewStyle>;
-  fadeWidth?: number;
-  fadeColor?: string;
+  containerStyle: StyleProp<ViewStyle>;
+  scrollStyle: StyleProp<ViewStyle>;
+  contentContainerStyle: StyleProp<ViewStyle>;
+  fadeWidth: number;
+  fadeColor: string;
 };
 
 export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollProps>(
@@ -68,7 +68,7 @@ export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollP
   }, []);
 
   const updateVisibility = useCallback(
-    (offset?: number) => {
+    (offset: number) => {
       const layoutWidth = layoutWidthRef.current;
       const contentWidth = contentWidthRef.current;
       if (!layoutWidth || !contentWidth || contentWidth <= layoutWidth + 1) {

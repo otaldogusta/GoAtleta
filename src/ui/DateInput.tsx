@@ -1,14 +1,14 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
-  TextInput,
-  View,
+    TextInput,
+    View,
 } from "react-native";
 import { Pressable } from "./Pressable";
-import { Ionicons } from "@expo/vector-icons";
 
 import { useAppTheme } from "./app-theme";
 
-const formatShortDate = (value?: string) => {
+const formatShortDate = (value: string) => {
   if (!value) return "";
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return value;
@@ -55,8 +55,8 @@ export function DateInput({
 }: {
   value: string;
   onChange: (next: string) => void;
-  placeholder?: string;
-  onOpenCalendar?: () => void;
+  placeholder: string;
+  onOpenCalendar: () => void;
 }) {
   const { colors } = useAppTheme();
   const [inputValue, setInputValue] = useState("");
@@ -75,6 +75,9 @@ export function DateInput({
         borderRadius: 12,
         backgroundColor: colors.inputBg,
         paddingHorizontal: 12,
+        overflow: "hidden",
+        minHeight: 44,
+        position: "relative",
       }}
     >
       <TextInput
@@ -97,12 +100,22 @@ export function DateInput({
         style={{
           flex: 1,
           paddingVertical: 12,
+          paddingRight: 36,
           color: colors.inputText,
+          backgroundColor: "transparent",
         }}
       />
       <Pressable
         onPress={onOpenCalendar}
-        style={{ paddingLeft: 8, paddingVertical: 8 }}
+        style={{
+          position: "absolute",
+          right: 6,
+          top: 0,
+          bottom: 0,
+          width: 32,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
         <Ionicons name="calendar-outline" size={18} color={colors.muted} />
       </Pressable>

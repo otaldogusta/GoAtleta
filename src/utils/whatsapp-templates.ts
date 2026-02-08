@@ -15,14 +15,14 @@ export interface WhatsAppTemplate {
   id: WhatsAppTemplateId;
   title: string;
   body: string;
-  requires?: string[];
+  requires: string[];
 }
 
 export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateId, WhatsAppTemplate> = {
   absent_today: {
     id: "absent_today",
     title: "Faltou hoje",
-    body: "Olá! Aqui é o prof. {coachName}.\nHoje ({dateLabel}) tivemos aula da turma {className} ({unitLabel}) e sentimos falta do(a) {studentName}.\nPodemos contar com a presença na próxima aula? 🙂",
+    body: "Olá! Aqui é o prof. {coachName}.\nHoje ({dateLabel}) tivemos aula da turma {className} ({unitLabel}) e sentimos falta do(a) {studentName}.\nPodemos contar com a presença na próxima aula 🙂",
   },
   class_reminder: {
     id: "class_reminder",
@@ -62,13 +62,13 @@ export interface TemplatePlaceholders {
   className: string;
   unitLabel: string;
   dateLabel: string;
-  studentName?: string;
-  nextClassDate?: string;
-  nextClassTime?: string;
-  groupInviteLink?: string;
-  inviteLink?: string;
-  highlightNote?: string;
-  customText?: string;
+  studentName: string;
+  nextClassDate: string;
+  nextClassTime: string;
+  groupInviteLink: string;
+  inviteLink: string;
+  highlightNote: string;
+  customText: string;
 }
 
 /**

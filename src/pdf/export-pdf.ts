@@ -27,7 +27,7 @@ export const exportPdf = async ({
 }: {
   html: string;
   fileName: string;
-  webDocument?: ReactElement;
+  webDocument: ReactElement;
 }) => {
   if (Platform.OS !== "web") {
     // Mobile: Use Print and Share APIs
@@ -111,7 +111,7 @@ async function tryOpenPdf(uri: string): Promise<boolean> {
 }
 
 async function writePdfWithName(
-  result: { uri: string; base64?: string | null },
+  result: { uri: string; base64: string | null },
   fileName: string
 ) {
   const cleanName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;

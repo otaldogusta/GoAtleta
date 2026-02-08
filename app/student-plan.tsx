@@ -19,7 +19,7 @@ export default function StudentPlanScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!student?.classId) {
+      if (!student.classId) {
         if (alive) {
           setPlan(null);
           setLoading(false);
@@ -36,7 +36,7 @@ export default function StudentPlanScreen() {
     return () => {
       alive = false;
     };
-  }, [student?.classId]);
+  }, [student.classId]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -60,7 +60,7 @@ export default function StudentPlanScreen() {
           </Pressable>
         </View>
 
-        {loading ? (
+        { loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : !plan ? (
           <View
@@ -112,7 +112,7 @@ export default function StudentPlanScreen() {
               <Text style={{ color: colors.text, fontWeight: "700" }}>
                 Aquecimento
               </Text>
-              {plan.warmup.length ? (
+              { plan.warmup.length ? (
                 plan.warmup.map((item, index) => (
                   <Text key={index} style={{ color: colors.text }}>
                     - {item}
@@ -136,7 +136,7 @@ export default function StudentPlanScreen() {
               <Text style={{ color: colors.text, fontWeight: "700" }}>
                 Parte principal
               </Text>
-              {plan.main.length ? (
+              { plan.main.length ? (
                 plan.main.map((item, index) => (
                   <Text key={index} style={{ color: colors.text }}>
                     - {item}
@@ -160,7 +160,7 @@ export default function StudentPlanScreen() {
               <Text style={{ color: colors.text, fontWeight: "700" }}>
                 Volta a calma
               </Text>
-              {plan.cooldown.length ? (
+              { plan.cooldown.length ? (
                 plan.cooldown.map((item, index) => (
                   <Text key={index} style={{ color: colors.text }}>
                     - {item}

@@ -27,7 +27,7 @@ const monthNames = [
   "Dezembro",
 ];
 
-const formatShortDate = (value?: string) => {
+const formatShortDate = (value: string) => {
   if (!value) return "";
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return value;
@@ -35,7 +35,7 @@ const formatShortDate = (value?: string) => {
   return `${day}/${month}/${year}`;
 };
 
-const parseIsoDate = (value?: string) => {
+const parseIsoDate = (value: string) => {
   if (!value) return null;
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (match) {
@@ -61,7 +61,7 @@ const calculateAge = (iso: string) => {
   return age;
 };
 
-const unitLabel = (value?: string) =>
+const unitLabel = (value: string) =>
   value && value.trim() ? value.trim() : "Sem unidade";
 
 export default function BirthdaysScreen() {
@@ -97,7 +97,7 @@ export default function BirthdaysScreen() {
     if (unitFilter === "Todas") return students;
     return students.filter((student) => {
       const cls = classes.find((item) => item.id === student.classId);
-      return unitLabel(cls?.unit) === unitFilter;
+      return unitLabel(cls.unit) === unitFilter;
     });
   }, [classes, students, unitFilter]);
 
@@ -121,7 +121,7 @@ export default function BirthdaysScreen() {
       if (!date) return;
       const month = date.getMonth();
       const cls = classes.find((item) => item.id === student.classId);
-      const unitName = unitLabel(cls?.unit);
+      const unitName = unitLabel(cls.unit);
       if (!byMonth.has(month)) byMonth.set(month, new Map());
       const monthMap = byMonth.get(month);
       if (!monthMap.has(unitName)) monthMap.set(unitName, []);
@@ -151,7 +151,7 @@ export default function BirthdaysScreen() {
           </Text>
         </View>
 
-        {birthdayToday.length ? (
+        { birthdayToday.length ? (
           <View
             style={{
               padding: 16,
@@ -186,8 +186,8 @@ export default function BirthdaysScreen() {
                   {formatShortDate(student.birthDate)} -{" "}
                   {(() => {
                     const cls = classes.find((item) => item.id === student.classId);
-                    const unitName = unitLabel(cls?.unit);
-                    const className = cls?.name ?? "Turma";
+                    const unitName = unitLabel(cls.unit);
+                    const className = cls.name ?? "Turma";
                     return `${unitName} | ${className}`;
                   })()}
                 </Text>
@@ -240,7 +240,7 @@ export default function BirthdaysScreen() {
           </FadeHorizontalScroll>
         </View>
 
-        {monthGroups.length ? (
+        { monthGroups.length ? (
           monthGroups.map(([month, unitGroups]) => {
             const monthKey = `m-${month}`;
             const totalCount = unitGroups.reduce(
@@ -296,7 +296,7 @@ export default function BirthdaysScreen() {
                           </Text>
                           <Text style={{ color: colors.muted, fontSize: 12 }}>
                             {entries.length === 1
-                              ? "1 aluno"
+                               ? "1 aluno"
                               : `${entries.length} alunos`}
                           </Text>
                         </View>

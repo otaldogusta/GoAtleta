@@ -30,8 +30,7 @@ export default function LoginScreen() {
   const { colors, mode } = useAppTheme();
 
 
-  const solidInputBg =
-    mode === "dark" ? "rgba(10, 16, 29, 0.25)" : "rgba(255, 255, 255, 0.12)";
+  const solidInputBg = colors.inputBg;
   const { signIn, resetPassword, signInWithOAuth } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -175,11 +174,11 @@ export default function LoginScreen() {
     try {
       const webOrigin =
         Platform.OS === "web" && typeof window !== "undefined"
-          ? window.location.origin
+           ? window.location.origin
           : "";
       const redirectTo =
         Platform.OS === "web"
-          ? `${webOrigin || "http://localhost:8081"}/reset-password`
+           ? `${webOrigin || "http://localhost:8081"}/reset-password`
           : Linking.createURL("reset-password");
       await resetPassword(email.trim(), redirectTo);
       setMessage("Enviamos um link de recuperação para seu email.");
@@ -189,7 +188,7 @@ export default function LoginScreen() {
       const detail = error instanceof Error ? error.message : "Falha ao enviar link.";
       setMessage(
         detail.toLowerCase().includes("rate limit")
-          ? "Aguarde alguns minutos e tente novamente."
+           ? "Aguarde alguns minutos e tente novamente."
           : "Não foi possível enviar o link. Verifique o email e tente novamente."
       );
     } finally {
@@ -207,7 +206,7 @@ export default function LoginScreen() {
         error instanceof Error ? error.message.toLowerCase() : "Falha ao autenticar.";
       setMessage(
         detail.includes("cancel")
-          ? "Login cancelado."
+           ? "Login cancelado."
           : "Não foi possível entrar com essa conta."
       );
     } finally {
@@ -241,7 +240,7 @@ export default function LoginScreen() {
               ],
             }}
           >
-            {showRememberToast && rememberTouched ? (
+            { showRememberToast && rememberTouched ? (
               <Animated.View
                 style={{
                   position: "absolute",
@@ -265,7 +264,7 @@ export default function LoginScreen() {
                 }}
               >
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sess\u00e3o n\u00e3o ser\u00e1 lembrada.
+                  Sessão não será lembrada.
                 </Text>
               </Animated.View>
             ) : null}
@@ -351,7 +350,7 @@ export default function LoginScreen() {
                 />
               </View>
 
-              {!showReset ? (
+              { !showReset ? (
                 <>
                   <View
                     style={{
@@ -384,7 +383,7 @@ export default function LoginScreen() {
                         outlineWidth: 0,
                     }}
                     />
-                    {password.length > 0 ? (
+                    { password.length > 0 ? (
                       <Pressable
                         onPress={() => setShowPassword((prev) => !prev)}
                         style={{ paddingLeft: 8, paddingVertical: 8 }}
@@ -398,11 +397,11 @@ export default function LoginScreen() {
                     ) : null}
                   </View>
 
-                  {message ? (
+                  { message ? (
                     <Text
                       style={{
                         color: message.startsWith("!")
-                          ? colors.dangerSolidBg
+                           ? colors.dangerSolidBg
                           : colors.muted,
                       }}
                     >
@@ -448,14 +447,14 @@ export default function LoginScreen() {
                         justifyContent: "center",
                       }}
                     >
-                      {rememberMe ? (
+                      { rememberMe ? (
                         <Ionicons name="checkmark" size={12} color={colors.primaryText} />
                       ) : null}
                     </View>
                     <Text style={{ color: colors.muted }}>Lembre de mim</Text>
                   </Pressable>
 
-                  {failedLoginAttempt && password.length > 0 ? (
+                  { failedLoginAttempt && password.length > 0 ? (
                     <Pressable
                       onPress={() => {
                         setShowReset(true);
@@ -525,11 +524,11 @@ export default function LoginScreen() {
                     Enviaremos um link para criar uma nova senha.
                   </Text>
 
-                  {message ? (
+                  { message ? (
                     <Text
                       style={{
                         color: message.startsWith("!")
-                          ? colors.dangerSolidBg
+                           ? colors.dangerSolidBg
                           : colors.muted,
                       }}
                     >
@@ -537,7 +536,7 @@ export default function LoginScreen() {
                     </Text>
                   ) : null}
 
-                  {resetCountdown > 0 ? (
+                  { resetCountdown > 0 ? (
                     <Text style={{ color: colors.muted }}>
                       Tempo restante: {formatCountdown(resetCountdown)}
                     </Text>
@@ -550,14 +549,14 @@ export default function LoginScreen() {
                     loading={busy}
                   />
 
-                  {resetSent && resetCountdown === 0 ? (
+                  { resetSent && resetCountdown === 0 ? (
                     <Pressable
                       onPress={handleReset}
                       disabled={busy}
                       style={{ alignSelf: "center", paddingVertical: 6 }}
                     >
                       <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                        Não recebeu o link? Clique aqui
+                        Não recebeu o link Clique aqui
                       </Text>
                     </Pressable>
                   ) : null}
@@ -589,7 +588,7 @@ export default function LoginScreen() {
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
-      {busy && !showReset ? (
+      { busy && !showReset ? (
         <View
           style={{
             position: "absolute",

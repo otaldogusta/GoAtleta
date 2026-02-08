@@ -9,7 +9,7 @@ export const logNavigation = (pathname: string) => {
   });
 };
 
-export const logAction = (name: string, data?: Record<string, unknown>) => {
+export const logAction = (name: string, data: Record<string, unknown>) => {
   if (!name) return;
   Sentry.addBreadcrumb({
     category: "action",

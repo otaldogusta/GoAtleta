@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+﻿import { Text, View } from "react-native";
 import type { ClassGender } from "../core/models";
 import { useAppTheme } from "./app-theme";
 import { getClassPalette } from "./class-colors";
@@ -6,16 +6,33 @@ import { getUnitPalette } from "./unit-colors";
 import { ClassGenderBadge } from "./ClassGenderBadge";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
 
+const decodeUnicodeEscapes = (value: string) =>
+  value.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) =>
+    String.fromCharCode(parseInt(code, 16))
+  );
+
+const normalizeText = (value: string) => {
+  if (!value) return value;
+  const decoded = decodeUnicodeEscapes(value);
+  if (!/\\u00[0-9a-fA-F]{2}|[ÃÂ�]/.test(decoded)) return decoded;
+  try {
+    const fixed = decodeURIComponent(escape(decoded));
+    return /[ÃÂ�]/.test(fixed) ? decoded : fixed;
+  } catch {
+    return decoded;
+  }
+};
+
 type ClassContextHeaderProps = {
-  title?: string;
+  title: string;
   className: string;
-  unit?: string | null;
-  ageBand?: string | null;
-  gender?: ClassGender;
-  dateLabel?: string;
-  timeLabel?: string;
-  notice?: string;
-  classColorKey?: string | null;
+  unit: string | null;
+  ageBand: string | null;
+  gender: ClassGender;
+  dateLabel: string;
+  timeLabel: string;
+  notice: string;
+  classColorKey: string | null;
 };
 
 export function ClassContextHeader({
@@ -30,7 +47,14 @@ export function ClassContextHeader({
   classColorKey,
 }: ClassContextHeaderProps) {
   const { colors } = useAppTheme();
-  const unitLabel = unit?.trim();
+  const unitLabel = unit?.trim() ?? "";
+  const safeTitle = normalizeText(title);
+  const safeClassName = normalizeText(className);
+  const safeUnitLabel = normalizeText(unitLabel);
+  const safeAgeBand = normalizeText(ageBand ?? "");
+  const safeDateLabel = normalizeText(dateLabel);
+  const safeTimeLabel = normalizeText(timeLabel);
+  const safeNotice = normalizeText(notice);
   const unitPalette = unitLabel ? getUnitPalette(unitLabel, colors) : null;
   const classPalette = getClassPalette(classColorKey, colors, unitLabel);
   const hasChips =
@@ -38,9 +62,9 @@ export function ClassContextHeader({
 
   return (
     <View style={{ gap: 8, marginBottom: 12 }}>
-      {title ? (
+      {safeTitle ? (
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-          {title}
+          {safeTitle}
         </Text>
       ) : null}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -53,7 +77,7 @@ export function ClassContextHeader({
           }}
         />
         <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
-          {className}
+          {safeClassName}
         </Text>
       </View>
       {hasChips ? (
@@ -71,7 +95,7 @@ export function ClassContextHeader({
               }}
             >
               <Text style={{ color: unitPalette.text, fontWeight: "600", fontSize: 12 }}>
-                {unitLabel}
+                {safeUnitLabel}
               </Text>
             </View>
           ) : null}
@@ -85,7 +109,7 @@ export function ClassContextHeader({
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
-                {"Faixa " + ageBand}
+                {"Faixa " + safeAgeBand}
               </Text>
             </View>
           ) : null}
@@ -100,7 +124,7 @@ export function ClassContextHeader({
               }}
             >
               <Text style={{ color: colors.text, fontSize: 12 }}>
-                {"Data: " + dateLabel}
+                {"Data: " + safeDateLabel}
               </Text>
             </View>
           ) : null}
@@ -114,13 +138,13 @@ export function ClassContextHeader({
               }}
             >
               <Text style={{ color: colors.text, fontSize: 12 }}>
-                {"Horário: " + timeLabel}
+                {"Horário: " + safeTimeLabel}
               </Text>
             </View>
           ) : null}
         </FadeHorizontalScroll>
       ) : null}
-      {notice ? (
+      {safeNotice ? (
         <View
           style={{
             marginTop: 6,
@@ -133,9 +157,10 @@ export function ClassContextHeader({
             alignSelf: "flex-start",
           }}
         >
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{notice}</Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>{safeNotice}</Text>
         </View>
       ) : null}
     </View>
   );
 }
+

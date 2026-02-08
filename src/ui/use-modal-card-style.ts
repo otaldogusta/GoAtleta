@@ -5,13 +5,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "./app-theme";
 
 type ModalCardOptions = {
-  maxHeight?: string;
-  padding?: number;
-  radius?: number;
-  gap?: number;
-  fullWidth?: boolean;
-  maxWidth?: number;
-  flushBottom?: boolean;
+  maxHeight: string;
+  padding: number;
+  radius: number;
+  gap: number;
+  fullWidth: boolean;
+  maxWidth: number;
+  flushBottom: boolean;
 };
 
 export function useModalCardStyle(options: ModalCardOptions = {}) {
