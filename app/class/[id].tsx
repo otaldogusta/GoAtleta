@@ -692,18 +692,37 @@ export default function ClassDetails() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+              <View
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  backgroundColor: classPalette.bg,
+                }}
+              />
+              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text, flex: 1 }}>
+                {className}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => router.push({ pathname: "/classes", params: { edit: cls.id } })}
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                backgroundColor: classPalette.bg,
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: colors.secondaryBg,
+                alignItems: "center",
+                justifyContent: "center",
               }}
-            />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              {className}
-            </Text>
+            >
+              <MaterialCommunityIcons
+                name="pencil"
+                size={20}
+                color={colors.text}
+              />
+            </Pressable>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <View style={getChipStyle(true, unitPalette)}>

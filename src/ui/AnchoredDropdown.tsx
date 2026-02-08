@@ -1,13 +1,13 @@
 import React from "react";
 import {
-  Animated,
-  Dimensions,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleProp,
-  View,
-  ViewStyle,
+    Animated,
+    Dimensions,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleProp,
+    View,
+    ViewStyle,
 } from "react-native";
 
 type Layout = { x: number; y: number; width: number; height: number };

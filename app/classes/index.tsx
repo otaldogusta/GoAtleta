@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     KeyboardAvoidingView,
@@ -42,6 +42,7 @@ import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 export default function ClassesScreen() {
   const router = useRouter();
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
@@ -549,6 +550,17 @@ export default function ClassesScreen() {
         alive.current = false;
       };
     }, [loadClasses])
+
+    useEffect(() => {
+      if (edit && classes.length > 0 && !showEditModal) {
+        const classToEdit = classes.find((cls) => cls.id === edit);
+        if (classToEdit) {
+          openEditModal(classToEdit);
+          // Clear the edit parameter from URL
+          router.replace("/classes");
+        }
+      }
+    }, [edit, classes, showEditModal, openEditModal, router]);
   );
 
   const toggleDay = (value: number) => {
@@ -869,7 +881,23 @@ export default function ClassesScreen() {
     }, 10);
   };
 
-  const closeAllPickers = useCallback(() => {\n    setShowUnitFilterPicker(false);\n    setShowDurationPicker(false);\n    setShowCycleLengthPicker(false);\n    setShowMvLevelPicker(false);\n    setShowAgeBandPicker(false);\n    setShowGenderPicker(false);\n    setShowModalityPicker(false);\n    setShowGoalPicker(false);\n    setShowEditDurationPicker(false);\n    setShowEditCycleLengthPicker(false);\n    setShowEditMvLevelPicker(false);\n    setShowEditAgeBandPicker(false);\n    setShowEditGenderPicker(false);\n    setShowEditModalityPicker(false);\n    setShowEditGoalPicker(false);\n  }, []);
+  const closeAllPickers = useCallback(() => {
+    setShowUnitFilterPicker(false);
+    setShowDurationPicker(false);
+    setShowCycleLengthPicker(false);
+    setShowMvLevelPicker(false);
+    setShowAgeBandPicker(false);
+    setShowGenderPicker(false);
+    setShowModalityPicker(false);
+    setShowGoalPicker(false);
+    setShowEditDurationPicker(false);
+    setShowEditCycleLengthPicker(false);
+    setShowEditMvLevelPicker(false);
+    setShowEditAgeBandPicker(false);
+    setShowEditGenderPicker(false);
+    setShowEditModalityPicker(false);
+    setShowEditGoalPicker(false);
+  }, []);
 
   const toggleUnitFilter = useCallback(() => {
     setShowDurationPicker(false);
@@ -1425,8 +1453,6 @@ export default function ClassesScreen() {
         return (
           <Pressable
             onPress={() => onOpen(item)}
-            onLongPress={() => onEdit(item)}
-            delayLongPress={250}
             style={{
               padding: 14,
               borderRadius: 18,
@@ -1538,7 +1564,9 @@ export default function ClassesScreen() {
             paddingTop: 16,
           }}
           keyboardShouldPersistTaps="handled"
-          onScroll={syncPickerLayouts}\n          onScrollBeginDrag={closeAllPickers}\n          scrollEventThrottle={16}
+          onScroll={syncPickerLayouts}
+          onScrollBeginDrag={closeAllPickers}
+          scrollEventThrottle={16}
         >
         <View style={{ marginBottom: 4 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
@@ -2322,7 +2350,9 @@ export default function ClassesScreen() {
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          onScroll={syncEditPickerLayouts}\n          onScrollBeginDrag={closeAllPickers}\n          scrollEventThrottle={16}
+          onScroll={syncEditPickerLayouts}
+          onScrollBeginDrag={closeAllPickers}
+          scrollEventThrottle={16}
         >
         <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16 }}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>

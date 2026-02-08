@@ -1,25 +1,25 @@
-﻿import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
-import { getValidAccessToken, getSessionUserId } from "../auth/session";
+﻿import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Sentry from "@sentry/react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import type {
-  ClassGroup,
-  SessionLog,
-  TrainingPlan,
-  TrainingTemplate,
-  HiddenTemplate,
-  Student,
-  AttendanceRecord,
-  AbsenceNotice,
-  Exercise,
-  ClassPlan,
-  ScoutingLog,
-  StudentScoutingLog,
-} from "../core/models";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import { getSessionUserId, getValidAccessToken } from "../auth/session";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
-import { canonicalizeUnitLabel } from "../core/unit-label";
+import type {
+    AbsenceNotice,
+    AttendanceRecord,
+    ClassGroup,
+    ClassPlan,
+    Exercise,
+    HiddenTemplate,
+    ScoutingLog,
+    SessionLog,
+    Student,
+    StudentScoutingLog,
+    TrainingPlan,
+    TrainingTemplate,
+} from "../core/models";
 import { normalizeUnitKey } from "../core/unit-key";
+import { canonicalizeUnitLabel } from "../core/unit-label";
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
 
