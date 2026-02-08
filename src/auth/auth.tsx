@@ -40,12 +40,13 @@ const normalizeAuthSession = (payload: Record<string, any>): AuthSession => {
 const authFetch = async (
   path: string,
   body: Record<string, unknown>,
-  options: { redirectTo: string }
+  options?: { redirectTo?: string }
 ) => {
   const base = SUPABASE_URL.replace(/\/$/, "");
-  const redirect = options.redirectTo
+  const redirectTo = options?.redirectTo ?? "";
+  const redirect = redirectTo
     ? `${path.includes("?") ? "&" : "?"}redirect_to=${encodeURIComponent(
-        options.redirectTo
+        redirectTo
       )}`
     : "";
   const res = await fetch(base + path + redirect, {
@@ -59,7 +60,7 @@ const authFetch = async (
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(text || "Falha na autenticação.");
+    throw new Error(text || "Falha na autenticacao.");
   }
   return text ? (JSON.parse(text) as Record<string, any>) : {};
 };
@@ -150,7 +151,7 @@ export function AuthProvider({
   }, [initialSession]);
 
   useEffect(() => {
-    const userId = session.user.id;
+    const userId = session?.user?.id;
     if (userId) {
       setSentryUser(userId);
     } else {
@@ -310,3 +311,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

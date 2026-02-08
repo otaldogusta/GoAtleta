@@ -6,21 +6,58 @@ import { getUnitPalette } from "./unit-colors";
 import { ClassGenderBadge } from "./ClassGenderBadge";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
 
-const decodeUnicodeEscapes = (value: string) =>
-  value.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 16))
-  );
+const decodeUnicodeEscapes = (value: string) => {
+  let current = value;
+  for (let i = 0; i < 3; i += 1) {
+    const next = current
+      .replace(/\\\\u([0-9a-fA-F]{4})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      )
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      )
+      .replace(/\\\\U([0-9a-fA-F]{8})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      )
+      .replace(/\\U([0-9a-fA-F]{8})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      );
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+};
+
+const tryJsonDecode = (value: string) => {
+  try {
+    const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return JSON.parse(`"${escaped}"`) as string;
+  } catch {
+    return value;
+  }
+};
 
 const normalizeText = (value: string) => {
   if (!value) return value;
-  const decoded = decodeUnicodeEscapes(value);
-  if (!/\\u00[0-9a-fA-F]{2}|[ÃÂ�]/.test(decoded)) return decoded;
-  try {
-    const fixed = decodeURIComponent(escape(decoded));
-    return /[ÃÂ�]/.test(fixed) ? decoded : fixed;
-  } catch {
-    return decoded;
+  let current = String(value);
+  for (let i = 0; i < 3; i += 1) {
+    const decoded = decodeUnicodeEscapes(tryJsonDecode(current));
+    if (decoded === current) break;
+    current = decoded;
   }
+  if (/\\u[0-9a-fA-F]{4}/.test(current) || /\\U[0-9a-fA-F]{8}/.test(current)) {
+    current = decodeUnicodeEscapes(current);
+  }
+  if (!/[ÃÂ�]/.test(current)) return current;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      current = decodeURIComponent(escape(current));
+    } catch {
+      break;
+    }
+    if (!/[ÃÂ�]/.test(current)) break;
+  }
+  return current;
 };
 
 type ClassContextHeaderProps = {

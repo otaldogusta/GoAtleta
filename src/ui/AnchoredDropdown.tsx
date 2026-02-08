@@ -2,6 +2,8 @@ import React from "react";
 import {
   Animated,
   Dimensions,
+  Platform,
+  Pressable,
   ScrollView,
   StyleProp,
   View,
@@ -22,6 +24,8 @@ type AnchoredDropdownProps = {
   panelStyle: StyleProp<ViewStyle>;
   scrollContentStyle: StyleProp<ViewStyle>;
   children: React.ReactNode;
+  onRequestClose?: () => void;
+  dismissOnBackdropPress?: boolean;
 };
 
 export function AnchoredDropdown({
@@ -35,6 +39,8 @@ export function AnchoredDropdown({
   panelStyle,
   scrollContentStyle,
   children,
+  onRequestClose,
+  dismissOnBackdropPress = !!onRequestClose,
 }: AnchoredDropdownProps) {
   if (!visible || !layout) return null;
 
@@ -49,39 +55,64 @@ export function AnchoredDropdown({
       ? Math.max(8, defaultTop - layout.height - maxHeight)
       : defaultTop;
 
+  const handleBackdropPress = () => {
+    if (dismissOnBackdropPress && onRequestClose) {
+      onRequestClose();
+    }
+  };
+
   return (
-    <Animated.View
-      style={[
-        {
-          position: "absolute",
-          left,
-          top,
-          width: layout.width,
-          zIndex,
-          elevation: zIndex,
-        },
-        animationStyle,
-      ]}
-    >
-      <View
+    <>
+      {dismissOnBackdropPress && onRequestClose && (
+        <Pressable
+          onPress={handleBackdropPress}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: zIndex - 1,
+            elevation: zIndex - 1,
+          }}
+        />
+      )}
+      <Animated.View
         style={[
           {
-            maxHeight,
-            borderRadius: 12,
-            overflow: "hidden",
+            position: "absolute",
+            left,
+            top,
+            width: layout.width,
+            zIndex,
+            elevation: zIndex,
           },
-          panelStyle,
+          animationStyle,
         ]}
       >
-        <ScrollView
-          style={{ maxHeight }}
-          contentContainerStyle={scrollContentStyle}
-          nestedScrollEnabled={nestedScrollEnabled}
-          showsVerticalScrollIndicator
+        <View
+          style={[
+            {
+              maxHeight,
+              borderRadius: 12,
+              overflow: "hidden",
+            },
+            panelStyle,
+          ]}
         >
-          {children}
-        </ScrollView>
-      </View>
-    </Animated.View>
+          <ScrollView
+            style={{ maxHeight }}
+            contentContainerStyle={scrollContentStyle}
+            nestedScrollEnabled={nestedScrollEnabled}
+            showsVerticalScrollIndicator
+            scrollEventThrottle={16}
+            keyboardShouldPersistTaps="handled"
+            overScrollMode={Platform.OS === "android" ? "always" : "auto"}
+          >
+            {children}
+          </ScrollView>
+        </View>
+      </Animated.View>
+    </>
   );
 }

@@ -1251,6 +1251,8 @@ export async function getStudentScoutingByDate(
     return row ? studentScoutingRowToLog(row) : null;
   } catch (error) {
     if (isMissingRelation(error, "student_scouting_logs")) return null;
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("22P02") || message.includes("invalid input syntax for type uuid")) return null;
     throw error;
   }
 }
@@ -2051,11 +2053,12 @@ export async function getAttendanceByDate(
 export async function getAttendanceByStudent(
   studentId: string
 ): Promise<AttendanceRecord[]> {
-  const rows = await supabaseGet<AttendanceRow[]>(
-    "/attendance_logs?select=*&studentid=eq." +
-      encodeURIComponent(studentId) +
-      "&order=date.desc"
-  );
+  try {
+    const rows = await supabaseGet<AttendanceRow[]>(
+      "/attendance_logs?select=*&studentid=eq." +
+        encodeURIComponent(studentId) +
+        "&order=date.desc"
+    );
     return rows.map((row) => ({
       id: row.id,
       classId: row.classid,
@@ -2066,7 +2069,12 @@ export async function getAttendanceByStudent(
       painScore: row.pain_score ?? undefined,
       createdAt: row.createdat,
     }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("22P02") || message.includes("invalid input syntax for type uuid")) return [];
+    throw error;
   }
+}
 
 export async function getAttendanceAll(): Promise<AttendanceRecord[]> {
   const rows = await supabaseGet<AttendanceRow[]>(

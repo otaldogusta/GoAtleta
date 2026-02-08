@@ -2431,7 +2431,11 @@ export default function StudentsScreen() {
 
                     {unitGroups.map(([unitName, entries]) => {
                       const unitKey = `m-${month}-u-${unitName}`;
-                      const palette = getUnitPalette(unitName, colors);
+                      const palette =
+                        getUnitPalette(unitName, colors) ?? {
+                          bg: colors.primaryBg,
+                          text: colors.primaryText,
+                        };
                       return (
                         <View key={unitKey} style={{ gap: 6 }}>
                           <View
@@ -2648,6 +2652,11 @@ export default function StudentsScreen() {
                               >
                                 {unitClasses.map((group) => {
                                   const classExpanded = !!expandedClasses[group.classId];
+                                  const groupPalette =
+                                    group.palette ?? {
+                                      bg: colors.primaryBg,
+                                      text: colors.primaryText,
+                                    };
                                   return (
                                     <View key={group.classId} style={{ gap: 6 }}>
                                       <Pressable
@@ -2705,11 +2714,6 @@ export default function StudentsScreen() {
                                               ),
                                             });
                                           }
-                                          const groupPalette =
-                                            group.palette ?? {
-                                              bg: colors.primaryBg,
-                                              text: colors.primaryText,
-                                            };
                                           return (
                                             <View
                                               style={{
@@ -2723,13 +2727,13 @@ export default function StudentsScreen() {
                                             >
                                               <View
                                                 style={{
-                                                width: 8,
-                                                height: 8,
-                                                borderRadius: 999,
-                                                backgroundColor: groupPalette.bg,
-                                                marginRight: 2,
-                                              }}
-                                            />
+                                                  width: 8,
+                                                  height: 8,
+                                                  borderRadius: 999,
+                                                  backgroundColor: groupPalette.bg,
+                                                  marginRight: 2,
+                                                }}
+                                              />
                                               {items.map((entry, index) => (
                                                 <View
                                                   key={entry.key}
@@ -2740,7 +2744,7 @@ export default function StudentsScreen() {
                                                     minWidth: 0,
                                                   }}
                                                 >
-                                                  { index > 0 ? (
+                                                  {index > 0 ? (
                                                     <View
                                                       style={{
                                                         width: 4,
@@ -3495,13 +3499,10 @@ export default function StudentsScreen() {
           visible={showEditUnitPickerContent}
           layout={
             editUnitTriggerLayout
-              ? {
-                  ...editUnitTriggerLayout,
-                  x: Math.max(12, editUnitTriggerLayout.x),
-                }
+              ? editUnitTriggerLayout
               : null
           }
-          container={editContainerWindow ? containerWindow : undefined}
+          container={editContainerWindow}
           animationStyle={editUnitPickerAnimStyle}
           zIndex={420}
           maxHeight={220}
@@ -3535,13 +3536,10 @@ export default function StudentsScreen() {
           visible={showEditClassPickerContent}
           layout={
             editClassTriggerLayout
-              ? {
-                  ...editClassTriggerLayout,
-                  x: Math.max(12, editClassTriggerLayout.x),
-                }
+              ? editClassTriggerLayout
               : null
           }
-          container={editContainerWindow ? containerWindow : undefined}
+          container={editContainerWindow}
           animationStyle={editClassPickerAnimStyle}
           zIndex={420}
           maxHeight={240}
@@ -3573,13 +3571,10 @@ export default function StudentsScreen() {
           visible={showEditGuardianRelationPickerContent}
           layout={
             editGuardianRelationTriggerLayout
-              ? {
-                  ...editGuardianRelationTriggerLayout,
-                  x: Math.max(12, editGuardianRelationTriggerLayout.x),
-                }
+              ? editGuardianRelationTriggerLayout
               : null
           }
-          container={editContainerWindow ? containerWindow : undefined}
+          container={editContainerWindow}
           animationStyle={editGuardianRelationPickerAnimStyle}
           zIndex={420}
           maxHeight={160}

@@ -249,7 +249,7 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       title: "Fundamentos",
 
-      focus: "Toque, manchete e controle basico",
+      focus: "Toque, manchete e controle básico",
 
       volume: "médio",
 
@@ -455,18 +455,52 @@ const parseIsoDate = (value: string | null) => {
 
 
 
-const decodeUnicodeEscapes = (value: string) =>
-  value.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 16))
-  );
+const decodeUnicodeEscapes = (value: string) => {
+  let current = value;
+  for (let i = 0; i < 3; i += 1) {
+    const next = current
+      .replace(/\\\\u([0-9a-fA-F]{4})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      )
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      )
+      .replace(/\\\\U([0-9a-fA-F]{8})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      )
+      .replace(/\\U([0-9a-fA-F]{8})/g, (_, code) =>
+        String.fromCharCode(parseInt(code, 16))
+      );
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+};
+
+const tryJsonDecode = (value: string) => {
+  try {
+    const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return JSON.parse(`"${escaped}"`) as string;
+  } catch {
+    return value;
+  }
+};
 
 const normalizeText = (value: string) => {
   if (!value) return value;
-  const decoded = decodeUnicodeEscapes(value);
-  const hasUnicodeEscape = /\\u00[0-9a-fA-F]{2}/.test(value);
-  const hasMojibake = /[ÃÂ�]/.test(decoded);
-  if (!hasUnicodeEscape && !hasMojibake) return decoded;
-  let current = decoded;
+  let current = String(value);
+  for (let i = 0; i < 2; i += 1) {
+    current = current.replace(/\\\\u/gi, "\\u").replace(/\\\\U/gi, "\\U");
+  }
+  for (let i = 0; i < 3; i += 1) {
+    const decoded = decodeUnicodeEscapes(tryJsonDecode(current));
+    if (decoded === current) break;
+    current = decoded;
+  }
+  if (/\\u[0-9a-fA-F]{4}/.test(current) || /\\U[0-9a-fA-F]{8}/.test(current)) {
+    current = decodeUnicodeEscapes(current);
+  }
+  if (!/[ÃÂ�]/.test(current)) return current;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       current = decodeURIComponent(escape(current));
@@ -1749,33 +1783,28 @@ export default function PeriodizationScreen() {
     const length = classPlans.length || cycleLength;
 
     if (classPlans.length) {
-
       return classPlans.map((plan, index) => {
-
         const template = base[index % base.length];
+        const normalizedPhase = normalizeText(plan.phase);
+        const normalizedTheme = normalizeText(plan.theme);
+        const normalizedConstraints = normalizeText(plan.constraints);
+        const normalizedWarmup = normalizeText(plan.warmupProfile);
+        const normalizedJump = normalizeText(plan.jumpTarget);
+        const normalizedRpe = normalizeText(plan.rpeTarget);
+        const phaseForPse = normalizedPhase || plan.phase;
 
         return {
-
           week: plan.weekNumber,
-
-          title: plan.phase,
-
-          focus: plan.theme,
-
+          title: normalizedPhase,
+          focus: normalizedTheme,
           volume: template.volume,
-
-          notes: [plan.constraints, plan.warmupProfile].filter(Boolean),
-
-          jumpTarget: plan.jumpTarget || getJumpTarget(selectedClass?.mvLevel ?? "", ageBand),
-
-          PSETarget: plan.rpeTarget || getPSETarget(plan.phase),
-
+          notes: [normalizedConstraints, normalizedWarmup].filter(Boolean),
+          jumpTarget:
+            normalizedJump || getJumpTarget(selectedClass?.mvLevel ?? "", ageBand),
+          PSETarget: normalizedRpe || getPSETarget(phaseForPse),
           source: plan.source || "AUTO",
-
         };
-
       });
-
     }
 
     const weeks: WeekPlan[] = [];
@@ -3818,7 +3847,9 @@ export default function PeriodizationScreen() {
 
             >
 
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Mesociclo</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {normalizeText("Mesociclo")}
+              </Text>
 
               <View ref={mesoTriggerRef} style={{ position: "relative" }}>
 
@@ -3888,7 +3919,9 @@ export default function PeriodizationScreen() {
 
             >
 
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Microciclo</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {normalizeText("Microciclo")}
+              </Text>
 
               <View ref={microTriggerRef} style={{ position: "relative" }}>
 
@@ -3950,7 +3983,9 @@ export default function PeriodizationScreen() {
 
           <View style={{ marginTop: 8, gap: 8 }}>
 
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Distribuicao de carga</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {normalizeText("Distribuição de carga")}
+            </Text>
 
             <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
 
@@ -4002,7 +4037,9 @@ export default function PeriodizationScreen() {
 
           <View style={{ marginTop: 8, gap: 8 }}>
 
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Tendencia de carga</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {normalizeText("Tendência de carga")}
+            </Text>
 
             <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
 
@@ -4302,7 +4339,7 @@ export default function PeriodizationScreen() {
 
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
 
-            Carga semanal
+            {normalizeText("Carga semanal")}
 
           </Text>
 
@@ -4318,7 +4355,7 @@ export default function PeriodizationScreen() {
 
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
 
-              Carga semanal
+              {normalizeText("Carga semanal")}
 
             </Text>
 
@@ -4336,7 +4373,7 @@ export default function PeriodizationScreen() {
 
           <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-            Distribuicao de intensidade ao longo do ciclo
+            {normalizeText("Distribuição de intensidade ao longo do ciclo")}
 
           </Text>
 
@@ -4632,7 +4669,7 @@ export default function PeriodizationScreen() {
 
             <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-              Toque para ver as recomendações
+              {normalizeText("Toque para ver as recomendações")}
 
             </Text>
 
@@ -4674,7 +4711,7 @@ export default function PeriodizationScreen() {
 
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
 
-            Agenda do ciclo
+            {normalizeText("Agenda do ciclo")}
 
           </Text>
 
@@ -4690,7 +4727,7 @@ export default function PeriodizationScreen() {
 
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
 
-              Agenda do ciclo
+              {normalizeText("Agenda do ciclo")}
 
             </Text>
 
@@ -4708,7 +4745,7 @@ export default function PeriodizationScreen() {
 
           <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-            Semanas com foco e volume definido
+            {normalizeText("Semanas com foco e volume definido")}
 
           </Text>
 
@@ -4804,7 +4841,7 @@ export default function PeriodizationScreen() {
 
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-                  Selecione uma turma para editar o ciclo.
+                  {normalizeText("Selecione uma turma para editar o ciclo.")}
 
                 </Text>
 
@@ -5104,7 +5141,7 @@ export default function PeriodizationScreen() {
 
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-                  Nenhuma semana encontrada para esse filtro.
+                  {normalizeText("Nenhuma semana encontrada para esse filtro.")}
 
                 </Text>
 
@@ -5132,7 +5169,7 @@ export default function PeriodizationScreen() {
 
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
 
-            Agenda da semana
+            {normalizeText("Agenda da semana")}
 
           </Text>
 
@@ -5974,7 +6011,13 @@ export default function PeriodizationScreen() {
 
         cardStyle={[
           modalCardStyle,
-          { paddingBottom: 12, maxHeight: "92%", height: "92%", minHeight: 0, overflow: "hidden" },
+          {
+            paddingBottom: 0,
+            maxHeight: "92%",
+            height: "92%",
+            minHeight: 0,
+            overflow: "hidden",
+          },
         ]}
 
         position="center"
@@ -6033,7 +6076,11 @@ export default function PeriodizationScreen() {
 
         <View style={{ flex: 1, minHeight: 0, marginTop: 16 }}>
           <ScrollView
-            contentContainerStyle={{ gap: 10, paddingBottom: 24, paddingHorizontal: 12 }}
+            contentContainerStyle={{
+              gap: 10,
+              paddingBottom: 32,
+              paddingHorizontal: 12,
+            }}
             style={{ flex: 1 }}
             showsVerticalScrollIndicator
             keyboardShouldPersistTaps="handled"
@@ -6044,11 +6091,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Fase</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("Fase")}
+              </Text>
 
               <TextInput
 
-                placeholder="Fase (ex: Base, Recuperação)"
+                placeholder={normalizeText("Fase (ex: Base, Recuperação)")}
 
                 value={editPhase}
 
@@ -6080,11 +6129,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Tema</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("Tema")}
+              </Text>
 
               <TextInput
 
-                placeholder="Tema (ex: Manchete, Saque)"
+                placeholder={normalizeText("Tema (ex: Manchete, Saque)")}
 
                 value={editTheme}
 
@@ -6120,11 +6171,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Foco técnico</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("Foco técnico")}
+              </Text>
 
               <TextInput
 
-                placeholder="Foco técnico"
+                placeholder={normalizeText("Foco técnico")}
 
                 value={editTechnicalFocus}
 
@@ -6156,11 +6209,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Foco físico</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("Foco físico")}
+              </Text>
 
               <TextInput
 
-                placeholder="Foco físico"
+                placeholder={normalizeText("Foco físico")}
 
                 value={editPhysicalFocus}
 
@@ -6194,11 +6249,13 @@ export default function PeriodizationScreen() {
 
           <View style={{ gap: 4 }}>
 
-            <Text style={{ color: colors.muted, fontSize: 11 }}>Restrições</Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {normalizeText("Restrições")}
+            </Text>
 
             <TextInput
 
-              placeholder="Restrições / regras"
+              placeholder={normalizeText("Restrições / regras")}
 
               value={editConstraints}
 
@@ -6238,11 +6295,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Formato MV</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("Formato MV")}
+              </Text>
 
               <TextInput
 
-                placeholder="Formato MV (ex: 2x2, 3x3)"
+                placeholder={normalizeText("Formato MV (ex: 2x2, 3x3)")}
 
                 value={editMvFormat}
 
@@ -6274,11 +6333,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Warmup profile</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("Warmup profile")}
+              </Text>
 
               <TextInput
 
-                placeholder="Warmup profile"
+                placeholder={normalizeText("Warmup profile")}
 
                 value={editWarmupProfile}
 
@@ -6314,11 +6375,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Jump target</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("Jump target")}
+              </Text>
 
               <TextInput
 
-                placeholder="Saltos alvo (ex: 20-40)"
+                placeholder={normalizeText("Saltos alvo (ex: 20-40)")}
 
                 value={editJumpTarget}
 
@@ -6350,11 +6413,13 @@ export default function PeriodizationScreen() {
 
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>PSE target</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText("PSE target")}
+              </Text>
 
               <TextInput
 
-                placeholder="PSE alvo (0-10, ex: 3-4)"
+                placeholder={normalizeText("PSE alvo (0-10, ex: 3-4)")}
 
                 value={editPSETarget}
 
@@ -6430,7 +6495,9 @@ export default function PeriodizationScreen() {
 
           <View style={{ gap: 8 }}>
 
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Ações rápidas</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {normalizeText("Ações rápidas")}
+            </Text>
 
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
 
@@ -6440,13 +6507,15 @@ export default function PeriodizationScreen() {
 
                   confirmDialog({
 
-                    title: "Resetar para AUTO?",
+                    title: normalizeText("Resetar para AUTO?"),
 
-                    message: "O plano volta para o modelo automático desta semana.",
+                    message: normalizeText(
+                      "O plano volta para o modelo automático desta semana."
+                    ),
 
-                    confirmLabel: "Resetar",
+                    confirmLabel: normalizeText("Resetar"),
 
-                    cancelLabel: "Cancelar",
+                    cancelLabel: normalizeText("Cancelar"),
 
                     onConfirm: () => resetWeekToAuto(),
 

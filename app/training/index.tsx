@@ -2172,6 +2172,8 @@ export default function TrainingList() {
               backgroundColor: colors.inputBg,
             }}
             scrollContentStyle={{ padding: 4 }}
+            onRequestClose={closeFormPickers}
+            dismissOnBackdropPress
           >
             {[
               { label: "Selecione uma unidade", value: "" },
@@ -2222,6 +2224,8 @@ export default function TrainingList() {
               backgroundColor: colors.inputBg,
             }}
             scrollContentStyle={{ padding: 4 }}
+            onRequestClose={closeFormPickers}
+            dismissOnBackdropPress
           >
             { classOptionsForForm.length ? (
               classOptionsForForm.map((item, index) => {
@@ -3214,6 +3218,9 @@ export default function TrainingList() {
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           showsVerticalScrollIndicator
+          scrollEventThrottle={16}
+          onScrollBeginDrag={() => closeApplyPickers()}
+          onScroll={() => syncApplyPickerLayouts()}
         >
           <View
             ref={applyContainerRef}
@@ -3346,6 +3353,8 @@ export default function TrainingList() {
                 backgroundColor: colors.inputBg,
               }}
               scrollContentStyle={{ padding: 4 }}
+              onRequestClose={closeApplyPickers}
+              dismissOnBackdropPress
             >
               {[
                 { label: "Selecione uma unidade", value: "" },
@@ -3396,6 +3405,8 @@ export default function TrainingList() {
                 backgroundColor: colors.inputBg,
               }}
               scrollContentStyle={{ padding: 4 }}
+              onRequestClose={closeApplyPickers}
+              dismissOnBackdropPress
             >
               { classOptionsForUnit.length ? (
                 classOptionsForUnit.map((item, index) => {

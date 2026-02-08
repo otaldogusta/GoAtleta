@@ -84,15 +84,15 @@ export default function ProfileScreen() {
   const loadingProfile = loadingClasses || loadingPhoto;
 
   const currentClass = useMemo(() => {
-    if (!student.classId) return null;
+    if (!student || !student.classId) return null;
     return classes.find((item) => item.id === student.classId) ?? null;
-  }, [classes, student.classId]);
+  }, [classes, student?.classId]);
 
   const nameParts = useMemo(() => {
     const full = (
-      student.name ||
-      session.user.user_metadata.full_name ||
-      session.user.email ||
+      student?.name ||
+      session?.user?.user_metadata?.full_name ||
+      session?.user?.email ||
       ""
     ).trim();
     if (!full) return { first: "Aluno", last: "" };
@@ -100,10 +100,10 @@ export default function ProfileScreen() {
     const first = parts[0] ?? "Aluno";
     const last = parts.slice(1).join(" ");
     return { first, last };
-  }, [session.user.email, session.user.user_metadata.full_name, student.name]);
+  }, [session?.user?.email, session?.user?.user_metadata?.full_name, student?.name]);
 
   const joinedLabel = useMemo(() => {
-    const joinedAt = student.createdAt ?? session.user.created_at;
+    const joinedAt = student?.createdAt ?? session?.user?.created_at;
     if (!joinedAt) return "Entrou recentemente";
     const joined = new Date(joinedAt);
     if (Number.isNaN(joined.getTime())) return "Entrou recentemente";
@@ -126,7 +126,7 @@ export default function ProfileScreen() {
 
     }
     return diffDays <= 1 ? "Hoje" : `${diffDays} dias`;
-  }, [session.user.created_at, student.createdAt]);
+  }, [session?.user?.created_at, student?.createdAt]);
 
   const savePhoto = async (uri: string | null) => {
     setPhotoUri(uri);
@@ -376,8 +376,8 @@ export default function ProfileScreen() {
             <SettingsRow
               icon="school-outline"
               iconBg="rgba(255, 185, 136, 0.16)"
-              label={currentClass.name || (student ? "Sem turma" : "Professor")}
-              subtitle={currentClass.unit || (student ? "Sem unidade" : "Treinador")}
+              label={currentClass?.name || (student ? "Sem turma" : "Professor")}
+              subtitle={currentClass?.unit || (student ? "Sem unidade" : "Treinador")}
               rightContent={<View />}
             />
           </View>

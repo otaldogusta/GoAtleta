@@ -1082,7 +1082,7 @@ export default function ClassDetails() {
               </Pressable>
             </View>
             <Text style={{ fontSize: 11, color: colors.muted }}>
-              Ser?o exibidos apenas os dias em que a turma treina.
+              Serão exibidos apenas os dias em que a turma treina.
             </Text>
           </View>
 
