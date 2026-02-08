@@ -2003,6 +2003,9 @@ export default function TrainingList() {
         ref={scrollRef}
         contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
         keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={closeFormPickers}
+        onScroll={syncFormPickerLayouts}
+        scrollEventThrottle={16}
       >
         <ScreenHeader
           title="Planejamento"

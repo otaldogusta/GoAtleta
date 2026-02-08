@@ -352,6 +352,7 @@ export default function StudentsScreen() {
     setShowUnitPicker(false);
     setShowClassPicker(false);
     setShowGuardianRelationPicker(false);
+    setShowTemplateList(false);
   }, []);
   const closeAllEditPickers = useCallback(() => {
     setShowEditUnitPicker(false);
@@ -1814,6 +1815,7 @@ export default function StudentsScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
         keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={closeAllPickers}
         onScroll={syncPickerLayouts}
         scrollEventThrottle={16}
       >
@@ -2836,6 +2838,7 @@ export default function StudentsScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2869,6 +2872,7 @@ export default function StudentsScreen() {
           zIndex={320}
           maxHeight={240}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2900,6 +2904,7 @@ export default function StudentsScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -3014,6 +3019,7 @@ export default function StudentsScreen() {
               style={{ width: "100%", flex: 1 }}
               contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 12, paddingTop: 16 }}
               keyboardShouldPersistTaps="handled"
+              onScrollBeginDrag={closeAllEditPickers}
               onScroll={syncEditPickerLayouts}
               scrollEventThrottle={16}
             >
@@ -3507,6 +3513,7 @@ export default function StudentsScreen() {
           zIndex={420}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllEditPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -3544,6 +3551,7 @@ export default function StudentsScreen() {
           zIndex={420}
           maxHeight={240}
           nestedScrollEnabled
+          onRequestClose={closeAllEditPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -3579,6 +3587,7 @@ export default function StudentsScreen() {
           zIndex={420}
           maxHeight={160}
           nestedScrollEnabled
+          onRequestClose={closeAllEditPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -3980,6 +3989,8 @@ export default function StudentsScreen() {
                 animationStyle={templateListAnimStyle}
                 zIndex={9999}
                 maxHeight={220}
+                nestedScrollEnabled
+                onRequestClose={closeAllPickers}
                 panelStyle={{
                   borderWidth: 1,
                   borderColor: colors.border,

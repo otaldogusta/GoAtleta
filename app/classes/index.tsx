@@ -869,16 +869,7 @@ export default function ClassesScreen() {
     }, 10);
   };
 
-  const closeAllPickers = useCallback(() => {
-    setShowUnitFilterPicker(false);
-    setShowDurationPicker(false);
-    setShowCycleLengthPicker(false);
-    setShowMvLevelPicker(false);
-    setShowAgeBandPicker(false);
-    setShowGenderPicker(false);
-    setShowModalityPicker(false);
-    setShowGoalPicker(false);
-  }, []);
+  const closeAllPickers = useCallback(() => {\n    setShowUnitFilterPicker(false);\n    setShowDurationPicker(false);\n    setShowCycleLengthPicker(false);\n    setShowMvLevelPicker(false);\n    setShowAgeBandPicker(false);\n    setShowGenderPicker(false);\n    setShowModalityPicker(false);\n    setShowGoalPicker(false);\n    setShowEditDurationPicker(false);\n    setShowEditCycleLengthPicker(false);\n    setShowEditMvLevelPicker(false);\n    setShowEditAgeBandPicker(false);\n    setShowEditGenderPicker(false);\n    setShowEditModalityPicker(false);\n    setShowEditGoalPicker(false);\n  }, []);
 
   const toggleUnitFilter = useCallback(() => {
     setShowDurationPicker(false);
@@ -1547,8 +1538,7 @@ export default function ClassesScreen() {
             paddingTop: 16,
           }}
           keyboardShouldPersistTaps="handled"
-          onScroll={syncPickerLayouts}
-          scrollEventThrottle={16}
+          onScroll={syncPickerLayouts}\n          onScrollBeginDrag={closeAllPickers}\n          scrollEventThrottle={16}
         >
         <View style={{ marginBottom: 4 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
@@ -2049,6 +2039,7 @@ export default function ClassesScreen() {
           zIndex={300}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2083,6 +2074,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2116,6 +2108,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2143,6 +2136,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2170,6 +2164,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2203,6 +2198,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2230,6 +2226,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2257,6 +2254,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={260}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2323,8 +2321,8 @@ export default function ClassesScreen() {
           contentContainerStyle={{ gap: 4, paddingHorizontal: 12, paddingBottom: 16 }}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
-          onScroll={syncEditPickerLayouts}
-          scrollEventThrottle={16}
+          onRequestClose={closeAllPickers}
+          onScroll={syncEditPickerLayouts}\n          onScrollBeginDrag={closeAllPickers}\n          scrollEventThrottle={16}
         >
         <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16 }}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
@@ -2682,6 +2680,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2715,6 +2714,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2742,6 +2742,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2769,6 +2770,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2802,6 +2804,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2829,6 +2832,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={220}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2856,6 +2860,7 @@ export default function ClassesScreen() {
           zIndex={320}
           maxHeight={260}
           nestedScrollEnabled
+          onRequestClose={closeAllPickers}
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
@@ -2898,6 +2903,10 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
+
+
+
+
 
 
 

@@ -817,6 +817,7 @@ export default function SessionScreen() {
 
       <ScrollView
         contentContainerStyle={{ paddingVertical: 12, paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}
+        onScrollBeginDrag={closePickers}
         onScroll={syncPickerLayouts}
         scrollEventThrottle={16}
         scrollEnabled={!showPsePicker && !showTechniquePicker}
@@ -1467,6 +1468,7 @@ export default function SessionScreen() {
             zIndex={420}
             maxHeight={220}
             nestedScrollEnabled
+            onRequestClose={closePickers}
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
@@ -1507,6 +1509,7 @@ export default function SessionScreen() {
             zIndex={420}
             maxHeight={160}
             nestedScrollEnabled
+            onRequestClose={closePickers}
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,

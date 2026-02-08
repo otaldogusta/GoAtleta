@@ -259,7 +259,13 @@ export default function LogScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16 }}
+        keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={closePickers}
+        onScroll={syncPickerLayouts}
+        scrollEventThrottle={16}
+      >
         { cls ? (
           <ClassContextHeader
             title="Relatório da aula"
@@ -469,6 +475,7 @@ export default function LogScreen() {
             zIndex={420}
             maxHeight={220}
             nestedScrollEnabled
+            onRequestClose={closePickers}
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
@@ -509,6 +516,7 @@ export default function LogScreen() {
             zIndex={420}
             maxHeight={200}
             nestedScrollEnabled
+            onRequestClose={closePickers}
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
