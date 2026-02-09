@@ -1,7 +1,7 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { Pressable } from "./Pressable";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
@@ -128,7 +128,7 @@ export function DatePickerModal({
       position="center"
       cardStyle={{
         width: "100%",
-        maxWidth: 360,
+        maxWidth: 440,
         backgroundColor: colors.card,
         borderRadius: 18,
         padding: 14,

@@ -2,9 +2,9 @@
 import type { ClassGender } from "../core/models";
 import { useAppTheme } from "./app-theme";
 import { getClassPalette } from "./class-colors";
-import { getUnitPalette } from "./unit-colors";
 import { ClassGenderBadge } from "./ClassGenderBadge";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
+import { getUnitPalette } from "./unit-colors";
 
 const decodeUnicodeEscapes = (value: string) => {
   let current = value;

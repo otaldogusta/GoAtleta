@@ -13,19 +13,19 @@ const mk = (ageBand: any, goal = "Fundamentos") => ({
   level: 1,
 });
 
-test("gera sessão para 8-9 com conteudo de voleibol", () => {
+test("gera sessão para 8-9 com conteúdo de voleibol", () => {
   const s = generateSession(mk("08-09"));
   expect(s.warmup.length).toBeGreaterThan(0);
   expect(s.main.join(" ")).toContain("Técnica - Toque");
   expect(s.cooldown.join(" ")).toContain("PSE");
 });
 
-test("gera sessão para 10-12 com conteudo de voleibol", () => {
+test("gera sessão para 10-12 com conteúdo de voleibol", () => {
   const s = generateSession(mk("10-12"));
   expect(s.main.join(" ")).toContain("Técnica - Saque por cima");
 });
 
-test("gera sessão para 13-15 com conteudo de voleibol", () => {
+test("gera sessão para 13-15 com conteúdo de voleibol", () => {
   const s = generateSession(mk("13-15"));
   expect(s.main.join(" ")).toContain("Técnica - Saque por cima");
 });
@@ -50,8 +50,8 @@ test("warmup tem 3 itens", () => {
   expect(s.warmup).toHaveLength(3);
 });
 
-test("usa fallback fitness quando objetivo não e voleibol", () => {
-  const s = generateSession(mk("08-09", "Forca Geral"));
+test("usa fallback fitness quando objetivo não é voleibol", () => {
+  const s = generateSession(mk("08-09", "Força Geral"));
   expect(s.main.join(" ")).toContain("Circuito");
 });
 

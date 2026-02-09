@@ -18,22 +18,29 @@ export function getSectionCardStyle(
   const { padding = 14, radius = 18, shadow = true } = options;
   const toneMap = {
     neutral: { bg: colors.card, accent: "transparent", accentWidth: 0 },
-    info: { bg: colors.card, accent: colors.infoBg, accentWidth: 3 },
+    info: { bg: colors.card, accent: "transparent", accentWidth: 0 },
     success: { bg: colors.inputBg, accent: colors.successBg, accentWidth: 3 },
     warning: { bg: colors.card, accent: colors.warningBg, accentWidth: 3 },
     primary: { bg: colors.card, accent: colors.primaryBg, accentWidth: 3 },
   } as const;
   const selected = toneMap[tone];
 
-  return {
+  const baseStyle: ViewStyle = {
     gap: 10,
     padding,
     borderRadius: radius,
     backgroundColor: selected.bg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderLeftWidth: selected.accentWidth,
-    borderLeftColor: selected.accent,
+  };
+
+  if (selected.accentWidth > 0) {
+    baseStyle.borderLeftWidth = selected.accentWidth;
+    baseStyle.borderLeftColor = selected.accent;
+  }
+
+  return {
+    ...baseStyle,
     ...(Platform.OS === "web"
       ? ({
           backdropFilter: "blur(14px)",

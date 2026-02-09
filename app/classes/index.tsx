@@ -34,15 +34,16 @@ import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
-import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { getUnitPalette } from "../../src/ui/unit-colors";
+import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 export default function ClassesScreen() {
   const router = useRouter();
-  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const { edit } = useLocalSearchParams<{ edit?: string | string[] }>();
+  const editParam = Array.isArray(edit) ? edit[0] : edit;
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
@@ -77,6 +78,7 @@ export default function ClassesScreen() {
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [handledEditId, setHandledEditId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
@@ -101,7 +103,8 @@ export default function ClassesScreen() {
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomDuration, setEditShowCustomDuration] = useState(false);
   const [editShowAllAges, setEditShowAllAges] = useState(false);
-  const [editShowAllGoals, setEditShowAllGoals] = useState(false);
+  const [editShowCustomGoal, setEditShowCustomGoal] = useState(false);
+  const [editCustomGoal, setEditCustomGoal] = useState("");
   const [showEditDurationPicker, setShowEditDurationPicker] = useState(false);
   const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
   const [showEditMvLevelPicker, setShowEditMvLevelPicker] = useState(false);
@@ -213,15 +216,15 @@ export default function ClassesScreen() {
     ];
   const goals: ClassGroup["goal"][] = [
     "Fundamentos",
-    "Forca Geral",
-    "Potencia/Agilidade",
-    "Forca+Potencia",
+    "Força Geral",
+    "Potência/Agilidade",
+    "Força+Potência",
     "Velocidade",
     "Agilidade",
     "Resistencia",
-    "Potencia",
+    "Potência",
     "Mobilidade",
-    "Coordenacao",
+    "Coordenação",
     "Prevencao de lesoes",
   ];
   const durationOptions = ["60", "75", "90"];
@@ -364,18 +367,18 @@ export default function ClassesScreen() {
   const [unitFilter, setUnitFilter] = useState("Todas");
   const getChipStyle = (
     active: boolean,
-    palette: { bg: string; text: string }
+    palette?: { bg: string; text: string }
   ) => ({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
-    backgroundColor: active ? palette.bg ?? colors.primaryBg : colors.secondaryBg,
+    backgroundColor: active ? palette?.bg ?? colors.primaryBg : colors.secondaryBg,
   });
   const getChipTextStyle = (
     active: boolean,
-    palette: { bg: string; text: string }
+    palette?: { bg: string; text: string }
   ) => ({
-    color: active ? palette.text ?? colors.primaryText : colors.text,
+    color: active ? palette?.text ?? colors.primaryText : colors.text,
     fontWeight: "600" as const,
     fontSize: 12,
   });
@@ -383,7 +386,7 @@ export default function ClassesScreen() {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: colors.inputBg,
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
     flexDirection: "row" as const,
@@ -550,18 +553,8 @@ export default function ClassesScreen() {
         alive.current = false;
       };
     }, [loadClasses])
-
-    useEffect(() => {
-      if (edit && classes.length > 0 && !showEditModal) {
-        const classToEdit = classes.find((cls) => cls.id === edit);
-        if (classToEdit) {
-          openEditModal(classToEdit);
-          // Clear the edit parameter from URL
-          router.replace("/classes");
-        }
-      }
-    }, [edit, classes, showEditModal, openEditModal, router]);
   );
+
 
   const toggleDay = (value: number) => {
     setNewDays((prev) =>
@@ -747,6 +740,8 @@ export default function ClassesScreen() {
   );
 
   const openEditModal = useCallback((item: ClassGroup) => {
+    const goalValue = item.goal ?? "Fundamentos";
+    const isGoalInList = goalOptions.includes(goalValue);
     setEditingClass(item);
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
@@ -754,7 +749,9 @@ export default function ClassesScreen() {
     setEditModality(inferModality(item));
     setEditAgeBand(item.ageBand ?? "08-09");
     setEditGender(item.gender ?? "misto");
-    setEditGoal(item.goal ?? "Fundamentos");
+    setEditGoal(isGoalInList ? goalValue : "Fundamentos");
+    setEditShowCustomGoal(!isGoalInList && Boolean(goalValue));
+    setEditCustomGoal(!isGoalInList ? goalValue : "");
     setEditStartTime(item.startTime ?? "14:00");
     setEditDuration(String(item.durationMinutes ?? 60));
     setEditDays(item.daysOfWeek ?? []);
@@ -764,12 +761,22 @@ export default function ClassesScreen() {
     setEditFormError("");
     setEditShowCustomDuration(false);
     setEditShowAllAges(false);
-    setEditShowAllGoals(false);
     setShowEditModal(true);
-  }, []);
+  }, [goalOptions, inferModality]);
+
+  useEffect(() => {
+    if (!editParam || editParam === handledEditId) return;
+    if (classes.length === 0 || showEditModal) return;
+    const classToEdit = classes.find((cls) => cls.id === editParam);
+    if (classToEdit) {
+      setHandledEditId(editParam);
+      openEditModal(classToEdit);
+    }
+  }, [editParam, handledEditId, classes, showEditModal, openEditModal]);
 
   const isEditDirty = useMemo(() => {
     if (!editingClass) return false;
+    const goalValue = editShowCustomGoal ? editCustomGoal.trim() : editGoal;
     return (
       editingClass.name !== editName ||
       (editingClass.unit ?? "") !== editUnit ||
@@ -777,7 +784,7 @@ export default function ClassesScreen() {
       inferModality(editingClass) !== editModality ||
       (editingClass.ageBand ?? "08-09") !== editAgeBand ||
       (editingClass.gender ?? "misto") !== editGender ||
-      (editingClass.goal ?? "Fundamentos") !== editGoal ||
+      (editingClass.goal ?? "Fundamentos") !== goalValue ||
       (editingClass.startTime ?? "14:00") !== editStartTime ||
       String(editingClass.durationMinutes ?? 60) !== editDuration ||
       JSON.stringify(editingClass.daysOfWeek ?? []) !== JSON.stringify(editDays) ||
@@ -794,6 +801,8 @@ export default function ClassesScreen() {
     editAgeBand,
     editGender,
     editGoal,
+    editShowCustomGoal,
+    editCustomGoal,
     editStartTime,
     editDuration,
     editDays,
@@ -811,6 +820,12 @@ export default function ClassesScreen() {
   const saveEditClass = async () => {
     if (!editingClass) return;
     if (!editName.trim()) return;
+    const goalValue = editShowCustomGoal ? editCustomGoal.trim() : editGoal.trim();
+    if (!goalValue) {
+      setEditFormError("Defina o objetivo da turma.");
+      Vibration.vibrate(40);
+      return;
+    }
     const timeValue = editStartTime.trim();
     if (!isValidTime(timeValue)) {
       setEditFormError("Horário inválido. Use HH:MM.");
@@ -840,7 +855,7 @@ export default function ClassesScreen() {
           gender: editGender,
           modality: editModality ?? undefined,
           daysOfWeek: editDays,
-          goal: editGoal,
+          goal: goalValue,
           startTime: timeValue,
           durationMinutes: durationValue,
           mvLevel: editMvLevel,
@@ -1096,18 +1111,19 @@ export default function ClassesScreen() {
     (value: SelectOptionValue) => {
       if (value === customOptionLabel) {
         animateLayout();
-        setEditShowAllGoals(true);
+        setEditShowCustomGoal(true);
         setShowEditGoalPicker(false);
         return;
       }
-      if (editShowAllGoals) {
+      if (editShowCustomGoal) {
         animateLayout();
-        setEditShowAllGoals(false);
+        setEditShowCustomGoal(false);
       }
       setEditGoal(String(value));
+      setEditCustomGoal("");
       setShowEditGoalPicker(false);
     },
-    [customOptionLabel, editShowAllGoals]
+    [customOptionLabel, editShowCustomGoal]
   );
 
   const syncEditPickerLayouts = useCallback(() => {
@@ -1456,9 +1472,9 @@ export default function ClassesScreen() {
             style={{
               padding: 14,
               borderRadius: 18,
-              backgroundColor: colors.card,
+              backgroundColor: colors.background,
               borderWidth: 1,
-              borderColor: palette.bg,
+              borderColor: colors.border,
               shadowColor: "#000",
               shadowOpacity: 0.08,
               shadowRadius: 12,
@@ -1635,41 +1651,11 @@ export default function ClassesScreen() {
 
         {mainTab === "lista" && (
         <View style={{ gap: 12, marginTop: 12 }}>
-          <View style={[getSectionCardStyle(colors, "info", { padding: 10, radius: 16 })]}>
-            <FadeHorizontalScroll
-              fadeColor={colors.card}
-              contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-            >
-              {units.map((unit) => {
-                const active = unitFilter === unit;
-                const palette =
-                  unit === "Todas"
-                     ? { bg: colors.primaryBg, text: colors.primaryText }
-                    : getUnitPalette(unit, colors);
-                return (
-                  <Pressable
-                    key={unit}
-                    onPress={() => handleSelectUnit(unit)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: active ? palette.bg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: active ? palette.text : colors.text,
-                        fontSize: 12,
-                      }}
-                    >
-                      {unit}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </FadeHorizontalScroll>
-          </View>
+          <UnitFilterBar
+            units={units}
+            selectedUnit={unitFilter}
+            onSelectUnit={handleSelectUnit}
+          />
           {grouped.map(([unit, items]) => {
             return (
               <View
@@ -1684,7 +1670,7 @@ export default function ClassesScreen() {
                     paddingVertical: 6,
                     paddingHorizontal: 8,
                     borderRadius: 10,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     borderWidth: 1,
                     borderColor: colors.border,
                   }}
@@ -1725,7 +1711,7 @@ export default function ClassesScreen() {
                 onChangeText={setNewName}
                 placeholderTextColor={colors.placeholder}
                 style={{
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: colors.background,
                   borderColor: colors.border,
                   borderWidth: 1,
                   borderRadius: 12,
@@ -1743,7 +1729,7 @@ export default function ClassesScreen() {
                 onChangeText={setNewUnit}
                 placeholderTextColor={colors.placeholder}
                 style={{
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: colors.background,
                   borderColor: colors.border,
                   borderWidth: 1,
                   borderRadius: 12,
@@ -1753,29 +1739,6 @@ export default function ClassesScreen() {
                 }}
               />
             </View>
-          </View>
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>Cor da turma</Text>
-            <FadeHorizontalScroll
-              fadeColor={colors.background}
-              contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-            >
-              {newColorOptions.map((option, index) => {
-                const value = option.key === "default" ? null : option.key;
-                const active = (newColorKey ?? null) === value;
-                return (
-                  <ColorOption
-                    key={option.key}
-                    label={option.label}
-                    value={value}
-                    active={active}
-                    palette={option.palette}
-                    onSelect={handleSelectNewColor}
-                    isFirst={index === 0}
-                  />
-                );
-              })}
-            </FadeHorizontalScroll>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
@@ -1834,7 +1797,7 @@ export default function ClassesScreen() {
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -1899,7 +1862,7 @@ export default function ClassesScreen() {
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -1909,7 +1872,7 @@ export default function ClassesScreen() {
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Horário de inicio</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Horário de início</Text>
               <TextInput
                 placeholder="HH:MM"
                 value={newStartTime}
@@ -1917,7 +1880,7 @@ export default function ClassesScreen() {
                 keyboardType="numeric"
                 placeholderTextColor={colors.placeholder}
                 style={{
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: colors.background,
                   borderColor: colors.border,
                   borderWidth: 1,
                   borderRadius: 12,
@@ -1961,7 +1924,7 @@ export default function ClassesScreen() {
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -2071,7 +2034,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2106,7 +2069,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2140,7 +2103,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2168,7 +2131,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2196,7 +2159,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2230,7 +2193,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2258,7 +2221,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2286,7 +2249,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2368,7 +2331,7 @@ export default function ClassesScreen() {
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -2386,7 +2349,7 @@ export default function ClassesScreen() {
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -2430,7 +2393,7 @@ export default function ClassesScreen() {
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -2470,7 +2433,7 @@ export default function ClassesScreen() {
                       borderColor: colors.border,
                       padding: 10,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       color: colors.inputText,
                       fontSize: 13,
                     }}
@@ -2480,7 +2443,7 @@ export default function ClassesScreen() {
             </View>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Data inicio do ciclo</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Data início do ciclo</Text>
                 <DateInput
                   value={editCycleStartDate}
                   onChange={setEditCycleStartDate}
@@ -2569,7 +2532,7 @@ export default function ClassesScreen() {
                       borderColor: colors.border,
                       padding: 10,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       color: colors.inputText,
                       fontSize: 13,
                     }}
@@ -2632,7 +2595,9 @@ export default function ClassesScreen() {
                     style={[selectFieldStyle, { width: "100%" }]}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {editGoal || "Selecione"}
+                      {editShowCustomGoal
+                        ? editCustomGoal || "Personalizar"
+                        : editGoal || "Selecione"}
                     </Text>
                     <Ionicons
                       name="chevron-down"
@@ -2646,18 +2611,18 @@ export default function ClassesScreen() {
                     />
                   </Pressable>
               </View>
-              { editShowAllGoals ? (
+              {editShowCustomGoal ? (
                 <TextInput
                   placeholder="Objetivo (ex: Força, Potência)"
-                  value={editGoal}
-                  onChangeText={setEditGoal}
+                  value={editCustomGoal}
+                  onChangeText={setEditCustomGoal}
                   placeholderTextColor={colors.placeholder}
                   style={{
                     borderWidth: 1,
                     borderColor: colors.border,
                     padding: 10,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     color: colors.inputText,
                     fontSize: 13,
                   }}
@@ -2714,7 +2679,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2748,7 +2713,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2776,7 +2741,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2804,7 +2769,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2838,7 +2803,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2866,7 +2831,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2894,7 +2859,7 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2903,7 +2868,7 @@ export default function ClassesScreen() {
               key={goal}
               label={goal}
               value={goal}
-              active={editGoal === goal && !editShowAllGoals}
+              active={editGoal === goal && !editShowCustomGoal}
               onSelect={handleEditSelectGoal}
               isFirst={index === 0}
             />
@@ -2911,7 +2876,7 @@ export default function ClassesScreen() {
           <SelectOption
             label={customOptionLabel}
             value={customOptionLabel}
-            active={editShowAllGoals}
+            active={editShowCustomGoal}
             onSelect={handleEditSelectGoal}
           />
         </AnchoredDropdown>
@@ -2933,6 +2898,8 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
+
+
 
 
 

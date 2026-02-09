@@ -255,7 +255,7 @@ export const trainingTemplates: TrainingTemplate[] = [
     ],
     main: [
       "Estabilidade de ombro com bola (toque controlado)",
-      "Equilibrio dinâmico em apoio unilateral",
+      "Equilíbrio dinâmico em apoio unilateral",
       "Sequência técnica leve: toque, manchete e saque",
     ],
     cooldown: ["Respiracao guiada", "Alongamento leve"],

@@ -60,7 +60,7 @@ const authFetch = async (
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(text || "Falha na autenticacao.");
+    throw new Error(text || "Falha na autenticação.");
   }
   return text ? (JSON.parse(text) as Record<string, any>) : {};
 };

@@ -1,18 +1,18 @@
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "expo-router";
-import { Pressable } from "../src/ui/Pressable";
-import { useAppTheme } from "../src/ui/app-theme";
 import { useRole } from "../src/auth/role";
-import { getClasses, getStudentScoutingByDate, saveStudentScoutingLog } from "../src/db/seed";
 import type { ClassGroup } from "../src/core/models";
 import {
-  createEmptyCounts,
-  scoutingSkills,
-  getSkillMetrics,
-  studentScoutingLimits,
+    createEmptyCounts,
+    getSkillMetrics,
+    scoutingSkills,
+    studentScoutingLimits,
 } from "../src/core/scouting";
+import { getClasses, getStudentScoutingByDate, saveStudentScoutingLog } from "../src/db/seed";
+import { Pressable } from "../src/ui/Pressable";
+import { useAppTheme } from "../src/ui/app-theme";
 
 const formatIsoDate = (value: Date) => {
   const y = value.getFullYear();
@@ -168,11 +168,13 @@ export default function StudentScouting() {
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turma</Text>
           <Text style={{ color: colors.text }}>{currentClass?.name ?? "-"}</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {sessionWindow ? `Dispon??vel at?? ${sessionWindow.end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "Scouting liberado apenas no dia do treino"}
+            {sessionWindow
+              ? `Disponível até ${sessionWindow.end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+              : "Scouting liberado apenas no dia do treino"}
           </Text>
         </View>
 
-        { loading ? (
+        {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : (
           scoutingSkills.map((skill) => {

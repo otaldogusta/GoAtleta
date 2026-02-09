@@ -1,15 +1,15 @@
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 import { Text, View } from "react-native";
-import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
+import { Pressable } from "./Pressable";
 
 type ConfirmUndoOptions = {
   title: string;
@@ -101,12 +101,12 @@ export function ConfirmUndoProvider({
 
   const modalTitle = confirmOptions?.title ?? "Confirmar";
   const modalMessage =
-    confirmOptions?.message ?? "Deseja continuar com esta a??o?";
+    confirmOptions?.message ?? "Deseja continuar com esta ação?";
   const confirmLabel = confirmOptions?.confirmLabel ?? "Excluir";
   const cancelLabel = confirmOptions?.cancelLabel ?? "Cancelar";
   const undoLabel = pending?.options.undoLabel ?? "Desfazer";
   const undoMessage =
-    pending?.options.undoMessage ?? "A??o conclu?da. Deseja desfazer?";
+    pending?.options.undoMessage ?? "A??o concluída. Deseja desfazer?";
 
   const contextValue = useMemo(
     () => ({
@@ -125,7 +125,7 @@ export function ConfirmUndoProvider({
         overlayZIndex={9999}
         cardStyle={{
           width: "100%",
-          maxWidth: 360,
+          maxWidth: 440,
           borderRadius: 18,
           backgroundColor: colors.card,
           borderWidth: 1,

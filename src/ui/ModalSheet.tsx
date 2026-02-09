@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Animated, Modal, Pressable as RawPressable, View } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
+import { Animated, Modal, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
@@ -28,6 +28,17 @@ export function ModalSheet({
   bottomOffset,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
+  const previousOverflow = useRef<string | null>(null);
+  const previousHtmlOverflow = useRef<string | null>(null);
+  const previousPosition = useRef<string | null>(null);
+  const previousTop = useRef<string | null>(null);
+  const previousWidth = useRef<string | null>(null);
+  const previousOverscroll = useRef<string | null>(null);
+  const previousHtmlOverscroll = useRef<string | null>(null);
+  const previousRootOverflow = useRef<string | null>(null);
+  const previousRootHeight = useRef<string | null>(null);
+  const previousRootOverscroll = useRef<string | null>(null);
+  const lockedScrollY = useRef(0);
   const isCenter = position === "center";
   const insets = useSafeAreaInsets();
   const resolvedBottomOffset = isCenter
@@ -48,6 +59,104 @@ export function ModalSheet({
       useNativeDriver: true,
     }).start();
   }, [anim, visible]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (visible) {
+      if (previousOverflow.current === null) {
+        previousOverflow.current = document.body.style.overflow;
+      }
+      if (previousHtmlOverflow.current === null) {
+        previousHtmlOverflow.current = document.documentElement.style.overflow;
+      }
+      if (previousOverscroll.current === null) {
+        previousOverscroll.current = document.body.style.overscrollBehavior;
+      }
+      if (previousHtmlOverscroll.current === null) {
+        previousHtmlOverscroll.current = document.documentElement.style.overscrollBehavior;
+      }
+      if (previousPosition.current === null) {
+        previousPosition.current = document.body.style.position;
+      }
+      if (previousTop.current === null) {
+        previousTop.current = document.body.style.top;
+      }
+      if (previousWidth.current === null) {
+        previousWidth.current = document.body.style.width;
+      }
+      lockedScrollY.current = window.scrollY || 0;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overscrollBehavior = "none";
+      document.documentElement.style.overscrollBehavior = "none";
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${lockedScrollY.current}px`;
+      document.body.style.width = "100%";
+      const root = document.getElementById("root") || document.getElementById("app");
+      if (root) {
+        if (previousRootOverflow.current === null) {
+          previousRootOverflow.current = root.style.overflow;
+        }
+        if (previousRootHeight.current === null) {
+          previousRootHeight.current = root.style.height;
+        }
+        if (previousRootOverscroll.current === null) {
+          previousRootOverscroll.current = root.style.overscrollBehavior;
+        }
+        root.style.overflow = "hidden";
+        root.style.height = "100%";
+        root.style.overscrollBehavior = "none";
+      }
+      return;
+    }
+    if (previousOverflow.current !== null) {
+      document.body.style.overflow = previousOverflow.current;
+      previousOverflow.current = null;
+    }
+    if (previousHtmlOverflow.current !== null) {
+      document.documentElement.style.overflow = previousHtmlOverflow.current;
+      previousHtmlOverflow.current = null;
+    }
+    if (previousOverscroll.current !== null) {
+      document.body.style.overscrollBehavior = previousOverscroll.current;
+      previousOverscroll.current = null;
+    }
+    if (previousHtmlOverscroll.current !== null) {
+      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll.current;
+      previousHtmlOverscroll.current = null;
+    }
+    if (previousPosition.current !== null) {
+      document.body.style.position = previousPosition.current;
+      previousPosition.current = null;
+    }
+    if (previousTop.current !== null) {
+      document.body.style.top = previousTop.current;
+      previousTop.current = null;
+    }
+    if (previousWidth.current !== null) {
+      document.body.style.width = previousWidth.current;
+      previousWidth.current = null;
+    }
+    const root = document.getElementById("root") || document.getElementById("app");
+    if (root) {
+      if (previousRootOverflow.current !== null) {
+        root.style.overflow = previousRootOverflow.current;
+        previousRootOverflow.current = null;
+      }
+      if (previousRootHeight.current !== null) {
+        root.style.height = previousRootHeight.current;
+        previousRootHeight.current = null;
+      }
+      if (previousRootOverscroll.current !== null) {
+        root.style.overscrollBehavior = previousRootOverscroll.current;
+        previousRootOverscroll.current = null;
+      }
+    }
+    if (lockedScrollY.current) {
+      window.scrollTo(0, lockedScrollY.current);
+      lockedScrollY.current = 0;
+    }
+  }, [visible]);
 
   return (
     <Modal

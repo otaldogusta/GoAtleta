@@ -479,7 +479,7 @@ export default function LogScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.inputBg,
+              backgroundColor: colors.background,
             }}
             scrollContentStyle={{ padding: 4 }}
           >
@@ -520,7 +520,7 @@ export default function LogScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.inputBg,
+              backgroundColor: colors.background,
             }}
             scrollContentStyle={{ padding: 4 }}
           >
@@ -553,3 +553,4 @@ export default function LogScreen() {
     </SafeAreaView>
   );
 }
+

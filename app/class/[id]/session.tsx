@@ -1,56 +1,57 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
-import { Pressable } from "../../../src/ui/Pressable";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Pressable } from "../../../src/ui/Pressable";
 
+import type { ClassGroup, ScoutingLog, SessionLog, TrainingPlan } from "../../../src/core/models";
 import {
-  getAttendanceByDate,
-  getClassById,
-  getTrainingPlans,
-  getSessionLogByDate,
-  getScoutingLogByDate,
-  getStudentsByClass,
-  saveSessionLog,
-  saveScoutingLog,
-} from "../../../src/db/seed";
-import type { ClassGroup, SessionLog, TrainingPlan, ScoutingLog } from "../../../src/core/models";
-import {
-  buildLogFromCounts,
-  countsFromLog,
-  createEmptyCounts,
-  getFocusSuggestion,
-  getSkillMetrics,
-  getTotalActions,
-  scoutingEnvioTooltip,
-  scoutingInitiationNote,
-  scoutingPriorityNote,
-  scoutingSkillHelp,
-  scoutingSkills,
+    buildLogFromCounts,
+    countsFromLog,
+    createEmptyCounts,
+    getFocusSuggestion,
+    getSkillMetrics,
+    getTotalActions,
+    scoutingEnvioTooltip,
+    scoutingInitiationNote,
+    scoutingPriorityNote,
+    scoutingSkillHelp,
+    scoutingSkills,
 } from "../../../src/core/scouting";
-import { useAppTheme } from "../../../src/ui/app-theme";
-import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
-import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
-import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
-import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
-import { SessionReportDocument } from "../../../src/pdf/session-report-document";
+import {
+    getAttendanceByDate,
+    getClassById,
+    getScoutingLogByDate,
+    getSessionLogByDate,
+    getStudentsByClass,
+    getTrainingPlans,
+    saveScoutingLog,
+    saveSessionLog,
+} from "../../../src/db/seed";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
-import { useSaveToast } from "../../../src/ui/save-toast";
-import { Button } from "../../../src/ui/Button";
+import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
+import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
+import { SessionReportDocument } from "../../../src/pdf/session-report-document";
+import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
+import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
-import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { useAppTheme } from "../../../src/ui/app-theme";
+import { Button } from "../../../src/ui/Button";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
+import { useSaveToast } from "../../../src/ui/save-toast";
 import { ShimmerBlock } from "../../../src/ui/Shimmer";
+import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { formatClock, formatDuration } from "../../../src/utils/format-time";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
@@ -441,13 +442,13 @@ export default function SessionScreen() {
   const main = plan?.main ?? [];
   const cooldown = plan?.cooldown ?? [];
   const warmupLabel = plan?.warmupTime
-    ? "Aquecimento (" + plan.warmupTime + ")"
+    ? "Aquecimento (" + formatDuration(plan.warmupTime) + ")"
     : "Aquecimento (10 min)";
   const mainLabel = plan?.mainTime
-    ? "Parte principal (" + plan.mainTime + ")"
+    ? "Parte principal (" + formatClock(plan.mainTime) + ")"
     : "Parte principal (45 min)";
   const cooldownLabel = plan?.cooldownTime
-    ? "Volta a calma (" + plan.cooldownTime + ")"
+    ? "Volta a calma (" + formatDuration(plan.cooldownTime) + ")"
     : "Volta a calma (5 min)";
   const showNoPlanNotice = !plan;
   const className = cls?.name ?? "";
@@ -558,17 +559,17 @@ export default function SessionScreen() {
       blocks: [
         {
           title: "Aquecimento",
-          time: plan.warmupTime || `${durations[0]} min`,
+          time: plan.warmupTime ? formatDuration(plan.warmupTime) : `${durations[0]} min`,
           items: warmup.map((name) => ({ name })),
         },
         {
           title: "Parte principal",
-          time: plan.mainTime || `${durations[1]} min`,
+          time: plan.mainTime ? formatClock(plan.mainTime) : `${durations[1]} min`,
           items: main.map((name) => ({ name })),
         },
         {
           title: "Volta a calma",
-          time: plan.cooldownTime || `${durations[2]} min`,
+          time: plan.cooldownTime ? formatDuration(plan.cooldownTime) : `${durations[2]} min`,
           items: cooldown.map((name) => ({ name })),
         },
       ],
@@ -861,7 +862,7 @@ export default function SessionScreen() {
                           const trimmed = item.trim();
                           const isMeta =
                             trimmed.toLowerCase().startsWith("objetivo geral") ||
-                            trimmed.toLowerCase().startsWith("objetivo especifico") ||
+                            trimmed.toLowerCase().startsWith("objetivo específico") ||
                             trimmed.toLowerCase().startsWith("observações");
                           return (
                             <Text
@@ -1472,7 +1473,7 @@ export default function SessionScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.inputBg,
+              backgroundColor: colors.background,
             }}
             scrollContentStyle={{ padding: 4 }}
           >
@@ -1513,7 +1514,7 @@ export default function SessionScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.inputBg,
+              backgroundColor: colors.background,
             }}
             scrollContentStyle={{ padding: 4 }}
           >
@@ -1549,3 +1550,4 @@ export default function SessionScreen() {
     </SafeAreaView>
   );
 }
+

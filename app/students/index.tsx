@@ -39,8 +39,12 @@ import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
+import { getClassPalette } from "../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
@@ -48,13 +52,10 @@ import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
-import { ShimmerBlock } from "../../src/ui/Shimmer";
-import { useAppTheme } from "../../src/ui/app-theme";
-import { getClassPalette } from "../../src/ui/class-colors";
-import { useConfirmDialog } from "../../src/ui/confirm-dialog";
-import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette } from "../../src/ui/unit-colors";
+import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -126,7 +127,7 @@ export default function StudentsScreen() {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: colors.inputBg,
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
     flexDirection: "row" as const,
@@ -134,10 +135,10 @@ export default function StudentsScreen() {
     justifyContent: "space-between" as const,
     gap: 8,
   };
-  const editModalCardStyle = useModalCardStyle({ maxHeight: "100%" });
+  const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
   const whatsappModalCardStyle = useModalCardStyle({
     maxHeight: "70%",
-    maxWidth: 360,
+    maxWidth: 440,
   });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -918,7 +919,7 @@ export default function StudentsScreen() {
         ? `Tem certeza que deseja excluir ${student.name}?`
         : "Tem certeza que deseja excluir este aluno?",
       confirmLabel: "Excluir",
-      undoMessage: "Aluno excluido. Deseja desfazer?",
+      undoMessage: "Aluno excluído. Deseja desfazer?",
       onOptimistic: () => {
         setStudents((prev) => prev.filter((item) => item.id !== student.id));
         if (editingId === student.id) {
@@ -950,7 +951,7 @@ export default function StudentsScreen() {
         ? `Tem certeza que deseja excluir ${student.name}?`
         : "Tem certeza que deseja excluir este aluno?",
       confirmLabel: "Excluir",
-      undoMessage: "Aluno excluido. Deseja desfazer?",
+      undoMessage: "Aluno excluído. Deseja desfazer?",
       onOptimistic: () => {
         setStudents((prev) => prev.filter((item) => item.id !== student.id));
         closeEditModal();
@@ -1299,7 +1300,7 @@ export default function StudentsScreen() {
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted }}>Turma</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Nenhuma turma disponivel para essa unidade.
+            Nenhuma turma disponível para essa unidade.
           </Text>
         </View>
       );
@@ -1312,7 +1313,7 @@ export default function StudentsScreen() {
             borderRadius: 12,
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
         >
           {classOptions.map((item, index) => {
@@ -1557,7 +1558,7 @@ export default function StudentsScreen() {
             style={{
               padding: 14,
               borderRadius: 18,
-              backgroundColor: colors.card,
+              backgroundColor: colors.background,
               borderWidth: 1,
               borderColor: classPalette.bg,
               shadowColor: "#000",
@@ -1899,7 +1900,7 @@ export default function StudentsScreen() {
                   borderColor: colors.border,
                   padding: 12,
                   borderRadius: 12,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: colors.background,
                   color: colors.inputText,
                 }}
               />
@@ -1974,7 +1975,7 @@ export default function StudentsScreen() {
                       borderColor: colors.border,
                       padding: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       color: colors.inputText,
                     }}
                   />
@@ -1997,7 +1998,7 @@ export default function StudentsScreen() {
                       borderColor: colors.border,
                       padding: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       color: colors.inputText,
                     }}
                   />
@@ -2016,7 +2017,7 @@ export default function StudentsScreen() {
                       borderColor: colors.border,
                       padding: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       color: colors.inputText,
                     }}
                   />
@@ -2036,7 +2037,7 @@ export default function StudentsScreen() {
                       borderColor: colors.border,
                       padding: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       color: colors.inputText,
                     }}
                   />
@@ -2076,7 +2077,7 @@ export default function StudentsScreen() {
                     paddingVertical: 8,
                     paddingHorizontal: 12,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     borderWidth: 1,
                     borderColor: colors.border,
                   }}
@@ -2156,7 +2157,7 @@ export default function StudentsScreen() {
                               borderColor: colors.border,
                               padding: 12,
                               borderRadius: 12,
-                              backgroundColor: colors.inputBg,
+                              backgroundColor: colors.background,
                               color: colors.inputText,
                               minHeight: 70,
                               textAlignVertical: "top",
@@ -2227,7 +2228,7 @@ export default function StudentsScreen() {
                               borderColor: colors.border,
                               padding: 12,
                               borderRadius: 12,
-                              backgroundColor: colors.inputBg,
+                              backgroundColor: colors.background,
                               color: colors.inputText,
                               minHeight: 70,
                               textAlignVertical: "top",
@@ -2249,7 +2250,7 @@ export default function StudentsScreen() {
                           borderColor: colors.border,
                           padding: 12,
                           borderRadius: 12,
-                          backgroundColor: colors.inputBg,
+                          backgroundColor: colors.background,
                           color: colors.inputText,
                           minHeight: 80,
                           textAlignVertical: "top",
@@ -2340,7 +2341,7 @@ export default function StudentsScreen() {
               style={{
                 padding: 12,
                 borderRadius: 16,
-                backgroundColor: colors.card,
+                backgroundColor: colors.background,
                 borderWidth: 1,
                 borderColor: colors.border,
                 shadowColor: "#000",
@@ -2405,7 +2406,7 @@ export default function StudentsScreen() {
                     style={{
                       padding: 14,
                       borderRadius: 18,
-                      backgroundColor: colors.card,
+                      backgroundColor: colors.background,
                       borderWidth: 1,
                       borderColor: colors.border,
                       shadowColor: "#000",
@@ -2481,7 +2482,7 @@ export default function StudentsScreen() {
                               borderColor: palette.bg,
                               padding: 10,
                               gap: 8,
-                              backgroundColor: colors.inputBg,
+                              backgroundColor: colors.background,
                             }}
                           >
                             {entries
@@ -2495,7 +2496,7 @@ export default function StudentsScreen() {
                                     style={{
                                       padding: 10,
                                       borderRadius: 14,
-                                      backgroundColor: colors.card,
+                                      backgroundColor: colors.background,
                                       borderWidth: 1,
                                       borderColor: palette.bg,
                                     }}
@@ -2539,61 +2540,11 @@ export default function StudentsScreen() {
 
         {studentsTab === "alunos" && (
           <View style={{ gap: 12 }}>
-            <View
-              style={{
-                padding: 12,
-                borderRadius: 16,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 2,
-                gap: 8,
-              }}
-            >
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Unidade
-              </Text>
-              <FadeHorizontalScroll
-                fadeColor={colors.card}
-                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-              >
-                {studentsUnitOptions.map((unit) => {
-                  const active = studentsUnitFilter === unit;
-                  const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                  const chipBg = active
-                    ? palette?.bg ?? colors.primaryBg
-                    : colors.secondaryBg;
-                  const chipText = active
-                    ? palette?.text ?? colors.primaryText
-                    : colors.text;
-                  return (
-                    <Pressable
-                      key={unit}
-                      onPress={() => setStudentsUnitFilter(unit)}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: chipBg,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: chipText,
-                          fontWeight: active ? "700" : "500",
-                        }}
-                      >
-                        {unit}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </FadeHorizontalScroll>
-            </View>
+            <UnitFilterBar
+              units={studentsUnitOptions}
+              selectedUnit={studentsUnitFilter}
+              onSelectUnit={setStudentsUnitFilter}
+            />
 
             <View style={{ gap: 8 }}>
               <View
@@ -2622,7 +2573,7 @@ export default function StudentsScreen() {
                                 paddingVertical: 7,
                                 paddingHorizontal: 10,
                                 borderRadius: 12,
-                                backgroundColor: colors.inputBg,
+                                backgroundColor: colors.background,
                                 borderWidth: 1,
                                 borderColor: colors.border,
                                 flexDirection: "row",
@@ -2667,7 +2618,7 @@ export default function StudentsScreen() {
                                           paddingVertical: 6,
                                           paddingHorizontal: 8,
                                           borderRadius: 10,
-                                          backgroundColor: colors.card,
+                                          backgroundColor: colors.background,
                                           borderWidth: 1,
                                           borderColor: colors.border,
                                           flexDirection: "row",
@@ -2842,7 +2793,7 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2876,7 +2827,7 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2908,7 +2859,7 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -2968,6 +2919,7 @@ export default function StudentsScreen() {
             maxHeight: "92%",
             minHeight: Platform.OS === "web" ? undefined : 320,
             paddingBottom: 12,
+            overflow: "hidden",
           },
         ]}
         position="center"
@@ -2979,7 +2931,7 @@ export default function StudentsScreen() {
               setEditContainerWindow({ x, y });
             });
           }}
-          style={{ position: "relative", width: "100%" }}
+          style={{ position: "relative", width: "100%", flex: 1, minHeight: 0 }}
         >
         <ConfirmCloseOverlay
           visible={showEditCloseConfirm}
@@ -2989,7 +2941,7 @@ export default function StudentsScreen() {
             closeEditModal();
           }}
         />
-        <View style={{ maxHeight: 520, overflow: "hidden" }}>
+        <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
             <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
               Editar aluno
@@ -3044,7 +2996,7 @@ export default function StudentsScreen() {
                           padding: 10,
                           fontSize: 13,
                           borderRadius: 12,
-                          backgroundColor: colors.inputBg,
+                          backgroundColor: colors.background,
                           color: colors.inputText,
                         }}
                       />
@@ -3116,7 +3068,7 @@ export default function StudentsScreen() {
                           padding: 10,
                           fontSize: 13,
                           borderRadius: 12,
-                          backgroundColor: colors.inputBg,
+                          backgroundColor: colors.background,
                           color: colors.inputText,
                         }}
                       />
@@ -3154,7 +3106,7 @@ export default function StudentsScreen() {
                           padding: 10,
                           fontSize: 13,
                           borderRadius: 12,
-                          backgroundColor: colors.inputBg,
+                          backgroundColor: colors.background,
                           color: colors.inputText,
                         }}
                       />
@@ -3172,7 +3124,7 @@ export default function StudentsScreen() {
                       paddingVertical: 8,
                       paddingHorizontal: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       borderWidth: 1,
                       borderColor: colors.border,
                     }}
@@ -3254,7 +3206,7 @@ export default function StudentsScreen() {
                                 borderColor: colors.border,
                                 padding: 10,
                                 borderRadius: 12,
-                                backgroundColor: colors.inputBg,
+                                backgroundColor: colors.background,
                                 color: colors.inputText,
                                 minHeight: 70,
                                 textAlignVertical: "top",
@@ -3327,7 +3279,7 @@ export default function StudentsScreen() {
                                 borderColor: colors.border,
                                 padding: 10,
                                 borderRadius: 12,
-                                backgroundColor: colors.inputBg,
+                                backgroundColor: colors.background,
                                 color: colors.inputText,
                                 minHeight: 70,
                                 textAlignVertical: "top",
@@ -3349,7 +3301,7 @@ export default function StudentsScreen() {
                             borderColor: colors.border,
                             padding: 10,
                             borderRadius: 12,
-                            backgroundColor: colors.inputBg,
+                            backgroundColor: colors.background,
                             color: colors.inputText,
                             minHeight: 80,
                             textAlignVertical: "top",
@@ -3383,7 +3335,7 @@ export default function StudentsScreen() {
                           padding: 10,
                           fontSize: 13,
                           borderRadius: 12,
-                          backgroundColor: colors.inputBg,
+                          backgroundColor: colors.background,
                           color: colors.inputText,
                         }}
                       />
@@ -3404,7 +3356,7 @@ export default function StudentsScreen() {
                           padding: 10,
                           fontSize: 13,
                           borderRadius: 12,
-                          backgroundColor: colors.inputBg,
+                          backgroundColor: colors.background,
                           color: colors.inputText,
                         }}
                       />
@@ -3517,7 +3469,7 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -3555,7 +3507,7 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -3591,7 +3543,7 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.background,
           }}
           scrollContentStyle={{ padding: 4 }}
         >
@@ -3708,7 +3660,7 @@ export default function StudentsScreen() {
                       paddingVertical: 10,
                       paddingHorizontal: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       borderWidth: 1,
                       borderColor: colors.border,
                       flexDirection: "row",
@@ -3812,7 +3764,7 @@ export default function StudentsScreen() {
                         style={{
                           padding: 10,
                           borderRadius: 8,
-                          backgroundColor: colors.inputBg,
+                          backgroundColor: colors.background,
                           borderWidth: 1,
                           borderColor: colors.border,
                           color: colors.text,
@@ -3943,7 +3895,7 @@ export default function StudentsScreen() {
                   style={{
                     padding: 10,
                     borderRadius: 8,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     borderWidth: 1,
                     borderColor: colors.border,
                     color: colors.text,
@@ -3994,7 +3946,7 @@ export default function StudentsScreen() {
                 panelStyle={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: colors.background,
                 }}
                 scrollContentStyle={{ padding: 8, gap: 8 }}
               >
@@ -4027,7 +3979,7 @@ export default function StudentsScreen() {
                       disabled={!canUse}
                       onPress={() => {
                         if (!canUse) {
-                          Alert.alert("Template indisponivel", missingRequirement);
+                          Alert.alert("Template indisponível", missingRequirement);
                           return;
                         }
                         if (template.id === "student_invite") {
@@ -4090,3 +4042,5 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
+
+

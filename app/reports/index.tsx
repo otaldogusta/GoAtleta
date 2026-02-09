@@ -111,7 +111,7 @@ export default function ReportsScreen() {
     name: string;
     score: number;
   } | null>(null);
-  const highlightModalStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 360 });
+  const highlightModalStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 440 });
   const reportTabs = [
     { id: "month" as const, label: "Mês atual" },
     { id: "reports" as const, label: "Relatórios" },
@@ -406,12 +406,12 @@ export default function ReportsScreen() {
     return uniqueSessionLogs
       .map((log) => {
         const cls = classMap[log.classId];
-        const className = cls.name ?? "Turma";
+        const className = cls?.name ?? "Turma";
         const dateKey = log.createdAt.split("T")[0];
         return {
           log,
           className,
-          classGender: cls.gender,
+          classGender: cls?.gender,
           dateKey,
           dateLabel: formatDateLabel(log.createdAt),
         };
@@ -429,8 +429,8 @@ export default function ReportsScreen() {
       ["date", "class", "student", "status", "note"],
       ...monthAttendance.map((r) => [
         r.date,
-        classMap[r.classId].name ?? "",
-        studentMap[r.studentId].name ?? "",
+        classMap[r.classId]?.name ?? "",
+        studentMap[r.studentId]?.name ?? "",
         r.status,
         r.note ?? "",
       ]),
@@ -942,7 +942,7 @@ export default function ReportsScreen() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                    {classesForUnit.find((c) => c.id === classId).name || "Selecione a turma"}
+                    {classesForUnit.find((c) => c.id === classId)?.name || "Selecione a turma"}
                   </Text>
                   <Ionicons name="chevron-down" size={16} color={colors.muted} />
                 </Pressable>
@@ -1293,6 +1293,7 @@ export default function ReportsScreen() {
           onClose={() => setSelectedHighlight(null)}
           cardStyle={highlightModalStyle}
         >
+          {selectedHighlight && (
           <View style={{ gap: 12 }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
               Conquistas
@@ -1331,6 +1332,7 @@ export default function ReportsScreen() {
               })}
             </View>
           </View>
+          )}
         </ModalSheet>
       </ScrollView>
     </SafeAreaView>

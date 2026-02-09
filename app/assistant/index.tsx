@@ -242,7 +242,7 @@ export default function AssistantScreen() {
           Assistente
         </Text>
         <Text style={{ color: colors.muted }}>
-          Crie planejamentos e planos com refer?ncias
+          Crie planejamentos e planos com referências
         </Text>
       </View>
 

@@ -35,6 +35,7 @@ import { Button } from "../../../src/ui/Button";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { DateInput } from "../../../src/ui/DateInput";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
+import { FadeHorizontalScroll } from "../../../src/ui/FadeHorizontalScroll";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { ShimmerBlock } from "../../../src/ui/Shimmer";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
@@ -445,11 +446,20 @@ export default function AttendanceScreen() {
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  gap: 12,
                 }}
               >
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  {item.student.name}
-                </Text>
+                <FadeHorizontalScroll
+                  containerStyle={{ flex: 1, minWidth: 0 }}
+                  fadeColor={colors.card}
+                >
+                  <Text
+                    style={{ fontSize: 16, fontWeight: "700", color: colors.text }}
+                    numberOfLines={1}
+                  >
+                    {item.student.name}
+                  </Text>
+                </FadeHorizontalScroll>
                 <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                   <Pressable
                     onPress={() =>

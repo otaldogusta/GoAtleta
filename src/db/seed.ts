@@ -601,7 +601,7 @@ export async function seedIfEmpty() {
         duration: 60,
         days: [6],
         daysperweek: 1,
-        goal: "Coordenacao + bola + jogo",
+        goal: "Coordenação + bola + jogo",
         equipment: "quadra",
         level: 1,
         mv_level: "MV1",

@@ -1,10 +1,10 @@
 import {
-  Text,
-  View
+    Text,
+    View
 } from "react-native";
-import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
+import { Pressable } from "./Pressable";
 
 type ConfirmCloseOverlayProps = {
   visible: boolean;
@@ -39,7 +39,7 @@ export function ConfirmCloseOverlay({
       overlayZIndex={overlayZIndex}
       cardStyle={{
         width: "100%",
-        maxWidth: 360,
+        maxWidth: 440,
         borderRadius: 18,
         backgroundColor: colors.card,
         borderWidth: 1,

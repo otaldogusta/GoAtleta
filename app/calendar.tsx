@@ -467,7 +467,7 @@ export default function CalendarScreen() {
                 Sem aulas nesta semana
               </Text>
               <Text style={{ color: colors.muted, marginTop: 4 }}>
-                Inicio das aulas em {earliestLabel}.
+                Início das aulas em {earliestLabel}.
               </Text>
             </View>
           ) : null}
@@ -580,7 +580,7 @@ export default function CalendarScreen() {
               const bucketOrder = ["Manha", "Tarde", "Noite", "Madrugada"];
               const orderedBuckets = bucketOrder
                 .map((label) => [label, buckets[label]] as const)
-                .filter((entry) => entry[1].length);
+                .filter((entry) => entry[1]?.length);
               const countLabel = items.length === 1 ? "1 turma" : `${items.length} turmas`;
 
               return (
@@ -663,13 +663,13 @@ export default function CalendarScreen() {
                             const classUnit = unitLabel(cls.unit);
                             const classPalette = getClassPalette(cls.colorKey, colors, classUnit);
                             const appliedPlan = getAppliedPlan(cls.id, date);
-                            const isSpecificDate = Boolean(appliedPlan.applyDate);
+                            const isSpecificDate = Boolean(appliedPlan?.applyDate);
                             const isWeekly =
                               !isSpecificDate &&
-                              (appliedPlan.applyDays?.length ?? 0) > 0;
+                              (appliedPlan?.applyDays?.length ?? 0) > 0;
                             const hasApplied =
-                              Boolean(appliedPlan.applyDate) ||
-                              (appliedPlan.applyDays?.length ?? 0) > 0;
+                              Boolean(appliedPlan?.applyDate) ||
+                              (appliedPlan?.applyDays?.length ?? 0) > 0;
                             const cardBackground = isPast
                               ? colors.secondaryBg
                               : hasApplied

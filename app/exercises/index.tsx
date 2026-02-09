@@ -147,7 +147,7 @@ export default function ExercisesScreen() {
     }
     clearForm();
     await load();
-    Alert.alert("Exerc?cio salvo", "Exerc?cio salvo com sucesso.");
+    Alert.alert("Exercício salvo", "Exercício salvo com sucesso.");
   };
 
   useEffect(() => {
@@ -232,12 +232,12 @@ export default function ExercisesScreen() {
 
   const confirmDelete = (exercise: Exercise) => {
     confirm({
-      title: "Excluir exercicio?",
+      title: "Excluir exercício?",
       message: exercise.title
         ? `Deseja remover ${exercise.title}?`
-        : "Deseja remover este exercicio?",
+        : "Deseja remover este exercício?",
       confirmLabel: "Excluir",
-      undoMessage: "Exercicio excluido. Deseja desfazer?",
+      undoMessage: "Exercicio excluído. Deseja desfazer?",
       onOptimistic: () => {
         setItems((prev) => prev.filter((item) => item.id !== exercise.id));
       },
@@ -271,7 +271,7 @@ export default function ExercisesScreen() {
       >
         <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Exercicios
+            Exercícios
           </Text>
           <Text style={{ color: colors.muted }}>
             Biblioteca com videos e links
@@ -291,7 +291,7 @@ export default function ExercisesScreen() {
           }}
         >
           <TextInput
-            placeholder="Buscar exercicio, tag ou fonte..."
+            placeholder="Buscar exercício, tag ou fonte..."
             placeholderTextColor={colors.placeholder}
             value={searchText}
             onChangeText={setSearchText}
@@ -346,7 +346,7 @@ export default function ExercisesScreen() {
                     fontSize: 12,
                   }}
                 >
-                  {editingId ? "Salvar alterações" : "Salvar exercicio"}
+                  {editingId ? "Salvar alterações" : "Salvar exercício"}
                 </Text>
               </Pressable>
               <Pressable
@@ -548,7 +548,7 @@ export default function ExercisesScreen() {
           ))}
           { !filteredItems.length ? (
             <Text style={{ color: colors.muted }}>
-              Nenhum exercicio cadastrado.
+              Nenhum exercício cadastrado.
             </Text>
           ) : null}
         </View>

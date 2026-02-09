@@ -83,7 +83,7 @@ export const periodizationHtml = (data: PeriodizationPdfData) => {
         ${data.unitLabel ? `<strong>Unidade:</strong> ${esc(data.unitLabel)}<br/>` : ""}
         ${
           data.cycleStart
-            ? `<strong>Inicio do ciclo:</strong> ${esc(data.cycleStart)}<br/>`
+            ? `<strong>Início do ciclo:</strong> ${esc(data.cycleStart)}<br/>`
             : ""
         }
         ${

@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { Text, View } from "react-native";
-import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
+import { Pressable } from "./Pressable";
 
 type ConfirmDialogOptions = {
   title: string;
@@ -94,7 +94,7 @@ export function ConfirmDialogProvider({
         overlayZIndex={9999}
         cardStyle={{
           width: "100%",
-          maxWidth: 360,
+          maxWidth: 440,
           borderRadius: 18,
           backgroundColor: colors.card,
           borderWidth: 1,

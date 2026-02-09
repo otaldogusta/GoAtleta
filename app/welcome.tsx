@@ -97,7 +97,7 @@ export default function WelcomeScreen() {
                 Seu app, seu ritmo
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6, lineHeight: 20 }}>
-                Controle presencia, aplique planos e acompanhe resultados com clareza.
+                Controle presença, aplique planos e acompanhe resultados com clareza.
               </Text>
             </View>
 

@@ -70,7 +70,7 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
       </style>
     </head>
     <body>
-      <h1>RELATORIO ESCOLINHA DE VOLEI</h1>
+      <h1>RELATÓRIO ESCOLINHA DE VÔLEI</h1>
       <div class="meta">
         <strong>Turma:</strong> ${esc(data.className || "-")}<br/>
         <strong>Unidade:</strong> ${esc(data.unitLabel || "-")}

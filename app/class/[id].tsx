@@ -1,15 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  Vibration,
-  View
+    Alert,
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    Vibration,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
@@ -18,24 +18,30 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ClassGroup, ScoutingLog, Student } from "../../src/core/models";
 import { getBlockForToday } from "../../src/core/periodization";
 import {
-  countsFromLog,
-  getFocusSuggestion,
-  getSkillMetrics,
-  scoutingSkills,
+    countsFromLog,
+    getFocusSuggestion,
+    getSkillMetrics,
+    scoutingSkills,
 } from "../../src/core/scouting";
 import {
-  deleteClassCascade,
-  duplicateClass,
-  getClassById,
-  getClasses,
-  getLatestScoutingLog,
-  getStudentsByClass,
-  updateClass,
-  updateClassColor,
+    deleteClassCascade,
+    duplicateClass,
+    getClassById,
+    getClasses,
+    getLatestScoutingLog,
+    getStudentsByClass,
+    updateClass,
+    updateClassColor,
 } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
+import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
+import { classRosterHtml } from "../../src/pdf/templates/class-roster";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
@@ -50,22 +56,19 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
-import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
-import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
-import { classRosterHtml } from "../../src/pdf/templates/class-roster";
 import {
-  buildWaMeLink,
-  getContactPhone,
-  getDefaultMessage,
-  openWhatsApp,
+    buildWaMeLink,
+    getContactPhone,
+    getDefaultMessage,
+    openWhatsApp,
 } from "../../src/utils/whatsapp";
 import {
-  WHATSAPP_TEMPLATES,
-  WhatsAppTemplateId,
-  calculateNextClassDate,
-  formatNextClassDate,
-  getSuggestedTemplate,
-  renderTemplate
+    WHATSAPP_TEMPLATES,
+    WhatsAppTemplateId,
+    calculateNextClassDate,
+    formatNextClassDate,
+    getSuggestedTemplate,
+    renderTemplate
 } from "../../src/utils/whatsapp-templates";
 
 export default function ClassDetails() {
@@ -74,8 +77,9 @@ export default function ClassDetails() {
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
   const { defaultMessageEnabled, setDefaultMessageEnabled, coachName, groupInviteLinks } = useWhatsAppSettings();
-  const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "75%", maxWidth: 360 });
-  const rosterModalCardStyle = useModalCardStyle({ maxHeight: "60%", maxWidth: 360 });
+  const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "75%", maxWidth: 440 });
+  const rosterModalCardStyle = useModalCardStyle({ maxHeight: "60%", maxWidth: 440 });
+  const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
   const [customWhatsAppMessage, setCustomWhatsAppMessage] = useState("");
@@ -97,6 +101,46 @@ export default function ClassDetails() {
   const [studentsLoadedFor, setStudentsLoadedFor] = useState<string | null>(null);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [showStudentsModal, setShowStudentsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [showEditDurationPicker, setShowEditDurationPicker] = useState(false);
+  const [showEditAgeBandPicker, setShowEditAgeBandPicker] = useState(false);
+  const [showEditGenderPicker, setShowEditGenderPicker] = useState(false);
+  const [showEditGoalPicker, setShowEditGoalPicker] = useState(false);
+  const [showCustomDuration, setShowCustomDuration] = useState(false);
+  const [editContainerWindow, setEditContainerWindow] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [editDurationTriggerLayout, setEditDurationTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editAgeBandTriggerLayout, setEditAgeBandTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editGenderTriggerLayout, setEditGenderTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editGoalTriggerLayout, setEditGoalTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const editContainerRef = useRef<View>(null);
+  const editDurationTriggerRef = useRef<View>(null);
+  const editAgeBandTriggerRef = useRef<View>(null);
+  const editGenderTriggerRef = useRef<View>(null);
+  const editGoalTriggerRef = useRef<View>(null);
   const [classColorKey, setClassColorKey] = useState<string | null>(null);
   const [classColorSaving, setClassColorSaving] = useState(false);
   const filteredContacts = useMemo(() => {
@@ -132,6 +176,22 @@ export default function ClassDetails() {
     animatedStyle: detailsAnimStyle,
     isVisible: showDetailsContent,
   } = useCollapsibleAnimation(showDetails);
+  const {
+    animatedStyle: editDurationPickerAnimStyle,
+    isVisible: showEditDurationPickerContent,
+  } = useCollapsibleAnimation(showEditDurationPicker, { translateY: -6 });
+  const {
+    animatedStyle: editAgeBandPickerAnimStyle,
+    isVisible: showEditAgeBandPickerContent,
+  } = useCollapsibleAnimation(showEditAgeBandPicker, { translateY: -6 });
+  const {
+    animatedStyle: editGenderPickerAnimStyle,
+    isVisible: showEditGenderPickerContent,
+  } = useCollapsibleAnimation(showEditGenderPicker, { translateY: -6 });
+  const {
+    animatedStyle: editGoalPickerAnimStyle,
+    isVisible: showEditGoalPickerContent,
+  } = useCollapsibleAnimation(showEditGoalPicker, { translateY: -6 });
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
   const monthNames = [
     "Janeiro",
@@ -159,17 +219,18 @@ export default function ClassDetails() {
   ];
   const goals: ClassGroup["goal"][] = [
     "Fundamentos",
-    "Forca Geral",
-    "Potencia/Agilidade",
-    "Forca+Potencia",
+    "Força Geral",
+    "Potência/Agilidade",
+    "Força+Potência",
     "Velocidade",
     "Agilidade",
     "Resistencia",
-    "Potencia",
+    "Potência",
     "Mobilidade",
     "Coordenacao",
     "Prevencao de lesoes",
   ];
+  const genderOptions: ClassGroup["gender"][] = ["feminino", "masculino", "misto"];
   const durationOptions = ["60", "75", "90"];
   const formatDays = (days: number[]) =>
     days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
@@ -184,6 +245,18 @@ export default function ClassDetails() {
     fontWeight: "600" as const,
     fontSize: 12,
   });
+  const selectFieldStyle = {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    gap: 8,
+  };
   const normalizeTimeInput = (value: string) => {
     const digits = value.replace(/[^\d]/g, "").slice(0, 4);
     if (digits.length <= 2) return digits;
@@ -331,6 +404,10 @@ export default function ClassDetails() {
       .filter((goal) => goal && !goals.includes(goal))
       .slice(0, 4);
   }, [allClasses, clsUnit, goals]);
+  const goalOptions = useMemo(() => {
+    const merged = [...goals, ...goalSuggestions];
+    return Array.from(new Set(merged));
+  }, [goalSuggestions, goals]);
 
   const scoutingCounts = useMemo(() => {
     if (!latestScouting) return null;
@@ -373,6 +450,96 @@ export default function ClassDetails() {
     };
   }, [id]);
 
+  const resetEditFields = useCallback(() => {
+    if (!cls) return;
+    setName(cls.name ?? "");
+    setUnit(cls.unit ?? "");
+    setAgeBand(cls.ageBand ?? "08-09");
+    setGender(cls.gender ?? "misto");
+    setStartTime(cls.startTime ?? "14:00");
+    setDuration(String(cls.durationMinutes ?? 60));
+    setDaysOfWeek(cls.daysOfWeek ?? []);
+    setGoal(cls.goal ?? "Fundamentos");
+    setFormError("");
+  }, [cls]);
+
+  const closeEditPickers = useCallback(() => {
+    setShowEditDurationPicker(false);
+    setShowEditAgeBandPicker(false);
+    setShowEditGenderPicker(false);
+    setShowEditGoalPicker(false);
+  }, []);
+
+  const toggleEditPicker = useCallback(
+    (target: "duration" | "age" | "gender" | "goal") => {
+      setShowEditDurationPicker((prev) => (target === "duration" ? !prev : false));
+      setShowEditAgeBandPicker((prev) => (target === "age" ? !prev : false));
+      setShowEditGenderPicker((prev) => (target === "gender" ? !prev : false));
+      setShowEditGoalPicker((prev) => (target === "goal" ? !prev : false));
+    },
+    []
+  );
+
+  const syncEditPickerLayouts = useCallback(() => {
+    if (!showEditDurationPicker && !showEditAgeBandPicker && !showEditGenderPicker && !showEditGoalPicker) return;
+    requestAnimationFrame(() => {
+      if (showEditDurationPicker && editDurationTriggerRef.current) {
+        editDurationTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditDurationTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditAgeBandPicker && editAgeBandTriggerRef.current) {
+        editAgeBandTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditAgeBandTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditGenderPicker && editGenderTriggerRef.current) {
+        editGenderTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditGenderTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (showEditGoalPicker && editGoalTriggerRef.current) {
+        editGoalTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditGoalTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (editContainerRef.current) {
+        editContainerRef.current.measureInWindow((x, y) => {
+          setEditContainerWindow({ x, y });
+        });
+      }
+    });
+  }, [
+    showEditDurationPicker,
+    showEditAgeBandPicker,
+    showEditGenderPicker,
+    showEditGoalPicker,
+  ]);
+
+  const isEditDirty = useMemo(() => {
+    if (!cls) return false;
+    return (
+      (cls.name ?? "") !== name ||
+      (cls.unit ?? "") !== unit ||
+      (cls.ageBand ?? "08-09") !== ageBand ||
+      (cls.gender ?? "misto") !== gender ||
+      (cls.startTime ?? "14:00") !== startTime ||
+      String(cls.durationMinutes ?? 60) !== duration ||
+      JSON.stringify(cls.daysOfWeek ?? []) !== JSON.stringify(daysOfWeek) ||
+      (cls.goal ?? "Fundamentos") !== goal
+    );
+  }, [ageBand, cls, daysOfWeek, duration, gender, goal, name, startTime, unit]);
+
+  useEffect(() => {
+    syncEditPickerLayouts();
+  }, [
+    showEditDurationPicker,
+    showEditAgeBandPicker,
+    showEditGenderPicker,
+    showEditGoalPicker,
+    syncEditPickerLayouts,
+  ]);
+
   useEffect(() => {
     if (!cls || !showStudentsModal) return;
     if (studentsLoadedFor === cls.id) return;
@@ -392,6 +559,72 @@ export default function ClassDetails() {
       alive = false;
     };
   }, [cls, showStudentsModal, studentsLoadedFor]);
+
+  const toggleDay = (value: number) => {
+    setDaysOfWeek((prev) =>
+      prev.includes(value) ? prev.filter((day) => day !== value) : [...prev, value]
+    );
+  };
+
+  const saveUnit = async (): Promise<boolean> => {
+    if (!cls) return false;
+    const timeValue = startTime.trim();
+    if (!isValidTime(timeValue)) {
+      setFormError("Horário inválido. Use HH:MM.");
+      Vibration.vibrate(40);
+      return false;
+    }
+    const durationValue = parseDuration(duration.trim());
+    if (!durationValue) {
+      setFormError("Duração inválida. Use minutos entre 30 e 180.");
+      Vibration.vibrate(40);
+      return false;
+    }
+    setFormError("");
+    setSaving(true);
+    try {
+      await updateClass(cls.id, {
+        name: name.trim() || cls.name,
+        unit: unit.trim() || "Rede Esperança",
+        daysOfWeek,
+        goal,
+        ageBand: ageBand.trim() || cls.ageBand,
+        gender,
+        startTime: timeValue,
+        durationMinutes: durationValue,
+      });
+      Vibration.vibrate(60);
+      const fresh = await getClassById(cls.id);
+      setCls(fresh);
+      setClassColorKey(fresh?.colorKey ?? null);
+      return true;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const closeEditModal = useCallback(() => {
+    setShowEditModal(false);
+    setShowEditCloseConfirm(false);
+    closeEditPickers();
+    setShowCustomDuration(false);
+    resetEditFields();
+  }, [closeEditPickers, resetEditFields]);
+
+  const requestCloseEditModal = useCallback(() => {
+    if (isEditDirty) {
+      setShowEditCloseConfirm(true);
+      return;
+    }
+    closeEditModal();
+  }, [closeEditModal, isEditDirty]);
+
+  const handleSaveEdit = useCallback(async () => {
+    const saved = await saveUnit();
+    if (saved) {
+      setShowEditModal(false);
+    }
+  }, [saveUnit]);
 
   if (loading) {
     return (
@@ -429,48 +662,6 @@ export default function ClassDetails() {
     );
   }
 
-  const toggleDay = (value: number) => {
-    setDaysOfWeek((prev) =>
-      prev.includes(value) ? prev.filter((day) => day !== value) : [...prev, value]
-    );
-  };
-
-  const saveUnit = async () => {
-    if (!cls) return;
-    const timeValue = startTime.trim();
-    if (!isValidTime(timeValue)) {
-      setFormError("Horário inválido. Use HH:MM.");
-      Vibration.vibrate(40);
-      return;
-    }
-    const durationValue = parseDuration(duration.trim());
-    if (!durationValue) {
-      setFormError("Duração inválida. Use minutos entre 30 e 180.");
-      Vibration.vibrate(40);
-      return;
-    }
-    setFormError("");
-    setSaving(true);
-    try {
-      await updateClass(cls.id, {
-        name: name.trim() || cls.name,
-        unit: unit.trim() || "Rede Esperança",
-        daysOfWeek,
-        goal,
-        ageBand: ageBand.trim() || cls.ageBand,
-        gender,
-        startTime: timeValue,
-        durationMinutes: durationValue,
-      });
-      Vibration.vibrate(60);
-      const fresh = await getClassById(cls.id);
-      setCls(fresh);
-      setClassColorKey(fresh?.colorKey ?? null);
-      router.back();
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const onDuplicate = () => {
     if (!cls) return;
@@ -707,7 +898,10 @@ export default function ClassDetails() {
               </Text>
             </View>
             <Pressable
-              onPress={() => router.push({ pathname: "/classes", params: { edit: cls.id } })}
+              onPress={() => {
+                resetEditFields();
+                setShowEditModal(true);
+              }}
               style={{
                 width: 40,
                 height: 40,
@@ -824,50 +1018,6 @@ export default function ClassDetails() {
           ) : null}
         </View>
 
-        <View style={getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 })}>
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-            Cor da turma
-          </Text>
-          <FadeHorizontalScroll
-            fadeColor={colors.background}
-            contentContainerStyle={{ flexDirection: "row", gap: 10, marginTop: 8 }}
-          >
-            {colorOptions.map((option, index) => {
-              const value = option.key === "default" ? null : option.key;
-              const active = (classColorKey ?? null) === value;
-              return (
-                <Pressable
-                  key={option.key}
-                  onPress={() => handleSelectClassColor(value)}
-                  disabled={classColorSaving}
-                  style={{
-                    alignItems: "center",
-                    gap: 4,
-                    marginLeft: index === 0 ? 6 : 0,
-                    opacity: classColorSaving ? 0.6 : 1,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 999,
-                      backgroundColor: option.palette.bg,
-                      borderWidth: active ? 3 : 1,
-                      borderColor: active ? colors.text : colors.border,
-                    }}
-                  />
-                </Pressable>
-              );
-            })}
-          </FadeHorizontalScroll>
-          {classColorSaving ? (
-            <Text style={{ color: colors.muted, fontSize: 11, marginTop: 6 }}>
-              Salvando cor...
-            </Text>
-          ) : null}
-        </View>
-
         <View style={getSectionCardStyle(colors, "primary", { radius: 18 })}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Ações rápidas
@@ -888,7 +1038,7 @@ export default function ClassDetails() {
                 Ver aula do dia
               </Text>
               <Text style={{ color: colors.primaryText, marginTop: 6, opacity: 0.85 }}>
-                Plano e cronometro
+                Plano e cronômetro
               </Text>
             </Pressable>
             <Pressable
@@ -1048,6 +1198,493 @@ export default function ClassDetails() {
       </ScrollView>
       </KeyboardAvoidingView>
 
+
+      <ModalSheet
+        visible={showEditModal}
+        onClose={requestCloseEditModal}
+        position="center"
+        cardStyle={editModalCardStyle}
+      >
+        <ConfirmCloseOverlay
+          visible={showEditCloseConfirm}
+          onCancel={() => setShowEditCloseConfirm(false)}
+          onConfirm={closeEditModal}
+        />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            Editar turma
+          </Text>
+          <Pressable
+            onPress={requestCloseEditModal}
+            style={{
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          style={{ maxHeight: "90%" }}
+          contentContainerStyle={{ gap: 12, paddingHorizontal: 12, paddingBottom: 16, paddingTop: 12 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+          nestedScrollEnabled
+          onScrollBeginDrag={closeEditPickers}
+          onScroll={syncEditPickerLayouts}
+          scrollEventThrottle={16}
+        >
+          <View
+            ref={editContainerRef}
+            onLayout={syncEditPickerLayouts}
+            style={{ position: "relative", gap: 12 }}
+          >
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
+                <TextInput
+                  placeholder="Nome da turma"
+                  value={name}
+                  onChangeText={setName}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
+                <TextInput
+                  placeholder="Unidade"
+                  value={unit}
+                  onChangeText={setUnit}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              </View>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Cor da turma</Text>
+              <FadeHorizontalScroll
+                fadeColor={colors.card}
+                contentContainerStyle={{ flexDirection: "row", gap: 10 }}
+              >
+                {colorOptions.map((option, index) => {
+                  const value = option.key === "default" ? null : option.key;
+                  const active = (classColorKey ?? null) === value;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      onPress={() => handleSelectClassColor(value)}
+                      disabled={classColorSaving}
+                      style={{
+                        alignItems: "center",
+                        gap: 4,
+                        marginLeft: index === 0 ? 6 : 0,
+                        opacity: classColorSaving ? 0.6 : 1,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 999,
+                          backgroundColor: option.palette.bg,
+                          borderWidth: active ? 3 : 1,
+                          borderColor: active ? colors.text : colors.border,
+                        }}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </FadeHorizontalScroll>
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
+                <TextInput
+                  placeholder="Horário (HH:MM)"
+                  value={startTime}
+                  onChangeText={(value) => setStartTime(normalizeTimeInput(value))}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
+                <View ref={editDurationTriggerRef}>
+                  <Pressable onPress={() => toggleEditPicker("duration")} style={selectFieldStyle}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {duration ? `${duration} min` : "Selecione"}
+                    </Text>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={18}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditDurationPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
+                </View>
+                {showCustomDuration ? (
+                  <TextInput
+                    placeholder="Duração (min)"
+                    value={duration}
+                    onChangeText={setDuration}
+                    keyboardType="numeric"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor: colors.inputBg,
+                      color: colors.inputText,
+                      fontSize: 13,
+                    }}
+                  />
+                ) : null}
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
+                <View ref={editAgeBandTriggerRef}>
+                  <Pressable onPress={() => toggleEditPicker("age")} style={selectFieldStyle}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {ageBand || "Selecione"}
+                    </Text>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={18}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditAgeBandPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
+                <View ref={editGenderTriggerRef}>
+                  <Pressable onPress={() => toggleEditPicker("gender")} style={selectFieldStyle}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {gender || "Selecione"}
+                    </Text>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={18}
+                      color={colors.muted}
+                      style={{
+                        transform: [
+                          { rotate: showEditGenderPicker ? "180deg" : "0deg" },
+                        ],
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
+              <View ref={editGoalTriggerRef}>
+                <Pressable onPress={() => toggleEditPicker("goal")} style={selectFieldStyle}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {goal || "Selecione"}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={18}
+                    color={colors.muted}
+                    style={{
+                      transform: [
+                        { rotate: showEditGoalPicker ? "180deg" : "0deg" },
+                      ],
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Dias da semana</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                  flexDirection: "row",
+                  gap: 8,
+                  paddingVertical: 2,
+                  paddingRight: 16,
+                }}
+              >
+                {dayNames.map((label, index) => {
+                  const active = daysOfWeek.includes(index);
+                  return (
+                    <Pressable
+                      key={label}
+                      onPress={() => toggleDay(index)}
+                      style={getChipStyle(active, { bg: colors.primaryBg, text: colors.primaryText })}
+                    >
+                      <Text style={getChipTextStyle(active, { bg: colors.primaryBg, text: colors.primaryText })}>
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {formError ? (
+              <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                {formError}
+              </Text>
+            ) : null}
+            <Button
+              label="Salvar alterações"
+              onPress={handleSaveEdit}
+              variant="primary"
+              disabled={saving || !isEditDirty}
+              loading={saving}
+            />
+
+            <AnchoredDropdown
+              visible={showEditDurationPickerContent}
+              layout={editDurationTriggerLayout}
+              container={editContainerWindow}
+              animationStyle={editDurationPickerAnimStyle}
+              zIndex={420}
+              maxHeight={220}
+              nestedScrollEnabled
+              onRequestClose={closeEditPickers}
+              panelStyle={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+              }}
+              scrollContentStyle={{ padding: 4 }}
+            >
+              {[...durationOptions, "Personalizar"].map((value, index) => {
+                const active = value !== "Personalizar" && duration === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => {
+                      if (value === "Personalizar") {
+                        setShowCustomDuration(true);
+                        if (!durationOptions.includes(duration)) {
+                          setDuration("");
+                        }
+                      } else {
+                        setShowCustomDuration(false);
+                        setDuration(value);
+                      }
+                      closeEditPickers();
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      margin: index === 0 ? 6 : 2,
+                      backgroundColor: active ? colors.primaryBg : "transparent",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.text,
+                        fontSize: 12,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {value === "Personalizar" ? value : `${value} min`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </AnchoredDropdown>
+
+            <AnchoredDropdown
+              visible={showEditAgeBandPickerContent}
+              layout={editAgeBandTriggerLayout}
+              container={editContainerWindow}
+              animationStyle={editAgeBandPickerAnimStyle}
+              zIndex={420}
+              maxHeight={240}
+              nestedScrollEnabled
+              onRequestClose={closeEditPickers}
+              panelStyle={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+              }}
+              scrollContentStyle={{ padding: 4 }}
+            >
+              {ageBandOptions.map((value, index) => {
+                const active = ageBand === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => {
+                      setAgeBand(value);
+                      closeEditPickers();
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      margin: index === 0 ? 6 : 2,
+                      backgroundColor: active ? colors.primaryBg : "transparent",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.text,
+                        fontSize: 12,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {value}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </AnchoredDropdown>
+
+            <AnchoredDropdown
+              visible={showEditGenderPickerContent}
+              layout={editGenderTriggerLayout}
+              container={editContainerWindow}
+              animationStyle={editGenderPickerAnimStyle}
+              zIndex={420}
+              maxHeight={200}
+              nestedScrollEnabled
+              onRequestClose={closeEditPickers}
+              panelStyle={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+              }}
+              scrollContentStyle={{ padding: 4 }}
+            >
+              {genderOptions.map((value, index) => {
+                const active = gender === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => {
+                      setGender(value);
+                      closeEditPickers();
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      margin: index === 0 ? 6 : 2,
+                      backgroundColor: active ? colors.primaryBg : "transparent",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.text,
+                        fontSize: 12,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {value}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </AnchoredDropdown>
+
+            <AnchoredDropdown
+              visible={showEditGoalPickerContent}
+              layout={editGoalTriggerLayout}
+              container={editContainerWindow}
+              animationStyle={editGoalPickerAnimStyle}
+              zIndex={420}
+              maxHeight={240}
+              nestedScrollEnabled
+              onRequestClose={closeEditPickers}
+              panelStyle={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+              }}
+              scrollContentStyle={{ padding: 4 }}
+            >
+              {goalOptions.map((value, index) => {
+                const active = goal === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => {
+                      setGoal(value);
+                      closeEditPickers();
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 10,
+                      borderRadius: 10,
+                      margin: index === 0 ? 6 : 2,
+                      backgroundColor: active ? colors.primaryBg : "transparent",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.text,
+                        fontSize: 12,
+                        fontWeight: active ? "700" : "500",
+                      }}
+                    >
+                      {value}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </AnchoredDropdown>
+          </View>
+        </ScrollView>
+      </ModalSheet>
 
       <ModalSheet
         visible={showRosterExportModal}
@@ -1595,3 +2232,4 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
+

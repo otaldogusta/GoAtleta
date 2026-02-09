@@ -19,23 +19,21 @@ import type { ClassGroup, ClassPlan } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 
 import {
+  createClassPlan,
 
-    createClassPlan,
+  deleteClassPlansByClass,
 
-    deleteClassPlansByClass,
+  getClasses,
 
-    getClasses,
+  getClassPlansByClass,
 
-    getClassPlansByClass,
+  getSessionLogsByRange,
 
-    getSessionLogsByRange,
+  saveClassPlans,
 
-    saveClassPlans,
+  updateClassAcwrLimits,
 
-    updateClassAcwrLimits,
-
-    updateClassPlan,
-
+  updateClassPlan,
 } from "../../src/db/seed";
 
 import { logAction } from "../../src/observability/breadcrumbs";
@@ -52,8 +50,8 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 
 import { type ThemeColors, useAppTheme } from "../../src/ui/app-theme";
 
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { ClassContextHeader } from "../../src/ui/ClassContextHeader";
+import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 
 import { useGuidance } from "../../src/ui/guidance";
@@ -72,7 +70,7 @@ import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 
 
-type VolumeLevel = "baixo" | "mÈdio" | "alto";
+type VolumeLevel = "baixo" | "m√©dio" | "alto";
 
 
 
@@ -108,7 +106,7 @@ const sessionsOptions = [
 
 ] as const;
 
-const volumeOrder: VolumeLevel[] = ["baixo", "mÈdio", "alto"];
+const volumeOrder: VolumeLevel[] = ["baixo", "m√©dio", "alto"];
 
 const dayLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
 
@@ -116,7 +114,7 @@ const dayNumbersByLabelIndex = [1, 2, 3, 4, 5, 6, 0];
 
 
 
-const pseTitle = "PercepÁ„o Subjetiva de EsforÁo";
+const pseTitle = "Percep√ß√£o Subjetiva de Esfor√ßo";
 
 
 
@@ -124,7 +122,7 @@ const volumeToPSE: Record<VolumeLevel, string> = {
 
   baixo: "PSE 4-5",
 
-  "mÈdio": "PSE 5-6",
+  "m√©dio": "PSE 5-6",
 
   alto: "PSE 6-7",
 
@@ -157,7 +155,7 @@ const volumeToRatio: Record<VolumeLevel, number> = {
 
   baixo: 0.35,
 
-  "mÈdio": 0.65,
+  "m√©dio": 0.65,
 
   alto: 0.9,
 
@@ -197,7 +195,7 @@ const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
 
   }
 
-  if (level === "mÈdio") {
+  if (level === "m√©dio") {
 
     return {
 
@@ -233,9 +231,9 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 1,
 
-      title: "Base l˙dica",
+      title: "Base l√∫dica",
 
-      focus: "CoordenaÁ„o, brincadeiras e jogos simples",
+      focus: "Coordena√ß√£o, brincadeiras e jogos simples",
 
       volume: "baixo",
 
@@ -249,9 +247,9 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       title: "Fundamentos",
 
-      focus: "Toque, manchete e controle b·sico",
+      focus: "Toque, manchete e controle b√°sico",
 
-      volume: "mÈdio",
+      volume: "m√©dio",
 
       notes: ["Series curtas", "Feedback simples"],
 
@@ -263,9 +261,9 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       title: "Jogo reduzido",
 
-      focus: "CooperaÁ„o e tomada de decis„o",
+      focus: "Coopera√ß√£o e tomada de decis√£o",
 
-      volume: "mÈdio",
+      volume: "m√©dio",
 
       notes: ["Jogos 2x2/3x3", "Regras simples"],
 
@@ -275,13 +273,13 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 4,
 
-      title: "RecuperaÁ„o",
+      title: "Recupera√ß√£o",
 
-      focus: "Revis„o e prazer pelo jogo",
+      focus: "Revis√£o e prazer pelo jogo",
 
       volume: "baixo",
 
-      notes: ["Menos repetiÁıes", "Mais variaÁ„o"],
+      notes: ["Menos repeti√ß√µes", "Mais varia√ß√£o"],
 
     },
 
@@ -293,13 +291,13 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 1,
 
-      title: "Base tÈcnica",
+      title: "Base t√©cnica",
 
       focus: "Fundamentos e controle de bola",
 
-      volume: "mÈdio",
+      volume: "m√©dio",
 
-      notes: ["2-3 sessıes/semana", "EquilÌbrio e core"],
+      notes: ["2-3 sess√µes/semana", "Equil√≠brio e core"],
 
     },
 
@@ -307,11 +305,11 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 2,
 
-      title: "Tomada de decis„o",
+      title: "Tomada de decis√£o",
 
-      focus: "Leitura simples de jogo e cooperaÁ„o",
+      focus: "Leitura simples de jogo e coopera√ß√£o",
 
-      volume: "mÈdio",
+      volume: "m√©dio",
 
       notes: ["Jogos condicionados", "Ritmo moderado"],
 
@@ -335,9 +333,9 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 4,
 
-      title: "RecuperaÁ„o",
+      title: "Recupera√ß√£o",
 
-      focus: "TÈcnica leve e prevenÁ„o",
+      focus: "T√©cnica leve e preven√ß√£o",
 
       volume: "baixo",
 
@@ -353,13 +351,13 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 1,
 
-      title: "Base tÈcnica",
+      title: "Base t√©cnica",
 
-      focus: "Refino de fundamentos e posiÁ„o",
+      focus: "Refino de fundamentos e posi√ß√£o",
 
-      volume: "mÈdio",
+      volume: "m√©dio",
 
-      notes: ["Sessıes 60-90 min", "Ritmo controlado"],
+      notes: ["Sess√µes 60-90 min", "Ritmo controlado"],
 
     },
 
@@ -367,13 +365,13 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 2,
 
-      title: "PotÍncia controlada",
+      title: "Pot√™ncia controlada",
 
-      focus: "Salto, deslocamento e reaÁ„o",
+      focus: "Salto, deslocamento e rea√ß√£o",
 
       volume: "alto",
 
-      notes: ["Pliometria leve", "ForÁa 50-70% 1RM"],
+      notes: ["Pliometria leve", "For√ßa 50-70% 1RM"],
 
     },
 
@@ -395,9 +393,9 @@ const basePlans: Record<(typeof ageBands)[number], WeekPlan[]> = {
 
       week: 4,
 
-      title: "RecuperaÁ„o",
+      title: "Recupera√ß√£o",
 
-      focus: "PrevenÁ„o e consolidaÁ„o tÈcnica",
+      focus: "Preven√ß√£o e consolida√ß√£o t√©cnica",
 
       volume: "baixo",
 
@@ -500,14 +498,14 @@ const normalizeText = (value: string) => {
   if (/\\u[0-9a-fA-F]{4}/.test(current) || /\\U[0-9a-fA-F]{8}/.test(current)) {
     current = decodeUnicodeEscapes(current);
   }
-  if (!/[√¬?]/.test(current)) return current;
+  if (!/[\uFFFD?]/.test(current)) return current;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       current = decodeURIComponent(escape(current));
     } catch {
       break;
     }
-    if (!/[√¬?]/.test(current)) break;
+    if (!/[\uFFFD?]/.test(current)) break;
   }
   return current;
 };
@@ -530,11 +528,11 @@ const resolvePlanBand = (value: string): (typeof ageBands)[number] => {
 
 const getPhysicalFocus = (band: (typeof ageBands)[number]) => {
 
-  if (band === "06-08") return "CoordenaÁ„o e equilÌbrio";
+  if (band === "06-08") return "Coordena√ß√£o e equil√≠brio";
 
-  if (band === "09-11") return "ForÁa leve e agilidade";
+  if (band === "09-11") return "For√ßa leve e agilidade";
 
-  return "PotÍncia controlada";
+  return "Pot√™ncia controlada";
 
 };
 
@@ -588,7 +586,7 @@ const getPhaseForWeek = (weekNumber: number, cycleLength: number) => {
 
     if (weekNumber <= 8) return "Desenvolvimento";
 
-    return "ConsolidaÁ„o";
+    return "Consolida√ß√£o";
 
   }
 
@@ -598,7 +596,7 @@ const getPhaseForWeek = (weekNumber: number, cycleLength: number) => {
 
   if (weekNumber <= chunk * 2) return "Desenvolvimento";
 
-  return "ConsolidaÁ„o";
+  return "Consolida√ß√£o";
 
 };
 
@@ -624,7 +622,7 @@ const validateAcwrLimits = (next: { high: string; low: string }) => {
 
   if (!Number.isFinite(highValue) || !Number.isFinite(lowValue)) {
 
-    return { ok: false, message: "Informe limites v·lidos para o ACWR." };
+    return { ok: false, message: "Informe limites v√°lidos para o ACWR." };
 
   }
 
@@ -1317,8 +1315,8 @@ export default function PeriodizationScreen() {
   const classAgeBandLabel = normalizeText(selectedClass?.ageBand ?? "09-11");
   const classGenderLabel = normalizeText(selectedClass?.gender ?? "misto");
   const classStartTimeLabel = selectedClass?.startTime
-    ? normalizeText(`Hor·rio ${selectedClass.startTime}`)
-    : normalizeText("Hor·rio indefinido");
+    ? normalizeText(`Hor√°rio ${selectedClass.startTime}`)
+    : normalizeText("Hor√°rio indefinido");
 
 
 
@@ -1751,7 +1749,7 @@ export default function PeriodizationScreen() {
 
       if (painHits.length >= 3) {
 
-        setPainAlert("Dor nÌvel 2+ por 3 registros. Considere avaliar com profissional.");
+        setPainAlert("Dor n√≠vel 2+ por 3 registros. Considere avaliar com profissional.");
 
         setPainAlertDates(painHits.map((log) => formatDisplayDate(log.createdAt)));
 
@@ -1919,9 +1917,9 @@ export default function PeriodizationScreen() {
 
       return [
 
-        "Foco em alfabetizaÁ„o motora e jogo",
+        "Foco em alfabetiza√ß√£o motora e jogo",
 
-        "Sessıes curtas e l˙dicas",
+        "Sess√µes curtas e l√∫dicas",
 
         "Sem cargas externas",
 
@@ -1933,7 +1931,7 @@ export default function PeriodizationScreen() {
 
       return [
 
-        "Fundamentos + tomada de decis„o",
+        "Fundamentos + tomada de decis√£o",
 
         "Controle de volume e saltos",
 
@@ -1945,11 +1943,11 @@ export default function PeriodizationScreen() {
 
     return [
 
-      "TÈcnica eficiente + sistema de jogo",
+      "T√©cnica eficiente + sistema de jogo",
 
-      "ForÁa moderada e pliometria controlada",
+      "For√ßa moderada e pliometria controlada",
 
-      "Monitorar PSE e recuperaÁ„o",
+      "Monitorar PSE e recupera√ß√£o",
 
     ];
 
@@ -1985,7 +1983,7 @@ export default function PeriodizationScreen() {
 
 
 
-  // Removido: criaÁ„o automatica de semanas ao entrar na tela.
+  // Removido: cria√ß√£o autom√°tica de semanas ao entrar na tela.
 
 
 
@@ -2019,13 +2017,13 @@ export default function PeriodizationScreen() {
 
     if (highLoadStreak) {
 
-      return "Duas semanas seguidas em carga alta. Considere uma semana de recuperaÁ„o.";
+      return "Duas semanas seguidas em carga alta. Considere uma semana de recupera√ß√£o.";
 
     }
 
     if (activeWeek.volume === "alto") {
 
-      return "Semana atual com carga alta. Monitore recuperaÁ„o e PSE.";
+      return "Semana atual com carga alta. Monitore recupera√ß√£o e PSE.";
 
     }
 
@@ -2063,7 +2061,7 @@ export default function PeriodizationScreen() {
 
       details[acwrSummary] =
 
-        "ACWR e a razao entre a carga da ˙ltima semana e a media das ˙ltimas 4.";
+        "ACWR e a raz√£o entre a carga da √∫ltima semana e a m√©dia das √∫ltimas 4.";
 
     }
 
@@ -3216,7 +3214,7 @@ export default function PeriodizationScreen() {
 
       },
 
-      { baixo: 0, "mÈdio": 0, alto: 0 } as Record<VolumeLevel, number>
+      { baixo: 0, "m√©dio": 0, alto: 0 } as Record<VolumeLevel, number>
 
     );
 
@@ -3402,7 +3400,7 @@ export default function PeriodizationScreen() {
 
         { selectedClass ? (
           <ClassContextHeader
-            title={normalizeText("PeriodizaÁ„o")}
+            title={normalizeText("Periodiza√ß√£o")}
             className={classNameLabel}
             unit={classUnitLabel}
             ageBand={classAgeBandLabel}
@@ -3412,7 +3410,7 @@ export default function PeriodizationScreen() {
         ) : (
           <View style={{ gap: 6 }}>
             <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              {normalizeText("PeriodizaÁ„o")}
+              {normalizeText("Periodiza√ß√£o")}
             </Text>
             <Text style={{ color: colors.muted }}>
               {normalizeText("Estrutura do ciclo, cargas e foco semanal")}
@@ -3441,7 +3439,7 @@ export default function PeriodizationScreen() {
 
           {[
 
-            { id: "geral", label: normalizeText("Vis„o geral") },
+            { id: "geral", label: normalizeText("Vis√£o geral") },
             { id: "ciclo", label: normalizeText("Ciclo") },
 
             { id: "semana", label: normalizeText("Semana") },
@@ -3516,13 +3514,13 @@ export default function PeriodizationScreen() {
 
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
 
-            {normalizeText("Vis„o geral")}
+            {normalizeText("Vis√£o geral")}
 
           </Text>
 
             <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-              {normalizeText("Panorama r·pido do ciclo e da turma atual")}
+              {normalizeText("Panorama r√°pido do ciclo e da turma atual")}
 
           </Text>
 
@@ -3540,7 +3538,7 @@ export default function PeriodizationScreen() {
 
             <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
 
-              {normalizeText("PrÛxima sess„o")}
+              {normalizeText("Pr√≥xima sess√£o")}
 
             </Text>
 
@@ -3985,7 +3983,7 @@ export default function PeriodizationScreen() {
           <View style={{ marginTop: 8, gap: 8 }}>
 
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {normalizeText("DistribuiÁ„o de carga")}
+              {normalizeText("Distribui√ß√£o de carga")}
             </Text>
 
             <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
@@ -4039,14 +4037,14 @@ export default function PeriodizationScreen() {
           <View style={{ marginTop: 8, gap: 8 }}>
 
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {normalizeText("TendÍncia de carga")}
+              {normalizeText("Tend√™ncia de carga")}
             </Text>
 
             <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
 
               {progressBars.map((ratio, index) => {
 
-                const level = weekPlans[index]?.volume ?? "mÈdio";
+                const level = weekPlans[index]?.volume ?? "m√©dio";
 
                 const palette = getVolumePalette(level, colors);
 
@@ -4158,7 +4156,7 @@ export default function PeriodizationScreen() {
 
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
 
-                  Abrir relatÛrios
+                  Abrir relat√≥rios
 
                 </Text>
 
@@ -4374,7 +4372,7 @@ export default function PeriodizationScreen() {
 
           <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-            {normalizeText("DistribuiÁ„o de intensidade ao longo do ciclo")}
+            {normalizeText("Distribui√ß√£o de intensidade ao longo do ciclo")}
 
           </Text>
 
@@ -4386,7 +4384,7 @@ export default function PeriodizationScreen() {
 
             {progressBars.map((ratio, index) => {
 
-              const level = weekPlans[index]?.volume ?? "mÈdio";
+              const level = weekPlans[index]?.volume ?? "m√©dio";
 
               const isActive = index + 1 === currentWeek;
 
@@ -4670,7 +4668,7 @@ export default function PeriodizationScreen() {
 
             <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-              {normalizeText("Toque para ver as recomendaÁıes")}
+              {normalizeText("Toque para ver as recomenda√ß√µes")}
 
             </Text>
 
@@ -5204,7 +5202,7 @@ export default function PeriodizationScreen() {
 
           <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-            {normalizeText("Dias com sess„o e foco sugerido")}
+            {normalizeText("Dias com sess√£o e foco sugerido")}
 
           </Text>
 
@@ -5611,8 +5609,8 @@ export default function PeriodizationScreen() {
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
 
             {selectedDay
-              ? normalizeText(`Sess„o de ${selectedDay.label}`)
-              : normalizeText("Sess„o")}
+              ? normalizeText(`Sess√£o de ${selectedDay.label}`)
+              : normalizeText("Sess√£o")}
 
           </Text>
 
@@ -6106,7 +6104,7 @@ export default function PeriodizationScreen() {
 
               <TextInput
 
-                placeholder={normalizeText("Fase (ex: Base, RecuperaÁ„o)")}
+                placeholder={normalizeText("Fase (ex: Base, Recupera√ß√£o)")}
 
                 value={editPhase}
 
@@ -6181,12 +6179,12 @@ export default function PeriodizationScreen() {
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
               <Text style={{ color: colors.muted, fontSize: 11 }}>
-                {normalizeText("Foco tÈcnico")}
+                {normalizeText("Foco t√©cnico")}
               </Text>
 
               <TextInput
 
-                placeholder={normalizeText("Foco tÈcnico")}
+                placeholder={normalizeText("Foco t√©cnico")}
 
                 value={editTechnicalFocus}
 
@@ -6219,12 +6217,12 @@ export default function PeriodizationScreen() {
             <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
 
               <Text style={{ color: colors.muted, fontSize: 11 }}>
-                {normalizeText("Foco fÌsico")}
+                {normalizeText("Foco f√≠sico")}
               </Text>
 
               <TextInput
 
-                placeholder={normalizeText("Foco fÌsico")}
+                placeholder={normalizeText("Foco f√≠sico")}
 
                 value={editPhysicalFocus}
 
@@ -6259,12 +6257,12 @@ export default function PeriodizationScreen() {
           <View style={{ gap: 4 }}>
 
             <Text style={{ color: colors.muted, fontSize: 11 }}>
-              {normalizeText("RestriÁıes")}
+              {normalizeText("Restri√ß√µes")}
             </Text>
 
             <TextInput
 
-              placeholder={normalizeText("RestriÁıes / regras")}
+              placeholder={normalizeText("Restri√ß√µes / regras")}
 
               value={editConstraints}
 
@@ -6505,7 +6503,7 @@ export default function PeriodizationScreen() {
           <View style={{ gap: 8 }}>
 
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {normalizeText("AÁıes r·pidas")}
+              {normalizeText("A√ß√µes r√°pidas")}
             </Text>
 
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -6519,7 +6517,7 @@ export default function PeriodizationScreen() {
                     title: normalizeText("Resetar para AUTO?"),
 
                     message: normalizeText(
-                      "O plano volta para o modelo autom·tico desta semana."
+                      "O plano volta para o modelo autom√°tico desta semana."
                     ),
 
                     confirmLabel: normalizeText("Resetar"),
@@ -6636,7 +6634,7 @@ export default function PeriodizationScreen() {
 
                 >
 
-                  Copiar para prÛxima
+                  Copiar para pr√≥xima
 
                 </Text>
 

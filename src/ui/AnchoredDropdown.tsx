@@ -9,6 +9,7 @@ import {
     View,
     ViewStyle,
 } from "react-native";
+import { useAppTheme } from "./app-theme";
 
 type Layout = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
@@ -21,12 +22,14 @@ type AnchoredDropdownProps = {
   zIndex: number;
   maxHeight: number;
   nestedScrollEnabled: boolean;
-  panelStyle: StyleProp<ViewStyle>;
-  scrollContentStyle: StyleProp<ViewStyle>;
+  panelStyle?: StyleProp<ViewStyle>;
+  scrollContentStyle?: StyleProp<ViewStyle>;
   children: React.ReactNode;
   onRequestClose?: () => void;
   dismissOnBackdropPress?: boolean;
 };
+
+const DEFAULT_DROPDOWN_MAX_HEIGHT = 168;
 
 export function AnchoredDropdown({
   visible,
@@ -42,8 +45,10 @@ export function AnchoredDropdown({
   onRequestClose,
   dismissOnBackdropPress = !!onRequestClose,
 }: AnchoredDropdownProps) {
+  const { colors } = useAppTheme();
   if (!visible || !layout) return null;
 
+  const resolvedMaxHeight = Math.min(maxHeight, DEFAULT_DROPDOWN_MAX_HEIGHT);
   const left = container ? layout.x - container.x : layout.x;
   const defaultTop = container
     ? layout.y - container.y + layout.height + 8
@@ -51,8 +56,8 @@ export function AnchoredDropdown({
   const windowHeight = Dimensions.get("window").height;
   const availableBottom = windowHeight - 24;
   const top =
-    defaultTop + maxHeight > availableBottom
-      ? Math.max(8, defaultTop - layout.height - maxHeight)
+    defaultTop + resolvedMaxHeight > availableBottom
+      ? Math.max(8, defaultTop - layout.height - resolvedMaxHeight)
       : defaultTop;
 
   const handleBackdropPress = () => {
@@ -93,15 +98,18 @@ export function AnchoredDropdown({
         <View
           style={[
             {
-              maxHeight,
+              maxHeight: resolvedMaxHeight,
               borderRadius: 12,
               overflow: "hidden",
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
             },
             panelStyle,
           ]}
         >
           <ScrollView
-            style={{ maxHeight }}
+            style={{ maxHeight: resolvedMaxHeight }}
             contentContainerStyle={scrollContentStyle}
             nestedScrollEnabled={nestedScrollEnabled}
             showsVerticalScrollIndicator

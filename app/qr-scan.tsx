@@ -1,13 +1,13 @@
-import { useState } from "react";
-import { Linking, Platform, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
+import { useState } from "react";
+import { Linking, Platform, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
+import { Pressable } from "../src/ui/Pressable";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
@@ -18,7 +18,7 @@ export default function QrScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [result, setResult] = useState<string | null>(null);
-  const sheetStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 380 });
+  const sheetStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 440 });
 
   if (Platform.OS === "web") {
     return (

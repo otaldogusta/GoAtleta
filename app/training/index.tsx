@@ -65,9 +65,11 @@ import { useSaveToast } from "../../src/ui/save-toast";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
+import { TimeInput } from "../../src/ui/TimeInput";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { formatClock, formatDuration } from "../../src/utils/format-time";
 
 const toLines = (value: string) =>
   value
@@ -175,10 +177,10 @@ const getPiagetTags = (ageBand: string) => {
   const start = range.start;
   if (start <= 2) {
     return [
-      "sensorio-motor",
-      "jogo de exercicio",
-      "exploracao sensorial",
-      "permanencia do objeto",
+      "sensório-motor",
+      "jogo de exercício",
+      "exploração sensorial",
+      "permanência do objeto",
     ];
   }
   if (start <= 7) {
@@ -201,7 +203,7 @@ const getPiagetTags = (ageBand: string) => {
     "operatorio formal",
     "jogo estrategico",
     "raciocinio abstrato",
-    "hipotetico-dedutivo",
+    "hipotético-dedutivo",
   ];
 };
 
@@ -225,7 +227,7 @@ const getMethodologyTags = (ageBand: string) => {
       "tomada de decisao",
       "jogo de regras",
       "controle de volume",
-      "core e equilibrio",
+      "core e equilíbrio",
       "volleyveilig",
     ];
   }
@@ -1264,7 +1266,7 @@ export default function TrainingList() {
     const plan: TrainingPlan = {
       id: editingId ?? "t_" + Date.now(),
       classId,
-      title: title.trim() || "Planejamento sem titulo",
+      title: title.trim() || "Planejamento sem título",
       tags: tagsText
         .split(",")
         .map((tag) => tag.trim())
@@ -1329,7 +1331,7 @@ export default function TrainingList() {
     const nowIso = new Date().toISOString();
     const template: TrainingTemplate = {
       id: editingTemplateId ?? "tpl_" + Date.now(),
-      title: title.trim() || "Modelo sem titulo",
+      title: title.trim() || "Modelo sem título",
       ageBand: band,
       tags: tagsText
         .split(",")
@@ -1385,7 +1387,7 @@ export default function TrainingList() {
       title: "Excluir planejamento?",
       message: "Essa ação pode ser desfeita por alguns segundos.",
       confirmLabel: "Excluir",
-      undoMessage: "Planejamento excluido. Deseja desfazer?",
+      undoMessage: "Planejamento excluído. Deseja desfazer?",
       onOptimistic: () => {
         setItems((prev) => prev.filter((item) => item.id !== plan.id));
         if (editingId === plan.id) {
@@ -1512,7 +1514,7 @@ export default function TrainingList() {
       title: "Excluir modelo?",
       message: "Essa ação pode ser desfeita por alguns segundos.",
       confirmLabel: "Excluir",
-      undoMessage: "Modelo excluido. Deseja desfazer?",
+      undoMessage: "Modelo excluído. Deseja desfazer?",
       onOptimistic: () => {
         if (source === "custom") {
           setTemplateItems((prev) => prev.filter((item) => item.id !== id));
@@ -1765,13 +1767,13 @@ export default function TrainingList() {
       plan.title,
       "Turma: " + getClassName(plan.classId),
       "",
-      "Aquecimento " + (plan.warmupTime ? "(" + plan.warmupTime + ")" : ""),
+      "Aquecimento " + (plan.warmupTime ? "(" + formatDuration(plan.warmupTime) + ")" : ""),
       plan.warmup.length ? "- " + plan.warmup.join("\n- ") : "- Sem itens",
       "",
-      "Parte principal " + (plan.mainTime ? "(" + plan.mainTime + ")" : ""),
+      "Parte principal " + (plan.mainTime ? "(" + formatClock(plan.mainTime) + ")" : ""),
       plan.main.length ? "- " + plan.main.join("\n- ") : "- Sem itens",
       "",
-      "Volta a calma " + (plan.cooldownTime ? "(" + plan.cooldownTime + ")" : ""),
+      "Volta a calma " + (plan.cooldownTime ? "(" + formatDuration(plan.cooldownTime) + ")" : ""),
       plan.cooldown.length ? "- " + plan.cooldown.join("\n- ") : "- Sem itens",
     ];
     if (plan.tags.length) {
@@ -2380,20 +2382,12 @@ export default function TrainingList() {
                 color: colors.inputText,
               }}
             />
-            <TextInput
-              placeholder="Tempo (ex: 10')"
+            <TimeInput
+              placeholder="10:00 (min:seg)"
               value={warmupTime}
               onChangeText={setWarmupTime}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                width: 110,
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 10,
-                borderRadius: 10,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
+              format="duration"
+              style={{ width: 110 }}
             />
           </View>
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -2416,20 +2410,12 @@ export default function TrainingList() {
                 color: colors.inputText,
               }}
             />
-            <TextInput
-              placeholder="Tempo (ex: 40')"
+            <TimeInput
+              placeholder="01:30 (h:min)"
               value={mainTime}
               onChangeText={setMainTime}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                width: 110,
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 10,
-                borderRadius: 10,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
+              format="clock"
+              style={{ width: 110 }}
             />
           </View>
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -2452,20 +2438,12 @@ export default function TrainingList() {
                 color: colors.inputText,
               }}
             />
-            <TextInput
-              placeholder="Tempo (ex: 5')"
+            <TimeInput
+              placeholder="05:00 (min:seg)"
               value={cooldownTime}
               onChangeText={setCooldownTime}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                width: 110,
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 10,
-                borderRadius: 10,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
+              format="duration"
+              style={{ width: 110 }}
             />
           </View>
           <Pressable
@@ -2875,22 +2853,13 @@ export default function TrainingList() {
                       fontSize: 13,
                     }}
                   />
-                  <TextInput
-                    placeholder="Tempo (ex: 10')"
+                  <TimeInput
+                    placeholder="10:00 (min:seg)"
                     value={templateWarmupTime}
                     onChangeText={setTemplateWarmupTime}
-                    placeholderTextColor={colors.placeholder}
-                  style={{
-                    width: 110,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 10,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
+                    format="duration"
+                    style={{ width: 110 }}
+                  />
                 </View>
               </View>
               <View style={{ gap: 4 }}>
@@ -2916,22 +2885,13 @@ export default function TrainingList() {
                       fontSize: 13,
                     }}
                   />
-                  <TextInput
-                    placeholder="Tempo (ex: 40')"
+                  <TimeInput
+                    placeholder="01:30 (h:min)"
                     value={templateMainTime}
                     onChangeText={setTemplateMainTime}
-                    placeholderTextColor={colors.placeholder}
-                  style={{
-                    width: 110,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 10,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
+                    format="clock"
+                    style={{ width: 110 }}
+                  />
                 </View>
               </View>
               <View style={{ gap: 4 }}>
@@ -2957,22 +2917,13 @@ export default function TrainingList() {
                       fontSize: 13,
                     }}
                   />
-                  <TextInput
-                    placeholder="Tempo (ex: 5')"
+                  <TimeInput
+                    placeholder="05:00 (min:seg)"
                     value={templateCooldownTime}
                     onChangeText={setTemplateCooldownTime}
-                    placeholderTextColor={colors.placeholder}
-                  style={{
-                    width: 110,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 10,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
+                    format="duration"
+                    style={{ width: 110 }}
+                  />
                 </View>
               </View>
               <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
@@ -3109,7 +3060,7 @@ export default function TrainingList() {
             >
               <Text style={{ fontWeight: "700", color: colors.text }}>
                 Aquecimento{" "}
-                {selectedPlan.warmupTime ? "(" + selectedPlan.warmupTime + ")" : ""}
+                {selectedPlan.warmupTime ? "(" + formatDuration(selectedPlan.warmupTime) + ")" : ""}
               </Text>
               <Text style={{ color: colors.text }}>
                 {selectedPlan.warmup.length
@@ -3129,7 +3080,7 @@ export default function TrainingList() {
             >
               <Text style={{ fontWeight: "700", color: colors.text }}>
                 Parte principal{" "}
-                {selectedPlan.mainTime ? "(" + selectedPlan.mainTime + ")" : ""}
+                {selectedPlan.mainTime ? "(" + formatClock(selectedPlan.mainTime) + ")" : ""}
               </Text>
               <Text style={{ color: colors.text }}>
                 {selectedPlan.main.length
@@ -3150,7 +3101,7 @@ export default function TrainingList() {
               <Text style={{ fontWeight: "700", color: colors.text }}>
                 Volta a calma{" "}
                 {selectedPlan.cooldownTime
-                  ? "(" + selectedPlan.cooldownTime + ")"
+                  ? "(" + formatDuration(selectedPlan.cooldownTime) + ")"
                   : ""}
               </Text>
               <Text style={{ color: colors.text }}>
@@ -3332,7 +3283,7 @@ export default function TrainingList() {
                 );
               })}
             </View>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Data especifica</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Data específica</Text>
             <DateInput
               value={applyDate}
               onChange={(value) => {
@@ -3467,7 +3418,7 @@ export default function TrainingList() {
             if (!applyDate) {
               Alert.alert(
                 "Informe a data",
-                "Digite a data especifica do planejamento."
+                "Digite a data específica do planejamento."
               );
               return;
             }

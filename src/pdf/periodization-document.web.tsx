@@ -67,7 +67,7 @@ export function PeriodizationDocument({ data }: { data: PeriodizationPdfData }) 
           {data.ageGroup ? ` (${data.ageGroup})` : ""}
           {"\n"}
           {data.unitLabel ? `Unidade: ${data.unitLabel}\n` : ""}
-          {data.cycleStart ? `Inicio do ciclo: ${data.cycleStart}\n` : ""}
+          {data.cycleStart ? `Início do ciclo: ${data.cycleStart}\n` : ""}
           {typeof data.cycleLength === "number"
             ? `Semanas: ${data.cycleLength}`
             : ""}

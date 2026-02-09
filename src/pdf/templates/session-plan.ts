@@ -68,7 +68,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         <table>
           <thead>
             <tr>
-              <th>Atividade / Exercicio</th>
+              <th>Atividade / ExercÃ­cio</th>
             </tr>
           </thead>
           <tbody>
@@ -161,7 +161,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           hasTitle
             ? `
         <div class="card">
-          <div class="label">Título / Tema</div>
+          <div class="label">Tï¿½tulo / Tema</div>
           <div class="value">${esc(data.title || "")}</div>
         </div>
         `
