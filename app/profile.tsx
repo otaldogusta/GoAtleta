@@ -14,7 +14,7 @@ import { useAuth } from "../src/auth/auth";
 
 import { useRole } from "../src/auth/role";
 
-import { getClasses } from "../src/db/seed";
+import { getClasses, updateStudentPhoto } from "../src/db/seed";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
@@ -26,7 +26,7 @@ import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 export default function ProfileScreen() {
   const { colors } = useAppTheme();
   const { signOut, session } = useAuth();
-  const { student } = useRole();
+  const { student, refresh: refreshRole } = useRole();
   const router = useRouter();
   const PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -61,6 +61,13 @@ export default function ProfileScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
+      if (student) {
+        if (alive) {
+          setPhotoUri(student.photoUrl ?? null);
+          setLoadingPhoto(false);
+        }
+        return;
+      }
       try {
         const stored = await AsyncStorage.getItem(PHOTO_STORAGE_KEY);
         if (!alive) return;
@@ -79,7 +86,7 @@ export default function ProfileScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [student]);
 
   const loadingProfile = loadingClasses || loadingPhoto;
 
@@ -130,6 +137,16 @@ export default function ProfileScreen() {
 
   const savePhoto = async (uri: string | null) => {
     setPhotoUri(uri);
+    if (student?.id) {
+      try {
+        await updateStudentPhoto(student.id, uri);
+        await refreshRole();
+      } catch (error) {
+        console.error("Failed to update student photo", error);
+        Alert.alert("Erro", "Nao foi possivel salvar a foto.");
+      }
+      return;
+    }
     try {
       if (uri) {
         await AsyncStorage.setItem(PHOTO_STORAGE_KEY, uri);
@@ -139,6 +156,21 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error("Failed to persist profile photo", error);
     }
+  };
+
+  const buildPhotoDataUrl = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (asset.base64) {
+      const mime = asset.mimeType ?? "image/jpeg";
+      return `data:${mime};base64,${asset.base64}`;
+    }
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   };
 
   const pickPhoto = async (source: "camera" | "library") => {
@@ -155,30 +187,14 @@ export default function ProfileScreen() {
         }
         const result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 1,
+          quality: 0.8,
           allowsEditing: true,
           aspect: [1, 1],
-          base64: Platform.OS === "web",
+          base64: true,
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset.uri) {
-          let uri = asset.uri;
-          if (Platform.OS === "web") {
-            if (asset.base64) {
-              const mime = asset.mimeType ?? "image/jpeg";
-              uri = `data:${mime};base64,${asset.base64}`;
-            } else {
-              const response = await fetch(asset.uri);
-              const blob = await response.blob();
-              const dataUrl = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(String(reader.result));
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-              uri = dataUrl;
-            }
-          }
+          const uri = await buildPhotoDataUrl(asset);
           await savePhoto(uri);
         }
         return;
@@ -194,30 +210,14 @@ export default function ProfileScreen() {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 1,
+        quality: 0.8,
         allowsEditing: true,
         aspect: [1, 1],
-        base64: Platform.OS === "web",
+        base64: true,
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset.uri) {
-        let uri = asset.uri;
-        if (Platform.OS === "web") {
-          if (asset.base64) {
-            const mime = asset.mimeType ?? "image/jpeg";
-            uri = `data:${mime};base64,${asset.base64}`;
-          } else {
-            const response = await fetch(asset.uri);
-            const blob = await response.blob();
-            const dataUrl = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(String(reader.result));
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-            uri = dataUrl;
-          }
-        }
+        const uri = await buildPhotoDataUrl(asset);
         await savePhoto(uri);
       }
     } catch (error) {
@@ -555,6 +555,39 @@ export default function ProfileScreen() {
               <Text style={{ color: colors.text, fontWeight: "600" }}>{item.label}</Text>
             </Pressable>
           ))}
+          {photoUri ? (
+            <Pressable
+              onPress={() => {
+                void savePhoto(null);
+                setShowPhotoSheet(false);
+              }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 12,
+                borderRadius: 14,
+                backgroundColor: colors.dangerSolidBg,
+              }}
+            >
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: "rgba(255,255,255,0.18)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="trash" size={18} color={colors.dangerSolidText} />
+              </View>
+              <Text style={{ color: colors.dangerSolidText, fontWeight: "600" }}>
+                Remover foto
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </ModalSheet>
     </SafeAreaView>

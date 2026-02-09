@@ -1,21 +1,18 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
 import { Image } from "expo-image";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { ClassGroup } from "../src/core/models";
 import { useRole } from "../src/auth/role";
 import { setRoleOverride } from "../src/auth/role-override";
+import type { ClassGroup } from "../src/core/models";
 import { getClasses } from "../src/db/seed";
 import {
-  AppNotification,
-  getNotifications,
-  subscribeNotifications,
+    AppNotification,
+    getNotifications,
+    subscribeNotifications,
 } from "../src/notificationsInbox";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -58,7 +55,7 @@ export default function StudentHome() {
   const { student, refresh: refreshRole } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [inbox, setInbox] = useState<AppNotification[]>([]);
-  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
+  const profilePhotoUri = student?.photoUrl ?? null;
 
   useEffect(() => {
     let alive = true;
@@ -78,27 +75,6 @@ export default function StudentHome() {
     };
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      (async () => {
-        try {
-          const stored = await AsyncStorage.getItem("profile_photo_uri_v1");
-          if (!active) return;
-          if (Platform.OS === "web" && stored.startsWith("blob:")) {
-            setProfilePhotoUri(null);
-            return;
-          }
-          setProfilePhotoUri(stored || null);
-        } catch {
-          if (active) setProfilePhotoUri(null);
-        }
-      })();
-      return () => {
-        active = false;
-      };
-    }, [])
-  );
 
   const todayLabel = useMemo(() => {
     const date = new Date();

@@ -1,5 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import {
     memo,
     useCallback,
@@ -140,6 +142,8 @@ export default function StudentsScreen() {
     maxHeight: "70%",
     maxWidth: 440,
   });
+  const photoPreviewCardStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 360 });
+  const photoSheetCardStyle = useModalCardStyle({ maxHeight: "55%", maxWidth: 320 });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,6 +165,7 @@ export default function StudentsScreen() {
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("");
   const [customAgeBand, setCustomAgeBand] = useState("");
   const [name, setName] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [birthDate, setBirthDate] = useState("");
   const [ageNumber, setAgeNumber] = useState<number | null>(null);
   const [phone, setPhone] = useState("");
@@ -186,6 +191,9 @@ export default function StudentsScreen() {
   const [showEditGuardianRelationPicker, setShowEditGuardianRelationPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const [showPhotoPreview, setShowPhotoPreview] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<{ uri: string | null; name: string } | null>(null);
   const [studentFormError, setStudentFormError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
   const [studentInviteBusy, setStudentInviteBusy] = useState(false);
@@ -221,6 +229,7 @@ export default function StudentsScreen() {
     customAgeBand: string;
     classId: string;
     name: string;
+    photoUrl: string | null;
     birthDate: string;
     phone: string;
     loginEmail: string;
@@ -581,6 +590,82 @@ export default function StudentsScreen() {
     setAgeNumber(calculateAge(birthDate));
   }, [birthDate]);
 
+  const buildPhotoDataUrl = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (asset.base64) {
+      const mime = asset.mimeType ?? "image/jpeg";
+      return `data:${mime};base64,${asset.base64}`;
+    }
+    if (Platform.OS !== "web") return asset.uri;
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const pickStudentPhoto = async (source: "camera" | "library" | "remove") => {
+    try {
+      if (source === "remove") {
+        setPhotoUrl(null);
+        return;
+      }
+      if (Platform.OS === "web" && source === "camera") {
+        Alert.alert("Câmera indisponível", "Use a Galeria no navegador.");
+        return;
+      }
+      if (source === "camera") {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (permission.status !== "granted") {
+          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
+          return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.8,
+          allowsEditing: true,
+          aspect: [1, 1],
+          base64: true,
+        });
+        const asset = result.assets?.[0];
+        if (!result.canceled && asset?.uri) {
+          const nextUrl = await buildPhotoDataUrl(asset);
+          setPhotoUrl(nextUrl);
+        }
+        return;
+      }
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        Alert.alert("Permissão necessária", "Ative a galeria para escolher uma foto.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: true,
+        aspect: [1, 1],
+        base64: true,
+      });
+      const asset = result.assets?.[0];
+      if (!result.canceled && asset?.uri) {
+        const nextUrl = await buildPhotoDataUrl(asset);
+        setPhotoUrl(nextUrl);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      Alert.alert("Erro", detail);
+    } finally {
+      setShowPhotoSheet(false);
+    }
+  };
+
+  const openPhotoPreview = (student: Student) => {
+    setPhotoPreview({ uri: student.photoUrl ?? null, name: student.name });
+    setShowPhotoPreview(true);
+  };
+
 
   const onSave = async () => {
     const wasEditing = !!editingId;
@@ -606,6 +691,7 @@ export default function StudentsScreen() {
     const student: Student = {
       id: editingId ? editingId : "s_" + Date.now(),
       name: name.trim(),
+      photoUrl: photoUrl || undefined,
       classId,
       age: resolvedAge,
       phone: phone.trim(),
@@ -643,6 +729,7 @@ export default function StudentsScreen() {
     unit.trim() ||
     classId.trim() ||
     name.trim() ||
+    photoUrl ||
     birthDate.trim() ||
     phone.trim() ||
     loginEmail.trim() ||
@@ -671,6 +758,7 @@ export default function StudentsScreen() {
       editSnapshot.customAgeBand !== customAgeBand ||
       editSnapshot.classId !== classId ||
       editSnapshot.name !== name ||
+      editSnapshot.photoUrl !== photoUrl ||
       editSnapshot.birthDate !== birthDate ||
       editSnapshot.phone !== phone ||
       editSnapshot.loginEmail !== loginEmail ||
@@ -710,6 +798,7 @@ export default function StudentsScreen() {
     setEditingId(null);
     setEditingCreatedAt(null);
     setName("");
+    setPhotoUrl(null);
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
@@ -740,6 +829,7 @@ export default function StudentsScreen() {
     setCustomAgeBand("");
     setStudentFormError("");
     setName("");
+    setPhotoUrl(null);
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
@@ -857,12 +947,14 @@ export default function StudentsScreen() {
         setEditingId(student.id);
         setEditingCreatedAt(student.createdAt);
         setName(safeText(student.name));
+        setPhotoUrl(student.photoUrl ?? null);
         setEditSnapshot({
           unit: nextUnit,
           ageBand: nextAgeBand,
           customAgeBand: nextCustomAgeBand,
           classId: nextClassId,
           name: safeText(student.name),
+          photoUrl: student.photoUrl ?? null,
           birthDate: birthDateValue,
           phone: student.phone,
           loginEmail: loginEmailValue,
@@ -1536,6 +1628,7 @@ export default function StudentsScreen() {
         item,
         onPress,
         onWhatsApp,
+        onPhotoPress,
         className,
         unitName,
         classPalette,
@@ -1543,6 +1636,7 @@ export default function StudentsScreen() {
         item: Student;
         onPress: (student: Student) => void;
         onWhatsApp: (student: Student) => void;
+        onPhotoPress: (student: Student) => void;
         className: string;
         unitName: string;
         classPalette: { bg: string; text: string };
@@ -1569,9 +1663,33 @@ export default function StudentsScreen() {
               gap: 6,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <View style={{ flex: 1, gap: 6, minWidth: 0 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Pressable
+                    onPress={() => onPhotoPress(item)}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {item.photoUrl ? (
+                      <Image
+                        source={{ uri: item.photoUrl }}
+                        style={{ width: "100%", height: "100%" }}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Ionicons name="person" size={18} color={colors.text} />
+                    )}
+                  </Pressable>
                   <FadeHorizontalScroll
                     containerStyle={{ flex: 1, minWidth: 0 }}
                     fadeColor={colors.card}
@@ -1588,31 +1706,6 @@ export default function StudentsScreen() {
                       {restName ? " " + restName : ""}
                     </Text>
                   </FadeHorizontalScroll>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    <View
-                      style={{
-                        paddingVertical: 4,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: classPalette.bg,
-                        borderWidth: 1,
-                        borderColor: classPalette.bg,
-                      }}
-                    >
-                      <Text
-                        style={{ color: classPalette.text, fontSize: 11, fontWeight: "700" }}
-                      >
-                        {className}
-                      </Text>
-                    </View>
-                  </View>
                 </View>
               </View>
               <Pressable
@@ -1759,6 +1852,7 @@ export default function StudentsScreen() {
           item={item}
           onPress={onEdit}
           onWhatsApp={openStudentWhatsApp}
+          onPhotoPress={openPhotoPreview}
           className={className}
           unitName={unitName}
           classPalette={classPalette}
@@ -1771,6 +1865,7 @@ export default function StudentsScreen() {
       colors,
       getClassName,
       onEdit,
+      openPhotoPreview,
       openStudentWhatsApp,
       unitLabel,
     ]
@@ -1904,6 +1999,47 @@ export default function StudentsScreen() {
                   color: colors.inputText,
                 }}
               />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <Pressable
+                  onPress={() => setShowPhotoSheet(true)}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                  }}
+                >
+                  {photoUrl ? (
+                    <Image
+                      source={{ uri: photoUrl }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <Ionicons name="person" size={20} color={colors.text} />
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => setShowPhotoSheet(true)}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                    Alterar foto
+                  </Text>
+                </Pressable>
+              </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
                   <Text style={{ color: colors.muted }}>Unidade</Text>
@@ -2981,6 +3117,47 @@ export default function StudentsScreen() {
                   <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
                     Dados do aluno
                   </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <Pressable
+                      onPress={() => setShowPhotoSheet(true)}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {photoUrl ? (
+                        <Image
+                          source={{ uri: photoUrl }}
+                          style={{ width: "100%", height: "100%" }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Ionicons name="person" size={20} color={colors.text} />
+                      )}
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setShowPhotoSheet(true)}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 12,
+                        borderRadius: 12,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                        Alterar foto
+                      </Text>
+                    </Pressable>
+                  </View>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
@@ -4031,6 +4208,132 @@ export default function StudentsScreen() {
             </View>
           );
         })()}
+      </ModalSheet>
+      <ModalSheet
+        visible={showPhotoSheet}
+        onClose={() => setShowPhotoSheet(false)}
+        cardStyle={photoSheetCardStyle}
+        position="center"
+        backdropOpacity={0.7}
+      >
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            Foto do aluno
+          </Text>
+          <Pressable
+            onPress={() => pickStudentPhoto("camera")}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Usar camera
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => pickStudentPhoto("library")}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Escolher da galeria
+            </Text>
+          </Pressable>
+          {photoUrl ? (
+            <Pressable
+              onPress={() => pickStudentPhoto("remove")}
+              style={{
+                paddingVertical: 10,
+                borderRadius: 12,
+                backgroundColor: colors.dangerSolidBg,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
+                Remover foto
+              </Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => setShowPhotoSheet(false)}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Cancelar
+            </Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+      <ModalSheet
+        visible={showPhotoPreview}
+        onClose={() => setShowPhotoPreview(false)}
+        cardStyle={photoPreviewCardStyle}
+        position="center"
+        backdropOpacity={0.7}
+      >
+        <View style={{ gap: 12, alignItems: "center" }}>
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            {photoPreview?.name ?? "Foto do aluno"}
+          </Text>
+          <View
+            style={{
+              width: 220,
+              height: 220,
+              borderRadius: 18,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            {photoPreview?.uri ? (
+              <Image
+                source={{ uri: photoPreview.uri }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+              />
+            ) : (
+              <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                Sem foto
+              </Text>
+            )}
+          </View>
+          <Pressable
+            onPress={() => setShowPhotoPreview(false)}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Fechar
+            </Text>
+          </Pressable>
+        </View>
       </ModalSheet>
       <DatePickerModal
         visible={showCalendar}

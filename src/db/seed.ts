@@ -406,6 +406,7 @@ type HiddenTemplateRow = {
 type StudentRow = {
   id: string;
   name: string;
+  photo_url?: string | null;
   classid: string;
   age: number;
   phone: string;
@@ -1826,6 +1827,7 @@ export async function getStudents(): Promise<Student[]> {
     const mapped = rows.map((row) => ({
       id: row.id,
       name: row.name,
+      photoUrl: row.photo_url ?? undefined,
       classId: row.classid,
       age: row.age,
       phone: row.phone,
@@ -1861,6 +1863,7 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      photoUrl: row.photo_url ?? undefined,
       classId: row.classid,
       age: row.age,
       phone: row.phone,
@@ -1895,6 +1898,7 @@ export async function getStudentById(id: string): Promise<Student | null> {
     return {
       id: row.id,
       name: row.name,
+      photoUrl: row.photo_url ?? undefined,
       classId: row.classid,
       age: row.age,
       phone: row.phone,
@@ -1918,6 +1922,7 @@ export async function saveStudent(student: Student) {
       {
         id: student.id,
         name: student.name,
+        photo_url: student.photoUrl?.trim() || null,
         classid: student.classId,
         age: student.age,
         phone: student.phone,
@@ -1942,6 +1947,7 @@ export async function updateStudent(student: Student) {
       "/students?id=eq." + encodeURIComponent(student.id),
       {
         name: student.name,
+        photo_url: student.photoUrl?.trim() || null,
         classid: student.classId,
         age: student.age,
         phone: student.phone,
@@ -1959,6 +1965,15 @@ export async function updateStudent(student: Student) {
       }
     );
   }
+
+export async function updateStudentPhoto(studentId: string, photoUrl: string | null) {
+  await supabasePatch(
+    "/students?id=eq." + encodeURIComponent(studentId),
+    {
+      photo_url: photoUrl?.trim() || null,
+    }
+  );
+}
 
 export async function deleteStudent(id: string) {
   await supabaseDelete("/students?id=eq." + encodeURIComponent(id));

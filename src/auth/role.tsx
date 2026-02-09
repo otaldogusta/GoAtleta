@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as Sentry from "@sentry/react-native";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import type { Student } from "../core/models";
@@ -21,6 +21,7 @@ const RoleContext = createContext<RoleState | null>(null);
 type StudentRow = {
   id: string;
   name: string;
+  photo_url?: string | null;
   classid: string;
   age: number;
   phone: string;
@@ -35,6 +36,7 @@ type StudentRow = {
 const mapStudent = (row: StudentRow): Student => ({
   id: row.id,
   name: row.name,
+  photoUrl: row.photo_url ?? undefined,
   classId: row.classid,
   age: row.age,
   phone: row.phone,
@@ -95,6 +97,7 @@ const fetchStudentSelf = async (token: string, userId: string) => {
 const buildPreviewStudent = (userId: string | null): Student => ({
   id: userId ?? "preview-student",
   name: "Aluno (Preview)",
+  photoUrl: undefined,
   classId: "",
   age: 0,
   phone: "",

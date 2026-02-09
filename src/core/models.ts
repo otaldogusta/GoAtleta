@@ -98,6 +98,7 @@ export type HiddenTemplate = {
 export type Student = {
   id: string;
   name: string;
+  photoUrl?: string;
   classId: string;
   age: number;
   phone: string;
