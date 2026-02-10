@@ -383,31 +383,41 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        { loadingProfile ? (
+          <>
+            <ShimmerBlock style={{ width: 70, height: 12, borderRadius: 6 }} />
+            <ShimmerBlock style={{ height: 56, borderRadius: 14 }} />
+            <ShimmerBlock style={{ width: 60, height: 12, borderRadius: 6 }} />
+            <ShimmerBlock style={{ height: 56, borderRadius: 14 }} />
+          </>
+        ) : (
+          <>
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+                Configurações
+              </Text>
+              <SettingsRow
+                icon="settings-outline"
+                iconBg="rgba(135, 120, 255, 0.14)"
+                label="Abrir configurações"
+                onPress={() => router.push({ pathname: "/notifications" })}
+              />
+            </View>
 
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-            Configurações
-          </Text>
-          <SettingsRow
-            icon="settings-outline"
-            iconBg="rgba(135, 120, 255, 0.14)"
-            label="Abrir configurações"
-            onPress={() => router.push({ pathname: "/notifications" })}
-          />
-        </View>
-
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Conta</Text>
-          <SettingsRow
-            icon="log-out-outline"
-            iconBg="rgba(255, 130, 130, 0.16)"
-            label="Sair"
-            onPress={async () => {
-              await signOut();
-            }}
-            rightContent={<View />}
-          />
-        </View>
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Conta</Text>
+              <SettingsRow
+                icon="log-out-outline"
+                iconBg="rgba(255, 130, 130, 0.16)"
+                label="Sair"
+                onPress={async () => {
+                  await signOut();
+                }}
+                rightContent={<View />}
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
       <Modal
         visible={showPhotoViewer}

@@ -14,8 +14,9 @@ import {
     getNotifications,
     subscribeNotifications,
 } from "../src/notificationsInbox";
-import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { Pressable } from "../src/ui/Pressable";
+import { ShimmerBlock } from "../src/ui/Shimmer";
 
 const parseTime = (value: string) => {
   if (!value) return null;
@@ -55,15 +56,23 @@ export default function StudentHome() {
   const { student, refresh: refreshRole } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [inbox, setInbox] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
   const profilePhotoUri = student?.photoUrl ?? null;
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const items = await getNotifications();
-      if (alive) setInbox(items);
-      const classList = await getClasses();
-      if (alive) setClasses(classList);
+      try {
+        const [items, classList] = await Promise.all([
+          getNotifications(),
+          getClasses(),
+        ]);
+        if (!alive) return;
+        setInbox(items);
+        setClasses(classList);
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     const unsubscribe = subscribeNotifications((items) => {
       if (!alive) return;
@@ -143,65 +152,130 @@ export default function StudentHome() {
   }, [nextClass, nextTarget]);
 
   const recentNotifs = inbox.slice(0, 3);
+  const unreadCount = inbox.filter((item) => !item.read).length;
+  const openNotifications = () => {
+    router.push({ pathname: "/communications" });
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View>
-            <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text }}>
-              Ola{student.name ? `, ${student.name.split(" ")[0]}` : ""}
-            </Text>
-            <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
-              {todayLabel}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => router.push({ pathname: "/profile" })}
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 999,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: "#000",
-              shadowOpacity: 0.1,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 4,
-            }}
-          >
-            <View
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-              }}
-            >
-              <Ionicons name="person" size={22} color={colors.text} />
-              { profilePhotoUri ? (
-                <Image
-                  source={{ uri: profilePhotoUri }}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                  }}
-                  contentFit="cover"
-                />
-              ) : null}
+        {loading ? (
+          <View style={{ gap: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ gap: 8 }}>
+                <ShimmerBlock style={{ width: 180, height: 22, borderRadius: 10 }} />
+                <ShimmerBlock style={{ width: 140, height: 14, borderRadius: 8 }} />
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <ShimmerBlock style={{ width: 44, height: 32, borderRadius: 16 }} />
+                <ShimmerBlock style={{ width: 56, height: 56, borderRadius: 28 }} />
+              </View>
             </View>
-          </Pressable>
-        </View>
+            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
+          </View>
+        ) : (
+          <>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View>
+                <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text }}>
+                  Ola{student.name ? `, ${student.name.split(" ")[0]}` : ""}
+                </Text>
+                <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
+                  {todayLabel}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ position: "relative" }}>
+                  <Pressable
+                    onPress={openNotifications}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.primaryBg,
+                    }}
+                  >
+                    <Ionicons
+                      name="notifications-outline"
+                      size={18}
+                      color={colors.primaryText}
+                    />
+                  </Pressable>
+                  {unreadCount > 0 ? (
+                    <View
+                      style={{
+                        position: "absolute",
+                        right: -12,
+                        top: -12,
+                        minWidth: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        backgroundColor: colors.warningBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 10,
+                        borderWidth: 1,
+                        borderColor: "rgba(17, 26, 45, 0.5)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "800" }}>
+                        !
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Pressable
+                  onPress={() => router.push({ pathname: "/profile" })}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 999,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    shadowColor: "#000",
+                    shadowOpacity: 0.1,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 4,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Ionicons name="person" size={22} color={colors.text} />
+                    { profilePhotoUri ? (
+                      <Image
+                        source={{ uri: profilePhotoUri }}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                        }}
+                        contentFit="cover"
+                      />
+                    ) : null}
+                  </View>
+                </Pressable>
+              </View>
+            </View>
         { __DEV__ ? (
           <Pressable
             onPress={async () => {
@@ -451,6 +525,8 @@ export default function StudentHome() {
             </Pressable>
           </View>
         </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

@@ -2,26 +2,30 @@ import { useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Animated, Easing, View } from "react-native";
 import { useAppTheme } from "./app-theme";
-import { toRgba } from "./unit-colors";
 
 type ShimmerBlockProps = {
   style: StyleProp<ViewStyle>;
 };
 
 export function ShimmerBlock({ style }: ShimmerBlockProps) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const anim = useRef(new Animated.Value(0)).current;
   const [width, setWidth] = useState(0);
-  const baseColor = colors.inputBg;
-  const sheenBase = colors.card;
-  const sheenColor = sheenBase.startsWith("#") ? toRgba(sheenBase, 0.7) : sheenBase;
+  const glassBase = mode === "dark"
+    ? "rgba(255, 255, 255, 0.10)"
+    : "rgba(15, 23, 42, 0.06)";
+  const glassSheen = mode === "dark"
+    ? "rgba(255, 255, 255, 0.22)"
+    : "rgba(15, 23, 42, 0.12)";
+  const baseColor = glassBase;
+  const sheenColor = glassSheen;
 
   useEffect(() => {
     const loop = Animated.loop(
       Animated.timing(anim, {
         toValue: 1,
-        duration: 1200,
-        easing: Easing.inOut(Easing.ease),
+        duration: 1500,
+        easing: Easing.linear,
         useNativeDriver: true,
       })
     );
@@ -29,7 +33,7 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
     return () => loop.stop();
   }, [anim]);
 
-  const shimmerWidth = Math.max(90, width * 0.55);
+  const shimmerWidth = Math.max(120, width * 0.8);
   const translateX = anim.interpolate({
     inputRange: [0, 1],
     outputRange: [-shimmerWidth, width + shimmerWidth],
@@ -55,8 +59,8 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
             bottom: -6,
             width: shimmerWidth,
             backgroundColor: sheenColor,
-            opacity: 0.65,
-            transform: [{ translateX }, { skewX: "-15deg" }],
+            opacity: 0.18,
+            transform: [{ translateX }],
           }}
         />
       ) : null}

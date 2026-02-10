@@ -292,7 +292,9 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
                           key={`${row.index}-day-${day}`}
                           style={[styles.cell, styles.colDay]}
                         >
-                          {row.attendance?.[day] ?? ""}
+                          {data.includeAttendance
+                            ? row.attendance?.[day] ?? ""
+                            : ""}
                         </Text>
                       ))}
                       <Text style={[styles.cell, styles.colTotal]}>

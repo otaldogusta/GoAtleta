@@ -82,6 +82,8 @@ import {
     subscribeNotifications,
 } from "../src/notificationsInbox";
 
+import { useOrganization } from "../src/providers/OrganizationProvider";
+
 import { Card } from "../src/ui/Card";
 
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
@@ -113,6 +115,8 @@ function TrainerHome() {
   const { session } = useAuth();
 
   const { role } = useRole();
+
+  const { organizations, activeOrganization, setActiveOrganizationId } = useOrganization();
 
   const [inbox, setInbox] = useState<AppNotification[]>([]);
 
@@ -1217,6 +1221,76 @@ function TrainerHome() {
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
 
+          <View style={{ position: "relative" }}>
+            <Pressable
+
+              onPress={openInbox}
+
+              style={{
+
+                paddingHorizontal: 12,
+
+                paddingVertical: 8,
+
+                borderRadius: 999,
+
+                backgroundColor: colors.primaryBg,
+
+              }}
+
+            >
+
+              <Ionicons name="notifications-outline" size={18} color={colors.primaryText} />
+
+            </Pressable>
+
+            { unreadCount > 0 ? (
+
+              <View
+
+                style={{
+
+                  position: "absolute",
+
+                  right: -12,
+
+                  top: -12,
+
+                  minWidth: 20,
+
+                  height: 20,
+
+                  borderRadius: 10,
+
+                  backgroundColor: colors.warningBg,
+
+                  alignItems: "center",
+
+                  justifyContent: "center",
+
+                  zIndex: 10,
+
+                  borderWidth: 1,
+
+                  borderColor: "rgba(17, 26, 45, 0.5)",
+
+                  pointerEvents: "none",
+
+                }}
+
+              >
+
+                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "800" }}>
+
+                  !
+
+                </Text>
+
+              </View>
+
+            ) : null}
+          </View>
+
           <Link href="/profile" asChild>
 
             <Pressable
@@ -1311,76 +1385,6 @@ function TrainerHome() {
 
           </Link>
 
-          <View style={{ position: "relative" }}>
-            <Pressable
-
-              onPress={openInbox}
-
-              style={{
-
-                paddingHorizontal: 12,
-
-                paddingVertical: 8,
-
-                borderRadius: 999,
-
-                backgroundColor: colors.primaryBg,
-
-              }}
-
-            >
-
-              <Ionicons name="notifications-outline" size={18} color={colors.primaryText} />
-
-            </Pressable>
-
-            { unreadCount > 0 ? (
-
-              <View
-
-                style={{
-
-                  position: "absolute",
-
-                  right: -12,
-
-                  top: -12,
-
-                  minWidth: 20,
-
-                  height: 20,
-
-                  borderRadius: 10,
-
-                  backgroundColor: colors.warningBg,
-
-                  alignItems: "center",
-
-                  justifyContent: "center",
-
-                  zIndex: 10,
-
-                  borderWidth: 1,
-
-                  borderColor: "rgba(17, 26, 45, 0.5)",
-
-                  pointerEvents: "none",
-
-                }}
-
-              >
-
-                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "800" }}>
-
-                  !
-
-                </Text>
-
-              </View>
-
-            ) : null}
-          </View>
-
         </View>
 
       </View>
@@ -1388,6 +1392,124 @@ function TrainerHome() {
 
 
         <View style={{ gap: 14 }}>
+
+        { organizations.length > 1 ? (
+
+          <View
+
+            style={{
+
+              padding: 14,
+
+              borderRadius: 18,
+
+              backgroundColor: colors.card,
+
+              borderWidth: 1,
+
+              borderColor: colors.border,
+
+              overflow: "hidden",
+
+              gap: 8,
+
+            }}
+
+          >
+
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+
+              {activeOrganization?.name || "Selecione uma organização"}
+
+            </Text>
+
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+
+              Você tem acesso a {organizations.length} workspace(s). Toque para alternar.
+
+            </Text>
+
+            <ScrollView
+
+              horizontal
+
+              showsHorizontalScrollIndicator={false}
+
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+
+            >
+
+              {organizations.map((org) => (
+
+                <Pressable
+
+                  key={org.id}
+
+                  onPress={() => setActiveOrganizationId(org.id)}
+
+                  style={{
+
+                    paddingVertical: 8,
+
+                    paddingHorizontal: 14,
+
+                    borderRadius: 999,
+
+                    backgroundColor:
+
+                      activeOrganization?.id === org.id
+
+                        ? colors.primaryBg
+
+                        : colors.secondaryBg,
+
+                    borderWidth: 1,
+
+                    borderColor:
+
+                      activeOrganization?.id === org.id
+
+                        ? colors.primary
+
+                        : colors.border,
+
+                  }}
+
+                >
+
+                  <Text
+
+                    style={{
+
+                      color:
+
+                        activeOrganization?.id === org.id
+
+                          ? colors.primaryText
+
+                          : colors.text,
+
+                      fontSize: 13,
+
+                      fontWeight: activeOrganization?.id === org.id ? "700" : "500",
+
+                    }}
+
+                  >
+
+                    {org.name}
+
+                  </Text>
+
+                </Pressable>
+
+              ))}
+
+            </ScrollView>
+
+          </View>
+
+        ) : null}
 
         { pendingWrites > 0 ? (
 
@@ -2717,10 +2839,31 @@ function TrainerHome() {
 
 
 export default function Home() {
-
+  const { colors } = useAppTheme();
   const { role, loading } = useRole();
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ gap: 8 }}>
+              <ShimmerBlock style={{ width: 180, height: 22, borderRadius: 10 }} />
+              <ShimmerBlock style={{ width: 140, height: 14, borderRadius: 8 }} />
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <ShimmerBlock style={{ width: 44, height: 32, borderRadius: 16 }} />
+              <ShimmerBlock style={{ width: 56, height: 56, borderRadius: 28 }} />
+            </View>
+          </View>
+          <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+          <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+          <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+          <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   if (role === "student") {
 

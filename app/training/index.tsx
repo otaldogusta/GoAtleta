@@ -2605,7 +2605,12 @@ export default function TrainingList() {
         )}
 
         {planningTab === "salvos" && (
-        <View style={getSectionCardStyle(colors, "warning")}>
+        <View
+          style={[
+            getSectionCardStyle(colors, "warning"),
+            { borderLeftWidth: 1, borderLeftColor: colors.border },
+          ]}
+        >
           <Pressable
             onPress={() => {
               animateLayout();

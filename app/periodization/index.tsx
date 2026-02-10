@@ -19,21 +19,21 @@ import type { ClassGroup, ClassPlan } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 
 import {
-  createClassPlan,
+    createClassPlan,
 
-  deleteClassPlansByClass,
+    deleteClassPlansByClass,
 
-  getClasses,
+    getClasses,
 
-  getClassPlansByClass,
+    getClassPlansByClass,
 
-  getSessionLogsByRange,
+    getSessionLogsByRange,
 
-  saveClassPlans,
+    saveClassPlans,
 
-  updateClassAcwrLimits,
+    updateClassAcwrLimits,
 
-  updateClassPlan,
+    updateClassPlan,
 } from "../../src/db/seed";
 
 import { logAction } from "../../src/observability/breadcrumbs";
@@ -3510,7 +3510,12 @@ export default function PeriodizationScreen() {
 
         <>
 
-        <View style={getSectionCardStyle(colors, "primary")}>
+        <View
+          style={[
+            getSectionCardStyle(colors, "primary"),
+            { borderLeftWidth: 1, borderLeftColor: colors.border },
+          ]}
+        >
 
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
 
@@ -4342,7 +4347,12 @@ export default function PeriodizationScreen() {
 
           </Text>
 
-          <View style={getSectionCardStyle(colors, "primary")}>
+          <View
+            style={[
+              getSectionCardStyle(colors, "primary"),
+              { borderLeftWidth: 1, borderLeftColor: colors.border },
+            ]}
+          >
 
           <Pressable
 
@@ -4714,7 +4724,12 @@ export default function PeriodizationScreen() {
 
           </Text>
 
-          <View style={getSectionCardStyle(colors, "primary")}>
+          <View
+            style={[
+              getSectionCardStyle(colors, "primary"),
+              { borderLeftWidth: 1, borderLeftColor: colors.border },
+            ]}
+          >
 
           <Pressable
 

@@ -28,11 +28,13 @@ import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvi
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
+import { OrganizationProvider } from "../src/providers/OrganizationProvider";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
 import { SaveToastProvider } from "../src/ui/save-toast";
+import { ShimmerBlock } from "../src/ui/Shimmer";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 
 const enableSentryPii = __DEV__;
@@ -334,8 +336,8 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDAwAAABv0C/0sV9K8AAAAASUVORK5CYII=";
   const gradientByRoute = () => {
     return mode === "dark"
-       ? ["#0a0e1a", "#0f1629", "#121821"]
-      : ["#f5f7fa", "#e8ecf4", "#f0f4f8"];
+       ? ["#0b1222", "#101b34", "#121a2a"]
+      : ["#f6f8fb", "#e7edf7", "#f2f5fb"];
   };
 
   const gradientStops = gradientByRoute();
@@ -418,7 +420,24 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
             left: 0,
             backgroundColor: colors.background,
           }}
-        />
+        >
+          <View style={{ padding: 16, gap: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ gap: 8 }}>
+                <ShimmerBlock style={{ width: 180, height: 22, borderRadius: 10 }} />
+                <ShimmerBlock style={{ width: 140, height: 14, borderRadius: 8 }} />
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <ShimmerBlock style={{ width: 44, height: 32, borderRadius: 16 }} />
+                <ShimmerBlock style={{ width: 56, height: 56, borderRadius: 28 }} />
+              </View>
+            </View>
+            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
+            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
+          </View>
+        </View>
       ) : null}
     </View>
   );
@@ -485,17 +504,19 @@ function BootstrapAuthProviders() {
   return (
     <AuthProvider initialSession={data.session ?? null}>
       <RoleProvider>
-        <WhatsAppSettingsProvider>
-          <ConfirmDialogProvider>
-            <ConfirmUndoProvider>
-              <SaveToastProvider>
-                <GuidanceProvider>
-                  <RootLayoutContent />
-                </GuidanceProvider>
-              </SaveToastProvider>
-            </ConfirmUndoProvider>
-          </ConfirmDialogProvider>
-        </WhatsAppSettingsProvider>
+        <OrganizationProvider>
+          <WhatsAppSettingsProvider>
+            <ConfirmDialogProvider>
+              <ConfirmUndoProvider>
+                <SaveToastProvider>
+                  <GuidanceProvider>
+                    <RootLayoutContent />
+                  </GuidanceProvider>
+                </SaveToastProvider>
+              </ConfirmUndoProvider>
+            </ConfirmDialogProvider>
+          </WhatsAppSettingsProvider>
+        </OrganizationProvider>
       </RoleProvider>
     </AuthProvider>
   );

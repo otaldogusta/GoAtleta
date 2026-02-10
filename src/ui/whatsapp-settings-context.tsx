@@ -6,6 +6,8 @@ type WhatsAppSettingsContextType = {
   setDefaultMessageEnabled: (enabled: boolean) => Promise<void>;
   coachName: string;
   setCoachName: (name: string) => Promise<void>;
+  coachNameByClass: Record<string, string>;
+  setCoachNameForClass: (classId: string, name: string) => Promise<void>;
   groupInviteLinks: Record<string, string>;
   setGroupInviteLink: (classId: string, link: string) => Promise<void>;
   loading: boolean;
@@ -15,11 +17,13 @@ const WhatsAppSettingsContext = createContext<WhatsAppSettingsContextType | unde
 
 const STORAGE_KEY_DEFAULT_MESSAGE = "whatsapp_default_message_enabled";
 const STORAGE_KEY_COACH_NAME = "whatsapp_coach_name";
+const STORAGE_KEY_COACH_BY_CLASS = "whatsapp_coach_name_by_class";
 const STORAGE_KEY_GROUP_LINKS = "whatsapp_group_links";
 
 export function WhatsAppSettingsProvider({ children }: { children: React.ReactNode }) {
   const [defaultMessageEnabled, setDefaultMessageEnabledState] = useState(true);
   const [coachName, setCoachNameState] = useState("Gustavo");
+  const [coachNameByClass, setCoachNameByClassState] = useState<Record<string, string>>({});
   const [groupInviteLinks, setGroupInviteLinksState] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +33,7 @@ export function WhatsAppSettingsProvider({ children }: { children: React.ReactNo
       try {
         const savedDefaultMessage = await AsyncStorage.getItem(STORAGE_KEY_DEFAULT_MESSAGE);
         const savedCoachName = await AsyncStorage.getItem(STORAGE_KEY_COACH_NAME);
+        const savedCoachByClass = await AsyncStorage.getItem(STORAGE_KEY_COACH_BY_CLASS);
         const savedGroupLinks = await AsyncStorage.getItem(STORAGE_KEY_GROUP_LINKS);
 
         if (savedDefaultMessage !== null) {
@@ -36,6 +41,9 @@ export function WhatsAppSettingsProvider({ children }: { children: React.ReactNo
         }
         if (savedCoachName !== null) {
           setCoachNameState(savedCoachName);
+        }
+        if (savedCoachByClass !== null) {
+          setCoachNameByClassState(JSON.parse(savedCoachByClass));
         }
         if (savedGroupLinks !== null) {
           setGroupInviteLinksState(JSON.parse(savedGroupLinks));
@@ -67,6 +75,22 @@ export function WhatsAppSettingsProvider({ children }: { children: React.ReactNo
     }
   };
 
+  const setCoachNameForClass = async (classId: string, name: string) => {
+    const trimmed = name.trim();
+    const updated = { ...coachNameByClass };
+    if (!trimmed) {
+      delete updated[classId];
+    } else {
+      updated[classId] = trimmed;
+    }
+    setCoachNameByClassState(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_COACH_BY_CLASS, JSON.stringify(updated));
+    } catch (err) {
+      console.error("Erro ao salvar nome do treinador por turma:", err);
+    }
+  };
+
   const setGroupInviteLink = async (classId: string, link: string) => {
     const updated = { ...groupInviteLinks, [classId]: link };
     setGroupInviteLinksState(updated);
@@ -84,6 +108,8 @@ export function WhatsAppSettingsProvider({ children }: { children: React.ReactNo
         setDefaultMessageEnabled, 
         coachName, 
         setCoachName, 
+        coachNameByClass,
+        setCoachNameForClass,
         groupInviteLinks, 
         setGroupInviteLink, 
         loading 

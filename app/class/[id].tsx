@@ -26,6 +26,7 @@ import {
 import {
     deleteClassCascade,
     duplicateClass,
+    getAttendanceByClass,
     getClassById,
     getClasses,
     getLatestScoutingLog,
@@ -76,7 +77,14 @@ export default function ClassDetails() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
-  const { defaultMessageEnabled, setDefaultMessageEnabled, coachName, groupInviteLinks } = useWhatsAppSettings();
+  const {
+    defaultMessageEnabled,
+    setDefaultMessageEnabled,
+    coachName,
+    coachNameByClass,
+    setCoachNameForClass,
+    groupInviteLinks,
+  } = useWhatsAppSettings();
   const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "75%", maxWidth: 440 });
   const rosterModalCardStyle = useModalCardStyle({ maxHeight: "60%", maxWidth: 440 });
   const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
@@ -157,6 +165,7 @@ export default function ClassDetails() {
       });
   }, [availableContacts, contactSearch]);
   const [name, setName] = useState("");
+  const [coachNameOverride, setCoachNameOverride] = useState("");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [gender, setGender] = useState<ClassGroup["gender"]>("misto");
@@ -358,6 +367,8 @@ export default function ClassDetails() {
   const classStartTime = cls?.startTime || "-";
   const classDuration = cls?.durationMinutes ?? 60;
   const classGoal = cls?.goal || goal;
+  const classCoachName = clsId ? coachNameByClass[clsId] ?? "" : "";
+  const resolvedCoachName = classCoachName || coachName;
   const unitPalette = getUnitPalette(unitLabel, colors);
   const classPalette =
     getClassPalette(classColorKey, colors, currentUnit) ?? {
@@ -440,6 +451,9 @@ export default function ClassDetails() {
           setDaysOfWeek(data?.daysOfWeek ?? []);
           setGoal(data?.goal ?? "Fundamentos");
           setClassColorKey(data?.colorKey ?? null);
+          setCoachNameOverride(
+            data?.id ? coachNameByClass[data.id] ?? "" : ""
+          );
         }
       } finally {
         if (alive) setLoading(false);
@@ -448,11 +462,12 @@ export default function ClassDetails() {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [coachNameByClass, id]);
 
   const resetEditFields = useCallback(() => {
     if (!cls) return;
     setName(cls.name ?? "");
+    setCoachNameOverride(classCoachName);
     setUnit(cls.unit ?? "");
     setAgeBand(cls.ageBand ?? "08-09");
     setGender(cls.gender ?? "misto");
@@ -461,7 +476,7 @@ export default function ClassDetails() {
     setDaysOfWeek(cls.daysOfWeek ?? []);
     setGoal(cls.goal ?? "Fundamentos");
     setFormError("");
-  }, [cls]);
+  }, [classCoachName, cls]);
 
   const closeEditPickers = useCallback(() => {
     setShowEditDurationPicker(false);
@@ -520,6 +535,7 @@ export default function ClassDetails() {
     if (!cls) return false;
     return (
       (cls.name ?? "") !== name ||
+      classCoachName !== coachNameOverride.trim() ||
       (cls.unit ?? "") !== unit ||
       (cls.ageBand ?? "08-09") !== ageBand ||
       (cls.gender ?? "misto") !== gender ||
@@ -528,7 +544,7 @@ export default function ClassDetails() {
       JSON.stringify(cls.daysOfWeek ?? []) !== JSON.stringify(daysOfWeek) ||
       (cls.goal ?? "Fundamentos") !== goal
     );
-  }, [ageBand, cls, daysOfWeek, duration, gender, goal, name, startTime, unit]);
+  }, [ageBand, classCoachName, cls, coachNameOverride, daysOfWeek, duration, gender, goal, name, startTime, unit]);
 
   useEffect(() => {
     syncEditPickerLayouts();
@@ -593,6 +609,7 @@ export default function ClassDetails() {
         startTime: timeValue,
         durationMinutes: durationValue,
       });
+      await setCoachNameForClass(cls.id, coachNameOverride);
       Vibration.vibrate(60);
       const fresh = await getClassById(cls.id);
       setCls(fresh);
@@ -719,7 +736,10 @@ export default function ClassDetails() {
     }
   };
 
-  const exportRosterPdf = async (monthValue = rosterMonthValue) => {
+  const exportRosterPdf = async (
+    monthValue = rosterMonthValue,
+    includeAttendance = false
+  ) => {
     if (!cls) return;
     try {
       const list = await getStudentsByClass(cls.id);
@@ -731,6 +751,30 @@ export default function ClassDetails() {
       const monthLabel = formatMonthLabel(monthValue);
       const monthDays = getClassMonthDays(monthValue, classDays);
       const monthKey = formatMonthKey(monthValue);
+      const todayKey = new Date().toISOString().split("T")[0];
+      const attendanceByStudentDay: Record<string, Record<number, "P" | "F">> = {};
+      const firstAttendanceByStudent: Record<string, string> = {};
+      if (includeAttendance) {
+        const records = await getAttendanceByClass(cls.id);
+        records.forEach((record) => {
+          const firstDate = firstAttendanceByStudent[record.studentId];
+          if (!firstDate || record.date < firstDate) {
+            firstAttendanceByStudent[record.studentId] = record.date;
+          }
+        });
+        records
+          .filter((record) => record.date.startsWith(monthKey))
+          .forEach((record) => {
+            const day = Number(record.date.split("-")[2]);
+            if (!Number.isFinite(day)) return;
+            if (!monthDays.includes(day)) return;
+            if (!attendanceByStudentDay[record.studentId]) {
+              attendanceByStudentDay[record.studentId] = {};
+            }
+            attendanceByStudentDay[record.studentId][day] =
+              record.status === "presente" ? "P" : "F";
+          });
+      }
       const periodizationLabel = getBlockForToday(cls);
       const fundamentals = [
         "Físico",
@@ -757,12 +801,45 @@ export default function ClassDetails() {
               : "Telefone inválido";
         const contactPhone =
           contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
+        const dayAttendance = includeAttendance
+          ? attendanceByStudentDay[student.id] ?? {}
+          : undefined;
+        const total = includeAttendance
+          ? monthDays.reduce(
+              (acc, day) => acc + (dayAttendance?.[day] === "P" ? 1 : 0),
+              0
+            )
+          : undefined;
+        const studentCreatedAt = student.createdAt?.split("T")[0];
+        const firstAttendanceDate = includeAttendance
+          ? firstAttendanceByStudent[student.id]
+          : undefined;
+        const startDateKey = firstAttendanceDate || studentCreatedAt || "";
         return {
           index: index + 1,
           studentName: student.name,
           birthDate: formatBirthDate(student.birthDate),
           contactLabel,
           contactPhone,
+          attendance: includeAttendance
+            ? monthDays.reduce<Record<number, "P" | "F" | "-" | "">>(
+                (acc, day) => {
+                  const dateKey = `${monthKey}-${String(day).padStart(2, "0")}`;
+                  if (startDateKey && dateKey < startDateKey) {
+                    acc[day] = "-";
+                    return acc;
+                  }
+                  if (todayKey && dateKey > todayKey) {
+                    acc[day] = "";
+                    return acc;
+                  }
+                  acc[day] = dayAttendance?.[day] ?? "";
+                  return acc;
+                },
+                {}
+              )
+            : undefined,
+          total,
         };
       });
 
@@ -776,22 +853,29 @@ export default function ClassDetails() {
         monthLabel,
         exportDate,
         mode: "full" as const,
+        includeAttendance,
         totalStudents: list.length,
         monthDays,
         fundamentals,
         periodizationLabel,
-        coachName: coachName?.trim() || undefined,
+        coachName: resolvedCoachName?.trim() || undefined,
         rows,
       };
 
-      const fileName = `lista_chamada_${safeFileName(className)}_${monthKey}.pdf`;
+      const fileName = includeAttendance
+        ? `lista_chamada_presencas_${safeFileName(className)}_${monthKey}.pdf`
+        : `lista_chamada_${safeFileName(className)}_${monthKey}.pdf`;
 
       await exportPdf({
         html: classRosterHtml(data),
         fileName,
         webDocument: <ClassRosterDocument data={data} />,
       });
-      logAction("Exportar lista da turma", { classId: cls.id, month: monthKey });
+      logAction("Exportar lista da turma", {
+        classId: cls.id,
+        month: monthKey,
+        includeAttendance,
+      });
     } catch (error) {
       Alert.alert("Falha ao exportar lista", "Tente novamente.");
     }
@@ -835,7 +919,7 @@ export default function ClassDetails() {
     if (defaultMessageEnabled) {
       const nextClassDate = calculateNextClassDate(daysOfWeek);
       const message = renderTemplate(suggestedTemplate, {
-        coachName,
+        coachName: resolvedCoachName,
         className: name || cls.name,
         unitLabel,
         dateLabel: new Date().toLocaleDateString("pt-BR"),
@@ -932,10 +1016,7 @@ export default function ClassDetails() {
         </View>
 
         <View
-          style={[
-            getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 }),
-            { borderLeftWidth: 3, borderLeftColor: classPalette.bg },
-          ]}
+          style={getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 })}
         >
           <Pressable
             onPress={() => {
@@ -1018,7 +1099,12 @@ export default function ClassDetails() {
           ) : null}
         </View>
 
-        <View style={getSectionCardStyle(colors, "primary", { radius: 18 })}>
+        <View
+          style={[
+            getSectionCardStyle(colors, "primary", { radius: 18 }),
+            { borderLeftWidth: 1, borderLeftColor: colors.border },
+          ]}
+        >
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Ações rápidas
           </Text>
@@ -1270,6 +1356,29 @@ export default function ClassDetails() {
                   placeholder="Unidade"
                   value={unit}
                   onChangeText={setUnit}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 13,
+                  }}
+                />
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  Professor responsavel
+                </Text>
+                <TextInput
+                  placeholder="Nome do professor"
+                  value={coachNameOverride}
+                  onChangeText={setCoachNameOverride}
                   placeholderTextColor={colors.placeholder}
                   style={{
                     borderWidth: 1,
@@ -1742,22 +1851,42 @@ export default function ClassDetails() {
             </Text>
           </View>
 
-          <Pressable
-            onPress={() => {
-              setShowRosterExportModal(false);
-              void exportRosterPdf();
-            }}
-            style={{
-              paddingVertical: 12,
-              borderRadius: 12,
-              backgroundColor: colors.primaryBg,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
-              Gerar PDF
-            </Text>
-          </Pressable>
+          <View style={{ gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                setShowRosterExportModal(false);
+                void exportRosterPdf(rosterMonthValue, true);
+              }}
+              style={{
+                paddingVertical: 12,
+                borderRadius: 12,
+                backgroundColor: colors.primaryBg,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
+                Baixar com presenças
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setShowRosterExportModal(false);
+                void exportRosterPdf(rosterMonthValue, false);
+              }}
+              style={{
+                paddingVertical: 12,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                Baixar sem presenças
+              </Text>
+            </Pressable>
+          </View>
 
           <Pressable
             onPress={() => setShowRosterExportModal(false)}

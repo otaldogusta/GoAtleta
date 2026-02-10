@@ -346,7 +346,7 @@ export default function ReportsScreen() {
       const records = attendance
         .filter((r) => r.studentId === student.id)
         .sort((a, b) => b.date.localeCompare(a.date));
-      const lastDate = records[0].date ?? "";
+      const lastDate = records[0]?.date ?? "";
       let streak = 0;
       for (const record of records) {
         if (record.status === "faltou") {

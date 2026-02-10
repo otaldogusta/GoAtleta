@@ -73,7 +73,7 @@ export function DateInput({
         borderWidth: 1,
         borderColor: colors.border,
         borderRadius: 12,
-        backgroundColor: colors.inputBg,
+        backgroundColor: colors.background,
         paddingHorizontal: 12,
         overflow: "hidden",
         minHeight: 44,

@@ -1980,25 +1980,10 @@ export default function StudentsScreen() {
           <View
             style={[
               getSectionCardStyle(colors, "success", { padding: 16, radius: 20 }),
-              { borderLeftWidth: 3, borderLeftColor: "#ffffff" },
+              { borderLeftWidth: 1, borderLeftColor: colors.border },
             ]}
           >
             <View style={{ gap: 12 }}>
-              <TextInput
-                placeholder="Nome do aluno"
-                value={name}
-                onChangeText={setName}
-                onBlur={() => setName(formatName(name))}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.background,
-                  color: colors.inputText,
-                }}
-              />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Pressable
                   onPress={() => setShowPhotoSheet(true)}
@@ -2036,10 +2021,25 @@ export default function StudentsScreen() {
                   }}
                 >
                   <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                    Alterar foto
+                    Adicionar foto
                   </Text>
                 </Pressable>
               </View>
+              <TextInput
+                placeholder="Nome do aluno"
+                value={name}
+                onChangeText={setName}
+                onBlur={() => setName(formatName(name))}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.background,
+                  color: colors.inputText,
+                }}
+              />
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
                   <Text style={{ color: colors.muted }}>Unidade</Text>

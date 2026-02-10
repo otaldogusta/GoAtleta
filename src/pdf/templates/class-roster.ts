@@ -4,8 +4,8 @@ export type ClassRosterRow = {
   birthDate: string;
   contactLabel: string;
   contactPhone: string;
-  attendance: Record<number, "P" | "F" | "-">;
-  total: number;
+  attendance?: Record<number, "P" | "F" | "-" | "">;
+  total?: number;
 };
 
 export type ClassRosterPdfData = {
@@ -18,6 +18,7 @@ export type ClassRosterPdfData = {
   monthLabel: string;
   exportDate: string;
   mode: "full" | "whatsapp";
+  includeAttendance?: boolean;
   totalStudents: number;
   monthDays: number[];
   fundamentals: string[];
@@ -79,7 +80,12 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
     .map((row, rowIndex) => {
       const isEmpty = !row.studentName;
       const dayCells = data.monthDays
-        .map((day) => `<td class="col-day">${row.attendance?.[day] ?? ""}</td>`)
+        .map((day) => {
+          const value = data.includeAttendance
+            ? row.attendance?.[day] ?? ""
+            : "";
+          return `<td class="col-day">${value}</td>`;
+        })
         .join("");
       const totalCell = typeof row.total === "number" ? String(row.total) : "";
       if (isWhatsApp) {
@@ -110,7 +116,9 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
 
   const fundamentalsRows = data.fundamentals
     .map((item) => {
-      const dayCells = data.monthDays.map(() => `<td class="col-day"></td>`).join("");
+      const dayCells = data.monthDays
+        .map(() => `<td class="col-day"></td>`)
+        .join("");
       return `
         <tr>
           <td class="col-fund">${esc(item)}</td>
