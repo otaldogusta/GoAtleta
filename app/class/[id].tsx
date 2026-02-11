@@ -833,7 +833,7 @@ export default function ClassDetails() {
                     acc[day] = "";
                     return acc;
                   }
-                  acc[day] = dayAttendance?.[day] ?? "";
+                  acc[day] = dayAttendance?.[day] ?? "-";
                   return acc;
                 },
                 {}

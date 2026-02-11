@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -24,6 +24,7 @@ export default function AdminLoginScreen() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const passwordInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (session) {
@@ -32,6 +33,7 @@ export default function AdminLoginScreen() {
   }, [router, session]);
 
   const handleLogin = async () => {
+    if (busy) return;
     if (!email.trim() || !password.trim()) {
       setMessage("Informe email e senha para testar.");
       return;
@@ -108,9 +110,13 @@ export default function AdminLoginScreen() {
                 placeholder="Email"
                 value={email}
                 onChangeText={setEmail}
+                onSubmitEditing={() => {
+                  passwordInputRef.current?.focus();
+                }}
                 placeholderTextColor={colors.placeholder}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                returnKeyType="next"
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
@@ -121,11 +127,16 @@ export default function AdminLoginScreen() {
                 }}
               />
               <TextInput
+                ref={passwordInputRef}
                 placeholder="Senha"
                 value={password}
                 onChangeText={setPassword}
+                onSubmitEditing={() => {
+                  void handleLogin();
+                }}
                 placeholderTextColor={colors.placeholder}
                 secureTextEntry
+                returnKeyType="go"
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,

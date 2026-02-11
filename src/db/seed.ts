@@ -2156,7 +2156,9 @@ export async function saveAttendanceRecords(
       createdat: record.createdAt,
     }));
 
-    await supabasePost("/attendance_logs", rows);
+    if (rows.length > 0) {
+      await supabasePost("/attendance_logs", rows);
+    }
   } catch (error) {
     if (allowQueue && isNetworkError(error)) {
       await enqueueWrite({

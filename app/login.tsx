@@ -48,6 +48,7 @@ export default function LoginScreen() {
   const [showRememberToast, setShowRememberToast] = useState(false);
   const rememberToastAnim = useRef(new Animated.Value(0)).current;
   const rememberMeRef = useRef(false);
+  const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    if (busy) return;
     if (!email.trim()) {
       setMessage("Informe seu email.");
       return;
@@ -165,6 +167,7 @@ export default function LoginScreen() {
   };
 
   const handleReset = async () => {
+    if (busy) return;
     if (!email.trim()) {
       setMessage("Informe seu email.");
       return;
@@ -333,9 +336,17 @@ export default function LoginScreen() {
                   placeholder="Email"
                   value={email}
                   onChangeText={setEmail}
+                  onSubmitEditing={() => {
+                    if (showReset) {
+                      void handleReset();
+                      return;
+                    }
+                    passwordInputRef.current?.focus();
+                  }}
                   placeholderTextColor={colors.placeholder}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  returnKeyType={showReset ? "send" : "next"}
                   underlineColorAndroid="transparent"
                   selectionColor={colors.primaryBg}
                   style={{
@@ -367,11 +378,16 @@ export default function LoginScreen() {
                     }}
                   >
                     <TextInput
+                      ref={passwordInputRef}
                       placeholder="Senha"
                       value={password}
                       onChangeText={setPassword}
+                      onSubmitEditing={() => {
+                        void handleLogin();
+                      }}
                       placeholderTextColor={colors.placeholder}
                       secureTextEntry={!showPassword}
+                      returnKeyType="go"
                       underlineColorAndroid="transparent"
                       selectionColor={colors.primaryBg}
                       style={{

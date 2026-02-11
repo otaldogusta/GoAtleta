@@ -186,25 +186,36 @@ export default function AttendanceScreen() {
   const handleSave = async () => {
     if (!cls) return;
     const createdAt = new Date().toISOString();
-    const records: AttendanceRecord[] = items.map((item) => ({
-      id: `${cls.id}_${item.student.id}_${date}`,
-      classId: cls.id,
-      studentId: item.student.id,
-      date,
-      status: item.status ?? "presente",
-      note: item.note.trim(),
-      painScore: item.pain,
-      createdAt,
-    }));
+    const records: AttendanceRecord[] = items
+      .filter((item) => item.status === "presente" || item.status === "faltou")
+      .map((item) => ({
+        id: `${cls.id}_${item.student.id}_${date}`,
+        classId: cls.id,
+        studentId: item.student.id,
+        date,
+        status: item.status,
+        note: item.note.trim(),
+        painScore: item.pain,
+        createdAt,
+      }));
+
+    const nextStatus: Record<string, "presente" | "faltou" | undefined> = {};
+    const nextNotes: Record<string, string> = {};
+    const nextPain: Record<string, number> = {};
+    students.forEach((student) => {
+      const status = statusById[student.id];
+      nextStatus[student.id] = status;
+      nextNotes[student.id] = status ? (noteById[student.id] ?? "").trim() : "";
+      nextPain[student.id] = status ? painById[student.id] ?? 0 : 0;
+    });
 
     await measure("saveAttendanceRecords", () =>
       saveAttendanceRecords(cls.id, date, records)
     );
-    setBaseline({
-      status: { ...statusById },
-      note: { ...noteById },
-      pain: { ...painById },
-    });
+    setStatusById(nextStatus);
+    setNoteById(nextNotes);
+    setPainById(nextPain);
+    setBaseline({ status: nextStatus, note: nextNotes, pain: nextPain });
     logAction("Salvar chamada", {
       classId: cls.id,
       date,
@@ -218,7 +229,7 @@ export default function AttendanceScreen() {
       message: "Chamada salva - abrir relatório?",
       variant: "info",
     });
-    setHasSaved(true);
+    setHasSaved(records.length > 0);
   };
 
   const loadDate = async (value: string) => {
