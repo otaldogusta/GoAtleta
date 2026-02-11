@@ -699,9 +699,14 @@ export default function StudentsScreen() {
       return false;
     }
     const nowIso = new Date().toISOString();
+    const resolvedOrganizationId =
+      classes.find((item) => item.id === classId)?.organizationId ??
+      activeOrganization?.id ??
+      "";
     const student: Student = {
       id: editingId ? editingId : "s_" + Date.now(),
       name: name.trim(),
+      organizationId: resolvedOrganizationId,
       photoUrl: photoUrl || undefined,
       classId,
       age: resolvedAge,
@@ -1623,10 +1628,20 @@ export default function StudentsScreen() {
           .sort((a, b) => {
             const aClass =
               classById.get(a.classId) ??
-              ({ name: a.className, daysOfWeek: null, startTime: null } as ClassGroup);
+              ({
+                name: a.className,
+                daysOfWeek: null,
+                startTime: null,
+                organizationId: "",
+              } as ClassGroup);
             const bClass =
               classById.get(b.classId) ??
-              ({ name: b.className, daysOfWeek: null, startTime: null } as ClassGroup);
+              ({
+                name: b.className,
+                daysOfWeek: null,
+                startTime: null,
+                organizationId: "",
+              } as ClassGroup);
             return compareClassesBySchedule(aClass, bClass);
           });
         return { unitName, classes: classesInUnit };

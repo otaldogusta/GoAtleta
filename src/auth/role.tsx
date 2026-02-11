@@ -21,6 +21,7 @@ const RoleContext = createContext<RoleState | null>(null);
 type StudentRow = {
   id: string;
   name: string;
+  organization_id?: string | null;
   photo_url?: string | null;
   classid: string;
   age: number;
@@ -36,6 +37,7 @@ type StudentRow = {
 const mapStudent = (row: StudentRow): Student => ({
   id: row.id,
   name: row.name,
+  organizationId: row.organization_id ?? "",
   photoUrl: row.photo_url ?? undefined,
   classId: row.classid,
   age: row.age,
@@ -97,6 +99,7 @@ const fetchStudentSelf = async (token: string, userId: string) => {
 const buildPreviewStudent = (userId: string | null): Student => ({
   id: userId ?? "preview-student",
   name: "Aluno (Preview)",
+  organizationId: "preview",
   photoUrl: undefined,
   classId: "",
   age: 0,

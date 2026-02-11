@@ -834,10 +834,11 @@ export async function getClasses(
           canonicalizeUnitLabel(unitFromId ?? row.unit) ??
           canonicalizeUnitLabel(row.unit ?? "") ??
           "Sem unidade";
+        const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
         return {
           id: row.id,
           name: row.name,
-          organizationId: row.organization_id ?? undefined,
+          organizationId: resolvedOrganizationId,
           unit: unitLabel,
           unitId: row.unit_id ?? undefined,
           colorKey: row.color_key ?? undefined,
@@ -907,10 +908,11 @@ export async function getClassById(
   );
   const row = rows[0];
   if (!row) return null;
+  const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
   return {
     id: row.id,
     name: row.name,
-    organizationId: row.organization_id ?? undefined,
+    organizationId: resolvedOrganizationId,
     unit:
       (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
       canonicalizeUnitLabel(row.unit) ??
@@ -1922,26 +1924,29 @@ export async function getStudents(
           )}&order=name.asc`
         : "/students?select=*&order=name.asc"
     );
-    const mapped = rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      organizationId: row.organization_id ?? undefined,
-      photoUrl: row.photo_url ?? undefined,
-      classId: row.classid,
-      age: row.age,
-      phone: row.phone,
-      loginEmail: row.login_email ?? undefined,
-      guardianName: row.guardian_name ?? undefined,
-      guardianPhone: row.guardian_phone ?? undefined,
-      guardianRelation: row.guardian_relation ?? undefined,
-      healthIssue: row.health_issue ?? undefined,
-      healthIssueNotes: row.health_issue_notes ?? undefined,
-      medicationUse: row.medication_use ?? undefined,
-      medicationNotes: row.medication_notes ?? undefined,
-      healthObservations: row.health_observations ?? undefined,
-      birthDate: row.birthdate ?? "",
-      createdAt: row.createdat,
-    }));
+    const mapped = rows.map((row) => {
+      const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+      return {
+        id: row.id,
+        name: row.name,
+        organizationId: resolvedOrganizationId,
+        photoUrl: row.photo_url ?? undefined,
+        classId: row.classid,
+        age: row.age,
+        phone: row.phone,
+        loginEmail: row.login_email ?? undefined,
+        guardianName: row.guardian_name ?? undefined,
+        guardianPhone: row.guardian_phone ?? undefined,
+        guardianRelation: row.guardian_relation ?? undefined,
+        healthIssue: row.health_issue ?? undefined,
+        healthIssueNotes: row.health_issue_notes ?? undefined,
+        medicationUse: row.medication_use ?? undefined,
+        medicationNotes: row.medication_notes ?? undefined,
+        healthObservations: row.health_observations ?? undefined,
+        birthDate: row.birthdate ?? "",
+        createdAt: row.createdat,
+      };
+    });
     await writeCache(cacheKey, mapped);
     return mapped;
   } catch (error) {
@@ -1973,26 +1978,29 @@ export async function getStudentsByClass(
             "&order=name.asc"
         : "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
     );
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      organizationId: row.organization_id ?? undefined,
-      photoUrl: row.photo_url ?? undefined,
-      classId: row.classid,
-      age: row.age,
-      phone: row.phone,
-      loginEmail: row.login_email ?? undefined,
-      guardianName: row.guardian_name ?? undefined,
-      guardianPhone: row.guardian_phone ?? undefined,
-      guardianRelation: row.guardian_relation ?? undefined,
-      healthIssue: row.health_issue ?? undefined,
-      healthIssueNotes: row.health_issue_notes ?? undefined,
-      medicationUse: row.medication_use ?? undefined,
-      medicationNotes: row.medication_notes ?? undefined,
-      healthObservations: row.health_observations ?? undefined,
-      birthDate: row.birthdate ?? "",
-      createdAt: row.createdat,
-    }));
+    return rows.map((row) => {
+      const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+      return {
+        id: row.id,
+        name: row.name,
+        organizationId: resolvedOrganizationId,
+        photoUrl: row.photo_url ?? undefined,
+        classId: row.classid,
+        age: row.age,
+        phone: row.phone,
+        loginEmail: row.login_email ?? undefined,
+        guardianName: row.guardian_name ?? undefined,
+        guardianPhone: row.guardian_phone ?? undefined,
+        guardianRelation: row.guardian_relation ?? undefined,
+        healthIssue: row.health_issue ?? undefined,
+        healthIssueNotes: row.health_issue_notes ?? undefined,
+        medicationUse: row.medication_use ?? undefined,
+        medicationNotes: row.medication_notes ?? undefined,
+        healthObservations: row.health_observations ?? undefined,
+        birthDate: row.birthdate ?? "",
+        createdAt: row.createdat,
+      };
+    });
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
       const activeOrganizationId =
@@ -2022,85 +2030,86 @@ export async function getStudentById(
   );
   const row = rows[0];
   if (!row) return null;
-    return {
-      id: row.id,
-      name: row.name,
-      organizationId: row.organization_id ?? undefined,
-      photoUrl: row.photo_url ?? undefined,
-      classId: row.classid,
-      age: row.age,
-      phone: row.phone,
-      loginEmail: row.login_email ?? undefined,
-      guardianName: row.guardian_name ?? undefined,
-      guardianPhone: row.guardian_phone ?? undefined,
-      guardianRelation: row.guardian_relation ?? undefined,
-      healthIssue: row.health_issue ?? undefined,
-      healthIssueNotes: row.health_issue_notes ?? undefined,
-      medicationUse: row.medication_use ?? undefined,
-      medicationNotes: row.medication_notes ?? undefined,
-      healthObservations: row.health_observations ?? undefined,
-      birthDate: row.birthdate ?? "",
-      createdAt: row.createdat,
-    };
-  }
+  const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+  return {
+    id: row.id,
+    name: row.name,
+    organizationId: resolvedOrganizationId,
+    photoUrl: row.photo_url ?? undefined,
+    classId: row.classid,
+    age: row.age,
+    phone: row.phone,
+    loginEmail: row.login_email ?? undefined,
+    guardianName: row.guardian_name ?? undefined,
+    guardianPhone: row.guardian_phone ?? undefined,
+    guardianRelation: row.guardian_relation ?? undefined,
+    healthIssue: row.health_issue ?? undefined,
+    healthIssueNotes: row.health_issue_notes ?? undefined,
+    medicationUse: row.medication_use ?? undefined,
+    medicationNotes: row.medication_notes ?? undefined,
+    healthObservations: row.health_observations ?? undefined,
+    birthDate: row.birthdate ?? "",
+    createdAt: row.createdat,
+  };
+}
 
 export async function saveStudent(student: Student) {
-    const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
-    const activeOrganizationId =
-      student.organizationId ?? (await getActiveOrganizationId());
-    const payload: Record<string, unknown> = {
-      id: student.id,
-      name: student.name,
-      classid: student.classId,
-      age: student.age,
-      phone: student.phone,
-      login_email: normalizedLoginEmail,
-      guardian_name: student.guardianName?.trim() || null,
-      guardian_phone: student.guardianPhone?.trim() || null,
-      guardian_relation: student.guardianRelation?.trim() || null,
-      health_issue: student.healthIssue ?? false,
-      health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
-      medication_use: student.medicationUse ?? false,
-      medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
-      health_observations: student.healthObservations?.trim() || null,
-      birthdate: student.birthDate ? student.birthDate : null,
-      createdat: student.createdAt,
-    };
-    if (activeOrganizationId) {
-      payload.organization_id = activeOrganizationId;
-    }
-    await supabasePost("/students", [payload]);
+  const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
+  const activeOrganizationId =
+    student.organizationId || (await getActiveOrganizationId());
+  const payload: Record<string, unknown> = {
+    id: student.id,
+    name: student.name,
+    classid: student.classId,
+    age: student.age,
+    phone: student.phone,
+    login_email: normalizedLoginEmail,
+    guardian_name: student.guardianName?.trim() || null,
+    guardian_phone: student.guardianPhone?.trim() || null,
+    guardian_relation: student.guardianRelation?.trim() || null,
+    health_issue: student.healthIssue ?? false,
+    health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
+    medication_use: student.medicationUse ?? false,
+    medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
+    health_observations: student.healthObservations?.trim() || null,
+    birthdate: student.birthDate ? student.birthDate : null,
+    createdat: student.createdAt,
+  };
+  if (activeOrganizationId) {
+    payload.organization_id = activeOrganizationId;
   }
+  await supabasePost("/students", [payload]);
+}
 
 export async function updateStudent(student: Student) {
-    const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
-    const activeOrganizationId =
-      student.organizationId ?? (await getActiveOrganizationId());
-    const payload: Record<string, unknown> = {
-      name: student.name,
-      classid: student.classId,
-      age: student.age,
-      phone: student.phone,
-      login_email: normalizedLoginEmail,
-      guardian_name: student.guardianName?.trim() || null,
-      guardian_phone: student.guardianPhone?.trim() || null,
-      guardian_relation: student.guardianRelation?.trim() || null,
-      health_issue: student.healthIssue ?? false,
-      health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
-      medication_use: student.medicationUse ?? false,
-      medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
-      health_observations: student.healthObservations?.trim() || null,
-      birthdate: student.birthDate ? student.birthDate : null,
-      createdat: student.createdAt,
-    };
-    if (activeOrganizationId) {
-      payload.organization_id = activeOrganizationId;
-    }
-    await supabasePatch(
-      "/students?id=eq." + encodeURIComponent(student.id),
-      payload
-    );
+  const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
+  const activeOrganizationId =
+    student.organizationId || (await getActiveOrganizationId());
+  const payload: Record<string, unknown> = {
+    name: student.name,
+    classid: student.classId,
+    age: student.age,
+    phone: student.phone,
+    login_email: normalizedLoginEmail,
+    guardian_name: student.guardianName?.trim() || null,
+    guardian_phone: student.guardianPhone?.trim() || null,
+    guardian_relation: student.guardianRelation?.trim() || null,
+    health_issue: student.healthIssue ?? false,
+    health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
+    medication_use: student.medicationUse ?? false,
+    medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
+    health_observations: student.healthObservations?.trim() || null,
+    birthdate: student.birthDate ? student.birthDate : null,
+    createdat: student.createdAt,
+  };
+  if (activeOrganizationId) {
+    payload.organization_id = activeOrganizationId;
   }
+  await supabasePatch(
+    "/students?id=eq." + encodeURIComponent(student.id),
+    payload
+  );
+}
 
 export async function updateStudentPhoto(studentId: string, photoUrl: string | null) {
   await supabasePatch(
