@@ -129,6 +129,8 @@ const CACHE_KEYS = {
   students: "cache_students_v1",
 };
 
+const ACTIVE_ORG_STORAGE_KEY = "active-org-id";
+
 const WRITE_QUEUE_KEY = "pending_writes_v1";
 
 type PendingWrite = {
@@ -181,6 +183,14 @@ const writeCache = async (key: string, value: unknown) => {
     await AsyncStorage.setItem(key, JSON.stringify(value));
   } catch {
     // ignore cache write failures
+  }
+};
+
+const getActiveOrganizationId = async () => {
+  try {
+    return await AsyncStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
+  } catch {
+    return null;
   }
 };
 
@@ -336,6 +346,7 @@ const ensureUnit = async (
 type ClassRow = {
   id: string;
   name: string;
+  organization_id?: string | null;
   unit?: string;
   unit_id?: string | null;
   color_key?: string | null;
@@ -370,6 +381,7 @@ type UnitRow = {
 type TrainingPlanRow = {
   id: string;
   classid: string;
+  organization_id?: string | null;
   title: string;
   tags: string[];
   warmup: string[];
@@ -406,6 +418,7 @@ type HiddenTemplateRow = {
 type StudentRow = {
   id: string;
   name: string;
+  organization_id?: string | null;
   photo_url?: string | null;
   classid: string;
   age: number;
@@ -430,6 +443,7 @@ type AttendanceRow = {
   date: string;
   status: string;
   note: string;
+  organization_id?: string | null;
   pain_score?: number | null;
   createdat: string;
 };
@@ -438,6 +452,7 @@ type AbsenceNoticeRow = {
   id: string;
   student_id: string;
   class_id: string;
+  organization_id?: string | null;
   session_date: string;
   reason: string;
   note?: string | null;
@@ -448,6 +463,7 @@ type AbsenceNoticeRow = {
 type ScoutingLogRow = {
   id: string;
   classid: string;
+  organization_id?: string | null;
   unit?: string | null;
   mode?: string | null;
   client_id?: string | null;
@@ -492,6 +508,7 @@ type StudentScoutingRow = {
 type ClassPlanRow = {
   id: string;
   classid: string;
+  organization_id?: string | null;
   startdate: string;
   weeknumber: number;
   phase: string;
@@ -515,6 +532,7 @@ type SessionLogRow = {
   id: string;
   client_id?: string | null;
   classid: string;
+  organization_id?: string | null;
   rpe: number;
   technique: string;
   attendance: number;
@@ -547,6 +565,8 @@ export async function seedIfEmpty() {
     if (existing.length > 0) return;
 
     const unitsCache = await safeGetUnits();
+
+    const activeOrganizationId = await getActiveOrganizationId();
 
     const nowIso = new Date().toISOString();
     const classes: ClassRow[] = [
@@ -651,6 +671,12 @@ export async function seedIfEmpty() {
         created_at: nowIso,
       },
     ];
+
+    if (activeOrganizationId) {
+      for (const row of classes) {
+        row.organization_id = activeOrganizationId;
+      }
+    }
 
     for (const row of classes) {
       const unit = await ensureUnit(row.unit, unitsCache);
@@ -780,13 +806,27 @@ export async function seedStudentsIfEmpty() {
   }
 }
 
-export async function getClasses(): Promise<ClassGroup[]> {
+const buildClassesCacheKey = (organizationId: string | null) =>
+  organizationId ? `${CACHE_KEYS.classes}_${organizationId}` : CACHE_KEYS.classes;
+
+export async function getClasses(
+  options: { organizationId?: string | null } = {}
+): Promise<ClassGroup[]> {
   try {
     const units = await safeGetUnits();
     const unitMap = new Map(
       units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
     );
-    const rows = await supabaseGet<ClassRow[]>("/classes?select=*&order=name.asc");
+    const activeOrganizationId =
+      options.organizationId ?? (await getActiveOrganizationId());
+    const cacheKey = buildClassesCacheKey(activeOrganizationId ?? null);
+    const rows = await supabaseGet<ClassRow[]>(
+      activeOrganizationId
+        ? `/classes?select=*&organization_id=eq.${encodeURIComponent(
+            activeOrganizationId
+          )}&order=name.asc`
+        : "/classes?select=*&order=name.asc"
+    );
     const mapped = sortClassesBySchedule(
       rows.map((row) => {
         const unitFromId = row.unit_id ? unitMap.get(row.unit_id) : undefined;
@@ -797,6 +837,7 @@ export async function getClasses(): Promise<ClassGroup[]> {
         return {
           id: row.id,
           name: row.name,
+          organizationId: row.organization_id ?? undefined,
           unit: unitLabel,
           unitId: row.unit_id ?? undefined,
           colorKey: row.color_key ?? undefined,
@@ -831,11 +872,14 @@ export async function getClasses(): Promise<ClassGroup[]> {
         };
       })
     );
-    await writeCache(CACHE_KEYS.classes, mapped);
+    await writeCache(cacheKey, mapped);
     return mapped;
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
-      const cached = await readCache<ClassGroup[]>(CACHE_KEYS.classes);
+      const activeOrganizationId =
+        options.organizationId ?? (await getActiveOrganizationId());
+      const cacheKey = buildClassesCacheKey(activeOrganizationId ?? null);
+      const cached = await readCache<ClassGroup[]>(cacheKey);
       if (cached) return cached;
       return [];
     }
@@ -843,19 +887,30 @@ export async function getClasses(): Promise<ClassGroup[]> {
   }
 }
 
-export async function getClassById(id: string): Promise<ClassGroup | null> {
+export async function getClassById(
+  id: string,
+  options: { organizationId?: string | null } = {}
+): Promise<ClassGroup | null> {
   const units = await safeGetUnits();
   const unitMap = new Map(
     units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
   );
+  const activeOrganizationId =
+    options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<ClassRow[]>(
-    "/classes?select=*&id=eq." + encodeURIComponent(id)
+    activeOrganizationId
+      ? "/classes?select=*&id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/classes?select=*&id=eq." + encodeURIComponent(id)
   );
   const row = rows[0];
   if (!row) return null;
   return {
     id: row.id,
     name: row.name,
+    organizationId: row.organization_id ?? undefined,
     unit:
       (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
       canonicalizeUnitLabel(row.unit) ??
@@ -979,34 +1034,41 @@ export async function saveClass(data: {
   cycleStartDate?: string;
   cycleLengthWeeks?: number;
   colorKey?: string | null;
+  organizationId?: string | null;
 }) {
   const resolvedUnitRow = data.unitId
     ? { id: data.unitId, name: data.unit }
     : await ensureUnit(data.unit);
   const resolvedUnit = resolvedUnitRow?.id ?? undefined;
+  const activeOrganizationId =
+    data.organizationId ?? (await getActiveOrganizationId());
+  const payload: Record<string, unknown> = {
+    id: "c_" + Date.now(),
+    name: data.name,
+    unit: resolvedUnitRow?.name ?? data.unit,
+    unit_id: resolvedUnit,
+    color_key: data.colorKey ?? null,
+    modality: data.modality ?? "fitness",
+    ageband: normalizeAgeBand(data.ageBand),
+    gender: data.gender,
+    starttime: data.startTime,
+    end_time: computeEndTime(data.startTime, data.durationMinutes),
+    duration: data.durationMinutes,
+    days: data.daysOfWeek,
+    daysperweek: data.daysOfWeek.length,
+    goal: data.goal,
+    equipment: "misto",
+    level: 1,
+    mv_level: data.mvLevel,
+    cycle_start_date: data.cycleStartDate,
+    cycle_length_weeks: data.cycleLengthWeeks,
+    created_at: new Date().toISOString(),
+  };
+  if (activeOrganizationId) {
+    payload.organization_id = activeOrganizationId;
+  }
   await supabasePost("/classes", [
-    {
-      id: "c_" + Date.now(),
-      name: data.name,
-      unit: resolvedUnitRow?.name ?? data.unit,
-      unit_id: resolvedUnit,
-      color_key: data.colorKey ?? null,
-      modality: data.modality ?? "fitness",
-      ageband: normalizeAgeBand(data.ageBand),
-      gender: data.gender,
-      starttime: data.startTime,
-      end_time: computeEndTime(data.startTime, data.durationMinutes),
-      duration: data.durationMinutes,
-      days: data.daysOfWeek,
-      daysperweek: data.daysOfWeek.length,
-      goal: data.goal,
-      equipment: "misto",
-      level: 1,
-      mv_level: data.mvLevel,
-      cycle_start_date: data.cycleStartDate,
-      cycle_length_weeks: data.cycleLengthWeeks,
-      created_at: new Date().toISOString(),
-    },
+    payload,
   ]);
 }
 
@@ -1015,31 +1077,37 @@ export async function duplicateClass(base: ClassGroup) {
     ? { id: base.unitId, name: base.unit }
     : await ensureUnit(base.unit);
   const resolvedUnit = resolvedUnitRow?.id ?? undefined;
+  const activeOrganizationId =
+    base.organizationId ?? (await getActiveOrganizationId());
+  const payload: Record<string, unknown> = {
+    id: "c_" + Date.now(),
+    name: base.name + " (c?pia)",
+    unit: resolvedUnitRow?.name ?? base.unit,
+    unit_id: resolvedUnit,
+    color_key: base.colorKey ?? null,
+    modality: base.modality ?? "fitness",
+    ageband: normalizeAgeBand(base.ageBand),
+    gender: base.gender,
+    starttime: base.startTime,
+    end_time: computeEndTime(base.startTime, base.durationMinutes),
+    duration: base.durationMinutes,
+    days: base.daysOfWeek,
+    daysperweek: base.daysOfWeek.length,
+    goal: base.goal,
+    equipment: base.equipment,
+    level: base.level,
+    mv_level: base.mvLevel,
+    cycle_start_date: base.cycleStartDate,
+    cycle_length_weeks: base.cycleLengthWeeks,
+    acwr_low: base.acwrLow,
+    acwr_high: base.acwrHigh,
+    created_at: new Date().toISOString(),
+  };
+  if (activeOrganizationId) {
+    payload.organization_id = activeOrganizationId;
+  }
   await supabasePost("/classes", [
-    {
-      id: "c_" + Date.now(),
-      name: base.name + " (c?pia)",
-      unit: resolvedUnitRow?.name ?? base.unit,
-      unit_id: resolvedUnit,
-      color_key: base.colorKey ?? null,
-      modality: base.modality ?? "fitness",
-      ageband: normalizeAgeBand(base.ageBand),
-      gender: base.gender,
-      starttime: base.startTime,
-      end_time: computeEndTime(base.startTime, base.durationMinutes),
-      duration: base.durationMinutes,
-      days: base.daysOfWeek,
-      daysperweek: base.daysOfWeek.length,
-      goal: base.goal,
-      equipment: base.equipment,
-      level: base.level,
-      mv_level: base.mvLevel,
-      cycle_start_date: base.cycleStartDate,
-      cycle_length_weeks: base.cycleLengthWeeks,
-      acwr_low: base.acwrLow,
-      acwr_high: base.acwrHigh,
-      created_at: new Date().toISOString(),
-    },
+    payload,
   ]);
 }
 
@@ -1115,17 +1183,15 @@ const studentScoutingRowToLog = (row: StudentScoutingRow): StudentScoutingLog =>
 export async function getScoutingLogByDate(
   classId: string,
   date: string,
-  mode: "treino" | "jogo" = "treino"
+  mode: "treino" | "jogo" = "treino",
+  options: { organizationId?: string | null } = {}
 ): Promise<ScoutingLog | null> {
   try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
     const rows = await supabaseGet<ScoutingLogRow[]>(
-      "/scouting_logs?select=*&classid=eq." +
-        encodeURIComponent(classId) +
-        "&date=eq." +
-        encodeURIComponent(date) +
-        "&mode=eq." +
-        encodeURIComponent(mode) +
-        "&limit=1"
+      organizationId
+        ? `/scouting_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&date=eq.${encodeURIComponent(date)}&mode=eq.${encodeURIComponent(mode)}&limit=1`
+        : `/scouting_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}&mode=eq.${encodeURIComponent(mode)}&limit=1`
     );
     const row = rows[0];
     return row ? scoutingRowToLog(row) : null;
@@ -1136,13 +1202,15 @@ export async function getScoutingLogByDate(
 }
 
 export async function getLatestScoutingLog(
-  classId: string
+  classId: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<ScoutingLog | null> {
   try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
     const rows = await supabaseGet<ScoutingLogRow[]>(
-      "/scouting_logs?select=*&classid=eq." +
-        encodeURIComponent(classId) +
-        "&order=date.desc&limit=1"
+      organizationId
+        ? `/scouting_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.desc&limit=1`
+        : `/scouting_logs?select=*&classid=eq.${encodeURIComponent(classId)}&order=date.desc&limit=1`
     );
     const row = rows[0];
     return row ? scoutingRowToLog(row) : null;
@@ -1154,10 +1222,11 @@ export async function getLatestScoutingLog(
 
 export async function saveScoutingLog(
   log: ScoutingLog,
-  options?: { allowQueue?: boolean }
+  options?: { allowQueue?: boolean; organizationId?: string }
 ) {
   const allowQueue = options?.allowQueue !== false;
   try {
+    const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
     const now = new Date().toISOString();
     const mode = log.mode === "jogo" ? "jogo" : "treino";
     const clientId = buildScoutingLogClientId(log);
@@ -1166,6 +1235,7 @@ export async function saveScoutingLog(
       id: logId,
       client_id: clientId,
       classid: log.classId,
+      organization_id: organizationId ?? undefined,
       unit: log.unit ?? null,
       mode,
       date: log.date,
@@ -1310,7 +1380,7 @@ export async function saveStudentScoutingLog(
 
 export async function saveSessionLog(
   log: SessionLog,
-  options?: { allowQueue?: boolean }
+  options?: { allowQueue?: boolean; organizationId?: string }
 ) {
   const allowQueue = options?.allowQueue !== false;
   const clientId = buildSessionLogClientId(log);
@@ -1331,12 +1401,15 @@ export async function saveSessionLog(
       : null;
 
   try {
+    const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
+    
     if (shouldPatchById) {
       await supabasePatch(
         "/session_logs?id=eq." + encodeURIComponent(log.id || ""),
         {
           client_id: clientId,
           classid: log.classId,
+          organization_id: organizationId ?? undefined,
           rpe: pseValue,
           technique: log.technique,
           attendance: log.attendance,
@@ -1357,6 +1430,7 @@ export async function saveSessionLog(
           id: logId,
           client_id: clientId,
           classid: log.classId,
+          organization_id: organizationId ?? undefined,
           rpe: pseValue,
           technique: log.technique,
           attendance: log.attendance,
@@ -1386,19 +1460,17 @@ export async function saveSessionLog(
 
 export async function getSessionLogByDate(
   classId: string,
-  date: string
+  date: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<SessionLog | null> {
   const start = `${date}T00:00:00.000Z`;
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 1);
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<SessionLogRow[]>(
-    "/session_logs?select=*&classid=eq." +
-      encodeURIComponent(classId) +
-      "&createdat=gte." +
-      encodeURIComponent(start) +
-      "&createdat=lt." +
-      encodeURIComponent(end.toISOString()) +
-      "&order=client_id.desc.nullslast,createdat.desc&limit=1"
+    organizationId
+      ? `/session_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(start)}&createdat=lt.${encodeURIComponent(end.toISOString())}&order=client_id.desc.nullslast,createdat.desc&limit=1`
+      : `/session_logs?select=*&classid=eq.${encodeURIComponent(classId)}&createdat=gte.${encodeURIComponent(start)}&createdat=lt.${encodeURIComponent(end.toISOString())}&order=client_id.desc.nullslast,createdat.desc&limit=1`
   );
   const row = rows[0];
   if (!row) return null;
@@ -1420,13 +1492,14 @@ export async function getSessionLogByDate(
 
 export async function getSessionLogsByRange(
   startIso: string,
-  endIso: string
+  endIso: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<SessionLog[]> {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<SessionLogRow[]>(
-    "/session_logs?select=*&createdat=gte." +
-      encodeURIComponent(startIso) +
-      "&createdat=lt." +
-      encodeURIComponent(endIso)
+    organizationId
+      ? `/session_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
+      : `/session_logs?select=*&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
   );
   return rows.map((row) => ({
     classId: row.classid,
@@ -1442,10 +1515,15 @@ export async function getSessionLogsByRange(
   }));
 }
 
-export async function getTrainingPlans(): Promise<TrainingPlan[]> {
+export async function getTrainingPlans(
+  options: { organizationId?: string | null } = {}
+): Promise<TrainingPlan[]> {
   try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
     const rows = await supabaseGet<TrainingPlanRow[]>(
-      "/training_plans?select=*&order=createdat.desc"
+      organizationId
+        ? `/training_plans?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&order=createdat.desc`
+        : "/training_plans?select=*&order=createdat.desc"
     );
     const mapped = rows.map((row) => ({
       id: row.id,
@@ -1473,11 +1551,13 @@ export async function getTrainingPlans(): Promise<TrainingPlan[]> {
   }
 }
 
-export async function saveTrainingPlan(plan: TrainingPlan) {
+export async function saveTrainingPlan(plan: TrainingPlan, options?: { organizationId?: string }) {
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabasePost("/training_plans", [
     {
       id: plan.id,
       classid: plan.classId,
+      organization_id: organizationId ?? undefined,
       title: plan.title,
       tags: plan.tags ?? [],
       warmup: plan.warmup,
@@ -1493,11 +1573,13 @@ export async function saveTrainingPlan(plan: TrainingPlan) {
   ]);
 }
 
-export async function updateTrainingPlan(plan: TrainingPlan) {
+export async function updateTrainingPlan(plan: TrainingPlan, options?: { organizationId?: string }) {
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabasePatch(
     "/training_plans?id=eq." + encodeURIComponent(plan.id),
     {
       classid: plan.classId,
+      organization_id: organizationId ?? undefined,
       title: plan.title,
       tags: plan.tags ?? [],
       warmup: plan.warmup,
@@ -1532,13 +1614,15 @@ export async function deleteTrainingPlansByClassAndDate(
 }
 
 export async function getClassPlansByClass(
-  classId: string
+  classId: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<ClassPlan[]> {
   try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
     const rows = await supabaseGet<ClassPlanRow[]>(
-      "/class_plans?select=*&classid=eq." +
-        encodeURIComponent(classId) +
-        "&order=weeknumber.asc"
+      organizationId
+        ? `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=weeknumber.asc`
+        : `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&order=weeknumber.asc`
     );
     const mapped = rows.map((row) => ({
       id: row.id,
@@ -1612,11 +1696,13 @@ export async function updateClassPlan(plan: ClassPlan) {
   );
 }
 
-export async function saveClassPlans(plans: ClassPlan[]) {
+export async function saveClassPlans(plans: ClassPlan[], options?: { organizationId?: string }) {
   if (!plans.length) return;
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabasePost("/class_plans", plans.map((plan) => ({
     id: plan.id,
     classid: plan.classId,
+    organization_id: organizationId ?? undefined,
     startdate: plan.startDate,
     weeknumber: plan.weekNumber,
     phase: plan.phase,
@@ -1819,14 +1905,27 @@ export async function getLatestTrainingPlanByClass(
   };
 }
 
-export async function getStudents(): Promise<Student[]> {
+const buildStudentsCacheKey = (organizationId: string | null) =>
+  organizationId ? `${CACHE_KEYS.students}_${organizationId}` : CACHE_KEYS.students;
+
+export async function getStudents(
+  options: { organizationId?: string | null } = {}
+): Promise<Student[]> {
   try {
+    const activeOrganizationId =
+      options.organizationId ?? (await getActiveOrganizationId());
+    const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
     const rows = await supabaseGet<StudentRow[]>(
-      "/students?select=*&order=name.asc"
+      activeOrganizationId
+        ? `/students?select=*&organization_id=eq.${encodeURIComponent(
+            activeOrganizationId
+          )}&order=name.asc`
+        : "/students?select=*&order=name.asc"
     );
     const mapped = rows.map((row) => ({
       id: row.id,
       name: row.name,
+      organizationId: row.organization_id ?? undefined,
       photoUrl: row.photo_url ?? undefined,
       classId: row.classid,
       age: row.age,
@@ -1843,11 +1942,14 @@ export async function getStudents(): Promise<Student[]> {
       birthDate: row.birthdate ?? "",
       createdAt: row.createdat,
     }));
-    await writeCache(CACHE_KEYS.students, mapped);
+    await writeCache(cacheKey, mapped);
     return mapped;
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
-      const cached = await readCache<Student[]>(CACHE_KEYS.students);
+      const activeOrganizationId =
+        options.organizationId ?? (await getActiveOrganizationId());
+      const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
+      const cached = await readCache<Student[]>(cacheKey);
       if (cached) return cached;
       return [];
     }
@@ -1855,14 +1957,26 @@ export async function getStudents(): Promise<Student[]> {
   }
 }
 
-export async function getStudentsByClass(classId: string): Promise<Student[]> {
+export async function getStudentsByClass(
+  classId: string,
+  options: { organizationId?: string | null } = {}
+): Promise<Student[]> {
   try {
+    const activeOrganizationId =
+      options.organizationId ?? (await getActiveOrganizationId());
     const rows = await supabaseGet<StudentRow[]>(
-      "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
+      activeOrganizationId
+        ? "/students?select=*&classid=eq." +
+            encodeURIComponent(classId) +
+            "&organization_id=eq." +
+            encodeURIComponent(activeOrganizationId) +
+            "&order=name.asc"
+        : "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
     );
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      organizationId: row.organization_id ?? undefined,
       photoUrl: row.photo_url ?? undefined,
       classId: row.classid,
       age: row.age,
@@ -1881,7 +1995,10 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
     }));
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
-      const cached = await readCache<Student[]>(CACHE_KEYS.students);
+      const activeOrganizationId =
+        options.organizationId ?? (await getActiveOrganizationId());
+      const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
+      const cached = await readCache<Student[]>(cacheKey);
       if (cached) return cached.filter((item) => item.classId === classId);
       return [];
     }
@@ -1889,15 +2006,26 @@ export async function getStudentsByClass(classId: string): Promise<Student[]> {
   }
 }
 
-export async function getStudentById(id: string): Promise<Student | null> {
+export async function getStudentById(
+  id: string,
+  options: { organizationId?: string | null } = {}
+): Promise<Student | null> {
+  const activeOrganizationId =
+    options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<StudentRow[]>(
-    "/students?select=*&id=eq." + encodeURIComponent(id)
+    activeOrganizationId
+      ? "/students?select=*&id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/students?select=*&id=eq." + encodeURIComponent(id)
   );
   const row = rows[0];
   if (!row) return null;
     return {
       id: row.id,
       name: row.name,
+      organizationId: row.organization_id ?? undefined,
       photoUrl: row.photo_url ?? undefined,
       classId: row.classid,
       age: row.age,
@@ -1918,51 +2046,59 @@ export async function getStudentById(id: string): Promise<Student | null> {
 
 export async function saveStudent(student: Student) {
     const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
-    await supabasePost("/students", [
-      {
-        id: student.id,
-        name: student.name,
-        photo_url: student.photoUrl?.trim() || null,
-        classid: student.classId,
-        age: student.age,
-        phone: student.phone,
-        login_email: normalizedLoginEmail,
-        guardian_name: student.guardianName?.trim() || null,
-        guardian_phone: student.guardianPhone?.trim() || null,
-        guardian_relation: student.guardianRelation?.trim() || null,
-        health_issue: student.healthIssue ?? false,
-        health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
-        medication_use: student.medicationUse ?? false,
-        medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
-        health_observations: student.healthObservations?.trim() || null,
-        birthdate: student.birthDate ? student.birthDate : null,
-        createdat: student.createdAt,
-      },
-    ]);
+    const activeOrganizationId =
+      student.organizationId ?? (await getActiveOrganizationId());
+    const payload: Record<string, unknown> = {
+      id: student.id,
+      name: student.name,
+      classid: student.classId,
+      age: student.age,
+      phone: student.phone,
+      login_email: normalizedLoginEmail,
+      guardian_name: student.guardianName?.trim() || null,
+      guardian_phone: student.guardianPhone?.trim() || null,
+      guardian_relation: student.guardianRelation?.trim() || null,
+      health_issue: student.healthIssue ?? false,
+      health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
+      medication_use: student.medicationUse ?? false,
+      medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
+      health_observations: student.healthObservations?.trim() || null,
+      birthdate: student.birthDate ? student.birthDate : null,
+      createdat: student.createdAt,
+    };
+    if (activeOrganizationId) {
+      payload.organization_id = activeOrganizationId;
+    }
+    await supabasePost("/students", [payload]);
   }
 
 export async function updateStudent(student: Student) {
     const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
+    const activeOrganizationId =
+      student.organizationId ?? (await getActiveOrganizationId());
+    const payload: Record<string, unknown> = {
+      name: student.name,
+      classid: student.classId,
+      age: student.age,
+      phone: student.phone,
+      login_email: normalizedLoginEmail,
+      guardian_name: student.guardianName?.trim() || null,
+      guardian_phone: student.guardianPhone?.trim() || null,
+      guardian_relation: student.guardianRelation?.trim() || null,
+      health_issue: student.healthIssue ?? false,
+      health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
+      medication_use: student.medicationUse ?? false,
+      medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
+      health_observations: student.healthObservations?.trim() || null,
+      birthdate: student.birthDate ? student.birthDate : null,
+      createdat: student.createdAt,
+    };
+    if (activeOrganizationId) {
+      payload.organization_id = activeOrganizationId;
+    }
     await supabasePatch(
       "/students?id=eq." + encodeURIComponent(student.id),
-      {
-        name: student.name,
-        photo_url: student.photoUrl?.trim() || null,
-        classid: student.classId,
-        age: student.age,
-        phone: student.phone,
-        login_email: normalizedLoginEmail,
-        guardian_name: student.guardianName?.trim() || null,
-        guardian_phone: student.guardianPhone?.trim() || null,
-        guardian_relation: student.guardianRelation?.trim() || null,
-        health_issue: student.healthIssue ?? false,
-        health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
-        medication_use: student.medicationUse ?? false,
-        medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
-        health_observations: student.healthObservations?.trim() || null,
-        birthdate: student.birthDate ? student.birthDate : null,
-        createdat: student.createdAt,
-      }
+      payload
     );
   }
 
@@ -1983,10 +2119,12 @@ export async function saveAttendanceRecords(
   classId: string,
   date: string,
   records: AttendanceRecord[],
-  options?: { allowQueue?: boolean }
+  options?: { allowQueue?: boolean; organizationId?: string }
 ) {
   const allowQueue = options?.allowQueue !== false;
   try {
+    const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
+    
     await supabaseDelete(
       "/attendance_logs?classid=eq." +
         encodeURIComponent(classId) +
@@ -2001,6 +2139,7 @@ export async function saveAttendanceRecords(
       date: record.date,
       status: record.status,
       note: record.note,
+      organization_id: organizationId ?? undefined,
       pain_score:
         typeof record.painScore === "number" && Number.isFinite(record.painScore)
           ? record.painScore
@@ -2024,12 +2163,14 @@ export async function saveAttendanceRecords(
 }
 
 export async function getAttendanceByClass(
-  classId: string
+  classId: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<AttendanceRecord[]> {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<AttendanceRow[]>(
-    "/attendance_logs?select=*&classid=eq." +
-      encodeURIComponent(classId) +
-      "&order=date.desc"
+    organizationId
+      ? `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.desc`
+      : `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&order=date.desc`
   );
     return rows.map((row) => ({
       id: row.id,
@@ -2045,13 +2186,14 @@ export async function getAttendanceByClass(
 
 export async function getAttendanceByDate(
   classId: string,
-  date: string
+  date: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<AttendanceRecord[]> {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<AttendanceRow[]>(
-    "/attendance_logs?select=*&classid=eq." +
-      encodeURIComponent(classId) +
-      "&date=eq." +
-      encodeURIComponent(date)
+    organizationId
+      ? `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}&organization_id=eq.${encodeURIComponent(organizationId)}`
+      : `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}`
   );
     return rows.map((row) => ({
       id: row.id,
@@ -2066,13 +2208,15 @@ export async function getAttendanceByDate(
   }
 
 export async function getAttendanceByStudent(
-  studentId: string
+  studentId: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<AttendanceRecord[]> {
   try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
     const rows = await supabaseGet<AttendanceRow[]>(
-      "/attendance_logs?select=*&studentid=eq." +
-        encodeURIComponent(studentId) +
-        "&order=date.desc"
+      organizationId
+        ? `/attendance_logs?select=*&studentid=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.desc`
+        : `/attendance_logs?select=*&studentid=eq.${encodeURIComponent(studentId)}&order=date.desc`
     );
     return rows.map((row) => ({
       id: row.id,
@@ -2091,9 +2235,14 @@ export async function getAttendanceByStudent(
   }
 }
 
-export async function getAttendanceAll(): Promise<AttendanceRecord[]> {
+export async function getAttendanceAll(
+  options: { organizationId?: string | null } = {}
+): Promise<AttendanceRecord[]> {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<AttendanceRow[]>(
-    "/attendance_logs?select=*&order=date.desc"
+    organizationId
+      ? `/attendance_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.desc`
+      : "/attendance_logs?select=*&order=date.desc"
   );
     return rows.map((row) => ({
       id: row.id,
@@ -2132,18 +2281,25 @@ type AbsenceNoticeInput = {
   status?: AbsenceNotice["status"];
 };
 
-export async function getAbsenceNotices(): Promise<AbsenceNotice[]> {
+export async function getAbsenceNotices(
+  options: { organizationId?: string | null } = {}
+): Promise<AbsenceNotice[]> {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<AbsenceNoticeRow[]>(
-    "/absence_notices?select=*&order=created_at.desc"
+    organizationId
+      ? `/absence_notices?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&order=created_at.desc`
+      : "/absence_notices?select=*&order=created_at.desc"
   );
   return rows.map(mapAbsenceNotice);
 }
 
-export async function createAbsenceNotice(notice: AbsenceNoticeInput) {
+export async function createAbsenceNotice(notice: AbsenceNoticeInput, options?: { organizationId?: string }) {
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabasePost("/absence_notices", [
     {
       student_id: notice.studentId,
       class_id: notice.classId,
+      organization_id: organizationId ?? undefined,
       session_date: notice.date,
       reason: notice.reason,
       note: notice.note?.trim() || null,

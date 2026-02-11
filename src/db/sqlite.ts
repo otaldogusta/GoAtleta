@@ -8,6 +8,7 @@ export function initDb() {
     CREATE TABLE IF NOT EXISTS classes (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
       ageBand TEXT NOT NULL,
       gender TEXT NOT NULL DEFAULT 'misto',
       daysPerWeek INTEGER NOT NULL,
@@ -154,6 +155,11 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE classes ADD COLUMN unit TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN organizationId TEXT NOT NULL DEFAULT ''"
     );
   } catch {}
   try {

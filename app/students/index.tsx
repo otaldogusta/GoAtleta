@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import {
     memo,
     useCallback,
@@ -40,6 +41,7 @@ import {
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
+import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -122,6 +124,7 @@ type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
 export default function StudentsScreen() {
   const { signOut } = useAuth();
   const { colors } = useAppTheme();
+  const { activeOrganization } = useOrganization();
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -152,14 +155,19 @@ export default function StudentsScreen() {
     "students_show_form_v1",
     false
   );
-  const [studentsTab, setStudentsTab] = useState<
+  const [studentsTab, setStudentsTab] = usePersistedState<
     "cadastro" | "aniversários" | "alunos"
-  >("alunos");
+  >("students_tab_v1", "alunos");
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] = useState<
     "cadastro" | "aniversários" | "alunos" | null
   >(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
+  const [birthdaySearch, setBirthdaySearch] = useState("");
+  const [birthdayMonthFilter, setBirthdayMonthFilter] = useState<"Todas" | number>(
+    "Todas"
+  );
+  const [showAllBirthdays, setShowAllBirthdays] = useState(true);
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
   const [unit, setUnit] = useState("");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("");
@@ -320,6 +328,8 @@ export default function StudentsScreen() {
   } = useCollapsibleAnimation(showEditGuardianRelationPicker);
   const { animatedStyle: templateListAnimStyle, isVisible: showTemplateListContent } =
     useCollapsibleAnimation(showTemplateList, { translateY: -6 });
+  const { animatedStyle: allBirthdaysAnimStyle, isVisible: showAllBirthdaysContent } =
+    useCollapsibleAnimation(showAllBirthdays, { translateY: -6 });
   const {
     animatedStyle: healthSectionAnimStyle,
     isVisible: showHealthSectionContent,
@@ -333,8 +343,8 @@ export default function StudentsScreen() {
     (async () => {
       try {
         const [classList, studentList] = await Promise.all([
-          getClasses(),
-          getStudents(),
+          getClasses({ organizationId: activeOrganization?.id }),
+          getStudents({ organizationId: activeOrganization?.id }),
         ]);
         if (!alive) return;
         setClasses(classList);
@@ -346,10 +356,10 @@ export default function StudentsScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeOrganization?.id]);
 
   const reload = async () => {
-    const data = await getStudents();
+    const data = await getStudents({ organizationId: activeOrganization?.id });
     setStudents(data);
   };
 
@@ -579,7 +589,8 @@ export default function StudentsScreen() {
       return;
     }
     if (matching.some((item) => item.id === classId)) return;
-    setClassId(matching[0].id);
+    // Removido auto-seleção: usuário deve escolher turma manualmente
+    // setClassId(matching[0].id);
   }, [classes, unit, unitLabel]);
 
   useEffect(() => {
@@ -1116,6 +1127,40 @@ export default function StudentsScreen() {
     return age;
   };
 
+  const normalizeSearch = useCallback(
+    (value: string) =>
+      value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim(),
+    []
+  );
+
+  const getDaysUntilBirthday = (birthDate: Date, today: Date) => {
+    const thisYear = today.getFullYear();
+    const nextBirthday = new Date(
+      thisYear,
+      birthDate.getMonth(),
+      birthDate.getDate()
+    );
+    if (nextBirthday < today) {
+      nextBirthday.setFullYear(thisYear + 1);
+    }
+    const diffTime = nextBirthday.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const hasBirthdayPassed = (birthDate: Date, today: Date) => {
+    const birthMonth = birthDate.getMonth();
+    const birthDay = birthDate.getDate();
+    const todayMonth = today.getMonth();
+    const todayDay = today.getDate();
+    if (birthMonth < todayMonth) return true;
+    if (birthMonth === todayMonth && birthDay < todayDay) return true;
+    return false;
+  };
+
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
     if (digits.length <= 2) return digits;
@@ -1476,6 +1521,37 @@ export default function StudentsScreen() {
       return unitLabel(cls?.unit ?? "") === birthdayUnitFilter;
     });
   }, [birthdayUnitFilter, classes, students, unitLabel]);
+  const birthdayVisibleStudents = useMemo(() => {
+    const query = normalizeSearch(birthdaySearch);
+    const hasQuery = query.length > 0;
+    return birthdayFilteredStudents.filter((student) => {
+      if (!student.birthDate) return false;
+      const date = parseIsoDate(student.birthDate);
+      if (!date) return false;
+      if (birthdayMonthFilter !== "Todas" && date.getMonth() !== birthdayMonthFilter) {
+        return false;
+      }
+      if (!hasQuery) return true;
+      const cls = classes.find((item) => item.id === student.classId) ?? null;
+      const unitName = unitLabel(cls?.unit ?? "");
+      const className = cls?.name ?? "";
+      const monthLabel = monthNames[date.getMonth()] ?? "";
+      const dayLabel = String(date.getDate()).padStart(2, "0");
+      const yearLabel = String(date.getFullYear());
+      const shortDate = formatShortDate(student.birthDate);
+      const haystack = normalizeSearch(
+        `${student.name} ${monthLabel} ${dayLabel} ${yearLabel} ${shortDate} ${unitName} ${className}`
+      );
+      return haystack.includes(query);
+    });
+  }, [
+    birthdayFilteredStudents,
+    birthdayMonthFilter,
+    birthdaySearch,
+    classes,
+    normalizeSearch,
+    unitLabel,
+  ]);
   const studentsFiltered = useMemo(() => {
     const filteredByUnit =
       studentsUnitFilter === "Todas"
@@ -1569,7 +1645,7 @@ export default function StudentsScreen() {
     });
   }, [students, today]);
   const birthdayToday = useMemo(() => {
-    return birthdayFilteredStudents.filter((student) => {
+    return birthdayVisibleStudents.filter((student) => {
       if (!student.birthDate) return false;
       const date = parseIsoDate(student.birthDate);
       if (!date) return false;
@@ -1578,11 +1654,27 @@ export default function StudentsScreen() {
         date.getDate() === today.getDate()
       );
     });
-  }, [birthdayFilteredStudents, today]);
+  }, [birthdayVisibleStudents, today]);
+  const upcomingBirthdays = useMemo(() => {
+    const withDates = birthdayVisibleStudents
+      .filter((student) => {
+        if (!student.birthDate) return false;
+        const date = parseIsoDate(student.birthDate);
+        if (!date) return false;
+        return !hasBirthdayPassed(date, today) && getDaysUntilBirthday(date, today) > 0;
+      })
+      .map((student) => {
+        const date = parseIsoDate(student.birthDate)!;
+        const daysLeft = getDaysUntilBirthday(date, today);
+        return { student, date, daysLeft };
+      })
+      .sort((a, b) => a.daysLeft - b.daysLeft);
+    return withDates.slice(0, 8);
+  }, [birthdayVisibleStudents, today]);
 
   const birthdayMonthGroups = useMemo<BirthdayMonthGroup[]>(() => {
     const byMonth = new Map<number, Map<string, BirthdayEntry[]>>();
-    birthdayFilteredStudents.forEach((student) => {
+    birthdayVisibleStudents.forEach((student) => {
       if (!student.birthDate) return;
       const date = parseIsoDate(student.birthDate);
       if (!date) return;
@@ -1603,7 +1695,7 @@ export default function StudentsScreen() {
             Array.from(unitMap.entries()).sort((a, b) => a[0].localeCompare(b[0])),
           ] as BirthdayMonthGroup
       );
-  }, [birthdayFilteredStudents, classes]);
+  }, [birthdayVisibleStudents, classes, unitLabel]);
 
   useEffect(() => {
     if (!birthdayTodayAll.length) return;
@@ -2428,100 +2520,83 @@ export default function StudentsScreen() {
         )}
 
         {studentsTab === "aniversários" && (
-          <View style={{ gap: 12 }}>
-            { birthdayToday.length ? (
+          <View style={{ gap: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text }}>
+                  Olá!
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>
+                  {birthdayToday.length
+                    ? (() => {
+                        const first = birthdayToday[0]?.name ?? "";
+                        if (birthdayToday.length === 1) {
+                          return `Hoje é aniversário de ${first}.`;
+                        }
+                        return `Hoje é aniversário de ${first} e mais ${
+                          birthdayToday.length - 1
+                        } pessoa(s).`;
+                      })()
+                    : "Sem aniversários hoje."}
+                </Text>
+              </View>
               <View
                 style={{
-                  padding: 16,
-                  borderRadius: 20,
-                  backgroundColor: colors.successBg,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
-                  borderColor: colors.successBg,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.08,
-                  shadowRadius: 12,
-                  shadowOffset: { width: 0, height: 8 },
-                  elevation: 4,
-                  gap: 10,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
                 }}
               >
-                <Text style={{ fontSize: 16, fontWeight: "800", color: colors.successText }}>
-                  Hoje e dia de aniversário
-                </Text>
-                {birthdayToday.map((student) => {
-                  const cls = classes.find((item) => item.id === student.classId) ?? null;
-                  const unitName = unitLabel(cls?.unit ?? "");
-                  const className = cls?.name ?? "Turma";
-                  return (
-                    <View
-                      key={student.id}
-                      style={{
-                        padding: 10,
-                        borderRadius: 14,
-                        backgroundColor: "rgba(255,255,255,0.14)",
-                      }}
-                    >
-                      <Text style={{ color: colors.successText, fontWeight: "700" }}>
-                        {student.name}
-                      </Text>
-                      <Text style={{ color: colors.successText, marginTop: 4 }}>
-                        {formatShortDate(student.birthDate)} - {unitName} | {className}
-                      </Text>
-                    </View>
-                  );
-                })}
+                {birthdayToday[0]?.photoUrl ? (
+                  <Image
+                    source={{ uri: birthdayToday[0].photoUrl }}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                ) : (
+                  <Ionicons name="person" size={20} color={colors.muted} />
+                )}
               </View>
-            ) : null}
+            </View>
 
-            <View
-              style={{
-                padding: 12,
-                borderRadius: 16,
-                backgroundColor: colors.background,
-                borderWidth: 1,
-                borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 2,
-                gap: 8,
-              }}
-            >
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Unidade
+            <View style={{ gap: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>
+                Mês
               </Text>
               <FadeHorizontalScroll
-                fadeColor={colors.card}
+                fadeColor={colors.background}
                 contentContainerStyle={{ flexDirection: "row", gap: 8 }}
               >
-                {birthdayUnitOptions.map((unit) => {
-                  const active = birthdayUnitFilter === unit;
-                  const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                  const chipBg = active
-                    ? palette?.bg ?? colors.primaryBg
-                    : colors.secondaryBg;
-                  const chipText = active
-                    ? palette?.text ?? colors.primaryText
-                    : colors.text;
+                {["Todas", ...monthNames].map((label, index) => {
+                  const value = label === "Todas" ? "Todas" : index - 1;
+                  const active = birthdayMonthFilter === value;
                   return (
                     <Pressable
-                      key={unit}
-                      onPress={() => setBirthdayUnitFilter(unit)}
+                      key={`${label}-${index}`}
+                      onPress={() => setBirthdayMonthFilter(value)}
+                      onContextMenu={(event: any) => event.preventDefault()}
                       style={{
                         paddingVertical: 6,
-                        paddingHorizontal: 10,
+                        paddingHorizontal: 12,
                         borderRadius: 999,
-                        backgroundColor: chipBg,
+                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: active ? "transparent" : colors.border,
                       }}
                     >
                       <Text
                         style={{
-                          color: chipText,
+                          color: active ? colors.primaryText : colors.text,
                           fontWeight: active ? "700" : "500",
+                          fontSize: 12,
                         }}
                       >
-                        {unit}
+                        {label}
                       </Text>
                     </Pressable>
                   );
@@ -2529,134 +2604,272 @@ export default function StudentsScreen() {
               </FadeHorizontalScroll>
             </View>
 
-            { birthdayMonthGroups.length ? (
-              birthdayMonthGroups.map(([month, unitGroups]) => {
-                const monthKey = `m-${month}`;
-                const totalCount = unitGroups.reduce(
-                  (sum, [, entries]) => sum + entries.length,
-                  0
-                );
-                return (
-                  <View
-                    key={monthKey}
-                    style={{
-                      padding: 14,
-                      borderRadius: 18,
-                      backgroundColor: colors.background,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.04,
-                      shadowRadius: 10,
-                      shadowOffset: { width: 0, height: 6 },
-                      elevation: 2,
-                      gap: 10,
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                        {monthNames[month]}
-                      </Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={{ color: colors.muted }}>{totalCount}</Text>
-                      </View>
-                    </View>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                borderRadius: 14,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Ionicons name="search" size={16} color={colors.muted} />
+              <TextInput
+                placeholder="Buscar nomes, datas e meses"
+                placeholderTextColor={colors.placeholder}
+                value={birthdaySearch}
+                onChangeText={setBirthdaySearch}
+                style={{ flex: 1, color: colors.inputText, fontSize: 13 }}
+              />
+              {birthdaySearch ? (
+                <Pressable
+                  onPress={() => setBirthdaySearch("")}
+                  onContextMenu={(event: any) => event.preventDefault()}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    backgroundColor: colors.secondaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="close" size={14} color={colors.muted} />
+                </Pressable>
+              ) : null}
+            </View>
 
-                    {unitGroups.map(([unitName, entries]) => {
-                      const unitKey = `m-${month}-u-${unitName}`;
-                      const palette =
-                        getUnitPalette(unitName, colors) ?? {
-                          bg: colors.primaryBg,
-                          text: colors.primaryText,
-                        };
-                      return (
-                        <View key={unitKey} style={{ gap: 6 }}>
+            <View
+              style={{
+                borderRadius: 24,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                overflow: "hidden",
+              }}
+            >
+              <LinearGradient
+                colors={[colors.secondaryBg, colors.card]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                }}
+              />
+              <View style={{ padding: 16, gap: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="gift" size={18} color={colors.text} />
+                  <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
+                    Aniversário de hoje 🎉
+                  </Text>
+                </View>
+                {birthdayToday.length ? (
+                  birthdayToday.map((student) => {
+                    const cls = classes.find((item) => item.id === student.classId) ?? null;
+                    const unitName = unitLabel(cls?.unit ?? "");
+                    const age = calculateAge(student.birthDate);
+                    return (
+                      <View
+                        key={student.id}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: 10,
+                          borderRadius: 14,
+                          backgroundColor: colors.background,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        {student.photoUrl ? (
+                          <Image
+                            source={{ uri: student.photoUrl }}
+                            style={{ width: 40, height: 40, borderRadius: 20 }}
+                          />
+                        ) : (
                           <View
                             style={{
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              paddingVertical: 6,
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              backgroundColor: colors.secondaryBg,
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
                           >
-                            <View style={{ flex: 1 }}>
+                            <Ionicons name="person" size={20} color={colors.muted} />
+                          </View>
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                            {student.name}
+                          </Text>
+                          <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
+                            {age ? `${age} anos` : "Idade não informada"} - {unitName}
+                          </Text>
+                        </View>
+                        <Ionicons name="balloon" size={18} color={colors.primaryText} />
+                      </View>
+                    );
+                  })
+                ) : (
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>
+                    Sem aniversariantes hoje.
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            {upcomingBirthdays.length ? (
+              <View style={{ gap: 10 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                    Próximos aniversários
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {upcomingBirthdays.length} próximos
+                  </Text>
+                </View>
+                <FadeHorizontalScroll
+                  fadeColor={colors.background}
+                  contentContainerStyle={{ flexDirection: "row", gap: 12 }}
+                >
+                  {upcomingBirthdays.map(({ student, date, daysLeft }) => {
+                    const age = calculateAge(student.birthDate);
+                    return (
+                      <View
+                        key={`upcoming-${student.id}`}
+                        style={{
+                          width: 170,
+                          padding: 14,
+                          borderRadius: 20,
+                          backgroundColor: colors.card,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          minHeight: 220,
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <View style={{ gap: 10, alignItems: "center" }}>
+                          {student.photoUrl ? (
+                            <Image
+                              source={{ uri: student.photoUrl }}
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 28,
+                              }}
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 28,
+                                backgroundColor: colors.secondaryBg,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Ionicons name="person" size={26} color={colors.muted} />
+                            </View>
+                          )}
+                          <View
+                            style={{
+                              gap: 4,
+                              minHeight: 64,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Text
+                              numberOfLines={2}
+                              style={{
+                                color: colors.text,
+                                fontWeight: "700",
+                                fontSize: 13,
+                                textAlign: "center",
+                              }}
+                            >
+                              {student.name}
+                            </Text>
+                            <Text
+                              style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}
+                            >
+                              {monthNames[date.getMonth()]} {date.getDate()}
+                            </Text>
+                            {age ? (
                               <View
                                 style={{
-                                  alignSelf: "flex-start",
-                                  paddingVertical: 4,
-                                  paddingHorizontal: 10,
-                                  borderRadius: 999,
-                                  backgroundColor: palette.bg,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 4,
                                 }}
                               >
+                                <Ionicons
+                                  name="gift-outline"
+                                  size={12}
+                                  color={colors.primaryText}
+                                />
                                 <Text
                                   style={{
-                                    color: palette.text,
-                                    fontWeight: "700",
+                                    color: colors.primaryText,
                                     fontSize: 12,
+                                    fontWeight: "600",
                                   }}
                                 >
-                                  {unitName}
+                                  {age} anos
                                 </Text>
                               </View>
-                              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                {entries.length === 1
-                                   ? "1 aluno"
-                                  : `${entries.length} alunos`}
-                              </Text>
-                            </View>
-                          </View>
-                          <View
-                            style={{
-                              borderRadius: 14,
-                              borderWidth: 1,
-                              borderColor: palette.bg,
-                              padding: 10,
-                              gap: 8,
-                              backgroundColor: colors.background,
-                            }}
-                          >
-                            {entries
-                              .sort((a, b) => a.date.getDate() - b.date.getDate())
-                              .map(({ student, date }) => {
-                                const cls = classes.find((item) => item.id === student.classId) ?? null;
-                                const className = cls?.name ?? "Turma";
-                                return (
-                                  <View
-                                    key={student.id}
-                                    style={{
-                                      padding: 10,
-                                      borderRadius: 14,
-                                      backgroundColor: colors.background,
-                                      borderWidth: 1,
-                                      borderColor: palette.bg,
-                                    }}
-                                  >
-                                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                                      {String(date.getDate()).padStart(2, "0")} - {student.name}
-                                    </Text>
-                                    <Text style={{ color: colors.muted, marginTop: 4 }}>
-                                      {formatShortDate(student.birthDate)} | {className}
-                                    </Text>
-                                  </View>
-                                );
-                              })}
+                            ) : null}
                           </View>
                         </View>
-                      );
-                    })}
-                  </View>
-                );
-              })
+                        <View
+                          style={{
+                            paddingVertical: 6,
+                            paddingHorizontal: 10,
+                            borderRadius: 12,
+                            backgroundColor: colors.primaryBg,
+                            minHeight: 32,
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: colors.primaryText,
+                              fontSize: 12,
+                              fontWeight: "700",
+                              textAlign: "center",
+                            }}
+                          >
+                            {daysLeft === 1 ? "Amanhã" : `${daysLeft} dias`}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </FadeHorizontalScroll>
+              </View>
             ) : (
               <View
                 style={{
-                  padding: 12,
+                  padding: 14,
                   borderRadius: 16,
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
@@ -2664,15 +2877,249 @@ export default function StudentsScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Sem aniversários
+                  Sem próximos aniversários
                 </Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  Nenhum aluno com data de nascimento.
+                <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12 }}>
+                  Ajuste o mês ou a busca para ver mais resultados.
                 </Text>
               </View>
             )}
+
+            <View style={{ gap: 10 }}>
+              <Pressable
+                onPress={() => setShowAllBirthdays((prev) => !prev)}
+                onContextMenu={(event: any) => event.preventDefault()}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  borderRadius: 16,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  Todos os aniversários
+                </Text>
+                <Ionicons
+                  name={showAllBirthdays ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={colors.muted}
+                />
+              </Pressable>
+              { showAllBirthdaysContent ? (
+                <Animated.View style={[allBirthdaysAnimStyle, { gap: 12 }] }>
+                  <View
+                    style={{
+                      padding: 12,
+                      borderRadius: 16,
+                      backgroundColor: colors.card,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      gap: 8,
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                      Unidade
+                    </Text>
+                    <FadeHorizontalScroll
+                      fadeColor={colors.card}
+                      contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+                    >
+                      {birthdayUnitOptions.map((unit) => {
+                        const active = birthdayUnitFilter === unit;
+                        const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
+                        const chipBg = active
+                          ? palette?.bg ?? colors.primaryBg
+                          : colors.secondaryBg;
+                        const chipText = active
+                          ? palette?.text ?? colors.primaryText
+                          : colors.text;
+                        return (
+                          <Pressable
+                            key={unit}
+                            onPress={() => setBirthdayUnitFilter(unit)}
+                            onContextMenu={(event: any) => event.preventDefault()}
+                            style={{
+                              paddingVertical: 6,
+                              paddingHorizontal: 10,
+                              borderRadius: 999,
+                              backgroundColor: chipBg,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: chipText,
+                                fontWeight: active ? "700" : "500",
+                              }}
+                            >
+                              {unit}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </FadeHorizontalScroll>
+                  </View>
+
+                  {birthdayMonthGroups.length ? (
+                    birthdayMonthGroups.map(([month, unitGroups]) => {
+                      const monthKey = `m-${month}`;
+                      const totalCount = unitGroups.reduce(
+                        (sum, [, entries]) => sum + entries.length,
+                        0
+                      );
+                      return (
+                        <View
+                          key={monthKey}
+                          style={{
+                            padding: 14,
+                            borderRadius: 18,
+                            backgroundColor: colors.card,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            gap: 10,
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+                              {monthNames[month]}
+                            </Text>
+                            <View
+                              style={{
+                                paddingVertical: 4,
+                                paddingHorizontal: 8,
+                                borderRadius: 8,
+                                backgroundColor: colors.secondaryBg,
+                              }}
+                            >
+                              <Text
+                                style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}
+                              >
+                                {totalCount}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {unitGroups.map(([unitName, entries]) => {
+                            const unitKey = `m-${month}-u-${unitName}`;
+                            const palette =
+                              getUnitPalette(unitName, colors) ?? {
+                                bg: colors.primaryBg,
+                                text: colors.primaryText,
+                              };
+                            return (
+                              <View key={unitKey} style={{ gap: 6 }}>
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <View
+                                    style={{
+                                      paddingVertical: 4,
+                                      paddingHorizontal: 10,
+                                      borderRadius: 999,
+                                      backgroundColor: palette.bg,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        color: palette.text,
+                                        fontWeight: "700",
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      {unitName}
+                                    </Text>
+                                  </View>
+                                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                                    {entries.length === 1
+                                      ? "1 aluno"
+                                      : `${entries.length} alunos`}
+                                  </Text>
+                                </View>
+                                <View style={{ gap: 8 }}>
+                                  {entries
+                                    .sort((a, b) => a.date.getDate() - b.date.getDate())
+                                    .map(({ student, date }) => {
+                                      const cls =
+                                        classes.find((item) => item.id === student.classId) ??
+                                        null;
+                                      const className = cls?.name ?? "Turma";
+                                      return (
+                                        <View
+                                          key={student.id}
+                                          style={{
+                                            padding: 12,
+                                            borderRadius: 14,
+                                            backgroundColor: colors.background,
+                                            borderWidth: 1,
+                                            borderColor: colors.border,
+                                          }}
+                                        >
+                                          <Text
+                                            style={{
+                                              color: colors.text,
+                                              fontWeight: "700",
+                                              fontSize: 13,
+                                            }}
+                                          >
+                                            {String(date.getDate()).padStart(2, "0")} - {student.name}
+                                          </Text>
+                                          <Text
+                                            style={{
+                                              color: colors.muted,
+                                              marginTop: 4,
+                                              fontSize: 12,
+                                            }}
+                                          >
+                                            {formatShortDate(student.birthDate)} | {className}
+                                          </Text>
+                                        </View>
+                                      );
+                                    })}
+                                </View>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      );
+                    })
+                  ) : (
+                    <View
+                      style={{
+                        padding: 12,
+                        borderRadius: 16,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        Sem aniversários
+                      </Text>
+                      <Text style={{ color: colors.muted, marginTop: 4 }}>
+                        Nenhum aluno com data de nascimento.
+                      </Text>
+                    </View>
+                  )}
+                </Animated.View>
+              ) : null}
+            </View>
           </View>
         )}
+
 
         {studentsTab === "alunos" && (
           <View style={{ gap: 12 }}>

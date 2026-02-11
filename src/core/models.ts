@@ -7,6 +7,7 @@ export type Modality = "voleibol" | "fitness";
 export type ClassGroup = {
   id: string;
   name: string;
+  organizationId?: string;
   unit: string;
   unitId: string;
   colorKey: string;
@@ -98,6 +99,7 @@ export type HiddenTemplate = {
 export type Student = {
   id: string;
   name: string;
+  organizationId?: string;
   photoUrl?: string;
   classId: string;
   age: number;

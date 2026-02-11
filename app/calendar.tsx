@@ -28,6 +28,7 @@ import { getClassPalette } from "../src/ui/class-colors";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../src/ui/ModalSheet";
+import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { useSaveToast } from "../src/ui/save-toast";
 import { ShimmerBlock } from "../src/ui/Shimmer";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
@@ -382,30 +383,40 @@ export default function CalendarScreen() {
 
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Calendário semanal
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 4 }}>
-            Dias por unidade e turmas
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 2 }}>
-            {weekRangeLabel}
-          </Text>
-        </View>
+        
 
         {loadingData ? (
-          <View style={{ paddingVertical: 12, gap: 16 }}>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}>
+          <View style={{ gap: 2 }}>
+            <ScreenHeader
+              title="Calendário semanal"
+              subtitle="Dias por unidade e turmas"
+            />
+            <Text style={{ color: colors.muted, marginTop: 2 }}>
+              {weekRangeLabel}
+            </Text>
+          </View>
+
             <ShimmerBlock style={{ height: 34, borderRadius: 999 }} />
             <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
             <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
             <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
-          </View>
+          </ScrollView>
         ) : (
           <ScrollView
             contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}
             pointerEvents={showApplyPicker ? "none" : "auto"}
           >
+          <View style={{ gap: 2 }}>
+            <ScreenHeader
+              title="Calendário semanal"
+              subtitle="Dias por unidade e turmas"
+            />
+            <Text style={{ color: colors.muted, marginTop: 2 }}>
+              {weekRangeLabel}
+            </Text>
+          </View>
+
           <View
             style={{
               flexDirection: "row",

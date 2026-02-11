@@ -206,7 +206,9 @@ function TrainerHome() {
 
         await seedIfEmpty();
 
-        const classList = await getClasses();
+        const classList = await getClasses({
+          organizationId: activeOrganization?.id ?? null,
+        });
 
         if (alive) setClasses(classList);
 
@@ -260,7 +262,7 @@ function TrainerHome() {
 
     };
 
-  }, [session, role]);
+  }, [session, role, activeOrganization?.id]);
 
 
 
@@ -1091,7 +1093,9 @@ function TrainerHome() {
 
         seedIfEmpty()
 
-          .then(getClasses)
+          .then(() =>
+            getClasses({ organizationId: activeOrganization?.id ?? null })
+          )
 
           .then(setClasses)
 
@@ -1107,7 +1111,7 @@ function TrainerHome() {
 
     setNow(new Date());
 
-  }, [role, session]);
+  }, [role, session, activeOrganization?.id]);
 
 
 
@@ -1654,6 +1658,7 @@ function TrainerHome() {
                 </View>
               ) : (
                 scheduleWindow.map((item, idx) => {
+                  if (!item) return null;
                   const label = getStatusLabelForItem(item);
                   const isPast = item.endTime <= nowTime;
                   const isActive = activeIndex === idx;
@@ -1735,20 +1740,20 @@ function TrainerHome() {
                                 paddingVertical: 3,
                                 paddingHorizontal: 8,
                                 borderRadius: 999,
-                                backgroundColor: getUnitPalette(item.unit, colors).bg,
+                                backgroundColor: getUnitPalette(item.unit ?? "Sem unidade", colors).bg,
                                 borderWidth: 1,
-                                borderColor: getUnitPalette(item.unit, colors).bg,
+                                borderColor: getUnitPalette(item.unit ?? "Sem unidade", colors).bg,
                               }}
                             >
                               <Text
                                 style={{
-                                  color: getUnitPalette(item.unit, colors).text,
+                                  color: getUnitPalette(item.unit ?? "Sem unidade", colors).text,
                                   fontSize: 10,
                                   fontWeight: "700",
                                 }}
                                 numberOfLines={1}
                               >
-                                {item.unit}
+                                {item.unit ?? "Sem unidade"}
                               </Text>
                             </View>
                           </View>

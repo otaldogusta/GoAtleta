@@ -4,6 +4,7 @@ import { sortClassesBySchedule } from "../core/class-schedule-sort";
 type ClassRow = {
   id: string;
   name: string;
+  organizationId?: string;
   ageBand: string;
   modality: string;
   gender: string;
@@ -99,6 +100,9 @@ export const db = {
         acwrLow: Number(params[9] ?? 0.8),
         acwrHigh: Number(params[10] ?? 1.3),
       };
+      if (params.length > 11) {
+        row.organizationId = String(params[11] ?? "");
+      }
       const exists = classes.some((item) => item.id === row.id);
       if (!exists) classes.push(row);
       return;

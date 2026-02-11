@@ -2025,8 +2025,8 @@ export default function TrainingList() {
           }}
         >
           {[
-            { id: "formulario" as const, label: "Formulario" },
-            { id: "salvos" as const, label: "Planejamentos salvos" },
+            { id: "formulario" as const, label: "Planejar" },
+            { id: "salvos" as const, label: "Planos salvos" },
             { id: "modelos" as const, label: "Modelos prontos" },
           ].map((tab) => {
             const selected = planningTab === tab.id;
@@ -2098,9 +2098,10 @@ export default function TrainingList() {
                   style={{
                     borderWidth: 1,
                     borderColor: colors.border,
-                    padding: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
@@ -2132,9 +2133,10 @@ export default function TrainingList() {
                   style={{
                     borderWidth: 1,
                     borderColor: colors.border,
-                    padding: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
                     borderRadius: 12,
-                    backgroundColor: colors.inputBg,
+                    backgroundColor: colors.background,
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
@@ -2174,7 +2176,7 @@ export default function TrainingList() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.inputBg,
+              backgroundColor: colors.background,
             }}
             scrollContentStyle={{ padding: 4 }}
             onRequestClose={closeFormPickers}
@@ -2226,7 +2228,7 @@ export default function TrainingList() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.inputBg,
+              backgroundColor: colors.background,
             }}
             scrollContentStyle={{ padding: 4 }}
             onRequestClose={closeFormPickers}
@@ -2631,7 +2633,7 @@ export default function TrainingList() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Planejamentos salvos
+                Planos salvos
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {filteredItems.length}
@@ -2671,7 +2673,7 @@ export default function TrainingList() {
                         </View>
                         <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
                         <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {group.items.length} planejamentos
+                          {group.items.length} planos
                         </Text>
                       </View>
                       <View style={{ gap: 12 }}>
@@ -3195,9 +3197,10 @@ export default function TrainingList() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      padding: 12,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "space-between",
@@ -3229,9 +3232,10 @@ export default function TrainingList() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      padding: 12,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
                       borderRadius: 12,
-                      backgroundColor: colors.inputBg,
+                      backgroundColor: colors.background,
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "space-between",
@@ -3306,11 +3310,11 @@ export default function TrainingList() {
               zIndex={420}
               maxHeight={220}
               nestedScrollEnabled
-              panelStyle={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.inputBg,
-              }}
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+            }}
               scrollContentStyle={{ padding: 4 }}
               onRequestClose={closeApplyPickers}
               dismissOnBackdropPress
@@ -3358,11 +3362,11 @@ export default function TrainingList() {
               zIndex={420}
               maxHeight={240}
               nestedScrollEnabled
-              panelStyle={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.inputBg,
-              }}
+            panelStyle={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+            }}
               scrollContentStyle={{ padding: 4 }}
               onRequestClose={closeApplyPickers}
               dismissOnBackdropPress

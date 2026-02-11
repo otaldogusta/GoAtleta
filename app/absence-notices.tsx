@@ -1,15 +1,16 @@
+import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 
 import type { AbsenceNotice, ClassGroup, Student } from "../src/core/models";
 import {
-  getAbsenceNotices,
-  getClasses,
-  getStudents,
-  updateAbsenceNoticeStatus,
+    getAbsenceNotices,
+    getClasses,
+    getStudents,
+    updateAbsenceNoticeStatus,
 } from "../src/db/seed";
+import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -21,6 +22,7 @@ const formatDate = (value: string) => {
 
 export default function AbsenceNoticesScreen() {
   const { colors } = useAppTheme();
+  const { activeOrganization } = useOrganization();
   const router = useRouter();
   const [notices, setNotices] = useState<AbsenceNotice[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -31,8 +33,8 @@ export default function AbsenceNoticesScreen() {
     (async () => {
       const [noticeList, studentList, classList] = await Promise.all([
         getAbsenceNotices(),
-        getStudents(),
-        getClasses(),
+        getStudents({ organizationId: activeOrganization?.id }),
+        getClasses({ organizationId: activeOrganization?.id }),
       ]);
       if (!alive) return;
       setNotices(noticeList);
@@ -42,7 +44,7 @@ export default function AbsenceNoticesScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeOrganization?.id]);
 
   const pending = useMemo(
     () => notices.filter((item) => item.status === "pending"),

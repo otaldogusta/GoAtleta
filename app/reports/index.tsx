@@ -33,6 +33,7 @@ import {
     getStudentScoutingByRange,
     getStudents,
 } from "../../src/db/seed";
+import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 
@@ -94,6 +95,7 @@ const formatDateLabel = (iso: string) => {
 
 export default function ReportsScreen() {
   const { colors } = useAppTheme();
+  const { activeOrganization } = useOrganization();
   const router = useRouter();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -157,8 +159,8 @@ export default function ReportsScreen() {
     (async () => {
       try {
         const [cls, st, att] = await Promise.all([
-          getClasses(),
-          getStudents(),
+          getClasses({ organizationId: activeOrganization?.id }),
+          getStudents({ organizationId: activeOrganization?.id }),
           getAttendanceAll(),
         ]);
         if (!alive) return;
@@ -172,7 +174,7 @@ export default function ReportsScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [activeOrganization?.id]);
 
   useEffect(() => {
     let alive = true;
