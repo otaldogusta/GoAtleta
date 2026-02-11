@@ -46,6 +46,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Pressable } from "../src/ui/Pressable";
 
+import { EventListItem, listUpcomingEvents } from "../src/api/events";
+
 
 
 import type { ClassGroup } from "../src/core/models";
@@ -132,6 +134,10 @@ function TrainerHome() {
 
   const [loadingClasses, setLoadingClasses] = useState(false);
 
+  const [upcomingEvents, setUpcomingEvents] = useState<EventListItem[]>([]);
+
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
 
   const didInitialAgendaScroll = useRef(false);
@@ -168,6 +174,15 @@ function TrainerHome() {
 
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (agendaScrollEndTimer.current) {
+        clearTimeout(agendaScrollEndTimer.current);
+        agendaScrollEndTimer.current = null;
+      }
+    };
+  }, []);
+
 
 
   const todayLabel = useMemo(() => {
@@ -200,21 +215,46 @@ function TrainerHome() {
 
       if (!session || role !== "trainer") return;
 
-      if (alive) setLoadingClasses(true);
+      if (alive) {
+        setLoadingClasses(true);
+        setLoadingEvents(true);
+        setClasses([]);
+        setUpcomingEvents([]);
+        setManualIndex(null);
+        didInitialAgendaScroll.current = false;
+      }
+      if (agendaScrollEndTimer.current) {
+        clearTimeout(agendaScrollEndTimer.current);
+        agendaScrollEndTimer.current = null;
+      }
 
       try {
 
         await seedIfEmpty();
 
-        const classList = await getClasses({
-          organizationId: activeOrganization?.id ?? null,
-        });
+        const organizationId = activeOrganization?.id ?? null;
 
-        if (alive) setClasses(classList);
+        const [classList, eventsList] = await Promise.all([
+          getClasses({ organizationId }),
+          organizationId
+            ? listUpcomingEvents({
+                organizationId,
+                userId: session.user.id,
+                days: 7,
+              })
+            : Promise.resolve([] as EventListItem[]),
+        ]);
+
+        if (alive) {
+          setClasses(classList);
+          setUpcomingEvents(eventsList);
+          setAgendaRefreshToken((value) => value + 1);
+        }
 
       } finally {
 
         if (alive) setLoadingClasses(false);
+        if (alive) setLoadingEvents(false);
 
       }
 
@@ -558,7 +598,7 @@ function TrainerHome() {
 
     }> = [];
 
-    for (let offset = -2; offset <= 2; offset += 1) {
+    for (let offset = -7; offset <= 7; offset += 1) {
 
       const dayDate = new Date(now);
 
@@ -622,35 +662,17 @@ function TrainerHome() {
 
     if (!scheduleWindow.length) return null;
 
-    const todayItems = scheduleWindow.filter((item) => item.dateKey === todayDateKey);
-
-    if (todayItems.length) {
-
-      const current = todayItems.find(
-
-        (item) => nowTime >= item.startTime && nowTime < item.endTime
-
-      );
-
-      if (current) return scheduleWindow.indexOf(current);
-
-      const nextToday = todayItems.find((item) => item.startTime > nowTime);
-
-      if (nextToday) return scheduleWindow.indexOf(nextToday);
-
-      const lastToday = todayItems[todayItems.length - 1];
-
-      return scheduleWindow.indexOf(lastToday);
-
-    }
+    const current = scheduleWindow.find(
+      (item) => nowTime >= item.startTime && nowTime < item.endTime
+    );
+    if (current) return scheduleWindow.indexOf(current);
 
     const next = scheduleWindow.find((item) => item.startTime > nowTime);
-
     if (next) return scheduleWindow.indexOf(next);
 
     return scheduleWindow.length ? scheduleWindow.length - 1 : null;
 
-  }, [scheduleWindow, nowTime, todayDateKey]);
+  }, [scheduleWindow, nowTime]);
 
   const [manualIndex, setManualIndex] = useState<number | null>(null);
 
@@ -862,7 +884,15 @@ function TrainerHome() {
 
     didInitialAgendaScroll.current = false;
 
-  }, [scheduleWindow.length, todayDateKey]);
+  }, [activeOrganization?.id, scheduleWindow.length, todayDateKey]);
+
+  useEffect(() => {
+    setManualIndex(null);
+    didInitialAgendaScroll.current = false;
+    requestAnimationFrame(() => {
+      agendaScrollRef.current?.scrollTo({ x: 0, animated: false });
+    });
+  }, [activeOrganization?.id]);
 
 
 
@@ -1088,6 +1118,7 @@ function TrainerHome() {
     if (session && role === "trainer") {
 
       setLoadingClasses(true);
+      setLoadingEvents(true);
 
       tasks.push(
 
@@ -1101,6 +1132,19 @@ function TrainerHome() {
 
           .finally(() => setLoadingClasses(false))
 
+      );
+
+      tasks.push(
+        (activeOrganization?.id
+          ? listUpcomingEvents({
+              organizationId: activeOrganization.id,
+              userId: session.user.id,
+              days: 7,
+            })
+          : Promise.resolve([] as EventListItem[])
+        )
+          .then(setUpcomingEvents)
+          .finally(() => setLoadingEvents(false))
       );
 
       tasks.push(getPendingWritesCount().then(setPendingWrites));
@@ -1168,6 +1212,25 @@ function TrainerHome() {
     }
 
   };
+
+  const handleOrganizationChange = useCallback(
+    (orgId: string) => {
+      if (activeOrganization?.id === orgId) return;
+      setLoadingClasses(true);
+      setLoadingEvents(true);
+      setClasses([]);
+      setUpcomingEvents([]);
+      setManualIndex(null);
+      didInitialAgendaScroll.current = false;
+      if (agendaScrollEndTimer.current) {
+        clearTimeout(agendaScrollEndTimer.current);
+        agendaScrollEndTimer.current = null;
+      }
+      setAgendaRefreshToken((value) => value + 1);
+      void setActiveOrganizationId(orgId);
+    },
+    [activeOrganization?.id, setActiveOrganizationId]
+  );
 
 
 
@@ -1449,7 +1512,7 @@ function TrainerHome() {
 
                   key={org.id}
 
-                  onPress={() => setActiveOrganizationId(org.id)}
+                  onPress={() => handleOrganizationChange(org.id)}
 
                   style={{
 
@@ -1625,6 +1688,7 @@ function TrainerHome() {
             }}
           >
             <FadeHorizontalScroll
+              key={`agenda-${activeOrganization?.id ?? "none"}-${todayDateKey}`}
               ref={agendaScrollRef}
               scrollEnabled={scheduleWindow.length > 1}
               scrollStyle={agendaScrollStyle}
@@ -1862,6 +1926,130 @@ function TrainerHome() {
               </Text>
             </Pressable>
           </View>
+        </View>
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 20,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 10,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              Próximos 7 dias
+            </Text>
+            <Pressable onPress={() => router.push({ pathname: "/events" })}>
+              <Text style={{ color: colors.primaryBg, fontWeight: "700", fontSize: 12 }}>
+                Ver tudo
+              </Text>
+            </Pressable>
+          </View>
+          {loadingEvents ? (
+            <View style={{ gap: 8 }}>
+              <ShimmerBlock style={{ height: 58, borderRadius: 12 }} />
+              <ShimmerBlock style={{ height: 58, borderRadius: 12 }} />
+            </View>
+          ) : upcomingEvents.length === 0 ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Nenhum evento cadastrado para os próximos dias.
+            </Text>
+          ) : (
+            upcomingEvents.slice(0, 4).map((event) => {
+              const start = new Date(event.startsAt);
+              const end = new Date(event.endsAt);
+              return (
+                <Pressable
+                  key={event.id}
+                  onPress={() =>
+                    router.push({ pathname: "/events/[id]", params: { id: event.id } })
+                  }
+                  style={{
+                    padding: 10,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                    {event.title}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {start.toLocaleDateString("pt-BR")} •{" "}
+                    {start.toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    -{" "}
+                    {end.toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                    <View
+                      style={{
+                        borderRadius: 999,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        backgroundColor: colors.card,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                        {event.eventType}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        borderRadius: 999,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        backgroundColor: colors.card,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                        {event.sport}
+                      </Text>
+                    </View>
+                    {event.hasMyClass ? (
+                      <View
+                        style={{
+                          borderRadius: 999,
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          backgroundColor: colors.primaryBg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: colors.primaryText,
+                            fontSize: 10,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Minhas turmas
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })
+          )}
         </View>
         <View style={{ gap: 10 }}>
 

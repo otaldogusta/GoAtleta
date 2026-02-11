@@ -84,6 +84,7 @@ function RootLayoutContent() {
     "/calendar",
     "/class",
     "/classes",
+    "/events",
     "/exercises",
     "/periodization",
     "/reports",
