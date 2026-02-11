@@ -106,7 +106,7 @@ export function ConfirmUndoProvider({
   const cancelLabel = confirmOptions?.cancelLabel ?? "Cancelar";
   const undoLabel = pending?.options.undoLabel ?? "Desfazer";
   const undoMessage =
-    pending?.options.undoMessage ?? "A??o concluída. Deseja desfazer?";
+    pending?.options.undoMessage ?? "Ação concluída. Deseja desfazer?";
 
   const contextValue = useMemo(
     () => ({
@@ -122,12 +122,12 @@ export function ConfirmUndoProvider({
         visible={!!confirmOptions}
         onClose={() => setConfirmOptions(null)}
         position="center"
-        overlayZIndex={9999}
+        overlayZIndex={19000}
         cardStyle={{
           width: "100%",
           maxWidth: 440,
           borderRadius: 18,
-          backgroundColor: colors.card,
+          backgroundColor: colors.background,
           borderWidth: 1,
           borderColor: colors.border,
           padding: 16,

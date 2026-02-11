@@ -58,9 +58,11 @@ export function ConfirmDialogProvider({
 }) {
   const { colors } = useAppTheme();
   const [options, setOptions] = useState<ConfirmDialogOptions | null>(null);
+  const [dialogKey, setDialogKey] = useState(0);
 
   const confirm = useCallback((next: ConfirmDialogOptions) => {
     setOptions(next);
+    setDialogKey((current) => current + 1);
   }, []);
 
   const handleConfirm = useCallback(() => {
@@ -87,64 +89,68 @@ export function ConfirmDialogProvider({
   return (
     <ConfirmDialogContext.Provider value={contextValue}>
       {children}
-      <ModalSheet
-        visible={!!options}
-        onClose={() => setOptions(null)}
-        position="center"
-        overlayZIndex={9999}
-        cardStyle={{
-          width: "100%",
-          maxWidth: 440,
-          borderRadius: 18,
-          backgroundColor: colors.card,
-          borderWidth: 1,
-          borderColor: colors.border,
-          padding: 16,
-          gap: 12,
-        }}
-      >
-        <View style={{ gap: 6 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            {currentOptions.title}
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            {currentOptions.message}
-          </Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
-          <Pressable
-            onPress={() => setOptions(null)}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 14,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
-              {currentOptions.cancelLabel}
+      {options ? (
+        <ModalSheet
+          key={dialogKey}
+          visible
+          onClose={() => setOptions(null)}
+          position="center"
+          overlayZIndex={30000}
+          backdropOpacity={0.7}
+          cardStyle={{
+            width: "100%",
+            maxWidth: 440,
+            borderRadius: 18,
+            backgroundColor: colors.background,
+            borderWidth: 1,
+            borderColor: colors.border,
+            padding: 16,
+            gap: 12,
+          }}
+        >
+          <View style={{ gap: 6 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              {currentOptions.title}
             </Text>
-          </Pressable>
-          <Pressable
-            onPress={handleConfirm}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 14,
-              borderRadius: 12,
-              backgroundColor: isDanger ? colors.dangerSolidBg : colors.primaryBg,
-            }}
-          >
-            <Text
+            <Text style={{ color: colors.muted }}>
+              {currentOptions.message}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+            <Pressable
+              onPress={() => setOptions(null)}
               style={{
-                color: isDanger ? colors.dangerSolidText : colors.primaryText,
-                fontWeight: "700",
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
               }}
             >
-              {currentOptions.confirmLabel}
-            </Text>
-          </Pressable>
-        </View>
-      </ModalSheet>
+              <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
+                {currentOptions.cancelLabel}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleConfirm}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: isDanger ? colors.dangerSolidBg : colors.primaryBg,
+              }}
+            >
+              <Text
+                style={{
+                  color: isDanger ? colors.dangerSolidText : colors.primaryText,
+                  fontWeight: "700",
+                }}
+              >
+                {currentOptions.confirmLabel}
+              </Text>
+            </Pressable>
+          </View>
+        </ModalSheet>
+      ) : null}
     </ConfirmDialogContext.Provider>
   );
 }

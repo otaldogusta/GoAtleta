@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Animated, Modal, Pressable as RawPressable, View } from "react-native";
+import { Animated, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
@@ -9,11 +9,11 @@ type ModalSheetProps = {
   onClose: () => void;
   children: React.ReactNode;
   cardStyle: StyleProp<ViewStyle>;
-  backdropOpacity: number;
-  slideOffset: number;
-  position: "bottom" | "center";
-  overlayZIndex: number;
-  bottomOffset: number;
+  backdropOpacity?: number;
+  slideOffset?: number;
+  position?: "bottom" | "center";
+  overlayZIndex?: number;
+  bottomOffset?: number;
 };
 
 export function ModalSheet({
@@ -24,7 +24,7 @@ export function ModalSheet({
   backdropOpacity = 0.5,
   slideOffset = 24,
   position = "bottom",
-  overlayZIndex,
+  overlayZIndex = 1000,
   bottomOffset,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -158,54 +158,81 @@ export function ModalSheet({
     }
   }, [visible]);
 
+  if (Platform.OS === "web" && !visible) {
+    return null;
+  }
+
+  const content = (
+    <View
+      style={{
+        flex: 1,
+        zIndex: overlayZIndex,
+        elevation: overlayZIndex,
+        ...(Platform.OS === "web"
+          ? { position: "fixed", top: 0, right: 0, bottom: 0, left: 0 }
+          : null),
+      }}
+      pointerEvents={visible ? "auto" : "none"}
+    >
+      <RawPressable
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+        onPress={onClose}
+        pointerEvents={visible ? "auto" : "none"}
+      >
+        <Animated.View
+          style={{
+            flex: 1,
+            backgroundColor: `rgba(0,0,0,${backdropOpacity})`,
+            opacity: anim,
+          }}
+        />
+      </RawPressable>
+      <View
+        style={
+          isCenter
+            ? { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }
+            : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
+        }
+        pointerEvents="box-none"
+      >
+        <Animated.View
+          style={[
+            resolvedCardStyle,
+            {
+              opacity: anim,
+              transform: [
+                {
+                  translateY: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [slideOffset, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {children}
+        </Animated.View>
+      </View>
+    </View>
+  );
+
+  if (Platform.OS === "web") {
+    const ReactDOM = require("react-dom");
+    return ReactDOM.createPortal(content, document.body);
+  }
+
   return (
     <Modal
       visible={visible}
-      animationType="none"
+      animationType="fade"
       transparent
       onRequestClose={onClose}
+      statusBarTranslucent
+      presentationStyle={Platform.OS === "ios" ? "overFullScreen" : undefined}
+      hardwareAccelerated={Platform.OS === "android"}
     >
-      <View style={{ flex: 1, zIndex: overlayZIndex, elevation: overlayZIndex }}>
-        <RawPressable
-          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-          onPress={onClose}
-        >
-          <Animated.View
-            style={{
-              flex: 1,
-              backgroundColor: `rgba(0,0,0,${backdropOpacity})`,
-              opacity: anim,
-            }}
-          />
-        </RawPressable>
-        <View
-          style={
-            isCenter
-              ? { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }
-              : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
-          }
-          pointerEvents="box-none"
-        >
-          <Animated.View
-            style={[
-              resolvedCardStyle,
-              {
-                opacity: anim,
-                transform: [
-                  {
-                    translateY: anim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [slideOffset, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            {children}
-          </Animated.View>
-        </View>
-      </View>
+      {content}
     </Modal>
   );
 }
