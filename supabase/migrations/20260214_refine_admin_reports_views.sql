@@ -37,7 +37,17 @@ with attendance_actions as (
     c.unit,
     'attendance'::text as kind,
     max(coalesce(al.updated_at, al.createdat::timestamptz)) as occurred_at,
-    coalesce(max(al.updated_by), max(al.created_by), c.owner_id) as actor_user_id,
+    coalesce(
+      (
+        array_agg(al.updated_by order by coalesce(al.updated_at, al.createdat::timestamptz) desc)
+        filter (where al.updated_by is not null)
+      )[1],
+      (
+        array_agg(al.created_by order by coalesce(al.updated_at, al.createdat::timestamptz) desc)
+        filter (where al.created_by is not null)
+      )[1],
+      c.owner_id
+    ) as actor_user_id,
     count(*)::int as affected_rows,
     left(al.date::text, 10) as reference_date
   from public.attendance_logs al
@@ -61,7 +71,17 @@ session_actions as (
     c.unit,
     'session_log'::text as kind,
     max(coalesce(sl.updated_at, sl.createdat::timestamptz)) as occurred_at,
-    coalesce(max(sl.updated_by), max(sl.created_by), c.owner_id) as actor_user_id,
+    coalesce(
+      (
+        array_agg(sl.updated_by order by coalesce(sl.updated_at, sl.createdat::timestamptz) desc)
+        filter (where sl.updated_by is not null)
+      )[1],
+      (
+        array_agg(sl.created_by order by coalesce(sl.updated_at, sl.createdat::timestamptz) desc)
+        filter (where sl.created_by is not null)
+      )[1],
+      c.owner_id
+    ) as actor_user_id,
     count(*)::int as affected_rows,
     null::text as reference_date
   from public.session_logs sl

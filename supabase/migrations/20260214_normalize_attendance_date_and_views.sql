@@ -1,5 +1,9 @@
 -- PR7 follow-up: normalize attendance_logs.date semantics and remove textual date comparisons
 
+drop view if exists public.v_admin_recent_activity;
+drop view if exists public.v_admin_pending_session_logs;
+drop view if exists public.v_admin_pending_attendance;
+
 do $$
 declare
   v_data_type text;
@@ -71,6 +75,33 @@ where public.is_org_admin(c.organization_id)
       and al.date::date = current_date
   );
 
+create or replace view public.v_admin_pending_session_logs as
+select
+  c.organization_id,
+  c.id as class_id,
+  c.name as class_name,
+  c.unit,
+  (now() - interval '7 days') as period_start,
+  (
+    select count(*)
+    from public.session_logs sl
+    where sl.classid = c.id
+      and sl.createdat::timestamptz >= now() - interval '7 days'
+  )::int as reports_last_7d,
+  (
+    select max(sl.createdat::timestamptz)
+    from public.session_logs sl
+    where sl.classid = c.id
+  ) as last_report_at
+from public.classes c
+where public.is_org_admin(c.organization_id)
+  and (
+    select count(*)
+    from public.session_logs sl
+    where sl.classid = c.id
+      and sl.createdat::timestamptz >= now() - interval '7 days'
+  ) = 0;
+
 create or replace view public.v_admin_recent_activity as
 with attendance_actions as (
   select
@@ -80,7 +111,17 @@ with attendance_actions as (
     c.unit,
     'attendance'::text as kind,
     max(coalesce(al.updated_at, al.createdat::timestamptz)) as occurred_at,
-    coalesce(max(al.updated_by), max(al.created_by), c.owner_id) as actor_user_id,
+    coalesce(
+      (
+        array_agg(al.updated_by order by coalesce(al.updated_at, al.createdat::timestamptz) desc)
+        filter (where al.updated_by is not null)
+      )[1],
+      (
+        array_agg(al.created_by order by coalesce(al.updated_at, al.createdat::timestamptz) desc)
+        filter (where al.created_by is not null)
+      )[1],
+      c.owner_id
+    ) as actor_user_id,
     count(*)::int as affected_rows,
     to_char(al.date::date, 'YYYY-MM-DD') as reference_date
   from public.attendance_logs al
@@ -104,7 +145,17 @@ session_actions as (
     c.unit,
     'session_log'::text as kind,
     max(coalesce(sl.updated_at, sl.createdat::timestamptz)) as occurred_at,
-    coalesce(max(sl.updated_by), max(sl.created_by), c.owner_id) as actor_user_id,
+    coalesce(
+      (
+        array_agg(sl.updated_by order by coalesce(sl.updated_at, sl.createdat::timestamptz) desc)
+        filter (where sl.updated_by is not null)
+      )[1],
+      (
+        array_agg(sl.created_by order by coalesce(sl.updated_at, sl.createdat::timestamptz) desc)
+        filter (where sl.created_by is not null)
+      )[1],
+      c.owner_id
+    ) as actor_user_id,
     count(*)::int as affected_rows,
     null::text as reference_date
   from public.session_logs sl
@@ -136,3 +187,7 @@ from (
   select * from session_actions
 ) x
 where public.is_org_admin(x.organization_id);
+
+grant select on public.v_admin_pending_attendance to authenticated;
+grant select on public.v_admin_pending_session_logs to authenticated;
+grant select on public.v_admin_recent_activity to authenticated;
