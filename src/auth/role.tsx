@@ -2,15 +2,16 @@ import * as Sentry from "@sentry/react-native";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import { getDevProfilePreview, type DevProfilePreview } from "../dev/profile-preview";
 import type { Student } from "../core/models";
 import { useAuth } from "./auth";
-import { getRoleOverride } from "./role-override";
 import { getSessionUserId, getValidAccessToken } from "./session";
 
 export type UserRole = "trainer" | "student" | "pending";
 
 type RoleState = {
   role: UserRole | null;
+  devProfilePreview: DevProfilePreview;
   student: Student | null;
   loading: boolean;
   refresh: () => Promise<void>;
@@ -62,9 +63,7 @@ const fetchIsTrainer = async (token: string) => {
     body: "{}",
   });
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(text || "Falha ao checar role.");
-  }
+  if (!res.ok) throw new Error(text || "Falha ao checar role.");
   try {
     return Boolean(JSON.parse(text));
   } catch {
@@ -88,9 +87,7 @@ const fetchStudentSelf = async (token: string, userId: string) => {
     }
   );
   const text = await res.text();
-  if (!res.ok) {
-    throw new Error(text || "Falha ao buscar aluno.");
-  }
+  if (!res.ok) throw new Error(text || "Falha ao buscar aluno.");
   const rows = text ? (JSON.parse(text) as StudentRow[]) : [];
   if (!rows.length) return null;
   return mapStudent(rows[0]);
@@ -115,24 +112,29 @@ const buildPreviewStudent = (userId: string | null): Student => ({
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const [role, setRole] = useState<UserRole | null>(null);
+  const [devProfilePreview, setDevProfilePreviewState] = useState<DevProfilePreview>("auto");
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
+    const preview = await getDevProfilePreview();
+    setDevProfilePreviewState(preview);
+
     if (!session) {
       setRole(null);
       setStudent(null);
       return;
     }
+
     setLoading(true);
     try {
-      const override = await getRoleOverride();
-      if (override) {
-        if (override === "trainer") {
-          setRole("trainer");
-          setStudent(null);
-          return;
-        }
+      if (preview === "professor" || preview === "admin") {
+        setRole("trainer");
+        setStudent(null);
+        return;
+      }
+
+      if (preview === "student") {
         const token = await getValidAccessToken();
         const userId = await getSessionUserId();
         if (token && userId) {
@@ -145,6 +147,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setStudent(buildPreviewStudent(userId));
         return;
       }
+
       const token = await getValidAccessToken();
       const userId = await getSessionUserId();
       if (!token || !userId) {
@@ -180,8 +183,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ role, student, loading, refresh }),
-    [loading, refresh, role, student]
+    () => ({ role, devProfilePreview, student, loading, refresh }),
+    [devProfilePreview, loading, refresh, role, student]
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
@@ -192,6 +195,7 @@ export const useRole = () => {
   if (!ctx) {
     return {
       role: null,
+      devProfilePreview: "auto",
       student: null,
       loading: false,
       refresh: async () => {},

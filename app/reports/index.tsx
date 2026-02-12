@@ -15,6 +15,7 @@ import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import TrainerReportsScreen from "./trainer";
 
 type DashboardTab = "attendance" | "session" | "activity";
 
@@ -106,46 +107,7 @@ export default function ReportsScreen() {
     void loadDashboard();
   }, [loadDashboard]);
 
-  if (!isAdmin) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ flex: 1, padding: 16, gap: 12, justifyContent: "center" }}>
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              gap: 8,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
-              Acesso restrito
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              Esta área é exclusiva para administradores da organização.
-            </Text>
-            <Pressable
-              onPress={() => router.replace("/")}
-              style={{
-                marginTop: 6,
-                alignSelf: "flex-start",
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar para início</Text>
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (!isAdmin) return <TrainerReportsScreen />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
