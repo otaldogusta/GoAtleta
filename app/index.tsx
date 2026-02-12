@@ -119,6 +119,7 @@ function TrainerHome() {
   const { role } = useRole();
 
   const { organizations, activeOrganization, setActiveOrganizationId } = useOrganization();
+  const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const [inbox, setInbox] = useState<AppNotification[]>([]);
 
@@ -2269,6 +2270,7 @@ function TrainerHome() {
 
             </Pressable>
 
+            {isOrgAdmin ? (
             <Pressable
 
               onPress={() => router.push({ pathname: "/reports" })}
@@ -2320,6 +2322,7 @@ function TrainerHome() {
               </Text>
 
             </Pressable>
+            ) : null}
 
 
             <Pressable

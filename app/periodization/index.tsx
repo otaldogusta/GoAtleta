@@ -35,6 +35,7 @@ import {
 
     updateClassPlan,
 } from "../../src/db/seed";
+import { useOrganization } from "../../src/providers/OrganizationProvider";
 
 import { logAction } from "../../src/observability/breadcrumbs";
 
@@ -766,6 +767,8 @@ export default function PeriodizationScreen() {
   const hasInitialClass =
     typeof initialClassId === "string" && initialClassId.trim().length > 0;
   const { colors } = useAppTheme();
+  const { activeOrganization } = useOrganization();
+  const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const { setGuidance } = useGuidance();
 
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -4133,6 +4136,7 @@ export default function PeriodizationScreen() {
 
               ) : null}
 
+              {isOrgAdmin ? (
               <Pressable
 
                 onPress={() => router.push({ pathname: "/reports" })}
@@ -4166,6 +4170,7 @@ export default function PeriodizationScreen() {
                 </Text>
 
               </Pressable>
+              ) : null}
 
             </View>
 
