@@ -77,6 +77,48 @@ const formatTimeRange = (
   return start + " - " + end;
 };
 
+const BUCKET_ORDER = ["Manhã", "Tarde", "Noite", "Madrugada"] as const;
+const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
+type BucketLabel = (typeof BUCKET_ORDER)[number];
+
+type GridClassItemModel = {
+  classId: string;
+  className: string;
+  classGender: ClassGroup["gender"];
+  dateIso: string;
+  timeLabel: string;
+  classPalette: ReturnType<typeof getClassPalette>;
+  isWeekly: boolean;
+  hasApplied: boolean;
+  cardBackground: string;
+  cardBorder: string;
+  dotColor: string;
+  titleColor: string;
+};
+
+type GridBucketModel = {
+  label: BucketLabel;
+  items: GridClassItemModel[];
+};
+
+type GridUnitModel = {
+  unitKey: string;
+  label: string;
+  countLabel: string;
+  buckets: GridBucketModel[];
+};
+
+type GridDayModel = {
+  day: number;
+  dayLabel: string;
+  dayKey: string;
+  dateIso: string;
+  dateLabel: string;
+  isPast: boolean;
+  countLabel: string;
+  unitGroups: GridUnitModel[];
+};
+
 export default function CalendarScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -110,7 +152,6 @@ export default function CalendarScreen() {
     gap: 12,
     maxHeight: "100%",
   });
-  const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
   const baseWeekStart = useMemo(
     () => startOfWeek(targetDate ? new Date(targetDate) : new Date()),
     [targetDate]
@@ -259,14 +300,6 @@ export default function CalendarScreen() {
     return a.name.localeCompare(b.name);
   }, []);
 
-  const getAppliedPlan = useCallback((classId: string, date: Date) => {
-    const lookup = planLookupByClass[classId];
-    if (!lookup) return null;
-    const iso = formatIsoDate(date);
-    const weekDay = date.getDay() === 0 ? 7 : date.getDay();
-    return lookup.byDate[iso] ?? lookup.byWeekday[weekDay] ?? null;
-  }, [planLookupByClass]);
-
   const todayStart = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
@@ -280,12 +313,12 @@ export default function CalendarScreen() {
     expandAnimRef.current[key] = value;
     return value;
   };
-  const getBucketLabel = (hour: number) => {
+  const getBucketLabel = useCallback((hour: number): BucketLabel => {
     if (hour >= 5 && hour <= 11) return "Manhã";
     if (hour >= 12 && hour <= 17) return "Tarde";
     if (hour >= 18 && hour <= 23) return "Noite";
     return "Madrugada";
-  };
+  }, []);
   const filteredClasses = useMemo(() => {
     if (unitFilter === "Todas") return classes;
     const filterKey = normalizeUnitKey(unitFilter);
@@ -313,6 +346,120 @@ export default function CalendarScreen() {
     if (!days.length) return [{ day: 2 }, { day: 4 }];
     return days.map((day) => ({ day }));
   }, [filteredClassesByDay]);
+
+  const weeklyGridModel = useMemo<GridDayModel[]>(() => {
+    return scheduleDays.map((dayInfo) => {
+      const date = new Date(weekStart);
+      const day = dayInfo.day;
+      const offset = day === 0 ? 6 : day - 1;
+      date.setDate(weekStart.getDate() + offset);
+      const dayKey = formatIsoDate(date);
+      const dateIso = dayKey;
+      const dateLabel = formatDate(date);
+      const dayLabel = DAY_LABELS[day] ?? "Dia";
+      const weekDay = date.getDay() === 0 ? 7 : date.getDay();
+      const isPast = date.getTime() < todayStart.getTime();
+      const classesForDay = filteredClassesByDay[day] ?? [];
+
+      const groupedByUnit = classesForDay.reduce<
+        Record<string, { label: string; items: ClassGroup[] }>
+      >((acc, cls) => {
+        const label = unitLabel(cls.unit);
+        const key = unitKey(label);
+        if (!acc[key]) acc[key] = { label, items: [] };
+        acc[key].items.push(cls);
+        return acc;
+      }, {});
+
+      const unitGroups = Object.entries(groupedByUnit)
+        .map(([groupUnitKey, entry]) => {
+          const buckets: Record<BucketLabel, GridClassItemModel[]> = {
+            "Manhã": [],
+            "Tarde": [],
+            "Noite": [],
+            "Madrugada": [],
+          };
+
+          entry.items.forEach((cls, index) => {
+            const parsed = parseTime(cls.startTime || "");
+            const startHour = parsed ? parsed.hour : baseHour + index;
+            const startMinute = parsed ? parsed.minute : 0;
+            const durationMinutes = cls.durationMinutes || 60;
+            const timeLabel = formatTimeRange(startHour, startMinute, durationMinutes);
+            const classUnitLabel = unitLabel(cls.unit);
+            const classPalette = getClassPalette(cls.colorKey, colors, classUnitLabel);
+            const planLookup = planLookupByClass[cls.id];
+            const appliedPlan = planLookup
+              ? planLookup.byDate[dateIso] ?? planLookup.byWeekday[weekDay] ?? null
+              : null;
+            const isSpecificDate = Boolean(appliedPlan?.applyDate);
+            const isWeekly = !isSpecificDate && (appliedPlan?.applyDays?.length ?? 0) > 0;
+            const hasApplied = Boolean(appliedPlan?.applyDate) || (appliedPlan?.applyDays?.length ?? 0) > 0;
+            const cardBackground = isPast
+              ? colors.secondaryBg
+              : hasApplied
+                ? colors.inputBg
+                : colors.card;
+            const cardBorder = isPast ? toRgba(classPalette.bg, 0.35) : classPalette.bg;
+            const dotColor = isPast ? toRgba(classPalette.bg, 0.45) : classPalette.bg;
+            const titleColor = isPast ? colors.muted : colors.text;
+            const bucketLabel = getBucketLabel(startHour);
+
+            buckets[bucketLabel].push({
+              classId: cls.id,
+              className: cls.name,
+              classGender: cls.gender,
+              dateIso,
+              timeLabel,
+              classPalette,
+              isWeekly,
+              hasApplied,
+              cardBackground,
+              cardBorder,
+              dotColor,
+              titleColor,
+            });
+          });
+
+          const orderedBuckets = BUCKET_ORDER.map((label) => ({
+            label,
+            items: buckets[label],
+          })).filter((bucket) => bucket.items.length > 0);
+
+          return {
+            unitKey: groupUnitKey,
+            label: entry.label,
+            countLabel: entry.items.length === 1 ? "1 turma" : `${entry.items.length} turmas`,
+            buckets: orderedBuckets,
+          };
+        })
+        .sort((a, b) => a.label.localeCompare(b.label));
+
+      const classCount = classesForDay.length;
+
+      return {
+        day,
+        dayLabel,
+        dayKey,
+        dateIso,
+        dateLabel,
+        isPast,
+        countLabel: classCount === 1 ? "1 turma" : `${classCount} turmas`,
+        unitGroups,
+      };
+    });
+  }, [
+    baseHour,
+    colors,
+    filteredClassesByDay,
+    getBucketLabel,
+    planLookupByClass,
+    scheduleDays,
+    todayStart,
+    unitKey,
+    unitLabel,
+    weekStart,
+  ]);
 
   const sortedPlans = useMemo(() => {
     return plans
@@ -559,239 +706,13 @@ export default function CalendarScreen() {
             })}
           </FadeHorizontalScroll>
         </View>
-        {scheduleDays.map((dayInfo) => {
-            const date = new Date(weekStart);
-            const day = dayInfo.day;
-            const offset = day === 0 ? 6 : day - 1;
-            date.setDate(weekStart.getDate() + offset);
-            const dayKey = formatIsoDate(date);
-            const isPast = date.getTime() < todayStart.getTime();
-            const isExpanded = expandedPastDays[dayKey] ?? !isPast;
-            const expandAnim = getExpandAnim(dayKey, isExpanded ? 1 : 0);
-            const filtered = filteredClassesByDay[day] ?? [];
-            const groupedByUnit = filtered.reduce<
-              Record<string, { label: string; items: ClassGroup[] }>
-            >((acc, cls) => {
-              const label = unitLabel(cls.unit);
-              const key = unitKey(label);
-              if (!acc[key]) acc[key] = { label, items: [] };
-              acc[key].items.push(cls);
-              return acc;
-            }, {});
-            const unitGroups = Object.entries(groupedByUnit)
-              .map(([key, entry]) => ({
-                key,
-                label: entry.label,
-                items: entry.items.sort(sortByTime),
-              }))
-              .sort((a, b) => a.label.localeCompare(b.label));
-          const renderUnitGroups = (
-            grouped: readonly { key: string; label: string; items: ClassGroup[] }[]
-          ) => {
-            if (!grouped.length) {
-              return <Text style={{ color: colors.muted }}>Sem turmas nesse dia.</Text>;
-            }
+        {weeklyGridModel.map((dayModel) => {
+          const isExpanded = expandedPastDays[dayModel.dayKey] ?? !dayModel.isPast;
+          const expandAnim = getExpandAnim(dayModel.dayKey, isExpanded ? 1 : 0);
 
-            return grouped.map(({ key, label, items }) => {
-              const unitKey = `${dayKey}-${key}`;
-              const isUnitExpanded = expandedUnitGroups[unitKey] ?? true;
-              const buckets = items.reduce<Record<string, ClassGroup[]>>(
-                (acc, cls, index) => {
-                  const parsed = parseTime(cls.startTime || "");
-                  const startHour = parsed ? parsed.hour : baseHour + index;
-                  const label = getBucketLabel(startHour);
-                  if (!acc[label]) acc[label] = [];
-                  acc[label].push(cls);
-                  return acc;
-                },
-                {}
-              );
-              const bucketOrder = ["Manhã", "Tarde", "Noite", "Madrugada"];
-              const orderedBuckets = bucketOrder
-                .map((label) => [label, buckets[label]] as const)
-                .filter((entry) => entry[1]?.length);
-              const countLabel = items.length === 1 ? "1 turma" : `${items.length} turmas`;
-
-              return (
-                <View
-                  key={key}
-                  style={{
-                    borderRadius: 14,
-                    borderWidth: 0,
-                    borderColor: "transparent",
-                    padding: 10,
-                    gap: 10,
-                    backgroundColor: "transparent",
-                  }}
-                >
-                  <Pressable
-                    onPress={() =>
-                      setExpandedUnitGroups((prev) => ({
-                        ...prev,
-                        [unitKey]: !isUnitExpanded,
-                      }))
-                    }
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      paddingVertical: 6,
-                      paddingHorizontal: 8,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
-                    }}
-                  >
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                      {label}
-                    </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{countLabel}</Text>
-                    </View>
-                    <MaterialCommunityIcons
-                      name={isUnitExpanded ? "chevron-down" : "chevron-right"}
-                      size={18}
-                      color={colors.muted}
-                    />
-                  </Pressable>
-                  {isUnitExpanded ? (
-                    <View style={{ gap: 12 }}>
-                      {orderedBuckets.map(([label, bucketItems]) => (
-                        <View key={label} style={{ gap: 8 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                            <View
-                              style={{
-                                paddingVertical: 2,
-                                paddingHorizontal: 8,
-                                borderRadius: 999,
-                                backgroundColor: colors.inputBg,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: colors.muted,
-                                  fontSize: 11,
-                                  fontWeight: "700",
-                                }}
-                              >
-                                {label}
-                              </Text>
-                            </View>
-                            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-                          </View>
-                          {bucketItems.map((cls, index) => {
-                            const parsed = parseTime(cls.startTime || "");
-                            const startHour = parsed ? parsed.hour : baseHour + index;
-                            const startMinute = parsed ? parsed.minute : 0;
-                            const durationMinutes = cls.durationMinutes || 60;
-                            const time = formatTimeRange(
-                              startHour,
-                              startMinute,
-                              durationMinutes
-                            );
-                            const classUnit = unitLabel(cls.unit);
-                            const classPalette = getClassPalette(cls.colorKey, colors, classUnit);
-                            const appliedPlan = getAppliedPlan(cls.id, date);
-                            const isSpecificDate = Boolean(appliedPlan?.applyDate);
-                            const isWeekly =
-                              !isSpecificDate &&
-                              (appliedPlan?.applyDays?.length ?? 0) > 0;
-                            const hasApplied =
-                              Boolean(appliedPlan?.applyDate) ||
-                              (appliedPlan?.applyDays?.length ?? 0) > 0;
-                            const cardBackground = isPast
-                              ? colors.secondaryBg
-                              : hasApplied
-                                ? colors.inputBg
-                                : colors.card;
-                            const cardBorder = isPast
-                              ? toRgba(classPalette.bg, 0.35)
-                              : classPalette.bg;
-                            return (
-                              <Pressable
-                                key={`${cls.id}-${dayKey}`}
-                                onPress={() =>
-                                  router.push({
-                                    pathname: "/class/[id]/session",
-                                    params: { id: cls.id, date: formatIsoDate(date) },
-                                  })
-                                }
-                                style={{
-                                  padding: 14,
-                                  borderRadius: 18,
-                                  backgroundColor: cardBackground,
-                                  borderWidth: 1,
-                                  borderColor: cardBorder,
-                                  borderLeftWidth: 4,
-                                  borderLeftColor: classPalette.bg,
-                                  shadowColor: "#000",
-                                  shadowOpacity: isPast ? 0.03 : 0.08,
-                                  shadowRadius: isPast ? 6 : 12,
-                                  shadowOffset: { width: 0, height: isPast ? 4 : 8 },
-                                  elevation: isPast ? 1 : 3,
-                                  opacity: isPast ? 0.65 : 1,
-                                }}
-                              >
-                                {isWeekly ? (
-                                  <View
-                                    style={{
-                                      alignSelf: "flex-start",
-                                      paddingVertical: 2,
-                                      paddingHorizontal: 8,
-                                      borderRadius: 999,
-                                      backgroundColor: colors.infoBg,
-                                      marginBottom: 6,
-                                    }}
-                                  >
-                                    <Text
-                                      style={{
-                                        color: colors.infoText,
-                                        fontWeight: "700",
-                                        fontSize: 11,
-                                      }}
-                                    >
-                                      Semanal
-                                    </Text>
-                                  </View>
-                                ) : null}
-                                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                  <View
-                                    style={{
-                                      width: 8,
-                                      height: 8,
-                                      borderRadius: 999,
-                                      backgroundColor: isPast
-                                        ? toRgba(classPalette.bg, 0.45)
-                                        : classPalette.bg,
-                                    }}
-                                  />
-                                  <Text
-                                    style={{
-                                      fontSize: 16,
-                                      fontWeight: "700",
-                                      color: isPast ? colors.muted : colors.text,
-                                    }}
-                                  >
-                                    {time + " - " + cls.name}
-                                  </Text>
-                                  <ClassGenderBadge gender={cls.gender} size="sm" />
-                                </View>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              );
-            });
-          };
-          const classCount = filtered.length;
-          const countLabel = classCount === 1 ? "1 turma" : `${classCount} turmas`;
           return (
             <View
-              key={String(day)}
+              key={String(dayModel.day)}
               style={{
                 padding: 12,
                 borderRadius: 18,
@@ -810,7 +731,7 @@ export default function CalendarScreen() {
                   }).start();
                   setExpandedPastDays((prev) => ({
                     ...prev,
-                    [dayKey]: !isExpanded,
+                    [dayModel.dayKey]: !isExpanded,
                   }));
                 }}
                 style={{
@@ -826,7 +747,7 @@ export default function CalendarScreen() {
               >
                 <View style={{ flex: 1, gap: 6 }}>
                   <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-                    {dayLabels[day]}
+                    {dayModel.dayLabel}
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <View
@@ -844,10 +765,10 @@ export default function CalendarScreen() {
                           fontSize: 12,
                         }}
                       >
-                        {formatDate(date)}
+                        {dayModel.dateLabel}
                       </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{countLabel}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{dayModel.countLabel}</Text>
                   </View>
                 </View>
                 <MaterialCommunityIcons
@@ -877,7 +798,161 @@ export default function CalendarScreen() {
                   overflow: "hidden",
                 }}
               >
-                <View style={{ gap: 12 }}>{renderUnitGroups(unitGroups)}</View>
+                <View style={{ gap: 12 }}>
+                  {!dayModel.unitGroups.length ? (
+                    <Text style={{ color: colors.muted }}>Sem turmas nesse dia.</Text>
+                  ) : (
+                    dayModel.unitGroups.map((unitGroup) => {
+                      const expandedUnitKey = `${dayModel.dayKey}-${unitGroup.unitKey}`;
+                      const isUnitExpanded = expandedUnitGroups[expandedUnitKey] ?? true;
+
+                      return (
+                        <View
+                          key={unitGroup.unitKey}
+                          style={{
+                            borderRadius: 14,
+                            borderWidth: 0,
+                            borderColor: "transparent",
+                            padding: 10,
+                            gap: 10,
+                            backgroundColor: "transparent",
+                          }}
+                        >
+                          <Pressable
+                            onPress={() =>
+                              setExpandedUnitGroups((prev) => ({
+                                ...prev,
+                                [expandedUnitKey]: !isUnitExpanded,
+                              }))
+                            }
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              paddingVertical: 6,
+                              paddingHorizontal: 8,
+                              borderRadius: 10,
+                              backgroundColor: colors.inputBg,
+                            }}
+                          >
+                            <View style={{ flex: 1, gap: 4 }}>
+                              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                                {unitGroup.label}
+                              </Text>
+                              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                                {unitGroup.countLabel}
+                              </Text>
+                            </View>
+                            <MaterialCommunityIcons
+                              name={isUnitExpanded ? "chevron-down" : "chevron-right"}
+                              size={18}
+                              color={colors.muted}
+                            />
+                          </Pressable>
+                          {isUnitExpanded ? (
+                            <View style={{ gap: 12 }}>
+                              {unitGroup.buckets.map((bucket) => (
+                                <View key={bucket.label} style={{ gap: 8 }}>
+                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                    <View
+                                      style={{
+                                        paddingVertical: 2,
+                                        paddingHorizontal: 8,
+                                        borderRadius: 999,
+                                        backgroundColor: colors.inputBg,
+                                      }}
+                                    >
+                                      <Text
+                                        style={{
+                                          color: colors.muted,
+                                          fontSize: 11,
+                                          fontWeight: "700",
+                                        }}
+                                      >
+                                        {bucket.label}
+                                      </Text>
+                                    </View>
+                                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                                  </View>
+                                  {bucket.items.map((item) => (
+                                    <Pressable
+                                      key={`${item.classId}-${dayModel.dayKey}`}
+                                      onPress={() =>
+                                        router.push({
+                                          pathname: "/class/[id]/session",
+                                          params: { id: item.classId, date: item.dateIso },
+                                        })
+                                      }
+                                      style={{
+                                        padding: 14,
+                                        borderRadius: 18,
+                                        backgroundColor: item.cardBackground,
+                                        borderWidth: 1,
+                                        borderColor: item.cardBorder,
+                                        borderLeftWidth: 4,
+                                        borderLeftColor: item.classPalette.bg,
+                                        shadowColor: "#000",
+                                        shadowOpacity: dayModel.isPast ? 0.03 : 0.08,
+                                        shadowRadius: dayModel.isPast ? 6 : 12,
+                                        shadowOffset: { width: 0, height: dayModel.isPast ? 4 : 8 },
+                                        elevation: dayModel.isPast ? 1 : 3,
+                                        opacity: dayModel.isPast ? 0.65 : 1,
+                                      }}
+                                    >
+                                      {item.isWeekly ? (
+                                        <View
+                                          style={{
+                                            alignSelf: "flex-start",
+                                            paddingVertical: 2,
+                                            paddingHorizontal: 8,
+                                            borderRadius: 999,
+                                            backgroundColor: colors.infoBg,
+                                            marginBottom: 6,
+                                          }}
+                                        >
+                                          <Text
+                                            style={{
+                                              color: colors.infoText,
+                                              fontWeight: "700",
+                                              fontSize: 11,
+                                            }}
+                                          >
+                                            Semanal
+                                          </Text>
+                                        </View>
+                                      ) : null}
+                                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                        <View
+                                          style={{
+                                            width: 8,
+                                            height: 8,
+                                            borderRadius: 999,
+                                            backgroundColor: item.dotColor,
+                                          }}
+                                        />
+                                        <Text
+                                          style={{
+                                            fontSize: 16,
+                                            fontWeight: "700",
+                                            color: item.titleColor,
+                                          }}
+                                        >
+                                          {item.timeLabel + " - " + item.className}
+                                        </Text>
+                                        <ClassGenderBadge gender={item.classGender} size="sm" />
+                                      </View>
+                                    </Pressable>
+                                  ))}
+                                </View>
+                              ))}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
               </Animated.View>
             </View>
           );
