@@ -59,7 +59,7 @@ function CoordinationSummaryCard() {
   const summaryValues = useMemo(
     () => [
       { label: "Chamada pendente", value: counts.pendingAttendance },
-      { label: "Relat\u00f3rios pendentes", value: counts.pendingReports },
+      { label: "Relat?rios pendentes", value: counts.pendingReports },
       { label: "Atividade (7d)", value: counts.recentActivity },
     ],
     [counts.pendingAttendance, counts.pendingReports, counts.recentActivity]
@@ -79,20 +79,20 @@ function CoordinationSummaryCard() {
       {loading ? (
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
-            Coordena\u00e7\u00e3o
+            Coordena??o
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Carregando indicadores da organiza\u00e7\u00e3o...
+            Carregando indicadores da organiza??o...
           </Text>
         </View>
       ) : (
         <View style={{ gap: 10 }}>
           <View style={{ gap: 2 }}>
             <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
-              Coordena\u00e7\u00e3o
+              Coordena??o
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Vis\u00e3o r\u00e1pida das pend\u00eancias da organiza\u00e7\u00e3o.
+              Vis?o r?pida das pend?ncias da organiza??o.
             </Text>
           </View>
 

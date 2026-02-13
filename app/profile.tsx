@@ -166,7 +166,7 @@ export default function ProfileScreen() {
 
       const months = Math.max(1, Math.floor(diffDays / 30));
 
-      return months === 1 ? "1 m\u00eas" : `${months} meses`;
+      return months === 1 ? "1 m?s" : `${months} meses`;
 
     }
     return diffDays <= 1 ? "Hoje" : `${diffDays} dias`;
@@ -179,7 +179,7 @@ export default function ProfileScreen() {
         await setActiveOrganizationId(orgId);
       } catch (error) {
         console.error("Failed to change active organization", error);
-        Alert.alert("Erro", "N\u00e3o foi poss\u00edvel trocar de workspace.");
+        Alert.alert("Erro", "N?o foi poss?vel trocar de workspace.");
       }
     },
     [activeOrganization?.id, setActiveOrganizationId]
@@ -200,7 +200,7 @@ export default function ProfileScreen() {
         await refreshRole();
       } catch (error) {
         console.error("Failed to update student photo", error);
-        Alert.alert("Erro", "N\u00e3o foi poss\u00edvel salvar a foto.");
+        Alert.alert("Erro", "N?o foi poss?vel salvar a foto.");
       }
       return;
     }
@@ -213,7 +213,7 @@ export default function ProfileScreen() {
     } catch (error) {
       setPhotoUri(previousPhotoUri);
       console.error("Failed to persist profile photo", error);
-      Alert.alert("Erro", "N\u00e3o foi poss\u00edvel salvar a foto.");
+      Alert.alert("Erro", "N?o foi poss?vel salvar a foto.");
     }
   };
 
@@ -221,13 +221,13 @@ export default function ProfileScreen() {
     try {
       const currentUserId = session?.user?.id ?? "";
       if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("C\u00e2mera indispon\u00edvel", "Use a Galeria no navegador.");
+        Alert.alert("C?mera indispon?vel", "Use a Galeria no navegador.");
         return;
       }
       if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
-          Alert.alert("Permiss\u00e3o necess\u00e1ria", "Ative a c\u00e2mera para tirar a foto.");
+          Alert.alert("Permiss?o necess?ria", "Ative a c?mera para tirar a foto.");
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -254,7 +254,7 @@ export default function ProfileScreen() {
                 })
               : null;
           if (!uri && !student?.id) {
-            Alert.alert("Erro", "Sua sess\u00e3o expirou. Entre novamente.");
+            Alert.alert("Erro", "Sua sess?o expirou. Entre novamente.");
             return;
           }
           await savePhoto(uri);
@@ -265,7 +265,7 @@ export default function ProfileScreen() {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
         Alert.alert(
-          "Permiss\u00e3o necess\u00e1ria",
+          "Permiss?o necess?ria",
           "Ative a galeria para escolher uma foto."
         );
         return;
@@ -294,14 +294,14 @@ export default function ProfileScreen() {
               })
             : null;
         if (!uri && !student?.id) {
-          Alert.alert("Erro", "Sua sess\u00e3o expirou. Entre novamente.");
+          Alert.alert("Erro", "Sua sess?o expirou. Entre novamente.");
           return;
         }
         await savePhoto(uri);
       }
     } catch (error) {
       console.error("Failed to pick profile photo", error);
-      Alert.alert("Erro", "N\u00e3o foi poss\u00edvel selecionar a foto.");
+      Alert.alert("Erro", "N?o foi poss?vel selecionar a foto.");
     } finally {
       setShowPhotoSheet(false);
     }
@@ -481,7 +481,7 @@ export default function ProfileScreen() {
                 {activeOrganization?.name || "Selecione um workspace"}
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Voc\u00ea tem acesso a {organizations.length} workspace(s). Toque para alternar.
+                Voc? tem acesso a {organizations.length} workspace(s). Toque para alternar.
               </Text>
               <ScrollView
                 horizontal
@@ -531,12 +531,12 @@ export default function ProfileScreen() {
           <>
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-                Configura\u00e7\u00f5es
+                Configura??es
               </Text>
               <SettingsRow
                 icon="settings-outline"
                 iconBg="rgba(135, 120, 255, 0.14)"
-                label="Abrir configura\u00e7\u00f5es"
+                label="Abrir configura??es"
                 onPress={() => router.push({ pathname: "/notifications" })}
               />
             </View>
@@ -669,7 +669,7 @@ export default function ProfileScreen() {
         </View>
         <View style={{ gap: 12 }}>
           {[
-            { label: "C\u00e2mera", icon: "camera-outline", value: "camera" },
+            { label: "C?mera", icon: "camera-outline", value: "camera" },
             { label: "Galeria", icon: "images-outline", value: "library" },
           ].map((item) => (
             <Pressable
