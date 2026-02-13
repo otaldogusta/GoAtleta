@@ -1250,7 +1250,7 @@ return (
                                     </Text>
                                   ) : !checked && currentHeadName ? (
                                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                      Respons\u00e1vel atual: {currentHeadName}
+                                      Responsável atual: {currentHeadName}
                                     </Text>
                                   ) : null}
                                 </Pressable>
