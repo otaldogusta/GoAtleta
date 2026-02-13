@@ -4,7 +4,11 @@ import { useCallback, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { adminListOrgMembers, OrgMember } from "../src/api/members";
+import {
+  adminListOrgMembers,
+  adminUpdateMemberRole,
+  OrgMember,
+} from "../src/api/members";
 import {
   AdminPendingAttendance,
   AdminPendingSessionLogs,
@@ -18,6 +22,13 @@ import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
 type CoordinationTab = "dashboard" | "members";
+type RoleLevel = 5 | 10 | 50;
+
+const ROLE_OPTIONS: { label: string; value: RoleLevel }[] = [
+  { label: "Coordenação", value: 50 },
+  { label: "Professor", value: 10 },
+  { label: "Estagiário", value: 5 },
+];
 
 const formatDateBr = (value: string | null | undefined) => {
   if (!value) return "-";
@@ -51,15 +62,47 @@ const shortUserId = (value: string | null | undefined) => {
   return value.length > 8 ? `${value.slice(0, 8)}...` : value;
 };
 
+const parseRpcErrorMessage = (err: unknown) => {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  try {
+    const parsed = JSON.parse(raw) as { message?: string; error?: string };
+    return parsed.message || parsed.error || raw;
+  } catch {
+    return raw;
+  }
+};
+
+const humanizeRoleError = (message: string) => {
+  if (message.includes("Member has responsible classes")) {
+    return "Este membro ainda é responsável por turmas. Reatribua as turmas antes de alterar o cargo.";
+  }
+  if (message.includes("Cannot demote last admin")) {
+    return "Não é possível rebaixar o último admin da organização.";
+  }
+  if (message.includes("Not authorized")) {
+    return "Você não tem permissão para alterar cargos nesta organização.";
+  }
+  if (message.includes("Member not found")) {
+    return "Membro não encontrado.";
+  }
+  if (message.includes("Invalid role_level")) {
+    return "Cargo inválido.";
+  }
+  return message || "Não foi possível atualizar o cargo.";
+};
+
 export default function CoordinationScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const organizationId = activeOrganization?.id ?? null;
 
   const [activeTab, setActiveTab] = useState<CoordinationTab>("dashboard");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [roleBusyUserId, setRoleBusyUserId] = useState<string | null>(null);
   const [pendingAttendance, setPendingAttendance] = useState<AdminPendingAttendance[]>([]);
   const [pendingReports, setPendingReports] = useState<AdminPendingSessionLogs[]>([]);
   const [recentActivity, setRecentActivity] = useState<AdminRecentActivity[]>([]);
@@ -74,7 +117,6 @@ export default function CoordinationScreen() {
   );
 
   const loadCoordinationData = useCallback(async () => {
-    const organizationId = activeOrganization?.id ?? null;
     if (!organizationId || !isAdmin) {
       setPendingAttendance([]);
       setPendingReports([]);
@@ -87,6 +129,7 @@ export default function CoordinationScreen() {
 
     setLoading(true);
     setError(null);
+    setRoleError(null);
     try {
       const [attendanceRows, reportRows, activityRows, memberRows] = await Promise.all([
         listAdminPendingAttendance({ organizationId }),
@@ -107,7 +150,7 @@ export default function CoordinationScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganization?.id, isAdmin]);
+  }, [isAdmin, organizationId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -126,6 +169,35 @@ export default function CoordinationScreen() {
       intern,
     };
   }, [members]);
+
+  const sortedMembers = useMemo(() => {
+    return members
+      .slice()
+      .sort((a, b) => b.roleLevel - a.roleLevel || a.displayName.localeCompare(b.displayName));
+  }, [members]);
+
+  const handleRoleChange = useCallback(
+    async (member: OrgMember, nextRole: RoleLevel) => {
+      if (!organizationId) return;
+      if (member.roleLevel === nextRole) return;
+
+      setRoleError(null);
+      setRoleBusyUserId(member.userId);
+      try {
+        await adminUpdateMemberRole(organizationId, member.userId, nextRole);
+        setMembers((current) =>
+          current.map((item) =>
+            item.userId === member.userId ? { ...item, roleLevel: nextRole } : item
+          )
+        );
+      } catch (err) {
+        setRoleError(humanizeRoleError(parseRpcErrorMessage(err)));
+      } finally {
+        setRoleBusyUserId(null);
+      }
+    },
+    [organizationId]
+  );
 
   if (!isAdmin) {
     return (
@@ -475,6 +547,21 @@ export default function CoordinationScreen() {
               </View>
             </View>
 
+            {roleError ? (
+              <View
+                style={{
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  padding: 12,
+                }}
+              >
+                <Text style={{ color: colors.dangerSolidBg, fontWeight: "700" }}>Erro</Text>
+                <Text style={{ color: colors.muted, marginTop: 4 }}>{roleError}</Text>
+              </View>
+            ) : null}
+
             <View
               style={{
                 borderRadius: 16,
@@ -490,30 +577,68 @@ export default function CoordinationScreen() {
               </Text>
               {loading ? (
                 <Text style={{ color: colors.muted }}>Carregando...</Text>
-              ) : members.length === 0 ? (
+              ) : sortedMembers.length === 0 ? (
                 <Text style={{ color: colors.muted }}>Nenhum membro encontrado.</Text>
               ) : (
-                members.map((member) => (
-                  <View
-                    key={member.userId}
-                    style={{
-                      padding: 10,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      gap: 4,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{member.displayName}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {member.email || member.userId}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {roleLabel(member.roleLevel)}
-                    </Text>
-                  </View>
-                ))
+                sortedMembers.map((member) => {
+                  const isUpdatingRole = roleBusyUserId === member.userId;
+                  return (
+                    <View
+                      key={member.userId}
+                      style={{
+                        padding: 10,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        gap: 8,
+                      }}
+                    >
+                      <View style={{ gap: 3 }}>
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>{member.displayName}</Text>
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                          {member.email || member.userId}
+                        </Text>
+                      </View>
+
+                      <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                        {ROLE_OPTIONS.map((option) => {
+                          const selected = member.roleLevel === option.value;
+                          return (
+                            <Pressable
+                              key={`${member.userId}_${option.value}`}
+                              onPress={() => void handleRoleChange(member, option.value)}
+                              disabled={isUpdatingRole || selected}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 6,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: selected ? colors.primaryBg : colors.border,
+                                backgroundColor: selected ? colors.primaryBg : colors.card,
+                                opacity: isUpdatingRole && !selected ? 0.6 : 1,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: selected ? colors.primaryText : colors.text,
+                                  fontSize: 12,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        Cargo atual: {roleLabel(member.roleLevel)}
+                      </Text>
+                    </View>
+                  );
+                })
               )}
             </View>
 
