@@ -59,7 +59,9 @@ export const uploadMyProfilePhoto = async (params: {
   const objectPath = encodeObjectPath(path);
   const normalizedPhoto = await normalizeProfilePhotoForUpload(params.uri);
   const body = await blobFromUri(normalizedPhoto.uri);
-  const headers = await getAuthHeaders(normalizedPhoto.contentType);
+  const finalContentType =
+    normalizedPhoto.contentType ?? params.contentType ?? "image/jpeg";
+  const headers = await getAuthHeaders(finalContentType);
 
   const base = SUPABASE_URL.replace(/\/$/, "");
   const res = await fetch(
