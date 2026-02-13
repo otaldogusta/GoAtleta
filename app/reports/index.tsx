@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -18,6 +18,11 @@ import { ShimmerBlock } from "../../src/ui/Shimmer";
 import TrainerReportsScreen from "./trainer";
 
 type DashboardTab = "attendance" | "session" | "activity";
+
+type DashboardListItem =
+  | { id: string; kind: "attendance"; value: AdminPendingAttendance }
+  | { id: string; kind: "session"; value: AdminPendingSessionLogs }
+  | { id: string; kind: "activity"; value: AdminRecentActivity };
 
 const formatDateKey = (value: Date) => {
   const y = value.getFullYear();
@@ -107,278 +112,298 @@ export default function ReportsScreen() {
     void loadDashboard();
   }, [loadDashboard]);
 
-  if (!isAdmin) return <TrainerReportsScreen />;
+  const listItems = useMemo<DashboardListItem[]>(() => {
+    if (tab === "attendance") {
+      return pendingAttendance.map((item) => ({
+        id: `${item.classId}_${item.targetDate}`,
+        kind: "attendance",
+        value: item,
+      }));
+    }
+    if (tab === "session") {
+      return pendingSessions.map((item) => ({
+        id: `${item.classId}_${item.periodStart}`,
+        kind: "session",
+        value: item,
+      }));
+    }
+    return recentActivity.map((item, index) => ({
+      id: `${item.kind}_${item.classId}_${item.occurredAt}_${index}`,
+      kind: "activity",
+      value: item,
+    }));
+  }, [pendingAttendance, pendingSessions, recentActivity, tab]);
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 28 }}>
-        <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
-            Dashboard de Coordenação
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            Pendências e atividade recente da organização{" "}
-            {activeOrganization?.name ? `• ${activeOrganization.name}` : ""}
-          </Text>
-        </View>
+  const emptyState = useMemo(() => {
+    if (tab === "attendance") {
+      return {
+        title: "Tudo em dia",
+        text: "Nenhuma turma com chamada pendente hoje.",
+      };
+    }
+    if (tab === "session") {
+      return {
+        title: "Tudo em dia",
+        text: "Nenhuma turma sem relatório nos últimos 7 dias.",
+      };
+    }
+    return {
+      title: "Tudo em dia",
+      text: "Sem atividade nos últimos 7 dias.",
+    };
+  }, [tab]);
 
+  const renderItem = useCallback(
+    ({ item }: { item: DashboardListItem }) => {
+      if (item.kind === "attendance") {
+        const attendance = item.value;
+        return (
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              gap: 8,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              {attendance.className}
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              Unidade: {attendance.unit || "-"} • Alunos: {attendance.studentCount}
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              Data alvo: {formatDateBr(attendance.targetDate)}
+            </Text>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/attendance",
+                  params: { id: attendance.classId, date: attendance.targetDate || todayDateKey },
+                })
+              }
+              style={{
+                alignSelf: "flex-start",
+                marginTop: 4,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Fazer chamada</Text>
+            </Pressable>
+          </View>
+        );
+      }
+
+      if (item.kind === "session") {
+        const session = item.value;
+        return (
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              gap: 8,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              {session.className}
+            </Text>
+            <Text style={{ color: colors.muted }}>Unidade: {session.unit || "-"}</Text>
+            <Text style={{ color: colors.muted }}>
+              Último relatório: {session.lastReportAt ? formatDateTimeBr(session.lastReportAt) : "nunca"}
+            </Text>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/session",
+                  params: { id: session.classId, tab: "relatório", date: todayDateKey },
+                })
+              }
+              style={{
+                alignSelf: "flex-start",
+                marginTop: 4,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Criar relatório</Text>
+            </Pressable>
+          </View>
+        );
+      }
+
+      const activity = item.value;
+      return (
         <View
           style={{
+            padding: 14,
             borderRadius: 16,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
-            padding: 8,
-            gap: 8,
+            gap: 6,
           }}
         >
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-            {tabItems.map((item) => {
-              const selected = tab === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  onPress={() => setTab(item.id)}
+          <Text style={{ color: colors.text, fontWeight: "800" }}>
+            {activity.kind === "attendance" ? "Chamada" : "Relatório"} • {activity.className}
+          </Text>
+          <Text style={{ color: colors.muted }}>
+            Unidade: {activity.unit || "-"} • Em: {formatDateTimeBr(activity.occurredAt)}
+          </Text>
+          <Text style={{ color: colors.muted }}>
+            Responsável: {shortUserId(activity.actorUserId)} • Registros: {activity.affectedRows}
+          </Text>
+          {activity.referenceDate ? (
+            <Text style={{ color: colors.muted }}>
+              Referência: {formatDateBr(activity.referenceDate)}
+            </Text>
+          ) : null}
+        </View>
+      );
+    },
+    [colors, router, todayDateKey]
+  );
+
+  const header = (
+    <View style={{ gap: 12, paddingBottom: 12 }}>
+      <View style={{ gap: 4 }}>
+        <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
+          Dashboard de Coordenação
+        </Text>
+        <Text style={{ color: colors.muted }}>
+          Pendências e atividade recente da organização{" "}
+          {activeOrganization?.name ? `• ${activeOrganization.name}` : ""}
+        </Text>
+      </View>
+
+      <View
+        style={{
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          padding: 8,
+          gap: 8,
+        }}
+      >
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          {tabItems.map((item) => {
+            const selected = tab === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => setTab(item.id)}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
+                }}
+              >
+                <Text
                   style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 999,
-                    backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
+                    color: selected ? colors.primaryText : colors.text,
+                    fontWeight: "700",
+                    fontSize: 13,
                   }}
                 >
-                  <Text
-                    style={{
-                      color: selected ? colors.primaryText : colors.text,
-                      fontWeight: "700",
-                      fontSize: 13,
-                    }}
-                  >
-                    {item.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Pressable
-            onPress={() => void loadDashboard()}
-            style={{
-              alignSelf: "flex-start",
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-              Recarregar
-            </Text>
-          </Pressable>
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {error ? (
+        <Pressable
+          onPress={() => void loadDashboard()}
+          style={{
+            alignSelf: "flex-start",
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.secondaryBg,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+            Recarregar
+          </Text>
+        </Pressable>
+      </View>
+
+      {error ? (
+        <View
+          style={{
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 12,
+          }}
+        >
+          <Text style={{ color: colors.dangerSolidBg, fontWeight: "700" }}>Erro</Text>
+          <Text style={{ color: colors.muted, marginTop: 4 }}>{error}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  if (!isAdmin) return <TrainerReportsScreen />;
+
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ padding: 16, gap: 12 }}>
+          {header}
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
+            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
+            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <FlatList
+        key={tab}
+        data={listItems}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
           <View
             style={{
-              borderRadius: 14,
+              padding: 14,
+              borderRadius: 16,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.card,
-              padding: 12,
             }}
           >
-            <Text style={{ color: colors.dangerSolidBg, fontWeight: "700" }}>Erro</Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>{error}</Text>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>{emptyState.title}</Text>
+            <Text style={{ color: colors.muted, marginTop: 4 }}>{emptyState.text}</Text>
           </View>
-        ) : null}
-
-        {loading ? (
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
-            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
-            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
-          </View>
-        ) : null}
-
-        {!loading && tab === "attendance" ? (
-          <View style={{ gap: 10 }}>
-            {pendingAttendance.length === 0 ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Tudo em dia</Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  Nenhuma turma com chamada pendente hoje.
-                </Text>
-              </View>
-            ) : (
-              pendingAttendance.map((item) => (
-                <View
-                  key={`${item.classId}_${item.targetDate}`}
-                  style={{
-                    padding: 14,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    gap: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                    {item.className}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>
-                    Unidade: {item.unit || "-"} • Alunos: {item.studentCount}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>
-                    Data alvo: {formatDateBr(item.targetDate)}
-                  </Text>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/class/[id]/attendance",
-                        params: { id: item.classId, date: item.targetDate || todayDateKey },
-                      })
-                    }
-                    style={{
-                      alignSelf: "flex-start",
-                      marginTop: 4,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Fazer chamada</Text>
-                  </Pressable>
-                </View>
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {!loading && tab === "session" ? (
-          <View style={{ gap: 10 }}>
-            {pendingSessions.length === 0 ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Tudo em dia</Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  Nenhuma turma sem relatório nos últimos 7 dias.
-                </Text>
-              </View>
-            ) : (
-              pendingSessions.map((item) => (
-                <View
-                  key={`${item.classId}_${item.periodStart}`}
-                  style={{
-                    padding: 14,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    gap: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                    {item.className}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>Unidade: {item.unit || "-"}</Text>
-                  <Text style={{ color: colors.muted }}>
-                    Último relatório: {item.lastReportAt ? formatDateTimeBr(item.lastReportAt) : "nunca"}
-                  </Text>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/class/[id]/session",
-                        params: { id: item.classId, tab: "relatório", date: todayDateKey },
-                      })
-                    }
-                    style={{
-                      alignSelf: "flex-start",
-                      marginTop: 4,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Criar relatório</Text>
-                  </Pressable>
-                </View>
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {!loading && tab === "activity" ? (
-          <View style={{ gap: 10 }}>
-            {recentActivity.length === 0 ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Tudo em dia</Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  Sem atividade nos últimos 7 dias.
-                </Text>
-              </View>
-            ) : (
-              recentActivity.map((item, index) => (
-                <View
-                  key={`${item.kind}_${item.classId}_${item.occurredAt}_${index}`}
-                  style={{
-                    padding: 14,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    gap: 6,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "800" }}>
-                    {item.kind === "attendance" ? "Chamada" : "Relatório"} • {item.className}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>
-                    Unidade: {item.unit || "-"} • Em: {formatDateTimeBr(item.occurredAt)}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>
-                    Responsável: {shortUserId(item.actorUserId)} • Registros: {item.affectedRows}
-                  </Text>
-                  {item.referenceDate ? (
-                    <Text style={{ color: colors.muted }}>
-                      Referência: {formatDateBr(item.referenceDate)}
-                    </Text>
-                  ) : null}
-                </View>
-              ))
-            )}
-          </View>
-        ) : null}
-      </ScrollView>
+        }
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+      />
     </SafeAreaView>
   );
 }

@@ -241,11 +241,13 @@ export default function ReportsScreen() {
     [attendance, monthKey]
   );
 
-  const attendanceByClass = useMemo(() => {
-    const map: Record<string, AttendanceRecord[]> = {};
+  const attendanceSummaryByClass = useMemo(() => {
+    const map: Record<string, { total: number; present: number }> = {};
     monthAttendance.forEach((record) => {
-      if (!map[record.classId]) map[record.classId] = [];
-      map[record.classId].push(record);
+      const current = map[record.classId] ?? { total: 0, present: 0 };
+      current.total += 1;
+      if (record.status === "presente") current.present += 1;
+      map[record.classId] = current;
     });
     return map;
   }, [monthAttendance]);
@@ -323,6 +325,14 @@ export default function ReportsScreen() {
     return classes.filter((cls) => (cls.unit || "Sem unidade") === unitFilter);
   }, [classes, unitFilter]);
 
+  const classForUnitById = useMemo(() => {
+    const map: Record<string, ClassGroup> = {};
+    classesForUnit.forEach((cls) => {
+      map[cls.id] = cls;
+    });
+    return map;
+  }, [classesForUnit]);
+
   useEffect(() => {
     if (!classId && classesForUnit.length) {
       setClassId(classesForUnit[0].id);
@@ -334,75 +344,18 @@ export default function ReportsScreen() {
     return students.filter((s) => s.classId === classId);
   }, [students, classId]);
 
-  const indicators = useMemo(() => {
-    const now = new Date();
-    const byStudent: Array<{
-      student: Student;
-      className: string;
-      streak: number;
-      lastDate: string;
-      inactiveDays: number | null;
-    }> = [];
-
-    studentsForClass.forEach((student) => {
-      const records = attendance
-        .filter((r) => r.studentId === student.id)
-        .sort((a, b) => b.date.localeCompare(a.date));
-      const lastDate = records[0]?.date ?? "";
-      let streak = 0;
-      for (const record of records) {
-        if (record.status === "faltou") {
-          streak += 1;
-        } else {
-          break;
-        }
-      }
-      let inactiveDays: number | null = null;
-      if (!lastDate) {
-        inactiveDays = null;
-      } else {
-        const last = new Date(lastDate + "T00:00:00");
-        const diffMs = now.getTime() - last.getTime();
-        inactiveDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      }
-      byStudent.push({
-        student,
-        className: classMap[student.classId]?.name ?? "",
-        streak,
-        lastDate,
-        inactiveDays,
-      });
-    });
-
-    const consecutiveAbsences = byStudent.filter((item) => item.streak >= 2);
-    const inactive = byStudent.filter(
-      (item) => item.inactiveDays !== null && item.inactiveDays >= 30
-    );
-
-    return { consecutiveAbsences, inactive };
-  }, [attendance, classMap, studentsForClass]);
-
-  const studentRows = useMemo(() => {
-    return studentsForClass.map((student) => {
-      const records = monthAttendance.filter(
-        (r) => r.studentId === student.id
-      );
-      const total = records.length;
-      const present = records.filter((r) => r.status === "presente").length;
-      const percent = total ? Math.round((present / total) * 100) : 0;
-      return { student, total, present, percent };
-    });
-  }, [studentsForClass, monthAttendance]);
-
   const classRows = useMemo(() => {
     return classes.map((cls) => {
-      const records = attendanceByClass[cls.id] ?? [];
-      const total = records.length;
-      const present = records.filter((r) => r.status === "presente").length;
+      const classSummary = attendanceSummaryByClass[cls.id] ?? {
+        total: 0,
+        present: 0,
+      };
+      const total = classSummary.total;
+      const present = classSummary.present;
       const percent = total ? Math.round((present / total) * 100) : 0;
       return { cls, total, present, percent };
     });
-  }, [classes, attendanceByClass]);
+  }, [attendanceSummaryByClass, classes]);
 
   const sessionLogRows = useMemo(() => {
     return uniqueSessionLogs
@@ -481,7 +434,7 @@ export default function ReportsScreen() {
       }
       const base = countsByStudent[log.studentId];
       const next = countsFromStudentLog(log);
-      (Object.keys(base) as Array<keyof typeof base>).forEach((skill) => {
+      (Object.keys(base) as (keyof typeof base)[]).forEach((skill) => {
         base[skill][0] += next[skill][0];
         base[skill][1] += next[skill][1];
         base[skill][2] += next[skill][2];
@@ -504,12 +457,12 @@ export default function ReportsScreen() {
     { label: "Aulas", value: String(summary.total), color: colors.infoBg },
     { label: "Turmas", value: String(classes.length), color: colors.secondaryBg },
     {
-      label: "PSE medio",
+      label: "PSE médio",
       value: pseSummary.avg === null ? "--" : pseSummary.avg.toFixed(1),
       color: colors.warningBg,
     },
     {
-      label: "Media por turma",
+      label: "Média por turma",
       value: avgPresenceByClass === null ? "--" : `${avgPresenceByClass.toFixed(0)}%`,
       color: colors.secondaryBg,
     },
@@ -944,7 +897,7 @@ export default function ReportsScreen() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                    {classesForUnit.find((c) => c.id === classId)?.name || "Selecione a turma"}
+                    {classForUnitById[classId]?.name || "Selecione a turma"}
                   </Text>
                   <Ionicons name="chevron-down" size={16} color={colors.muted} />
                 </Pressable>
@@ -1340,10 +1293,3 @@ export default function ReportsScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-
-
-
-

@@ -79,7 +79,7 @@ const formatTimeRange = (
 
 export default function CalendarScreen() {
   const router = useRouter();
-  const { colors, mode } = useAppTheme();
+  const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const params = useLocalSearchParams();
   const targetClassId =
@@ -102,10 +102,6 @@ export default function CalendarScreen() {
   const [expandedUnitGroups, setExpandedUnitGroups] = usePersistedState<
     Record<string, boolean>
   >(CALENDAR_EXPANDED_UNITS_KEY, {});
-  const [, setPendingPlanCreate] = usePersistedState<{
-    classId: string;
-    date: string;
-  } | null>("training_pending_plan_create_v1", null);
   const expandAnimRef = useRef<Record<string, Animated.Value>>({});
   const [showApplyPicker, setShowApplyPicker] = useState(false);
   const [applyPickerClassId, setApplyPickerClassId] = useState("");
@@ -201,8 +197,7 @@ export default function CalendarScreen() {
   useEffect(() => {
     if (!openApply || applyTargetHandled.current) return;
     if (!targetClassId || !targetDate) return;
-    if (!classes.length) return;
-    const targetClass = classes.find((item) => item.id === targetClassId);
+    const targetClass = classById[targetClassId];
     if (!targetClass) return;
     const dayKey = targetDate;
     const unitName = unitLabel(targetClass.unit);
@@ -220,14 +215,38 @@ export default function CalendarScreen() {
     setApplyPickerDate(targetDate);
     setShowApplyPicker(true);
     applyTargetHandled.current = true;
-  }, [openApply, targetClassId, targetDate, classes, unitLabel]);
+  }, [
+    openApply,
+    targetClassId,
+    targetDate,
+    classById,
+    unitLabel,
+    setExpandedPastDays,
+    setExpandedUnitGroups,
+  ]);
 
-  const plansByClassId = useMemo(() => {
-    const map: Record<string, TrainingPlan[]> = {};
-    for (const plan of plans) {
-      if (!map[plan.classId]) map[plan.classId] = [];
-      map[plan.classId].push(plan);
-    }
+  const planLookupByClass = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        byDate: Record<string, TrainingPlan>;
+        byWeekday: Record<number, TrainingPlan>;
+      }
+    > = {};
+    plans.forEach((plan) => {
+      if (!map[plan.classId]) {
+        map[plan.classId] = { byDate: {}, byWeekday: {} };
+      }
+      const entry = map[plan.classId];
+      if (plan.applyDate && !entry.byDate[plan.applyDate]) {
+        entry.byDate[plan.applyDate] = plan;
+      }
+      (plan.applyDays ?? []).forEach((weekday) => {
+        if (!entry.byWeekday[weekday]) {
+          entry.byWeekday[weekday] = plan;
+        }
+      });
+    });
     return map;
   }, [plans]);
 
@@ -240,18 +259,13 @@ export default function CalendarScreen() {
     return a.name.localeCompare(b.name);
   }, []);
 
-  const getAppliedPlan = (classId: string, date: Date) => {
-    const list = plansByClassId[classId] ?? [];
-    if (!list.length) return null;
+  const getAppliedPlan = useCallback((classId: string, date: Date) => {
+    const lookup = planLookupByClass[classId];
+    if (!lookup) return null;
     const iso = formatIsoDate(date);
     const weekDay = date.getDay() === 0 ? 7 : date.getDay();
-    const byDate = list.find((plan) => plan.applyDate === iso);
-    if (byDate) return byDate;
-    const byWeekday = list.find((plan) =>
-      ((plan.applyDays ?? []).includes(weekDay))
-    );
-    return byWeekday ?? null;
-  };
+    return lookup.byDate[iso] ?? lookup.byWeekday[weekDay] ?? null;
+  }, [planLookupByClass]);
 
   const todayStart = useMemo(() => {
     const date = new Date();
@@ -267,7 +281,7 @@ export default function CalendarScreen() {
     return value;
   };
   const getBucketLabel = (hour: number) => {
-    if (hour >= 5 && hour <= 11) return "Manha";
+    if (hour >= 5 && hour <= 11) return "Manhã";
     if (hour >= 12 && hour <= 17) return "Tarde";
     if (hour >= 18 && hour <= 23) return "Noite";
     return "Madrugada";
@@ -278,15 +292,27 @@ export default function CalendarScreen() {
     return classes.filter((cls) => unitKey(cls.unit) === filterKey);
   }, [classes, unitFilter, unitKey]);
 
-  const scheduleDays = useMemo(() => {
-    const unique = new Set<number>();
+  const filteredClassesByDay = useMemo(() => {
+    const grouped: Record<number, ClassGroup[]> = {};
     filteredClasses.forEach((cls) => {
-      cls.daysOfWeek.forEach((day) => unique.add(day));
+      cls.daysOfWeek.forEach((day) => {
+        if (!grouped[day]) grouped[day] = [];
+        grouped[day].push(cls);
+      });
     });
-    const days = Array.from(unique).sort((a, b) => a - b);
+    Object.values(grouped).forEach((items) => {
+      items.sort(sortByTime);
+    });
+    return grouped;
+  }, [filteredClasses, sortByTime]);
+
+  const scheduleDays = useMemo(() => {
+    const days = Object.keys(filteredClassesByDay)
+      .map((day) => Number(day))
+      .sort((a, b) => a - b);
     if (!days.length) return [{ day: 2 }, { day: 4 }];
     return days.map((day) => ({ day }));
-  }, [filteredClasses]);
+  }, [filteredClassesByDay]);
 
   const sortedPlans = useMemo(() => {
     return plans
@@ -542,9 +568,7 @@ export default function CalendarScreen() {
             const isPast = date.getTime() < todayStart.getTime();
             const isExpanded = expandedPastDays[dayKey] ?? !isPast;
             const expandAnim = getExpandAnim(dayKey, isExpanded ? 1 : 0);
-            const filtered = filteredClasses.filter((cls) =>
-              cls.daysOfWeek.includes(day)
-            );
+            const filtered = filteredClassesByDay[day] ?? [];
             const groupedByUnit = filtered.reduce<
               Record<string, { label: string; items: ClassGroup[] }>
             >((acc, cls) => {
@@ -571,12 +595,6 @@ export default function CalendarScreen() {
             return grouped.map(({ key, label, items }) => {
               const unitKey = `${dayKey}-${key}`;
               const isUnitExpanded = expandedUnitGroups[unitKey] ?? true;
-              const palette = getUnitPalette(label, colors);
-              const unitBorder = palette.bg;
-              const unitBg =
-                mode === "dark"
-                  ? toRgba(palette.bg, 0.16)
-                  : toRgba(palette.bg, 0.1);
               const buckets = items.reduce<Record<string, ClassGroup[]>>(
                 (acc, cls, index) => {
                   const parsed = parseTime(cls.startTime || "");
@@ -588,7 +606,7 @@ export default function CalendarScreen() {
                 },
                 {}
               );
-              const bucketOrder = ["Manha", "Tarde", "Noite", "Madrugada"];
+              const bucketOrder = ["Manhã", "Tarde", "Noite", "Madrugada"];
               const orderedBuckets = bucketOrder
                 .map((label) => [label, buckets[label]] as const)
                 .filter((entry) => entry[1]?.length);
