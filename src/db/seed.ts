@@ -1,4 +1,4 @@
-﻿import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Sentry from "@sentry/react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { getSessionUserId, getValidAccessToken } from "../auth/session";
@@ -1083,7 +1083,7 @@ export async function duplicateClass(base: ClassGroup) {
     base.organizationId ?? (await getActiveOrganizationId());
   const payload: Record<string, unknown> = {
     id: "c_" + Date.now(),
-    name: base.name + " (c?pia)",
+    name: base.name + " (cópia)",
     unit: resolvedUnitRow?.name ?? base.unit,
     unit_id: resolvedUnit,
     color_key: base.colorKey ?? null,

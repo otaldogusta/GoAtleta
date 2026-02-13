@@ -124,10 +124,10 @@ export default function ExercisesScreen() {
       return;
     }
     if (!videoUrl.trim()) {
-      Alert.alert("Link obrigat?rio", "Cole o link do v?deo.");
+      Alert.alert("Link obrigatório", "Cole o link do vídeo.");
       return;
     }
-    const fallbackTitle = title.trim() || "V?deo";
+    const fallbackTitle = title.trim() || "Vídeo";
     const nowIso = new Date().toISOString();
     const exercise: Exercise = {
       id: editingId ?? "ex_" + Date.now(),
@@ -162,7 +162,7 @@ export default function ExercisesScreen() {
         setMetaStatus("");
         const accessToken = await getValidAccessToken();
         if (!accessToken) {
-          setMetaStatus("Sessão expirada. Faca login novamente.");
+          setMetaStatus("Sessão expirada. Faça login novamente.");
           return;
         }
         const response = await fetch(
@@ -237,7 +237,7 @@ export default function ExercisesScreen() {
         ? `Deseja remover ${exercise.title}?`
         : "Deseja remover este exercício?",
       confirmLabel: "Excluir",
-      undoMessage: "Exercicio excluído. Deseja desfazer?",
+      undoMessage: "Exercício excluído. Deseja desfazer?",
       onOptimistic: () => {
         setItems((prev) => prev.filter((item) => item.id !== exercise.id));
       },
@@ -274,7 +274,7 @@ export default function ExercisesScreen() {
             Exercícios
           </Text>
           <Text style={{ color: colors.muted }}>
-            Biblioteca com videos e links
+            Biblioteca com vídeos e links
           </Text>
         </View>
 
