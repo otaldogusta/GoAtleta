@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Text, View } from "react-native";
+import { FlatList, Platform, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -382,10 +382,14 @@ export default function ReportsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <FlatList
-        key={tab}
         data={listItems}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        initialNumToRender={8}
+        windowSize={9}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={60}
+        removeClippedSubviews={Platform.OS === "android"}
         contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
         ListHeaderComponent={header}
         ListEmptyComponent={
