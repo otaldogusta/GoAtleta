@@ -7,9 +7,56 @@ type ShimmerBlockProps = {
   style: StyleProp<ViewStyle>;
 };
 
+let shimmerProgress: Animated.Value | null = null;
+let shimmerLoop: Animated.CompositeAnimation | null = null;
+let shimmerConsumers = 0;
+
+const getShimmerProgress = () => {
+  if (!shimmerProgress) {
+    shimmerProgress = new Animated.Value(0);
+  }
+  return shimmerProgress;
+};
+
+const startShimmerLoop = () => {
+  if (shimmerLoop) return;
+  const progress = getShimmerProgress();
+  progress.setValue(0);
+  shimmerLoop = Animated.loop(
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 1500,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    })
+  );
+  shimmerLoop.start();
+};
+
+const stopShimmerLoop = () => {
+  if (!shimmerLoop) return;
+  shimmerLoop.stop();
+  shimmerLoop = null;
+  getShimmerProgress().setValue(0);
+};
+
+const acquireShimmerDriver = () => {
+  shimmerConsumers += 1;
+  if (shimmerConsumers === 1) {
+    startShimmerLoop();
+  }
+};
+
+const releaseShimmerDriver = () => {
+  shimmerConsumers = Math.max(0, shimmerConsumers - 1);
+  if (shimmerConsumers === 0) {
+    stopShimmerLoop();
+  }
+};
+
 export function ShimmerBlock({ style }: ShimmerBlockProps) {
-  const { colors, mode } = useAppTheme();
-  const anim = useRef(new Animated.Value(0)).current;
+  const { mode } = useAppTheme();
+  const anim = useRef(getShimmerProgress()).current;
   const [width, setWidth] = useState(0);
   const glassBase = mode === "dark"
     ? "rgba(255, 255, 255, 0.10)"
@@ -21,16 +68,8 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
   const sheenColor = glassSheen;
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
+    acquireShimmerDriver();
+    return () => releaseShimmerDriver();
   }, [anim]);
 
   const shimmerWidth = Math.max(120, width * 0.8);

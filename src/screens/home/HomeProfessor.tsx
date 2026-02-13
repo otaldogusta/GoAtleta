@@ -61,13 +61,9 @@ import { useRole } from "../../auth/role";
 import {
     flushPendingWrites,
 
-    getAttendanceByDate,
-
     getClasses,
 
     getPendingWritesCount,
-
-    getSessionLogsByRange,
 
     seedIfEmpty,
 } from "../../db/seed";
@@ -145,7 +141,6 @@ export function HomeProfessorScreen({
   const [upcomingEvents, setUpcomingEvents] = useState<EventListItem[]>([]);
 
   const [loadingEvents, setLoadingEvents] = useState(false);
-  const [homeHydrated, setHomeHydrated] = useState(false);
 
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
 
@@ -262,7 +257,6 @@ export function HomeProfessorScreen({
         if (alive) {
           setLoadingClasses(false);
           setLoadingEvents(false);
-          setHomeHydrated(true);
         }
         return;
       }
@@ -271,7 +265,6 @@ export function HomeProfessorScreen({
         if (alive) {
           setLoadingClasses(true);
           setLoadingEvents(true);
-          setHomeHydrated(false);
         }
         return;
       }
@@ -279,7 +272,6 @@ export function HomeProfessorScreen({
       if (alive) {
         setLoadingClasses(true);
         setLoadingEvents(true);
-        setHomeHydrated(false);
         setClasses([]);
         setUpcomingEvents([]);
         setManualIndex(null);
@@ -317,7 +309,6 @@ export function HomeProfessorScreen({
 
         if (alive) setLoadingClasses(false);
         if (alive) setLoadingEvents(false);
-        if (alive) setHomeHydrated(true);
 
       }
 
@@ -371,31 +362,49 @@ export function HomeProfessorScreen({
 
 
 
-  useEffect(() => {
-
-    let alive = true;
-
-    const refreshPending = async () => {
-
+  const refreshPendingWritesCount = useCallback(async () => {
+    if (!session || role !== "trainer") {
+      setPendingWrites(0);
+      return 0;
+    }
+    try {
       const count = await getPendingWritesCount();
+      setPendingWrites(count);
+      return count;
+    } catch {
+      setPendingWrites(0);
+      return 0;
+    }
+  }, [role, session]);
 
-      if (alive) setPendingWrites(count);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      let timer: ReturnType<typeof setTimeout> | null = null;
 
-    };
+      const scheduleNext = (count: number) => {
+        if (!active) return;
+        const delay = count > 0 ? 10000 : 45000;
+        timer = setTimeout(run, delay);
+      };
 
-    refreshPending();
+      const run = async () => {
+        if (!active) return;
+        const count = await refreshPendingWritesCount();
+        scheduleNext(count);
+      };
 
-    const interval = setInterval(refreshPending, 10000);
+      void run();
 
-    return () => {
-
-      alive = false;
-
-      clearInterval(interval);
-
-    };
-
-  }, []);
+      return () => {
+        active = false;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      };
+    }, [refreshPendingWritesCount])
+  );
 
 
 
@@ -589,13 +598,24 @@ export function HomeProfessorScreen({
 
   const nowTime = useMemo(() => now.getTime(), [now]);
 
+  const scheduleBaseDate = useMemo(() => {
+    const parsed = new Date(todayDateKey + "T00:00:00");
+    if (Number.isNaN(parsed.getTime())) {
+      const fallback = new Date();
+      fallback.setHours(0, 0, 0, 0);
+      return fallback;
+    }
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
+  }, [todayDateKey]);
+
 
 
   const scheduleWindow = useMemo(() => {
 
     if (!classes.length) return [];
 
-    const items: Array<{
+    const items: {
 
       classId: string;
 
@@ -615,13 +635,13 @@ export function HomeProfessorScreen({
 
       timeLabel: string;
 
-    }> = [];
+    }[] = [];
 
     for (let offset = -7; offset <= 7; offset += 1) {
 
-      const dayDate = new Date(now);
+      const dayDate = new Date(scheduleBaseDate);
 
-      dayDate.setDate(now.getDate() + offset);
+      dayDate.setDate(scheduleBaseDate.getDate() + offset);
 
       dayDate.setHours(0, 0, 0, 0);
 
@@ -673,7 +693,7 @@ export function HomeProfessorScreen({
 
     return items.sort((a, b) => a.startTime - b.startTime);
 
-  }, [classes, now]);
+  }, [classes, scheduleBaseDate]);
 
 
 
@@ -681,13 +701,17 @@ export function HomeProfessorScreen({
 
     if (!scheduleWindow.length) return null;
 
-    const current = scheduleWindow.find(
-      (item) => nowTime >= item.startTime && nowTime < item.endTime
-    );
-    if (current) return scheduleWindow.indexOf(current);
-
-    const next = scheduleWindow.find((item) => item.startTime > nowTime);
-    if (next) return scheduleWindow.indexOf(next);
+    let nextIndex = -1;
+    for (let index = 0; index < scheduleWindow.length; index += 1) {
+      const item = scheduleWindow[index];
+      if (nowTime >= item.startTime && nowTime < item.endTime) {
+        return index;
+      }
+      if (nextIndex === -1 && item.startTime > nowTime) {
+        nextIndex = index;
+      }
+    }
+    if (nextIndex !== -1) return nextIndex;
 
     return scheduleWindow.length ? scheduleWindow.length - 1 : null;
 
@@ -773,7 +797,7 @@ export function HomeProfessorScreen({
 
     return scheduleWindow.map((_, index) => index * size);
 
-  }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow.length]);
+  }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow]);
 
   const getStatusLabelForItem = useCallback(
 
@@ -931,30 +955,6 @@ export function HomeProfessorScreen({
 
   }, [agendaCardGap, agendaCardWidth, agendaRefreshToken, autoIndex, agendaWidth]);
 
-
-
-  const activeSummary = useMemo(() => {
-
-    if (!activeItem) return null;
-
-    return {
-
-      unit: activeItem.unit,
-
-      className: activeItem.className,
-
-      dateLabel: activeItem.dateLabel,
-
-      timeLabel: activeItem.timeLabel,
-
-      gender: activeItem.gender,
-
-    };
-
-  }, [activeItem]);
-
-
-
   const activeAttendanceTarget = useMemo(() => {
 
     if (!activeItem) return null;
@@ -968,101 +968,6 @@ export function HomeProfessorScreen({
     };
 
   }, [activeItem]);
-
-  const activeClass = useMemo(() => {
-
-    if (!activeItem) return null;
-
-    return classes.find((cls) => cls.id === activeItem.classId) ?? null;
-
-  }, [activeItem, classes]);
-
-
-
-
-
-  const [attendanceDone, setAttendanceDone] = useState<boolean | null>(null);
-
-  const [reportDone, setReportDone] = useState<boolean | null>(null);
-
-  const hasSessionEnded = Boolean(activeItem) && activeItem.endTime <= nowTime;
-
-  const showAttendanceWarning =
-
-    Boolean(activeAttendanceTarget) && attendanceDone === false && hasSessionEnded;
-
-  const showReportWarning = Boolean(activeAttendanceTarget) && reportDone === false && hasSessionEnded;
-
-
-
-  useEffect(() => {
-
-    let alive = true;
-
-    if (!activeAttendanceTarget) {
-
-      setAttendanceDone(null);
-
-      setReportDone(null);
-
-      return () => {
-
-        alive = false;
-
-      };
-
-    }
-
-    (async () => {
-
-      try {
-
-        const [attendanceRecords, sessionLogs] = await Promise.all([
-
-          getAttendanceByDate(activeAttendanceTarget.classId, activeAttendanceTarget.date),
-
-          getSessionLogsByRange(
-
-            activeAttendanceTarget.date + "T00:00:00.000Z",
-
-            activeAttendanceTarget.date + "T23:59:59.999Z"
-
-          ),
-
-        ]);
-
-        if (!alive) return;
-
-        setAttendanceDone(attendanceRecords.length > 0);
-
-        setReportDone(
-
-          sessionLogs.some((log) => log.classId === activeAttendanceTarget.classId)
-
-        );
-
-      } catch {
-
-        if (!alive) return;
-
-        setAttendanceDone(null);
-
-        setReportDone(null);
-
-      }
-
-    })();
-
-    return () => {
-
-      alive = false;
-
-    };
-
-  }, [activeAttendanceTarget]);
-
-
-
   const showToast = (message: string, type: "info" | "success" | "error") => {
 
     showSaveToast({ message, variant: type });
@@ -1154,7 +1059,7 @@ export function HomeProfessorScreen({
           .finally(() => setLoadingEvents(false))
       );
 
-      tasks.push(getPendingWritesCount().then(setPendingWrites).catch(() => setPendingWrites(0)));
+      tasks.push(refreshPendingWritesCount());
 
     } else if (organizationLoading) {
       setLoadingClasses(true);
@@ -1168,7 +1073,14 @@ export function HomeProfessorScreen({
 
     setNow(new Date());
 
-  }, [role, session, activeOrganization?.id, organizationLoading, resolveProfilePhoto]);
+  }, [
+    role,
+    session,
+    activeOrganization?.id,
+    organizationLoading,
+    refreshPendingWritesCount,
+    resolveProfilePhoto,
+  ]);
 
 
 
@@ -1198,7 +1110,7 @@ export function HomeProfessorScreen({
 
           }
 
-        } catch (error) {
+        } catch {
 
           // ignore update check errors in dev
 
@@ -1225,143 +1137,6 @@ export function HomeProfessorScreen({
     }
 
   };
-
-  const showHomePageShimmer = !homeHydrated && !refreshing;
-
-  if (showHomePageShimmer) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 14 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            Platform.OS === "web"
-              ? undefined
-              : <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 14,
-            }}
-          >
-            <View style={{ gap: 8 }}>
-              <ShimmerBlock style={{ width: 140, height: 36, borderRadius: 10 }} />
-              <ShimmerBlock style={{ width: 210, height: 20, borderRadius: 8 }} />
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <ShimmerBlock style={{ width: 54, height: 44, borderRadius: 999 }} />
-              <ShimmerBlock style={{ width: 56, height: 56, borderRadius: 999 }} />
-            </View>
-          </View>
-
-          {adminHeader ? (
-            <View
-              style={{
-                padding: 16,
-                borderRadius: 20,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 10,
-              }}
-            >
-              <ShimmerBlock style={{ width: 180, height: 22, borderRadius: 8 }} />
-              <ShimmerBlock style={{ width: "56%", height: 16, borderRadius: 8 }} />
-              <ShimmerBlock style={{ height: 14, borderRadius: 8 }} />
-              <ShimmerBlock style={{ height: 14, borderRadius: 8 }} />
-              <ShimmerBlock style={{ height: 14, borderRadius: 8 }} />
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 2 }}>
-                <ShimmerBlock style={{ width: 180, height: 44, borderRadius: 999 }} />
-                <ShimmerBlock style={{ width: 200, height: 44, borderRadius: 999 }} />
-              </View>
-            </View>
-          ) : null}
-
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 20,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              gap: 10,
-            }}
-          >
-            <ShimmerBlock style={{ width: 220, height: 28, borderRadius: 8 }} />
-            <ShimmerBlock style={{ width: "70%", height: 18, borderRadius: 8 }} />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <ShimmerBlock style={{ width: 160, height: 44, borderRadius: 999 }} />
-              <ShimmerBlock style={{ width: 170, height: 44, borderRadius: 999 }} />
-            </View>
-          </View>
-
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 20,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              gap: 12,
-            }}
-          >
-            <ShimmerBlock style={{ width: 170, height: 24, borderRadius: 8 }} />
-            <View
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <ShimmerBlock style={{ flex: 1, height: 92, borderRadius: 14 }} />
-                <ShimmerBlock style={{ flex: 1, height: 92, borderRadius: 14 }} />
-              </View>
-            </View>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <ShimmerBlock style={{ flex: 1, height: 42, borderRadius: 999 }} />
-              <ShimmerBlock style={{ flex: 1, height: 42, borderRadius: 999 }} />
-              <ShimmerBlock style={{ flex: 1, height: 42, borderRadius: 999 }} />
-            </View>
-          </View>
-
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 20,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              gap: 10,
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <ShimmerBlock style={{ width: 170, height: 24, borderRadius: 8 }} />
-              <ShimmerBlock style={{ width: 72, height: 16, borderRadius: 8 }} />
-            </View>
-            <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
-            <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
-          </View>
-
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ width: 120, height: 22, borderRadius: 8 }} />
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
-              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
-              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
-              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
-            </View>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
 
   return (
 
@@ -1716,10 +1491,13 @@ export function HomeProfessorScreen({
               contentContainerStyle={{ paddingRight: agendaCardGap }}
             >
               { loadingClasses && scheduleWindow.length === 0 ? (
-                <View style={{ paddingVertical: 6 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Carregando agenda...
-                  </Text>
+                <View style={{ flexDirection: "row", gap: agendaCardGap, paddingVertical: 2 }}>
+                  <ShimmerBlock
+                    style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
+                  />
+                  <ShimmerBlock
+                    style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
+                  />
                 </View>
               ) : scheduleWindow.length === 0 ? (
                 <View style={{ paddingVertical: 6 }}>
@@ -1961,9 +1739,10 @@ export function HomeProfessorScreen({
             </Pressable>
           </View>
           {loadingEvents && upcomingEvents.length === 0 ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Carregando eventos...
-            </Text>
+            <View style={{ gap: 8 }}>
+              <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
+              <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
+            </View>
           ) : upcomingEvents.length === 0 ? (
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               Nenhum evento cadastrado para os próximos dias.

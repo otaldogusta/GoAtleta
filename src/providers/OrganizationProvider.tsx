@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -56,6 +57,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     Partial<Record<MemberPermissionKey, boolean>>
   >({});
   const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const hasLoadedOrganizationsRef = useRef(false);
+  const fetchControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -104,14 +107,25 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const fetchOrganizations = useCallback(async () => {
     if (!session?.access_token) {
+      fetchControllerRef.current?.abort();
+      fetchControllerRef.current = null;
       setOrganizations([]);
       setActiveOrgId(null);
+      hasLoadedOrganizationsRef.current = false;
       setIsLoading(false);
       return;
     }
 
-    try {
+    const isFirstLoad = !hasLoadedOrganizationsRef.current;
+    if (isFirstLoad) {
       setIsLoading(true);
+    }
+
+    fetchControllerRef.current?.abort();
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
+    try {
       const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_organizations`, {
         method: "POST",
         headers: {
@@ -119,6 +133,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
+        signal: controller.signal,
       });
 
       if (!res.ok) throw new Error("Failed to fetch organizations");
@@ -140,12 +155,20 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         await AsyncStorage.setItem(ACTIVE_ORG_KEY, selected);
         setActiveOrgId(selected);
       }
+      hasLoadedOrganizationsRef.current = true;
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
       console.error("OrganizationProvider fetch error:", err);
-      setOrganizations([]);
-      setActiveOrgId(null);
+      if (isFirstLoad) {
+        setOrganizations([]);
+        setActiveOrgId(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted && isFirstLoad) {
+        setIsLoading(false);
+      }
     }
   }, [session]);
 
@@ -185,6 +208,13 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     void fetchOrganizations();
   }, [fetchOrganizations]);
+
+  useEffect(() => {
+    return () => {
+      fetchControllerRef.current?.abort();
+      fetchControllerRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     void refreshMemberPermissions();

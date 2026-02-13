@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { AbsenceNotice, ClassGroup, Student } from "../src/core/models";
@@ -51,25 +51,37 @@ export default function AbsenceNoticesScreen() {
     [notices]
   );
 
-  const getStudentName = (id: string) =>
-    students.find((item) => item.id === id)?.name ?? "Aluno";
+  const studentsById = useMemo(
+    () => new Map(students.map((item) => [item.id, item] as const)),
+    [students]
+  );
 
-  const getClassLabel = (id: string) => {
-    const cls = classes.find((item) => item.id === id);
+  const classesById = useMemo(
+    () => new Map(classes.map((item) => [item.id, item] as const)),
+    [classes]
+  );
+
+  const getStudentName = useCallback(
+    (id: string) => studentsById.get(id)?.name ?? "Aluno",
+    [studentsById]
+  );
+
+  const getClassLabel = useCallback((id: string) => {
+    const cls = classesById.get(id);
     if (!cls) return "Turma";
     return cls.unit ? `${cls.unit} • ${cls.name}` : cls.name;
-  };
+  }, [classesById]);
 
-  const updateStatus = async (notice: AbsenceNotice, status: AbsenceNotice["status"]) => {
+  const updateStatus = useCallback(async (notice: AbsenceNotice, status: AbsenceNotice["status"]) => {
     await updateAbsenceNoticeStatus(notice.id, status);
     setNotices((prev) =>
       prev.map((item) => (item.id === notice.id ? { ...item, status } : item))
     );
-  };
+  }, []);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <View style={{ flex: 1, padding: 16, gap: 12 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
             Avisos de ausência
@@ -107,64 +119,70 @@ export default function AbsenceNoticesScreen() {
             </Text>
           </View>
         ) : (
-          pending.map((notice) => (
-            <View
-              key={notice.id}
-              style={{
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {getStudentName(notice.studentId)}
-              </Text>
-              <Text style={{ color: colors.muted }}>{getClassLabel(notice.classId)}</Text>
-              <Text style={{ color: colors.muted }}>
-                {formatDate(notice.date)} • {notice.reason}
-              </Text>
-              {notice.note ? (
-                <Text style={{ color: colors.text }}>{notice.note}</Text>
-              ) : null}
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  onPress={() => updateStatus(notice, "confirmed")}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 8,
-                    borderRadius: 10,
-                    backgroundColor: colors.primaryBg,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                    Confirmar
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => updateStatus(notice, "ignored")}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 8,
-                    borderRadius: 10,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    Ignorar
-                  </Text>
-                </Pressable>
+          <FlatList
+            data={pending}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+            renderItem={({ item: notice }) => (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 16,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {getStudentName(notice.studentId)}
+                </Text>
+                <Text style={{ color: colors.muted }}>{getClassLabel(notice.classId)}</Text>
+                <Text style={{ color: colors.muted }}>
+                  {formatDate(notice.date)} • {notice.reason}
+                </Text>
+                {notice.note ? (
+                  <Text style={{ color: colors.text }}>{notice.note}</Text>
+                ) : null}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => updateStatus(notice, "confirmed")}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      backgroundColor: colors.primaryBg,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                      Confirmar
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => updateStatus(notice, "ignored")}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      Ignorar
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          ))
+            )}
+          />
         )}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
