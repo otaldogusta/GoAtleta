@@ -2057,7 +2057,7 @@ export function HomeProfessorScreen({
             {isOrgAdmin ? (
             <Pressable
 
-              onPress={() => router.push({ pathname: "/reports" })}
+              onPress={() => router.push({ pathname: "/coordination" })}
 
               style={{
 
@@ -2095,13 +2095,13 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                Relatórios
+                Coordenação
 
               </Text>
 
               <Text style={{ color: colors.muted, marginTop: 6 }}>
 
-                Presença e dados
+                Dashboard e gerenciar membros
 
               </Text>
 

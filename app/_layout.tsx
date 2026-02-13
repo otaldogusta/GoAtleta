@@ -37,6 +37,7 @@ import { SaveToastProvider } from "../src/ui/save-toast";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 
 const trainerPermissionByPrefix = [
+  { prefix: "/coordination", permissionKey: "org_members" },
   { prefix: "/reports", permissionKey: "reports" },
   { prefix: "/events", permissionKey: "events" },
   { prefix: "/students", permissionKey: "students" },
@@ -103,6 +104,7 @@ function RootLayoutContent() {
     "/student-home",
   ];
   const trainerOnlyPrefixes = [
+    "/coordination",
     "/absence-notices",
     "/assistant",
     "/calendar",
