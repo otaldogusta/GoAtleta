@@ -151,7 +151,7 @@ const humanizeRpcError = (message: string) => {
   return message || "N\u00e3o foi poss\u00edvel concluir a a\u00e7\u00e3o.";
 };
 
-export default function OrgMembersScreen() {
+export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const profile = useEffectiveProfile();
   const { colors } = useAppTheme();
@@ -569,8 +569,10 @@ export default function OrgMembersScreen() {
     });
   };
 
+  const Container = embedded ? View : SafeAreaView;
+
 return (
-  <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+  <Container style={{ flex: 1, backgroundColor: colors.background }}>
     <ScrollView
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{
@@ -1447,6 +1449,10 @@ return (
           </ScrollView>
         ) : null}
       </ModalSheet>
-    </SafeAreaView>
+    </Container>
   );
+}
+
+export default function OrgMembersScreen() {
+  return <OrgMembersPanel />;
 }
