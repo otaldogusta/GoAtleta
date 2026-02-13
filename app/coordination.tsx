@@ -15,7 +15,7 @@ import {
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
-import { OrgMembersPanel } from "./org-members";
+import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 
 type CoordinationTab = "dashboard" | "members";
 

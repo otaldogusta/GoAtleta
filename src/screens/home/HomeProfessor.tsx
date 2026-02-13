@@ -1525,23 +1525,30 @@ export function HomeProfessorScreen({
                     >
                       <View
                         style={{
-                          padding: 10,
                           borderRadius: 14,
-                          backgroundColor: colors.card,
-                          borderWidth: 1,
-                          borderColor: isActive ? colors.primaryBg : colors.border,
-                          opacity: isPast ? 0.6 : 1,
+                          backgroundColor: "transparent",
                           ...(isActive
                             ? {
                                 shadowColor: colors.primaryBg,
-                                shadowOpacity: 0.55,
-                                shadowRadius: 14,
+                                shadowOpacity: 0.42,
+                                shadowRadius: 12,
                                 shadowOffset: { width: 0, height: 4 },
-                                elevation: 10,
+                                elevation: 8,
                               }
                             : null),
                         }}
                       >
+                        <View
+                          style={{
+                            padding: 10,
+                            borderRadius: 14,
+                            backgroundColor: colors.card,
+                            borderWidth: 1,
+                            borderColor: isActive ? colors.primaryBg : colors.border,
+                            opacity: isPast ? 0.6 : 1,
+                            overflow: "hidden",
+                          }}
+                        >
                         <View style={{ gap: 6 }}>
                           <View
                             style={{
@@ -1612,6 +1619,7 @@ export function HomeProfessorScreen({
                               {item.timeLabel}
                             </Text>
                           </View>
+                        </View>
                         </View>
                       </View>
                     </Pressable>
