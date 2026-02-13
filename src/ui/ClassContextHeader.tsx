@@ -1,4 +1,4 @@
-﻿import { Text, View } from "react-native";
+import { Text, View } from "react-native";
 import type { ClassGender } from "../core/models";
 import { useAppTheme } from "./app-theme";
 import { getClassPalette } from "./class-colors";
@@ -37,6 +37,8 @@ const tryJsonDecode = (value: string) => {
   }
 };
 
+const MOJIBAKE_REGEX = /[\u00c3\u00c2\ufffd]/;
+
 const normalizeText = (value: string) => {
   if (!value) return value;
   let current = String(value);
@@ -48,14 +50,14 @@ const normalizeText = (value: string) => {
   if (/\\u[0-9a-fA-F]{4}/.test(current) || /\\U[0-9a-fA-F]{8}/.test(current)) {
     current = decodeUnicodeEscapes(current);
   }
-  if (!/[ÃÂ�]/.test(current)) return current;
+  if (!MOJIBAKE_REGEX.test(current)) return current;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       current = decodeURIComponent(escape(current));
     } catch {
       break;
     }
-    if (!/[ÃÂ�]/.test(current)) break;
+    if (!MOJIBAKE_REGEX.test(current)) break;
   }
   return current;
 };
@@ -200,4 +202,3 @@ export function ClassContextHeader({
     </View>
   );
 }
-

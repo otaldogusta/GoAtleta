@@ -1,13 +1,13 @@
 export type SessionBlock = {
   title: string;
   time: string;
-  items: Array<{
+  items: {
     name: string;
     duration: string;
     reps: string;
     intensity: string;
     notes: string;
-  }>;
+  }[];
 };
 
 export type SessionPlanPdfData = {
@@ -68,7 +68,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         <table>
           <thead>
             <tr>
-              <th>Atividade / Exercício</th>
+              <th>Atividade / Exerc\u00edcio</th>
             </tr>
           </thead>
           <tbody>
@@ -161,7 +161,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           hasTitle
             ? `
         <div class="card">
-          <div class="label">T�tulo / Tema</div>
+          <div class="label">T\u00edtulo / Tema</div>
           <div class="value">${esc(data.title || "")}</div>
         </div>
         `
@@ -213,7 +213,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           ? `
         <div class="block">
           <div class="block-header">
-            <div class="block-title">Observações</div>
+            <div class="block-title">Observa\u00e7\u00f5es</div>
           </div>
           <div class="card prewrap">${esc(data.notes)}</div>
         </div>

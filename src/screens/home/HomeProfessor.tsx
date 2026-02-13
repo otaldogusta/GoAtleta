@@ -47,6 +47,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../../ui/Pressable";
 
 import { EventListItem, listUpcomingEvents } from "../../api/events";
+import { getMyProfilePhoto, setMyProfilePhoto } from "../../api/profile-photo";
+import { uploadMyProfilePhoto } from "../../api/profile-photo-storage";
 
 
 
@@ -120,7 +122,10 @@ export function HomeProfessorScreen({
 
   const { role } = useRole();
 
-  const { organizations, activeOrganization, setActiveOrganizationId } = useOrganization();
+  const {
+    activeOrganization,
+    isLoading: organizationLoading,
+  } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const [inbox, setInbox] = useState<AppNotification[]>([]);
@@ -140,6 +145,7 @@ export function HomeProfessorScreen({
   const [upcomingEvents, setUpcomingEvents] = useState<EventListItem[]>([]);
 
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [homeHydrated, setHomeHydrated] = useState(false);
 
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
 
@@ -204,6 +210,40 @@ export function HomeProfessorScreen({
 
   }, [now]);
 
+  const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
+
+  const resolveProfilePhoto = useCallback(async (): Promise<string | null> => {
+    if (role !== "trainer") return null;
+    try {
+      const remotePhoto = await getMyProfilePhoto();
+      if (remotePhoto) return remotePhoto;
+
+      const legacyPhoto = await AsyncStorage.getItem(LEGACY_PHOTO_STORAGE_KEY);
+      if (!legacyPhoto) return null;
+
+      if (Platform.OS === "web" && legacyPhoto.startsWith("blob:")) {
+        await AsyncStorage.removeItem(LEGACY_PHOTO_STORAGE_KEY);
+        return null;
+      }
+
+      const userId = session?.user?.id ?? "";
+      if (!userId) return legacyPhoto;
+
+      const migratedPhoto = legacyPhoto.startsWith("http")
+        ? legacyPhoto
+        : await uploadMyProfilePhoto({
+            userId,
+            uri: legacyPhoto,
+            contentType: "image/jpeg",
+          });
+      await setMyProfilePhoto(migratedPhoto);
+      await AsyncStorage.removeItem(LEGACY_PHOTO_STORAGE_KEY);
+      return migratedPhoto;
+    } catch {
+      return null;
+    }
+  }, [role, session?.user?.id]);
+
 
 
   useEffect(() => {
@@ -211,16 +251,35 @@ export function HomeProfessorScreen({
     let alive = true;
 
     (async () => {
+      try {
+        const items = await getNotifications();
+        if (alive) setInbox(items);
+      } catch {
+        if (alive) setInbox([]);
+      }
 
-      const items = await getNotifications();
+      if (!session || role !== "trainer") {
+        if (alive) {
+          setLoadingClasses(false);
+          setLoadingEvents(false);
+          setHomeHydrated(true);
+        }
+        return;
+      }
 
-      if (alive) setInbox(items);
-
-      if (!session || role !== "trainer") return;
+      if (organizationLoading) {
+        if (alive) {
+          setLoadingClasses(true);
+          setLoadingEvents(true);
+          setHomeHydrated(false);
+        }
+        return;
+      }
 
       if (alive) {
         setLoadingClasses(true);
         setLoadingEvents(true);
+        setHomeHydrated(false);
         setClasses([]);
         setUpcomingEvents([]);
         setManualIndex(null);
@@ -237,7 +296,7 @@ export function HomeProfessorScreen({
 
         const organizationId = activeOrganization?.id ?? null;
 
-        const [classList, eventsList] = await Promise.all([
+        const [classListResult, eventsListResult] = await Promise.allSettled([
           getClasses({ organizationId }),
           organizationId
             ? listUpcomingEvents({
@@ -249,8 +308,8 @@ export function HomeProfessorScreen({
         ]);
 
         if (alive) {
-          setClasses(classList);
-          setUpcomingEvents(eventsList);
+          setClasses(classListResult.status === "fulfilled" ? classListResult.value : []);
+          setUpcomingEvents(eventsListResult.status === "fulfilled" ? eventsListResult.value : []);
           setAgendaRefreshToken((value) => value + 1);
         }
 
@@ -258,36 +317,15 @@ export function HomeProfessorScreen({
 
         if (alive) setLoadingClasses(false);
         if (alive) setLoadingEvents(false);
+        if (alive) setHomeHydrated(true);
 
       }
 
     })();
 
-    (async () => {
-
-      try {
-
-        const stored = await AsyncStorage.getItem("profile_photo_uri_v1");
-
-        if (!alive) return;
-
-        if (Platform.OS === "web" && stored.startsWith("blob:")) {
-
-          setProfilePhotoUri(null);
-
-        } else {
-
-          setProfilePhotoUri(stored || null);
-
-        }
-
-      } catch {
-
-        if (alive) setProfilePhotoUri(null);
-
-      }
-
-    })();
+    void resolveProfilePhoto().then((uri) => {
+      if (alive) setProfilePhotoUri(uri);
+    });
 
     const unsubscribe = subscribeNotifications((items) => {
 
@@ -305,7 +343,7 @@ export function HomeProfessorScreen({
 
     };
 
-  }, [session, role, activeOrganization?.id]);
+  }, [session, role, activeOrganization?.id, organizationLoading, resolveProfilePhoto]);
 
 
 
@@ -315,31 +353,9 @@ export function HomeProfessorScreen({
 
       let active = true;
 
-      (async () => {
-
-        try {
-
-          const stored = await AsyncStorage.getItem("profile_photo_uri_v1");
-
-          if (!active) return;
-
-          if (Platform.OS === "web" && stored.startsWith("blob:")) {
-
-            setProfilePhotoUri(null);
-
-            return;
-
-          }
-
-          setProfilePhotoUri(stored || null);
-
-        } catch {
-
-          if (active) setProfilePhotoUri(null);
-
-        }
-
-      })();
+      void resolveProfilePhoto().then((uri) => {
+        if (active) setProfilePhotoUri(uri);
+      });
 
       return () => {
 
@@ -347,7 +363,7 @@ export function HomeProfessorScreen({
 
       };
 
-    }, [])
+    }, [resolveProfilePhoto])
 
   );
 
@@ -1094,31 +1110,17 @@ export function HomeProfessorScreen({
 
   const refreshHomeData = useCallback(async () => {
 
-    const tasks: Promise<unknown>[] = [getNotifications().then(setInbox)];
+    const tasks: Promise<unknown>[] = [
+      getNotifications().then(setInbox).catch(() => setInbox([])),
+    ];
 
     tasks.push(
-
-      AsyncStorage.getItem("profile_photo_uri_v1")
-
-        .then((value) => {
-
-          if (Platform.OS === "web" && value.startsWith("blob:")) {
-
-            setProfilePhotoUri(null);
-
-            return;
-
-          }
-
-          setProfilePhotoUri(value || null);
-
-        })
-
+      resolveProfilePhoto()
+        .then(setProfilePhotoUri)
         .catch(() => setProfilePhotoUri(null))
-
     );
 
-    if (session && role === "trainer") {
+    if (session && role === "trainer" && !organizationLoading) {
 
       setLoadingClasses(true);
       setLoadingEvents(true);
@@ -1132,6 +1134,7 @@ export function HomeProfessorScreen({
           )
 
           .then(setClasses)
+          .catch(() => setClasses([]))
 
           .finally(() => setLoadingClasses(false))
 
@@ -1147,18 +1150,25 @@ export function HomeProfessorScreen({
           : Promise.resolve([] as EventListItem[])
         )
           .then(setUpcomingEvents)
+          .catch(() => setUpcomingEvents([]))
           .finally(() => setLoadingEvents(false))
       );
 
-      tasks.push(getPendingWritesCount().then(setPendingWrites));
+      tasks.push(getPendingWritesCount().then(setPendingWrites).catch(() => setPendingWrites(0)));
 
+    } else if (organizationLoading) {
+      setLoadingClasses(true);
+      setLoadingEvents(true);
+    } else {
+      setLoadingClasses(false);
+      setLoadingEvents(false);
     }
 
-    await Promise.all(tasks);
+    await Promise.allSettled(tasks);
 
     setNow(new Date());
 
-  }, [role, session, activeOrganization?.id]);
+  }, [role, session, activeOrganization?.id, organizationLoading, resolveProfilePhoto]);
 
 
 
@@ -1216,26 +1226,142 @@ export function HomeProfessorScreen({
 
   };
 
-  const handleOrganizationChange = useCallback(
-    (orgId: string) => {
-      if (activeOrganization?.id === orgId) return;
-      setLoadingClasses(true);
-      setLoadingEvents(true);
-      setClasses([]);
-      setUpcomingEvents([]);
-      setManualIndex(null);
-      didInitialAgendaScroll.current = false;
-      if (agendaScrollEndTimer.current) {
-        clearTimeout(agendaScrollEndTimer.current);
-        agendaScrollEndTimer.current = null;
-      }
-      setAgendaRefreshToken((value) => value + 1);
-      void setActiveOrganizationId(orgId);
-    },
-    [activeOrganization?.id, setActiveOrganizationId]
-  );
+  const showHomePageShimmer = !homeHydrated && !refreshing;
 
+  if (showHomePageShimmer) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 14 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            Platform.OS === "web"
+              ? undefined
+              : <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 14,
+            }}
+          >
+            <View style={{ gap: 8 }}>
+              <ShimmerBlock style={{ width: 140, height: 36, borderRadius: 10 }} />
+              <ShimmerBlock style={{ width: 210, height: 20, borderRadius: 8 }} />
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <ShimmerBlock style={{ width: 54, height: 44, borderRadius: 999 }} />
+              <ShimmerBlock style={{ width: 56, height: 56, borderRadius: 999 }} />
+            </View>
+          </View>
 
+          {adminHeader ? (
+            <View
+              style={{
+                padding: 16,
+                borderRadius: 20,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 10,
+              }}
+            >
+              <ShimmerBlock style={{ width: 180, height: 22, borderRadius: 8 }} />
+              <ShimmerBlock style={{ width: "56%", height: 16, borderRadius: 8 }} />
+              <ShimmerBlock style={{ height: 14, borderRadius: 8 }} />
+              <ShimmerBlock style={{ height: 14, borderRadius: 8 }} />
+              <ShimmerBlock style={{ height: 14, borderRadius: 8 }} />
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 2 }}>
+                <ShimmerBlock style={{ width: 180, height: 44, borderRadius: 999 }} />
+                <ShimmerBlock style={{ width: 200, height: 44, borderRadius: 999 }} />
+              </View>
+            </View>
+          ) : null}
+
+          <View
+            style={{
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              gap: 10,
+            }}
+          >
+            <ShimmerBlock style={{ width: 220, height: 28, borderRadius: 8 }} />
+            <ShimmerBlock style={{ width: "70%", height: 18, borderRadius: 8 }} />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <ShimmerBlock style={{ width: 160, height: 44, borderRadius: 999 }} />
+              <ShimmerBlock style={{ width: 170, height: 44, borderRadius: 999 }} />
+            </View>
+          </View>
+
+          <View
+            style={{
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              gap: 12,
+            }}
+          >
+            <ShimmerBlock style={{ width: 170, height: 24, borderRadius: 8 }} />
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <ShimmerBlock style={{ flex: 1, height: 92, borderRadius: 14 }} />
+                <ShimmerBlock style={{ flex: 1, height: 92, borderRadius: 14 }} />
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <ShimmerBlock style={{ flex: 1, height: 42, borderRadius: 999 }} />
+              <ShimmerBlock style={{ flex: 1, height: 42, borderRadius: 999 }} />
+              <ShimmerBlock style={{ flex: 1, height: 42, borderRadius: 999 }} />
+            </View>
+          </View>
+
+          <View
+            style={{
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              gap: 10,
+            }}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <ShimmerBlock style={{ width: 170, height: 24, borderRadius: 8 }} />
+              <ShimmerBlock style={{ width: 72, height: 16, borderRadius: 8 }} />
+            </View>
+            <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
+            <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
+          </View>
+
+          <View style={{ gap: 10 }}>
+            <ShimmerBlock style={{ width: 120, height: 22, borderRadius: 8 }} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
+              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
+              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
+              <ShimmerBlock style={{ flexBasis: "48%", height: 112, borderRadius: 18 }} />
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
 
@@ -1465,124 +1591,6 @@ export function HomeProfessorScreen({
 
         {adminHeader ? adminHeader : null}
 
-        { organizations.length > 1 ? (
-
-          <View
-
-            style={{
-
-              padding: 14,
-
-              borderRadius: 18,
-
-              backgroundColor: colors.card,
-
-              borderWidth: 1,
-
-              borderColor: colors.border,
-
-              overflow: "hidden",
-
-              gap: 8,
-
-            }}
-
-          >
-
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-
-              {activeOrganization?.name || "Selecione uma organização"}
-
-            </Text>
-
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-              Você tem acesso a {organizations.length} workspace(s). Toque para alternar.
-
-            </Text>
-
-            <ScrollView
-
-              horizontal
-
-              showsHorizontalScrollIndicator={false}
-
-              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-
-            >
-
-              {organizations.map((org) => (
-
-                <Pressable
-
-                  key={org.id}
-
-                  onPress={() => handleOrganizationChange(org.id)}
-
-                  style={{
-
-                    paddingVertical: 8,
-
-                    paddingHorizontal: 14,
-
-                    borderRadius: 999,
-
-                    backgroundColor:
-
-                      activeOrganization?.id === org.id
-
-                        ? colors.primaryBg
-
-                        : colors.secondaryBg,
-
-                    borderWidth: 1,
-
-                    borderColor:
-
-                      activeOrganization?.id === org.id
-
-                        ? colors.primary
-
-                        : colors.border,
-
-                  }}
-
-                >
-
-                  <Text
-
-                    style={{
-
-                      color:
-
-                        activeOrganization?.id === org.id
-
-                          ? colors.primaryText
-
-                          : colors.text,
-
-                      fontSize: 13,
-
-                      fontWeight: activeOrganization?.id === org.id ? "700" : "500",
-
-                    }}
-
-                  >
-
-                    {org.name}
-
-                  </Text>
-
-                </Pressable>
-
-              ))}
-
-            </ScrollView>
-
-          </View>
-
-        ) : null}
-
         { pendingWrites > 0 ? (
 
           <View
@@ -1707,18 +1715,12 @@ export function HomeProfessorScreen({
               fadeWidth={8}
               contentContainerStyle={{ paddingRight: agendaCardGap }}
             >
-              { loadingClasses ? (
-                Array.from({ length: 3 }).map((_, index) => (
-                  <ShimmerBlock
-                    key={`agenda-shimmer-${index}`}
-                    style={{
-                      width: agendaCardWidth,
-                      height: 86,
-                      borderRadius: 14,
-                      marginRight: index === 2 ? 0 : agendaCardGap,
-                    }}
-                  />
-                ))
+              { loadingClasses && scheduleWindow.length === 0 ? (
+                <View style={{ paddingVertical: 6 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Carregando agenda...
+                  </Text>
+                </View>
               ) : scheduleWindow.length === 0 ? (
                 <View style={{ paddingVertical: 6 }}>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -1958,11 +1960,10 @@ export function HomeProfessorScreen({
               </Text>
             </Pressable>
           </View>
-          {loadingEvents ? (
-            <View style={{ gap: 8 }}>
-              <ShimmerBlock style={{ height: 58, borderRadius: 12 }} />
-              <ShimmerBlock style={{ height: 58, borderRadius: 12 }} />
-            </View>
+          {loadingEvents && upcomingEvents.length === 0 ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Carregando eventos...
+            </Text>
           ) : upcomingEvents.length === 0 ? (
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               Nenhum evento cadastrado para os próximos dias.

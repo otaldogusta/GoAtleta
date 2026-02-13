@@ -10,7 +10,6 @@ import {
 } from "../../api/reports";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
-import { ShimmerBlock } from "../../ui/Shimmer";
 import { useAppTheme } from "../../ui/app-theme";
 import { HomeProfessorScreen } from "./HomeProfessor";
 
@@ -60,7 +59,7 @@ function CoordinationSummaryCard() {
   const summaryValues = useMemo(
     () => [
       { label: "Chamada pendente", value: counts.pendingAttendance },
-      { label: "Relatórios pendentes", value: counts.pendingReports },
+      { label: "Relat\u00f3rios pendentes", value: counts.pendingReports },
       { label: "Atividade (7d)", value: counts.recentActivity },
     ],
     [counts.pendingAttendance, counts.pendingReports, counts.recentActivity]
@@ -77,60 +76,80 @@ function CoordinationSummaryCard() {
         gap: 10,
       }}
     >
-      <View style={{ gap: 2 }}>
-        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
-          Coordenação
-        </Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-          Visão rápida das pendências da organização.
-        </Text>
-      </View>
-
       {loading ? (
         <View style={{ gap: 8 }}>
-          <ShimmerBlock style={{ height: 16, borderRadius: 8 }} />
-          <ShimmerBlock style={{ height: 16, borderRadius: 8 }} />
-          <ShimmerBlock style={{ height: 16, borderRadius: 8 }} />
+          <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
+            Coordena\u00e7\u00e3o
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Carregando indicadores da organiza\u00e7\u00e3o...
+          </Text>
         </View>
       ) : (
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          {summaryValues.map((item) => (
-            <View
-              key={item.label}
-              style={{
-                minWidth: 128,
-                flexGrow: 1,
-                padding: 10,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                gap: 2,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                {item.value}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
-            </View>
-          ))}
+        <View style={{ gap: 10 }}>
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
+              Coordena\u00e7\u00e3o
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Vis\u00e3o r\u00e1pida das pend\u00eancias da organiza\u00e7\u00e3o.
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            {summaryValues.map((item) => (
+              <View
+                key={item.label}
+                style={{
+                  minWidth: 128,
+                  flexGrow: 1,
+                  padding: 10,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  gap: 2,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
+                  {item.value}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Pressable
+            onPress={() => router.push({ pathname: "/reports" })}
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Abrir dashboard</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push({ pathname: "/org-members" })}
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Gerenciar membros</Text>
+          </Pressable>
         </View>
       )}
-
-      <Pressable
-        onPress={() => router.push({ pathname: "/reports" })}
-        style={{
-          alignSelf: "flex-start",
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          borderRadius: 999,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.secondaryBg,
-        }}
-      >
-        <Text style={{ color: colors.text, fontWeight: "700" }}>Abrir dashboard</Text>
-      </Pressable>
     </View>
   );
 }

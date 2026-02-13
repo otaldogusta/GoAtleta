@@ -52,11 +52,24 @@ const requestWithToken = async (
   });
 };
 
+const waitForAccessToken = async (): Promise<string> => {
+  let token = await getValidAccessToken();
+  if (token) return token;
+
+  // Handles startup/login races where session persistence completes moments later.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    token = await getValidAccessToken();
+    if (token) return token;
+  }
+  return "";
+};
+
 export const supabaseRestRequest = async <T>(
   path: string,
   options: RestRequestOptions = {}
 ): Promise<T> => {
-  const token = await getValidAccessToken();
+  const token = await waitForAccessToken();
   if (!token) {
     throw new Error("Missing auth token");
   }

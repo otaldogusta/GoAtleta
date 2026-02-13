@@ -38,6 +38,10 @@ import {
     saveStudent,
     updateStudent,
 } from "../../src/db/seed";
+import {
+    removeStudentPhotoObject,
+    uploadStudentPhoto,
+} from "../../src/api/student-photo-storage";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
@@ -174,6 +178,7 @@ export default function StudentsScreen() {
   const [customAgeBand, setCustomAgeBand] = useState("");
   const [name, setName] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoMimeType, setPhotoMimeType] = useState<string | null>(null);
   const [birthDate, setBirthDate] = useState("");
   const [ageNumber, setAgeNumber] = useState<number | null>(null);
   const [phone, setPhone] = useState("");
@@ -601,26 +606,11 @@ export default function StudentsScreen() {
     setAgeNumber(calculateAge(birthDate));
   }, [birthDate]);
 
-  const buildPhotoDataUrl = async (asset: ImagePicker.ImagePickerAsset) => {
-    if (asset.base64) {
-      const mime = asset.mimeType ?? "image/jpeg";
-      return `data:${mime};base64,${asset.base64}`;
-    }
-    if (Platform.OS !== "web") return asset.uri;
-    const response = await fetch(asset.uri);
-    const blob = await response.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  };
-
   const pickStudentPhoto = async (source: "camera" | "library" | "remove") => {
     try {
       if (source === "remove") {
         setPhotoUrl(null);
+        setPhotoMimeType(null);
         return;
       }
       if (Platform.OS === "web" && source === "camera") {
@@ -635,15 +625,15 @@ export default function StudentsScreen() {
         }
         const result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.8,
+          quality: 0.65,
           allowsEditing: true,
           aspect: [1, 1],
-          base64: true,
+          base64: false,
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset?.uri) {
-          const nextUrl = await buildPhotoDataUrl(asset);
-          setPhotoUrl(nextUrl);
+          setPhotoUrl(asset.uri);
+          setPhotoMimeType(asset.mimeType ?? null);
         }
         return;
       }
@@ -654,15 +644,15 @@ export default function StudentsScreen() {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
+        quality: 0.65,
         allowsEditing: true,
         aspect: [1, 1],
-        base64: true,
+        base64: false,
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset?.uri) {
-        const nextUrl = await buildPhotoDataUrl(asset);
-        setPhotoUrl(nextUrl);
+        setPhotoUrl(asset.uri);
+        setPhotoMimeType(asset.mimeType ?? null);
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -699,46 +689,73 @@ export default function StudentsScreen() {
       return false;
     }
     const nowIso = new Date().toISOString();
+    const studentId = editingId ? editingId : "s_" + Date.now();
     const resolvedOrganizationId =
       classes.find((item) => item.id === classId)?.organizationId ??
       activeOrganization?.id ??
       "";
-    const student: Student = {
-      id: editingId ? editingId : "s_" + Date.now(),
-      name: name.trim(),
-      organizationId: resolvedOrganizationId,
-      photoUrl: photoUrl || undefined,
-      classId,
-      age: resolvedAge,
-      phone: phone.trim(),
-      loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : undefined,
-      guardianName: guardianName.trim(),
-      guardianPhone: guardianPhone.trim(),
-      guardianRelation: guardianRelation.trim(),
-      healthIssue,
-      healthIssueNotes: healthIssue ? healthIssueNotes.trim() : "",
-      medicationUse,
-      medicationNotes: medicationUse ? medicationNotes.trim() : "",
-      healthObservations: healthObservations.trim(),
-      birthDate: birthDate || undefined,
-      createdAt: editingCreatedAt ? editingCreatedAt : nowIso,
-      updatedAt: nowIso,
-    };
 
-    if (editingId) {
-      await measure("updateStudent", () => updateStudent(student));
-    } else {
-      await measure("saveStudent", () => saveStudent(student));
+    try {
+      let resolvedPhotoUrl: string | undefined = photoUrl || undefined;
+      const isRemotePhoto = /^https?:\/\//i.test(photoUrl ?? "");
+
+      if (photoUrl && !isRemotePhoto) {
+        resolvedPhotoUrl = await uploadStudentPhoto({
+          organizationId: resolvedOrganizationId,
+          studentId,
+          uri: photoUrl,
+          contentType: photoMimeType,
+        });
+      }
+
+      if (!photoUrl && editingId && editSnapshot?.photoUrl) {
+        await removeStudentPhotoObject({
+          organizationId: resolvedOrganizationId,
+          studentId,
+        });
+      }
+
+      const student: Student = {
+        id: studentId,
+        name: name.trim(),
+        organizationId: resolvedOrganizationId,
+        photoUrl: resolvedPhotoUrl || undefined,
+        classId,
+        age: resolvedAge,
+        phone: phone.trim(),
+        loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : undefined,
+        guardianName: guardianName.trim(),
+        guardianPhone: guardianPhone.trim(),
+        guardianRelation: guardianRelation.trim(),
+        healthIssue,
+        healthIssueNotes: healthIssue ? healthIssueNotes.trim() : "",
+        medicationUse,
+        medicationNotes: medicationUse ? medicationNotes.trim() : "",
+        healthObservations: healthObservations.trim(),
+        birthDate: birthDate || undefined,
+        createdAt: editingCreatedAt ? editingCreatedAt : nowIso,
+        updatedAt: nowIso,
+      };
+
+      if (editingId) {
+        await measure("updateStudent", () => updateStudent(student));
+      } else {
+        await measure("saveStudent", () => saveStudent(student));
+      }
+      logAction(wasEditing ? "Editar aluno" : "Cadastrar aluno", {
+        studentId: student.id,
+        classId,
+      });
+
+      resetForm();
+      await reload();
+      showSaveNotice(wasEditing ? "Alterações salvas." : "Aluno cadastrado.");
+      return true;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Erro ao salvar aluno.";
+      setStudentFormError(detail);
+      return false;
     }
-    logAction(wasEditing ? "Editar aluno" : "Cadastrar aluno", {
-      studentId: student.id,
-      classId,
-    });
-
-    resetForm();
-    await reload();
-    showSaveNotice(wasEditing ? "Alterações salvas." : "Aluno cadastrado.");
-    return true;
   };
 
   const isFormDirty =
@@ -815,6 +832,7 @@ export default function StudentsScreen() {
     setEditingCreatedAt(null);
     setName("");
     setPhotoUrl(null);
+    setPhotoMimeType(null);
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
@@ -846,6 +864,7 @@ export default function StudentsScreen() {
     setStudentFormError("");
     setName("");
     setPhotoUrl(null);
+    setPhotoMimeType(null);
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
@@ -964,6 +983,7 @@ export default function StudentsScreen() {
         setEditingCreatedAt(student.createdAt);
         setName(safeText(student.name));
         setPhotoUrl(student.photoUrl ?? null);
+        setPhotoMimeType(null);
         setEditSnapshot({
           unit: nextUnit,
           ageBand: nextAgeBand,

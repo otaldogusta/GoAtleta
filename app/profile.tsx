@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -14,7 +14,17 @@ import { useAuth } from "../src/auth/auth";
 
 import { useRole } from "../src/auth/role";
 
+import { getMyProfilePhoto, setMyProfilePhoto } from "../src/api/profile-photo";
+import {
+  removeMyProfilePhotoObject,
+  uploadMyProfilePhoto,
+} from "../src/api/profile-photo-storage";
+import {
+  removeStudentPhotoObject,
+  uploadStudentPhoto,
+} from "../src/api/student-photo-storage";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
+import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
@@ -27,8 +37,9 @@ export default function ProfileScreen() {
   const { colors } = useAppTheme();
   const { signOut, session } = useAuth();
   const { student, refresh: refreshRole } = useRole();
+  const { organizations, activeOrganization, setActiveOrganizationId } = useOrganization();
   const router = useRouter();
-  const PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
+  const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingPhoto, setLoadingPhoto] = useState(true);
@@ -69,14 +80,39 @@ export default function ProfileScreen() {
         return;
       }
       try {
-        const stored = await AsyncStorage.getItem(PHOTO_STORAGE_KEY);
+        const remotePhoto = await getMyProfilePhoto();
         if (!alive) return;
-        if (Platform.OS === "web" && stored.startsWith("blob:")) {
-          await AsyncStorage.removeItem(PHOTO_STORAGE_KEY);
+        if (remotePhoto) {
+          setPhotoUri(remotePhoto);
+          return;
+        }
+
+        const stored = await AsyncStorage.getItem(LEGACY_PHOTO_STORAGE_KEY);
+        if (!alive) return;
+        if (Platform.OS === "web" && stored?.startsWith("blob:")) {
+          await AsyncStorage.removeItem(LEGACY_PHOTO_STORAGE_KEY);
           setPhotoUri(null);
           return;
         }
-        setPhotoUri(stored || null);
+        if (stored) {
+          const userId = session?.user?.id ?? "";
+          if (userId) {
+            const migratedPhoto = stored.startsWith("http")
+              ? stored
+              : await uploadMyProfilePhoto({
+                  userId,
+                  uri: stored,
+                  contentType: "image/jpeg",
+                });
+            await setMyProfilePhoto(migratedPhoto);
+            await AsyncStorage.removeItem(LEGACY_PHOTO_STORAGE_KEY);
+            setPhotoUri(migratedPhoto);
+            return;
+          }
+          setPhotoUri(stored);
+          return;
+        }
+        setPhotoUri(null);
       } catch (error) {
         console.error("Failed to load profile photo", error);
       } finally {
@@ -86,9 +122,10 @@ export default function ProfileScreen() {
     return () => {
       alive = false;
     };
-  }, [student]);
+  }, [session?.user?.id, student]);
 
   const loadingProfile = loadingClasses || loadingPhoto;
+  const showWorkspaceSwitcher = !student && organizations.length > 1;
 
   const currentClass = useMemo(() => {
     if (!student || !student.classId) return null;
@@ -121,7 +158,7 @@ export default function ProfileScreen() {
 
       const years = Math.max(1, Math.floor(diffDays / 365));
 
-      return years == 1 ? "1 ano" : `${years} anos`;
+      return years === 1 ? "1 ano" : `${years} anos`;
 
     }
 
@@ -129,72 +166,97 @@ export default function ProfileScreen() {
 
       const months = Math.max(1, Math.floor(diffDays / 30));
 
-      return months == 1 ? "1 mês" : `${months} meses`;
+      return months === 1 ? "1 m\u00eas" : `${months} meses`;
 
     }
     return diffDays <= 1 ? "Hoje" : `${diffDays} dias`;
   }, [session?.user?.created_at, student?.createdAt]);
 
+  const handleOrganizationChange = useCallback(
+    async (orgId: string) => {
+      if (activeOrganization?.id === orgId) return;
+      try {
+        await setActiveOrganizationId(orgId);
+      } catch (error) {
+        console.error("Failed to change active organization", error);
+        Alert.alert("Erro", "N\u00e3o foi poss\u00edvel trocar de workspace.");
+      }
+    },
+    [activeOrganization?.id, setActiveOrganizationId]
+  );
+
   const savePhoto = async (uri: string | null) => {
+    const previousPhotoUri = photoUri;
     setPhotoUri(uri);
     if (student?.id) {
       try {
+        if (!uri) {
+          await removeStudentPhotoObject({
+            organizationId: student.organizationId ?? "",
+            studentId: student.id,
+          });
+        }
         await updateStudentPhoto(student.id, uri);
         await refreshRole();
       } catch (error) {
         console.error("Failed to update student photo", error);
-        Alert.alert("Erro", "Nao foi possivel salvar a foto.");
+        Alert.alert("Erro", "N\u00e3o foi poss\u00edvel salvar a foto.");
       }
       return;
     }
     try {
-      if (uri) {
-        await AsyncStorage.setItem(PHOTO_STORAGE_KEY, uri);
-      } else {
-        await AsyncStorage.removeItem(PHOTO_STORAGE_KEY);
+      if (!uri && session?.user?.id) {
+        await removeMyProfilePhotoObject(session.user.id);
       }
+      await setMyProfilePhoto(uri);
+      await AsyncStorage.removeItem(LEGACY_PHOTO_STORAGE_KEY);
     } catch (error) {
+      setPhotoUri(previousPhotoUri);
       console.error("Failed to persist profile photo", error);
+      Alert.alert("Erro", "N\u00e3o foi poss\u00edvel salvar a foto.");
     }
-  };
-
-  const buildPhotoDataUrl = async (asset: ImagePicker.ImagePickerAsset) => {
-    if (asset.base64) {
-      const mime = asset.mimeType ?? "image/jpeg";
-      return `data:${mime};base64,${asset.base64}`;
-    }
-    const response = await fetch(asset.uri);
-    const blob = await response.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
   };
 
   const pickPhoto = async (source: "camera" | "library") => {
     try {
+      const currentUserId = session?.user?.id ?? "";
       if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("Câmera indisponível", "Use a Galeria no navegador.");
+        Alert.alert("C\u00e2mera indispon\u00edvel", "Use a Galeria no navegador.");
         return;
       }
       if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
+          Alert.alert("Permiss\u00e3o necess\u00e1ria", "Ative a c\u00e2mera para tirar a foto.");
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.8,
+          quality: student?.id ? 0.7 : 0.6,
           allowsEditing: true,
           aspect: [1, 1],
-          base64: true,
+          base64: false,
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset.uri) {
-          const uri = await buildPhotoDataUrl(asset);
+          const uri = student?.id
+            ? await uploadStudentPhoto({
+                organizationId: student.organizationId ?? "",
+                studentId: student.id,
+                uri: asset.uri,
+                contentType: asset.mimeType,
+              })
+            : currentUserId
+              ? await uploadMyProfilePhoto({
+                  userId: currentUserId,
+                  uri: asset.uri,
+                  contentType: asset.mimeType,
+                })
+              : null;
+          if (!uri && !student?.id) {
+            Alert.alert("Erro", "Sua sess\u00e3o expirou. Entre novamente.");
+            return;
+          }
           await savePhoto(uri);
         }
         return;
@@ -203,26 +265,43 @@ export default function ProfileScreen() {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
         Alert.alert(
-          "Permissão necessária",
+          "Permiss\u00e3o necess\u00e1ria",
           "Ative a galeria para escolher uma foto."
         );
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
+        quality: student?.id ? 0.7 : 0.6,
         allowsEditing: true,
         aspect: [1, 1],
-        base64: true,
+        base64: false,
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset.uri) {
-        const uri = await buildPhotoDataUrl(asset);
+        const uri = student?.id
+          ? await uploadStudentPhoto({
+              organizationId: student.organizationId ?? "",
+              studentId: student.id,
+              uri: asset.uri,
+              contentType: asset.mimeType,
+            })
+          : currentUserId
+            ? await uploadMyProfilePhoto({
+                userId: currentUserId,
+                uri: asset.uri,
+                contentType: asset.mimeType,
+              })
+            : null;
+        if (!uri && !student?.id) {
+          Alert.alert("Erro", "Sua sess\u00e3o expirou. Entre novamente.");
+          return;
+        }
         await savePhoto(uri);
       }
     } catch (error) {
       console.error("Failed to pick profile photo", error);
-      Alert.alert("Erro", "Não foi possível selecionar a foto.");
+      Alert.alert("Erro", "N\u00e3o foi poss\u00edvel selecionar a foto.");
     } finally {
       setShowPhotoSheet(false);
     }
@@ -383,6 +462,64 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {!loadingProfile && showWorkspaceSwitcher ? (
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+              Workspace(s)
+            </Text>
+            <View
+              style={{
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 8,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                {activeOrganization?.name || "Selecione um workspace"}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Voc\u00ea tem acesso a {organizations.length} workspace(s). Toque para alternar.
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+              >
+                {organizations.map((org) => {
+                  const isActive = activeOrganization?.id === org.id;
+                  return (
+                    <Pressable
+                      key={org.id}
+                      onPress={() => void handleOrganizationChange(org.id)}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        backgroundColor: isActive ? colors.primaryBg : colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: isActive ? "rgba(86, 214, 154, 0.45)" : colors.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isActive ? colors.primaryText : colors.text,
+                          fontSize: 13,
+                          fontWeight: isActive ? "700" : "500",
+                        }}
+                      >
+                        {org.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        ) : null}
+
         { loadingProfile ? (
           <>
             <ShimmerBlock style={{ width: 70, height: 12, borderRadius: 6 }} />
@@ -394,12 +531,12 @@ export default function ProfileScreen() {
           <>
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-                Configurações
+                Configura\u00e7\u00f5es
               </Text>
               <SettingsRow
                 icon="settings-outline"
                 iconBg="rgba(135, 120, 255, 0.14)"
-                label="Abrir configurações"
+                label="Abrir configura\u00e7\u00f5es"
                 onPress={() => router.push({ pathname: "/notifications" })}
               />
             </View>
@@ -532,7 +669,7 @@ export default function ProfileScreen() {
         </View>
         <View style={{ gap: 12 }}>
           {[
-            { label: "Câmera", icon: "camera-outline", value: "camera" },
+            { label: "C\u00e2mera", icon: "camera-outline", value: "camera" },
             { label: "Galeria", icon: "images-outline", value: "library" },
           ].map((item) => (
             <Pressable

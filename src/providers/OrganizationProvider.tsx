@@ -10,6 +10,10 @@ import {
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import {
+  getMyMemberPermissions,
+  type MemberPermissionKey,
+} from "../api/members";
+import {
   getDevProfilePreview,
   setDevProfilePreview as persistDevProfilePreview,
   type DevProfilePreview,
@@ -35,6 +39,9 @@ type OrganizationContextValue = {
   createOrganization: (name: string) => Promise<string>;
   devProfilePreview: DevProfilePreview;
   setDevProfilePreview: (preview: DevProfilePreview) => Promise<void>;
+  memberPermissions: Partial<Record<MemberPermissionKey, boolean>>;
+  permissionsLoading: boolean;
+  refreshMemberPermissions: () => Promise<void>;
 };
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
@@ -45,6 +52,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [activeOrganizationId, setActiveOrgId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [devProfilePreview, setDevProfilePreviewState] = useState<DevProfilePreview>("auto");
+  const [memberPermissions, setMemberPermissions] = useState<
+    Partial<Record<MemberPermissionKey, boolean>>
+  >({});
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -67,6 +78,29 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     setDevProfilePreviewState(preview);
     await persistDevProfilePreview(preview);
   }, []);
+
+  const refreshMemberPermissions = useCallback(async () => {
+    if (!session || !activeOrganizationId) {
+      setMemberPermissions({});
+      setPermissionsLoading(false);
+      return;
+    }
+
+    setPermissionsLoading(true);
+    try {
+      const rows = await getMyMemberPermissions(activeOrganizationId);
+      const mapped: Partial<Record<MemberPermissionKey, boolean>> = {};
+      rows.forEach((row) => {
+        mapped[row.permissionKey] = row.isAllowed;
+      });
+      setMemberPermissions(mapped);
+    } catch (err) {
+      console.error("OrganizationProvider permissions error:", err);
+      setMemberPermissions({});
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }, [activeOrganizationId, session]);
 
   const fetchOrganizations = useCallback(async () => {
     if (!session?.access_token) {
@@ -152,6 +186,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     void fetchOrganizations();
   }, [fetchOrganizations]);
 
+  useEffect(() => {
+    void refreshMemberPermissions();
+  }, [refreshMemberPermissions]);
+
   const activeOrganization = useMemo(() => {
     const org = organizations.find((o) => o.id === activeOrganizationId) ?? null;
     if (!org) return null;
@@ -176,6 +214,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       createOrganization,
       devProfilePreview,
       setDevProfilePreview,
+      memberPermissions,
+      permissionsLoading,
+      refreshMemberPermissions,
     }),
     [
       organizations,
@@ -187,6 +228,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       createOrganization,
       devProfilePreview,
       setDevProfilePreview,
+      memberPermissions,
+      permissionsLoading,
+      refreshMemberPermissions,
     ]
   );
 

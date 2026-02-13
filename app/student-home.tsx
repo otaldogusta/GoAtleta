@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
@@ -14,9 +14,11 @@ import {
     getNotifications,
     subscribeNotifications,
 } from "../src/notificationsInbox";
+import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Pressable } from "../src/ui/Pressable";
 import { ShimmerBlock } from "../src/ui/Shimmer";
+import { getUnitPalette } from "../src/ui/unit-colors";
 
 const parseTime = (value: string) => {
   if (!value) return null;
@@ -58,6 +60,10 @@ export default function StudentHome() {
   const [inbox, setInbox] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const profilePhotoUri = student?.photoUrl ?? null;
+  const [now, setNow] = useState(() => new Date());
+  const agendaScrollRef = useRef<ScrollView>(null);
+  const [agendaWidth, setAgendaWidth] = useState(0);
+  const [manualAgendaIndex, setManualAgendaIndex] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -84,72 +90,179 @@ export default function StudentHome() {
     };
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
 
   const todayLabel = useMemo(() => {
-    const date = new Date();
-    const label = date.toLocaleDateString("pt-BR", {
+    const label = now.toLocaleDateString("pt-BR", {
       weekday: "long",
       day: "2-digit",
       month: "long",
     });
     return label.charAt(0).toUpperCase() + label.slice(1);
-  }, []);
+  }, [now]);
 
-  const nextTarget = useMemo(() => {
-    if (!classes.length) return null;
-    const now = new Date();
-    const candidates: {
+  const nowTime = now.getTime();
+  const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
+
+  const scheduleWindow = useMemo(() => {
+    const items: {
       classId: string;
-      date: string;
-      time: number;
+      className: string;
+      unit: string;
+      dateKey: string;
+      dateLabel: string;
+      startTime: number;
+      endTime: number;
+      timeLabel: string;
     }[] = [];
+
     for (let offset = -1; offset <= 7; offset += 1) {
       const dayDate = new Date(now);
       dayDate.setDate(now.getDate() + offset);
       dayDate.setHours(0, 0, 0, 0);
       const dayIndex = dayDate.getDay();
+
       classes.forEach((cls) => {
         if (!cls.daysOfWeek.includes(dayIndex)) return;
         const time = parseTime(cls.startTime);
         if (!time) return;
-        const candidate = new Date(dayDate);
-        candidate.setHours(time.hour, time.minute, 0, 0);
-        candidates.push({
+
+        const start = new Date(dayDate);
+        start.setHours(time.hour, time.minute, 0, 0);
+
+        const duration = cls.durationMinutes ?? 60;
+        const end = new Date(start.getTime() + duration * 60000);
+
+        items.push({
           classId: cls.id,
-          date: formatIsoDate(candidate),
-          time: candidate.getTime(),
+          className: cls.name,
+          unit: cls.unit || 'Sem unidade',
+          dateKey: formatIsoDate(start),
+          dateLabel: formatShortDate(formatIsoDate(start)),
+          startTime: start.getTime(),
+          endTime: end.getTime(),
+          timeLabel: formatRange(time.hour, time.minute, duration),
         });
       });
     }
-    if (!candidates.length) return null;
-    const nowTime = now.getTime();
-    candidates.sort((a, b) => {
-      const diffA = Math.abs(a.time - nowTime);
-      const diffB = Math.abs(b.time - nowTime);
-      if (diffA !== diffB) return diffA - diffB;
-      return a.time - b.time;
-    });
-    return candidates[0];
-  }, [classes]);
 
-  const nextClass = useMemo(
-    () => (nextTarget ? classes.find((item) => item.id === nextTarget.classId) : null),
-    [classes, nextTarget]
+    return items.sort((a, b) => a.startTime - b.startTime);
+  }, [classes, now]);
+
+  const autoAgendaIndex = useMemo(() => {
+    if (!scheduleWindow.length) return null;
+
+    const current = scheduleWindow.find(
+      (item) => nowTime >= item.startTime && nowTime < item.endTime
+    );
+    if (current) return scheduleWindow.indexOf(current);
+
+    const next = scheduleWindow.find((item) => item.startTime > nowTime);
+    if (next) return scheduleWindow.indexOf(next);
+
+    return scheduleWindow.length - 1;
+  }, [nowTime, scheduleWindow]);
+
+  useEffect(() => {
+    if (manualAgendaIndex == null) return;
+    if (!scheduleWindow.length || manualAgendaIndex >= scheduleWindow.length) {
+      setManualAgendaIndex(null);
+    }
+  }, [manualAgendaIndex, scheduleWindow.length]);
+
+  const activeAgendaIndex = manualAgendaIndex ?? autoAgendaIndex;
+  const activeAgendaItem =
+    activeAgendaIndex !== null ? scheduleWindow[activeAgendaIndex] ?? null : null;
+
+  const agendaCardGap = 10;
+  const agendaCardWidth = useMemo(() => {
+    if (!agendaWidth) return 240;
+    return Math.round(Math.max(180, Math.min(agendaWidth * 0.72, 260)));
+  }, [agendaWidth]);
+
+  const agendaScrollStyle = useMemo(() => {
+    if (Platform.OS !== 'web') return undefined;
+    return { scrollSnapType: 'x mandatory', scrollBehavior: 'smooth' } as const;
+  }, []);
+
+  const agendaSnapOffsets = useMemo(() => {
+    if (!agendaWidth || !scheduleWindow.length) return undefined;
+    const size = agendaCardWidth + agendaCardGap;
+    return scheduleWindow.map((_, index) => index * size);
+  }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow]);
+
+  const getAgendaStatusLabel = useCallback(
+    (item: (typeof scheduleWindow)[number]) => {
+      if (item.dateKey === todayDateKey) {
+        if (nowTime >= item.startTime && nowTime < item.endTime) return 'Treino de hoje';
+        if (item.endTime <= nowTime) return 'Treino anterior';
+        return 'Próximo treino';
+      }
+      return item.dateKey < todayDateKey ? 'Treino anterior' : 'Próximo treino';
+    },
+    [nowTime, todayDateKey]
   );
 
-  const nextSummary = useMemo(() => {
-    if (!nextClass || !nextTarget) return null;
-    const time = parseTime(nextClass.startTime);
-    const timeLabel = time
-       ? formatRange(time.hour, time.minute, nextClass.durationMinutes ?? 60)
-      : nextClass.startTime;
-    return {
-      unit: nextClass.unit || "Sem unidade",
-      className: nextClass.name,
-      dateLabel: formatShortDate(nextTarget.date),
-      timeLabel,
-    };
-  }, [nextClass, nextTarget]);
+  const handleAgendaCardPress = useCallback(
+    (index: number) => {
+      setManualAgendaIndex(index);
+      const size = agendaCardWidth + agendaCardGap;
+      agendaScrollRef.current?.scrollTo({ x: index * size, animated: true });
+    },
+    [agendaCardGap, agendaCardWidth]
+  );
+
+  const handleAgendaScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!scheduleWindow.length) return;
+      const size = agendaCardWidth + agendaCardGap;
+      if (!size) return;
+      const offset = event.nativeEvent.contentOffset.x;
+      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
+      setManualAgendaIndex(index);
+    },
+    [agendaCardGap, agendaCardWidth, scheduleWindow.length]
+  );
+
+  useEffect(() => {
+    if (manualAgendaIndex != null) return;
+    if (autoAgendaIndex == null || !agendaWidth) return;
+    const size = agendaCardWidth + agendaCardGap;
+    requestAnimationFrame(() => {
+      agendaScrollRef.current?.scrollTo({ x: autoAgendaIndex * size, animated: false });
+    });
+  }, [agendaCardGap, agendaCardWidth, agendaWidth, autoAgendaIndex, manualAgendaIndex]);
+
+  useEffect(() => {
+    setManualAgendaIndex(null);
+  }, [classes.length]);
+
+  const canOpenDayPlan = Boolean(activeAgendaItem?.classId);
+
+  const openDayPlan = useCallback(() => {
+    if (!canOpenDayPlan) return;
+    const classId = activeAgendaItem?.classId ?? student.classId ?? "";
+    const date = activeAgendaItem?.dateKey ?? todayDateKey;
+    if (!classId) {
+      router.push({ pathname: "/student-plan" });
+      return;
+    }
+    router.push({
+      pathname: "/student-plan",
+      params: { classId, date },
+    });
+  }, [
+    activeAgendaItem?.classId,
+    activeAgendaItem?.dateKey,
+    canOpenDayPlan,
+    router,
+    student.classId,
+    todayDateKey,
+  ]);
 
   const recentNotifs = inbox.slice(0, 3);
   const unreadCount = inbox.filter((item) => !item.read).length;
@@ -182,7 +295,7 @@ export default function StudentHome() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View>
                 <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text }}>
-                  Ola{student.name ? `, ${student.name.split(" ")[0]}` : ""}
+                  Olá{student.name ? `, ${student.name.split(" ")[0]}` : ""}
                 </Text>
                 <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
                   {todayLabel}
@@ -310,23 +423,141 @@ export default function StudentHome() {
           }}
         >
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-            Próximo treino
+            Agenda do dia
           </Text>
-          { nextSummary ? (
-            <>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
-                {nextSummary.className}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {nextSummary.unit}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {nextSummary.dateLabel} • {nextSummary.timeLabel}
-              </Text>
-            </>
-          ) : (
-            <Text style={{ color: colors.muted }}>Nenhum treino encontrado.</Text>
-          )}
+          <View
+            onLayout={(event) => {
+              const width = event.nativeEvent.layout.width;
+              if (width && width !== agendaWidth) setAgendaWidth(width);
+            }}
+            style={{
+              padding: 12,
+              borderRadius: 14,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              overflow: "hidden",
+            }}
+          >
+            <FadeHorizontalScroll
+              ref={agendaScrollRef}
+              scrollEnabled={scheduleWindow.length > 1}
+              scrollStyle={agendaScrollStyle}
+              onMomentumScrollEnd={handleAgendaScrollEnd}
+              snapToOffsets={agendaSnapOffsets}
+              snapToAlignment="start"
+              disableIntervalMomentum
+              decelerationRate="fast"
+              fadeColor={colors.secondaryBg}
+              fadeWidth={8}
+              containerStyle={undefined}
+              contentContainerStyle={{ paddingRight: agendaCardGap }}
+            >
+              {scheduleWindow.length === 0 ? (
+                <View style={{ paddingVertical: 6 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Nenhum treino programado no período.
+                  </Text>
+                </View>
+              ) : (
+                scheduleWindow.map((item, idx) => {
+                  const isPast = item.endTime <= nowTime;
+                  const isActive = activeAgendaIndex === idx;
+                  const statusLabel = getAgendaStatusLabel(item);
+                  const unitPalette = getUnitPalette(item.unit, colors);
+
+                  return (
+                    <Pressable
+                      key={`${item.classId}-${item.dateKey}`}
+                      onPress={() => handleAgendaCardPress(idx)}
+                      style={{
+                        width: agendaCardWidth,
+                        marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
+                        ...(Platform.OS === "web"
+                          ? ({ scrollSnapAlign: "start" } as const)
+                          : null),
+                      }}
+                    >
+                      <View
+                        style={{
+                          padding: 10,
+                          borderRadius: 14,
+                          backgroundColor: colors.card,
+                          borderWidth: 1,
+                          borderColor: isActive ? colors.primaryBg : colors.border,
+                          opacity: isPast ? 0.6 : 1,
+                        }}
+                      >
+                        <View style={{ gap: 6 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 6,
+                            }}
+                          >
+                            <View
+                              style={{
+                                paddingVertical: 2,
+                                paddingHorizontal: 8,
+                                borderRadius: 999,
+                                backgroundColor: colors.secondaryBg,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                              }}
+                            >
+                              <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                                {statusLabel}
+                              </Text>
+                            </View>
+                            <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                              {item.dateLabel}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                            }}
+                          >
+                            <Text
+                              style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
+                              numberOfLines={1}
+                            >
+                              {item.className}
+                            </Text>
+                            <View
+                              style={{
+                                paddingVertical: 3,
+                                paddingHorizontal: 8,
+                                borderRadius: 999,
+                                backgroundColor: unitPalette.bg,
+                                borderWidth: 1,
+                                borderColor: unitPalette.bg,
+                              }}
+                            >
+                              <Text
+                                style={{ color: unitPalette.text, fontSize: 10, fontWeight: "700" }}
+                                numberOfLines={1}
+                              >
+                                {item.unit}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
+                            {item.timeLabel}
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
+            </FadeHorizontalScroll>
+          </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               onPress={() => router.push({ pathname: "/agenda" })}
@@ -345,7 +576,8 @@ export default function StudentHome() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => router.push({ pathname: "/student-plan" })}
+              disabled={!canOpenDayPlan}
+              onPress={openDayPlan}
               style={{
                 flex: 1,
                 paddingVertical: 10,
@@ -354,10 +586,11 @@ export default function StudentHome() {
                 borderWidth: 1,
                 borderColor: colors.border,
                 alignItems: "center",
+                opacity: canOpenDayPlan ? 1 : 0.5,
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Ver plano
+                {canOpenDayPlan ? "Ver plano" : "Sem plano do dia"}
               </Text>
             </Pressable>
             <Pressable
@@ -377,6 +610,11 @@ export default function StudentHome() {
               </Text>
             </Pressable>
           </View>
+          {!canOpenDayPlan ? (
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              Selecione um treino da agenda para abrir o planejamento do dia.
+            </Text>
+          ) : null}
         </View>
 
         <View
@@ -502,7 +740,7 @@ export default function StudentHome() {
                 Plano do treino
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Versao pública
+                Versão pública
               </Text>
             </Pressable>
             <Pressable

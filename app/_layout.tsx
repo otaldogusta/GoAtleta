@@ -12,6 +12,7 @@ import {
     useRef
 } from "react";
 import {
+    ActivityIndicator,
     Image,
     LogBox,
     Platform, StyleSheet, Text,
@@ -23,19 +24,32 @@ import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
 import { getPendingInvite } from "../src/auth/pending-invite";
 import { RoleProvider, useRole } from "../src/auth/role";
-import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
-import { OrganizationProvider } from "../src/providers/OrganizationProvider";
+import { OrganizationProvider, useOrganization } from "../src/providers/OrganizationProvider";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
 import { SaveToastProvider } from "../src/ui/save-toast";
-import { ShimmerBlock } from "../src/ui/Shimmer";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
+
+const trainerPermissionByPrefix = [
+  { prefix: "/reports", permissionKey: "reports" },
+  { prefix: "/events", permissionKey: "events" },
+  { prefix: "/students", permissionKey: "students" },
+  { prefix: "/class", permissionKey: "classes" },
+  { prefix: "/classes", permissionKey: "classes" },
+  { prefix: "/training", permissionKey: "training" },
+  { prefix: "/periodization", permissionKey: "periodization" },
+  { prefix: "/calendar", permissionKey: "calendar" },
+  { prefix: "/absence-notices", permissionKey: "absence_notices" },
+  { prefix: "/whatsapp-settings", permissionKey: "whatsapp_settings" },
+  { prefix: "/assistant", permissionKey: "assistant" },
+  { prefix: "/org-members", permissionKey: "org_members" },
+] as const;
 
 const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
@@ -59,11 +73,21 @@ function RootLayoutContent() {
   const router = useRouter();
   const pathname = usePathname();
   const lastPathRef = useRef<string | null>(null);
+  const { loading: bootstrapLoading, error: bootstrapError, retry: retryBootstrap } =
+    useBootstrap();
   const rootState = useRootNavigationState();
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
+  const { memberPermissions, permissionsLoading, isLoading: organizationLoading } =
+    useOrganization();
   const navReady = Boolean(rootState.key);
-  const isBooting = !navReady || loading || roleLoading || (session && role === null);
+  const isBooting =
+    bootstrapLoading ||
+    !navReady ||
+    loading ||
+    roleLoading ||
+    (session && role === "trainer" && organizationLoading) ||
+    (session && role === null);
   const publicRoutes = [
     "/welcome",
     "/login",
@@ -88,6 +112,7 @@ function RootLayoutContent() {
     "/exercises",
     "/periodization",
     "/reports",
+    "/org-members",
     "/students",
     "/training",
     "/whatsapp-settings",
@@ -128,9 +153,11 @@ function RootLayoutContent() {
       }
     }
 
+    if (bootstrapLoading) return;
     if (!navReady) return;
     if (loading) return;
     if (roleLoading) return;
+    if (session && role === "trainer" && permissionsLoading) return;
     if (session && role === null) return;
     if (!session && !isPublicRoute) {
       router.replace("/welcome");
@@ -161,10 +188,32 @@ function RootLayoutContent() {
       router.replace("/");
       return;
     }
+    if (session && role === "trainer") {
+      const matched = trainerPermissionByPrefix.find((item) =>
+        pathname.startsWith(item.prefix)
+      );
+      if (matched && memberPermissions[matched.permissionKey] === false) {
+        router.replace("/");
+        return;
+      }
+    }
     if (session && ["/welcome", "/login", "/signup"].includes(pathname)) {
       router.replace("/");
     }
-  }, [isInviteRoute, isPublicRoute, loading, navReady, pathname, router, role, roleLoading, session]);
+  }, [
+    isInviteRoute,
+    isPublicRoute,
+    loading,
+    memberPermissions,
+    navReady,
+    pathname,
+    permissionsLoading,
+    bootstrapLoading,
+    router,
+    role,
+    roleLoading,
+    session,
+  ]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -343,10 +392,62 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
 
   const gradientStops = gradientByRoute();
 
+  if (bootstrapError) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#0b1222" }}>
+        <LinearGradient
+          colors={["#0b1222", "#101b34", "#121a2a"]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            gap: 12,
+          }}
+        >
+          <Text style={{ color: "#f8fafc", fontWeight: "700" }}>
+            Ocorreu um erro ao iniciar
+          </Text>
+          <Text style={{ color: "#cbd5e1", textAlign: "center" }}>
+            Tente novamente. Se persistir, reinicie o app.
+          </Text>
+          <Pressable
+            onPress={retryBootstrap}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              borderRadius: 12,
+              backgroundColor: "rgba(86, 214, 154, 0.28)",
+            }}
+          >
+            <Text style={{ color: "#eafff5", fontWeight: "700" }}>Tentar novamente</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   if (isBooting) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
+      <View style={{ flex: 1, backgroundColor: "#0b1222" }}>
+        <LinearGradient
+          colors={["#0b1222", "#101b34", "#121a2a"]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
+        >
+          <ActivityIndicator size="large" color="#e5e7eb" />
+          <Text style={{ color: "#e5e7eb", fontWeight: "600" }}>Carregando...</Text>
+        </View>
         <StatusBar
           style={mode === "dark" ? "light" : "dark"}
           backgroundColor="transparent"
@@ -411,35 +512,6 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
         }}
       >
       </Stack>
-      { loading || roleLoading ? (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            backgroundColor: colors.background,
-          }}
-        >
-          <View style={{ padding: 16, gap: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <View style={{ gap: 8 }}>
-                <ShimmerBlock style={{ width: 180, height: 22, borderRadius: 10 }} />
-                <ShimmerBlock style={{ width: 140, height: 14, borderRadius: 8 }} />
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <ShimmerBlock style={{ width: 44, height: 32, borderRadius: 16 }} />
-                <ShimmerBlock style={{ width: 56, height: 56, borderRadius: 28 }} />
-              </View>
-            </View>
-            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
-          </View>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -492,9 +564,7 @@ export default Sentry.wrap(function RootLayout() {
   return (
     <AppThemeProvider>
       <BootstrapProvider>
-        <BootstrapGate>
-          <BootstrapAuthProviders />
-        </BootstrapGate>
+        <BootstrapAuthProviders />
       </BootstrapProvider>
     </AppThemeProvider>
   );
@@ -503,7 +573,7 @@ export default Sentry.wrap(function RootLayout() {
 function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
-    <AuthProvider initialSession={data.session ?? null}>
+    <AuthProvider initialSession={data?.session}>
       <RoleProvider>
         <OrganizationProvider>
           <WhatsAppSettingsProvider>
