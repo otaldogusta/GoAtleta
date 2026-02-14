@@ -16,6 +16,34 @@ const isNativeModuleUnavailableError = (message: string) => {
   );
 };
 
+const toErrorDetail = (error: unknown) => {
+  if (error instanceof Error) {
+    const cause =
+      typeof (error as { cause?: unknown }).cause === "string"
+        ? (error as { cause?: string }).cause
+        : "";
+    const code =
+      typeof (error as { code?: unknown }).code === "string"
+        ? (error as { code?: string }).code
+        : "";
+    return [error.name, error.message, cause, code].filter(Boolean).join(" | ");
+  }
+
+  if (typeof error === "string") return error;
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error ?? "");
+  }
+};
+
+const fallbackOriginalPhoto = (uri: string): NormalizedProfilePhoto => ({
+  uri,
+  contentType: null,
+  normalized: false,
+});
+
 export async function normalizeProfilePhotoForUpload(uri: string): Promise<NormalizedProfilePhoto> {
   const normalizedUri = (uri ?? "").trim();
   if (!normalizedUri) {
@@ -30,23 +58,15 @@ export async function normalizeProfilePhotoForUpload(uri: string): Promise<Norma
     manipulateAsync = module.manipulateAsync;
     saveFormatJpeg = module.SaveFormat.JPEG;
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error ?? "");
-    if (isNativeModuleUnavailableError(detail)) {
-      return {
-        uri: normalizedUri,
-        contentType: null,
-        normalized: false,
-      };
+    const detail = toErrorDetail(error);
+    if (__DEV__) {
+      console.warn("[profile-photo] image manipulator unavailable, using original image", detail);
     }
-    throw new Error(`Failed to load image manipulator: ${detail}`);
+    return fallbackOriginalPhoto(normalizedUri);
   }
 
   if (!manipulateAsync || !saveFormatJpeg) {
-    return {
-      uri: normalizedUri,
-      contentType: null,
-      normalized: false,
-    };
+    return fallbackOriginalPhoto(normalizedUri);
   }
 
   try {
@@ -66,14 +86,13 @@ export async function normalizeProfilePhotoForUpload(uri: string): Promise<Norma
       normalized: true,
     };
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error ?? "");
-    if (isNativeModuleUnavailableError(detail)) {
-      return {
-        uri: normalizedUri,
-        contentType: null,
-        normalized: false,
-      };
+    const detail = toErrorDetail(error);
+    if (__DEV__) {
+      const reason = isNativeModuleUnavailableError(detail)
+        ? "native module unavailable"
+        : "normalization failed";
+      console.warn(`[profile-photo] ${reason}, using original image`, detail);
     }
-    throw new Error(`Failed to normalize profile photo: ${detail}`);
+    return fallbackOriginalPhoto(normalizedUri);
   }
 }
