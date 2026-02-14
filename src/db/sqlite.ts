@@ -286,6 +286,15 @@ export function initDb() {
     db.execSync(
       "ALTER TABLE units ADD COLUMN organizationId TEXT NOT NULL DEFAULT ''"
     );
+    // Fix existing units: assign them to the first available organization
+    // This prevents orphaned units from disappearing
+    const orgs = db.getAllSync<{ id: string }>("SELECT id FROM organizations LIMIT 1");
+    if (orgs.length > 0) {
+      db.execSync(
+        "UPDATE units SET organizationId = ? WHERE organizationId = ''",
+        [orgs[0].id]
+      );
+    }
   } catch {}
 }
 

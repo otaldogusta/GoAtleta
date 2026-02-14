@@ -1,0 +1,24 @@
+[33mcommit 23ba6d69c15a9a69b016e669b414ea6fa0529fdb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: otaldogusta <gusantinho753@gmail.com>
+Date:   Sat Feb 14 01:38:45 2026 -0300
+
+    feat: implementa melhorias gold level - locations, smart sync e coordination
+    
+    - Locations (Quadras/Unidades):
+      - Adiciona organizationId à tabela units
+      - Cria hook useLocations() para buscar unidades por organização
+      - Implementa LocationBadge com ícone de localização
+      - Integra badge no ClassContextHeader
+    
+    - Smart Sync (Offline-First):
+      - Cria serviço singleton smartSync com AppState listener
+      - Implementa exponential backoff (5s10s20s40s80s max)
+      - Auto-flush quando app volta para foreground
+      - Adiciona SyncStatusBadge com 4 estados (saving/saved_local/synced/error)
+      - Integra no HomeProfessor substituindo polling manual
+    
+    - Coordination Dashboard:
+      - Adiciona card de Quick Actions com contador de pendências
+      - Implementa badges críticos mostrando dias desde último relatório
+      - Alerta vermelho se >7 dias sem relatório
+      - Adiciona dica acionável para enviar lembretes

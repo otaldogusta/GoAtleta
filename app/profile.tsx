@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, ScrollView, Text, View } from "react-native";
@@ -16,12 +17,12 @@ import { useRole } from "../src/auth/role";
 
 import { getMyProfilePhoto, setMyProfilePhoto } from "../src/api/profile-photo";
 import {
-  removeMyProfilePhotoObject,
-  uploadMyProfilePhoto,
+    removeMyProfilePhotoObject,
+    uploadMyProfilePhoto,
 } from "../src/api/profile-photo-storage";
 import {
-  removeStudentPhotoObject,
-  uploadStudentPhoto,
+    removeStudentPhotoObject,
+    uploadStudentPhoto,
 } from "../src/api/student-photo-storage";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
 import { useOrganization } from "../src/providers/OrganizationProvider";
@@ -34,18 +35,21 @@ import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 
 
 export default function ProfileScreen() {
-  const { colors } = useAppTheme();
+  const { colors, mode, toggleMode } = useAppTheme();
   const { signOut, session } = useAuth();
   const { student, refresh: refreshRole } = useRole();
-  const { organizations, activeOrganization, setActiveOrganizationId } = useOrganization();
+  const { organizations, activeOrganization, setActiveOrganizationId, devProfilePreview, setDevProfilePreview } = useOrganization();
   const router = useRouter();
   const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
+  const NOTIFY_SETTINGS_KEY = "notify_settings_v1";
+  const isWeb = Platform.OS === "web";
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingPhoto, setLoadingPhoto] = useState(true);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const photoSheetStyle = useModalCardStyle({
     maxHeight: "70%",
     radius: 22,
@@ -124,8 +128,26 @@ export default function ProfileScreen() {
     };
   }, [session?.user?.id, student]);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(NOTIFY_SETTINGS_KEY);
+        if (!raw || !alive) return;
+        const data = JSON.parse(raw) as { enabled: boolean };
+        setNotificationsEnabled(Boolean(data.enabled));
+      } catch (error) {
+        console.error("Failed to load notification settings", error);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [NOTIFY_SETTINGS_KEY]);
+
   const loadingProfile = loadingClasses || loadingPhoto;
   const showWorkspaceSwitcher = !student && organizations.length > 1;
+  const isDevUser = session?.user?.email === "gusantinho753@gmail.com";
 
   const currentClass = useMemo(() => {
     if (!student || !student.classId) return null;
@@ -172,6 +194,39 @@ export default function ProfileScreen() {
     return diffDays <= 1 ? "Hoje" : `${diffDays} dias`;
   }, [session?.user?.created_at, student?.createdAt]);
 
+  const profileDisplay = useMemo(() => {
+    if (isDevUser && devProfilePreview && devProfilePreview !== "auto") {
+      if (devProfilePreview === "professor") {
+        return {
+          icon: "school-outline",
+          label: "Professor",
+          subtitle: "Treinador",
+        };
+      }
+      if (devProfilePreview === "admin") {
+        return {
+          icon: "briefcase-outline",
+          label: "Coordenação",
+          subtitle: "Administrador",
+        };
+      }
+      if (devProfilePreview === "student") {
+        return {
+          icon: "person-outline",
+          label: currentClass?.name || "Sem turma",
+          subtitle: currentClass?.unit || "Sem unidade",
+        };
+      }
+    }
+
+    // Perfil real (auto ou usuário não-dev)
+    return {
+      icon: "school-outline",
+      label: currentClass?.name || (student ? "Sem turma" : "Professor"),
+      subtitle: currentClass?.unit || (student ? "Sem unidade" : "Treinador"),
+    };
+  }, [isDevUser, devProfilePreview, currentClass, student]);
+
   const handleOrganizationChange = useCallback(
     async (orgId: string) => {
       if (activeOrganization?.id === orgId) return;
@@ -184,6 +239,44 @@ export default function ProfileScreen() {
     },
     [activeOrganization?.id, setActiveOrganizationId]
   );
+
+  const handleToggleNotifications = useCallback(async () => {
+    const nextEnabled = !notificationsEnabled;
+    setNotificationsEnabled(nextEnabled);
+
+    try {
+      await AsyncStorage.setItem(
+        NOTIFY_SETTINGS_KEY,
+        JSON.stringify({ enabled: nextEnabled })
+      );
+
+      if (nextEnabled && !isWeb) {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== "granted") {
+          const result = await Notifications.requestPermissionsAsync();
+          if (result.status !== "granted") {
+            Alert.alert("Permissão negada", "Ative notificações nas configurações do dispositivo.");
+            setNotificationsEnabled(false);
+            await AsyncStorage.setItem(
+              NOTIFY_SETTINGS_KEY,
+              JSON.stringify({ enabled: false })
+            );
+          }
+        }
+      } else if (!nextEnabled && !isWeb) {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+      }
+    } catch (error) {
+      console.error("Failed to toggle notifications", error);
+      Alert.alert("Erro", "Não foi possível alterar configurações de notificação.");
+    }
+  }, [notificationsEnabled, isWeb, NOTIFY_SETTINGS_KEY]);
+
+  const applyProfilePreview = useCallback(async (preview: "professor" | "student" | "admin" | "auto") => {
+    await setDevProfilePreview(preview);
+    await refreshRole();
+    router.replace("/");
+  }, [setDevProfilePreview, refreshRole, router]);
 
   const savePhoto = async (uri: string | null) => {
     const previousPhotoUri = photoUri;
@@ -453,10 +546,10 @@ export default function ProfileScreen() {
           <View style={{ gap: 8 }}>
             <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Perfil</Text>
             <SettingsRow
-              icon="school-outline"
+              icon={profileDisplay.icon as any}
               iconBg="rgba(255, 185, 136, 0.16)"
-              label={currentClass?.name || (student ? "Sem turma" : "Professor")}
-              subtitle={currentClass?.unit || (student ? "Sem unidade" : "Treinador")}
+              label={profileDisplay.label}
+              subtitle={profileDisplay.subtitle}
               rightContent={<View />}
             />
           </View>
@@ -520,6 +613,60 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
+        {!loadingProfile && isDevUser ? (
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+              Mudar perfil (DEV)
+            </Text>
+            <View style={{ gap: 8 }}>
+              <SettingsRow
+                icon="school-outline"
+                iconBg="rgba(255, 210, 150, 0.16)"
+                label="Ver como Professor"
+                onPress={() => applyProfilePreview("professor")}
+                rightContent={
+                  devProfilePreview === "professor" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="person-outline"
+                iconBg="rgba(150, 200, 255, 0.16)"
+                label="Ver como Aluno"
+                onPress={() => applyProfilePreview("student")}
+                rightContent={
+                  devProfilePreview === "student" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="briefcase-outline"
+                iconBg="rgba(140, 220, 180, 0.16)"
+                label="Ver como Coordenação (Admin)"
+                onPress={() => applyProfilePreview("admin")}
+                rightContent={
+                  devProfilePreview === "admin" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="sync-outline"
+                iconBg="rgba(200, 200, 200, 0.16)"
+                label="Auto (backend)"
+                onPress={() => applyProfilePreview("auto")}
+                rightContent={
+                  devProfilePreview === "auto" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+            </View>
+          </View>
+        ) : null}
+
         { loadingProfile ? (
           <>
             <ShimmerBlock style={{ width: 70, height: 12, borderRadius: 6 }} />
@@ -534,10 +681,62 @@ export default function ProfileScreen() {
                 Configurações
               </Text>
               <SettingsRow
-                icon="settings-outline"
+                icon="notifications-outline"
                 iconBg="rgba(135, 120, 255, 0.14)"
-                label="Abrir configurações"
-                onPress={() => router.push({ pathname: "/notifications" })}
+                label="Notificações"
+                onPress={handleToggleNotifications}
+                rightContent={
+                  <View
+                    style={{
+                      paddingVertical: 5,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: notificationsEnabled ? colors.primaryBg : colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: notificationsEnabled ? colors.primaryText : colors.text,
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
+                      {notificationsEnabled ? "Ligado" : "Desligado"}
+                    </Text>
+                  </View>
+                }
+              />
+              <SettingsRow
+                icon="moon-outline"
+                iconBg="rgba(96, 187, 255, 0.16)"
+                label="Modo escuro"
+                onPress={toggleMode}
+                rightContent={
+                  <View
+                    style={{
+                      width: 42,
+                      height: 24,
+                      borderRadius: 999,
+                      backgroundColor: mode === "dark" ? colors.primaryBg : colors.secondaryBg,
+                      alignItems: mode === "dark" ? "flex-end" : "flex-start",
+                      justifyContent: "center",
+                      paddingHorizontal: 3,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: 8,
+                        backgroundColor: colors.card,
+                      }}
+                    />
+                  </View>
+                }
               />
             </View>
 

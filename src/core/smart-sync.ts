@@ -142,8 +142,8 @@ class SmartSyncService {
 
       const result = await flushPendingWrites();
 
-      // Reset retry count on success
-      if (result.flushed > 0) {
+      // Reset retry count on success (when queue is empty)
+      if (result.remaining === 0) {
         this.retryCount = 0;
       }
 

@@ -149,7 +149,7 @@ export function HomeProfessorScreen({
   const didInitialAgendaScroll = useRef(false);
 
   // Use smart sync instead of manual pending writes management
-  const { syncing, pendingCount, lastSyncAt, syncNow } = useSmartSync();
+  const { syncing, pendingCount, lastSyncAt, lastError, syncNow } = useSmartSync();
 
   const { showSaveToast } = useSaveToast();
 
@@ -1355,8 +1355,24 @@ export function HomeProfessorScreen({
             </Text>
 
             <SyncStatusBadge
-              status={syncing ? "saving" : "saved_local"}
-              message={syncing ? "Sincronizando..." : `${pendingCount} itens locais`}
+              status={
+                lastError
+                  ? "error"
+                  : syncing
+                  ? "saving"
+                  : pendingCount === 0
+                  ? "synced"
+                  : "saved_local"
+              }
+              message={
+                lastError
+                  ? `Erro: ${lastError}`
+                  : syncing
+                  ? "Sincronizando..."
+                  : pendingCount === 0
+                  ? "Tudo sincronizado"
+                  : `${pendingCount} itens locais`
+              }
             />
 
             <Pressable
