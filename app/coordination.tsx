@@ -17,6 +17,7 @@ import {
     type ExecutiveSummaryResult,
     type SyncErrorClassificationResult,
     type TrainerMessageResult,
+    type TrainerMessageTone,
 } from "../src/api/ai";
 import {
     AdminPendingAttendance,
@@ -48,6 +49,13 @@ import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
 type CoordinationTab = "dashboard" | "members";
+
+const trainerToneOptions: { value: TrainerMessageTone; label: string }[] = [
+  { value: "friendly", label: "Amigável" },
+  { value: "firm", label: "Firme" },
+  { value: "formal", label: "Formal" },
+  { value: "urgent", label: "Urgente" },
+];
 
 const formatDateBr = (value: string | null | undefined) => {
   if (!value) return "-";
@@ -262,6 +270,7 @@ export default function CoordinationScreen() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiExportLoading, setAiExportLoading] = useState(false);
+  const [trainerMessageTone, setTrainerMessageTone] = useState<TrainerMessageTone>("formal");
 
   const tabItems = useMemo(
     () => [
@@ -579,7 +588,7 @@ export default function CoordinationScreen() {
           ],
           expectedSla: "Relatório semanal atualizado",
         },
-        daysWithoutReport > 7 ? "urgent" : "formal"
+        trainerMessageTone
       );
 
       setTrainerMessage(generated);
@@ -594,7 +603,7 @@ export default function CoordinationScreen() {
     } finally {
       setAiLoading(false);
     }
-  }, [organizationName, pendingAttendance.length, pendingReports]);
+  }, [organizationName, pendingAttendance.length, pendingReports, trainerMessageTone]);
 
   const handleClassifySyncError = useCallback(
     async (item: PendingWriteFailureRow) => {
@@ -1016,6 +1025,41 @@ export default function CoordinationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 Resumo executivo, copiloto de comunicação, classificação de erro e sugestões de correção.
               </Text>
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                  Tom da mensagem ao professor
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  {trainerToneOptions.map((tone) => {
+                    const selected = trainerMessageTone === tone.value;
+                    return (
+                      <Pressable
+                        key={tone.value}
+                        onPress={() => setTrainerMessageTone(tone.value)}
+                        disabled={aiLoading}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: selected ? colors.primaryText : colors.text,
+                            fontWeight: "700",
+                            fontSize: 11,
+                          }}
+                        >
+                          {tone.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
               <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                 <Pressable
                   onPress={handleGenerateExecutiveSummary}
