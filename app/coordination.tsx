@@ -574,6 +574,10 @@ export default function CoordinationScreen() {
                     )
                   : 999;
                 const isCritical = daysSinceReport > 7;
+                const cardBorderColor = isCritical ? colors.dangerBorder : colors.border;
+                const cardBackgroundColor = isCritical ? colors.dangerBg : colors.secondaryBg;
+                const titleColor = isCritical ? colors.dangerText : colors.text;
+                const subtitleColor = isCritical ? colors.dangerText : colors.muted;
 
                 return (
                   <Pressable
@@ -588,8 +592,8 @@ export default function CoordinationScreen() {
                       padding: 10,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: isCritical ? "#fca5a5" : colors.border,
-                      backgroundColor: isCritical ? "#fef2f2" : colors.secondaryBg,
+                      borderColor: cardBorderColor,
+                      backgroundColor: cardBackgroundColor,
                       gap: 6,
                     }}
                   >
@@ -601,7 +605,7 @@ export default function CoordinationScreen() {
                         gap: 8,
                       }}
                     >
-                      <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>
+                      <Text style={{ color: titleColor, fontWeight: "700", flex: 1 }}>
                         {item.className}
                       </Text>
                       {isCritical ? (
@@ -619,7 +623,7 @@ export default function CoordinationScreen() {
                         </View>
                       ) : null}
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    <Text style={{ color: subtitleColor, fontSize: 12 }}>
                       {item.unit || "Sem unidade"} • Último: {formatDateTimeBr(item.lastReportAt)}
                     </Text>
                   </Pressable>
