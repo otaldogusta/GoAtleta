@@ -162,6 +162,13 @@ type PendingWriteErrorKind =
   | "bad_request"
   | "unknown";
 
+export type PendingWritesDiagnostics = {
+  total: number;
+  highRetry: number;
+  maxRetry: number;
+  deadLetterCandidates: number;
+};
+
 let pendingWritesInitPromise: Promise<void> | null = null;
 
 const isNetworkError = (error: unknown) => {
@@ -437,6 +444,41 @@ export async function getPendingWritesCount() {
   } catch {
     const queue = await readWriteQueue();
     return queue.length;
+  }
+}
+
+export async function getPendingWritesDiagnostics(
+  highRetryThreshold = 10
+): Promise<PendingWritesDiagnostics> {
+  try {
+    await ensurePendingWritesMigrated();
+    const row = await db.getFirstAsync<{
+      total: number;
+      highRetry: number;
+      maxRetry: number | null;
+    }>(
+      "SELECT COUNT(*) as total, SUM(CASE WHEN retryCount >= ? THEN 1 ELSE 0 END) as highRetry, MAX(retryCount) as maxRetry FROM pending_writes",
+      [highRetryThreshold]
+    );
+
+    const total = row?.total ?? 0;
+    const highRetry = row?.highRetry ?? 0;
+    const maxRetry = row?.maxRetry ?? 0;
+
+    return {
+      total,
+      highRetry,
+      maxRetry,
+      deadLetterCandidates: highRetry,
+    };
+  } catch {
+    const queue = await readWriteQueue();
+    return {
+      total: queue.length,
+      highRetry: 0,
+      maxRetry: 0,
+      deadLetterCandidates: 0,
+    };
   }
 }
 

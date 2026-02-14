@@ -12,6 +12,7 @@ import {
   listAdminPendingSessionLogs,
   listAdminRecentActivity,
 } from "../src/api/reports";
+import { getPendingWritesDiagnostics, type PendingWritesDiagnostics } from "../src/db/seed";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { Pressable } from "../src/ui/Pressable";
@@ -54,6 +55,12 @@ export default function CoordinationScreen() {
   const [pendingAttendance, setPendingAttendance] = useState<AdminPendingAttendance[]>([]);
   const [pendingReports, setPendingReports] = useState<AdminPendingSessionLogs[]>([]);
   const [recentActivity, setRecentActivity] = useState<AdminRecentActivity[]>([]);
+  const [pendingWritesDiagnostics, setPendingWritesDiagnostics] = useState<PendingWritesDiagnostics>({
+    total: 0,
+    highRetry: 0,
+    maxRetry: 0,
+    deadLetterCandidates: 0,
+  });
 
   const tabItems = useMemo(
     () => [
@@ -68,6 +75,12 @@ export default function CoordinationScreen() {
       setPendingAttendance([]);
       setPendingReports([]);
       setRecentActivity([]);
+      setPendingWritesDiagnostics({
+        total: 0,
+        highRetry: 0,
+        maxRetry: 0,
+        deadLetterCandidates: 0,
+      });
       setLoading(false);
       setError(null);
       return;
@@ -81,13 +94,21 @@ export default function CoordinationScreen() {
         listAdminPendingSessionLogs({ organizationId }),
         listAdminRecentActivity({ organizationId, limit: 12 }),
       ]);
+      const queueDiagnostics = await getPendingWritesDiagnostics(10);
       setPendingAttendance(attendanceRows);
       setPendingReports(reportRows);
       setRecentActivity(activityRows);
+      setPendingWritesDiagnostics(queueDiagnostics);
     } catch (err) {
       setPendingAttendance([]);
       setPendingReports([]);
       setRecentActivity([]);
+      setPendingWritesDiagnostics({
+        total: 0,
+        highRetry: 0,
+        maxRetry: 0,
+        deadLetterCandidates: 0,
+      });
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
       setLoading(false);
@@ -283,8 +304,44 @@ export default function CoordinationScreen() {
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Atividade (7d)</Text>
               </View>
+              <View
+                style={{
+                  minWidth: 120,
+                  flexGrow: 1,
+                  padding: 10,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
+                  {loading ? "..." : pendingWritesDiagnostics.total}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Sync local pendente</Text>
+              </View>
             </View>
           </View>
+
+          {!loading && pendingWritesDiagnostics.deadLetterCandidates > 0 ? (
+            <View
+              style={{
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                padding: 14,
+                gap: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                Saúde da Sincronização
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas. Máx retry: {pendingWritesDiagnostics.maxRetry}.
+              </Text>
+            </View>
+          ) : null}
 
           {/* Quick Actions Card */}
           {!loading && (pendingAttendance.length > 0 || pendingReports.length > 0) ? (
