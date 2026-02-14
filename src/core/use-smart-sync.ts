@@ -16,5 +16,6 @@ export function useSmartSync() {
     ...status,
     syncNow: () => smartSync.syncNow(),
     refreshPendingCount: () => smartSync.refreshPendingCount(),
+    resumeSync: () => smartSync.resumeSync(),
   };
 }

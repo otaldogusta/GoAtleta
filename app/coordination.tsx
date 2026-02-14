@@ -1,6 +1,11 @@
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
-import { cacheDirectory, documentDirectory, EncodingType, writeAsStringAsync } from "expo-file-system";
+import {
+  cacheDirectory,
+  documentDirectory,
+  EncodingType,
+  writeAsStringAsync,
+} from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { memo, useCallback, useMemo, useState } from "react";
@@ -8,35 +13,35 @@ import { FlatList, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-    classifySyncError,
-    generateExecutiveSummary,
-    suggestDataFixes,
-    type DataFixIssue,
-    type DataFixSuggestionsResult,
-    type ExecutiveSummaryResult,
-    type SyncErrorClassificationResult,
+  classifySyncError,
+  generateExecutiveSummary,
+  suggestDataFixes,
+  type DataFixIssue,
+  type DataFixSuggestionsResult,
+  type ExecutiveSummaryResult,
+  type SyncErrorClassificationResult,
 } from "../src/api/ai";
 import {
-    AdminPendingAttendance,
-    AdminPendingSessionLogs,
-    AdminRecentActivity,
-    listAdminPendingAttendance,
-    listAdminPendingSessionLogs,
-    listAdminRecentActivity,
+  AdminPendingAttendance,
+  AdminPendingSessionLogs,
+  AdminRecentActivity,
+  listAdminPendingAttendance,
+  listAdminPendingSessionLogs,
+  listAdminRecentActivity,
 } from "../src/api/reports";
 import { useSmartSync } from "../src/core/use-smart-sync";
 import {
-    clearPendingWritesDeadLetterCandidates,
-    exportSyncHealthReportJson,
-    flushPendingWrites,
-    getClasses,
-    getPendingWritePayloadById,
-    getPendingWritesDiagnostics,
-    listPendingWriteFailures,
-    reprocessPendingWriteById,
-    reprocessPendingWritesNetworkFailures,
-    type PendingWriteFailureRow,
-    type PendingWritesDiagnostics,
+  clearPendingWritesDeadLetterCandidates,
+  exportSyncHealthReportJson,
+  flushPendingWrites,
+  getClasses,
+  getPendingWritePayloadById,
+  getPendingWritesDiagnostics,
+  listPendingWriteFailures,
+  reprocessPendingWriteById,
+  reprocessPendingWritesNetworkFailures,
+  type PendingWriteFailureRow,
+  type PendingWritesDiagnostics,
 } from "../src/db/seed";
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document.web";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
@@ -735,14 +740,13 @@ export default function CoordinationScreen() {
       }
 
       const fileName = `${safeFileName(bundle.title)}_${safeFileName(bundle.generatedAt)}.pdf`;
-      const webDocument =
-        Platform.OS === "web" ? (
-          <CoordinationAiDocument
-            title={bundle.title}
-            generatedAt={bundle.generatedAt}
-            sections={bundle.sections}
-          />
-        ) : undefined;
+      const webDocument = (
+        <CoordinationAiDocument
+          title={bundle.title}
+          generatedAt={bundle.generatedAt}
+          sections={bundle.sections}
+        />
+      );
 
       await exportPdf({
         html: bundle.html,
