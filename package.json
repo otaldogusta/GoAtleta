@@ -10,6 +10,11 @@
     "web": "expo start --web",
     "build": "expo export -p web",
     "lint": "expo lint",
+    "check:org-scope": "node scripts/check-org-scope.js",
+    "release:check": "npm run lint && npm run check:org-scope",
+    "update:preview": "npm run release:check && eas update --channel preview --auto",
+    "update:production": "npm run release:check && eas update --channel production --auto",
+    "update:promote": "eas update:promote",
     "check:encoding": "node scripts/check-encoding.js",
     "figma:colors": "node scripts/sync-figma-colors.js",
     "postinstall": "patch-package && node scripts/check-yoga-patch.js"

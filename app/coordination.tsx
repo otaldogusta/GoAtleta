@@ -1,8 +1,8 @@
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { memo, useCallback, useMemo, useState } from "react";
+import { FlatList, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -18,9 +18,15 @@ import {
     exportSyncHealthReportJson,
     flushPendingWrites,
     getClasses,
+    getPendingWritePayloadById,
     getPendingWritesDiagnostics,
+    listPendingWriteFailures,
+    reprocessPendingWriteById,
+    reprocessPendingWritesNetworkFailures,
+    type PendingWriteFailureRow,
     type PendingWritesDiagnostics,
 } from "../src/db/seed";
+  import { useSmartSync } from "../src/core/use-smart-sync";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { Pressable } from "../src/ui/Pressable";
@@ -62,10 +68,38 @@ const parseTimeToMinutes = (value: string | null | undefined) => {
   return hour * 60 + minute;
 };
 
+const IndicatorCard = memo(function IndicatorCard({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string | number;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <View
+      style={{
+        minWidth: 120,
+        flexGrow: 1,
+        padding: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.secondaryBg,
+      }}
+    >
+      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{value}</Text>
+      <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
+    </View>
+  );
+});
+
 export default function CoordinationScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
+  const { syncPausedReason, resumeSync } = useSmartSync();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const organizationId = activeOrganization?.id ?? null;
   const organizationName = activeOrganization?.name ?? "Organização";
@@ -85,6 +119,7 @@ export default function CoordinationScreen() {
   });
   const [syncActionLoading, setSyncActionLoading] = useState(false);
   const [syncActionMessage, setSyncActionMessage] = useState<string | null>(null);
+  const [failedWrites, setFailedWrites] = useState<PendingWriteFailureRow[]>([]);
 
   const tabItems = useMemo(
     () => [
@@ -106,6 +141,7 @@ export default function CoordinationScreen() {
         deadLetterCandidates: 0,
         deadLetterStored: 0,
       });
+      setFailedWrites([]);
       setLoading(false);
       setError(null);
       return;
@@ -121,6 +157,7 @@ export default function CoordinationScreen() {
         getClasses({ organizationId }),
       ]);
       const queueDiagnostics = await getPendingWritesDiagnostics(10);
+      const failed = await listPendingWriteFailures(12);
       const classesById = new Map(classes.map((item) => [item.id, item]));
       const now = new Date();
       const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
@@ -140,6 +177,7 @@ export default function CoordinationScreen() {
       setPendingReports(reportRows);
       setRecentActivity(activityRows);
       setPendingWritesDiagnostics(queueDiagnostics);
+      setFailedWrites(failed);
     } catch (err) {
       setPendingAttendance([]);
       setPendingReports([]);
@@ -151,6 +189,7 @@ export default function CoordinationScreen() {
         deadLetterCandidates: 0,
         deadLetterStored: 0,
       });
+      setFailedWrites([]);
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
       setLoading(false);
@@ -226,6 +265,81 @@ export default function CoordinationScreen() {
       setSyncActionLoading(false);
     }
   }, [organizationId]);
+
+  const handleResumePausedSync = useCallback(async () => {
+    resumeSync();
+    setSyncActionMessage("Sincronização retomada. Tentando novamente.");
+    await loadDashboard();
+  }, [loadDashboard, resumeSync]);
+
+  const handleReprocessNetworkFailures = useCallback(async () => {
+    setSyncActionLoading(true);
+    setSyncActionMessage(null);
+    try {
+      const result = await reprocessPendingWritesNetworkFailures(20);
+      setSyncActionMessage(
+        result.selected > 0
+          ? `Reprocesso de rede: ${result.flushed} sincronizado(s) de ${result.selected} selecionado(s).`
+          : "Nenhuma falha de rede selecionável no momento."
+      );
+      await loadDashboard();
+    } catch (error) {
+      setSyncActionMessage(
+        error instanceof Error
+          ? `Falha ao reprocessar falhas de rede: ${error.message}`
+          : "Falha ao reprocessar falhas de rede."
+      );
+    } finally {
+      setSyncActionLoading(false);
+    }
+  }, [loadDashboard]);
+
+  const handleReprocessSingleItem = useCallback(
+    async (id: string) => {
+      setSyncActionLoading(true);
+      setSyncActionMessage(null);
+      try {
+        const result = await reprocessPendingWriteById(id);
+        setSyncActionMessage(
+          result.flushed > 0
+            ? `Item ${id.slice(0, 8)} reprocessado com sucesso.`
+            : `Item ${id.slice(0, 8)} enviado para reprocesso.`
+        );
+        await loadDashboard();
+      } catch (error) {
+        setSyncActionMessage(
+          error instanceof Error
+            ? `Falha ao reprocessar item ${id.slice(0, 8)}: ${error.message}`
+            : `Falha ao reprocessar item ${id.slice(0, 8)}.`
+        );
+      } finally {
+        setSyncActionLoading(false);
+      }
+    },
+    [loadDashboard]
+  );
+
+  const handleCopyFailedPayload = useCallback(async (id: string) => {
+    setSyncActionLoading(true);
+    setSyncActionMessage(null);
+    try {
+      const payload = await getPendingWritePayloadById(id);
+      if (!payload) {
+        setSyncActionMessage("Payload não encontrado para este item.");
+        return;
+      }
+      await Clipboard.setStringAsync(payload);
+      setSyncActionMessage(`Payload do item ${id.slice(0, 8)} copiado.`);
+    } catch (error) {
+      setSyncActionMessage(
+        error instanceof Error
+          ? `Falha ao copiar payload: ${error.message}`
+          : "Falha ao copiar payload."
+      );
+    } finally {
+      setSyncActionLoading(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -368,76 +482,34 @@ export default function CoordinationScreen() {
               Indicadores
             </Text>
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              <View
-                style={{
-                  minWidth: 120,
-                  flexGrow: 1,
-                  padding: 10,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                  {loading ? "..." : pendingAttendance.length}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Chamada pendente</Text>
-              </View>
-              <View
-                style={{
-                  minWidth: 120,
-                  flexGrow: 1,
-                  padding: 10,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                  {loading ? "..." : pendingReports.length}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Relatórios pendentes</Text>
-              </View>
-              <View
-                style={{
-                  minWidth: 120,
-                  flexGrow: 1,
-                  padding: 10,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                  {loading ? "..." : recentActivity.length}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Atividade (7d)</Text>
-              </View>
-              <View
-                style={{
-                  minWidth: 120,
-                  flexGrow: 1,
-                  padding: 10,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                  {loading ? "..." : pendingWritesDiagnostics.total}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Sync local pendente</Text>
-              </View>
+              <IndicatorCard
+                label="Chamada pendente"
+                value={loading ? "..." : pendingAttendance.length}
+                colors={colors}
+              />
+              <IndicatorCard
+                label="Relatórios pendentes"
+                value={loading ? "..." : pendingReports.length}
+                colors={colors}
+              />
+              <IndicatorCard
+                label="Atividade (7d)"
+                value={loading ? "..." : recentActivity.length}
+                colors={colors}
+              />
+              <IndicatorCard
+                label="Sync local pendente"
+                value={loading ? "..." : pendingWritesDiagnostics.total}
+                colors={colors}
+              />
             </View>
           </View>
 
           {!loading &&
           (pendingWritesDiagnostics.deadLetterCandidates > 0 ||
-            pendingWritesDiagnostics.deadLetterStored > 0) ? (
+            pendingWritesDiagnostics.deadLetterStored > 0 ||
+            syncPausedReason !== null ||
+            failedWrites.length > 0) ? (
             <View
               style={{
                 borderRadius: 16,
@@ -454,6 +526,74 @@ export default function CoordinationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas • {pendingWritesDiagnostics.deadLetterStored} item(ns) arquivado(s) em dead-letter. Máx retry: {pendingWritesDiagnostics.maxRetry}.
               </Text>
+              {syncPausedReason ? (
+                <View
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    padding: 10,
+                    gap: 6,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Sync pausado por {syncPausedReason === "auth" ? "autenticação" : syncPausedReason === "permission" ? "permissão" : "troca de organização"}.
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                    <Pressable
+                      onPress={handleResumePausedSync}
+                      disabled={syncActionLoading}
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.primaryBg,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                      }}
+                    >
+                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                        Tentar novamente
+                      </Text>
+                    </Pressable>
+                    {syncPausedReason === "auth" ? (
+                      <Pressable
+                        onPress={() => router.push("/login")}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          Reautenticar
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    {syncPausedReason === "permission" ? (
+                      <Pressable
+                        onPress={() => router.push("/profile")}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          Trocar organização
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
               <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
                 <Pressable
                   onPress={handleReprocessQueueNow}
@@ -475,6 +615,22 @@ export default function CoordinationScreen() {
                     }}
                   >
                     Reprocessar fila agora
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleReprocessNetworkFailures}
+                  disabled={syncActionLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Reprocessar falhas de rede
                   </Text>
                 </Pressable>
                 <Pressable
@@ -512,6 +668,79 @@ export default function CoordinationScreen() {
               </View>
               {syncActionMessage ? (
                 <Text style={{ color: colors.muted, fontSize: 12 }}>{syncActionMessage}</Text>
+              ) : null}
+              {failedWrites.length > 0 ? (
+                <View style={{ marginTop: 6, gap: 8 }}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                    Falhas recentes (fila)
+                  </Text>
+                  <FlatList
+                    data={failedWrites}
+                    keyExtractor={(item) => item.id}
+                    scrollEnabled={false}
+                    initialNumToRender={8}
+                    windowSize={5}
+                    renderItem={({ item }) => (
+                      <View
+                        style={{
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          padding: 10,
+                          gap: 6,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          {item.kind} • retry {item.retryCount}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {item.lastError || "Erro não informado"}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          Stream: {item.streamKey}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          Dedup: {item.dedupKey || "-"}
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                          <Pressable
+                            onPress={() => handleReprocessSingleItem(item.id)}
+                            disabled={syncActionLoading}
+                            style={{
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.primaryBg,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                            }}
+                          >
+                            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 11 }}>
+                              Reprocessar item
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleCopyFailedPayload(item.id)}
+                            disabled={syncActionLoading}
+                            style={{
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.secondaryBg,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                            }}
+                          >
+                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                              Copiar payload
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    )}
+                  />
+                </View>
               ) : null}
             </View>
           ) : null}
@@ -598,29 +827,36 @@ export default function CoordinationScreen() {
             ) : pendingAttendance.length === 0 ? (
               <Text style={{ color: colors.muted }}>Nenhuma turma com chamada pendente.</Text>
             ) : (
-              pendingAttendance.slice(0, 6).map((item) => (
-                <Pressable
-                  key={`${item.classId}_${item.targetDate}`}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/class/[id]/attendance",
-                      params: { id: item.classId, date: item.targetDate },
-                    })
-                  }
-                  style={{
-                    padding: 10,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>{item.className}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {item.unit || "Sem unidade"} • {item.studentCount} alunos • {formatDateBr(item.targetDate)}
-                  </Text>
-                </Pressable>
-              ))
+              <FlatList
+                data={pendingAttendance}
+                keyExtractor={(item) => `${item.classId}_${item.targetDate}`}
+                scrollEnabled={false}
+                initialNumToRender={10}
+                windowSize={6}
+                contentContainerStyle={{ gap: 8 }}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: "/class/[id]/attendance",
+                        params: { id: item.classId, date: item.targetDate },
+                      })
+                    }
+                    style={{
+                      padding: 10,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{item.className}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {item.unit || "Sem unidade"} • {item.studentCount} alunos • {formatDateBr(item.targetDate)}
+                    </Text>
+                  </Pressable>
+                )}
+              />
             )}
           </View>
 
@@ -642,74 +878,80 @@ export default function CoordinationScreen() {
             ) : pendingReports.length === 0 ? (
               <Text style={{ color: colors.muted }}>Nenhuma turma sem relatório recente.</Text>
             ) : (
-              pendingReports.slice(0, 6).map((item) => {
-                // Check if report is critical (more than 7 days old)
-                const daysSinceReport = item.lastReportAt
-                  ? Math.floor(
-                      (Date.now() - new Date(item.lastReportAt).getTime()) /
-                        (1000 * 60 * 60 * 24)
-                    )
-                  : 999;
-                const isCritical = daysSinceReport > 7;
-                const cardBorderColor = isCritical ? colors.dangerBorder : colors.border;
-                const cardBackgroundColor = isCritical ? colors.dangerBg : colors.secondaryBg;
-                const titleColor = isCritical ? colors.dangerText : colors.text;
-                const subtitleColor = isCritical ? colors.dangerText : colors.muted;
+              <FlatList
+                data={pendingReports}
+                keyExtractor={(item) => `${item.classId}_${item.periodStart}`}
+                scrollEnabled={false}
+                initialNumToRender={10}
+                windowSize={6}
+                contentContainerStyle={{ gap: 8 }}
+                renderItem={({ item }) => {
+                  const daysSinceReport = item.lastReportAt
+                    ? Math.floor(
+                        (Date.now() - new Date(item.lastReportAt).getTime()) /
+                          (1000 * 60 * 60 * 24)
+                      )
+                    : 999;
+                  const isCritical = daysSinceReport > 7;
+                  const cardBorderColor = isCritical ? colors.dangerBorder : colors.border;
+                  const cardBackgroundColor = isCritical ? colors.dangerBg : colors.secondaryBg;
+                  const titleColor = isCritical ? colors.dangerText : colors.text;
+                  const subtitleColor = isCritical ? colors.dangerText : colors.muted;
 
-                return (
-                  <Pressable
-                    key={`${item.classId}_${item.periodStart}`}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/class/[id]/session",
-                        params: {
-                          id: item.classId,
-                          tab: "relatório",
-                          date: item.periodStart,
-                        },
-                      })
-                    }
-                    style={{
-                      padding: 10,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: cardBorderColor,
-                      backgroundColor: cardBackgroundColor,
-                      gap: 6,
-                    }}
-                  >
-                    <View
+                  return (
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: "/class/[id]/session",
+                          params: {
+                            id: item.classId,
+                            tab: "relatório",
+                            date: item.periodStart,
+                          },
+                        })
+                      }
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
+                        padding: 10,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: cardBorderColor,
+                        backgroundColor: cardBackgroundColor,
+                        gap: 6,
                       }}
                     >
-                      <Text style={{ color: titleColor, fontWeight: "700", flex: 1 }}>
-                        {item.className}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
+                        <Text style={{ color: titleColor, fontWeight: "700", flex: 1 }}>
+                          {item.className}
+                        </Text>
+                        {isCritical ? (
+                          <View
+                            style={{
+                              paddingVertical: 3,
+                              paddingHorizontal: 7,
+                              borderRadius: 999,
+                              backgroundColor: colors.dangerSolidBg,
+                            }}
+                          >
+                            <Text style={{ color: colors.primaryText, fontSize: 10, fontWeight: "800" }}>
+                              {daysSinceReport}d
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={{ color: subtitleColor, fontSize: 12 }}>
+                        {item.unit || "Sem unidade"} • Último: {formatDateTimeBr(item.lastReportAt)}
                       </Text>
-                      {isCritical ? (
-                        <View
-                          style={{
-                            paddingVertical: 3,
-                            paddingHorizontal: 7,
-                            borderRadius: 999,
-                            backgroundColor: "#dc2626",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800" }}>
-                            {daysSinceReport}d
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={{ color: subtitleColor, fontSize: 12 }}>
-                      {item.unit || "Sem unidade"} • Último: {formatDateTimeBr(item.lastReportAt)}
-                    </Text>
-                  </Pressable>
-                );
-              })
+                    </Pressable>
+                  );
+                }}
+              />
             )}
           </View>
         </ScrollView>

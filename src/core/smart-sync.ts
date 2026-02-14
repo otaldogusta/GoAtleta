@@ -5,6 +5,15 @@ import { flushPendingWrites, getPendingWritesCount } from "../db/seed";
 const isSyncPausedError = (message: string) =>
   message.startsWith("SYNC_PAUSED_AUTH") || message.startsWith("SYNC_PAUSED_PERMISSION");
 
+const getSyncPauseReason = (message: string): SyncPausedReason => {
+  if (message.startsWith("SYNC_PAUSED_AUTH")) return "auth";
+  if (message.startsWith("SYNC_PAUSED_PERMISSION")) return "permission";
+  if (message.startsWith("SYNC_PAUSED_ORG_SWITCH")) return "org_switch";
+  return null;
+};
+
+export type SyncPausedReason = "auth" | "permission" | "org_switch" | null;
+
 type SyncListener = (status: SyncStatus) => void;
 
 export type SyncStatus = {
@@ -12,6 +21,10 @@ export type SyncStatus = {
   pendingCount: number;
   lastSyncAt: number | null;
   lastError: string | null;
+  syncPausedReason: SyncPausedReason;
+  lastFlushMs: number | null;
+  lastFlushBatchSize: number;
+  lastFlushedCount: number;
 };
 
 class SmartSyncService {
@@ -21,6 +34,10 @@ class SmartSyncService {
     pendingCount: 0,
     lastSyncAt: null,
     lastError: null,
+    syncPausedReason: null,
+    lastFlushMs: null,
+    lastFlushBatchSize: 0,
+    lastFlushedCount: 0,
   };
 
   private syncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -96,6 +113,24 @@ class SmartSyncService {
     return this.performSync("manual");
   }
 
+  resumeSync() {
+    this.retryCount = 0;
+    this.updateStatus({ syncPausedReason: null, lastError: null });
+    this.scheduleSyncSoon("resume_manual");
+  }
+
+  handleOrganizationSwitch() {
+    if (this.syncTimer) {
+      clearTimeout(this.syncTimer);
+      this.syncTimer = null;
+    }
+    this.updateStatus({
+      syncing: false,
+      syncPausedReason: "org_switch",
+      lastError: "SYNC_PAUSED_ORG_SWITCH",
+    });
+  }
+
   /**
    * Schedule sync after a successful write (debounced)
    */
@@ -138,8 +173,13 @@ class SmartSyncService {
 
     this.inFlightSync = (async () => {
       try {
+        const startedAt = Date.now();
         // Update status: syncing started
-        this.updateStatus({ syncing: true, lastError: null });
+        this.updateStatus({
+          syncing: true,
+          lastError: null,
+          syncPausedReason: this.status.syncPausedReason === "org_switch" ? null : this.status.syncPausedReason,
+        });
 
         Sentry.addBreadcrumb({
           category: "sync",
@@ -148,6 +188,7 @@ class SmartSyncService {
         });
 
         const result = await flushPendingWrites();
+        const elapsedMs = Date.now() - startedAt;
 
         // Reset retry count on success (when queue is empty)
         if (result.remaining === 0) {
@@ -159,6 +200,10 @@ class SmartSyncService {
           pendingCount: result.remaining,
           lastSyncAt: Date.now(),
           lastError: null,
+          syncPausedReason: null,
+          lastFlushMs: elapsedMs,
+          lastFlushBatchSize: result.flushed + result.remaining,
+          lastFlushedCount: result.flushed,
         });
 
         Sentry.addBreadcrumb({
@@ -187,9 +232,21 @@ class SmartSyncService {
           lastError: paused
             ? "Sync pausado: verifique sessão/permissões e tente novamente."
             : errorMessage,
+          syncPausedReason: paused ? getSyncPauseReason(errorMessage) : null,
         });
 
         Sentry.captureException(error);
+
+        Sentry.addBreadcrumb({
+          category: "sync",
+          message: paused ? "Sync paused" : "Sync failed",
+          level: paused ? "warning" : "error",
+          data: {
+            paused,
+            pauseReason: getSyncPauseReason(errorMessage) ?? undefined,
+            retryCount: this.retryCount,
+          },
+        });
 
         // Schedule retry with exponential backoff if under max retries
         if (!paused && this.retryCount < this.maxRetries) {

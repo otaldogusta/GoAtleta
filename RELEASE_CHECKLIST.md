@@ -31,3 +31,10 @@
 - [ ] Pending account shows pending screen (no access to trainer area)
 - [ ] Trainer invite works (valid code -> trainers.user_id created)
 - [ ] Absence notice flow works (student creates, trainer confirms/ignores)
+
+## EAS Update discipline
+- [ ] Run `npm run release:check`
+- [ ] Publish candidate on preview: `npm run update:preview`
+- [ ] Validate smoke tests in preview channel
+- [ ] Promote verified update to production: `npm run update:promote`
+- [ ] If promote is unavailable for the target runtime, publish directly: `npm run update:production`

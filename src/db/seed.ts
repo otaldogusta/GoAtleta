@@ -192,6 +192,16 @@ export type SyncHealthReport = {
   deadLetterRecent: PendingWriteDeadRow[];
 };
 
+export type PendingWriteFailureRow = {
+  id: string;
+  kind: PendingWrite["kind"];
+  dedupKey: string;
+  createdAt: string;
+  retryCount: number;
+  lastError: string | null;
+  streamKey: string;
+};
+
 let pendingWritesInitPromise: Promise<void> | null = null;
 
 const isNetworkError = (error: unknown) => {
@@ -270,12 +280,43 @@ const writeCache = async (key: string, value: unknown) => {
   }
 };
 
+export async function clearLocalReadCaches() {
+  try {
+    await AsyncStorage.multiRemove([
+      CACHE_KEYS.classes,
+      CACHE_KEYS.classPlans,
+      CACHE_KEYS.trainingPlans,
+      CACHE_KEYS.trainingTemplates,
+      CACHE_KEYS.students,
+    ]);
+  } catch {
+    // ignore cache clear failures
+  }
+}
+
 const getActiveOrganizationId = async () => {
   try {
     return await AsyncStorage.getItem(ACTIVE_ORG_STORAGE_KEY);
   } catch {
     return null;
   }
+};
+
+const getScopedOrganizationId = async (
+  candidate: string | null | undefined,
+  feature: string
+) => {
+  const resolved = candidate ?? (await getActiveOrganizationId());
+  if (resolved && resolved.trim()) return resolved;
+  Sentry.addBreadcrumb({
+    category: "org-scope",
+    message: `Missing organization scope: ${feature}`,
+    level: "warning",
+  });
+  if (__DEV__) {
+    console.error(`[org-scope] Missing organization id for ${feature}`);
+  }
+  return null;
 };
 
 const readWriteQueue = async () => {
@@ -433,6 +474,28 @@ const getPendingWriteDedupKey = (write: PendingWrite) => {
   return null;
 };
 
+const getPendingWriteStreamKey = (write: PendingWrite) => {
+  if (write.kind === "session_log") {
+    const payload = write.payload as SessionLog;
+    return payload.classId ? `class:${payload.classId}` : `session:${write.id}`;
+  }
+  if (write.kind === "attendance_records") {
+    const payload = write.payload as { classId?: string; date?: string };
+    return payload.classId ? `class:${payload.classId}` : `attendance:${write.id}`;
+  }
+  if (write.kind === "scouting_log") {
+    const payload = write.payload as ScoutingLog;
+    return payload.classId ? `class:${payload.classId}` : `scouting:${write.id}`;
+  }
+  if (write.kind === "student_scouting_log") {
+    const payload = write.payload as StudentScoutingLog;
+    if (payload.studentId) return `student:${payload.studentId}`;
+    if (payload.classId) return `class:${payload.classId}`;
+    return `student_scout:${write.id}`;
+  }
+  return `unknown:${write.id}`;
+};
+
 const buildSessionLogClientId = (log: SessionLog) => {
   const existing = (log.clientId || log.id || "").trim();
   if (existing) return existing;
@@ -534,6 +597,96 @@ export async function getPendingWritesDiagnostics(
       deadLetterCandidates: 0,
       deadLetterStored: 0,
     };
+  }
+}
+
+export async function listPendingWriteFailures(
+  limit = 20
+): Promise<PendingWriteFailureRow[]> {
+  try {
+    await ensurePendingWritesMigrated();
+    const safeLimit = Math.max(1, Math.min(limit, 200));
+    const rows = await db.getAllAsync<PendingWriteRow>(
+      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes WHERE lastError IS NOT NULL ORDER BY retryCount DESC, createdAt ASC LIMIT ?",
+      [safeLimit]
+    );
+    return rows.map((row) => {
+      let payload: unknown = null;
+      try {
+        payload = JSON.parse(row.payload);
+      } catch {
+        payload = null;
+      }
+      return {
+        id: row.id,
+        kind: row.kind,
+        dedupKey: row.dedupKey,
+        createdAt: row.createdAt,
+        retryCount: row.retryCount,
+        lastError: row.lastError,
+        streamKey: getPendingWriteStreamKey({
+          id: row.id,
+          kind: row.kind,
+          payload,
+          createdAt: row.createdAt,
+        }),
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function getPendingWritePayloadById(id: string): Promise<string | null> {
+  try {
+    await ensurePendingWritesMigrated();
+    const row = await db.getFirstAsync<{ payload: string }>(
+      "SELECT payload FROM pending_writes WHERE id = ?",
+      [id]
+    );
+    return row?.payload ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function reprocessPendingWriteById(id: string) {
+  try {
+    await ensurePendingWritesMigrated();
+    await db.runAsync(
+      "UPDATE pending_writes SET retryCount = 0, lastError = NULL, createdAt = ? WHERE id = ?",
+      ["0000-01-01T00:00:00.000Z", id]
+    );
+  } catch {
+    return { flushed: 0, remaining: await getPendingWritesCount() };
+  }
+  return flushPendingWrites();
+}
+
+export async function reprocessPendingWritesNetworkFailures(limit = WRITE_FLUSH_BATCH_SIZE) {
+  try {
+    await ensurePendingWritesMigrated();
+    const safeLimit = Math.max(1, Math.min(limit, 100));
+    const candidates = await db.getAllAsync<{ id: string }>(
+      "SELECT id FROM pending_writes WHERE lastError LIKE '[network]%' ORDER BY retryCount DESC, createdAt ASC LIMIT ?",
+      [safeLimit]
+    );
+    if (!candidates.length) {
+      return { flushed: 0, remaining: await getPendingWritesCount(), selected: 0 };
+    }
+
+    for (const row of candidates) {
+      await db.runAsync(
+        "UPDATE pending_writes SET retryCount = 0, lastError = NULL, createdAt = ? WHERE id = ?",
+        ["0000-01-01T00:00:00.000Z", row.id]
+      );
+    }
+
+    const result = await flushPendingWrites();
+    return { ...result, selected: candidates.length };
+  } catch {
+    const result = await flushPendingWrites();
+    return { ...result, selected: 0 };
   }
 }
 
@@ -666,6 +819,7 @@ export async function clearPendingWritesDeadLetterCandidates(
 }
 
 export async function flushPendingWrites() {
+  const flushStartedAt = Date.now();
   let batch: PendingWrite[] = [];
   let usingSqlite = false;
   const batchRowsById = new Map<string, PendingWriteRow>();
@@ -691,16 +845,39 @@ export async function flushPendingWrites() {
         }
       })
       .filter((item): item is PendingWrite => Boolean(item));
+    batch.sort((left, right) => {
+      const streamDiff = getPendingWriteStreamKey(left).localeCompare(
+        getPendingWriteStreamKey(right)
+      );
+      if (streamDiff !== 0) return streamDiff;
+      return left.createdAt.localeCompare(right.createdAt);
+    });
     usingSqlite = true;
   } catch {
     const queue = await readWriteQueue();
     batch = queue.slice(0, WRITE_FLUSH_BATCH_SIZE);
   }
 
-  if (!batch.length) return { flushed: 0, remaining: 0 };
+  if (!batch.length) {
+    Sentry.addBreadcrumb({
+      category: "sync",
+      message: "flushPendingWrites: empty",
+      level: "info",
+      data: { ms: Date.now() - flushStartedAt },
+    });
+    return { flushed: 0, remaining: 0 };
+  }
   const remainingBatch: PendingWrite[] = [];
   const failedErrors = new Map<string, string>();
   const deadLetterErrors = new Map<string, { classification: PendingWriteErrorKind; message: string }>();
+  const failureByClass: Record<PendingWriteErrorKind, number> = {
+    network: 0,
+    retryable_server: 0,
+    auth: 0,
+    permission: 0,
+    bad_request: 0,
+    unknown: 0,
+  };
   let pauseKind: "auth" | "permission" | null = null;
 
   for (const item of batch) {
@@ -737,6 +914,7 @@ export async function flushPendingWrites() {
       }
     } catch (error) {
       const classification = classifyPendingWriteError(error);
+      failureByClass[classification] += 1;
       if (classification === "bad_request") {
         const message = error instanceof Error ? error.message : String(error);
         deadLetterErrors.set(item.id, { classification, message });
@@ -775,6 +953,20 @@ export async function flushPendingWrites() {
       "SELECT COUNT(*) as count FROM pending_writes"
     );
     const remaining = countRow?.count ?? 0;
+    const elapsedMs = Date.now() - flushStartedAt;
+    Sentry.addBreadcrumb({
+      category: "sync",
+      message: "flushPendingWrites: sqlite",
+      level: "info",
+      data: {
+        ms: elapsedMs,
+        batchSize: batch.length,
+        flushed: batch.length - remainingBatch.length,
+        remaining,
+        failures: failureByClass,
+        deadLettered: deadLetterErrors.size,
+      },
+    });
     if (pauseKind) {
       throw buildSyncPauseError(pauseKind);
     }
@@ -788,6 +980,19 @@ export async function flushPendingWrites() {
   const untouched = queue.slice(WRITE_FLUSH_BATCH_SIZE);
   const nextQueue = [...remainingBatch, ...untouched];
   await writeQueue(nextQueue);
+  Sentry.addBreadcrumb({
+    category: "sync",
+    message: "flushPendingWrites: fallback",
+    level: "info",
+    data: {
+      ms: Date.now() - flushStartedAt,
+      batchSize: batch.length,
+      flushed: batch.length - remainingBatch.length,
+      remaining: nextQueue.length,
+      failures: failureByClass,
+      deadLettered: deadLetterErrors.size,
+    },
+  });
   if (pauseKind) {
     throw buildSyncPauseError(pauseKind);
   }
@@ -1338,20 +1543,22 @@ const buildClassesCacheKey = (organizationId: string | null) =>
 export async function getClasses(
   options: { organizationId?: string | null } = {}
 ): Promise<ClassGroup[]> {
+  const startedAt = Date.now();
   try {
     const units = await safeGetUnits();
     const unitMap = new Map(
       units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
     );
-    const activeOrganizationId =
-      options.organizationId ?? (await getActiveOrganizationId());
+    const activeOrganizationId = await getScopedOrganizationId(
+      options.organizationId,
+      "getClasses"
+    );
+    if (!activeOrganizationId) return [];
     const cacheKey = buildClassesCacheKey(activeOrganizationId ?? null);
     const rows = await supabaseGet<ClassRow[]>(
-      activeOrganizationId
-        ? `/classes?select=*&organization_id=eq.${encodeURIComponent(
-            activeOrganizationId
-          )}&order=name.asc`
-        : "/classes?select=*&order=name.asc"
+      `/classes?select=*&organization_id=eq.${encodeURIComponent(
+        activeOrganizationId
+      )}&order=name.asc`
     );
     const mapped = sortClassesBySchedule(
       rows.map((row) => {
@@ -1418,6 +1625,12 @@ export async function getClasses(
       })
     );
     await writeCache(cacheKey, mapped);
+    Sentry.addBreadcrumb({
+      category: "sqlite-query",
+      message: "getClasses",
+      level: "info",
+      data: { ms: Date.now() - startedAt, rows: mapped.length },
+    });
     return mapped;
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
@@ -2085,13 +2298,16 @@ export async function getSessionLogsByRange(
   endIso: string,
   options: { organizationId?: string | null } = {}
 ): Promise<SessionLog[]> {
-  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
-  const rows = await supabaseGet<SessionLogRow[]>(
-    organizationId
-      ? `/session_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
-      : `/session_logs?select=*&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
+  const startedAt = Date.now();
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getSessionLogsByRange"
   );
-  return rows.map((row) => ({
+  if (!organizationId) return [];
+  const rows = await supabaseGet<SessionLogRow[]>(
+    `/session_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
+  );
+  const mapped = rows.map((row) => ({
     id: row.id,
     clientId: row.client_id ?? row.id,
     classId: row.classid,
@@ -2105,6 +2321,13 @@ export async function getSessionLogsByRange(
     painScore: row.pain_score ?? 0,
     createdAt: row.createdat,
   }));
+  Sentry.addBreadcrumb({
+    category: "sqlite-query",
+    message: "getSessionLogsByRange",
+    level: "info",
+    data: { ms: Date.now() - startedAt, rows: mapped.length },
+  });
+  return mapped;
 }
 
 export async function getTrainingPlans(
@@ -2553,16 +2776,18 @@ const buildStudentsCacheKey = (organizationId: string | null) =>
 export async function getStudents(
   options: { organizationId?: string | null } = {}
 ): Promise<Student[]> {
+  const startedAt = Date.now();
   try {
-    const activeOrganizationId =
-      options.organizationId ?? (await getActiveOrganizationId());
+    const activeOrganizationId = await getScopedOrganizationId(
+      options.organizationId,
+      "getStudents"
+    );
+    if (!activeOrganizationId) return [];
     const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
     const rows = await supabaseGet<StudentRow[]>(
-      activeOrganizationId
-        ? `/students?select=*&organization_id=eq.${encodeURIComponent(
-            activeOrganizationId
-          )}&order=name.asc`
-        : "/students?select=*&order=name.asc"
+      `/students?select=*&organization_id=eq.${encodeURIComponent(
+        activeOrganizationId
+      )}&order=name.asc`
     );
     const mapped = rows.map((row) => {
       const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
@@ -2588,6 +2813,12 @@ export async function getStudents(
       };
     });
     await writeCache(cacheKey, mapped);
+    Sentry.addBreadcrumb({
+      category: "sqlite-query",
+      message: "getStudents",
+      level: "info",
+      data: { ms: Date.now() - startedAt, rows: mapped.length },
+    });
     return mapped;
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {

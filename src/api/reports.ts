@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react-native";
 import { supabaseRestGet } from "./rest";
 
 type AdminPendingAttendanceRow = {
@@ -70,13 +71,44 @@ const toInt = (value: number | string | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const assertOrganizationId = (organizationId: string, feature: string) => {
+  if (!organizationId || !organizationId.trim()) {
+    throw new Error(`Missing organizationId for ${feature}`);
+  }
+};
+
+const withTiming = async <T>(name: string, operation: () => Promise<T>) => {
+  const startedAt = Date.now();
+  try {
+    const result = await operation();
+    Sentry.addBreadcrumb({
+      category: "reports",
+      message: `${name} success`,
+      level: "info",
+      data: { ms: Date.now() - startedAt },
+    });
+    return result;
+  } catch (error) {
+    Sentry.addBreadcrumb({
+      category: "reports",
+      message: `${name} error`,
+      level: "error",
+      data: { ms: Date.now() - startedAt },
+    });
+    throw error;
+  }
+};
+
 export async function listAdminPendingAttendance(params: {
   organizationId: string;
 }) {
-  const rows = await supabaseRestGet<AdminPendingAttendanceRow[]>(
-    "/v_admin_pending_attendance?organization_id=eq." +
-      encodeURIComponent(params.organizationId) +
-      "&select=*"
+  assertOrganizationId(params.organizationId, "listAdminPendingAttendance");
+  const rows = await withTiming("listAdminPendingAttendance", () =>
+    supabaseRestGet<AdminPendingAttendanceRow[]>(
+      "/v_admin_pending_attendance?organization_id=eq." +
+        encodeURIComponent(params.organizationId) +
+        "&select=*"
+    )
   );
   return rows.map<AdminPendingAttendance>((row) => ({
     organizationId: row.organization_id,
@@ -92,10 +124,13 @@ export async function listAdminPendingAttendance(params: {
 export async function listAdminPendingSessionLogs(params: {
   organizationId: string;
 }) {
-  const rows = await supabaseRestGet<AdminPendingSessionLogsRow[]>(
-    "/v_admin_pending_session_logs?organization_id=eq." +
-      encodeURIComponent(params.organizationId) +
-      "&select=*"
+  assertOrganizationId(params.organizationId, "listAdminPendingSessionLogs");
+  const rows = await withTiming("listAdminPendingSessionLogs", () =>
+    supabaseRestGet<AdminPendingSessionLogsRow[]>(
+      "/v_admin_pending_session_logs?organization_id=eq." +
+        encodeURIComponent(params.organizationId) +
+        "&select=*"
+    )
   );
   return rows.map<AdminPendingSessionLogs>((row) => ({
     organizationId: row.organization_id,
@@ -112,12 +147,15 @@ export async function listAdminRecentActivity(params: {
   organizationId: string;
   limit?: number;
 }) {
+  assertOrganizationId(params.organizationId, "listAdminRecentActivity");
   const limit = Math.max(1, params.limit ?? 50);
-  const rows = await supabaseRestGet<AdminRecentActivityRow[]>(
-    "/v_admin_recent_activity?organization_id=eq." +
-      encodeURIComponent(params.organizationId) +
-      "&select=*&order=occurred_at.desc&limit=" +
-      String(limit)
+  const rows = await withTiming("listAdminRecentActivity", () =>
+    supabaseRestGet<AdminRecentActivityRow[]>(
+      "/v_admin_recent_activity?organization_id=eq." +
+        encodeURIComponent(params.organizationId) +
+        "&select=*&order=occurred_at.desc&limit=" +
+        String(limit)
+    )
   );
   return rows.map<AdminRecentActivity>((row) => ({
     organizationId: row.organization_id,

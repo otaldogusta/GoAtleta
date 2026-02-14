@@ -20,6 +20,8 @@ import {
   type DevProfilePreview,
 } from "../dev/profile-preview";
 import { useAuth } from "../auth/auth";
+import { smartSync } from "../core/smart-sync";
+import { clearLocalReadCaches } from "../db/seed";
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
@@ -173,13 +175,17 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, [session]);
 
   const setActiveOrganizationId = useCallback(async (orgId: string | null) => {
+    if (orgId === activeOrganizationId) return;
+    smartSync.handleOrganizationSwitch();
+    await clearLocalReadCaches();
     if (orgId) {
       await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
     } else {
       await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
     }
     setActiveOrgId(orgId);
-  }, []);
+    smartSync.resumeSync();
+  }, [activeOrganizationId]);
 
   const createOrganization = useCallback(
     async (name: string): Promise<string> => {
