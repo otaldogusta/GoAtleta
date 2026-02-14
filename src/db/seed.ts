@@ -714,7 +714,7 @@ const ensureUnit = async (
   unitName: string | undefined,
   cachedUnits?: UnitRow[]
 ): Promise<UnitRow | null> => {
-  const name = canonicalizeUnitLabel(unitName);
+  const name = canonicalizeUnitLabel(unitName ?? null);
   if (!name) return null;
   const units = cachedUnits ?? (await safeGetUnits());
   const targetKey = normalizeUnitKey(name);
@@ -775,6 +775,7 @@ type ClassRow = {
   cycle_length_weeks?: number | null;
   acwr_low?: number | null;
   acwr_high?: number | null;
+  created_at?: string | null;
   createdat?: string | null;
 };
 
@@ -1247,28 +1248,46 @@ export async function getClasses(
       rows.map((row) => {
         const unitFromId = row.unit_id ? unitMap.get(row.unit_id) : undefined;
         const unitLabel =
-          canonicalizeUnitLabel(unitFromId ?? row.unit) ??
+          canonicalizeUnitLabel(unitFromId ?? row.unit ?? null) ??
           canonicalizeUnitLabel(row.unit ?? "") ??
           "Sem unidade";
         const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+        const resolvedStartTime = row.starttime ?? "14:00";
+        const resolvedEndTime =
+          row.end_time ??
+          row.endtime ??
+          computeEndTime(row.starttime, row.duration ?? 60) ??
+          computeEndTime(resolvedStartTime, row.duration ?? 60) ??
+          resolvedStartTime;
+        const resolvedEquipment: ClassGroup["equipment"] =
+          row.equipment === "quadra" ||
+          row.equipment === "funcional" ||
+          row.equipment === "academia" ||
+          row.equipment === "misto"
+            ? row.equipment
+            : "misto";
+        const resolvedModality: ClassGroup["modality"] =
+          row.modality === "voleibol" || row.modality === "fitness"
+            ? row.modality
+            : "fitness";
+        const resolvedGender: ClassGroup["gender"] =
+          row.gender === "masculino" || row.gender === "feminino"
+            ? row.gender
+            : "misto";
+        const resolvedLevel: ClassGroup["level"] =
+          row.level === 2 || row.level === 3 ? row.level : 1;
         return {
           id: row.id,
           name: row.name,
           organizationId: resolvedOrganizationId,
           unit: unitLabel,
-          unitId: row.unit_id ?? undefined,
-          colorKey: row.color_key ?? undefined,
-          modality:
-            row.modality === "voleibol" || row.modality === "fitness" ? row.modality : undefined,
+          unitId: row.unit_id ?? "",
+          colorKey: row.color_key ?? "",
+          modality: resolvedModality,
           ageBand: normalizeAgeBand(row.ageband),
-          gender:
-            row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto",
-          startTime: row.starttime ?? "14:00",
-          endTime:
-            row.end_time ??
-            row.endtime ??
-            computeEndTime(row.starttime, row.duration ?? 60) ??
-            undefined,
+          gender: resolvedGender,
+          startTime: resolvedStartTime,
+          endTime: resolvedEndTime,
           durationMinutes: row.duration ?? 60,
           daysOfWeek:
             Array.isArray(row.days) && row.days.length
@@ -1278,14 +1297,14 @@ export async function getClasses(
                 : [2, 4],
           daysPerWeek: row.daysperweek,
           goal: row.goal,
-          equipment: row.equipment,
-          level: row.level,
-          mvLevel: row.mv_level ?? undefined,
-          cycleStartDate: row.cycle_start_date ?? undefined,
-          cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
-          acwrLow: row.acwr_low ?? undefined,
-          acwrHigh: row.acwr_high ?? undefined,
-          createdAt: row.createdat ?? undefined,
+          equipment: resolvedEquipment,
+          level: resolvedLevel,
+          mvLevel: row.mv_level ?? "",
+          cycleStartDate: row.cycle_start_date ?? "",
+          cycleLengthWeeks: row.cycle_length_weeks ?? 0,
+          acwrLow: row.acwr_low ?? 0.8,
+          acwrHigh: row.acwr_high ?? 1.3,
+          createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
         };
       })
     );
@@ -1331,14 +1350,14 @@ export async function getClassById(
     organizationId: resolvedOrganizationId,
     unit:
       (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
-      canonicalizeUnitLabel(row.unit) ??
+      canonicalizeUnitLabel(row.unit ?? null) ??
       "Sem unidade",
-    unitId: row.unit_id ?? undefined,
-    colorKey: row.color_key ?? undefined,
+    unitId: row.unit_id ?? "",
+    colorKey: row.color_key ?? "",
     modality:
       row.modality === "voleibol" || row.modality === "fitness"
         ? row.modality
-        : undefined,
+        : "fitness",
     ageBand: normalizeAgeBand(row.ageband),
     gender:
       row.gender === "masculino" || row.gender === "feminino"
@@ -1349,7 +1368,8 @@ export async function getClassById(
       row.end_time ??
       row.endtime ??
       computeEndTime(row.starttime, row.duration ?? 60) ??
-      undefined,
+      computeEndTime(row.starttime ?? "14:00", row.duration ?? 60) ??
+      (row.starttime ?? "14:00"),
     durationMinutes: row.duration ?? 60,
     daysOfWeek:
       Array.isArray(row.days) && row.days.length
@@ -1359,14 +1379,20 @@ export async function getClassById(
           : [2, 4],
     daysPerWeek: row.daysperweek,
     goal: row.goal,
-    equipment: row.equipment,
-    level: row.level,
-    mvLevel: row.mv_level ?? undefined,
-    cycleStartDate: row.cycle_start_date ?? undefined,
-    cycleLengthWeeks: row.cycle_length_weeks ?? undefined,
-    acwrLow: row.acwr_low ?? undefined,
-    acwrHigh: row.acwr_high ?? undefined,
-    createdAt: row.createdat ?? undefined,
+    equipment:
+      row.equipment === "quadra" ||
+      row.equipment === "funcional" ||
+      row.equipment === "academia" ||
+      row.equipment === "misto"
+        ? row.equipment
+        : "misto",
+    level: row.level === 2 || row.level === 3 ? row.level : 1,
+    mvLevel: row.mv_level ?? "",
+    cycleStartDate: row.cycle_start_date ?? "",
+    cycleLengthWeeks: row.cycle_length_weeks ?? 0,
+    acwrLow: row.acwr_low ?? 0.8,
+    acwrHigh: row.acwr_high ?? 1.3,
+    createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
   };
 }
 
@@ -1588,9 +1614,9 @@ export async function deleteClassCascade(id: string) {
 const scoutingRowToLog = (row: ScoutingLogRow): ScoutingLog => ({
   id: row.id,
   classId: row.classid,
-  unit: row.unit ?? undefined,
+  unit: row.unit ?? "",
   mode: row.mode === "jogo" ? "jogo" : "treino",
-  clientId: row.client_id ?? undefined,
+  clientId: row.client_id ?? row.id,
   date: row.date,
   serve0: row.serve_0 ?? 0,
   serve1: row.serve_1 ?? 0,
@@ -1605,7 +1631,7 @@ const scoutingRowToLog = (row: ScoutingLogRow): ScoutingLog => ({
   attackSend1: row.attack_send_1 ?? 0,
   attackSend2: row.attack_send_2 ?? 0,
   createdAt: row.createdat,
-  updatedAt: row.updatedat ?? undefined,
+  updatedAt: row.updatedat ?? row.createdat,
 });
 
 const studentScoutingRowToLog = (row: StudentScoutingRow): StudentScoutingLog => ({
@@ -1626,7 +1652,7 @@ const studentScoutingRowToLog = (row: StudentScoutingRow): StudentScoutingLog =>
   attackSend1: row.attack_send_1 ?? 0,
   attackSend2: row.attack_send_2 ?? 0,
   createdAt: row.createdat,
-  updatedAt: row.updatedat ?? undefined,
+  updatedAt: row.updatedat ?? row.createdat,
 });
 
 
@@ -1931,16 +1957,16 @@ export async function getSessionLogByDate(
   if (!row) return null;
   return {
     id: row.id,
-    clientId: row.client_id ?? undefined,
+    clientId: row.client_id ?? row.id,
     classId: row.classid,
     PSE: row.rpe,
     technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
     attendance: row.attendance,
-    activity: row.activity ?? undefined,
-    conclusion: row.conclusion ?? undefined,
-    participantsCount: row.participants_count ?? undefined,
-    photos: row.photos ?? undefined,
-    painScore: row.pain_score ?? undefined,
+    activity: row.activity ?? "",
+    conclusion: row.conclusion ?? "",
+    participantsCount: row.participants_count ?? 0,
+    photos: row.photos ?? "",
+    painScore: row.pain_score ?? 0,
     createdAt: row.createdat,
   };
 }
@@ -1957,15 +1983,17 @@ export async function getSessionLogsByRange(
       : `/session_logs?select=*&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
   );
   return rows.map((row) => ({
+    id: row.id,
+    clientId: row.client_id ?? row.id,
     classId: row.classid,
     PSE: row.rpe,
     technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
     attendance: row.attendance,
-    activity: row.activity ?? undefined,
-    conclusion: row.conclusion ?? undefined,
-    participantsCount: row.participants_count ?? undefined,
-    photos: row.photos ?? undefined,
-    painScore: row.pain_score ?? undefined,
+    activity: row.activity ?? "",
+    conclusion: row.conclusion ?? "",
+    participantsCount: row.participants_count ?? 0,
+    photos: row.photos ?? "",
+    painScore: row.pain_score ?? 0,
     createdAt: row.createdat,
   }));
 }
@@ -2099,6 +2127,7 @@ export async function getClassPlansByClass(
         : `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&order=weeknumber.asc`
     );
     const mapped = rows.map((row) => ({
+      source: (row.source === "MANUAL" ? "MANUAL" : "AUTO") as ClassPlan["source"],
       id: row.id,
       classId: row.classid,
       startDate: row.startdate,
@@ -2112,9 +2141,13 @@ export async function getClassPlansByClass(
       warmupProfile: row.warmupprofile ?? "",
       jumpTarget: row.jump_target ?? "",
       rpeTarget: row.rpe_target ?? "",
-      source: row.source === "MANUAL" ? "MANUAL" : "AUTO",
       createdAt: row.created_at ?? row.createdat ?? new Date().toISOString(),
-      updatedAt: row.updated_at ?? row.updatedat ?? undefined,
+      updatedAt:
+        row.updated_at ??
+        row.updatedat ??
+        row.created_at ??
+        row.createdat ??
+        new Date().toISOString(),
     }));
     const cache = (await readCache<Record<string, ClassPlan[]>>(CACHE_KEYS.classPlans)) ?? {};
     cache[classId] = mapped;
@@ -2432,15 +2465,15 @@ export async function getStudents(
         classId: row.classid,
         age: row.age,
         phone: row.phone,
-        loginEmail: row.login_email ?? undefined,
-        guardianName: row.guardian_name ?? undefined,
-        guardianPhone: row.guardian_phone ?? undefined,
-        guardianRelation: row.guardian_relation ?? undefined,
-        healthIssue: row.health_issue ?? undefined,
-        healthIssueNotes: row.health_issue_notes ?? undefined,
-        medicationUse: row.medication_use ?? undefined,
-        medicationNotes: row.medication_notes ?? undefined,
-        healthObservations: row.health_observations ?? undefined,
+        loginEmail: row.login_email ?? "",
+        guardianName: row.guardian_name ?? "",
+        guardianPhone: row.guardian_phone ?? "",
+        guardianRelation: row.guardian_relation ?? "",
+        healthIssue: row.health_issue ?? false,
+        healthIssueNotes: row.health_issue_notes ?? "",
+        medicationUse: row.medication_use ?? false,
+        medicationNotes: row.medication_notes ?? "",
+        healthObservations: row.health_observations ?? "",
         birthDate: row.birthdate ?? "",
         createdAt: row.createdat,
       };
@@ -2486,15 +2519,15 @@ export async function getStudentsByClass(
         classId: row.classid,
         age: row.age,
         phone: row.phone,
-        loginEmail: row.login_email ?? undefined,
-        guardianName: row.guardian_name ?? undefined,
-        guardianPhone: row.guardian_phone ?? undefined,
-        guardianRelation: row.guardian_relation ?? undefined,
-        healthIssue: row.health_issue ?? undefined,
-        healthIssueNotes: row.health_issue_notes ?? undefined,
-        medicationUse: row.medication_use ?? undefined,
-        medicationNotes: row.medication_notes ?? undefined,
-        healthObservations: row.health_observations ?? undefined,
+        loginEmail: row.login_email ?? "",
+        guardianName: row.guardian_name ?? "",
+        guardianPhone: row.guardian_phone ?? "",
+        guardianRelation: row.guardian_relation ?? "",
+        healthIssue: row.health_issue ?? false,
+        healthIssueNotes: row.health_issue_notes ?? "",
+        medicationUse: row.medication_use ?? false,
+        medicationNotes: row.medication_notes ?? "",
+        healthObservations: row.health_observations ?? "",
         birthDate: row.birthdate ?? "",
         createdAt: row.createdat,
       };
@@ -2537,15 +2570,15 @@ export async function getStudentById(
     classId: row.classid,
     age: row.age,
     phone: row.phone,
-    loginEmail: row.login_email ?? undefined,
-    guardianName: row.guardian_name ?? undefined,
-    guardianPhone: row.guardian_phone ?? undefined,
-    guardianRelation: row.guardian_relation ?? undefined,
-    healthIssue: row.health_issue ?? undefined,
-    healthIssueNotes: row.health_issue_notes ?? undefined,
-    medicationUse: row.medication_use ?? undefined,
-    medicationNotes: row.medication_notes ?? undefined,
-    healthObservations: row.health_observations ?? undefined,
+    loginEmail: row.login_email ?? "",
+    guardianName: row.guardian_name ?? "",
+    guardianPhone: row.guardian_phone ?? "",
+    guardianRelation: row.guardian_relation ?? "",
+    healthIssue: row.health_issue ?? false,
+    healthIssueNotes: row.health_issue_notes ?? "",
+    medicationUse: row.medication_use ?? false,
+    medicationNotes: row.medication_notes ?? "",
+    healthObservations: row.health_observations ?? "",
     birthDate: row.birthdate ?? "",
     createdAt: row.createdat,
   };
@@ -2710,7 +2743,7 @@ export async function getAttendanceByClass(
       date: row.date,
       status: row.status === "faltou" ? "faltou" : "presente",
       note: row.note ?? "",
-      painScore: row.pain_score ?? undefined,
+      painScore: row.pain_score ?? 0,
       createdAt: row.createdat,
     }));
   }
@@ -2733,7 +2766,7 @@ export async function getAttendanceByDate(
       date: row.date,
       status: row.status === "faltou" ? "faltou" : "presente",
       note: row.note ?? "",
-      painScore: row.pain_score ?? undefined,
+      painScore: row.pain_score ?? 0,
       createdAt: row.createdat,
     }));
   }
@@ -2756,7 +2789,7 @@ export async function getAttendanceByStudent(
       date: row.date,
       status: row.status === "faltou" ? "faltou" : "presente",
       note: row.note ?? "",
-      painScore: row.pain_score ?? undefined,
+      painScore: row.pain_score ?? 0,
       createdAt: row.createdat,
     }));
   } catch (error) {
@@ -2782,7 +2815,7 @@ export async function getAttendanceAll(
       date: row.date,
       status: row.status === "faltou" ? "faltou" : "presente",
       note: row.note ?? "",
-      painScore: row.pain_score ?? undefined,
+      painScore: row.pain_score ?? 0,
       createdAt: row.createdat,
     }));
   }
@@ -2793,7 +2826,7 @@ const mapAbsenceNotice = (row: AbsenceNoticeRow): AbsenceNotice => ({
   classId: row.class_id,
   date: row.session_date,
   reason: row.reason,
-  note: row.note ?? undefined,
+  note: row.note ?? "",
   status:
     row.status === "confirmed"
       ? "confirmed"
