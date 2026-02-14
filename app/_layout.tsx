@@ -518,7 +518,7 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
   );
 }
 
-export default Sentry.wrap(function RootLayout() {
+function RootLayout() {
   useEffect(() => {
     setSentryBaseTags();
     const globalHandler = (global as {
@@ -564,13 +564,48 @@ export default Sentry.wrap(function RootLayout() {
   }, []);
 
   return (
-    <AppThemeProvider>
-      <BootstrapProvider>
-        <BootstrapAuthProviders />
-      </BootstrapProvider>
-    </AppThemeProvider>
+    <Sentry.ErrorBoundary
+      fallback={({ error, resetError }) => (
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#1a1a1a',
+          padding: 16,
+        }}>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>
+            Algo deu errado
+          </Text>
+          <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 24, textAlign: 'center' }}>
+            {error?.message || 'Um erro inesperado ocorreu'}
+          </Text>
+          <Pressable
+            onPress={resetError}
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 24,
+              borderRadius: 8,
+              backgroundColor: '#2563eb',
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>
+              Tentar novamente
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      showDialog
+    >
+      <AppThemeProvider>
+        <BootstrapProvider>
+          <BootstrapAuthProviders />
+        </BootstrapProvider>
+      </AppThemeProvider>
+    </Sentry.ErrorBoundary>
   );
-});
+}
+
+export default RootLayout;
 
 function BootstrapAuthProviders() {
   const { data } = useBootstrap();
