@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     KeyboardAvoidingView,
     Platform,
+    RefreshControl,
     ScrollView,
     Text,
     TextInput,
@@ -80,6 +81,7 @@ export default function ClassesScreen() {
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [handledEditId, setHandledEditId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
   const [editModality, setEditModality] = useState<ClassGroup["modality"]>("voleibol");
@@ -1586,6 +1588,21 @@ export default function ClassesScreen() {
           onScroll={syncPickerLayouts}
           onScrollBeginDrag={closeAllPickers}
           scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                try {
+                  await loadClasses();
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              tintColor={colors.text}
+              colors={[colors.text]}
+            />
+          }
         >
         <View style={{ marginBottom: 4 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>

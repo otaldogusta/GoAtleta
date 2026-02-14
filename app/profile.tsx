@@ -5,7 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, Modal, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 
@@ -46,6 +46,7 @@ export default function ProfileScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingPhoto, setLoadingPhoto] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -402,7 +403,26 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 14 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await refreshRole();
+                const data = await getClasses();
+                setClasses(data);
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor={colors.text}
+            colors={[colors.text]}
+          />
+        }
+      >
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
 

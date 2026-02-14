@@ -10,6 +10,7 @@ import {
   Platform,
   Linking,
   Image,
+  RefreshControl,
   ScrollView,
   Share,
   Text,
@@ -54,6 +55,7 @@ export default function ExercisesScreen() {
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const [items, setItems] = useState<Exercise[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [title, setTitle] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [source, setSource] = useState("");
@@ -268,6 +270,21 @@ export default function ExercisesScreen() {
       <ScrollView
         contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await load();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor={colors.text}
+            colors={[colors.text]}
+          />
+        }
       >
         <View style={{ gap: 6 }}>
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>

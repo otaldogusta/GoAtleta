@@ -6,6 +6,7 @@ import {
     Alert,
     LayoutAnimation,
     Platform,
+    RefreshControl,
     ScrollView,
     Text,
     TextInput,
@@ -652,6 +653,14 @@ return (
   <Container style={{ flex: 1, backgroundColor: colors.background }}>
     <ScrollView
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void loadMembers({ soft: true })}
+          tintColor={colors.text}
+          colors={[colors.text]}
+        />
+      }
       contentContainerStyle={{
         paddingHorizontal: isCompact ? 14 : 16,
         paddingTop: 12,
@@ -770,7 +779,8 @@ return (
                 <View
                   key={item.key}
                   style={{
-                    minWidth: isCompact ? 118 : 126,
+                    minWidth: 90,
+                    flex: 1,
                     borderRadius: 14,
                     borderWidth: 1,
                     borderColor: colors.border,
@@ -781,7 +791,7 @@ return (
                   }}
                 >
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 22, lineHeight: 24 }}>
+                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 20, lineHeight: 22 }}>
                       {item.value}
                     </Text>
                     <View
@@ -797,32 +807,10 @@ return (
                       <Ionicons name={item.icon as any} size={13} color={colors.text} />
                     </View>
                   </View>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>{item.label}</Text>
                 </View>
               ))}
             </View>
-
-            <Pressable
-              disabled={loading || refreshing}
-              onPress={() => void loadMembers({ soft: true })}
-              style={{
-                alignSelf: "flex-start",
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                opacity: loading || refreshing ? 0.6 : 1,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="refresh" size={13} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                  {refreshing ? "Atualizando..." : "Recarregar"}
-                </Text>
-              </View>
-            </Pressable>
           </>
         )}
       </View>

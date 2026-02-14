@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -56,6 +57,7 @@ export default function EventsScreen() {
 
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [classes, setClasses] = useState<{ id: string; name: string; unitId: string }[]>([]);
   const [sportFilter, setSportFilter] = useState<"todos" | EventSport>("todos");
@@ -185,7 +187,24 @@ export default function EventsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 12 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await loadData();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor={colors.text}
+            colors={[colors.text]}
+          />
+        }
+      >
         <View style={{ gap: 4 }}>
           <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>Eventos</Text>
           <Text style={{ color: colors.muted }}>Calendário mensal da organização</Text>

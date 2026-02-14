@@ -16,6 +16,7 @@ import {
     Animated,
     KeyboardAvoidingView,
     Platform,
+    RefreshControl,
     ScrollView,
     Text,
     TextInput,
@@ -154,6 +155,7 @@ export default function StudentsScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [classId, setClassId] = useState("");
   const [showForm, setShowForm] = usePersistedState<boolean>(
     "students_show_form_v1",
@@ -2041,6 +2043,21 @@ export default function StudentsScreen() {
         onScrollBeginDrag={closeAllPickers}
         onScroll={syncPickerLayouts}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await load();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor={colors.text}
+            colors={[colors.text]}
+          />
+        }
       >
         <ScreenHeader title="Alunos" subtitle="Lista de chamada por turma" />
 

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Text, View } from "react-native";
+import { NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
@@ -59,6 +59,7 @@ export default function StudentHome() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [inbox, setInbox] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const profilePhotoUri = student?.photoUrl ?? null;
   const [now, setNow] = useState(() => new Date());
   const agendaScrollRef = useRef<ScrollView>(null);
@@ -272,7 +273,29 @@ export default function StudentHome() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 14 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                const [items, classList] = await Promise.all([
+                  getNotifications(),
+                  getClasses(),
+                ]);
+                setInbox(items);
+                setClasses(classList);
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor={colors.text}
+            colors={[colors.text]}
+          />
+        }
+      >
         {loading ? (
           <View style={{ gap: 16 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>

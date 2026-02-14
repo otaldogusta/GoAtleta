@@ -9,7 +9,7 @@ import {
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { memo, useCallback, useMemo, useState } from "react";
-import { FlatList, Platform, ScrollView, Text, View } from "react-native";
+import { FlatList, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -200,8 +200,8 @@ const IndicatorCard = memo(function IndicatorCard({
   return (
     <View
       style={{
-        minWidth: 120,
-        flexGrow: 1,
+        minWidth: 90,
+        flex: 1,
         padding: 10,
         borderRadius: 12,
         borderWidth: 1,
@@ -209,8 +209,8 @@ const IndicatorCard = memo(function IndicatorCard({
         backgroundColor: colors.secondaryBg,
       }}
     >
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{value}</Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
+      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>{value}</Text>
+      <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
     </View>
   );
 });
@@ -226,6 +226,7 @@ export default function CoordinationScreen() {
 
   const [activeTab, setActiveTab] = useState<CoordinationTab>("dashboard");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingAttendance, setPendingAttendance] = useState<AdminPendingAttendance[]>([]);
   const [pendingReports, setPendingReports] = useState<AdminPendingSessionLogs[]>([]);
@@ -273,6 +274,7 @@ export default function CoordinationScreen() {
       setDataFixSuggestions(null);
       setAiMessage(null);
       setLoading(false);
+      setRefreshing(false);
       setError(null);
       return;
     }
@@ -324,6 +326,7 @@ export default function CoordinationScreen() {
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [isAdmin, organizationId]);
 
@@ -877,6 +880,17 @@ export default function CoordinationScreen() {
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 10 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                void loadDashboard();
+              }}
+              tintColor={colors.text}
+              colors={[colors.text]}
+            />
+          }
         >
           {error ? (
             <View
