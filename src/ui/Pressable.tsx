@@ -1,9 +1,9 @@
-import { Pressable as RNPressable } from "react-native";
+import { Platform, Pressable as RNPressable } from "react-native";
 import type { PressableProps as RNPressableProps, StyleProp, ViewStyle } from "react-native";
 
 type WebContextMenuHandler = (event: unknown) => void;
 type PressableProps = RNPressableProps & {
-  onContextMenu: WebContextMenuHandler;
+  onContextMenu?: WebContextMenuHandler;
 };
 
 const flattenStyle = (style: StyleProp<ViewStyle>) => {
@@ -108,6 +108,14 @@ export function Pressable({
         const base =
           typeof style === "function" ? style(state) : style;
         if (disabled || shouldSkipFeedback(base)) return base;
+
+        if (Platform.OS !== "web") {
+          return [
+            base,
+            state.pressed ? { opacity: 0.96 } : null,
+          ];
+        }
+
         const hoveredBg = state.hovered ? pickBackground(base) : null;
         const hoverStyle = state.hovered && hoveredBg
           ? (() => {

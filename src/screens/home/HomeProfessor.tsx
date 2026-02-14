@@ -813,11 +813,11 @@ export function HomeProfessorScreen({
 
         if (item.endTime <= nowTime) return "Aula anterior";
 
-        return "PrÃ³xima aula";
+        return "Próxima aula";
 
       }
 
-      return item.dateKey < todayDateKey ? "Aula anterior" : "PrÃ³xima aula";
+      return item.dateKey < todayDateKey ? "Aula anterior" : "Próxima aula";
 
     },
 
@@ -1102,7 +1102,7 @@ export function HomeProfessorScreen({
 
             await Updates.fetchUpdateAsync();
 
-            showToast("AtualizaÃ§Ã£o encontrada. Reiniciando...", "success");
+            showToast("Atualização encontrada. Reiniciando...", "success");
 
             await Updates.reloadAsync();
 
@@ -1142,6 +1142,7 @@ export function HomeProfessorScreen({
   const shortcutCardSurfaceStyle = isAndroidLight
     ? {
         backgroundColor: "#ffffff",
+        overflow: "hidden",
         borderWidth: 1,
         borderColor: colors.border,
         shadowOpacity: 0,
@@ -1149,8 +1150,16 @@ export function HomeProfessorScreen({
         shadowOffset: { width: 0, height: 0 },
         elevation: 0,
       }
-    : {
-        ...shortcutCardSurfaceStyle,
+      : {
+        backgroundColor: colors.card,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: colors.border,
+        shadowColor: "#000",
+        shadowOpacity: mode === "dark" ? 0.28 : 0.08,
+        shadowRadius: mode === "dark" ? 10 : 6,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: mode === "dark" ? 6 : 2,
       };
 
   return (
@@ -1507,7 +1516,7 @@ export function HomeProfessorScreen({
               ) : scheduleWindow.length === 0 ? (
                 <View style={{ paddingVertical: 6 }}>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Nenhuma aula programada no perÃ­odo.
+                    Nenhuma aula programada no período.
                   </Text>
                 </View>
               ) : (
@@ -1517,7 +1526,11 @@ export function HomeProfessorScreen({
                   const isPast = item.endTime <= nowTime;
                   const isActive = activeIndex === idx;
                   const activeBorderColor =
-                    mode === "light" ? colors.border : colors.primaryBg;
+                    isAndroidLight
+                      ? "rgba(15,23,42,0.16)"
+                      : mode === "light"
+                        ? colors.border
+                        : colors.primaryBg;
                   return (
                     <Pressable
                       key={`${item.classId}-${item.dateKey}`}
@@ -1535,7 +1548,7 @@ export function HomeProfessorScreen({
                           borderRadius: 14,
                           backgroundColor: "transparent",
                           ...(isActive
-                            && !isAndroidLight
+                            && Platform.OS !== "android"
                             ? {
                                 shadowColor: mode === "dark" ? colors.primaryBg : "#000",
                                 shadowOpacity: mode === "dark" ? 0.42 : 0.12,
@@ -1551,6 +1564,7 @@ export function HomeProfessorScreen({
                             padding: 10,
                             borderRadius: 14,
                             backgroundColor: colors.card,
+                            overflow: "hidden",
                             borderWidth: 1,
                             borderColor: isActive ? activeBorderColor : colors.border,
                             opacity: isPast ? 0.6 : 1,
@@ -1702,7 +1716,7 @@ export function HomeProfessorScreen({
                   params: {
                     id: activeAttendanceTarget.classId,
                     date: activeAttendanceTarget.date,
-                    tab: "relatÃ³rio",
+                    tab: "relatório",
                   },
                 });
               }}
@@ -1721,7 +1735,7 @@ export function HomeProfessorScreen({
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                RelatÃ³rios
+                Relatórios
               </Text>
             </Pressable>
           </View>
@@ -1744,7 +1758,7 @@ export function HomeProfessorScreen({
             }}
           >
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              PrÃ³ximos 7 dias
+              Próximos 7 dias
             </Text>
             <Pressable onPress={() => router.push({ pathname: "/events" })}>
               <Text style={{ color: colors.primaryBg, fontWeight: "700", fontSize: 12 }}>
@@ -1759,7 +1773,7 @@ export function HomeProfessorScreen({
             </View>
           ) : upcomingEvents.length === 0 ? (
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Nenhum evento cadastrado para os prÃ³ximos dias.
+              Nenhum evento cadastrado para os próximos dias.
             </Text>
           ) : (
             upcomingEvents.slice(0, 4).map((event) => {
@@ -1992,7 +2006,7 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                CalendÃ¡rio semanal
+                Calendário semanal
 
               </Text>
 
@@ -2029,7 +2043,7 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                CoordenaÃ§Ã£o
+                Coordenação
 
               </Text>
 
@@ -2103,7 +2117,7 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                Avisos de ausÃªncia
+                Avisos de ausência
 
               </Text>
 
@@ -2139,13 +2153,13 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                ExercÃ­cios
+                Exercícios
 
               </Text>
 
               <Text style={{ color: colors.muted, marginTop: 6 }}>
 
-                Biblioteca com vÃ­deos
+                Biblioteca com vídeos
 
               </Text>
 
@@ -2159,7 +2173,7 @@ export function HomeProfessorScreen({
 
         <Card
 
-          title="PeriodizaÃ§Ã£o"
+          title="Periodização"
 
           subtitle="Ciclos e cargas"
 
@@ -2312,7 +2326,7 @@ export function HomeProfessorScreen({
 
                 <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                  NotificaÃ§Ãµes
+                  Notificações
 
                 </Text>
 
@@ -2346,9 +2360,9 @@ export function HomeProfessorScreen({
 
                       Alert.alert(
 
-                        "Limpar notificaÃ§Ãµes?",
+                        "Limpar notificações?",
 
-                        "Isso remove todas as notificaÃ§Ãµes do inbox.",
+                        "Isso remove todas as notificações do inbox.",
 
                         [
 
@@ -2559,7 +2573,7 @@ export function HomeProfessorScreen({
 
             { inbox.length === 0 ? (
 
-              <Text style={{ color: colors.muted }}>Sem notificaÃ§Ãµes.</Text>
+              <Text style={{ color: colors.muted }}>Sem notificações.</Text>
 
             ) : (
 
