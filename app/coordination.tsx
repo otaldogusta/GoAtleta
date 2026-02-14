@@ -379,7 +379,9 @@ export default function CoordinationScreen() {
             </View>
           </View>
 
-          {!loading && pendingWritesDiagnostics.deadLetterCandidates > 0 ? (
+          {!loading &&
+          (pendingWritesDiagnostics.deadLetterCandidates > 0 ||
+            pendingWritesDiagnostics.deadLetterStored > 0) ? (
             <View
               style={{
                 borderRadius: 16,
@@ -394,7 +396,7 @@ export default function CoordinationScreen() {
                 Saúde da Sincronização
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas. Máx retry: {pendingWritesDiagnostics.maxRetry}.
+                {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas • {pendingWritesDiagnostics.deadLetterStored} item(ns) arquivado(s) em dead-letter. Máx retry: {pendingWritesDiagnostics.maxRetry}.
               </Text>
               <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
                 <Pressable
