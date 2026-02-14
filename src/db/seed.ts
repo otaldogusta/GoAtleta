@@ -154,6 +154,16 @@ type PendingWriteRow = {
   dedupKey: string;
 };
 
+type PendingWriteErrorKind =
+  | "network"
+  | "retryable_server"
+  | "auth"
+  | "permission"
+  | "bad_request"
+  | "unknown";
+
+let pendingWritesInitPromise: Promise<void> | null = null;
+
 const isNetworkError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   return (
@@ -181,6 +191,30 @@ const isPermissionError = (error: unknown) => {
     message.includes("code\":\"42501\"") ||
     message.includes(" 42501")
   );
+};
+
+const isRetryableServerError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /\s5\d{2}\s/.test(message) || message.includes(" 429 ");
+};
+
+const isBadRequestError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes(" 400 ") ||
+    message.includes(" 404 ") ||
+    message.includes(" 409 ") ||
+    message.includes(" 422 ")
+  );
+};
+
+const classifyPendingWriteError = (error: unknown): PendingWriteErrorKind => {
+  if (isNetworkError(error)) return "network";
+  if (isRetryableServerError(error)) return "retryable_server";
+  if (isAuthError(error)) return "auth";
+  if (isPermissionError(error)) return "permission";
+  if (isBadRequestError(error)) return "bad_request";
+  return "unknown";
 };
 
 const readCache = async <T>(key: string): Promise<T | null> => {
@@ -259,47 +293,62 @@ const writeQueue = async (queue: PendingWrite[]) => {
 };
 
 const ensurePendingWritesMigrated = async () => {
-  await db.runAsync(
-    "CREATE TABLE IF NOT EXISTS pending_writes (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, retryCount INTEGER NOT NULL DEFAULT 0, lastError TEXT, dedupKey TEXT NOT NULL DEFAULT '')"
-  );
-  await db.runAsync(
-    "CREATE INDEX IF NOT EXISTS idx_pending_writes_createdAt ON pending_writes (createdAt)"
-  );
-  await db.runAsync(
-    "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
-  );
-
-  const migrated = await AsyncStorage.getItem(WRITE_QUEUE_MIGRATED_KEY);
-  if (migrated === "1") return;
-
-  const legacy = await readCache<PendingWrite[]>(WRITE_QUEUE_KEY);
-  if (legacy?.length) {
-    for (const item of legacy) {
-      const dedupKey = getPendingWriteDedupKey(item) ?? "";
+  if (!pendingWritesInitPromise) {
+    pendingWritesInitPromise = (async () => {
       await db.runAsync(
-        "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
-        [
-          item.id,
-          item.kind,
-          JSON.stringify(item.payload),
-          item.createdAt,
-          dedupKey,
-        ]
+        "CREATE TABLE IF NOT EXISTS pending_writes (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, retryCount INTEGER NOT NULL DEFAULT 0, lastError TEXT, dedupKey TEXT NOT NULL DEFAULT '')"
       );
-    }
-    await AsyncStorage.removeItem(WRITE_QUEUE_KEY);
+      await db.runAsync(
+        "CREATE INDEX IF NOT EXISTS idx_pending_writes_createdAt ON pending_writes (createdAt)"
+      );
+      await db.runAsync(
+        "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
+      );
+
+      const migrated = await AsyncStorage.getItem(WRITE_QUEUE_MIGRATED_KEY);
+      if (migrated === "1") return;
+
+      const legacy = await readCache<PendingWrite[]>(WRITE_QUEUE_KEY);
+      if (legacy?.length) {
+        for (const item of legacy) {
+          const dedupKey = getPendingWriteDedupKey(item) ?? "";
+          await db.runAsync(
+            "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+            [
+              item.id,
+              item.kind,
+              JSON.stringify(item.payload),
+              item.createdAt,
+              dedupKey,
+            ]
+          );
+        }
+        await AsyncStorage.removeItem(WRITE_QUEUE_KEY);
+      }
+
+      await AsyncStorage.setItem(WRITE_QUEUE_MIGRATED_KEY, "1");
+    })().catch((error) => {
+      pendingWritesInitPromise = null;
+      throw error;
+    });
   }
 
-  await AsyncStorage.setItem(WRITE_QUEUE_MIGRATED_KEY, "1");
+  await pendingWritesInitPromise;
 };
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-  return await Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
-    }),
-  ]);
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 };
 
 const getPendingWriteDedupKey = (write: PendingWrite) => {
@@ -458,10 +507,11 @@ export async function flushPendingWrites() {
         );
       }
     } catch (error) {
-      if (isNetworkError(error)) {
+      const classification = classifyPendingWriteError(error);
+      if (classification !== "bad_request") {
         remainingBatch.push(item);
         const message = error instanceof Error ? error.message : String(error);
-        failedErrors.set(item.id, message);
+        failedErrors.set(item.id, `[${classification}] ${message}`);
       } else {
         Sentry.captureException(error);
         if (usingSqlite) {
