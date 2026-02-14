@@ -813,11 +813,11 @@ export function HomeProfessorScreen({
 
         if (item.endTime <= nowTime) return "Aula anterior";
 
-        return "Próxima aula";
+        return "PrÃ³xima aula";
 
       }
 
-      return item.dateKey < todayDateKey ? "Aula anterior" : "Próxima aula";
+      return item.dateKey < todayDateKey ? "Aula anterior" : "PrÃ³xima aula";
 
     },
 
@@ -1102,7 +1102,7 @@ export function HomeProfessorScreen({
 
             await Updates.fetchUpdateAsync();
 
-            showToast("Atualização encontrada. Reiniciando...", "success");
+            showToast("AtualizaÃ§Ã£o encontrada. Reiniciando...", "success");
 
             await Updates.reloadAsync();
 
@@ -1279,9 +1279,6 @@ export function HomeProfessorScreen({
               borderWidth: 1,
 
               borderColor: colors.border,
-
-                overflow: "hidden",
-
               alignItems: "center",
 
               justifyContent: "center",
@@ -1315,9 +1312,6 @@ export function HomeProfessorScreen({
                 alignItems: "center",
 
                 justifyContent: "center",
-
-                overflow: "hidden",
-
               }}
 
             >
@@ -1381,9 +1375,6 @@ export function HomeProfessorScreen({
               borderWidth: 1,
 
               borderColor: colors.border,
-
-                overflow: "hidden",
-
               gap: 6,
 
             }}
@@ -1472,7 +1463,6 @@ export function HomeProfessorScreen({
               backgroundColor: colors.card,
               borderWidth: 1,
               borderColor: colors.border,
-              overflow: "hidden",
             }}
           >
             <FadeHorizontalScroll
@@ -1502,7 +1492,7 @@ export function HomeProfessorScreen({
               ) : scheduleWindow.length === 0 ? (
                 <View style={{ paddingVertical: 6 }}>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Nenhuma aula programada no período.
+                    Nenhuma aula programada no perÃ­odo.
                   </Text>
                 </View>
               ) : (
@@ -1511,6 +1501,8 @@ export function HomeProfessorScreen({
                   const label = getStatusLabelForItem(item);
                   const isPast = item.endTime <= nowTime;
                   const isActive = activeIndex === idx;
+                  const activeBorderColor =
+                    mode === "light" ? colors.border : colors.primaryBg;
                   return (
                     <Pressable
                       key={`${item.classId}-${item.dateKey}`}
@@ -1529,11 +1521,11 @@ export function HomeProfessorScreen({
                           backgroundColor: "transparent",
                           ...(isActive
                             ? {
-                                shadowColor: colors.primaryBg,
-                                shadowOpacity: 0.42,
-                                shadowRadius: 12,
+                                shadowColor: mode === "dark" ? colors.primaryBg : "#000",
+                                shadowOpacity: mode === "dark" ? 0.42 : 0.12,
+                                shadowRadius: mode === "dark" ? 12 : 6,
                                 shadowOffset: { width: 0, height: 4 },
-                                elevation: 8,
+                                elevation: mode === "dark" ? 8 : 3,
                               }
                             : null),
                         }}
@@ -1544,9 +1536,8 @@ export function HomeProfessorScreen({
                             borderRadius: 14,
                             backgroundColor: colors.card,
                             borderWidth: 1,
-                            borderColor: isActive ? colors.primaryBg : colors.border,
+                            borderColor: isActive ? activeBorderColor : colors.border,
                             opacity: isPast ? 0.6 : 1,
-                            overflow: "hidden",
                           }}
                         >
                         <View style={{ gap: 6 }}>
@@ -1566,7 +1557,6 @@ export function HomeProfessorScreen({
                                 backgroundColor: colors.secondaryBg,
                                 borderWidth: 1,
                                 borderColor: colors.border,
-                                overflow: "hidden",
                               }}
                             >
                               <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
@@ -1696,7 +1686,7 @@ export function HomeProfessorScreen({
                   params: {
                     id: activeAttendanceTarget.classId,
                     date: activeAttendanceTarget.date,
-                    tab: "relatório",
+                    tab: "relatÃ³rio",
                   },
                 });
               }}
@@ -1715,7 +1705,7 @@ export function HomeProfessorScreen({
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Relatórios
+                RelatÃ³rios
               </Text>
             </Pressable>
           </View>
@@ -1738,7 +1728,7 @@ export function HomeProfessorScreen({
             }}
           >
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Próximos 7 dias
+              PrÃ³ximos 7 dias
             </Text>
             <Pressable onPress={() => router.push({ pathname: "/events" })}>
               <Text style={{ color: colors.primaryBg, fontWeight: "700", fontSize: 12 }}>
@@ -1753,7 +1743,7 @@ export function HomeProfessorScreen({
             </View>
           ) : upcomingEvents.length === 0 ? (
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Nenhum evento cadastrado para os próximos dias.
+              Nenhum evento cadastrado para os prÃ³ximos dias.
             </Text>
           ) : (
             upcomingEvents.slice(0, 4).map((event) => {
@@ -1778,7 +1768,7 @@ export function HomeProfessorScreen({
                     {event.title}
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {start.toLocaleDateString("pt-BR")} •{" "}
+                    {start.toLocaleDateString("pt-BR")} â€¢{" "}
                     {start.toLocaleTimeString("pt-BR", {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -1871,9 +1861,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -1923,9 +1910,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -1975,9 +1959,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2027,9 +2008,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2050,7 +2028,7 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                Calendário semanal
+                CalendÃ¡rio semanal
 
               </Text>
 
@@ -2080,9 +2058,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2103,7 +2078,7 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                Coordenação
+                CoordenaÃ§Ã£o
 
               </Text>
 
@@ -2134,9 +2109,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2186,9 +2158,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2209,7 +2178,7 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                Avisos de ausência
+                Avisos de ausÃªncia
 
               </Text>
 
@@ -2238,9 +2207,6 @@ export function HomeProfessorScreen({
                 borderWidth: 1,
 
                 borderColor: colors.border,
-
-                overflow: "hidden",
-
                 shadowColor: "#000",
 
                 shadowOpacity: 0.06,
@@ -2261,13 +2227,13 @@ export function HomeProfessorScreen({
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                Exercícios
+                ExercÃ­cios
 
               </Text>
 
               <Text style={{ color: colors.muted, marginTop: 6 }}>
 
-                Biblioteca com vídeos
+                Biblioteca com vÃ­deos
 
               </Text>
 
@@ -2281,7 +2247,7 @@ export function HomeProfessorScreen({
 
         <Card
 
-          title="Periodização"
+          title="PeriodizaÃ§Ã£o"
 
           subtitle="Ciclos e cargas"
 
@@ -2434,7 +2400,7 @@ export function HomeProfessorScreen({
 
                 <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
-                  Notificações
+                  NotificaÃ§Ãµes
 
                 </Text>
 
@@ -2468,9 +2434,9 @@ export function HomeProfessorScreen({
 
                       Alert.alert(
 
-                        "Limpar notificações?",
+                        "Limpar notificaÃ§Ãµes?",
 
-                        "Isso remove todas as notificações do inbox.",
+                        "Isso remove todas as notificaÃ§Ãµes do inbox.",
 
                         [
 
@@ -2513,9 +2479,6 @@ export function HomeProfessorScreen({
                       borderWidth: 1,
 
                       borderColor: colors.border,
-
-                overflow: "hidden",
-
                     }}
 
                   >
@@ -2684,7 +2647,7 @@ export function HomeProfessorScreen({
 
             { inbox.length === 0 ? (
 
-              <Text style={{ color: colors.muted }}>Sem notificações.</Text>
+              <Text style={{ color: colors.muted }}>Sem notificaÃ§Ãµes.</Text>
 
             ) : (
 

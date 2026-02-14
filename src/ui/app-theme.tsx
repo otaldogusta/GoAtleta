@@ -6,7 +6,7 @@ import {
     useMemo,
     useState,
 } from "react";
-import { useColorScheme as useSystemColorScheme } from "react-native";
+import { Platform, useColorScheme as useSystemColorScheme } from "react-native";
 import { figmaColors } from "./figma-colors";
 import { usePersistedState } from "./use-persisted-state";
 
@@ -48,20 +48,21 @@ type AppThemeContextValue = {
 };
 
 export const AppThemeContext = createContext<AppThemeContextValue | null>(null);
+const isWeb = Platform.OS === "web";
 
 const baseLightColors: ThemeColors = {
-  background: "rgba(245, 247, 250, 0.95)",
-  card: "rgba(255, 255, 255, 0.38)",
+  background: isWeb ? "rgba(245, 247, 250, 0.95)" : "#f4f6fa",
+  card: isWeb ? "rgba(255, 255, 255, 0.38)" : "#ffffff",
   border: "rgba(15, 23, 42, 0.08)",
   text: "#0f172a",
   muted: "#64748b",
   placeholder: "#94a3b8",
-  inputBg: "rgba(255, 255, 255, 0.18)",
+  inputBg: isWeb ? "rgba(255, 255, 255, 0.18)" : "#ffffff",
   inputText: "#0f172a",
   primaryBg: "#0f172a",
   primaryText: "#ffffff",
   primaryDisabledBg: "#94a3b8",
-  secondaryBg: "rgba(255, 255, 255, 0.24)",
+  secondaryBg: isWeb ? "rgba(255, 255, 255, 0.24)" : "#eef2f8",
   secondaryText: "#0f172a",
   dangerBg: "#fee2e2",
   dangerBorder: "#fecaca",
@@ -78,18 +79,18 @@ const baseLightColors: ThemeColors = {
 };
 
 const baseDarkColors: ThemeColors = {
-  background: "rgba(11, 18, 32, 0.95)",
-  card: "rgba(18, 28, 48, 0.38)",
+  background: isWeb ? "rgba(11, 18, 32, 0.95)" : "#0b1222",
+  card: isWeb ? "rgba(18, 28, 48, 0.38)" : "#111b30",
   border: "rgba(255, 255, 255, 0.1)",
   text: "#f8fafc",
   muted: "#cbd5e1",
   placeholder: "#cbd5e1",
-  inputBg: "rgba(18, 28, 48, 0.22)",
+  inputBg: isWeb ? "rgba(18, 28, 48, 0.22)" : "#15233c",
   inputText: "#f1f5f9",
   primaryBg: "rgba(86, 214, 154, 0.28)",
   primaryText: "#eafff5",
   primaryDisabledBg: "rgba(148, 163, 184, 0.3)",
-  secondaryBg: "rgba(20, 30, 52, 0.28)",
+  secondaryBg: isWeb ? "rgba(20, 30, 52, 0.28)" : "#1a2942",
   secondaryText: "#e2e8f0",
   dangerBg: "#3f1d1d",
   dangerBorder: "#7f1d1d",
