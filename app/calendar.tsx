@@ -152,6 +152,7 @@ export default function CalendarScreen() {
     gap: 12,
     maxHeight: "100%",
   });
+  const baseHour = 14;
   const baseWeekStart = useMemo(
     () => startOfWeek(targetDate ? new Date(targetDate) : new Date()),
     [targetDate]
@@ -552,7 +553,6 @@ export default function CalendarScreen() {
     });
     return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [classes, unitKey, unitLabel]);
-  const baseHour = 14;
 
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
