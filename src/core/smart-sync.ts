@@ -24,6 +24,7 @@ class SmartSyncService {
   };
 
   private syncTimer: ReturnType<typeof setTimeout> | null = null;
+  private inFlightSync: Promise<{ flushed: number; remaining: number }> | null = null;
   private retryCount = 0;
   private maxRetries = 5;
   private isInitialized = false;
@@ -131,72 +132,77 @@ class SmartSyncService {
   private async performSync(
     reason: string
   ): Promise<{ flushed: number; remaining: number }> {
-    // Don't sync if already syncing
-    if (this.status.syncing) {
-      return { flushed: 0, remaining: this.status.pendingCount };
+    if (this.inFlightSync) {
+      return this.inFlightSync;
     }
 
-    try {
-      // Update status: syncing started
-      this.updateStatus({ syncing: true, lastError: null });
+    this.inFlightSync = (async () => {
+      try {
+        // Update status: syncing started
+        this.updateStatus({ syncing: true, lastError: null });
 
-      Sentry.addBreadcrumb({
-        category: "sync",
-        message: `Sync started: ${reason}`,
-        level: "info",
-      });
+        Sentry.addBreadcrumb({
+          category: "sync",
+          message: `Sync started: ${reason}`,
+          level: "info",
+        });
 
-      const result = await flushPendingWrites();
+        const result = await flushPendingWrites();
 
-      // Reset retry count on success (when queue is empty)
-      if (result.remaining === 0) {
-        this.retryCount = 0;
+        // Reset retry count on success (when queue is empty)
+        if (result.remaining === 0) {
+          this.retryCount = 0;
+        }
+
+        this.updateStatus({
+          syncing: false,
+          pendingCount: result.remaining,
+          lastSyncAt: Date.now(),
+          lastError: null,
+        });
+
+        Sentry.addBreadcrumb({
+          category: "sync",
+          message: `Sync completed: ${result.flushed} flushed, ${result.remaining} remaining`,
+          level: "info",
+        });
+
+        // Schedule next sync if there are remaining items (with backoff)
+        if (result.remaining > 0) {
+          this.scheduleNextSyncWithBackoff();
+        }
+
+        return result;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        const paused = isSyncPausedError(errorMessage);
+
+        if (!paused) {
+          this.retryCount++;
+        }
+
+        this.updateStatus({
+          syncing: false,
+          lastError: paused
+            ? "Sync pausado: verifique sessão/permissões e tente novamente."
+            : errorMessage,
+        });
+
+        Sentry.captureException(error);
+
+        // Schedule retry with exponential backoff if under max retries
+        if (!paused && this.retryCount < this.maxRetries) {
+          this.scheduleNextSyncWithBackoff();
+        }
+
+        return { flushed: 0, remaining: await getPendingWritesCount() };
+      } finally {
+        this.inFlightSync = null;
       }
+    })();
 
-      this.updateStatus({
-        syncing: false,
-        pendingCount: result.remaining,
-        lastSyncAt: Date.now(),
-        lastError: null,
-      });
-
-      Sentry.addBreadcrumb({
-        category: "sync",
-        message: `Sync completed: ${result.flushed} flushed, ${result.remaining} remaining`,
-        level: "info",
-      });
-
-      // Schedule next sync if there are remaining items (with backoff)
-      if (result.remaining > 0) {
-        this.scheduleNextSyncWithBackoff();
-      }
-
-      return result;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      const paused = isSyncPausedError(errorMessage);
-
-      if (!paused) {
-        this.retryCount++;
-      }
-
-      this.updateStatus({
-        syncing: false,
-        lastError: paused
-          ? "Sync pausado: verifique sessão/permissões e tente novamente."
-          : errorMessage,
-      });
-
-      Sentry.captureException(error);
-
-      // Schedule retry with exponential backoff if under max retries
-      if (!paused && this.retryCount < this.maxRetries) {
-        this.scheduleNextSyncWithBackoff();
-      }
-
-      return { flushed: 0, remaining: await getPendingWritesCount() };
-    }
+    return this.inFlightSync;
   }
 
   /**

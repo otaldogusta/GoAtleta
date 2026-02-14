@@ -15,6 +15,7 @@ import {
 import {
   clearPendingWritesDeadLetterCandidates,
   flushPendingWrites,
+  getClasses,
   getPendingWritesDiagnostics,
   type PendingWritesDiagnostics,
 } from "../src/db/seed";
@@ -44,6 +45,19 @@ const formatDateTimeBr = (value: string | null | undefined) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+const toDateKey = (value: string) => (value.includes("T") ? value.split("T")[0] : value);
+
+const parseTimeToMinutes = (value: string | null | undefined) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
 };
 
 export default function CoordinationScreen() {
@@ -98,13 +112,29 @@ export default function CoordinationScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [attendanceRows, reportRows, activityRows] = await Promise.all([
+      const [attendanceRows, reportRows, activityRows, classes] = await Promise.all([
         listAdminPendingAttendance({ organizationId }),
         listAdminPendingSessionLogs({ organizationId }),
         listAdminRecentActivity({ organizationId, limit: 12 }),
+        getClasses({ organizationId }),
       ]);
       const queueDiagnostics = await getPendingWritesDiagnostics(10);
-      setPendingAttendance(attendanceRows);
+      const classesById = new Map(classes.map((item) => [item.id, item]));
+      const now = new Date();
+      const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+        now.getDate()
+      ).padStart(2, "0")}`;
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const pendingAttendanceVisible = attendanceRows.filter((item) => {
+        if (toDateKey(item.targetDate) !== todayKey) return true;
+        const classRow = classesById.get(item.classId);
+        const classStartMinutes = parseTimeToMinutes(classRow?.startTime);
+        if (classStartMinutes === null) return true;
+        return classStartMinutes <= nowMinutes;
+      });
+
+      setPendingAttendance(pendingAttendanceVisible);
       setPendingReports(reportRows);
       setRecentActivity(activityRows);
       setPendingWritesDiagnostics(queueDiagnostics);
