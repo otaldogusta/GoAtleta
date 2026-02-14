@@ -58,12 +58,10 @@ import { useAuth } from "../../auth/auth";
 
 import { useRole } from "../../auth/role";
 
+import { useSmartSync } from "../../core/use-smart-sync";
+
 import {
-    flushPendingWrites,
-
     getClasses,
-
-    getPendingWritesCount,
 
     seedIfEmpty,
 } from "../../db/seed";
@@ -87,6 +85,10 @@ import { useOrganization } from "../../providers/OrganizationProvider";
 import { Card } from "../../ui/Card";
 
 import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
+
+import { LocationBadge } from "../../ui/LocationBadge";
+
+import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 
 import { FadeHorizontalScroll } from "../../ui/FadeHorizontalScroll";
 
@@ -146,9 +148,8 @@ export function HomeProfessorScreen({
 
   const didInitialAgendaScroll = useRef(false);
 
-  const [pendingWrites, setPendingWrites] = useState(0);
-
-  const [syncingWrites, setSyncingWrites] = useState(false);
+  // Use smart sync instead of manual pending writes management
+  const { syncing, pendingCount, lastSyncAt, syncNow } = useSmartSync();
 
   const { showSaveToast } = useSaveToast();
 
@@ -356,54 +357,6 @@ export function HomeProfessorScreen({
 
     }, [resolveProfilePhoto])
 
-  );
-
-
-
-
-
-  const refreshPendingWritesCount = useCallback(async () => {
-    if (!session || role !== "trainer") {
-      setPendingWrites(0);
-      return 0;
-    }
-    try {
-      const count = await getPendingWritesCount();
-      setPendingWrites(count);
-      return count;
-    } catch {
-      setPendingWrites(0);
-      return 0;
-    }
-  }, [role, session]);
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      let timer: ReturnType<typeof setTimeout> | null = null;
-
-      const scheduleNext = (count: number) => {
-        if (!active) return;
-        const delay = count > 0 ? 10000 : 45000;
-        timer = setTimeout(run, delay);
-      };
-
-      const run = async () => {
-        if (!active) return;
-        const count = await refreshPendingWritesCount();
-        scheduleNext(count);
-      };
-
-      void run();
-
-      return () => {
-        active = false;
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-      };
-    }, [refreshPendingWritesCount])
   );
 
 
@@ -984,31 +937,18 @@ export function HomeProfessorScreen({
 
 
   const handleSyncPending = async () => {
-
-    setSyncingWrites(true);
-
     try {
-
-      const result = await flushPendingWrites();
-
-      setPendingWrites(result.remaining);
-
+      const result = await syncNow();
       if (result.flushed) {
-
         showToast(`Sincronizado: ${result.flushed} item(s).`, "success");
-
+      } else if (result.remaining === 0) {
+        showToast("Tudo sincronizado!", "success");
+      } else {
+        showToast("Nenhum item foi sincronizado.", "info");
       }
-
     } catch (error) {
-
       showErrorToast(error);
-
-    } finally {
-
-      setSyncingWrites(false);
-
     }
-
   };
 
 
@@ -1059,8 +999,6 @@ export function HomeProfessorScreen({
           .finally(() => setLoadingEvents(false))
       );
 
-      tasks.push(refreshPendingWritesCount());
-
     } else if (organizationLoading) {
       setLoadingClasses(true);
       setLoadingEvents(true);
@@ -1078,7 +1016,6 @@ export function HomeProfessorScreen({
     session,
     activeOrganization?.id,
     organizationLoading,
-    refreshPendingWritesCount,
     resolveProfilePhoto,
   ]);
 
@@ -1384,7 +1321,7 @@ export function HomeProfessorScreen({
 
         {adminHeader ? adminHeader : null}
 
-        { pendingWrites > 0 ? (
+        { pendingCount > 0 ? (
 
           <View
 
@@ -1399,7 +1336,7 @@ export function HomeProfessorScreen({
               borderWidth: 1,
 
               borderColor: colors.border,
-              gap: 6,
+              gap: 8,
 
             }}
 
@@ -1413,15 +1350,20 @@ export function HomeProfessorScreen({
 
             <Text style={{ color: colors.muted }}>
 
-              {pendingWrites} item(s) aguardando envio.
+              {pendingCount} item(s) aguardando envio.
 
             </Text>
+
+            <SyncStatusBadge
+              status={syncing ? "saving" : "saved_local"}
+              message={syncing ? "Sincronizando..." : `${pendingCount} itens locais`}
+            />
 
             <Pressable
 
               onPress={handleSyncPending}
 
-              disabled={syncingWrites}
+              disabled={syncing}
 
               style={{
 
@@ -1433,7 +1375,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 999,
 
-                backgroundColor: syncingWrites ? colors.primaryDisabledBg : colors.primaryBg,
+                backgroundColor: syncing ? colors.primaryDisabledBg : colors.primaryBg,
 
               }}
 
@@ -1443,7 +1385,7 @@ export function HomeProfessorScreen({
 
                 style={{
 
-                  color: syncingWrites ? colors.secondaryText : colors.primaryText,
+                  color: syncing ? colors.secondaryText : colors.primaryText,
 
                   fontWeight: "700",
 
@@ -1451,7 +1393,7 @@ export function HomeProfessorScreen({
 
               >
 
-                {syncingWrites ? "Sincronizando..." : "Sincronizar agora"}
+                {syncing ? "Sincronizando..." : "Sincronizar agora"}
 
               </Text>
 
@@ -1611,27 +1553,12 @@ export function HomeProfessorScreen({
                             >
                               {item.className}
                             </Text>
-                            <View
-                              style={{
-                                paddingVertical: 3,
-                                paddingHorizontal: 8,
-                                borderRadius: 999,
-                                backgroundColor: getUnitPalette(item.unit ?? "Sem unidade", colors).bg,
-                                borderWidth: 1,
-                                borderColor: getUnitPalette(item.unit ?? "Sem unidade", colors).bg,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: getUnitPalette(item.unit ?? "Sem unidade", colors).text,
-                                  fontSize: 10,
-                                  fontWeight: "700",
-                                }}
-                                numberOfLines={1}
-                              >
-                                {item.unit ?? "Sem unidade"}
-                              </Text>
-                            </View>
+                            <LocationBadge
+                              location={item.unit ?? ""}
+                              palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
+                              size="sm"
+                              showIcon={true}
+                            />
                           </View>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                             {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
@@ -1892,9 +1819,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -1928,9 +1855,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -1964,9 +1891,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2000,9 +1927,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2037,9 +1964,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2075,9 +2002,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2111,9 +2038,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 
@@ -2147,9 +2074,9 @@ export function HomeProfessorScreen({
 
             >
 
-              
 
-              
+
+
 
               <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
 

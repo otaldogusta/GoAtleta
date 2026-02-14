@@ -282,4 +282,23 @@ export function initDb() {
       "ALTER TABLE session_logs ADD COLUMN photos TEXT NOT NULL DEFAULT ''"
     );
   } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE units ADD COLUMN organizationId TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+}
+
+// Helper: Get all units (locations) for an organization
+export function getUnitsByOrg(organizationId: string) {
+  return db.getAllAsync<{
+    id: string;
+    name: string;
+    address: string | null;
+    notes: string | null;
+    organizationId: string;
+    createdAt: string;
+  }>("SELECT * FROM units WHERE organizationId = ? ORDER BY name ASC", [
+    organizationId,
+  ]);
 }

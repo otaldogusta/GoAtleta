@@ -13,9 +13,9 @@ import {
   listAdminRecentActivity,
 } from "../src/api/reports";
 import { useOrganization } from "../src/providers/OrganizationProvider";
+import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
-import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 
 type CoordinationTab = "dashboard" | "members";
 
@@ -286,6 +286,70 @@ export default function CoordinationScreen() {
             </View>
           </View>
 
+          {/* Quick Actions Card */}
+          {!loading && (pendingAttendance.length > 0 || pendingReports.length > 0) ? (
+            <View
+              style={{
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.primaryBg,
+                backgroundColor: colors.card,
+                padding: 14,
+                gap: 10,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
+                Ações Rápidas
+              </Text>
+              <View style={{ gap: 8 }}>
+                {pendingAttendance.length > 0 ? (
+                  <Pressable
+                    onPress={() => router.push("/reports")}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor: colors.primaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "700", flex: 1 }}>
+                      Ver todas as pendências
+                    </Text>
+                    <View
+                      style={{
+                        paddingVertical: 3,
+                        paddingHorizontal: 8,
+                        borderRadius: 999,
+                        backgroundColor: colors.background,
+                      }}
+                    >
+                      <Text style={{ color: colors.primaryBg, fontSize: 11, fontWeight: "800" }}>
+                        {pendingAttendance.length + pendingReports.length}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ) : null}
+                {pendingReports.length > 0 ? (
+                  <View
+                    style={{
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
+                      💡 Dica: Envie lembretes aos professores sobre relatórios pendentes usando o menu de comunicados.
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+
           <View
             style={{
               borderRadius: 16,
@@ -348,29 +412,66 @@ export default function CoordinationScreen() {
             ) : pendingReports.length === 0 ? (
               <Text style={{ color: colors.muted }}>Nenhuma turma sem relatório recente.</Text>
             ) : (
-              pendingReports.slice(0, 6).map((item) => (
-                <Pressable
-                  key={`${item.classId}_${item.periodStart}`}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/class/[id]/session",
-                      params: { id: item.classId, tab: "relatório" },
-                    })
-                  }
-                  style={{
-                    padding: 10,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>{item.className}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {item.unit || "Sem unidade"} • Último: {formatDateTimeBr(item.lastReportAt)}
-                  </Text>
-                </Pressable>
-              ))
+              pendingReports.slice(0, 6).map((item) => {
+                // Check if report is critical (more than 7 days old)
+                const daysSinceReport = item.lastReportAt
+                  ? Math.floor(
+                      (Date.now() - new Date(item.lastReportAt).getTime()) /
+                        (1000 * 60 * 60 * 24)
+                    )
+                  : 999;
+                const isCritical = daysSinceReport > 7;
+
+                return (
+                  <Pressable
+                    key={`${item.classId}_${item.periodStart}`}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/class/[id]/session",
+                        params: { id: item.classId, tab: "relatório" },
+                      })
+                    }
+                    style={{
+                      padding: 10,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: isCritical ? "#fca5a5" : colors.border,
+                      backgroundColor: isCritical ? "#fef2f2" : colors.secondaryBg,
+                      gap: 6,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>
+                        {item.className}
+                      </Text>
+                      {isCritical ? (
+                        <View
+                          style={{
+                            paddingVertical: 3,
+                            paddingHorizontal: 7,
+                            borderRadius: 999,
+                            backgroundColor: "#dc2626",
+                          }}
+                        >
+                          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800" }}>
+                            {daysSinceReport}d
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {item.unit || "Sem unidade"} • Último: {formatDateTimeBr(item.lastReportAt)}
+                    </Text>
+                  </Pressable>
+                );
+              })
             )}
           </View>
         </ScrollView>

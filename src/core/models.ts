@@ -33,6 +33,7 @@ export type ClassGroup = {
 export type Unit = {
   id: string;
   name: string;
+  organizationId: string;
   address: string;
   notes: string;
   createdAt: string;

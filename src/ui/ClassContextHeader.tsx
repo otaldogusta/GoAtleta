@@ -4,6 +4,7 @@ import { useAppTheme } from "./app-theme";
 import { getClassPalette } from "./class-colors";
 import { ClassGenderBadge } from "./ClassGenderBadge";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
+import { LocationBadge } from "./LocationBadge";
 import { getUnitPalette } from "./unit-colors";
 
 const decodeUnicodeEscapes = (value: string) => {
@@ -125,18 +126,12 @@ export function ClassContextHeader({
           contentContainerStyle={{ flexDirection: "row", gap: 8 }}
         >
           {unitPalette ? (
-            <View
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 999,
-                backgroundColor: unitPalette.bg,
-              }}
-            >
-              <Text style={{ color: unitPalette.text, fontWeight: "600", fontSize: 12 }}>
-                {safeUnitLabel}
-              </Text>
-            </View>
+            <LocationBadge
+              location={safeUnitLabel}
+              palette={unitPalette}
+              size="md"
+              showIcon={true}
+            />
           ) : null}
           {ageBand ? (
             <View

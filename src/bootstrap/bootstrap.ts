@@ -1,8 +1,9 @@
-import { initDb } from "../db/sqlite";
-import { flushPendingWrites } from "../db/seed";
-import { loadSession } from "../auth/session";
-import type { AuthSession } from "../auth/session";
 import * as Sentry from "@sentry/react-native";
+import type { AuthSession } from "../auth/session";
+import { loadSession } from "../auth/session";
+import { smartSync } from "../core/smart-sync";
+import { flushPendingWrites } from "../db/seed";
+import { initDb } from "../db/sqlite";
 
 export type BootstrapResult = {
   session: AuthSession | null;
@@ -48,6 +49,9 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
       } catch (error) {
         Sentry.captureException(error);
       }
+
+      // Initialize smart sync service
+      smartSync.init();
 
       return { session } as BootstrapResult;
     })(),
