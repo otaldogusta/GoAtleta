@@ -1138,6 +1138,21 @@ export function HomeProfessorScreen({
 
   };
 
+  const isAndroidLight = Platform.OS === "android" && mode === "light";
+  const shortcutCardSurfaceStyle = isAndroidLight
+    ? {
+        backgroundColor: "#ffffff",
+        borderWidth: 1,
+        borderColor: colors.border,
+        shadowOpacity: 0,
+        shadowRadius: 0,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 0,
+      }
+    : {
+        ...shortcutCardSurfaceStyle,
+      };
+
   return (
 
     <SafeAreaView
@@ -1520,6 +1535,7 @@ export function HomeProfessorScreen({
                           borderRadius: 14,
                           backgroundColor: "transparent",
                           ...(isActive
+                            && !isAndroidLight
                             ? {
                                 shadowColor: mode === "dark" ? colors.primaryBg : "#000",
                                 shadowOpacity: mode === "dark" ? 0.42 : 0.12,
@@ -1856,20 +1872,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
@@ -1905,20 +1908,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
@@ -1954,20 +1944,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
@@ -2003,20 +1980,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
@@ -2053,20 +2017,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
@@ -2104,20 +2055,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
@@ -2153,20 +2091,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
@@ -2202,20 +2127,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 18,
 
-                backgroundColor: colors.card,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-                shadowColor: "#000",
-
-                shadowOpacity: 0.06,
-
-                shadowRadius: 10,
-
-                shadowOffset: { width: 0, height: 6 },
-
-                elevation: 3,
+                ...shortcutCardSurfaceStyle,
 
               }}
 
