@@ -585,7 +585,11 @@ export default function CoordinationScreen() {
                     onPress={() =>
                       router.push({
                         pathname: "/class/[id]/session",
-                        params: { id: item.classId, tab: "relatório" },
+                        params: {
+                          id: item.classId,
+                          tab: "relatório",
+                          date: item.periodStart,
+                        },
                       })
                     }
                     style={{
