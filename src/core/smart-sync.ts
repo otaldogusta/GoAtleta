@@ -33,6 +33,9 @@ class SmartSyncService {
     if (this.isInitialized) return;
     this.isInitialized = true;
 
+    // Refresh pending count immediately on init
+    void this.refreshPendingCount();
+
     // Listen to app state changes (foreground/background)
     this.appStateSubscription = AppState.addEventListener(
       "change",

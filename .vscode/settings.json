@@ -12,8 +12,5 @@
   "terminal.integrated.sendKeybindingsToShell": true,
   "chatgpt.openOnStartup": true,
   "chatgpt.runCodexInWindowsSubsystemForLinux": true,
-  "chat.agent.maxRequests": 100,
-  "terminal.integrated.env.windows": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
-  }
+  "chat.agent.maxRequests": 100
 }
