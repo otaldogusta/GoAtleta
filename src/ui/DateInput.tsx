@@ -60,6 +60,7 @@ export function DateInput({
 }) {
   const { colors } = useAppTheme();
   const [inputValue, setInputValue] = useState("");
+  const canOpenCalendar = Boolean(onOpenCalendar);
 
   useEffect(() => {
     setInputValue(value ? formatShortDate(value) : "");
@@ -107,7 +108,7 @@ export function DateInput({
       />
       <Pressable
         onPress={onOpenCalendar}
-        disabled={!onOpenCalendar}
+        disabled={!canOpenCalendar}
         style={{
           position: "absolute",
           right: 6,
@@ -116,9 +117,14 @@ export function DateInput({
           width: 32,
           alignItems: "center",
           justifyContent: "center",
+          opacity: canOpenCalendar ? 1 : 0.45,
         }}
       >
-        <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+        <Ionicons
+          name="calendar-outline"
+          size={18}
+          color={canOpenCalendar ? colors.muted : colors.placeholder}
+        />
       </Pressable>
     </View>
   );
