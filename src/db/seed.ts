@@ -167,6 +167,7 @@ export type PendingWritesDiagnostics = {
   highRetry: number;
   maxRetry: number;
   deadLetterCandidates: number;
+  deadLetterStored: number;
 };
 
 let pendingWritesInitPromise: Promise<void> | null = null;
@@ -223,6 +224,11 @@ const classifyPendingWriteError = (error: unknown): PendingWriteErrorKind => {
   if (isBadRequestError(error)) return "bad_request";
   return "unknown";
 };
+
+const SYNC_PAUSE_PREFIX = "SYNC_PAUSED_";
+
+const buildSyncPauseError = (kind: "auth" | "permission") =>
+  new Error(`${SYNC_PAUSE_PREFIX}${kind.toUpperCase()}`);
 
 const readCache = async <T>(key: string): Promise<T | null> => {
   try {
@@ -310,6 +316,15 @@ const ensurePendingWritesMigrated = async () => {
       );
       await db.runAsync(
         "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
+      );
+      await db.runAsync(
+        "CREATE TABLE IF NOT EXISTS pending_writes_dead (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, retryCount INTEGER NOT NULL DEFAULT 0, finalError TEXT, errorKind TEXT NOT NULL DEFAULT 'unknown', deadAt TEXT NOT NULL)"
+      );
+      await db.runAsync(
+        "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_deadAt ON pending_writes_dead (deadAt)"
+      );
+      await db.runAsync(
+        "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_errorKind ON pending_writes_dead (errorKind)"
       );
 
       const migrated = await AsyncStorage.getItem(WRITE_QUEUE_MIGRATED_KEY);
@@ -464,12 +479,17 @@ export async function getPendingWritesDiagnostics(
     const total = row?.total ?? 0;
     const highRetry = row?.highRetry ?? 0;
     const maxRetry = row?.maxRetry ?? 0;
+    const deadRow = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM pending_writes_dead"
+    );
+    const deadLetterStored = deadRow?.count ?? 0;
 
     return {
       total,
       highRetry,
       maxRetry,
       deadLetterCandidates: highRetry,
+      deadLetterStored,
     };
   } catch {
     const queue = await readWriteQueue();
@@ -478,25 +498,51 @@ export async function getPendingWritesDiagnostics(
       highRetry: 0,
       maxRetry: 0,
       deadLetterCandidates: 0,
+      deadLetterStored: 0,
     };
   }
 }
+
+const movePendingWriteToDead = async (
+  row: PendingWriteRow,
+  errorKind: PendingWriteErrorKind,
+  finalError: string
+) => {
+  await db.runAsync(
+    "INSERT OR REPLACE INTO pending_writes_dead (id, kind, payload, createdAt, retryCount, finalError, errorKind, deadAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [
+      row.id,
+      row.kind,
+      row.payload,
+      row.createdAt,
+      row.retryCount,
+      finalError,
+      errorKind,
+      new Date().toISOString(),
+    ]
+  );
+};
 
 export async function clearPendingWritesDeadLetterCandidates(
   highRetryThreshold = 10
 ): Promise<{ removed: number; remaining: number }> {
   try {
     await ensurePendingWritesMigrated();
-    const row = await db.getFirstAsync<{ count: number }>(
-      "SELECT COUNT(*) as count FROM pending_writes WHERE retryCount >= ?",
+    const candidates = await db.getAllAsync<PendingWriteRow>(
+      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes WHERE retryCount >= ?",
       [highRetryThreshold]
     );
-    const removed = row?.count ?? 0;
+    const removed = candidates.length;
 
     if (removed > 0) {
-      await db.runAsync("DELETE FROM pending_writes WHERE retryCount >= ?", [
-        highRetryThreshold,
-      ]);
+      for (const row of candidates) {
+        await movePendingWriteToDead(
+          row,
+          "unknown",
+          row.lastError ?? "Moved to dead letter by admin action"
+        );
+      }
+      await db.runAsync("DELETE FROM pending_writes WHERE retryCount >= ?", [highRetryThreshold]);
     }
 
     const remainingRow = await db.getFirstAsync<{ count: number }>(
@@ -513,6 +559,7 @@ export async function clearPendingWritesDeadLetterCandidates(
 export async function flushPendingWrites() {
   let batch: PendingWrite[] = [];
   let usingSqlite = false;
+  const batchRowsById = new Map<string, PendingWriteRow>();
 
   try {
     await ensurePendingWritesMigrated();
@@ -520,6 +567,7 @@ export async function flushPendingWrites() {
       "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC LIMIT ?",
       [WRITE_FLUSH_BATCH_SIZE]
     );
+    rows.forEach((row) => batchRowsById.set(row.id, row));
     batch = rows
       .map((row) => {
         try {
@@ -543,6 +591,8 @@ export async function flushPendingWrites() {
   if (!batch.length) return { flushed: 0, remaining: 0 };
   const remainingBatch: PendingWrite[] = [];
   const failedErrors = new Map<string, string>();
+  const deadLetterErrors = new Map<string, { classification: PendingWriteErrorKind; message: string }>();
+  let pauseKind: "auth" | "permission" | null = null;
 
   for (const item of batch) {
     try {
@@ -578,18 +628,18 @@ export async function flushPendingWrites() {
       }
     } catch (error) {
       const classification = classifyPendingWriteError(error);
-      if (classification !== "bad_request") {
+      if (classification === "bad_request") {
+        const message = error instanceof Error ? error.message : String(error);
+        deadLetterErrors.set(item.id, { classification, message });
+      } else {
         remainingBatch.push(item);
         const message = error instanceof Error ? error.message : String(error);
         failedErrors.set(item.id, `[${classification}] ${message}`);
-      } else {
-        Sentry.captureException(error);
-        if (usingSqlite) {
-          try {
-            await db.runAsync("DELETE FROM pending_writes WHERE id = ?", [item.id]);
-          } catch {}
+        if (classification === "auth" || classification === "permission") {
+          pauseKind = classification;
         }
       }
+      Sentry.captureException(error);
     }
   }
 
@@ -601,6 +651,13 @@ export async function flushPendingWrites() {
           "UPDATE pending_writes SET retryCount = retryCount + 1, lastError = ? WHERE id = ?",
           [failed, item.id]
         );
+      } else if (deadLetterErrors.has(item.id)) {
+        const originalRow = batchRowsById.get(item.id);
+        if (originalRow) {
+          const dead = deadLetterErrors.get(item.id)!;
+          await movePendingWriteToDead(originalRow, dead.classification, dead.message);
+        }
+        await db.runAsync("DELETE FROM pending_writes WHERE id = ?", [item.id]);
       } else {
         await db.runAsync("DELETE FROM pending_writes WHERE id = ?", [item.id]);
       }
@@ -609,6 +666,9 @@ export async function flushPendingWrites() {
       "SELECT COUNT(*) as count FROM pending_writes"
     );
     const remaining = countRow?.count ?? 0;
+    if (pauseKind) {
+      throw buildSyncPauseError(pauseKind);
+    }
     return {
       flushed: batch.length - remainingBatch.length,
       remaining,
@@ -619,6 +679,9 @@ export async function flushPendingWrites() {
   const untouched = queue.slice(WRITE_FLUSH_BATCH_SIZE);
   const nextQueue = [...remainingBatch, ...untouched];
   await writeQueue(nextQueue);
+  if (pauseKind) {
+    throw buildSyncPauseError(pauseKind);
+  }
   return {
     flushed: batch.length - remainingBatch.length,
     remaining: nextQueue.length,

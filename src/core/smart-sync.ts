@@ -2,6 +2,9 @@ import * as Sentry from "@sentry/react-native";
 import { AppState, AppStateStatus } from "react-native";
 import { flushPendingWrites, getPendingWritesCount } from "../db/seed";
 
+const isSyncPausedError = (message: string) =>
+  message.startsWith("SYNC_PAUSED_AUTH") || message.startsWith("SYNC_PAUSED_PERMISSION");
+
 type SyncListener = (status: SyncStatus) => void;
 
 export type SyncStatus = {
@@ -170,19 +173,25 @@ class SmartSyncService {
 
       return result;
     } catch (error) {
-      this.retryCount++;
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+      const paused = isSyncPausedError(errorMessage);
+
+      if (!paused) {
+        this.retryCount++;
+      }
 
       this.updateStatus({
         syncing: false,
-        lastError: errorMessage,
+        lastError: paused
+          ? "Sync pausado: verifique sessão/permissões e tente novamente."
+          : errorMessage,
       });
 
       Sentry.captureException(error);
 
       // Schedule retry with exponential backoff if under max retries
-      if (this.retryCount < this.maxRetries) {
+      if (!paused && this.retryCount < this.maxRetries) {
         this.scheduleNextSyncWithBackoff();
       }
 

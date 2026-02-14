@@ -134,6 +134,17 @@ export function initDb() {
       lastError TEXT,
       dedupKey TEXT NOT NULL DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS pending_writes_dead (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      retryCount INTEGER NOT NULL DEFAULT 0,
+      finalError TEXT,
+      errorKind TEXT NOT NULL DEFAULT 'unknown',
+      deadAt TEXT NOT NULL
+    );
   `
   );
 
@@ -164,6 +175,18 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_deadAt ON pending_writes_dead (deadAt)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_errorKind ON pending_writes_dead (errorKind)"
     );
   } catch {}
 

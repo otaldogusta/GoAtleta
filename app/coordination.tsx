@@ -65,6 +65,7 @@ export default function CoordinationScreen() {
     highRetry: 0,
     maxRetry: 0,
     deadLetterCandidates: 0,
+    deadLetterStored: 0,
   });
   const [syncActionLoading, setSyncActionLoading] = useState(false);
   const [syncActionMessage, setSyncActionMessage] = useState<string | null>(null);
@@ -87,6 +88,7 @@ export default function CoordinationScreen() {
         highRetry: 0,
         maxRetry: 0,
         deadLetterCandidates: 0,
+        deadLetterStored: 0,
       });
       setLoading(false);
       setError(null);
@@ -115,6 +117,7 @@ export default function CoordinationScreen() {
         highRetry: 0,
         maxRetry: 0,
         deadLetterCandidates: 0,
+        deadLetterStored: 0,
       });
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
