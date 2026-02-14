@@ -535,13 +535,23 @@ export function HomeProfessorScreen({
 
     if (Number.isNaN(parsed.getTime())) return iso;
 
-    return parsed.toLocaleDateString("pt-BR", {
+    const weekday = parsed.toLocaleDateString("pt-BR", {
+
+      weekday: "short",
+
+    });
+
+    const date = parsed.toLocaleDateString("pt-BR", {
 
       day: "2-digit",
 
       month: "2-digit",
 
     });
+
+    const weekdayCapitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+
+    return `${weekdayCapitalized} | ${date}`;
 
   };
 
@@ -561,6 +571,27 @@ export function HomeProfessorScreen({
     parsed.setHours(0, 0, 0, 0);
     return parsed;
   }, [todayDateKey]);
+
+  const classesByWeekday = useMemo(() => {
+    const byDay: Record<number, ClassGroup[]> = {
+      0: [],
+      1: [],
+      2: [],
+      3: [],
+      4: [],
+      5: [],
+      6: [],
+    };
+
+    classes.forEach((cls) => {
+      const days = cls.daysOfWeek ?? [];
+      days.forEach((day) => {
+        if (day >= 0 && day <= 6) byDay[day].push(cls);
+      });
+    });
+
+    return byDay;
+  }, [classes]);
 
 
 
@@ -600,11 +631,9 @@ export function HomeProfessorScreen({
 
       const dayIndex = dayDate.getDay();
 
-      classes.forEach((cls) => {
+      const dayClasses = classesByWeekday[dayIndex] ?? [];
 
-        const days = cls.daysOfWeek ?? [];
-
-        if (!days.includes(dayIndex)) return;
+      dayClasses.forEach((cls) => {
 
         const time = parseTime(cls.startTime);
 
@@ -646,7 +675,7 @@ export function HomeProfessorScreen({
 
     return items.sort((a, b) => a.startTime - b.startTime);
 
-  }, [classes, scheduleBaseDate]);
+  }, [classesByWeekday, scheduleBaseDate]);
 
 
 

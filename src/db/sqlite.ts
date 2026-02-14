@@ -33,6 +33,7 @@ export function initDb() {
       name TEXT NOT NULL,
       address TEXT,
       notes TEXT,
+      organizationId TEXT NOT NULL DEFAULT '',
       createdAt TEXT NOT NULL
     );
 
@@ -123,12 +124,46 @@ export function initDb() {
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS pending_writes (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      retryCount INTEGER NOT NULL DEFAULT 0,
+      lastError TEXT,
+      dedupKey TEXT NOT NULL DEFAULT ''
+    );
   `
   );
 
   try {
     db.execSync(
       "CREATE UNIQUE INDEX IF NOT EXISTS class_plans_unique_week ON class_plans (classId, weekNumber)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_units_org_name ON units (organizationId, name)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_classes_org ON classes (organizationId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_pending_writes_createdAt ON pending_writes (createdAt)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
     );
   } catch {}
 
@@ -290,9 +325,9 @@ export function initDb() {
     // This prevents orphaned units from disappearing
     const orgs = db.getAllSync<{ id: string }>("SELECT id FROM organizations LIMIT 1");
     if (orgs.length > 0) {
+      const escapedOrgId = orgs[0].id.replace(/'/g, "''");
       db.execSync(
-        "UPDATE units SET organizationId = ? WHERE organizationId = ''",
-        [orgs[0].id]
+        `UPDATE units SET organizationId = '${escapedOrgId}' WHERE organizationId = ''`
       );
     }
   } catch {}

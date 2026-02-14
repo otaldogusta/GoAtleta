@@ -20,6 +20,7 @@ import type {
 } from "../core/models";
 import { normalizeUnitKey } from "../core/unit-key";
 import { canonicalizeUnitLabel } from "../core/unit-label";
+import { db } from "./sqlite";
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
 
@@ -132,6 +133,9 @@ const CACHE_KEYS = {
 const ACTIVE_ORG_STORAGE_KEY = "active-org-id";
 
 const WRITE_QUEUE_KEY = "pending_writes_v1";
+const WRITE_QUEUE_MIGRATED_KEY = "pending_writes_sqlite_migrated_v1";
+const WRITE_FLUSH_BATCH_SIZE = 20;
+const WRITE_ITEM_TIMEOUT_MS = 15000;
 
 type PendingWrite = {
   id: string;
@@ -140,13 +144,24 @@ type PendingWrite = {
   createdAt: string;
 };
 
+type PendingWriteRow = {
+  id: string;
+  kind: PendingWrite["kind"];
+  payload: string;
+  createdAt: string;
+  retryCount: number;
+  lastError: string | null;
+  dedupKey: string;
+};
+
 const isNetworkError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   return (
     message.includes("Network request failed") ||
     message.includes("Failed to fetch") ||
     message.includes("fetch failed") ||
-    message.includes("NetworkError")
+    message.includes("NetworkError") ||
+    message.includes("Timed out")
   );
 };
 
@@ -195,12 +210,122 @@ const getActiveOrganizationId = async () => {
 };
 
 const readWriteQueue = async () => {
-  const stored = await readCache<PendingWrite[]>(WRITE_QUEUE_KEY);
-  return stored ?? [];
+  try {
+    await ensurePendingWritesMigrated();
+    const rows = await db.getAllAsync<PendingWriteRow>(
+      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC"
+    );
+    return rows
+      .map((row) => {
+        try {
+          return {
+            id: row.id,
+            kind: row.kind,
+            payload: JSON.parse(row.payload),
+            createdAt: row.createdAt,
+          } as PendingWrite;
+        } catch {
+          return null;
+        }
+      })
+      .filter((item): item is PendingWrite => Boolean(item));
+  } catch {
+    const stored = await readCache<PendingWrite[]>(WRITE_QUEUE_KEY);
+    return stored ?? [];
+  }
 };
 
 const writeQueue = async (queue: PendingWrite[]) => {
-  await writeCache(WRITE_QUEUE_KEY, queue);
+  try {
+    await ensurePendingWritesMigrated();
+    await db.runAsync("DELETE FROM pending_writes");
+    for (const item of queue) {
+      const dedupKey = getPendingWriteDedupKey(item) ?? "";
+      await db.runAsync(
+        "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+        [
+          item.id,
+          item.kind,
+          JSON.stringify(item.payload),
+          item.createdAt,
+          dedupKey,
+        ]
+      );
+    }
+    return;
+  } catch {
+    await writeCache(WRITE_QUEUE_KEY, queue);
+  }
+};
+
+const ensurePendingWritesMigrated = async () => {
+  await db.runAsync(
+    "CREATE TABLE IF NOT EXISTS pending_writes (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, retryCount INTEGER NOT NULL DEFAULT 0, lastError TEXT, dedupKey TEXT NOT NULL DEFAULT '')"
+  );
+  await db.runAsync(
+    "CREATE INDEX IF NOT EXISTS idx_pending_writes_createdAt ON pending_writes (createdAt)"
+  );
+  await db.runAsync(
+    "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
+  );
+
+  const migrated = await AsyncStorage.getItem(WRITE_QUEUE_MIGRATED_KEY);
+  if (migrated === "1") return;
+
+  const legacy = await readCache<PendingWrite[]>(WRITE_QUEUE_KEY);
+  if (legacy?.length) {
+    for (const item of legacy) {
+      const dedupKey = getPendingWriteDedupKey(item) ?? "";
+      await db.runAsync(
+        "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+        [
+          item.id,
+          item.kind,
+          JSON.stringify(item.payload),
+          item.createdAt,
+          dedupKey,
+        ]
+      );
+    }
+    await AsyncStorage.removeItem(WRITE_QUEUE_KEY);
+  }
+
+  await AsyncStorage.setItem(WRITE_QUEUE_MIGRATED_KEY, "1");
+};
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  return await Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+};
+
+const getPendingWriteDedupKey = (write: PendingWrite) => {
+  if (write.kind === "session_log") {
+    const payload = write.payload as SessionLog;
+    if (!payload.classId || !payload.createdAt) return null;
+    const dateKey = payload.createdAt.slice(0, 10);
+    return `${write.kind}:${payload.classId}:${dateKey}`;
+  }
+  if (write.kind === "attendance_records") {
+    const payload = write.payload as { classId: string; date: string };
+    if (!payload.classId || !payload.date) return null;
+    return `${write.kind}:${payload.classId}:${payload.date}`;
+  }
+  if (write.kind === "scouting_log") {
+    const payload = write.payload as ScoutingLog;
+    if (!payload.classId || !payload.date) return null;
+    const mode = payload.mode === "jogo" ? "jogo" : "treino";
+    return `${write.kind}:${payload.classId}:${payload.date}:${mode}`;
+  }
+  if (write.kind === "student_scouting_log") {
+    const payload = write.payload as StudentScoutingLog;
+    if (!payload.studentId || !payload.classId || !payload.date) return null;
+    return `${write.kind}:${payload.studentId}:${payload.classId}:${payload.date}`;
+  }
+  return null;
 };
 
 const buildSessionLogClientId = (log: SessionLog) => {
@@ -232,52 +357,152 @@ const buildStudentScoutingClientId = (log: StudentScoutingLog) => {
 };
 
 const enqueueWrite = async (write: PendingWrite) => {
-  const queue = await readWriteQueue();
-  queue.push(write);
-  await writeQueue(queue);
+  const dedupKey = getPendingWriteDedupKey(write) ?? "";
+  try {
+    await ensurePendingWritesMigrated();
+    if (dedupKey) {
+      await db.runAsync("DELETE FROM pending_writes WHERE dedupKey = ?", [dedupKey]);
+    }
+    await db.runAsync(
+      "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+      [write.id, write.kind, JSON.stringify(write.payload), write.createdAt, dedupKey]
+    );
+    return;
+  } catch {
+    const queue = await readWriteQueue();
+    const nextQueue = dedupKey
+      ? queue.filter((item) => getPendingWriteDedupKey(item) !== dedupKey)
+      : queue;
+    nextQueue.push(write);
+    await writeQueue(nextQueue);
+  }
 };
 
 export async function getPendingWritesCount() {
-  const queue = await readWriteQueue();
-  return queue.length;
+  try {
+    await ensurePendingWritesMigrated();
+    const row = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM pending_writes"
+    );
+    return row?.count ?? 0;
+  } catch {
+    const queue = await readWriteQueue();
+    return queue.length;
+  }
 }
 
 export async function flushPendingWrites() {
-  const queue = await readWriteQueue();
-  if (!queue.length) return { flushed: 0, remaining: 0 };
-  const remaining: PendingWrite[] = [];
+  let batch: PendingWrite[] = [];
+  let usingSqlite = false;
 
-  for (const item of queue) {
+  try {
+    await ensurePendingWritesMigrated();
+    const rows = await db.getAllAsync<PendingWriteRow>(
+      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC LIMIT ?",
+      [WRITE_FLUSH_BATCH_SIZE]
+    );
+    batch = rows
+      .map((row) => {
+        try {
+          return {
+            id: row.id,
+            kind: row.kind,
+            payload: JSON.parse(row.payload),
+            createdAt: row.createdAt,
+          } as PendingWrite;
+        } catch {
+          return null;
+        }
+      })
+      .filter((item): item is PendingWrite => Boolean(item));
+    usingSqlite = true;
+  } catch {
+    const queue = await readWriteQueue();
+    batch = queue.slice(0, WRITE_FLUSH_BATCH_SIZE);
+  }
+
+  if (!batch.length) return { flushed: 0, remaining: 0 };
+  const remainingBatch: PendingWrite[] = [];
+  const failedErrors = new Map<string, string>();
+
+  for (const item of batch) {
     try {
       if (item.kind === "session_log") {
-        await saveSessionLog(item.payload as SessionLog, { allowQueue: false });
+        await withTimeout(
+          saveSessionLog(item.payload as SessionLog, { allowQueue: false }),
+          WRITE_ITEM_TIMEOUT_MS
+        );
       } else if (item.kind === "attendance_records") {
         const payload = item.payload as {
           classId: string;
           date: string;
           records: AttendanceRecord[];
         };
-        await saveAttendanceRecords(payload.classId, payload.date, payload.records, {
-          allowQueue: false,
-        });
+        await withTimeout(
+          saveAttendanceRecords(payload.classId, payload.date, payload.records, {
+            allowQueue: false,
+          }),
+          WRITE_ITEM_TIMEOUT_MS
+        );
       } else if (item.kind === "scouting_log") {
-        await saveScoutingLog(item.payload as ScoutingLog, { allowQueue: false });
+        await withTimeout(
+          saveScoutingLog(item.payload as ScoutingLog, { allowQueue: false }),
+          WRITE_ITEM_TIMEOUT_MS
+        );
       } else if (item.kind === "student_scouting_log") {
-        await saveStudentScoutingLog(item.payload as StudentScoutingLog, {
-          allowQueue: false,
-        });
+        await withTimeout(
+          saveStudentScoutingLog(item.payload as StudentScoutingLog, {
+            allowQueue: false,
+          }),
+          WRITE_ITEM_TIMEOUT_MS
+        );
       }
     } catch (error) {
       if (isNetworkError(error)) {
-        remaining.push(item);
+        remainingBatch.push(item);
+        const message = error instanceof Error ? error.message : String(error);
+        failedErrors.set(item.id, message);
       } else {
         Sentry.captureException(error);
+        if (usingSqlite) {
+          try {
+            await db.runAsync("DELETE FROM pending_writes WHERE id = ?", [item.id]);
+          } catch {}
+        }
       }
     }
   }
 
-  await writeQueue(remaining);
-  return { flushed: queue.length - remaining.length, remaining: remaining.length };
+  if (usingSqlite) {
+    for (const item of batch) {
+      const failed = failedErrors.get(item.id);
+      if (failed) {
+        await db.runAsync(
+          "UPDATE pending_writes SET retryCount = retryCount + 1, lastError = ? WHERE id = ?",
+          [failed, item.id]
+        );
+      } else {
+        await db.runAsync("DELETE FROM pending_writes WHERE id = ?", [item.id]);
+      }
+    }
+    const countRow = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM pending_writes"
+    );
+    const remaining = countRow?.count ?? 0;
+    return {
+      flushed: batch.length - remainingBatch.length,
+      remaining,
+    };
+  }
+
+  const queue = await readWriteQueue();
+  const untouched = queue.slice(WRITE_FLUSH_BATCH_SIZE);
+  const nextQueue = [...remainingBatch, ...untouched];
+  await writeQueue(nextQueue);
+  return {
+    flushed: batch.length - remainingBatch.length,
+    remaining: nextQueue.length,
+  };
 }
 
 const isMissingRelation = (error: unknown, relation: string) => {
@@ -1404,7 +1629,7 @@ export async function saveSessionLog(
 
   try {
     const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
-    
+
     if (shouldPatchById) {
       await supabasePatch(
         "/session_logs?id=eq." + encodeURIComponent(log.id || ""),
@@ -2133,7 +2358,7 @@ export async function saveAttendanceRecords(
   const allowQueue = options?.allowQueue !== false;
   try {
     const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
-    
+
     await supabaseDelete(
       "/attendance_logs?classid=eq." +
         encodeURIComponent(classId) +

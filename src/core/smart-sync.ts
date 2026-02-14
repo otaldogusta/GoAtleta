@@ -204,14 +204,15 @@ class SmartSyncService {
       baseDelay * Math.pow(2, this.retryCount),
       5 * 60 * 1000 // Max 5 minutes
     );
+    const jitteredDelay = Math.round(delay * (0.85 + Math.random() * 0.3));
 
     this.syncTimer = setTimeout(() => {
       void this.performSync("backoff_retry");
-    }, delay);
+    }, jitteredDelay);
 
     Sentry.addBreadcrumb({
       category: "sync",
-      message: `Next sync scheduled in ${delay}ms (retry ${this.retryCount})`,
+      message: `Next sync scheduled in ${jitteredDelay}ms (retry ${this.retryCount}, base ${delay}ms)`,
       level: "info",
     });
   }
