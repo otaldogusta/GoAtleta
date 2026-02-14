@@ -5,18 +5,18 @@ import { getSessionUserId, getValidAccessToken } from "../auth/session";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
 import type {
-    AbsenceNotice,
-    AttendanceRecord,
-    ClassGroup,
-    ClassPlan,
-    Exercise,
-    HiddenTemplate,
-    ScoutingLog,
-    SessionLog,
-    Student,
-    StudentScoutingLog,
-    TrainingPlan,
-    TrainingTemplate,
+  AbsenceNotice,
+  AttendanceRecord,
+  ClassGroup,
+  ClassPlan,
+  Exercise,
+  HiddenTemplate,
+  ScoutingLog,
+  SessionLog,
+  Student,
+  StudentScoutingLog,
+  TrainingPlan,
+  TrainingTemplate,
 } from "../core/models";
 import { normalizeUnitKey } from "../core/unit-key";
 import { canonicalizeUnitLabel } from "../core/unit-label";
@@ -967,14 +967,17 @@ type ExerciseRow = {
 export async function seedIfEmpty() {
   if (!(await getSessionUserId())) return;
   try {
+    const activeOrganizationId = await getActiveOrganizationId();
     const existing = await supabaseGet<ClassRow[]>(
-      "/classes?select=id&limit=1"
+      activeOrganizationId
+        ? "/classes?select=id&organization_id=eq." +
+            encodeURIComponent(activeOrganizationId) +
+            "&limit=1"
+        : "/classes?select=id&limit=1"
     );
     if (existing.length > 0) return;
 
     const unitsCache = await safeGetUnits();
-
-    const activeOrganizationId = await getActiveOrganizationId();
 
     const nowIso = new Date().toISOString();
     const classes: ClassRow[] = [
@@ -1142,12 +1145,17 @@ const computeEndTime = (startTime?: string, duration?: number | null) => {
 export async function seedStudentsIfEmpty() {
   if (!(await getSessionUserId())) return;
   try {
+    const activeOrganizationId = await getActiveOrganizationId();
     const existing = await supabaseGet<StudentRow[]>(
-      "/students?select=id&limit=1"
+      activeOrganizationId
+        ? "/students?select=id&organization_id=eq." +
+            encodeURIComponent(activeOrganizationId) +
+            "&limit=1"
+        : "/students?select=id&limit=1"
     );
     if (existing.length > 0) return;
 
-    const classes = await getClasses();
+    const classes = await getClasses({ organizationId: activeOrganizationId });
     if (!classes.length) return;
 
     const firstNames = [
@@ -1383,6 +1391,7 @@ export async function updateClass(
     acwrHigh?: number;
   }
 ) {
+  const activeOrganizationId = await getActiveOrganizationId();
   const resolvedUnitRow = data.unitId
     ? { id: data.unitId, name: data.unit }
     : await ensureUnit(data.unit);
@@ -1410,23 +1419,49 @@ export async function updateClass(
   if (typeof data.acwrLow === "number") payload.acwr_low = data.acwrLow;
   if (typeof data.acwrHigh === "number") payload.acwr_high = data.acwrHigh;
 
-  await supabasePatch("/classes?id=eq." + encodeURIComponent(id), payload);
+  await supabasePatch(
+    activeOrganizationId
+      ? "/classes?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/classes?id=eq." + encodeURIComponent(id),
+    payload
+  );
 }
 
 export async function updateClassColor(id: string, colorKey?: string | null) {
-  await supabasePatch("/classes?id=eq." + encodeURIComponent(id), {
+  const activeOrganizationId = await getActiveOrganizationId();
+  await supabasePatch(
+    activeOrganizationId
+      ? "/classes?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/classes?id=eq." + encodeURIComponent(id),
+    {
     color_key: colorKey ?? null,
-  });
+    }
+  );
 }
 
 export async function updateClassAcwrLimits(
   id: string,
   limits: { low: number; high: number }
 ) {
-  await supabasePatch("/classes?id=eq." + encodeURIComponent(id), {
+  const activeOrganizationId = await getActiveOrganizationId();
+  await supabasePatch(
+    activeOrganizationId
+      ? "/classes?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/classes?id=eq." + encodeURIComponent(id),
+    {
     acwr_low: limits.low,
     acwr_high: limits.high,
-  });
+    }
+  );
 }
 
 export async function saveClass(data: {
@@ -1522,26 +1557,31 @@ export async function duplicateClass(base: ClassGroup) {
 }
 
 export async function deleteClass(id: string) {
-  await supabaseDelete("/classes?id=eq." + encodeURIComponent(id));
+  const activeOrganizationId = await getActiveOrganizationId();
+  await supabaseDelete(
+    activeOrganizationId
+      ? "/classes?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/classes?id=eq." + encodeURIComponent(id)
+  );
 }
 
 export async function deleteClassCascade(id: string) {
-  await supabaseDelete(
-    "/training_plans?classid=eq." + encodeURIComponent(id)
-  );
-  await supabaseDelete(
-    "/class_plans?classid=eq." + encodeURIComponent(id)
-  );
-  await supabaseDelete(
-    "/attendance_logs?classid=eq." + encodeURIComponent(id)
-  );
-  await supabaseDelete(
-    "/scouting_logs?classid=eq." + encodeURIComponent(id)
-  );
-  await supabaseDelete("/students?classid=eq." + encodeURIComponent(id));
-  await supabaseDelete(
-    "/session_logs?classid=eq." + encodeURIComponent(id)
-  );
+  const activeOrganizationId = await getActiveOrganizationId();
+  const classFilter =
+    "classid=eq." +
+    encodeURIComponent(id) +
+    (activeOrganizationId
+      ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+      : "");
+  await supabaseDelete("/training_plans?" + classFilter);
+  await supabaseDelete("/class_plans?" + classFilter);
+  await supabaseDelete("/attendance_logs?" + classFilter);
+  await supabaseDelete("/scouting_logs?" + classFilter);
+  await supabaseDelete("/students?" + classFilter);
+  await supabaseDelete("/session_logs?" + classFilter);
   await deleteClass(id);
 }
 
@@ -2514,14 +2554,25 @@ export async function updateStudent(student: Student) {
     payload.organization_id = activeOrganizationId;
   }
   await supabasePatch(
-    "/students?id=eq." + encodeURIComponent(student.id),
+    activeOrganizationId
+      ? "/students?id=eq." +
+          encodeURIComponent(student.id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/students?id=eq." + encodeURIComponent(student.id),
     payload
   );
 }
 
 export async function updateStudentPhoto(studentId: string, photoUrl: string | null) {
+  const activeOrganizationId = await getActiveOrganizationId();
   await supabasePatch(
-    "/students?id=eq." + encodeURIComponent(studentId),
+    activeOrganizationId
+      ? "/students?id=eq." +
+          encodeURIComponent(studentId) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/students?id=eq." + encodeURIComponent(studentId),
     {
       photo_url: photoUrl?.trim() || null,
     }
@@ -2529,7 +2580,15 @@ export async function updateStudentPhoto(studentId: string, photoUrl: string | n
 }
 
 export async function deleteStudent(id: string) {
-  await supabaseDelete("/students?id=eq." + encodeURIComponent(id));
+  const activeOrganizationId = await getActiveOrganizationId();
+  await supabaseDelete(
+    activeOrganizationId
+      ? "/students?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(activeOrganizationId)
+      : "/students?id=eq." + encodeURIComponent(id)
+  );
 }
 
 export async function saveAttendanceRecords(
@@ -2546,7 +2605,10 @@ export async function saveAttendanceRecords(
       "/attendance_logs?classid=eq." +
         encodeURIComponent(classId) +
         "&date=eq." +
-        encodeURIComponent(date)
+        encodeURIComponent(date) +
+        (organizationId
+          ? "&organization_id=eq." + encodeURIComponent(organizationId)
+          : "")
     );
 
     const rows: AttendanceRow[] = records.map((record) => ({
@@ -2731,7 +2793,16 @@ export async function updateAbsenceNoticeStatus(
   id: string,
   status: AbsenceNotice["status"]
 ) {
-  await supabasePatch("/absence_notices?id=eq." + encodeURIComponent(id), {
-    status,
-  });
+  const organizationId = await getActiveOrganizationId();
+  await supabasePatch(
+    organizationId
+      ? "/absence_notices?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(organizationId)
+      : "/absence_notices?id=eq." + encodeURIComponent(id),
+    {
+      status,
+    }
+  );
 }
