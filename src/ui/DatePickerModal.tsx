@@ -20,8 +20,8 @@ export function DatePickerModal({
   value: string;
   onChange: (value: string) => void;
   onClose: () => void;
-  closeOnSelect: boolean;
-  initialViewMode: ViewMode;
+  closeOnSelect?: boolean;
+  initialViewMode?: ViewMode;
 }) {
   const { colors, mode } = useAppTheme();
   const [calendarMonth, setCalendarMonth] = useState(new Date());

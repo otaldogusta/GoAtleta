@@ -17,18 +17,20 @@ type ConfirmDialogContextValue = {
   confirm: (options: ConfirmDialogOptions) => void;
 };
 
+type ResolvedConfirmOptions = Omit<ConfirmDialogOptions, "onConfirm">;
+
 const ConfirmDialogContext = createContext<ConfirmDialogContextValue | null>(null);
-const DEFAULT_CONFIRM_OPTIONS = {
+const DEFAULT_CONFIRM_OPTIONS: ResolvedConfirmOptions = {
   title: "Confirmar",
   message: "Deseja continuar?",
   confirmLabel: "Confirmar",
   cancelLabel: "Cancelar",
-  tone: "default" as const,
+  tone: "default",
 };
 
 function normalizeConfirmOptions(
   options: ConfirmDialogOptions | null
-): typeof DEFAULT_CONFIRM_OPTIONS {
+): ResolvedConfirmOptions {
   if (!options) return DEFAULT_CONFIRM_OPTIONS;
   return {
     title:

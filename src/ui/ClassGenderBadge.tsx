@@ -15,7 +15,7 @@ export function ClassGenderBadge({
   size = "sm",
 }: {
   gender: ClassGender;
-  size: BadgeSize;
+  size?: BadgeSize;
 }) {
   const { colors } = useAppTheme();
   if (!gender) return null;

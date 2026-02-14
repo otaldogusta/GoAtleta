@@ -15,7 +15,7 @@ export function Button({
 }: {
   label: string;
   onPress: () => void;
-  variant:
+  variant?:
     | "primary"
     | "secondary"
     | "outline"
@@ -24,8 +24,8 @@ export function Button({
     | "success"
     | "warning"
     | "info";
-  disabled: boolean;
-  loading: boolean;
+  disabled?: boolean;
+  loading?: boolean;
 }) {
   const { colors } = useAppTheme();
   const palette = {

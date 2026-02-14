@@ -56,7 +56,7 @@ export function DateInput({
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
-  onOpenCalendar: () => void;
+  onOpenCalendar?: () => void;
 }) {
   const { colors } = useAppTheme();
   const [inputValue, setInputValue] = useState("");
@@ -107,6 +107,7 @@ export function DateInput({
       />
       <Pressable
         onPress={onOpenCalendar}
+        disabled={!onOpenCalendar}
         style={{
           position: "absolute",
           right: 6,

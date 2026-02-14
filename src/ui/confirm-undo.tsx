@@ -15,10 +15,10 @@ type ConfirmUndoOptions = {
   title: string;
   message: string;
   confirmLabel: string;
-  cancelLabel: string;
-  undoLabel: string;
+  cancelLabel?: string;
+  undoLabel?: string;
   undoMessage: string;
-  delayMs: number;
+  delayMs?: number;
   onConfirm: () => void | Promise<void>;
   onOptimistic: () => void;
   onUndo: () => void | Promise<void>;

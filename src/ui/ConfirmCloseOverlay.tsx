@@ -8,10 +8,10 @@ import { Pressable } from "./Pressable";
 
 type ConfirmCloseOverlayProps = {
   visible: boolean;
-  title: string;
-  message: string;
-  confirmLabel: string;
-  cancelLabel: string;
+  title?: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
   overlayZIndex?: number;
   onConfirm: () => void;
   onCancel: () => void;

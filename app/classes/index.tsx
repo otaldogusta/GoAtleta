@@ -534,7 +534,7 @@ export default function ClassesScreen() {
     return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));
   }, [filteredClasses, unitKey, unitLabel]);
 
-  const loadClasses = useCallback(async (alive: { current: boolean }) => {
+  const loadClasses = useCallback(async (alive?: { current: boolean }) => {
     const isAlive = () => !alive || alive.current;
     setLoading(true);
     try {
@@ -880,7 +880,10 @@ export default function ClassesScreen() {
         title: "Excluir turma?",
         message: "Isso remove a turma e todos os dados relacionados.",
         confirmLabel: "Excluir",
+        cancelLabel: "Cancelar",
+        undoLabel: "Desfazer",
         undoMessage: "Turma excluída. Deseja desfazer?",
+        delayMs: 4500,
         onOptimistic: () => {
           setClasses((prev) => prev.filter((item) => item.id !== target.id));
         },
@@ -1138,41 +1141,41 @@ export default function ClassesScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showEditDurationPicker) {
-        editDurationTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editDurationTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditDurationTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditCycleLengthPicker) {
-        editCycleLengthTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editCycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditCycleLengthTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditMvLevelPicker) {
-        editMvLevelTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editMvLevelTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditMvLevelTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditAgeBandPicker) {
-        editAgeBandTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editAgeBandTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditAgeBandTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditGenderPicker) {
-        editGenderTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editGenderTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditGenderTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditModalityPicker) {
-        editModalityTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editModalityTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditModalityTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditGoalPicker) {
-        editGoalTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editGoalTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditGoalTriggerLayout({ x, y, width, height });
         });
       }
-      editContainerRef.current.measureInWindow((x, y) => {
+      editContainerRef.current?.measureInWindow((x, y) => {
         setEditContainerWindow({ x, y });
       });
     });
@@ -1212,46 +1215,46 @@ export default function ClassesScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showUnitFilterPicker) {
-        unitFilterTriggerRef.current.measureInWindow((x, y, width, height) => {
+        unitFilterTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setUnitFilterLayout({ x, y, width, height });
         });
       }
       if (showDurationPicker) {
-        durationTriggerRef.current.measureInWindow((x, y, width, height) => {
+        durationTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setDurationTriggerLayout({ x, y, width, height });
         });
       }
       if (showCycleLengthPicker) {
-        cycleLengthTriggerRef.current.measureInWindow((x, y, width, height) => {
+        cycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setCycleLengthTriggerLayout({ x, y, width, height });
         });
       }
       if (showMvLevelPicker) {
-        mvLevelTriggerRef.current.measureInWindow((x, y, width, height) => {
+        mvLevelTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setMvLevelTriggerLayout({ x, y, width, height });
         });
       }
       if (showAgeBandPicker) {
-        ageBandTriggerRef.current.measureInWindow((x, y, width, height) => {
+        ageBandTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setAgeBandTriggerLayout({ x, y, width, height });
         });
       }
       if (showGenderPicker) {
-        genderTriggerRef.current.measureInWindow((x, y, width, height) => {
+        genderTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setGenderTriggerLayout({ x, y, width, height });
         });
       }
       if (showModalityPicker) {
-        modalityTriggerRef.current.measureInWindow((x, y, width, height) => {
+        modalityTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setModalityTriggerLayout({ x, y, width, height });
         });
       }
       if (showGoalPicker) {
-        goalTriggerRef.current.measureInWindow((x, y, width, height) => {
+        goalTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setGoalTriggerLayout({ x, y, width, height });
         });
       }
-      containerRef.current.measureInWindow((x, y) => {
+      containerRef.current?.measureInWindow((x, y) => {
         setContainerWindow({ x, y });
       });
     });
@@ -1366,13 +1369,13 @@ export default function ClassesScreen() {
         value,
         active,
         onSelect,
-        isFirst,
+        isFirst = false,
       }: {
         label: string;
         value: SelectOptionValue;
         active: boolean;
         onSelect: (value: SelectOptionValue) => void;
-        isFirst: boolean;
+        isFirst?: boolean;
       }) {
         return (
           <Pressable
@@ -2004,6 +2007,7 @@ export default function ClassesScreen() {
             <DateInput
               value={newCycleStartDate}
               onChange={setNewCycleStartDate}
+              onOpenCalendar={() => setShowNewCycleCalendar(true)}
               placeholder="DD/MM/AAAA"
             />
           </View>
@@ -2312,7 +2316,6 @@ export default function ClassesScreen() {
           contentContainerStyle={{ gap: 4, paddingHorizontal: 12, paddingBottom: 16 }}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
-          onRequestClose={closeAllPickers}
           onScroll={syncEditPickerLayouts}
           onScrollBeginDrag={closeAllPickers}
           scrollEventThrottle={16}
@@ -2359,7 +2362,10 @@ export default function ClassesScreen() {
             <View style={{ gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Cor da turma</Text>
               <FadeHorizontalScroll
+                containerStyle={{}}
+                scrollStyle={{}}
                 fadeColor={colors.card}
+                fadeWidth={36}
                 contentContainerStyle={{ flexDirection: "row", gap: 8 }}
               >
                 {editColorOptions.map((option, index) => {
@@ -2663,6 +2669,7 @@ export default function ClassesScreen() {
               variant="danger"
               onPress={handleDeleteClass}
               disabled={editSaving}
+              loading={false}
             />
           </View>
         </ScrollView>
@@ -2883,17 +2890,19 @@ export default function ClassesScreen() {
       </ModalSheet>
       <DatePickerModal
         visible={showNewCycleCalendar}
-        value={newCycleStartDate || undefined}
+        value={newCycleStartDate}
         onChange={(value) => setNewCycleStartDate(value)}
         onClose={() => setShowNewCycleCalendar(false)}
         closeOnSelect={false}
+        initialViewMode="day"
       />
       <DatePickerModal
         visible={showEditCycleCalendar}
-        value={editCycleStartDate || undefined}
+        value={editCycleStartDate}
         onChange={(value) => setEditCycleStartDate(value)}
         onClose={() => setShowEditCycleCalendar(false)}
         closeOnSelect={false}
+        initialViewMode="day"
       />
     </SafeAreaView>
   );
