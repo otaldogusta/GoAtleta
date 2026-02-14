@@ -68,6 +68,60 @@ const parseTimeToMinutes = (value: string | null | undefined) => {
   return hour * 60 + minute;
 };
 
+const formatExecutiveSummaryText = (summary: ExecutiveSummaryResult) => {
+  const highlights = summary.highlights.map((item) => `- ${item}`).join("\n");
+  const risks = summary.risks.map((item) => `- ${item}`).join("\n");
+  const actions = summary.recommendedActions.map((item) => `- ${item}`).join("\n");
+  return [
+    summary.headline,
+    "",
+    "Destaques:",
+    highlights || "- Sem destaques",
+    "",
+    "Riscos:",
+    risks || "- Sem riscos",
+    "",
+    "Ações recomendadas:",
+    actions || "- Sem ações",
+  ].join("\n");
+};
+
+const formatTrainerMessageText = (message: TrainerMessageResult) =>
+  [
+    `Assunto: ${message.subject || "(sem assunto)"}`,
+    "",
+    "WhatsApp:",
+    message.whatsapp || "(vazio)",
+    "",
+    "E-mail:",
+    message.email || "(vazio)",
+    "",
+    "One-liner:",
+    message.oneLiner || "(vazio)",
+  ].join("\n");
+
+const formatSyncClassificationText = (classification: SyncErrorClassificationResult) =>
+  [
+    `Severidade: ${classification.severity}`,
+    `Causa provável: ${classification.probableCause}`,
+    `Ação recomendada: ${classification.recommendedAction}`,
+    `Suporte: ${classification.supportHint}`,
+  ].join("\n");
+
+const formatDataFixesText = (result: DataFixSuggestionsResult) => {
+  const blocks = result.suggestions.map((item) => {
+    const options = item.options.length ? item.options.map((opt) => `- ${opt}`).join("\n") : "- Sem opções";
+    return [
+      `${item.issueType}`,
+      `Explicação: ${item.explanation || "-"}`,
+      "Opções:",
+      options,
+      `Recomendado: ${item.recommended || "-"}`,
+    ].join("\n");
+  });
+  return [result.summary || "Sugestões indisponíveis", "", ...blocks].join("\n\n");
+};
+
 const IndicatorCard = memo(function IndicatorCard({
   label,
   value,
@@ -120,6 +174,12 @@ export default function CoordinationScreen() {
   const [syncActionLoading, setSyncActionLoading] = useState(false);
   const [syncActionMessage, setSyncActionMessage] = useState<string | null>(null);
   const [failedWrites, setFailedWrites] = useState<PendingWriteFailureRow[]>([]);
+  const [executiveSummary, setExecutiveSummary] = useState<ExecutiveSummaryResult | null>(null);
+  const [trainerMessage, setTrainerMessage] = useState<TrainerMessageResult | null>(null);
+  const [syncClassifications, setSyncClassifications] = useState<Record<string, SyncErrorClassificationResult>>({});
+  const [dataFixSuggestions, setDataFixSuggestions] = useState<DataFixSuggestionsResult | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
 
   const tabItems = useMemo(
     () => [
@@ -142,6 +202,11 @@ export default function CoordinationScreen() {
         deadLetterStored: 0,
       });
       setFailedWrites([]);
+      setExecutiveSummary(null);
+      setTrainerMessage(null);
+      setSyncClassifications({});
+      setDataFixSuggestions(null);
+      setAiMessage(null);
       setLoading(false);
       setError(null);
       return;
@@ -190,6 +255,7 @@ export default function CoordinationScreen() {
         deadLetterStored: 0,
       });
       setFailedWrites([]);
+      setAiMessage(null);
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
       setLoading(false);
@@ -340,6 +406,220 @@ export default function CoordinationScreen() {
       setSyncActionLoading(false);
     }
   }, []);
+
+  const handleGenerateExecutiveSummary = useCallback(async () => {
+    setAiLoading(true);
+    setAiMessage(null);
+    try {
+      const topDelaysByTrainer = pendingReports.slice(0, 5).map((item) => ({
+        classId: item.classId,
+        className: item.className,
+        unit: item.unit,
+        daysWithoutReport: item.lastReportAt
+          ? Math.max(
+              0,
+              Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
+            )
+          : null,
+      }));
+
+      const summary = await generateExecutiveSummary({
+        periodLabel: "Coordenação - últimos 7 dias",
+        syncHealth: {
+          syncPausedReason,
+          diagnostics: pendingWritesDiagnostics,
+        },
+        slaStats: {
+          pendingAttendance: pendingAttendance.length,
+          pendingReports: pendingReports.length,
+          recentActivity: recentActivity.length,
+        },
+        criticalClasses: pendingReports
+          .filter((item) => {
+            if (!item.lastReportAt) return true;
+            const days = Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24));
+            return days > 7;
+          })
+          .slice(0, 10),
+        pendingWritesDiagnostics,
+        deadLettersRecent: failedWrites.slice(0, 10),
+        topDelaysByTrainer,
+      });
+
+      setExecutiveSummary(summary);
+      await Clipboard.setStringAsync(formatExecutiveSummaryText(summary));
+      setAiMessage("Resumo executivo gerado e copiado para a área de transferência.");
+    } catch (error) {
+      setAiMessage(
+        error instanceof Error
+          ? `Falha ao gerar resumo executivo: ${error.message}`
+          : "Falha ao gerar resumo executivo."
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }, [
+    failedWrites,
+    pendingAttendance.length,
+    pendingReports,
+    pendingWritesDiagnostics,
+    recentActivity.length,
+    syncPausedReason,
+  ]);
+
+  const handleGenerateTrainerMessage = useCallback(async () => {
+    setAiLoading(true);
+    setAiMessage(null);
+    try {
+      const target = pendingReports[0];
+      if (!target) {
+        setAiMessage("Sem relatórios pendentes para gerar mensagem.");
+        return;
+      }
+
+      const daysWithoutReport = target.lastReportAt
+        ? Math.max(
+            0,
+            Math.floor((Date.now() - new Date(target.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
+          )
+        : 999;
+
+      const generated = await generateTrainerMessage(
+        {
+          organizationName,
+          unit: target.unit,
+          className: target.className,
+          lastReportAt: target.lastReportAt,
+          daysWithoutReport,
+          pendingItems: [
+            `${pendingAttendance.length} chamada(s) pendente(s)`,
+            `${pendingReports.length} relatório(s) pendente(s)`,
+          ],
+          expectedSla: "Relatório semanal atualizado",
+        },
+        daysWithoutReport > 7 ? "urgent" : "formal"
+      );
+
+      setTrainerMessage(generated);
+      await Clipboard.setStringAsync(formatTrainerMessageText(generated));
+      setAiMessage("Mensagem para professor gerada e copiada para a área de transferência.");
+    } catch (error) {
+      setAiMessage(
+        error instanceof Error
+          ? `Falha ao gerar mensagem: ${error.message}`
+          : "Falha ao gerar mensagem."
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }, [organizationName, pendingAttendance.length, pendingReports]);
+
+  const handleClassifySyncError = useCallback(
+    async (item: PendingWriteFailureRow) => {
+      setAiLoading(true);
+      setAiMessage(null);
+      try {
+        const payload = await getPendingWritePayloadById(item.id);
+        let parsedPayload: unknown = null;
+        if (payload) {
+          try {
+            parsedPayload = JSON.parse(payload);
+          } catch {
+            parsedPayload = payload;
+          }
+        }
+        const classification = await classifySyncError({
+          error: item.lastError ?? "Erro não informado",
+          payload: parsedPayload,
+          orgContext: {
+            organizationId,
+            organizationName,
+            userRole: isAdmin ? "admin" : "member",
+          },
+        });
+
+        setSyncClassifications((prev) => ({ ...prev, [item.id]: classification }));
+        await Clipboard.setStringAsync(formatSyncClassificationText(classification));
+        setAiMessage(`Classificação do erro ${item.id.slice(0, 8)} gerada e copiada.`);
+      } catch (error) {
+        setAiMessage(
+          error instanceof Error
+            ? `Falha ao classificar erro: ${error.message}`
+            : "Falha ao classificar erro."
+        );
+      } finally {
+        setAiLoading(false);
+      }
+    },
+    [isAdmin, organizationId, organizationName]
+  );
+
+  const handleSuggestDataFixes = useCallback(async () => {
+    setAiLoading(true);
+    setAiMessage(null);
+    try {
+      const issues: DataFixIssue[] = [];
+
+      pendingReports.forEach((item) => {
+        const daysWithoutReport = item.lastReportAt
+          ? Math.max(
+              0,
+              Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
+            )
+          : 999;
+        if (daysWithoutReport > 7) {
+          issues.push({
+            type: "MISSING_WEEKLY_REPORT",
+            severity: daysWithoutReport > 14 ? "critical" : "high",
+            entity: {
+              classId: item.classId,
+              className: item.className,
+              unit: item.unit,
+            },
+            evidence: {
+              lastReportAt: item.lastReportAt,
+              daysWithoutReport,
+            },
+          });
+        }
+      });
+
+      failedWrites.forEach((item) => {
+        issues.push({
+          type: "SYNC_FAILURE_PERSISTENT",
+          severity: item.retryCount >= 10 ? "critical" : "medium",
+          entity: {
+            pendingWriteId: item.id,
+            kind: item.kind,
+            streamKey: item.streamKey,
+          },
+          evidence: {
+            retryCount: item.retryCount,
+            lastError: item.lastError,
+            dedupKey: item.dedupKey,
+          },
+        });
+      });
+
+      if (!issues.length) {
+        setAiMessage("Nenhuma inconsistência relevante para sugerir correções.");
+        return;
+      }
+
+      const suggested = await suggestDataFixes({ issues });
+      setDataFixSuggestions(suggested);
+      await Clipboard.setStringAsync(formatDataFixesText(suggested));
+      setAiMessage("Sugestões de correção geradas e copiadas para a área de transferência.");
+    } catch (error) {
+      setAiMessage(
+        error instanceof Error
+          ? `Falha ao sugerir correções: ${error.message}`
+          : "Falha ao sugerir correções."
+      );
+    } finally {
+      setAiLoading(false);
+    }
+  }, [failedWrites, pendingReports]);
 
   useFocusEffect(
     useCallback(() => {
@@ -504,6 +784,136 @@ export default function CoordinationScreen() {
               />
             </View>
           </View>
+
+          {!loading ? (
+            <View
+              style={{
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                padding: 14,
+                gap: 8,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                IA Assistiva
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Resumo executivo, copiloto de comunicação, classificação de erro e sugestões de correção.
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                <Pressable
+                  onPress={handleGenerateExecutiveSummary}
+                  disabled={aiLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: aiLoading ? colors.secondaryBg : colors.primaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: aiLoading ? colors.muted : colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                    Gerar resumo executivo
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleGenerateTrainerMessage}
+                  disabled={aiLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Gerar mensagem professor
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleSuggestDataFixes}
+                  disabled={aiLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Sugerir correções
+                  </Text>
+                </Pressable>
+              </View>
+              {aiMessage ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{aiMessage}</Text>
+              ) : null}
+              {executiveSummary ? (
+                <View
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    padding: 10,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Resumo: {executiveSummary.headline}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    {executiveSummary.recommendedActions.slice(0, 2).join(" • ") || "Sem ações sugeridas."}
+                  </Text>
+                </View>
+              ) : null}
+              {trainerMessage ? (
+                <View
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    padding: 10,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Mensagem sugerida: {trainerMessage.subject || "(sem assunto)"}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    {trainerMessage.oneLiner || trainerMessage.whatsapp || "Sem conteúdo"}
+                  </Text>
+                </View>
+              ) : null}
+              {dataFixSuggestions ? (
+                <View
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    padding: 10,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Correções sugeridas
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    {dataFixSuggestions.summary}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {!loading &&
           (pendingWritesDiagnostics.deadLetterCandidates > 0 ||
@@ -736,7 +1146,46 @@ export default function CoordinationScreen() {
                               Copiar payload
                             </Text>
                           </Pressable>
+                          <Pressable
+                            onPress={() => handleClassifySyncError(item)}
+                            disabled={aiLoading}
+                            style={{
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.secondaryBg,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                            }}
+                          >
+                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                              Classificar erro (IA)
+                            </Text>
+                          </Pressable>
                         </View>
+                        {syncClassifications[item.id] ? (
+                          <View
+                            style={{
+                              marginTop: 4,
+                              borderRadius: 10,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.card,
+                              padding: 8,
+                              gap: 2,
+                            }}
+                          >
+                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                              IA • severidade {syncClassifications[item.id].severity}
+                            </Text>
+                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                              {syncClassifications[item.id].probableCause}
+                            </Text>
+                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                              {syncClassifications[item.id].recommendedAction}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                     )}
                   />

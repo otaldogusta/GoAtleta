@@ -1,5 +1,5 @@
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { getValidAccessToken } from "../auth/session";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 
 type AssistantRole = "user" | "assistant";
 
