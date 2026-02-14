@@ -1,10 +1,23 @@
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
+import { cacheDirectory, documentDirectory, EncodingType, writeAsStringAsync } from "expo-file-system";
 import { useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { memo, useCallback, useMemo, useState } from "react";
-import { FlatList, ScrollView, Text, View } from "react-native";
+import { FlatList, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import {
+    classifySyncError,
+    generateExecutiveSummary,
+    generateTrainerMessage,
+    suggestDataFixes,
+    type DataFixIssue,
+    type DataFixSuggestionsResult,
+    type ExecutiveSummaryResult,
+    type SyncErrorClassificationResult,
+    type TrainerMessageResult,
+} from "../src/api/ai";
 import {
     AdminPendingAttendance,
     AdminPendingSessionLogs,
@@ -27,6 +40,8 @@ import {
     type PendingWriteFailureRow,
     type PendingWritesDiagnostics,
 } from "../src/db/seed";
+import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document.web";
+import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { Pressable } from "../src/ui/Pressable";
@@ -122,6 +137,72 @@ const formatDataFixesText = (result: DataFixSuggestionsResult) => {
   return [result.summary || "Sugestões indisponíveis", "", ...blocks].join("\n\n");
 };
 
+type AiExportBundle = {
+  title: string;
+  generatedAt: string;
+  markdown: string;
+  html: string;
+  sections: { heading: string; body: string }[];
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const buildAiExportBundle = (params: {
+  organizationName: string;
+  executiveSummary: ExecutiveSummaryResult | null;
+  trainerMessage: TrainerMessageResult | null;
+  dataFixSuggestions: DataFixSuggestionsResult | null;
+}) : AiExportBundle | null => {
+  const { organizationName, executiveSummary, trainerMessage, dataFixSuggestions } = params;
+  if (!executiveSummary && !trainerMessage && !dataFixSuggestions) return null;
+
+  const generatedAt = new Date().toLocaleString("pt-BR");
+  const sections: { heading: string; body: string }[] = [];
+
+  if (executiveSummary) {
+    sections.push({ heading: "Resumo Executivo", body: formatExecutiveSummaryText(executiveSummary) });
+  }
+  if (trainerMessage) {
+    sections.push({ heading: "Copiloto de Comunicação", body: formatTrainerMessageText(trainerMessage) });
+  }
+  if (dataFixSuggestions) {
+    sections.push({ heading: "Sugestões de Correção", body: formatDataFixesText(dataFixSuggestions) });
+  }
+
+  const title = `IA Coordination - ${organizationName}`;
+  const markdown = [
+    `# ${title}`,
+    "",
+    `Gerado em: ${generatedAt}`,
+    "",
+    ...sections.flatMap((section) => [
+      `## ${section.heading}`,
+      "",
+      section.body,
+      "",
+    ]),
+  ].join("\n");
+
+  const html = `<!doctype html><html><head><meta charset=\"utf-8\" /><title>${escapeHtml(
+    title
+  )}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px;color:#111827}h1{font-size:20px;margin-bottom:8px}h2{font-size:16px;margin-top:20px}pre{white-space:pre-wrap;line-height:1.45;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px}</style></head><body><h1>${escapeHtml(
+    title
+  )}</h1><p>Gerado em: ${escapeHtml(generatedAt)}</p>${sections
+    .map(
+      (section) =>
+        `<h2>${escapeHtml(section.heading)}</h2><pre>${escapeHtml(section.body)}</pre>`
+    )
+    .join("")}</body></html>`;
+
+  return { title, generatedAt, markdown, html, sections };
+};
+
 const IndicatorCard = memo(function IndicatorCard({
   label,
   value,
@@ -180,6 +261,7 @@ export default function CoordinationScreen() {
   const [dataFixSuggestions, setDataFixSuggestions] = useState<DataFixSuggestionsResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [aiExportLoading, setAiExportLoading] = useState(false);
 
   const tabItems = useMemo(
     () => [
@@ -621,6 +703,138 @@ export default function CoordinationScreen() {
     }
   }, [failedWrites, pendingReports]);
 
+  const handleCopyWhatsappMessage = useCallback(async () => {
+    try {
+      const content =
+        trainerMessage?.whatsapp?.trim() ||
+        trainerMessage?.oneLiner?.trim() ||
+        (executiveSummary
+          ? `${executiveSummary.headline}\n\n${executiveSummary.recommendedActions
+              .slice(0, 3)
+              .map((item) => `- ${item}`)
+              .join("\n")}`
+          : "");
+
+      if (!content) {
+        setAiMessage("Gere primeiro uma mensagem ou resumo para copiar no WhatsApp.");
+        return;
+      }
+
+      await Clipboard.setStringAsync(content);
+      setAiMessage("Texto para WhatsApp copiado.");
+    } catch (error) {
+      setAiMessage(
+        error instanceof Error
+          ? `Falha ao copiar para WhatsApp: ${error.message}`
+          : "Falha ao copiar para WhatsApp."
+      );
+    }
+  }, [executiveSummary, trainerMessage]);
+
+  const handleExportMarkdown = useCallback(async () => {
+    setAiExportLoading(true);
+    try {
+      const bundle = buildAiExportBundle({
+        organizationName,
+        executiveSummary,
+        trainerMessage,
+        dataFixSuggestions,
+      });
+
+      if (!bundle) {
+        setAiMessage("Nada para exportar. Gere os blocos de IA primeiro.");
+        return;
+      }
+
+      const fileName = `${safeFileName(bundle.title)}_${safeFileName(bundle.generatedAt)}.md`;
+
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined" && typeof document !== "undefined") {
+          const blob = new Blob([bundle.markdown], { type: "text/markdown;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1200);
+          setAiMessage("Markdown exportado com sucesso.");
+          return;
+        }
+      }
+
+      const base = documentDirectory ?? cacheDirectory ?? "";
+      if (!base) {
+        await Clipboard.setStringAsync(bundle.markdown);
+        setAiMessage("Markdown copiado (storage indisponível no dispositivo).");
+        return;
+      }
+
+      const target = `${base}${fileName}`;
+      await writeAsStringAsync(target, bundle.markdown, { encoding: EncodingType.UTF8 });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(target, {
+          dialogTitle: "Exportar Markdown",
+          mimeType: "text/markdown",
+        });
+      }
+      setAiMessage("Markdown exportado com sucesso.");
+    } catch (error) {
+      setAiMessage(
+        error instanceof Error
+          ? `Falha ao exportar Markdown: ${error.message}`
+          : "Falha ao exportar Markdown."
+      );
+    } finally {
+      setAiExportLoading(false);
+    }
+  }, [dataFixSuggestions, executiveSummary, organizationName, trainerMessage]);
+
+  const handleExportPdf = useCallback(async () => {
+    setAiExportLoading(true);
+    try {
+      const bundle = buildAiExportBundle({
+        organizationName,
+        executiveSummary,
+        trainerMessage,
+        dataFixSuggestions,
+      });
+
+      if (!bundle) {
+        setAiMessage("Nada para exportar. Gere os blocos de IA primeiro.");
+        return;
+      }
+
+      const fileName = `${safeFileName(bundle.title)}_${safeFileName(bundle.generatedAt)}.pdf`;
+      const webDocument =
+        Platform.OS === "web" ? (
+          <CoordinationAiDocument
+            title={bundle.title}
+            generatedAt={bundle.generatedAt}
+            sections={bundle.sections}
+          />
+        ) : undefined;
+
+      await exportPdf({
+        html: bundle.html,
+        fileName,
+        webDocument,
+      });
+
+      setAiMessage("PDF exportado com sucesso.");
+    } catch (error) {
+      setAiMessage(
+        error instanceof Error
+          ? `Falha ao exportar PDF: ${error.message}`
+          : "Falha ao exportar PDF."
+      );
+    } finally {
+      setAiExportLoading(false);
+    }
+  }, [dataFixSuggestions, executiveSummary, organizationName, trainerMessage]);
+
   useFocusEffect(
     useCallback(() => {
       if (activeTab === "dashboard") {
@@ -849,6 +1063,54 @@ export default function CoordinationScreen() {
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     Sugerir correções
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleCopyWhatsappMessage}
+                  disabled={aiLoading || aiExportLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Copiar WhatsApp
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleExportMarkdown}
+                  disabled={aiLoading || aiExportLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Exportar Markdown
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleExportPdf}
+                  disabled={aiLoading || aiExportLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Exportar PDF
                   </Text>
                 </Pressable>
               </View>
