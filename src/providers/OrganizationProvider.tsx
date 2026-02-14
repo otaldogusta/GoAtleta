@@ -1,27 +1,27 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import {
-  getMyMemberPermissions,
-  type MemberPermissionKey,
+    getMyMemberPermissions,
+    type MemberPermissionKey,
 } from "../api/members";
-import {
-  getDevProfilePreview,
-  setDevProfilePreview as persistDevProfilePreview,
-  type DevProfilePreview,
-} from "../dev/profile-preview";
 import { useAuth } from "../auth/auth";
 import { smartSync } from "../core/smart-sync";
 import { clearLocalReadCaches } from "../db/seed";
+import {
+    getDevProfilePreview,
+    setDevProfilePreview as persistDevProfilePreview,
+    type DevProfilePreview,
+} from "../dev/profile-preview";
 
 const ACTIVE_ORG_KEY = "active-org-id";
 

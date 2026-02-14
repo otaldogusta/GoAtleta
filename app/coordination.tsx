@@ -13,6 +13,7 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../src/api/reports";
+import { useSmartSync } from "../src/core/use-smart-sync";
 import {
     clearPendingWritesDeadLetterCandidates,
     exportSyncHealthReportJson,
@@ -26,7 +27,6 @@ import {
     type PendingWriteFailureRow,
     type PendingWritesDiagnostics,
 } from "../src/db/seed";
-  import { useSmartSync } from "../src/core/use-smart-sync";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { Pressable } from "../src/ui/Pressable";
