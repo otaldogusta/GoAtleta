@@ -1,3 +1,5 @@
+import { NativeModulesProxy } from "expo-modules-core";
+
 export const PROFILE_PHOTO_SIZE = 512;
 const PROFILE_PHOTO_COMPRESS = 0.78;
 
@@ -44,6 +46,19 @@ const fallbackOriginalPhoto = (uri: string): NormalizedProfilePhoto => ({
   normalized: false,
 });
 
+const hasNativeImageManipulator = () => {
+  try {
+    const proxy = NativeModulesProxy as Record<string, unknown> | null | undefined;
+    return Boolean(
+      proxy?.ExpoImageManipulator ||
+        proxy?.NativeImageManipulatorModule ||
+        proxy?.ImageManipulator
+    );
+  } catch {
+    return false;
+  }
+};
+
 export async function normalizeProfilePhotoForUpload(uri: string): Promise<NormalizedProfilePhoto> {
   const normalizedUri = (uri ?? "").trim();
   if (!normalizedUri) {
@@ -52,6 +67,13 @@ export async function normalizeProfilePhotoForUpload(uri: string): Promise<Norma
 
   let manipulateAsync: ((...args: any[]) => Promise<{ uri: string }>) | null = null;
   let saveFormatJpeg: unknown = null;
+
+  if (!hasNativeImageManipulator()) {
+    if (__DEV__) {
+      console.warn("[profile-photo] native image manipulator module not available, using original image");
+    }
+    return fallbackOriginalPhoto(normalizedUri);
+  }
 
   try {
     const module = await import("expo-image-manipulator");
