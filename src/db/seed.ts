@@ -5,18 +5,18 @@ import { getSessionUserId, getValidAccessToken } from "../auth/session";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
 import type {
-  AbsenceNotice,
-  AttendanceRecord,
-  ClassGroup,
-  ClassPlan,
-  Exercise,
-  HiddenTemplate,
-  ScoutingLog,
-  SessionLog,
-  Student,
-  StudentScoutingLog,
-  TrainingPlan,
-  TrainingTemplate,
+    AbsenceNotice,
+    AttendanceRecord,
+    ClassGroup,
+    ClassPlan,
+    Exercise,
+    HiddenTemplate,
+    ScoutingLog,
+    SessionLog,
+    Student,
+    StudentScoutingLog,
+    TrainingPlan,
+    TrainingTemplate,
 } from "../core/models";
 import { normalizeUnitKey } from "../core/unit-key";
 import { canonicalizeUnitLabel } from "../core/unit-label";
@@ -154,6 +154,20 @@ type PendingWriteRow = {
   dedupKey: string;
 };
 
+export type PendingWriteDeadRow = {
+  id: string;
+  kind: PendingWrite["kind"];
+  payload: string;
+  createdAt: string;
+  dedupKey: string;
+  retryCount: number;
+  finalError: string | null;
+  errorKind: PendingWriteErrorKind;
+  deadAt: string;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+};
+
 type PendingWriteErrorKind =
   | "network"
   | "retryable_server"
@@ -168,6 +182,14 @@ export type PendingWritesDiagnostics = {
   maxRetry: number;
   deadLetterCandidates: number;
   deadLetterStored: number;
+};
+
+export type SyncHealthReport = {
+  generatedAt: string;
+  organizationId: string | null;
+  pendingWrites: PendingWritesDiagnostics;
+  recentQueueErrors: { id: string; kind: string; retryCount: number; lastError: string | null }[];
+  deadLetterRecent: PendingWriteDeadRow[];
 };
 
 let pendingWritesInitPromise: Promise<void> | null = null;
@@ -318,7 +340,7 @@ const ensurePendingWritesMigrated = async () => {
         "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
       );
       await db.runAsync(
-        "CREATE TABLE IF NOT EXISTS pending_writes_dead (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, retryCount INTEGER NOT NULL DEFAULT 0, finalError TEXT, errorKind TEXT NOT NULL DEFAULT 'unknown', deadAt TEXT NOT NULL)"
+        "CREATE TABLE IF NOT EXISTS pending_writes_dead (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, dedupKey TEXT NOT NULL DEFAULT '', retryCount INTEGER NOT NULL DEFAULT 0, finalError TEXT, errorKind TEXT NOT NULL DEFAULT 'unknown', deadAt TEXT NOT NULL, resolvedAt TEXT, resolutionNote TEXT)"
       );
       await db.runAsync(
         "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_deadAt ON pending_writes_dead (deadAt)"
@@ -326,6 +348,18 @@ const ensurePendingWritesMigrated = async () => {
       await db.runAsync(
         "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_errorKind ON pending_writes_dead (errorKind)"
       );
+      await db.runAsync(
+        "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_dedupKey ON pending_writes_dead (dedupKey)"
+      );
+      await db.runAsync(
+        "ALTER TABLE pending_writes_dead ADD COLUMN dedupKey TEXT NOT NULL DEFAULT ''"
+      ).catch(() => {});
+      await db.runAsync(
+        "ALTER TABLE pending_writes_dead ADD COLUMN resolvedAt TEXT"
+      ).catch(() => {});
+      await db.runAsync(
+        "ALTER TABLE pending_writes_dead ADD COLUMN resolutionNote TEXT"
+      ).catch(() => {});
 
       const migrated = await AsyncStorage.getItem(WRITE_QUEUE_MIGRATED_KEY);
       if (migrated === "1") return;
@@ -503,18 +537,93 @@ export async function getPendingWritesDiagnostics(
   }
 }
 
+export async function listPendingWritesDeadLetter(
+  limit = 100
+): Promise<PendingWriteDeadRow[]> {
+  try {
+    await ensurePendingWritesMigrated();
+    const safeLimit = Math.max(1, Math.min(limit, 1000));
+    const rows = await db.getAllAsync<PendingWriteDeadRow>(
+      "SELECT id, kind, payload, createdAt, dedupKey, retryCount, finalError, errorKind, deadAt, resolvedAt, resolutionNote FROM pending_writes_dead ORDER BY deadAt DESC LIMIT ?",
+      [safeLimit]
+    );
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+export async function buildSyncHealthReport(
+  options?: { deadLetterLimit?: number; queueErrorLimit?: number; organizationId?: string | null }
+): Promise<SyncHealthReport> {
+  const deadLetterLimit = Math.max(1, Math.min(options?.deadLetterLimit ?? 25, 1000));
+  const queueErrorLimit = Math.max(1, Math.min(options?.queueErrorLimit ?? 15, 500));
+
+  const fallback: SyncHealthReport = {
+    generatedAt: new Date().toISOString(),
+    organizationId: options?.organizationId ?? (await getActiveOrganizationId()),
+    pendingWrites: {
+      total: 0,
+      highRetry: 0,
+      maxRetry: 0,
+      deadLetterCandidates: 0,
+      deadLetterStored: 0,
+    },
+    recentQueueErrors: [],
+    deadLetterRecent: [],
+  };
+
+  try {
+    await ensurePendingWritesMigrated();
+    const [pendingWrites, deadLetterRecent] = await Promise.all([
+      getPendingWritesDiagnostics(10),
+      listPendingWritesDeadLetter(deadLetterLimit),
+    ]);
+
+    const recentQueueErrors = await db.getAllAsync<{
+      id: string;
+      kind: string;
+      retryCount: number;
+      lastError: string | null;
+    }>(
+      "SELECT id, kind, retryCount, lastError FROM pending_writes WHERE lastError IS NOT NULL ORDER BY retryCount DESC, createdAt DESC LIMIT ?",
+      [queueErrorLimit]
+    );
+
+    return {
+      generatedAt: new Date().toISOString(),
+      organizationId: options?.organizationId ?? (await getActiveOrganizationId()),
+      pendingWrites,
+      recentQueueErrors,
+      deadLetterRecent,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export async function exportSyncHealthReportJson(options?: {
+  deadLetterLimit?: number;
+  queueErrorLimit?: number;
+  organizationId?: string | null;
+}) {
+  const report = await buildSyncHealthReport(options);
+  return JSON.stringify(report, null, 2);
+}
+
 const movePendingWriteToDead = async (
   row: PendingWriteRow,
   errorKind: PendingWriteErrorKind,
   finalError: string
 ) => {
   await db.runAsync(
-    "INSERT OR REPLACE INTO pending_writes_dead (id, kind, payload, createdAt, retryCount, finalError, errorKind, deadAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO pending_writes_dead (id, kind, payload, createdAt, dedupKey, retryCount, finalError, errorKind, deadAt, resolvedAt, resolutionNote) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)",
     [
       row.id,
       row.kind,
       row.payload,
       row.createdAt,
+      row.dedupKey,
       row.retryCount,
       finalError,
       errorKind,

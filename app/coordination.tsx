@@ -1,23 +1,25 @@
 import { useFocusEffect } from "@react-navigation/native";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  AdminPendingAttendance,
-  AdminPendingSessionLogs,
-  AdminRecentActivity,
-  listAdminPendingAttendance,
-  listAdminPendingSessionLogs,
-  listAdminRecentActivity,
+    AdminPendingAttendance,
+    AdminPendingSessionLogs,
+    AdminRecentActivity,
+    listAdminPendingAttendance,
+    listAdminPendingSessionLogs,
+    listAdminRecentActivity,
 } from "../src/api/reports";
 import {
-  clearPendingWritesDeadLetterCandidates,
-  flushPendingWrites,
-  getClasses,
-  getPendingWritesDiagnostics,
-  type PendingWritesDiagnostics,
+    clearPendingWritesDeadLetterCandidates,
+    exportSyncHealthReportJson,
+    flushPendingWrites,
+    getClasses,
+    getPendingWritesDiagnostics,
+    type PendingWritesDiagnostics,
 } from "../src/db/seed";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
@@ -186,20 +188,44 @@ export default function CoordinationScreen() {
       const result = await clearPendingWritesDeadLetterCandidates(10);
       setSyncActionMessage(
         result.removed > 0
-          ? `Removido(s) ${result.removed} item(ns) com retry alto.`
-          : "Nenhum item com retry alto para remover."
+          ? `Arquivado(s) ${result.removed} item(ns) com retry alto em dead-letter.`
+          : "Nenhum item com retry alto para arquivar."
       );
       await loadDashboard();
     } catch (error) {
       setSyncActionMessage(
         error instanceof Error
-          ? `Falha ao limpar dead-letter: ${error.message}`
-          : "Falha ao limpar dead-letter."
+          ? `Falha ao arquivar dead-letter: ${error.message}`
+          : "Falha ao arquivar dead-letter."
       );
     } finally {
       setSyncActionLoading(false);
     }
   }, [loadDashboard]);
+
+  const handleExportSyncHealthJson = useCallback(async () => {
+    setSyncActionLoading(true);
+    setSyncActionMessage(null);
+    try {
+      const reportJson = await exportSyncHealthReportJson({
+        organizationId,
+        deadLetterLimit: 100,
+        queueErrorLimit: 25,
+      });
+      await Clipboard.setStringAsync(reportJson);
+      setSyncActionMessage(
+        "Diagnóstico exportado em JSON e copiado para a área de transferência."
+      );
+    } catch (error) {
+      setSyncActionMessage(
+        error instanceof Error
+          ? `Falha ao exportar JSON: ${error.message}`
+          : "Falha ao exportar JSON."
+      );
+    } finally {
+      setSyncActionLoading(false);
+    }
+  }, [organizationId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -464,7 +490,23 @@ export default function CoordinationScreen() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Limpar dead-letter
+                    Arquivar dead-letter
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleExportSyncHealthJson}
+                  disabled={syncActionLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Exportar JSON
                   </Text>
                 </Pressable>
               </View>

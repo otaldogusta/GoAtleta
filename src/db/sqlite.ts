@@ -140,10 +140,13 @@ export function initDb() {
       kind TEXT NOT NULL,
       payload TEXT NOT NULL,
       createdAt TEXT NOT NULL,
+      dedupKey TEXT NOT NULL DEFAULT '',
       retryCount INTEGER NOT NULL DEFAULT 0,
       finalError TEXT,
       errorKind TEXT NOT NULL DEFAULT 'unknown',
-      deadAt TEXT NOT NULL
+      deadAt TEXT NOT NULL,
+      resolvedAt TEXT,
+      resolutionNote TEXT
     );
   `
   );
@@ -187,6 +190,12 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_errorKind ON pending_writes_dead (errorKind)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_dedupKey ON pending_writes_dead (dedupKey)"
     );
   } catch {}
 
@@ -313,6 +322,21 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE class_plans ADD COLUMN rpeTarget TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE pending_writes_dead ADD COLUMN dedupKey TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE pending_writes_dead ADD COLUMN resolvedAt TEXT"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE pending_writes_dead ADD COLUMN resolutionNote TEXT"
     );
   } catch {}
   try {
