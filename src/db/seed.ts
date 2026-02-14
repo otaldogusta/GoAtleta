@@ -482,6 +482,34 @@ export async function getPendingWritesDiagnostics(
   }
 }
 
+export async function clearPendingWritesDeadLetterCandidates(
+  highRetryThreshold = 10
+): Promise<{ removed: number; remaining: number }> {
+  try {
+    await ensurePendingWritesMigrated();
+    const row = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM pending_writes WHERE retryCount >= ?",
+      [highRetryThreshold]
+    );
+    const removed = row?.count ?? 0;
+
+    if (removed > 0) {
+      await db.runAsync("DELETE FROM pending_writes WHERE retryCount >= ?", [
+        highRetryThreshold,
+      ]);
+    }
+
+    const remainingRow = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM pending_writes"
+    );
+
+    return { removed, remaining: remainingRow?.count ?? 0 };
+  } catch {
+    const queue = await readWriteQueue();
+    return { removed: 0, remaining: queue.length };
+  }
+}
+
 export async function flushPendingWrites() {
   let batch: PendingWrite[] = [];
   let usingSqlite = false;

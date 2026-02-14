@@ -12,7 +12,12 @@ import {
   listAdminPendingSessionLogs,
   listAdminRecentActivity,
 } from "../src/api/reports";
-import { getPendingWritesDiagnostics, type PendingWritesDiagnostics } from "../src/db/seed";
+import {
+  clearPendingWritesDeadLetterCandidates,
+  flushPendingWrites,
+  getPendingWritesDiagnostics,
+  type PendingWritesDiagnostics,
+} from "../src/db/seed";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { Pressable } from "../src/ui/Pressable";
@@ -61,6 +66,8 @@ export default function CoordinationScreen() {
     maxRetry: 0,
     deadLetterCandidates: 0,
   });
+  const [syncActionLoading, setSyncActionLoading] = useState(false);
+  const [syncActionMessage, setSyncActionMessage] = useState<string | null>(null);
 
   const tabItems = useMemo(
     () => [
@@ -114,6 +121,52 @@ export default function CoordinationScreen() {
       setLoading(false);
     }
   }, [isAdmin, organizationId]);
+
+  const handleReprocessQueueNow = useCallback(async () => {
+    setSyncActionLoading(true);
+    setSyncActionMessage(null);
+    try {
+      const result = await flushPendingWrites();
+      setSyncActionMessage(
+        result.flushed > 0
+          ? `Reprocessado: ${result.flushed} item(ns).`
+          : result.remaining > 0
+          ? `Nenhum item sincronizado agora. Restam ${result.remaining}.`
+          : "Fila já estava limpa."
+      );
+      await loadDashboard();
+    } catch (error) {
+      setSyncActionMessage(
+        error instanceof Error
+          ? `Falha ao reprocessar fila: ${error.message}`
+          : "Falha ao reprocessar fila."
+      );
+    } finally {
+      setSyncActionLoading(false);
+    }
+  }, [loadDashboard]);
+
+  const handleClearDeadLetterCandidates = useCallback(async () => {
+    setSyncActionLoading(true);
+    setSyncActionMessage(null);
+    try {
+      const result = await clearPendingWritesDeadLetterCandidates(10);
+      setSyncActionMessage(
+        result.removed > 0
+          ? `Removido(s) ${result.removed} item(ns) com retry alto.`
+          : "Nenhum item com retry alto para remover."
+      );
+      await loadDashboard();
+    } catch (error) {
+      setSyncActionMessage(
+        error instanceof Error
+          ? `Falha ao limpar dead-letter: ${error.message}`
+          : "Falha ao limpar dead-letter."
+      );
+    } finally {
+      setSyncActionLoading(false);
+    }
+  }, [loadDashboard]);
 
   useFocusEffect(
     useCallback(() => {
@@ -340,6 +393,49 @@ export default function CoordinationScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas. Máx retry: {pendingWritesDiagnostics.maxRetry}.
               </Text>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                <Pressable
+                  onPress={handleReprocessQueueNow}
+                  disabled={syncActionLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: syncActionLoading ? colors.secondaryBg : colors.primaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: syncActionLoading ? colors.muted : colors.primaryText,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    Reprocessar fila agora
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleClearDeadLetterCandidates}
+                  disabled={syncActionLoading}
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Limpar dead-letter
+                  </Text>
+                </Pressable>
+              </View>
+              {syncActionMessage ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{syncActionMessage}</Text>
+              ) : null}
             </View>
           ) : null}
 
