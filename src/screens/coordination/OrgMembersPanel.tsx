@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -15,6 +16,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../auth/auth";
+import {
+  generateTrainerMessage,
+  type TrainerMessageResult,
+  type TrainerMessageTone,
+} from "../../api/ai";
 import {
   MEMBER_PERMISSION_OPTIONS,
   MemberClassHead,
@@ -46,6 +52,13 @@ const ROLE_OPTIONS: { label: string; value: RoleLevel; summary: string }[] = [
   { label: "Estagi\u00e1rio", value: 5, summary: "Acesso operacional b\u00e1sico" },
   { label: "Professor", value: 10, summary: "Acesso completo \u00e0s telas de trabalho" },
   { label: "Coordena\u00e7\u00e3o", value: 50, summary: "Acesso administrativo da organiza\u00e7\u00e3o" },
+];
+
+const trainerToneOptions: { value: TrainerMessageTone; label: string }[] = [
+  { value: "friendly", label: "Amigável" },
+  { value: "firm", label: "Firme" },
+  { value: "formal", label: "Formal" },
+  { value: "urgent", label: "Urgente" },
 ];
 
 const roleLabel = (roleLevel: number) => {
@@ -191,6 +204,10 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     permissions: true,
   });
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [memberTrainerTone, setMemberTrainerTone] = useState<TrainerMessageTone>("formal");
+  const [memberTrainerBusy, setMemberTrainerBusy] = useState(false);
+  const [memberTrainerMessage, setMemberTrainerMessage] = useState<TrainerMessageResult | null>(null);
+  const [memberTrainerFeedback, setMemberTrainerFeedback] = useState<string | null>(null);
   const latestLoadRequestRef = useRef(0);
 
   const adminsCount = useMemo(
@@ -407,6 +424,62 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const currentMemberIsLastAdmin =
     Boolean(selectedMember) && selectedMember.roleLevel >= 50 && adminsCount <= 1;
   const selectedMemberCanManageClasses = Boolean(selectedMember) && selectedMember.roleLevel >= 10;
+  const selectedMemberIsProfessor =
+    Boolean(selectedMember) && selectedMember.roleLevel >= 10 && selectedMember.roleLevel < 50;
+
+  const onGenerateProfessorMessage = useCallback(async () => {
+    if (!selectedMember || !selectedMemberIsProfessor) return;
+
+    setMemberTrainerBusy(true);
+    setMemberTrainerFeedback(null);
+    try {
+      const assignedClasses = classHeadsByUser.get(selectedMember.userId) ?? [];
+      const primaryClass = assignedClasses[0];
+      const pendingItems =
+        assignedClasses.length > 0
+          ? assignedClasses.slice(0, 4).map((item) => `Turma responsável: ${item.className}`)
+          : ["Atualizar status da turma da semana"];
+
+      const generated = await generateTrainerMessage(
+        {
+          organizationName,
+          unit: primaryClass?.unit ?? organizationName,
+          className: primaryClass?.className ?? `Turmas de ${selectedMember.displayName}`,
+          lastReportAt: null,
+          daysWithoutReport: 0,
+          pendingItems,
+          expectedSla: "Atualização semanal da turma",
+        },
+        memberTrainerTone
+      );
+
+      setMemberTrainerMessage(generated);
+      await Clipboard.setStringAsync(generated.whatsapp || generated.oneLiner || generated.email || "");
+      setMemberTrainerFeedback("Mensagem gerada e copiada para WhatsApp.");
+    } catch (err) {
+      setMemberTrainerFeedback(
+        err instanceof Error ? `Falha ao gerar mensagem: ${err.message}` : "Falha ao gerar mensagem."
+      );
+    } finally {
+      setMemberTrainerBusy(false);
+    }
+  }, [classHeadsByUser, memberTrainerTone, organizationName, selectedMember, selectedMemberIsProfessor]);
+
+  const onCopyProfessorWhatsapp = useCallback(async () => {
+    const content =
+      memberTrainerMessage?.whatsapp?.trim() ||
+      memberTrainerMessage?.oneLiner?.trim() ||
+      memberTrainerMessage?.email?.trim() ||
+      "";
+
+    if (!content) {
+      setMemberTrainerFeedback("Gere uma mensagem primeiro.");
+      return;
+    }
+
+    await Clipboard.setStringAsync(content);
+    setMemberTrainerFeedback("Texto copiado para WhatsApp.");
+  }, [memberTrainerMessage]);
 
   const onChangeRole = async (nextRole: RoleLevel) => {
     if (!organizationId || !selectedMember) return;
@@ -567,6 +640,10 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
       classes: true,
       permissions: true,
     });
+    setMemberTrainerBusy(false);
+    setMemberTrainerMessage(null);
+    setMemberTrainerFeedback(null);
+    setMemberTrainerTone("formal");
   };
 
   const Container = embedded ? View : SafeAreaView;
@@ -1443,6 +1520,112 @@ return (
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     {"Sua conta n\u00e3o pode ser removida por seguran\u00e7a."}
                   </Text>
+                ) : null}
+
+                {selectedMemberIsProfessor ? (
+                  <View
+                    style={{
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      padding: 10,
+                      gap: 10,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "800" }}>
+                      Comunicação com professor
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Gere uma mensagem contextual para este professor.
+                    </Text>
+
+                    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                      {trainerToneOptions.map((tone) => {
+                        const selected = memberTrainerTone === tone.value;
+                        return (
+                          <Pressable
+                            key={tone.value}
+                            onPress={() => setMemberTrainerTone(tone.value)}
+                            disabled={memberTrainerBusy}
+                            style={{
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: selected ? colors.primaryBg : colors.card,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                              opacity: memberTrainerBusy ? 0.7 : 1,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: selected ? colors.primaryText : colors.text,
+                                fontWeight: "700",
+                                fontSize: 11,
+                              }}
+                            >
+                              {tone.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                      <Pressable
+                        onPress={() => void onGenerateProfessorMessage()}
+                        disabled={memberTrainerBusy}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: memberTrainerBusy ? colors.secondaryBg : colors.primaryBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          opacity: memberTrainerBusy ? 0.75 : 1,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: memberTrainerBusy ? colors.muted : colors.primaryText,
+                            fontWeight: "700",
+                            fontSize: 12,
+                          }}
+                        >
+                          {memberTrainerBusy ? "Gerando..." : "Gerar mensagem"}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => void onCopyProfessorWhatsapp()}
+                        disabled={memberTrainerBusy || !memberTrainerMessage}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.card,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          opacity: memberTrainerBusy || !memberTrainerMessage ? 0.6 : 1,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          Copiar WhatsApp
+                        </Text>
+                      </Pressable>
+                    </View>
+
+                    {memberTrainerMessage?.oneLiner ? (
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        Prévia: {memberTrainerMessage.oneLiner}
+                      </Text>
+                    ) : null}
+
+                    {memberTrainerFeedback ? (
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>{memberTrainerFeedback}</Text>
+                    ) : null}
+                  </View>
                 ) : null}
               </View>
             </View>

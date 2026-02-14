@@ -10,14 +10,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
     classifySyncError,
     generateExecutiveSummary,
-    generateTrainerMessage,
     suggestDataFixes,
     type DataFixIssue,
     type DataFixSuggestionsResult,
     type ExecutiveSummaryResult,
     type SyncErrorClassificationResult,
-    type TrainerMessageResult,
-    type TrainerMessageTone,
 } from "../src/api/ai";
 import {
     AdminPendingAttendance,
@@ -49,13 +46,6 @@ import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
 type CoordinationTab = "dashboard" | "members";
-
-const trainerToneOptions: { value: TrainerMessageTone; label: string }[] = [
-  { value: "friendly", label: "Amigável" },
-  { value: "firm", label: "Firme" },
-  { value: "formal", label: "Formal" },
-  { value: "urgent", label: "Urgente" },
-];
 
 const formatDateBr = (value: string | null | undefined) => {
   if (!value) return "-";
@@ -109,20 +99,6 @@ const formatExecutiveSummaryText = (summary: ExecutiveSummaryResult) => {
   ].join("\n");
 };
 
-const formatTrainerMessageText = (message: TrainerMessageResult) =>
-  [
-    `Assunto: ${message.subject || "(sem assunto)"}`,
-    "",
-    "WhatsApp:",
-    message.whatsapp || "(vazio)",
-    "",
-    "E-mail:",
-    message.email || "(vazio)",
-    "",
-    "One-liner:",
-    message.oneLiner || "(vazio)",
-  ].join("\n");
-
 const formatSyncClassificationText = (classification: SyncErrorClassificationResult) =>
   [
     `Severidade: ${classification.severity}`,
@@ -164,20 +140,16 @@ const escapeHtml = (value: string) =>
 const buildAiExportBundle = (params: {
   organizationName: string;
   executiveSummary: ExecutiveSummaryResult | null;
-  trainerMessage: TrainerMessageResult | null;
   dataFixSuggestions: DataFixSuggestionsResult | null;
 }) : AiExportBundle | null => {
-  const { organizationName, executiveSummary, trainerMessage, dataFixSuggestions } = params;
-  if (!executiveSummary && !trainerMessage && !dataFixSuggestions) return null;
+  const { organizationName, executiveSummary, dataFixSuggestions } = params;
+  if (!executiveSummary && !dataFixSuggestions) return null;
 
   const generatedAt = new Date().toLocaleString("pt-BR");
   const sections: { heading: string; body: string }[] = [];
 
   if (executiveSummary) {
     sections.push({ heading: "Resumo Executivo", body: formatExecutiveSummaryText(executiveSummary) });
-  }
-  if (trainerMessage) {
-    sections.push({ heading: "Copiloto de Comunicação", body: formatTrainerMessageText(trainerMessage) });
   }
   if (dataFixSuggestions) {
     sections.push({ heading: "Sugestões de Correção", body: formatDataFixesText(dataFixSuggestions) });
@@ -264,13 +236,11 @@ export default function CoordinationScreen() {
   const [syncActionMessage, setSyncActionMessage] = useState<string | null>(null);
   const [failedWrites, setFailedWrites] = useState<PendingWriteFailureRow[]>([]);
   const [executiveSummary, setExecutiveSummary] = useState<ExecutiveSummaryResult | null>(null);
-  const [trainerMessage, setTrainerMessage] = useState<TrainerMessageResult | null>(null);
   const [syncClassifications, setSyncClassifications] = useState<Record<string, SyncErrorClassificationResult>>({});
   const [dataFixSuggestions, setDataFixSuggestions] = useState<DataFixSuggestionsResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiExportLoading, setAiExportLoading] = useState(false);
-  const [trainerMessageTone, setTrainerMessageTone] = useState<TrainerMessageTone>("formal");
 
   const tabItems = useMemo(
     () => [
@@ -294,7 +264,6 @@ export default function CoordinationScreen() {
       });
       setFailedWrites([]);
       setExecutiveSummary(null);
-      setTrainerMessage(null);
       setSyncClassifications({});
       setDataFixSuggestions(null);
       setAiMessage(null);
@@ -558,53 +527,6 @@ export default function CoordinationScreen() {
     syncPausedReason,
   ]);
 
-  const handleGenerateTrainerMessage = useCallback(async () => {
-    setAiLoading(true);
-    setAiMessage(null);
-    try {
-      const target = pendingReports[0];
-      if (!target) {
-        setAiMessage("Sem relatórios pendentes para gerar mensagem.");
-        return;
-      }
-
-      const daysWithoutReport = target.lastReportAt
-        ? Math.max(
-            0,
-            Math.floor((Date.now() - new Date(target.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
-          )
-        : 999;
-
-      const generated = await generateTrainerMessage(
-        {
-          organizationName,
-          unit: target.unit,
-          className: target.className,
-          lastReportAt: target.lastReportAt,
-          daysWithoutReport,
-          pendingItems: [
-            `${pendingAttendance.length} chamada(s) pendente(s)`,
-            `${pendingReports.length} relatório(s) pendente(s)`,
-          ],
-          expectedSla: "Relatório semanal atualizado",
-        },
-        trainerMessageTone
-      );
-
-      setTrainerMessage(generated);
-      await Clipboard.setStringAsync(formatTrainerMessageText(generated));
-      setAiMessage("Mensagem para professor gerada e copiada para a área de transferência.");
-    } catch (error) {
-      setAiMessage(
-        error instanceof Error
-          ? `Falha ao gerar mensagem: ${error.message}`
-          : "Falha ao gerar mensagem."
-      );
-    } finally {
-      setAiLoading(false);
-    }
-  }, [organizationName, pendingAttendance.length, pendingReports, trainerMessageTone]);
-
   const handleClassifySyncError = useCallback(
     async (item: PendingWriteFailureRow) => {
       setAiLoading(true);
@@ -715,8 +637,6 @@ export default function CoordinationScreen() {
   const handleCopyWhatsappMessage = useCallback(async () => {
     try {
       const content =
-        trainerMessage?.whatsapp?.trim() ||
-        trainerMessage?.oneLiner?.trim() ||
         (executiveSummary
           ? `${executiveSummary.headline}\n\n${executiveSummary.recommendedActions
               .slice(0, 3)
@@ -738,7 +658,7 @@ export default function CoordinationScreen() {
           : "Falha ao copiar para WhatsApp."
       );
     }
-  }, [executiveSummary, trainerMessage]);
+  }, [executiveSummary]);
 
   const handleExportMarkdown = useCallback(async () => {
     setAiExportLoading(true);
@@ -746,7 +666,6 @@ export default function CoordinationScreen() {
       const bundle = buildAiExportBundle({
         organizationName,
         executiveSummary,
-        trainerMessage,
         dataFixSuggestions,
       });
 
@@ -799,7 +718,7 @@ export default function CoordinationScreen() {
     } finally {
       setAiExportLoading(false);
     }
-  }, [dataFixSuggestions, executiveSummary, organizationName, trainerMessage]);
+  }, [dataFixSuggestions, executiveSummary, organizationName]);
 
   const handleExportPdf = useCallback(async () => {
     setAiExportLoading(true);
@@ -807,7 +726,6 @@ export default function CoordinationScreen() {
       const bundle = buildAiExportBundle({
         organizationName,
         executiveSummary,
-        trainerMessage,
         dataFixSuggestions,
       });
 
@@ -842,7 +760,7 @@ export default function CoordinationScreen() {
     } finally {
       setAiExportLoading(false);
     }
-  }, [dataFixSuggestions, executiveSummary, organizationName, trainerMessage]);
+  }, [dataFixSuggestions, executiveSummary, organizationName]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1023,43 +941,8 @@ export default function CoordinationScreen() {
                 IA Assistiva
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Resumo executivo, copiloto de comunicação, classificação de erro e sugestões de correção.
+                Resumo executivo, classificação de erro e sugestões de correção.
               </Text>
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                  Tom da mensagem ao professor
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                  {trainerToneOptions.map((tone) => {
-                    const selected = trainerMessageTone === tone.value;
-                    return (
-                      <Pressable
-                        key={tone.value}
-                        onPress={() => setTrainerMessageTone(tone.value)}
-                        disabled={aiLoading}
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: selected ? colors.primaryText : colors.text,
-                            fontWeight: "700",
-                            fontSize: 11,
-                          }}
-                        >
-                          {tone.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
               <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
                 <Pressable
                   onPress={handleGenerateExecutiveSummary}
@@ -1075,22 +958,6 @@ export default function CoordinationScreen() {
                 >
                   <Text style={{ color: aiLoading ? colors.muted : colors.primaryText, fontWeight: "700", fontSize: 12 }}>
                     Gerar resumo executivo
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleGenerateTrainerMessage}
-                  disabled={aiLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Gerar mensagem professor
                   </Text>
                 </Pressable>
                 <Pressable
@@ -1177,25 +1044,6 @@ export default function CoordinationScreen() {
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
                     {executiveSummary.recommendedActions.slice(0, 2).join(" • ") || "Sem ações sugeridas."}
-                  </Text>
-                </View>
-              ) : null}
-              {trainerMessage ? (
-                <View
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    padding: 10,
-                    gap: 4,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Mensagem sugerida: {trainerMessage.subject || "(sem assunto)"}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {trainerMessage.oneLiner || trainerMessage.whatsapp || "Sem conteúdo"}
                   </Text>
                 </View>
               ) : null}
