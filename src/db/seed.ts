@@ -136,12 +136,21 @@ const WRITE_QUEUE_KEY = "pending_writes_v1";
 const WRITE_QUEUE_MIGRATED_KEY = "pending_writes_sqlite_migrated_v1";
 const WRITE_FLUSH_BATCH_SIZE = 20;
 const WRITE_ITEM_TIMEOUT_MS = 15000;
+const WRITE_STRICT_PER_STREAM =
+  String(process.env.EXPO_PUBLIC_SYNC_STRICT_PER_STREAM ?? "").toLowerCase() === "true" ||
+  String(process.env.EXPO_PUBLIC_SYNC_STRICT_PER_STREAM ?? "") === "1";
+const WRITE_STRICT_PER_STREAM_LIMIT = (() => {
+  const parsed = Number(process.env.EXPO_PUBLIC_SYNC_STRICT_PER_STREAM_LIMIT ?? "");
+  if (!Number.isFinite(parsed) || parsed <= 0) return WRITE_FLUSH_BATCH_SIZE;
+  return Math.min(Math.floor(parsed), WRITE_FLUSH_BATCH_SIZE);
+})();
 
 type PendingWrite = {
   id: string;
   kind: "session_log" | "attendance_records" | "scouting_log" | "student_scouting_log";
   payload: unknown;
   createdAt: string;
+  requeuedAt?: string | null;
 };
 
 type PendingWriteRow = {
@@ -149,6 +158,7 @@ type PendingWriteRow = {
   kind: PendingWrite["kind"];
   payload: string;
   createdAt: string;
+  requeuedAt: string | null;
   retryCount: number;
   lastError: string | null;
   dedupKey: string;
@@ -197,6 +207,7 @@ export type PendingWriteFailureRow = {
   kind: PendingWrite["kind"];
   dedupKey: string;
   createdAt: string;
+  requeuedAt: string | null;
   retryCount: number;
   lastError: string | null;
   streamKey: string;
@@ -312,9 +323,12 @@ const getScopedOrganizationId = async (
     category: "org-scope",
     message: `Missing organization scope: ${feature}`,
     level: "warning",
+    data: {
+      hasCandidate: Boolean(candidate),
+    },
   });
   if (__DEV__) {
-    console.error(`[org-scope] Missing organization id for ${feature}`);
+    console.warn(`[org-scope] Missing organization id for ${feature}`);
   }
   return null;
 };
@@ -323,7 +337,7 @@ const readWriteQueue = async () => {
   try {
     await ensurePendingWritesMigrated();
     const rows = await db.getAllAsync<PendingWriteRow>(
-      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC"
+      "SELECT id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC"
     );
     return rows
       .map((row) => {
@@ -333,6 +347,7 @@ const readWriteQueue = async () => {
             kind: row.kind,
             payload: JSON.parse(row.payload),
             createdAt: row.createdAt,
+            requeuedAt: row.requeuedAt,
           } as PendingWrite;
         } catch {
           return null;
@@ -352,7 +367,7 @@ const writeQueue = async (queue: PendingWrite[]) => {
     for (const item of queue) {
       const dedupKey = getPendingWriteDedupKey(item) ?? "";
       await db.runAsync(
-        "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+        "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, NULL, 0, NULL, ?)",
         [
           item.id,
           item.kind,
@@ -372,7 +387,7 @@ const ensurePendingWritesMigrated = async () => {
   if (!pendingWritesInitPromise) {
     pendingWritesInitPromise = (async () => {
       await db.runAsync(
-        "CREATE TABLE IF NOT EXISTS pending_writes (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, retryCount INTEGER NOT NULL DEFAULT 0, lastError TEXT, dedupKey TEXT NOT NULL DEFAULT '')"
+        "CREATE TABLE IF NOT EXISTS pending_writes (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, requeuedAt TEXT, retryCount INTEGER NOT NULL DEFAULT 0, lastError TEXT, dedupKey TEXT NOT NULL DEFAULT '')"
       );
       await db.runAsync(
         "CREATE INDEX IF NOT EXISTS idx_pending_writes_createdAt ON pending_writes (createdAt)"
@@ -380,6 +395,12 @@ const ensurePendingWritesMigrated = async () => {
       await db.runAsync(
         "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
       );
+      await db.runAsync(
+        "CREATE INDEX IF NOT EXISTS idx_pending_writes_requeuedAt ON pending_writes (requeuedAt)"
+      );
+      await db.runAsync(
+        "ALTER TABLE pending_writes ADD COLUMN requeuedAt TEXT"
+      ).catch(() => {});
       await db.runAsync(
         "CREATE TABLE IF NOT EXISTS pending_writes_dead (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, createdAt TEXT NOT NULL, dedupKey TEXT NOT NULL DEFAULT '', retryCount INTEGER NOT NULL DEFAULT 0, finalError TEXT, errorKind TEXT NOT NULL DEFAULT 'unknown', deadAt TEXT NOT NULL, resolvedAt TEXT, resolutionNote TEXT)"
       );
@@ -410,7 +431,7 @@ const ensurePendingWritesMigrated = async () => {
         for (const item of legacy) {
           const dedupKey = getPendingWriteDedupKey(item) ?? "";
           await db.runAsync(
-            "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+            "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, NULL, 0, NULL, ?)",
             [
               item.id,
               item.kind,
@@ -496,6 +517,46 @@ const getPendingWriteStreamKey = (write: PendingWrite) => {
   return `unknown:${write.id}`;
 };
 
+const sortPendingWritesForFlush = (left: PendingWrite, right: PendingWrite) => {
+  const leftRequeued = left.requeuedAt ? 1 : 0;
+  const rightRequeued = right.requeuedAt ? 1 : 0;
+  if (leftRequeued !== rightRequeued) return rightRequeued - leftRequeued;
+
+  if (left.requeuedAt && right.requeuedAt) {
+    const requeueDiff = left.requeuedAt.localeCompare(right.requeuedAt);
+    if (requeueDiff !== 0) return requeueDiff;
+  }
+
+  const createdDiff = left.createdAt.localeCompare(right.createdAt);
+  if (createdDiff !== 0) return createdDiff;
+
+  return getPendingWriteStreamKey(left).localeCompare(getPendingWriteStreamKey(right));
+};
+
+const selectStrictPerStreamBatch = (items: PendingWrite[]) => {
+  if (!WRITE_STRICT_PER_STREAM || items.length <= 1) {
+    return { selected: items, deferred: [] as PendingWrite[] };
+  }
+
+  const head = items[0];
+  const stream = getPendingWriteStreamKey(head);
+  const selected: PendingWrite[] = [];
+  const deferred: PendingWrite[] = [];
+
+  for (const item of items) {
+    if (
+      getPendingWriteStreamKey(item) === stream &&
+      selected.length < WRITE_STRICT_PER_STREAM_LIMIT
+    ) {
+      selected.push(item);
+    } else {
+      deferred.push(item);
+    }
+  }
+
+  return { selected, deferred };
+};
+
 const buildSessionLogClientId = (log: SessionLog) => {
   const existing = (log.clientId || log.id || "").trim();
   if (existing) return existing;
@@ -532,7 +593,7 @@ const enqueueWrite = async (write: PendingWrite) => {
       await db.runAsync("DELETE FROM pending_writes WHERE dedupKey = ?", [dedupKey]);
     }
     await db.runAsync(
-      "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, 0, NULL, ?)",
+      "INSERT OR REPLACE INTO pending_writes (id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey) VALUES (?, ?, ?, ?, NULL, 0, NULL, ?)",
       [write.id, write.kind, JSON.stringify(write.payload), write.createdAt, dedupKey]
     );
     return;
@@ -607,7 +668,7 @@ export async function listPendingWriteFailures(
     await ensurePendingWritesMigrated();
     const safeLimit = Math.max(1, Math.min(limit, 200));
     const rows = await db.getAllAsync<PendingWriteRow>(
-      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes WHERE lastError IS NOT NULL ORDER BY retryCount DESC, createdAt ASC LIMIT ?",
+      "SELECT id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey FROM pending_writes WHERE lastError IS NOT NULL ORDER BY retryCount DESC, createdAt ASC LIMIT ?",
       [safeLimit]
     );
     return rows.map((row) => {
@@ -622,6 +683,7 @@ export async function listPendingWriteFailures(
         kind: row.kind,
         dedupKey: row.dedupKey,
         createdAt: row.createdAt,
+        requeuedAt: row.requeuedAt,
         retryCount: row.retryCount,
         lastError: row.lastError,
         streamKey: getPendingWriteStreamKey({
@@ -629,6 +691,7 @@ export async function listPendingWriteFailures(
           kind: row.kind,
           payload,
           createdAt: row.createdAt,
+          requeuedAt: row.requeuedAt,
         }),
       };
     });
@@ -654,8 +717,8 @@ export async function reprocessPendingWriteById(id: string) {
   try {
     await ensurePendingWritesMigrated();
     await db.runAsync(
-      "UPDATE pending_writes SET retryCount = 0, lastError = NULL, createdAt = ? WHERE id = ?",
-      ["0000-01-01T00:00:00.000Z", id]
+      "UPDATE pending_writes SET retryCount = 0, lastError = NULL, requeuedAt = ? WHERE id = ?",
+      [new Date().toISOString(), id]
     );
   } catch {
     return { flushed: 0, remaining: await getPendingWritesCount() };
@@ -677,8 +740,8 @@ export async function reprocessPendingWritesNetworkFailures(limit = WRITE_FLUSH_
 
     for (const row of candidates) {
       await db.runAsync(
-        "UPDATE pending_writes SET retryCount = 0, lastError = NULL, createdAt = ? WHERE id = ?",
-        ["0000-01-01T00:00:00.000Z", row.id]
+        "UPDATE pending_writes SET retryCount = 0, lastError = NULL, requeuedAt = ? WHERE id = ?",
+        [new Date().toISOString(), row.id]
       );
     }
 
@@ -791,7 +854,7 @@ export async function clearPendingWritesDeadLetterCandidates(
   try {
     await ensurePendingWritesMigrated();
     const candidates = await db.getAllAsync<PendingWriteRow>(
-      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes WHERE retryCount >= ?",
+      "SELECT id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey FROM pending_writes WHERE retryCount >= ?",
       [highRetryThreshold]
     );
     const removed = candidates.length;
@@ -821,13 +884,14 @@ export async function clearPendingWritesDeadLetterCandidates(
 export async function flushPendingWrites() {
   const flushStartedAt = Date.now();
   let batch: PendingWrite[] = [];
+  let deferredBatch: PendingWrite[] = [];
   let usingSqlite = false;
   const batchRowsById = new Map<string, PendingWriteRow>();
 
   try {
     await ensurePendingWritesMigrated();
     const rows = await db.getAllAsync<PendingWriteRow>(
-      "SELECT id, kind, payload, createdAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC LIMIT ?",
+      "SELECT id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC LIMIT ?",
       [WRITE_FLUSH_BATCH_SIZE]
     );
     rows.forEach((row) => batchRowsById.set(row.id, row));
@@ -839,23 +903,25 @@ export async function flushPendingWrites() {
             kind: row.kind,
             payload: JSON.parse(row.payload),
             createdAt: row.createdAt,
+            requeuedAt: row.requeuedAt,
           } as PendingWrite;
         } catch {
           return null;
         }
       })
       .filter((item): item is PendingWrite => Boolean(item));
-    batch.sort((left, right) => {
-      const streamDiff = getPendingWriteStreamKey(left).localeCompare(
-        getPendingWriteStreamKey(right)
-      );
-      if (streamDiff !== 0) return streamDiff;
-      return left.createdAt.localeCompare(right.createdAt);
-    });
+    batch.sort(sortPendingWritesForFlush);
+    const strictSelection = selectStrictPerStreamBatch(batch);
+    batch = strictSelection.selected;
+    deferredBatch = strictSelection.deferred;
     usingSqlite = true;
   } catch {
     const queue = await readWriteQueue();
     batch = queue.slice(0, WRITE_FLUSH_BATCH_SIZE);
+    batch.sort(sortPendingWritesForFlush);
+    const strictSelection = selectStrictPerStreamBatch(batch);
+    batch = strictSelection.selected;
+    deferredBatch = strictSelection.deferred;
   }
 
   if (!batch.length) {
@@ -935,7 +1001,7 @@ export async function flushPendingWrites() {
       const failed = failedErrors.get(item.id);
       if (failed) {
         await db.runAsync(
-          "UPDATE pending_writes SET retryCount = retryCount + 1, lastError = ? WHERE id = ?",
+          "UPDATE pending_writes SET retryCount = retryCount + 1, lastError = ?, requeuedAt = NULL WHERE id = ?",
           [failed, item.id]
         );
       } else if (deadLetterErrors.has(item.id)) {
@@ -978,7 +1044,7 @@ export async function flushPendingWrites() {
 
   const queue = await readWriteQueue();
   const untouched = queue.slice(WRITE_FLUSH_BATCH_SIZE);
-  const nextQueue = [...remainingBatch, ...untouched];
+  const nextQueue = [...remainingBatch, ...deferredBatch, ...untouched];
   await writeQueue(nextQueue);
   Sentry.addBreadcrumb({
     category: "sync",

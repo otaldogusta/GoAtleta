@@ -130,6 +130,7 @@ export function initDb() {
       kind TEXT NOT NULL,
       payload TEXT NOT NULL,
       createdAt TEXT NOT NULL,
+      requeuedAt TEXT,
       retryCount INTEGER NOT NULL DEFAULT 0,
       lastError TEXT,
       dedupKey TEXT NOT NULL DEFAULT ''
@@ -178,6 +179,12 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_pending_writes_dedupKey ON pending_writes (dedupKey)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_pending_writes_requeuedAt ON pending_writes (requeuedAt)"
     );
   } catch {}
 
@@ -322,6 +329,11 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE class_plans ADD COLUMN rpeTarget TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE pending_writes ADD COLUMN requeuedAt TEXT"
     );
   } catch {}
   try {
