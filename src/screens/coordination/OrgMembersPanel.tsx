@@ -3,40 +3,40 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  LayoutAnimation,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  UIManager,
-  View,
-  useWindowDimensions,
+    Alert,
+    LayoutAnimation,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    UIManager,
+    View,
+    useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useAuth } from "../../auth/auth";
 import {
-  generateTrainerMessage,
-  type TrainerMessageResult,
-  type TrainerMessageTone,
+    generateTrainerMessage,
+    type TrainerMessageResult,
+    type TrainerMessageTone,
 } from "../../api/ai";
 import {
-  MEMBER_PERMISSION_OPTIONS,
-  MemberClassHead,
-  OrgMember,
-  OrgClass,
-  MemberPermission,
-  MemberPermissionKey,
-  adminListMemberPermissions,
-  adminListOrgClasses,
-  adminListOrgMemberClassHeads,
-  adminListOrgMembers,
-  adminRemoveOrgMember,
-  adminSetMemberClassHeads,
-  adminSetMemberPermission,
-  adminUpdateMemberRole,
+    MEMBER_PERMISSION_OPTIONS,
+    MemberClassHead,
+    MemberPermission,
+    MemberPermissionKey,
+    OrgClass,
+    OrgMember,
+    adminListMemberPermissions,
+    adminListOrgClasses,
+    adminListOrgMemberClassHeads,
+    adminListOrgMembers,
+    adminRemoveOrgMember,
+    adminSetMemberClassHeads,
+    adminSetMemberPermission,
+    adminUpdateMemberRole,
 } from "../../api/members";
+import { useAuth } from "../../auth/auth";
 import { useEffectiveProfile } from "../../core/effective-profile";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { ModalSheet } from "../../ui/ModalSheet";
