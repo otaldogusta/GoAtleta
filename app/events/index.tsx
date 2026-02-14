@@ -1,24 +1,24 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  createEvent,
-  deleteEvent,
-  EventListItem,
-  EventSport,
-  EventType,
-  listEvents,
-  setEventClasses,
+    createEvent,
+    deleteEvent,
+    EventListItem,
+    EventSport,
+    EventType,
+    listEvents,
+    setEventClasses,
 } from "../../src/api/events";
 import { useAuth } from "../../src/auth/auth";
 import { getClasses } from "../../src/db/seed";

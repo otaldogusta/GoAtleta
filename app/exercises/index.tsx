@@ -1,38 +1,39 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Linking,
-  Image,
-  RefreshControl,
-  ScrollView,
-  Share,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { Pressable } from "../../src/ui/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-
 import {
-  deleteExercise,
-  getExercises,
-  saveExercise,
-  updateExercise,
-} from "../../src/db/seed";
-import type { Exercise } from "../../src/core/models";
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
+import {
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Linking,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    Share,
+    Text,
+    TextInput,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../../src/ui/Pressable";
+
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { getValidAccessToken } from "../../src/auth/session";
+import type { Exercise } from "../../src/core/models";
+import {
+    deleteExercise,
+    getExercises,
+    saveExercise,
+    updateExercise,
+} from "../../src/db/seed";
 import { useAppTheme } from "../../src/ui/app-theme";
-import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
 
 const getYoutubeId = (url: string) => {
   const match =

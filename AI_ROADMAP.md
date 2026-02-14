@@ -49,11 +49,11 @@ IA Ouro #3: Resumo executivo com custo baixo e alto valor para coordenadores.
 
 ### Aceite
 
-✅ Gera resumo com dados reais da org  
-✅ Cache evita chamadas repetidas (custo controlado)  
-✅ Funciona offline mostrando último resumo  
-✅ Export Markdown/JSON funciona  
-✅ Não inventa números ou turmas  
+✅ Gera resumo com dados reais da org
+✅ Cache evita chamadas repetidas (custo controlado)
+✅ Funciona offline mostrando último resumo
+✅ Export Markdown/JSON funciona
+✅ Não inventa números ou turmas
 
 ### Smoke Test
 
@@ -100,12 +100,12 @@ IA Ouro #4: Geração contextual de mensagens para professores/estagiários com 
 
 ### Aceite
 
-✅ Nunca inventa dados (turmas, datas, números)  
-✅ Preview sempre antes de enviar  
-✅ Clipboard funciona (WhatsApp e Email)  
-✅ Deep link WhatsApp abre com texto pré-preenchido  
-✅ Histórico armazena últimas 3 mensagens  
-✅ Tons diferentes geram estilos diferentes  
+✅ Nunca inventa dados (turmas, datas, números)
+✅ Preview sempre antes de enviar
+✅ Clipboard funciona (WhatsApp e Email)
+✅ Deep link WhatsApp abre com texto pré-preenchido
+✅ Histórico armazena últimas 3 mensagens
+✅ Tons diferentes geram estilos diferentes
 
 ### Smoke Test
 
@@ -148,11 +148,11 @@ IA Ouro #5: Diagnóstico ops-centric que Sentry não faz (contexto de payload + 
 
 ### Aceite
 
-✅ Não sugere apagar dados  
-✅ Não vaza info sensível (payload sanitizado)  
-✅ Ajuda suporte sem abrir Sentry  
-✅ Classificação é precisa (causa provável faz sentido)  
-✅ Identifica bugs reais vs. erros de rede  
+✅ Não sugere apagar dados
+✅ Não vaza info sensível (payload sanitizado)
+✅ Ajuda suporte sem abrir Sentry
+✅ Classificação é precisa (causa provável faz sentido)
+✅ Identifica bugs reais vs. erros de rede
 
 ### Smoke Test
 
@@ -201,11 +201,11 @@ Trilha Compliance: rastreabilidade de ações críticas (transformador para vend
 
 ### Aceite
 
-✅ Cada ação crítica grava um evento  
-✅ Log é org-scoped (não vaza entre orgs)  
-✅ Export CSV/JSON funciona  
-✅ Performance ok (índices corretos)  
-✅ Offline: log local, sync depois  
+✅ Cada ação crítica grava um evento
+✅ Log é org-scoped (não vaza entre orgs)
+✅ Export CSV/JSON funciona
+✅ Performance ok (índices corretos)
+✅ Offline: log local, sync depois
 
 ### Smoke Test
 
@@ -251,10 +251,10 @@ Evitar "qualquer admin faz qualquer coisa". Aumentar valor institucional.
 
 ### Aceite
 
-✅ Usuário sem permissão não executa ação  
-✅ UI clara: botão disabled + tooltip explicativo  
-✅ Backend valida (se possível)  
-✅ Não quebra fluxos existentes (defaults sensatos)  
+✅ Usuário sem permissão não executa ação
+✅ UI clara: botão disabled + tooltip explicativo
+✅ Backend valida (se possível)
+✅ Não quebra fluxos existentes (defaults sensatos)
 
 ### Smoke Test
 
@@ -315,12 +315,12 @@ IA Ouro #6 (diferencial): detecção + sugestão (confirmada) de fixes para inco
 
 ### Aceite
 
-✅ Nunca aplica mudança sem confirmação explícita  
-✅ Cada fix gera audit log  
-✅ Funciona com org switch sem misturar dados  
-✅ Scanner é rápido (<3s para org com 1000 registros)  
-✅ IA não sugere deletar dados (apenas marcar/mover/corrigir)  
-✅ Incident Mode ativa automaticamente em thresholds  
+✅ Nunca aplica mudança sem confirmação explícita
+✅ Cada fix gera audit log
+✅ Funciona com org switch sem misturar dados
+✅ Scanner é rápido (<3s para org com 1000 registros)
+✅ IA não sugere deletar dados (apenas marcar/mover/corrigir)
+✅ Incident Mode ativa automaticamente em thresholds
 
 ### Smoke Test
 
@@ -405,8 +405,8 @@ Cada PR deve passar seu checklist **antes de merge**.
 
 ## 🎯 Sequência Recomendada
 
-**PR1 → PR2 → PR3** (valor imediato, valida contrato de IA)  
-**PR4 → PR5** (blindagem enterprise/compliance)  
+**PR1 → PR2 → PR3** (valor imediato, valida contrato de IA)
+**PR4 → PR5** (blindagem enterprise/compliance)
 **PR6** (diferencial avançado, depends on 4+5)
 
 ### Por que essa ordem?

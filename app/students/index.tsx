@@ -25,6 +25,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
 import { createStudentInvite, revokeStudentAccess } from "../../src/api/student-invite";
+import {
+    removeStudentPhotoObject,
+    uploadStudentPhoto,
+} from "../../src/api/student-photo-storage";
 import { useAuth } from "../../src/auth/auth";
 import {
     compareClassesBySchedule,
@@ -39,10 +43,6 @@ import {
     saveStudent,
     updateStudent,
 } from "../../src/db/seed";
-import {
-    removeStudentPhotoObject,
-    uploadStudentPhoto,
-} from "../../src/api/student-photo-storage";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";

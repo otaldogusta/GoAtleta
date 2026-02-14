@@ -14,8 +14,8 @@ import {
     getNotifications,
     subscribeNotifications,
 } from "../src/notificationsInbox";
-import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { useAppTheme } from "../src/ui/app-theme";
+import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { Pressable } from "../src/ui/Pressable";
 import { ShimmerBlock } from "../src/ui/Shimmer";
 import { getUnitPalette } from "../src/ui/unit-colors";

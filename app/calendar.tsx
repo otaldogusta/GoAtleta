@@ -28,8 +28,8 @@ import { getClassPalette } from "../src/ui/class-colors";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../src/ui/ModalSheet";
-import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { useSaveToast } from "../src/ui/save-toast";
+import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { ShimmerBlock } from "../src/ui/Shimmer";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
@@ -556,7 +556,7 @@ export default function CalendarScreen() {
 
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        
+
 
         {loadingData ? (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}>

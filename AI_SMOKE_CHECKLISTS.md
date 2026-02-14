@@ -56,11 +56,11 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 
 ### Aceite
 
-✅ Gera resumo com dados reais  
-✅ Cache evita chamadas repetidas  
-✅ Offline mostra último resumo  
-✅ Export funciona (Markdown + JSON)  
-✅ Org switch não mistura dados  
+✅ Gera resumo com dados reais
+✅ Cache evita chamadas repetidas
+✅ Offline mostra último resumo
+✅ Export funciona (Markdown + JSON)
+✅ Org switch não mistura dados
 
 ### Evidências Obrigatórias
 
@@ -134,12 +134,12 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 
 ### Aceite
 
-✅ Nunca inventa dados (turmas, datas)  
-✅ Preview sempre antes de enviar  
-✅ Clipboard funciona (WhatsApp + Email)  
-✅ Deep link WhatsApp abre com texto pré-preenchido  
-✅ Histórico armazena últimas 3 mensagens  
-✅ Tons diferentes geram estilos diferentes  
+✅ Nunca inventa dados (turmas, datas)
+✅ Preview sempre antes de enviar
+✅ Clipboard funciona (WhatsApp + Email)
+✅ Deep link WhatsApp abre com texto pré-preenchido
+✅ Histórico armazena últimas 3 mensagens
+✅ Tons diferentes geram estilos diferentes
 
 ### Evidências Obrigatórias
 
@@ -164,7 +164,7 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 **1. Erro de Rede**
 - [ ] Desconectar rede
 - [ ] Criar nova sessão (ou editar presença)
-- [ ] Tentar salvar → erro 
+- [ ] Tentar salvar → erro
 - [ ] Reconectar rede
 - [ ] Abrir Coordination → Seção "Saúde da Sincronização"
 - [ ] Ver item na lista de falhas
@@ -196,13 +196,13 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
   === RELATÓRIO TÉCNICO DE ERRO DE SYNC ===
   Organização: [nome]
   Timestamp: [ISO]
-  
+
   CLASSIFICAÇÃO
   - Causa provável: ...
   - Severidade: ...
   - Ação recomendada: ...
   - Possível bug da aplicação: ...
-  
+
   CONTEXTO
   - Kind: ...
   - LastError: ...
@@ -222,11 +222,11 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 
 ### Aceite
 
-✅ Não sugere apagar dados  
-✅ Não vaza info sensível  
-✅ Ajuda suporte sem Sentry  
-✅ Classificação precisa  
-✅ Identifica bugs vs. erros transientes  
+✅ Não sugere apagar dados
+✅ Não vaza info sensível
+✅ Ajuda suporte sem Sentry
+✅ Classificação precisa
+✅ Identifica bugs vs. erros transientes
 
 ### Evidências Obrigatórias
 
@@ -310,11 +310,11 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 
 ### Aceite
 
-✅ Cada ação crítica grava evento  
-✅ Log org-scoped  
-✅ Export CSV/JSON funciona  
-✅ Performance ok (índices corretos)  
-✅ Offline: log local, sync depois  
+✅ Cada ação crítica grava evento
+✅ Log org-scoped
+✅ Export CSV/JSON funciona
+✅ Performance ok (índices corretos)
+✅ Offline: log local, sync depois
 
 ### Evidências Obrigatórias
 
@@ -396,10 +396,10 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 
 ### Aceite
 
-✅ Usuário sem permissão não executa ação  
-✅ UI clara: botão disabled + tooltip  
-✅ Backend valida (se implementado)  
-✅ Defaults sensatos (coordenador tem tudo)  
+✅ Usuário sem permissão não executa ação
+✅ UI clara: botão disabled + tooltip
+✅ Backend valida (se implementado)
+✅ Defaults sensatos (coordenador tem tudo)
 
 ### Evidências Obrigatórias
 
@@ -452,13 +452,13 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 - [ ] Modal de confirmação aparece:
   ```
   Você está prestes a: Mover 5 presenças e deletar 1 sessão duplicada.
-  
+
   Impacto:
   - Sessão de 2025-01-15 será deletada
   - Presenças serão consolidadas na sessão de 2025-01-16
-  
+
   Esta ação será registrada no audit log.
-  
+
   [Cancelar] [Confirmar]
   ```
 - [ ] Clicar "Confirmar"
@@ -529,12 +529,12 @@ Checklists detalhados para validação de cada PR do roadmap de IA.
 
 ### Aceite
 
-✅ Nunca aplica mudança sem confirmação  
-✅ Cada fix gera audit log  
-✅ Org switch não mistura dados  
-✅ Scanner rápido (<5s)  
-✅ IA não sugere deletar dados (apenas mover/corrigir)  
-✅ Incident Mode ativa em thresholds  
+✅ Nunca aplica mudança sem confirmação
+✅ Cada fix gera audit log
+✅ Org switch não mistura dados
+✅ Scanner rápido (<5s)
+✅ IA não sugere deletar dados (apenas mover/corrigir)
+✅ Incident Mode ativa em thresholds
 
 ### Evidências Obrigatórias
 
