@@ -1855,7 +1855,12 @@ export async function saveSessionLog(
 
     if (shouldPatchById) {
       await supabasePatch(
-        "/session_logs?id=eq." + encodeURIComponent(log.id || ""),
+        organizationId
+          ? "/session_logs?id=eq." +
+              encodeURIComponent(log.id || "") +
+              "&organization_id=eq." +
+              encodeURIComponent(organizationId)
+          : "/session_logs?id=eq." + encodeURIComponent(log.id || ""),
         {
           client_id: clientId,
           classid: log.classId,
@@ -2026,7 +2031,12 @@ export async function saveTrainingPlan(plan: TrainingPlan, options?: { organizat
 export async function updateTrainingPlan(plan: TrainingPlan, options?: { organizationId?: string }) {
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabasePatch(
-    "/training_plans?id=eq." + encodeURIComponent(plan.id),
+    organizationId
+      ? "/training_plans?id=eq." +
+          encodeURIComponent(plan.id) +
+          "&organization_id=eq." +
+          encodeURIComponent(organizationId)
+      : "/training_plans?id=eq." + encodeURIComponent(plan.id),
     {
       classid: plan.classId,
       organization_id: organizationId ?? undefined,
@@ -2045,21 +2055,35 @@ export async function updateTrainingPlan(plan: TrainingPlan, options?: { organiz
   );
 }
 
-export async function deleteTrainingPlan(id: string) {
+export async function deleteTrainingPlan(
+  id: string,
+  options?: { organizationId?: string | null }
+) {
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabaseDelete(
-    "/training_plans?id=eq." + encodeURIComponent(id)
+    organizationId
+      ? "/training_plans?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(organizationId)
+      : "/training_plans?id=eq." + encodeURIComponent(id)
   );
 }
 
 export async function deleteTrainingPlansByClassAndDate(
   classId: string,
-  date: string
+  date: string,
+  options?: { organizationId?: string | null }
 ) {
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabaseDelete(
     "/training_plans?classid=eq." +
       encodeURIComponent(classId) +
       "&applydate=eq." +
-      encodeURIComponent(date)
+      encodeURIComponent(date) +
+      (organizationId
+        ? "&organization_id=eq." + encodeURIComponent(organizationId)
+        : "")
   );
 }
 
@@ -2122,9 +2146,18 @@ export async function createClassPlan(plan: ClassPlan) {
   }
 }
 
-export async function updateClassPlan(plan: ClassPlan) {
+export async function updateClassPlan(
+  plan: ClassPlan,
+  options?: { organizationId?: string | null }
+) {
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabasePatch(
-    "/class_plans?id=eq." + encodeURIComponent(plan.id),
+    organizationId
+      ? "/class_plans?id=eq." +
+          encodeURIComponent(plan.id) +
+          "&organization_id=eq." +
+          encodeURIComponent(organizationId)
+      : "/class_plans?id=eq." + encodeURIComponent(plan.id),
     {
       classid: plan.classId,
       startdate: plan.startDate,
@@ -2138,6 +2171,7 @@ export async function updateClassPlan(plan: ClassPlan) {
       mv_format: plan.mvFormat,
       warmupprofile: plan.warmupProfile,
       source: plan.source,
+      organization_id: organizationId ?? undefined,
       jump_target: plan.jumpTarget,
       rpe_target: plan.rpeTarget,
       created_at: plan.createdAt,
@@ -2171,9 +2205,17 @@ export async function saveClassPlans(plans: ClassPlan[], options?: { organizatio
   })));
 }
 
-export async function deleteClassPlansByClass(classId: string) {
+export async function deleteClassPlansByClass(
+  classId: string,
+  options?: { organizationId?: string | null }
+) {
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   await supabaseDelete(
-    "/class_plans?classid=eq." + encodeURIComponent(classId)
+    "/class_plans?classid=eq." +
+      encodeURIComponent(classId) +
+      (organizationId
+        ? "&organization_id=eq." + encodeURIComponent(organizationId)
+        : "")
   );
 }
 
@@ -2329,12 +2371,20 @@ export async function hideTrainingTemplate(templateId: string) {
 }
 
 export async function getLatestTrainingPlanByClass(
-  classId: string
+  classId: string,
+  options: { organizationId?: string | null } = {}
 ): Promise<TrainingPlan | null> {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<TrainingPlanRow[]>(
-    "/training_plans?select=*&classid=eq." +
-      encodeURIComponent(classId) +
-      "&order=createdat.desc&limit=1"
+    organizationId
+      ? "/training_plans?select=*&classid=eq." +
+          encodeURIComponent(classId) +
+          "&organization_id=eq." +
+          encodeURIComponent(organizationId) +
+          "&order=createdat.desc&limit=1"
+      : "/training_plans?select=*&classid=eq." +
+          encodeURIComponent(classId) +
+          "&order=createdat.desc&limit=1"
   );
   const row = rows[0];
   if (!row) return null;
