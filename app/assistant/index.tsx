@@ -497,7 +497,7 @@ export default function AssistantScreen() {
                   alignSelf: "center",
                   minHeight: Platform.OS === "web" ? Math.max(470, Math.round(height * 0.6)) : undefined,
                   paddingHorizontal: isDesktopLayout ? 20 : 6,
-                  paddingTop: isDesktopLayout ? 26 : 10,
+                  paddingTop: isDesktopLayout ? 26 : 18,
                   paddingBottom: 10,
                   gap: 16,
                   alignItems: "center",
@@ -537,7 +537,7 @@ export default function AssistantScreen() {
                     flexWrap: "nowrap",
                     gap: 16,
                     justifyContent: "center",
-                    marginTop: 14,
+                    marginTop: 10,
                   }}
                 >
                   {quickPrompts.map((item) => (
@@ -576,13 +576,13 @@ export default function AssistantScreen() {
                       <View style={{ gap: 4 }}>
                         <Text
                           numberOfLines={2}
-                          style={{ color: colors.text, fontWeight: "800", fontSize: 12, lineHeight: 15 }}
+                          style={{ color: colors.text, fontWeight: "800", fontSize: 11, lineHeight: 14 }}
                         >
                           {item.title}
                         </Text>
                         <Text
-                          numberOfLines={2}
-                          style={{ color: colors.muted, fontSize: 10, lineHeight: 13 }}
+                          numberOfLines={3}
+                          style={{ color: colors.muted, fontSize: 9.5, lineHeight: 12 }}
                         >
                           {item.subtitle}
                         </Text>
