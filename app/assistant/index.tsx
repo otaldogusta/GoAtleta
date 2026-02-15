@@ -27,7 +27,6 @@ import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notificati
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
-import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -133,11 +132,6 @@ export default function AssistantScreen() {
     [classes, classId]
   );
   const className = selectedClass?.name ?? "Turma";
-
-  const sortedClasses = useMemo(
-    () => sortClassesByAgeBand(classes),
-    [classes]
-  );
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1100;
 
@@ -314,45 +308,6 @@ export default function AssistantScreen() {
             <Text style={{ color: colors.muted }}>
               Planejamento inteligente para treinos e aulas
             </Text>
-          </View>
-
-          <View
-            style={{
-              gap: 8,
-              padding: 12,
-              borderRadius: 16,
-              backgroundColor: colors.background,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-              Turma selecionada
-            </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {sortedClasses.map((item) => {
-                const active = item.id === classId;
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => setClassId(item.id)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "600" }}>
-                        {item.name}
-                      </Text>
-                      <ClassGenderBadge gender={item.gender} size="sm" />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
           </View>
 
           <ScrollView
