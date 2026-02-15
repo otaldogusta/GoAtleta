@@ -409,19 +409,20 @@ export default function AssistantScreen() {
                       style={{
                         flex: 1,
                         aspectRatio: 1,
-                        borderRadius: 14,
+                        borderRadius: 16,
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
-                        padding: 12,
-                        gap: 6,
-                        justifyContent: "center",
+                        padding: 14,
+                        gap: 8,
+                        justifyContent: "flex-end",
+                        alignItems: "flex-start",
                       }}
                     >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18, lineHeight: 22 }}>
                         {item.title}
                       </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 18 }}>
                         {item.subtitle}
                       </Text>
                     </Pressable>
