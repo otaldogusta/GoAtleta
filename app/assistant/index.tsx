@@ -580,7 +580,13 @@ export default function AssistantScreen() {
                       <View style={{ gap: 4, flexShrink: 1 }}>
                         <Text
                           numberOfLines={1}
-                          style={{ color: colors.text, fontWeight: "800", fontSize: 11, lineHeight: 14 }}
+                          style={{
+                            color: colors.text,
+                            fontWeight: "700",
+                            fontSize: 9.5,
+                            lineHeight: 12,
+                            width: "100%",
+                          }}
                         >
                           {item.title}
                         </Text>
