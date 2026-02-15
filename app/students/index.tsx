@@ -20,7 +20,8 @@ import {
     ScrollView,
     Text,
     TextInput,
-    View
+  View,
+  useWindowDimensions
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
@@ -127,6 +128,7 @@ type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
 
 export default function StudentsScreen() {
+  const { height: windowHeight } = useWindowDimensions();
   const { signOut } = useAuth();
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
@@ -146,6 +148,11 @@ export default function StudentsScreen() {
     gap: 8,
   };
   const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
+  const editModalStandardHeight = useMemo(() => {
+    if (Platform.OS === "web") return undefined;
+    const target = Math.round(windowHeight * 0.78);
+    return Math.max(520, Math.min(target, 700));
+  }, [windowHeight]);
   const whatsappModalCardStyle = useModalCardStyle({
     maxHeight: "70%",
     maxWidth: 440,
@@ -3552,7 +3559,8 @@ export default function StudentsScreen() {
           editModalCardStyle,
           {
             maxHeight: "92%",
-            minHeight: Platform.OS === "web" ? undefined : 320,
+            minHeight: editModalStandardHeight,
+            height: editModalStandardHeight,
             paddingBottom: 12,
             overflow: "hidden",
           },
