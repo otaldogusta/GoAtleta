@@ -46,6 +46,7 @@ class SmartSyncService {
   private maxRetries = 5;
   private isInitialized = false;
   private appStateSubscription: any = null;
+  private syncGeneration = 0;
 
   /**
    * Initialize smart sync: listen to app state changes
@@ -120,6 +121,7 @@ class SmartSyncService {
   }
 
   handleOrganizationSwitch() {
+    this.syncGeneration += 1;
     if (this.syncTimer) {
       clearTimeout(this.syncTimer);
       this.syncTimer = null;
@@ -167,10 +169,15 @@ class SmartSyncService {
   private async performSync(
     reason: string
   ): Promise<{ flushed: number; remaining: number }> {
+    if (this.status.syncPausedReason === "org_switch") {
+      return { flushed: 0, remaining: await getPendingWritesCount() };
+    }
+
     if (this.inFlightSync) {
       return this.inFlightSync;
     }
 
+    const generationAtStart = this.syncGeneration;
     this.inFlightSync = (async () => {
       try {
         const startedAt = Date.now();
@@ -189,6 +196,10 @@ class SmartSyncService {
 
         const result = await flushPendingWrites();
         const elapsedMs = Date.now() - startedAt;
+
+        if (generationAtStart !== this.syncGeneration) {
+          return { flushed: 0, remaining: await getPendingWritesCount() };
+        }
 
         // Reset retry count on success (when queue is empty)
         if (result.remaining === 0) {
@@ -222,6 +233,10 @@ class SmartSyncService {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         const paused = isSyncPausedError(errorMessage);
+
+        if (generationAtStart !== this.syncGeneration) {
+          return { flushed: 0, remaining: await getPendingWritesCount() };
+        }
 
         if (!paused) {
           this.retryCount++;

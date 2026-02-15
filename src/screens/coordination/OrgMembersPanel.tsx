@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
+  FlatList,
     LayoutAnimation,
     Platform,
     RefreshControl,
@@ -659,7 +660,118 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
 
 return (
   <Container style={{ flex: 1, backgroundColor: colors.background }}>
-    <ScrollView
+    <FlatList
+      data={loading && members.length === 0 ? [] : filteredMembers}
+      keyExtractor={(item) => item.userId}
+      renderItem={({ item: member }) => {
+        const badge = roleColor(member.roleLevel, colors);
+        const subtitle = member.email ?? "Sem e-mail cadastrado";
+        const classSummary = getMemberClassSummary(member);
+        const isClassEligible = member.roleLevel >= 10;
+        return (
+          <Pressable
+            onPress={() => openMemberDetails(member)}
+            style={{
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: 12,
+              gap: 10,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                <View
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
+                    {getInitials(member.displayName)}
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>
+                    {member.displayName}
+                  </Text>
+                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
+                    {subtitle}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Entrou em {formatJoinedAt(member.createdAt)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ alignItems: "flex-end", gap: 6 }}>
+                <View
+                  style={{
+                    borderRadius: 999,
+                    backgroundColor: badge.bg,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                  }}
+                >
+                  <Text style={{ color: badge.text, fontWeight: "700", fontSize: 11 }}>
+                    {roleLabel(member.roleLevel)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+                </View>
+              </View>
+            </View>
+
+            <View style={{ gap: 4 }}>
+              <Text
+                style={{
+                  color: isClassEligible ? colors.text : colors.muted,
+                  fontSize: 12,
+                  fontWeight: isClassEligible ? "600" : "500",
+                }}
+              >
+                {classSummary}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {"Toque para editar cargo, turmas e permiss\u00f5es de telas."}
+              </Text>
+            </View>
+          </Pressable>
+        );
+      }}
+      initialNumToRender={12}
+      maxToRenderPerBatch={12}
+      updateCellsBatchingPeriod={40}
+      windowSize={8}
+      removeClippedSubviews={Platform.OS !== "web"}
+      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -669,309 +781,206 @@ return (
           colors={[colors.text]}
         />
       }
+      ListHeaderComponent={
+        <View style={{ gap: 12, marginBottom: filteredMembers.length > 0 && !loading ? 10 : 0 }}>
+          <View
+            style={{
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: isCompact ? 14 : 16,
+              overflow: "hidden",
+              gap: 6,
+            }}
+          >
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                width: 170,
+                height: 170,
+                borderRadius: 85,
+                top: -96,
+                right: -48,
+                backgroundColor: colors.primaryBg,
+                opacity: 0.16,
+              }}
+            />
+            {showInitialShimmer ? (
+              <View style={{ gap: 8 }}>
+                <ShimmerBlock style={{ height: isCompact ? 36 : 40, width: "70%", borderRadius: 10 }} />
+                <ShimmerBlock style={{ height: 18, width: "44%", borderRadius: 8 }} />
+                <ShimmerBlock style={{ height: 14, width: "34%", borderRadius: 8 }} />
+              </View>
+            ) : (
+              <>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: isCompact ? 28 : 32,
+                    fontWeight: "800",
+                    lineHeight: isCompact ? 32 : 36,
+                  }}
+                >
+                  {"Membros da organiza\u00e7\u00e3o"}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 14 }}>{organizationName}</Text>
+                <Text style={{ color: colors.muted, fontSize: 11, letterSpacing: 0.3 }}>
+                  {lastUpdatedAt ? `Atualizado \u00e0s ${lastUpdatedAt}` : "Painel administrativo"}
+                </Text>
+              </>
+            )}
+          </View>
+
+          <View
+            style={{
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: 12,
+              gap: 10,
+            }}
+          >
+            {showInitialShimmer ? (
+              <View style={{ gap: 10 }}>
+                <ShimmerBlock style={{ height: 42, borderRadius: 12 }} />
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  {[0, 1, 2, 3].map((index) => (
+                    <ShimmerBlock
+                      key={`stats-shimmer-${index}`}
+                      style={{
+                        width: isCompact ? 118 : 126,
+                        height: 74,
+                        borderRadius: 14,
+                      }}
+                    />
+                  ))}
+                </View>
+                <ShimmerBlock style={{ height: 38, width: 142, borderRadius: 999 }} />
+              </View>
+            ) : (
+              <>
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    paddingHorizontal: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Ionicons name="search" size={16} color={colors.muted} />
+                  <TextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    placeholder="Buscar por nome, e-mail ou ID"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      flex: 1,
+                      color: colors.inputText,
+                      paddingVertical: 10,
+                      fontSize: 15,
+                    }}
+                  />
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  {statItems.map((item) => (
+                    <View
+                      key={item.key}
+                      style={{
+                        minWidth: 90,
+                        flex: 1,
+                        borderRadius: 14,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 8,
+                        gap: 5,
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 20, lineHeight: 22 }}>
+                          {item.value}
+                        </Text>
+                        <View
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 12,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: item.tint,
+                          }}
+                        >
+                          <Ionicons name={item.icon as any} size={13} color={colors.text} />
+                        </View>
+                      </View>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>{item.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+
+          {error && !showInitialShimmer ? (
+            <View
+              style={{
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                padding: 12,
+                gap: 6,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="alert-circle-outline" size={17} color={colors.warningBg} />
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Erro</Text>
+              </View>
+              <Text style={{ color: colors.muted }}>{error}</Text>
+            </View>
+          ) : null}
+
+          {loading && members.length === 0 ? (
+            <View style={{ gap: 8 }}>
+              {[0, 1, 2, 3, 4].map((skeleton) => (
+                <ShimmerBlock
+                  key={`member-loading-${skeleton}`}
+                  style={{ height: skeleton === 0 ? 112 : 98, borderRadius: 16 }}
+                />
+              ))}
+            </View>
+          ) : null}
+
+          {!loading && filteredMembers.length === 0 ? (
+            <View
+              style={{
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                padding: 14,
+              }}
+            >
+              <Text style={{ color: colors.muted }}>Nenhum membro encontrado.</Text>
+            </View>
+          ) : null}
+        </View>
+      }
       contentContainerStyle={{
         paddingHorizontal: isCompact ? 14 : 16,
         paddingTop: 12,
         paddingBottom: 28,
-        gap: 12,
       }}
-    >
-      <View
-        style={{
-          borderRadius: 20,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          padding: isCompact ? 14 : 16,
-          overflow: "hidden",
-          gap: 6,
-        }}
-      >
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            width: 170,
-            height: 170,
-            borderRadius: 85,
-            top: -96,
-            right: -48,
-            backgroundColor: colors.primaryBg,
-            opacity: 0.16,
-          }}
-        />
-        {showInitialShimmer ? (
-          <View style={{ gap: 8 }}>
-            <ShimmerBlock style={{ height: isCompact ? 36 : 40, width: "70%", borderRadius: 10 }} />
-            <ShimmerBlock style={{ height: 18, width: "44%", borderRadius: 8 }} />
-            <ShimmerBlock style={{ height: 14, width: "34%", borderRadius: 8 }} />
-          </View>
-        ) : (
-          <>
-            <Text
-              style={{
-                color: colors.text,
-                fontSize: isCompact ? 28 : 32,
-                fontWeight: "800",
-                lineHeight: isCompact ? 32 : 36,
-              }}
-            >
-              {"Membros da organiza\u00e7\u00e3o"}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 14 }}>{organizationName}</Text>
-            <Text style={{ color: colors.muted, fontSize: 11, letterSpacing: 0.3 }}>
-              {lastUpdatedAt ? `Atualizado \u00e0s ${lastUpdatedAt}` : "Painel administrativo"}
-            </Text>
-          </>
-        )}
-      </View>
-
-      <View
-        style={{
-          borderRadius: 20,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          padding: 12,
-          gap: 10,
-        }}
-      >
-        {showInitialShimmer ? (
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 42, borderRadius: 12 }} />
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              {[0, 1, 2, 3].map((index) => (
-                <ShimmerBlock
-                  key={`stats-shimmer-${index}`}
-                  style={{
-                    width: isCompact ? 118 : 126,
-                    height: 74,
-                    borderRadius: 14,
-                  }}
-                />
-              ))}
-            </View>
-            <ShimmerBlock style={{ height: 38, width: 142, borderRadius: 999 }} />
-          </View>
-        ) : (
-          <>
-            <View
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                paddingHorizontal: 12,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Ionicons name="search" size={16} color={colors.muted} />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Buscar por nome, e-mail ou ID"
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  flex: 1,
-                  color: colors.inputText,
-                  paddingVertical: 10,
-                  fontSize: 15,
-                }}
-              />
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              {statItems.map((item) => (
-                <View
-                  key={item.key}
-                  style={{
-                    minWidth: 90,
-                    flex: 1,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    gap: 5,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 20, lineHeight: 22 }}>
-                      {item.value}
-                    </Text>
-                    <View
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: item.tint,
-                      }}
-                    >
-                      <Ionicons name={item.icon as any} size={13} color={colors.text} />
-                    </View>
-                  </View>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{item.label}</Text>
-                </View>
-              ))}
-            </View>
-          </>
-        )}
-      </View>
-
-      {error && !showInitialShimmer ? (
-        <View
-          style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 12,
-            gap: 6,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Ionicons name="alert-circle-outline" size={17} color={colors.warningBg} />
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Erro</Text>
-          </View>
-          <Text style={{ color: colors.muted }}>{error}</Text>
-        </View>
-      ) : null}
-
-      {loading && members.length === 0 ? (
-        <View style={{ gap: 8 }}>
-          {[0, 1, 2, 3, 4].map((skeleton) => (
-            <ShimmerBlock
-              key={`member-loading-${skeleton}`}
-              style={{ height: skeleton === 0 ? 112 : 98, borderRadius: 16 }}
-            />
-          ))}
-        </View>
-      ) : filteredMembers.length === 0 ? (
-        <View
-          style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 14,
-          }}
-        >
-          <Text style={{ color: colors.muted }}>Nenhum membro encontrado.</Text>
-        </View>
-      ) : (
-        <View style={{ gap: 10 }}>
-          {filteredMembers.map((member) => {
-            const badge = roleColor(member.roleLevel, colors);
-            const subtitle = member.email ?? "Sem e-mail cadastrado";
-            const classSummary = getMemberClassSummary(member);
-            const isClassEligible = member.roleLevel >= 10;
-            return (
-              <Pressable
-                key={member.userId}
-                onPress={() => openMemberDetails(member)}
-                style={{
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 12,
-                  gap: 10,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-                    <View
-                      style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 21,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
-                        {getInitials(member.displayName)}
-                      </Text>
-                    </View>
-
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>
-                        {member.displayName}
-                      </Text>
-                      <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
-                        {subtitle}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Entrou em {formatJoinedAt(member.createdAt)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={{ alignItems: "flex-end", gap: 6 }}>
-                    <View
-                      style={{
-                        borderRadius: 999,
-                        backgroundColor: badge.bg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                      }}
-                    >
-                      <Text style={{ color: badge.text, fontWeight: "700", fontSize: 11 }}>
-                        {roleLabel(member.roleLevel)}
-                      </Text>
-                    </View>
-                    <View
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Ionicons name="chevron-forward" size={14} color={colors.muted} />
-                    </View>
-                  </View>
-                </View>
-
-                <View style={{ gap: 4 }}>
-                  <Text
-                    style={{
-                      color: isClassEligible ? colors.text : colors.muted,
-                      fontSize: 12,
-                      fontWeight: isClassEligible ? "600" : "500",
-                    }}
-                  >
-                    {classSummary}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {"Toque para editar cargo, turmas e permiss\u00f5es de telas."}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-    </ScrollView>
+    />
 
       <ModalSheet
         visible={showMemberSheet && !!selectedMember}
