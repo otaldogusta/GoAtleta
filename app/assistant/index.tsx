@@ -331,6 +331,19 @@ export default function AssistantScreen() {
     }
   };
 
+  const handleComposerKeyPress = useCallback(
+    (event: any) => {
+      if (Platform.OS !== "web") return;
+      const key = event?.nativeEvent?.key;
+      const shiftKey = Boolean(event?.nativeEvent?.shiftKey);
+      if (key !== "Enter" || shiftKey) return;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      void sendMessage();
+    },
+    [sendMessage]
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View
@@ -698,6 +711,7 @@ export default function AssistantScreen() {
               placeholder="Descreva a aula ou o planejamento..."
               value={input}
               onChangeText={setInput}
+              onKeyPress={handleComposerKeyPress}
               placeholderTextColor={colors.placeholder}
               multiline
               style={{
