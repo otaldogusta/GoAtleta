@@ -110,6 +110,7 @@ export default function AssistantScreen() {
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
+  const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -225,6 +226,17 @@ export default function AssistantScreen() {
     setSources([]);
     setShowSavedLink(false);
     setInput("");
+  }, []);
+
+  const handleSelectQuickPrompt = useCallback((prompt: string) => {
+    setInput(prompt);
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      const active = document.activeElement as HTMLElement | null;
+      active?.blur?.();
+    }
+    requestAnimationFrame(() => {
+      composerInputRef.current?.focus();
+    });
   }, []);
 
   const sendMessage = async () => {
@@ -446,7 +458,7 @@ export default function AssistantScreen() {
                   {quickPrompts.map((item) => (
                     <Pressable
                       key={item.title}
-                      onPress={() => setInput(item.prompt)}
+                      onPress={() => handleSelectQuickPrompt(item.prompt)}
                       focusable={Platform.OS !== "web"}
                       style={{
                         flex: 1,
@@ -726,6 +738,7 @@ export default function AssistantScreen() {
             }}
           >
             <TextInput
+              ref={composerInputRef}
               placeholder="Descreva a aula ou o planejamento..."
               value={input}
               onChangeText={setInput}
