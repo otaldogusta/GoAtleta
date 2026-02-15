@@ -830,6 +830,7 @@ export default function StudentsScreen() {
     healthObservations,
     loginEmail,
     name,
+    photoUrl,
     phone,
     unit,
   ]);
