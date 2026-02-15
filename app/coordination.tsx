@@ -9,7 +9,7 @@ import {
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { memo, useCallback, useMemo, useState } from "react";
-import { Platform, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Platform, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -222,6 +222,7 @@ const IndicatorCard = memo(function IndicatorCard({
 export default function CoordinationScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
   const { activeOrganization } = useOrganization();
   const { syncPausedReason, resumeSync } = useSmartSync();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
@@ -251,6 +252,9 @@ export default function CoordinationScreen() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiExportLoading, setAiExportLoading] = useState(false);
+
+  const isDesktopLayout = Platform.OS === "web" && width >= 1180;
+  const isWideLayout = width >= 860;
 
   const tabItems = useMemo(
     () => [
@@ -287,6 +291,17 @@ export default function CoordinationScreen() {
         .slice(0, 10),
     [pendingReports]
   );
+
+  const coordinationHealthScore = useMemo(() => {
+    if (loading) return null;
+    const pressurePoints =
+      pendingAttendance.length * 2 +
+      pendingReports.length * 3 +
+      pendingWritesDiagnostics.highRetry * 4 +
+      failedWrites.length * 5;
+    const score = Math.max(8, 100 - pressurePoints);
+    return Math.min(100, score);
+  }, [failedWrites.length, loading, pendingAttendance.length, pendingReports.length, pendingWritesDiagnostics.highRetry]);
 
   const dataFixIssues = useMemo<DataFixIssue[]>(() => {
     const issues: DataFixIssue[] = [];
@@ -927,7 +942,11 @@ export default function CoordinationScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 10 }}
+          contentContainerStyle={{
+            paddingHorizontal: isDesktopLayout ? 20 : 16,
+            paddingBottom: 28,
+            gap: 12,
+          }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -958,17 +977,50 @@ export default function CoordinationScreen() {
 
           <View
             style={{
-              borderRadius: 16,
+              borderRadius: 20,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.card,
-              padding: 14,
-              gap: 10,
+              padding: isWideLayout ? 16 : 14,
+              gap: 12,
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-              Indicadores
-            </Text>
+            <View
+              style={{
+                flexDirection: isWideLayout ? "row" : "column",
+                justifyContent: "space-between",
+                alignItems: isWideLayout ? "center" : "flex-start",
+                gap: 10,
+              }}
+            >
+              <View style={{ gap: 3 }}>
+                <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+                  Visão geral da coordenação
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Indicadores operacionais da organização {organizationName}.
+                </Text>
+              </View>
+              <View
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>
+                  SAÚDE OPERACIONAL
+                </Text>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                  {coordinationHealthScore === null ? "..." : `${coordinationHealthScore}%`}
+                </Text>
+              </View>
+            </View>
+
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
               <IndicatorCard
                 label="Chamada pendente"
@@ -991,77 +1043,176 @@ export default function CoordinationScreen() {
                 colors={colors}
               />
             </View>
+
+            <View
+              style={{
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                height: 12,
+                overflow: "hidden",
+              }}
+            >
+              <View
+                style={{
+                  height: "100%",
+                  width: `${coordinationHealthScore ?? 0}%`,
+                  backgroundColor: colors.primaryBg,
+                }}
+              />
+            </View>
           </View>
 
-          <ExecutiveSummaryCard
-            colors={colors}
-            loading={loading}
-            aiLoading={aiLoading}
-            aiExportLoading={aiExportLoading}
-            aiMessage={aiMessage}
-            executiveSummary={executiveSummary}
-            dataFixSuggestions={dataFixSuggestions}
-            onGenerateExecutiveSummary={handleGenerateExecutiveSummary}
-            onSuggestDataFixes={handleSuggestDataFixes}
-            onCopyWhatsappMessage={handleCopyWhatsappMessage}
-            onExportMarkdown={handleExportMarkdown}
-            onExportPdf={handleExportPdf}
-          />
+          {isWideLayout ? (
+            <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
+              <View style={{ flex: 1.2, gap: 12 }}>
+                <ExecutiveSummaryCard
+                  colors={colors}
+                  loading={loading}
+                  aiLoading={aiLoading}
+                  aiExportLoading={aiExportLoading}
+                  aiMessage={aiMessage}
+                  executiveSummary={executiveSummary}
+                  dataFixSuggestions={dataFixSuggestions}
+                  onGenerateExecutiveSummary={handleGenerateExecutiveSummary}
+                  onSuggestDataFixes={handleSuggestDataFixes}
+                  onCopyWhatsappMessage={handleCopyWhatsappMessage}
+                  onExportMarkdown={handleExportMarkdown}
+                  onExportPdf={handleExportPdf}
+                />
 
-          <SyncSupportPanel
-            colors={colors}
-            loading={loading}
-            syncPausedReason={syncPausedReason}
-            pendingWritesDiagnostics={pendingWritesDiagnostics}
-            failedWrites={failedWrites}
-            syncActionLoading={syncActionLoading}
-            syncActionMessage={syncActionMessage}
-            aiLoading={aiLoading}
-            syncClassifications={syncClassifications}
-            onResumePausedSync={handleResumePausedSync}
-            onGoLogin={() => router.push("/login")}
-            onGoProfile={() => router.push("/profile")}
-            onReprocessQueueNow={handleReprocessQueueNow}
-            onReprocessNetworkFailures={handleReprocessNetworkFailures}
-            onClearDeadLetterCandidates={handleClearDeadLetterCandidates}
-            onExportSyncHealthJson={handleExportSyncHealthJson}
-            onReprocessSingleItem={handleReprocessSingleItem}
-            onCopyFailedPayload={handleCopyFailedPayload}
-            onClassifySyncError={handleClassifySyncError}
-          />
+                <ConsistencyPanel
+                  colors={colors}
+                  loading={loading}
+                  pendingAttendance={pendingAttendance}
+                  pendingReports={pendingReports}
+                  onOpenAttendance={({ classId, targetDate }) =>
+                    router.push({
+                      pathname: "/class/[id]/attendance",
+                      params: { id: classId, date: targetDate },
+                    })
+                  }
+                  onOpenReport={({ classId, periodStart }) =>
+                    router.push({
+                      pathname: "/class/[id]/session",
+                      params: {
+                        id: classId,
+                        tab: "relatório",
+                        date: periodStart,
+                      },
+                    })
+                  }
+                  formatDateBr={formatDateBr}
+                  formatDateTimeBr={formatDateTimeBr}
+                />
+              </View>
 
-          <AuditPanel
-            colors={colors}
-            loading={loading}
-            pendingAttendanceCount={pendingAttendance.length}
-            pendingReportsCount={pendingReports.length}
-            onOpenReports={() => router.push("/reports")}
-          />
+              <View style={{ flex: isDesktopLayout ? 0.8 : 1, gap: 12 }}>
+                <SyncSupportPanel
+                  colors={colors}
+                  loading={loading}
+                  syncPausedReason={syncPausedReason}
+                  pendingWritesDiagnostics={pendingWritesDiagnostics}
+                  failedWrites={failedWrites}
+                  syncActionLoading={syncActionLoading}
+                  syncActionMessage={syncActionMessage}
+                  aiLoading={aiLoading}
+                  syncClassifications={syncClassifications}
+                  onResumePausedSync={handleResumePausedSync}
+                  onGoLogin={() => router.push("/login")}
+                  onGoProfile={() => router.push("/profile")}
+                  onReprocessQueueNow={handleReprocessQueueNow}
+                  onReprocessNetworkFailures={handleReprocessNetworkFailures}
+                  onClearDeadLetterCandidates={handleClearDeadLetterCandidates}
+                  onExportSyncHealthJson={handleExportSyncHealthJson}
+                  onReprocessSingleItem={handleReprocessSingleItem}
+                  onCopyFailedPayload={handleCopyFailedPayload}
+                  onClassifySyncError={handleClassifySyncError}
+                />
 
-          <ConsistencyPanel
-            colors={colors}
-            loading={loading}
-            pendingAttendance={pendingAttendance}
-            pendingReports={pendingReports}
-            onOpenAttendance={({ classId, targetDate }) =>
-              router.push({
-                pathname: "/class/[id]/attendance",
-                params: { id: classId, date: targetDate },
-              })
-            }
-            onOpenReport={({ classId, periodStart }) =>
-              router.push({
-                pathname: "/class/[id]/session",
-                params: {
-                  id: classId,
-                  tab: "relatório",
-                  date: periodStart,
-                },
-              })
-            }
-            formatDateBr={formatDateBr}
-            formatDateTimeBr={formatDateTimeBr}
-          />
+                <AuditPanel
+                  colors={colors}
+                  loading={loading}
+                  pendingAttendanceCount={pendingAttendance.length}
+                  pendingReportsCount={pendingReports.length}
+                  onOpenReports={() => router.push("/reports")}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              <ExecutiveSummaryCard
+                colors={colors}
+                loading={loading}
+                aiLoading={aiLoading}
+                aiExportLoading={aiExportLoading}
+                aiMessage={aiMessage}
+                executiveSummary={executiveSummary}
+                dataFixSuggestions={dataFixSuggestions}
+                onGenerateExecutiveSummary={handleGenerateExecutiveSummary}
+                onSuggestDataFixes={handleSuggestDataFixes}
+                onCopyWhatsappMessage={handleCopyWhatsappMessage}
+                onExportMarkdown={handleExportMarkdown}
+                onExportPdf={handleExportPdf}
+              />
+
+              <SyncSupportPanel
+                colors={colors}
+                loading={loading}
+                syncPausedReason={syncPausedReason}
+                pendingWritesDiagnostics={pendingWritesDiagnostics}
+                failedWrites={failedWrites}
+                syncActionLoading={syncActionLoading}
+                syncActionMessage={syncActionMessage}
+                aiLoading={aiLoading}
+                syncClassifications={syncClassifications}
+                onResumePausedSync={handleResumePausedSync}
+                onGoLogin={() => router.push("/login")}
+                onGoProfile={() => router.push("/profile")}
+                onReprocessQueueNow={handleReprocessQueueNow}
+                onReprocessNetworkFailures={handleReprocessNetworkFailures}
+                onClearDeadLetterCandidates={handleClearDeadLetterCandidates}
+                onExportSyncHealthJson={handleExportSyncHealthJson}
+                onReprocessSingleItem={handleReprocessSingleItem}
+                onCopyFailedPayload={handleCopyFailedPayload}
+                onClassifySyncError={handleClassifySyncError}
+              />
+
+              <AuditPanel
+                colors={colors}
+                loading={loading}
+                pendingAttendanceCount={pendingAttendance.length}
+                pendingReportsCount={pendingReports.length}
+                onOpenReports={() => router.push("/reports")}
+              />
+
+              <ConsistencyPanel
+                colors={colors}
+                loading={loading}
+                pendingAttendance={pendingAttendance}
+                pendingReports={pendingReports}
+                onOpenAttendance={({ classId, targetDate }) =>
+                  router.push({
+                    pathname: "/class/[id]/attendance",
+                    params: { id: classId, date: targetDate },
+                  })
+                }
+                onOpenReport={({ classId, periodStart }) =>
+                  router.push({
+                    pathname: "/class/[id]/session",
+                    params: {
+                      id: classId,
+                      tab: "relatório",
+                      date: periodStart,
+                    },
+                  })
+                }
+                formatDateBr={formatDateBr}
+                formatDateTimeBr={formatDateTimeBr}
+              />
+            </>
+          )}
         </ScrollView>
       )}
     </SafeAreaView>
