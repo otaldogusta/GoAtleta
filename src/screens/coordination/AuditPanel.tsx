@@ -27,17 +27,33 @@ export function AuditPanel({
   return (
     <View
       style={{
-        borderRadius: 16,
+        borderRadius: 18,
         borderWidth: 1,
-        borderColor: colors.primaryBg,
+        borderColor: colors.border,
         backgroundColor: colors.card,
-        padding: 14,
+        padding: 16,
         gap: 10,
       }}
     >
-      <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
-        Ações Rápidas
-      </Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
+          Ações rápidas
+        </Text>
+        <View
+          style={{
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.secondaryBg,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            Prioridades
+          </Text>
+        </View>
+      </View>
       <View style={{ gap: 8 }}>
         {pendingAttendanceCount > 0 ? (
           <Pressable
@@ -46,9 +62,11 @@ export function AuditPanel({
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: 10,
-              borderRadius: 12,
+              padding: 12,
+              borderRadius: 14,
               backgroundColor: colors.primaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
             }}
           >
             <Text style={{ color: colors.primaryText, fontWeight: "700", flex: 1 }}>
@@ -71,8 +89,8 @@ export function AuditPanel({
         {pendingReportsCount > 0 ? (
           <View
             style={{
-              padding: 10,
-              borderRadius: 12,
+              padding: 12,
+              borderRadius: 14,
               backgroundColor: colors.secondaryBg,
               borderWidth: 1,
               borderColor: colors.border,

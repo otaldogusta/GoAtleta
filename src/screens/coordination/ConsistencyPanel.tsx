@@ -34,17 +34,33 @@ export function ConsistencyPanel({
     <>
       <View
         style={{
-          borderRadius: 16,
+          borderRadius: 18,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
-          padding: 14,
+          padding: 16,
           gap: 10,
         }}
       >
-        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-          Chamadas pendentes
-        </Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
+            Chamadas pendentes
+          </Text>
+          <View
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+              {loading ? "..." : pendingAttendance.length}
+            </Text>
+          </View>
+        </View>
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : pendingAttendance.length === 0 ? (
@@ -66,8 +82,8 @@ export function ConsistencyPanel({
                   })
                 }
                 style={{
-                  padding: 10,
-                  borderRadius: 12,
+                  padding: 12,
+                  borderRadius: 14,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
@@ -85,17 +101,33 @@ export function ConsistencyPanel({
 
       <View
         style={{
-          borderRadius: 16,
+          borderRadius: 18,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
-          padding: 14,
+          padding: 16,
           gap: 10,
         }}
       >
-        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-          Relatórios pendentes
-        </Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
+            Relatórios pendentes
+          </Text>
+          <View
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+              {loading ? "..." : pendingReports.length}
+            </Text>
+          </View>
+        </View>
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : pendingReports.length === 0 ? (
@@ -127,8 +159,8 @@ export function ConsistencyPanel({
                     })
                   }
                   style={{
-                    padding: 10,
-                    borderRadius: 12,
+                    padding: 12,
+                    borderRadius: 14,
                     borderWidth: 1,
                     borderColor: cardBorderColor,
                     backgroundColor: cardBackgroundColor,
