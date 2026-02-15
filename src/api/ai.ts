@@ -20,6 +20,17 @@ type AssistantEnvelope = {
   draftTraining: unknown | null;
 };
 
+type AiCacheContext = {
+  organizationId?: string | null;
+  periodLabel?: string | null;
+  scope?: string | null;
+  ttlMs?: number;
+};
+
+type AiRequestOptions = {
+  cache?: AiCacheContext;
+};
+
 export type ExecutiveSummaryInput = {
   syncHealth: unknown;
   slaStats: unknown;
@@ -98,6 +109,78 @@ export type DataFixSuggestionsResult = {
 };
 
 const assistantUrl = `${SUPABASE_URL}/functions/v1/assistant`;
+const DEFAULT_AI_CACHE_TTL_MS = 120_000;
+const MAX_AI_CACHE_ITEMS = 200;
+
+const aiResponseCache = new Map<string, { expiresAt: number; value: unknown }>();
+const aiInFlightCache = new Map<string, Promise<unknown>>();
+
+const stableSerialize = (value: unknown) =>
+  JSON.stringify(value, (_key, nestedValue) => {
+    if (nestedValue && typeof nestedValue === "object" && !Array.isArray(nestedValue)) {
+      const record = nestedValue as Record<string, unknown>;
+      return Object.keys(record)
+        .sort()
+        .reduce<Record<string, unknown>>((accumulator, key) => {
+          accumulator[key] = record[key];
+          return accumulator;
+        }, {});
+    }
+    return nestedValue;
+  });
+
+const buildAiCacheKey = (task: string, input: unknown, cache?: AiCacheContext) => {
+  const org = cache?.organizationId ?? "org:none";
+  const period = cache?.periodLabel ?? "period:none";
+  const scope = cache?.scope ?? "scope:none";
+  return [task, String(org), String(period), String(scope), stableSerialize(input)].join("|");
+};
+
+const pruneAiCacheIfNeeded = () => {
+  if (aiResponseCache.size < MAX_AI_CACHE_ITEMS) return;
+  const firstKey = aiResponseCache.keys().next().value;
+  if (firstKey) {
+    aiResponseCache.delete(firstKey);
+  }
+};
+
+const withAiCache = async <T>(key: string, ttlMs: number, producer: () => Promise<T>): Promise<T> => {
+  const now = Date.now();
+  const cached = aiResponseCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+
+  if (ttlMs <= 0) {
+    return producer();
+  }
+
+  const inFlight = aiInFlightCache.get(key);
+  if (inFlight) {
+    return (await inFlight) as T;
+  }
+
+  const promise = producer()
+    .then((result) => {
+      pruneAiCacheIfNeeded();
+      aiResponseCache.set(key, {
+        expiresAt: Date.now() + ttlMs,
+        value: result,
+      });
+      return result;
+    })
+    .finally(() => {
+      aiInFlightCache.delete(key);
+    });
+
+  aiInFlightCache.set(key, promise);
+  return promise;
+};
+
+export const clearAiCache = () => {
+  aiResponseCache.clear();
+  aiInFlightCache.clear();
+};
 
 const extractJsonObject = (value: string) => {
   const trimmed = value.trim();
@@ -173,93 +256,118 @@ const buildStructuredPrompt = (task: string, context: unknown, schemaHint: strin
 };
 
 export async function generateExecutiveSummary(
-  payload: ExecutiveSummaryInput
+  payload: ExecutiveSummaryInput,
+  options?: AiRequestOptions
 ): Promise<ExecutiveSummaryResult> {
-  const prompt = buildStructuredPrompt(
-    "Transforme o contexto em resumo executivo para coordenação (direto e acionável). Liste os 5 principais problemas e ações recomendadas.",
-    payload,
-    "{ \"headline\": string, \"highlights\": string[], \"risks\": string[], \"recommendedActions\": string[] }"
-  );
+  const cacheKey = buildAiCacheKey("generateExecutiveSummary", payload, options?.cache);
+  const ttlMs = options?.cache?.ttlMs ?? DEFAULT_AI_CACHE_TTL_MS;
 
-  const response = await postAssistant([{ role: "user", content: prompt }]);
-  const json = extractJsonObject(response.reply) ?? {};
+  return withAiCache(cacheKey, ttlMs, async () => {
+    const prompt = buildStructuredPrompt(
+      "Transforme o contexto em resumo executivo para coordenação (direto e acionável). Liste os 5 principais problemas e ações recomendadas.",
+      payload,
+      "{ \"headline\": string, \"highlights\": string[], \"risks\": string[], \"recommendedActions\": string[] }"
+    );
 
-  return {
-    headline: String(json.headline ?? "Resumo executivo indisponível"),
-    highlights: toStringArray(json.highlights),
-    risks: toStringArray(json.risks),
-    recommendedActions: toStringArray(json.recommendedActions),
-  };
+    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const json = extractJsonObject(response.reply) ?? {};
+
+    return {
+      headline: String(json.headline ?? "Resumo executivo indisponível"),
+      highlights: toStringArray(json.highlights),
+      risks: toStringArray(json.risks),
+      recommendedActions: toStringArray(json.recommendedActions),
+    };
+  });
 }
 
 export async function generateTrainerMessage(
   context: TrainerMessageInput,
-  tone: TrainerMessageTone
+  tone: TrainerMessageTone,
+  options?: AiRequestOptions
 ): Promise<TrainerMessageResult> {
-  const prompt = buildStructuredPrompt(
-    `Gere mensagens para professor com tom '${tone}'. Produza uma versão WhatsApp, uma versão e-mail, um assunto e uma frase curta direta.`,
-    { tone, context },
-    "{ \"whatsapp\": string, \"email\": string, \"subject\": string, \"oneLiner\": string }"
-  );
+  const input = { tone, context };
+  const cacheKey = buildAiCacheKey("generateTrainerMessage", input, options?.cache);
+  const ttlMs = options?.cache?.ttlMs ?? DEFAULT_AI_CACHE_TTL_MS;
 
-  const response = await postAssistant([{ role: "user", content: prompt }]);
-  const json = extractJsonObject(response.reply) ?? {};
+  return withAiCache(cacheKey, ttlMs, async () => {
+    const prompt = buildStructuredPrompt(
+      `Gere mensagens para professor com tom '${tone}'. Produza uma versão WhatsApp, uma versão e-mail, um assunto e uma frase curta direta.`,
+      input,
+      "{ \"whatsapp\": string, \"email\": string, \"subject\": string, \"oneLiner\": string }"
+    );
 
-  return {
-    whatsapp: String(json.whatsapp ?? ""),
-    email: String(json.email ?? ""),
-    subject: String(json.subject ?? ""),
-    oneLiner: String(json.oneLiner ?? ""),
-  };
+    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const json = extractJsonObject(response.reply) ?? {};
+
+    return {
+      whatsapp: String(json.whatsapp ?? ""),
+      email: String(json.email ?? ""),
+      subject: String(json.subject ?? ""),
+      oneLiner: String(json.oneLiner ?? ""),
+    };
+  });
 }
 
 export async function classifySyncError(
-  input: SyncErrorClassificationInput
+  input: SyncErrorClassificationInput,
+  options?: AiRequestOptions
 ): Promise<SyncErrorClassificationResult> {
-  const prompt = buildStructuredPrompt(
-    "Classifique o erro de sync em termos operacionais (causa provável, ação recomendada, severidade e orientação para suporte).",
-    input,
-    "{ \"probableCause\": string, \"recommendedAction\": string, \"severity\": \"low\"|\"medium\"|\"high\"|\"critical\", \"supportHint\": string }"
-  );
+  const cacheKey = buildAiCacheKey("classifySyncError", input, options?.cache);
+  const ttlMs = options?.cache?.ttlMs ?? DEFAULT_AI_CACHE_TTL_MS;
 
-  const response = await postAssistant([{ role: "user", content: prompt }]);
-  const json = extractJsonObject(response.reply) ?? {};
-  const severity = String(json.severity ?? "medium");
+  return withAiCache(cacheKey, ttlMs, async () => {
+    const prompt = buildStructuredPrompt(
+      "Classifique o erro de sync em termos operacionais (causa provável, ação recomendada, severidade e orientação para suporte).",
+      input,
+      "{ \"probableCause\": string, \"recommendedAction\": string, \"severity\": \"low\"|\"medium\"|\"high\"|\"critical\", \"supportHint\": string }"
+    );
 
-  return {
-    probableCause: String(json.probableCause ?? "dados insuficientes"),
-    recommendedAction: String(json.recommendedAction ?? "Revisar autenticação, permissão e organização ativa."),
-    severity:
-      severity === "low" || severity === "medium" || severity === "high" || severity === "critical"
-        ? severity
-        : "medium",
-    supportHint: String(json.supportHint ?? "Coletar payload, erro bruto e organizationId antes de escalar."),
-  };
+    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const json = extractJsonObject(response.reply) ?? {};
+    const severity = String(json.severity ?? "medium");
+
+    return {
+      probableCause: String(json.probableCause ?? "dados insuficientes"),
+      recommendedAction: String(json.recommendedAction ?? "Revisar autenticação, permissão e organização ativa."),
+      severity:
+        severity === "low" || severity === "medium" || severity === "high" || severity === "critical"
+          ? severity
+          : "medium",
+      supportHint: String(json.supportHint ?? "Coletar payload, erro bruto e organizationId antes de escalar."),
+    };
+  });
 }
 
 export async function suggestDataFixes(
-  input: DataFixSuggestionsInput
+  input: DataFixSuggestionsInput,
+  options?: AiRequestOptions
 ): Promise<DataFixSuggestionsResult> {
-  const prompt = buildStructuredPrompt(
-    "Para cada inconsistência, explique o problema em linguagem humana e proponha opções de correção. A IA não executa mudanças.",
-    input,
-    "{ \"summary\": string, \"suggestions\": [{ \"issueType\": string, \"explanation\": string, \"options\": string[], \"recommended\": string }] }"
-  );
+  const cacheKey = buildAiCacheKey("suggestDataFixes", input, options?.cache);
+  const ttlMs = options?.cache?.ttlMs ?? DEFAULT_AI_CACHE_TTL_MS;
 
-  const response = await postAssistant([{ role: "user", content: prompt }]);
-  const json = extractJsonObject(response.reply) ?? {};
-  const suggestionsRaw = Array.isArray(json.suggestions) ? json.suggestions : [];
+  return withAiCache(cacheKey, ttlMs, async () => {
+    const prompt = buildStructuredPrompt(
+      "Para cada inconsistência, explique o problema em linguagem humana e proponha opções de correção. A IA não executa mudanças.",
+      input,
+      "{ \"summary\": string, \"suggestions\": [{ \"issueType\": string, \"explanation\": string, \"options\": string[], \"recommended\": string }] }"
+    );
 
-  return {
-    summary: String(json.summary ?? "dados insuficientes"),
-    suggestions: suggestionsRaw.map((item) => {
-      const typed = (item ?? {}) as Record<string, unknown>;
-      return {
-        issueType: String(typed.issueType ?? "UNKNOWN"),
-        explanation: String(typed.explanation ?? ""),
-        options: toStringArray(typed.options),
-        recommended: String(typed.recommended ?? ""),
-      };
-    }),
-  };
+    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const json = extractJsonObject(response.reply) ?? {};
+    const suggestionsRaw = Array.isArray(json.suggestions) ? json.suggestions : [];
+
+    return {
+      summary: String(json.summary ?? "dados insuficientes"),
+      suggestions: suggestionsRaw.map((item) => {
+        const typed = (item ?? {}) as Record<string, unknown>;
+        return {
+          issueType: String(typed.issueType ?? "UNKNOWN"),
+          explanation: String(typed.explanation ?? ""),
+          options: toStringArray(typed.options),
+          recommended: String(typed.recommended ?? ""),
+        };
+      }),
+    };
+  });
 }

@@ -451,7 +451,15 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
           pendingItems,
           expectedSla: "Atualização semanal da turma",
         },
-        memberTrainerTone
+        memberTrainerTone,
+        {
+          cache: {
+            organizationId,
+            periodLabel: "Coordenação - mensagens membros",
+            scope: `${selectedMember.userId}:${memberTrainerTone}`,
+            ttlMs: 120_000,
+          },
+        }
       );
 
       setMemberTrainerMessage(generated);
@@ -464,7 +472,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     } finally {
       setMemberTrainerBusy(false);
     }
-  }, [classHeadsByUser, memberTrainerTone, organizationName, selectedMember, selectedMemberIsProfessor]);
+  }, [classHeadsByUser, memberTrainerTone, organizationId, organizationName, selectedMember, selectedMemberIsProfessor]);
 
   const onCopyProfessorWhatsapp = useCallback(async () => {
     const content =

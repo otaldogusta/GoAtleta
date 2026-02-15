@@ -220,7 +220,7 @@ function RootLayoutContent() {
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (typeof window === "undefined") return;
-    
+
     // Process OAuth code from query params
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
@@ -242,7 +242,7 @@ function RootLayoutContent() {
       });
       return;
     }
-    
+
     // Process password recovery from hash
     const hash = window.location.hash.replace(/^#/, "");
     if (!hash) return;

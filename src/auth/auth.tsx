@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Platform } from "react-native";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import { clearAiCache } from "../api/ai";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import type { AuthSession } from "./session";
 import { loadSession, saveSession } from "./session";
@@ -272,6 +273,7 @@ export function AuthProvider({
   }, []);
 
   const signOut = useCallback(async () => {
+    clearAiCache();
     setSession(null);
     await saveSession(null, false);
   }, []);

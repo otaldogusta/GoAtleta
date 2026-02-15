@@ -27,7 +27,7 @@ export const exportPdf = async ({
 }: {
   html: string;
   fileName: string;
-  webDocument: ReactElement;
+  webDocument?: ReactElement;
 }) => {
   if (Platform.OS !== "web") {
     // Mobile: Use Print and Share APIs

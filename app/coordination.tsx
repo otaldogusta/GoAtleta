@@ -9,7 +9,7 @@ import {
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { memo, useCallback, useMemo, useState } from "react";
-import { FlatList, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Platform, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -43,10 +43,14 @@ import {
   type PendingWriteFailureRow,
   type PendingWritesDiagnostics,
 } from "../src/db/seed";
-import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document.web";
+import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
+import { AuditPanel } from "../src/screens/coordination/AuditPanel";
+import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
+import { ExecutiveSummaryCard } from "../src/screens/coordination/ExecutiveSummaryCard";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
+import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -491,28 +495,38 @@ export default function CoordinationScreen() {
           : null,
       }));
 
-      const summary = await generateExecutiveSummary({
-        periodLabel: "Coordenação - últimos 7 dias",
-        syncHealth: {
-          syncPausedReason,
-          diagnostics: pendingWritesDiagnostics,
+      const periodLabel = "Coordenação - últimos 7 dias";
+      const summary = await generateExecutiveSummary(
+        {
+          periodLabel,
+          syncHealth: {
+            syncPausedReason,
+            diagnostics: pendingWritesDiagnostics,
+          },
+          slaStats: {
+            pendingAttendance: pendingAttendance.length,
+            pendingReports: pendingReports.length,
+            recentActivity: recentActivity.length,
+          },
+          criticalClasses: pendingReports
+            .filter((item) => {
+              if (!item.lastReportAt) return true;
+              const days = Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24));
+              return days > 7;
+            })
+            .slice(0, 10),
+          pendingWritesDiagnostics,
+          deadLettersRecent: failedWrites.slice(0, 10),
+          topDelaysByTrainer,
         },
-        slaStats: {
-          pendingAttendance: pendingAttendance.length,
-          pendingReports: pendingReports.length,
-          recentActivity: recentActivity.length,
-        },
-        criticalClasses: pendingReports
-          .filter((item) => {
-            if (!item.lastReportAt) return true;
-            const days = Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24));
-            return days > 7;
-          })
-          .slice(0, 10),
-        pendingWritesDiagnostics,
-        deadLettersRecent: failedWrites.slice(0, 10),
-        topDelaysByTrainer,
-      });
+        {
+          cache: {
+            organizationId,
+            periodLabel,
+            ttlMs: 120_000,
+          },
+        }
+      );
 
       setExecutiveSummary(summary);
       await Clipboard.setStringAsync(formatExecutiveSummaryText(summary));
@@ -549,15 +563,25 @@ export default function CoordinationScreen() {
             parsedPayload = payload;
           }
         }
-        const classification = await classifySyncError({
-          error: item.lastError ?? "Erro não informado",
-          payload: parsedPayload,
-          orgContext: {
-            organizationId,
-            organizationName,
-            userRole: isAdmin ? "admin" : "member",
+        const classification = await classifySyncError(
+          {
+            error: item.lastError ?? "Erro não informado",
+            payload: parsedPayload,
+            orgContext: {
+              organizationId,
+              organizationName,
+              userRole: isAdmin ? "admin" : "member",
+            },
           },
-        });
+          {
+            cache: {
+              organizationId,
+              periodLabel: "Coordenação - suporte sync",
+              scope: item.id,
+              ttlMs: 120_000,
+            },
+          }
+        );
 
         setSyncClassifications((prev) => ({ ...prev, [item.id]: classification }));
         await Clipboard.setStringAsync(formatSyncClassificationText(classification));
@@ -627,7 +651,16 @@ export default function CoordinationScreen() {
         return;
       }
 
-      const suggested = await suggestDataFixes({ issues });
+      const suggested = await suggestDataFixes(
+        { issues },
+        {
+          cache: {
+            organizationId,
+            periodLabel: "Coordenação - últimos 7 dias",
+            ttlMs: 120_000,
+          },
+        }
+      );
       setDataFixSuggestions(suggested);
       await Clipboard.setStringAsync(formatDataFixesText(suggested));
       setAiMessage("Sugestões de correção geradas e copiadas para a área de transferência.");
@@ -944,637 +977,75 @@ export default function CoordinationScreen() {
             </View>
           </View>
 
-          {!loading ? (
-            <View
-              style={{
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                padding: 14,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                IA Assistiva
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Resumo executivo, classificação de erro e sugestões de correção.
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                <Pressable
-                  onPress={handleGenerateExecutiveSummary}
-                  disabled={aiLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: aiLoading ? colors.secondaryBg : colors.primaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: aiLoading ? colors.muted : colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                    Gerar resumo executivo
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleSuggestDataFixes}
-                  disabled={aiLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Sugerir correções
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleCopyWhatsappMessage}
-                  disabled={aiLoading || aiExportLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Copiar WhatsApp
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleExportMarkdown}
-                  disabled={aiLoading || aiExportLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Exportar Markdown
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleExportPdf}
-                  disabled={aiLoading || aiExportLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Exportar PDF
-                  </Text>
-                </Pressable>
-              </View>
-              {aiMessage ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{aiMessage}</Text>
-              ) : null}
-              {executiveSummary ? (
-                <View
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    padding: 10,
-                    gap: 4,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Resumo: {executiveSummary.headline}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {executiveSummary.recommendedActions.slice(0, 2).join(" • ") || "Sem ações sugeridas."}
-                  </Text>
-                </View>
-              ) : null}
-              {dataFixSuggestions ? (
-                <View
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    padding: 10,
-                    gap: 4,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Correções sugeridas
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {dataFixSuggestions.summary}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
+          <ExecutiveSummaryCard
+            colors={colors}
+            loading={loading}
+            aiLoading={aiLoading}
+            aiExportLoading={aiExportLoading}
+            aiMessage={aiMessage}
+            executiveSummary={executiveSummary}
+            dataFixSuggestions={dataFixSuggestions}
+            onGenerateExecutiveSummary={handleGenerateExecutiveSummary}
+            onSuggestDataFixes={handleSuggestDataFixes}
+            onCopyWhatsappMessage={handleCopyWhatsappMessage}
+            onExportMarkdown={handleExportMarkdown}
+            onExportPdf={handleExportPdf}
+          />
 
-          {!loading &&
-          (pendingWritesDiagnostics.deadLetterCandidates > 0 ||
-            pendingWritesDiagnostics.deadLetterStored > 0 ||
-            syncPausedReason !== null ||
-            failedWrites.length > 0) ? (
-            <View
-              style={{
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                padding: 14,
-                gap: 6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                Saúde da Sincronização
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas • {pendingWritesDiagnostics.deadLetterStored} item(ns) arquivado(s) em dead-letter. Máx retry: {pendingWritesDiagnostics.maxRetry}.
-              </Text>
-              {syncPausedReason ? (
-                <View
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    padding: 10,
-                    gap: 6,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Sync pausado por {syncPausedReason === "auth" ? "autenticação" : syncPausedReason === "permission" ? "permissão" : "troca de organização"}.
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                    <Pressable
-                      onPress={handleResumePausedSync}
-                      disabled={syncActionLoading}
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.primaryBg,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                      }}
-                    >
-                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                        Tentar novamente
-                      </Text>
-                    </Pressable>
-                    {syncPausedReason === "auth" ? (
-                      <Pressable
-                        onPress={() => router.push("/login")}
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 12,
-                          paddingVertical: 8,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          Reautenticar
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                    {syncPausedReason === "permission" ? (
-                      <Pressable
-                        onPress={() => router.push("/profile")}
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 12,
-                          paddingVertical: 8,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          Trocar organização
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ) : null}
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                <Pressable
-                  onPress={handleReprocessQueueNow}
-                  disabled={syncActionLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: syncActionLoading ? colors.secondaryBg : colors.primaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: syncActionLoading ? colors.muted : colors.primaryText,
-                      fontWeight: "700",
-                      fontSize: 12,
-                    }}
-                  >
-                    Reprocessar fila agora
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleReprocessNetworkFailures}
-                  disabled={syncActionLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Reprocessar falhas de rede
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleClearDeadLetterCandidates}
-                  disabled={syncActionLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Arquivar dead-letter
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleExportSyncHealthJson}
-                  disabled={syncActionLoading}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Exportar JSON
-                  </Text>
-                </Pressable>
-              </View>
-              {syncActionMessage ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{syncActionMessage}</Text>
-              ) : null}
-              {failedWrites.length > 0 ? (
-                <View style={{ marginTop: 6, gap: 8 }}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                    Falhas recentes (fila)
-                  </Text>
-                  <FlatList
-                    data={failedWrites}
-                    keyExtractor={(item) => item.id}
-                    scrollEnabled={false}
-                    initialNumToRender={8}
-                    windowSize={5}
-                    renderItem={({ item }) => (
-                      <View
-                        style={{
-                          borderRadius: 12,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          padding: 10,
-                          gap: 6,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          {item.kind} • retry {item.retryCount}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                          {item.lastError || "Erro não informado"}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                          Stream: {item.streamKey}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                          Dedup: {item.dedupKey || "-"}
-                        </Text>
-                        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                          <Pressable
-                            onPress={() => handleReprocessSingleItem(item.id)}
-                            disabled={syncActionLoading}
-                            style={{
-                              borderRadius: 999,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: colors.primaryBg,
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                            }}
-                          >
-                            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 11 }}>
-                              Reprocessar item
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => handleCopyFailedPayload(item.id)}
-                            disabled={syncActionLoading}
-                            style={{
-                              borderRadius: 999,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: colors.secondaryBg,
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                            }}
-                          >
-                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                              Copiar payload
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => handleClassifySyncError(item)}
-                            disabled={aiLoading}
-                            style={{
-                              borderRadius: 999,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: colors.secondaryBg,
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                            }}
-                          >
-                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                              Classificar erro (IA)
-                            </Text>
-                          </Pressable>
-                        </View>
-                        {syncClassifications[item.id] ? (
-                          <View
-                            style={{
-                              marginTop: 4,
-                              borderRadius: 10,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: colors.card,
-                              padding: 8,
-                              gap: 2,
-                            }}
-                          >
-                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                              IA • severidade {syncClassifications[item.id].severity}
-                            </Text>
-                            <Text style={{ color: colors.muted, fontSize: 11 }}>
-                              {syncClassifications[item.id].probableCause}
-                            </Text>
-                            <Text style={{ color: colors.muted, fontSize: 11 }}>
-                              {syncClassifications[item.id].recommendedAction}
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    )}
-                  />
-                </View>
-              ) : null}
-            </View>
-          ) : null}
+          <SyncSupportPanel
+            colors={colors}
+            loading={loading}
+            syncPausedReason={syncPausedReason}
+            pendingWritesDiagnostics={pendingWritesDiagnostics}
+            failedWrites={failedWrites}
+            syncActionLoading={syncActionLoading}
+            syncActionMessage={syncActionMessage}
+            aiLoading={aiLoading}
+            syncClassifications={syncClassifications}
+            onResumePausedSync={handleResumePausedSync}
+            onGoLogin={() => router.push("/login")}
+            onGoProfile={() => router.push("/profile")}
+            onReprocessQueueNow={handleReprocessQueueNow}
+            onReprocessNetworkFailures={handleReprocessNetworkFailures}
+            onClearDeadLetterCandidates={handleClearDeadLetterCandidates}
+            onExportSyncHealthJson={handleExportSyncHealthJson}
+            onReprocessSingleItem={handleReprocessSingleItem}
+            onCopyFailedPayload={handleCopyFailedPayload}
+            onClassifySyncError={handleClassifySyncError}
+          />
 
-          {/* Quick Actions Card */}
-          {!loading && (pendingAttendance.length > 0 || pendingReports.length > 0) ? (
-            <View
-              style={{
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.primaryBg,
-                backgroundColor: colors.card,
-                padding: 14,
-                gap: 10,
-              }}
-            >
-              <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
-                Ações Rápidas
-              </Text>
-              <View style={{ gap: 8 }}>
-                {pendingAttendance.length > 0 ? (
-                  <Pressable
-                    onPress={() => router.push("/reports")}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.primaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "700", flex: 1 }}>
-                      Ver todas as pendências
-                    </Text>
-                    <View
-                      style={{
-                        paddingVertical: 3,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: colors.background,
-                      }}
-                    >
-                      <Text style={{ color: colors.primaryBg, fontSize: 11, fontWeight: "800" }}>
-                        {pendingAttendance.length + pendingReports.length}
-                      </Text>
-                    </View>
-                  </Pressable>
-                ) : null}
-                {pendingReports.length > 0 ? (
-                  <View
-                    style={{
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
-                      💡 Dica: Envie lembretes aos professores sobre relatórios pendentes usando o menu de comunicados.
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
+          <AuditPanel
+            colors={colors}
+            loading={loading}
+            pendingAttendanceCount={pendingAttendance.length}
+            pendingReportsCount={pendingReports.length}
+            onOpenReports={() => router.push("/reports")}
+          />
 
-          <View
-            style={{
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: 14,
-              gap: 10,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Chamadas pendentes
-            </Text>
-            {loading ? (
-              <Text style={{ color: colors.muted }}>Carregando...</Text>
-            ) : pendingAttendance.length === 0 ? (
-              <Text style={{ color: colors.muted }}>Nenhuma turma com chamada pendente.</Text>
-            ) : (
-              <FlatList
-                data={pendingAttendance}
-                keyExtractor={(item) => `${item.classId}_${item.targetDate}`}
-                scrollEnabled={false}
-                initialNumToRender={10}
-                windowSize={6}
-                contentContainerStyle={{ gap: 8 }}
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/class/[id]/attendance",
-                        params: { id: item.classId, date: item.targetDate },
-                      })
-                    }
-                    style={{
-                      padding: 10,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{item.className}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {item.unit || "Sem unidade"} • {item.studentCount} alunos • {formatDateBr(item.targetDate)}
-                    </Text>
-                  </Pressable>
-                )}
-              />
-            )}
-          </View>
-
-          <View
-            style={{
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: 14,
-              gap: 10,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Relatórios pendentes
-            </Text>
-            {loading ? (
-              <Text style={{ color: colors.muted }}>Carregando...</Text>
-            ) : pendingReports.length === 0 ? (
-              <Text style={{ color: colors.muted }}>Nenhuma turma sem relatório recente.</Text>
-            ) : (
-              <FlatList
-                data={pendingReports}
-                keyExtractor={(item) => `${item.classId}_${item.periodStart}`}
-                scrollEnabled={false}
-                initialNumToRender={10}
-                windowSize={6}
-                contentContainerStyle={{ gap: 8 }}
-                renderItem={({ item }) => {
-                  const daysSinceReport = item.lastReportAt
-                    ? Math.floor(
-                        (Date.now() - new Date(item.lastReportAt).getTime()) /
-                          (1000 * 60 * 60 * 24)
-                      )
-                    : 999;
-                  const isCritical = daysSinceReport > 7;
-                  const cardBorderColor = isCritical ? colors.dangerBorder : colors.border;
-                  const cardBackgroundColor = isCritical ? colors.dangerBg : colors.secondaryBg;
-                  const titleColor = isCritical ? colors.dangerText : colors.text;
-                  const subtitleColor = isCritical ? colors.dangerText : colors.muted;
-
-                  return (
-                    <Pressable
-                      onPress={() =>
-                        router.push({
-                          pathname: "/class/[id]/session",
-                          params: {
-                            id: item.classId,
-                            tab: "relatório",
-                            date: item.periodStart,
-                          },
-                        })
-                      }
-                      style={{
-                        padding: 10,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: cardBorderColor,
-                        backgroundColor: cardBackgroundColor,
-                        gap: 6,
-                      }}
-                    >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 8,
-                        }}
-                      >
-                        <Text style={{ color: titleColor, fontWeight: "700", flex: 1 }}>
-                          {item.className}
-                        </Text>
-                        {isCritical ? (
-                          <View
-                            style={{
-                              paddingVertical: 3,
-                              paddingHorizontal: 7,
-                              borderRadius: 999,
-                              backgroundColor: colors.dangerSolidBg,
-                            }}
-                          >
-                            <Text style={{ color: colors.primaryText, fontSize: 10, fontWeight: "800" }}>
-                              {daysSinceReport}d
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={{ color: subtitleColor, fontSize: 12 }}>
-                        {item.unit || "Sem unidade"} • Último: {formatDateTimeBr(item.lastReportAt)}
-                      </Text>
-                    </Pressable>
-                  );
-                }}
-              />
-            )}
-          </View>
+          <ConsistencyPanel
+            colors={colors}
+            loading={loading}
+            pendingAttendance={pendingAttendance}
+            pendingReports={pendingReports}
+            onOpenAttendance={({ classId, targetDate }) =>
+              router.push({
+                pathname: "/class/[id]/attendance",
+                params: { id: classId, date: targetDate },
+              })
+            }
+            onOpenReport={({ classId, periodStart }) =>
+              router.push({
+                pathname: "/class/[id]/session",
+                params: {
+                  id: classId,
+                  tab: "relatório",
+                  date: periodStart,
+                },
+              })
+            }
+            formatDateBr={formatDateBr}
+            formatDateTimeBr={formatDateTimeBr}
+          />
         </ScrollView>
       )}
     </SafeAreaView>

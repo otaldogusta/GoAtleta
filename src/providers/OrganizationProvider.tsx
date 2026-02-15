@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import { clearAiCache } from "../api/ai";
 import {
     getMyMemberPermissions,
     type MemberPermissionKey,
@@ -113,6 +114,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       fetchControllerRef.current = null;
       setOrganizations([]);
       setActiveOrgId(null);
+      clearAiCache();
       hasLoadedOrganizationsRef.current = false;
       setIsLoading(false);
       return;
@@ -177,6 +179,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const setActiveOrganizationId = useCallback(async (orgId: string | null) => {
     if (orgId === activeOrganizationId) return;
     smartSync.handleOrganizationSwitch();
+    clearAiCache();
     await clearLocalReadCaches();
     if (orgId) {
       await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
