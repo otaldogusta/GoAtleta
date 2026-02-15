@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import {
   useCallback,
     useEffect,
@@ -198,16 +199,19 @@ export default function AssistantScreen() {
       {
         title: "Gerar treino",
         subtitle: "Crie um plano por fase",
+        icon: "sparkles-outline" as const,
         prompt: "Monte um treino de 60 minutos para a turma atual com aquecimento, parte principal e volta à calma.",
       },
       {
         title: "Melhorar prompt",
         subtitle: "Refine para resultados melhores",
+        icon: "create-outline" as const,
         prompt: "Me ajude a melhorar este pedido para o assistente gerar um treino mais específico para a turma atual.",
       },
       {
         title: "Explorar estilos",
         subtitle: "Variações por objetivo",
+        icon: "color-palette-outline" as const,
         prompt: "Sugira 3 variações de treino para foco em técnica, físico e jogo reduzido.",
       },
     ],
@@ -414,17 +418,32 @@ export default function AssistantScreen() {
                         borderColor: colors.border,
                         backgroundColor: colors.card,
                         padding: 14,
-                        gap: 8,
-                        justifyContent: "flex-end",
+                        justifyContent: "space-between",
                         alignItems: "flex-start",
                       }}
                     >
-                      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18, lineHeight: 22 }}>
-                        {item.title}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 18 }}>
-                        {item.subtitle}
-                      </Text>
+                      <View
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 17,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Ionicons name={item.icon} size={18} color={colors.muted} />
+                      </View>
+                      <View style={{ gap: 6 }}>
+                        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18, lineHeight: 22 }}>
+                          {item.title}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 18 }}>
+                          {item.subtitle}
+                        </Text>
+                      </View>
                     </Pressable>
                   ))}
                 </View>
