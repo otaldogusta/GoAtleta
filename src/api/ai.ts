@@ -111,6 +111,7 @@ export type DataFixSuggestionsResult = {
 const assistantUrl = `${SUPABASE_URL}/functions/v1/assistant`;
 const DEFAULT_AI_CACHE_TTL_MS = 120_000;
 const MAX_AI_CACHE_ITEMS = 200;
+const ASSISTANT_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_CACHE_KEY_DEPTH = 4;
 const MAX_CACHE_KEY_ARRAY_ITEMS = 20;
 const MAX_CACHE_KEY_OBJECT_KEYS = 30;
@@ -118,6 +119,8 @@ const MAX_CACHE_KEY_STRING_LENGTH = 240;
 
 const aiResponseCache = new Map<string, { expiresAt: number; value: unknown }>();
 const aiInFlightCache = new Map<string, Promise<unknown>>();
+let aiCacheHitCount = 0;
+let aiCacheMissCount = 0;
 
 const normalizeForCacheKey = (value: unknown, depth = 0): unknown => {
   if (value == null) return value;
@@ -205,10 +208,13 @@ const withAiCache = async <T>(key: string, ttlMs: number, producer: () => Promis
   const now = Date.now();
   const cached = aiResponseCache.get(key);
   if (cached && cached.expiresAt > now) {
+    aiCacheHitCount += 1;
     aiResponseCache.delete(key);
     aiResponseCache.set(key, cached);
     return cached.value as T;
   }
+
+  aiCacheMissCount += 1;
 
   if (ttlMs <= 0) {
     return producer();
@@ -240,6 +246,13 @@ export const clearAiCache = () => {
   aiResponseCache.clear();
   aiInFlightCache.clear();
 };
+
+export const getAiCacheMetrics = () => ({
+  hits: aiCacheHitCount,
+  misses: aiCacheMissCount,
+  size: aiResponseCache.size,
+  inFlight: aiInFlightCache.size,
+});
 
 const extractJsonObject = (value: string) => {
   const trimmed = value.trim();
@@ -281,25 +294,47 @@ const postAssistant = async (messages: AssistantMessage[], classId?: string) => 
     throw new Error("Missing auth token");
   }
 
-  const response = await fetch(assistantUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      apikey: SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({
-      messages,
-      classId: classId ?? "",
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ASSISTANT_REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(assistantUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        messages,
+        classId: classId ?? "",
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Assistant request timeout");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const text = await response.text();
   if (!response.ok) {
     throw new Error(text || "Assistant request failed");
   }
 
-  return JSON.parse(text) as AssistantEnvelope;
+  try {
+    const parsed = JSON.parse(text) as AssistantEnvelope;
+    if (!parsed || typeof parsed.reply !== "string") {
+      throw new Error("Invalid assistant envelope");
+    }
+    return parsed;
+  } catch {
+    throw new Error("Invalid assistant response payload");
+  }
 };
 
 const buildStructuredPrompt = (task: string, context: unknown, schemaHint: string) => {
