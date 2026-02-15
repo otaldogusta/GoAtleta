@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 
 import {
@@ -40,6 +41,7 @@ export function ExecutiveSummaryCard({
 }: ExecutiveSummaryCardProps) {
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 430;
+  const [showAdvancedActions, setShowAdvancedActions] = useState(false);
 
   if (loading) return null;
 
@@ -112,8 +114,7 @@ export function ExecutiveSummaryCard({
           </Text>
         </Pressable>
         <Pressable
-          onPress={onCopyWhatsappMessage}
-          disabled={aiLoading || aiExportLoading}
+          onPress={() => setShowAdvancedActions((current) => !current)}
           style={{
             borderRadius: 999,
             borderWidth: 1,
@@ -124,42 +125,63 @@ export function ExecutiveSummaryCard({
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
-            Copiar WhatsApp
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onExportMarkdown}
-          disabled={aiLoading || aiExportLoading}
-          style={{
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
-            paddingHorizontal: 10,
-            paddingVertical: isCompactLayout ? 8 : 9,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
-            Exportar Markdown
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onExportPdf}
-          disabled={aiLoading || aiExportLoading}
-          style={{
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
-            paddingHorizontal: 10,
-            paddingVertical: isCompactLayout ? 8 : 9,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
-            Exportar PDF
+            {showAdvancedActions ? "Ocultar ações" : "Mais ações"}
           </Text>
         </Pressable>
       </View>
+
+      {showAdvancedActions ? (
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          <Pressable
+            onPress={onCopyWhatsappMessage}
+            disabled={aiLoading || aiExportLoading}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 10,
+              paddingVertical: isCompactLayout ? 8 : 9,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+              Copiar WhatsApp
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={onExportMarkdown}
+            disabled={aiLoading || aiExportLoading}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 10,
+              paddingVertical: isCompactLayout ? 8 : 9,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+              Exportar Markdown
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={onExportPdf}
+            disabled={aiLoading || aiExportLoading}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 10,
+              paddingVertical: isCompactLayout ? 8 : 9,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+              Exportar PDF
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       {aiMessage ? (
         <Text style={{ color: colors.muted, fontSize: 12 }}>{aiMessage}</Text>
       ) : null}

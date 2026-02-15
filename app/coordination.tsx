@@ -910,37 +910,6 @@ export default function CoordinationScreen() {
               Dashboard e gestão de membros da organização • {organizationName}.
             </Text>
           </View>
-
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-            <View
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                Relatórios pendentes: {loading ? "..." : pendingReports.length}
-              </Text>
-            </View>
-            <View
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                Falhas de sync: {loading ? "..." : failedWrites.length}
-              </Text>
-            </View>
-          </View>
         </View>
 
         <View

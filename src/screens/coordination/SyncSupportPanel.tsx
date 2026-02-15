@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { FlatList, Text, useWindowDimensions, View } from "react-native";
 
 import type { SyncErrorClassificationResult } from "../../api/ai";
@@ -55,6 +56,7 @@ export function SyncSupportPanel({
 }: SyncSupportPanelProps) {
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 430;
+  const [showAdvancedSyncActions, setShowAdvancedSyncActions] = useState(false);
 
   const visible =
     !loading &&
@@ -190,8 +192,7 @@ export function SyncSupportPanel({
           </Text>
         </Pressable>
         <Pressable
-          onPress={onReprocessNetworkFailures}
-          disabled={syncActionLoading}
+          onPress={() => setShowAdvancedSyncActions((current) => !current)}
           style={{
             borderRadius: 999,
             borderWidth: 1,
@@ -202,9 +203,29 @@ export function SyncSupportPanel({
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-            Reprocessar falhas de rede
+            {showAdvancedSyncActions ? "Ocultar ações" : "Mais ações"}
           </Text>
         </Pressable>
+      </View>
+
+      {showAdvancedSyncActions ? (
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 2, flexWrap: "wrap" }}>
+          <Pressable
+            onPress={onReprocessNetworkFailures}
+            disabled={syncActionLoading}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 12,
+              paddingVertical: isCompactLayout ? 8 : 9,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Reprocessar falhas de rede
+            </Text>
+          </Pressable>
         <Pressable
           onPress={onClearDeadLetterCandidates}
           disabled={syncActionLoading}
@@ -237,7 +258,8 @@ export function SyncSupportPanel({
             Exportar JSON
           </Text>
         </Pressable>
-      </View>
+        </View>
+      ) : null}
       {syncActionMessage ? (
         <Text style={{ color: colors.muted, fontSize: 12 }}>{syncActionMessage}</Text>
       ) : null}
