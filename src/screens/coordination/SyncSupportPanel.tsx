@@ -1,4 +1,4 @@
-import { FlatList, Text, View } from "react-native";
+import { FlatList, Text, useWindowDimensions, View } from "react-native";
 
 import type { SyncErrorClassificationResult } from "../../api/ai";
 import {
@@ -53,6 +53,9 @@ export function SyncSupportPanel({
   onCopyFailedPayload,
   onClassifySyncError,
 }: SyncSupportPanelProps) {
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 430;
+
   const visible =
     !loading &&
     (pendingWritesDiagnostics.deadLetterCandidates > 0 ||
@@ -69,8 +72,8 @@ export function SyncSupportPanel({
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
-        padding: 16,
-        gap: 8,
+        padding: isCompactLayout ? 12 : 16,
+        gap: isCompactLayout ? 7 : 8,
       }}
     >
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -119,7 +122,7 @@ export function SyncSupportPanel({
                 borderColor: colors.border,
                 backgroundColor: colors.primaryBg,
                 paddingHorizontal: 12,
-                paddingVertical: 8,
+                paddingVertical: isCompactLayout ? 7 : 8,
               }}
             >
               <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
@@ -135,7 +138,7 @@ export function SyncSupportPanel({
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
                   paddingHorizontal: 12,
-                  paddingVertical: 8,
+                  paddingVertical: isCompactLayout ? 7 : 8,
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -152,7 +155,7 @@ export function SyncSupportPanel({
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
                   paddingHorizontal: 12,
-                  paddingVertical: 8,
+                  paddingVertical: isCompactLayout ? 7 : 8,
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -173,7 +176,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: syncActionLoading ? colors.secondaryBg : colors.primaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
           <Text
@@ -195,7 +198,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -211,7 +214,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -227,7 +230,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>

@@ -9,7 +9,7 @@ import {
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { memo, useCallback, useMemo, useState } from "react";
-import { Platform, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -255,6 +255,7 @@ export default function CoordinationScreen() {
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1180;
   const isWideLayout = width >= 860;
+  const isCompactLayout = width < 430;
 
   const tabItems = useMemo(
     () => [
@@ -885,7 +886,7 @@ export default function CoordinationScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View
         style={{
-          paddingHorizontal: isDesktopLayout ? 20 : 16,
+          paddingHorizontal: isDesktopLayout ? 20 : isCompactLayout ? 12 : 16,
           paddingTop: 12,
           paddingBottom: 12,
           gap: 12,
@@ -897,7 +898,7 @@ export default function CoordinationScreen() {
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
-            padding: isWideLayout ? 16 : 14,
+            padding: isWideLayout ? 16 : isCompactLayout ? 12 : 14,
             gap: 10,
           }}
         >
@@ -948,11 +949,11 @@ export default function CoordinationScreen() {
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
-            padding: 6,
+            padding: isCompactLayout ? 5 : 6,
             gap: 8,
           }}
         >
-          <View style={{ flexDirection: "row", gap: 6, flexWrap: "nowrap" }}>
+          <View style={{ flexDirection: "row", gap: 6, flexWrap: isCompactLayout ? "wrap" : "nowrap" }}>
             {tabItems.map((tab) => {
               const selected = activeTab === tab.id;
               return (
@@ -960,7 +961,9 @@ export default function CoordinationScreen() {
                   key={tab.id}
                   onPress={() => setActiveTab(tab.id)}
                   style={{
-                    flex: 1,
+                    flex: isCompactLayout ? undefined : 1,
+                    flexGrow: isCompactLayout ? 1 : undefined,
+                    minWidth: isCompactLayout ? "48%" : undefined,
                     paddingHorizontal: 12,
                     paddingVertical: 10,
                     borderRadius: 999,
@@ -973,7 +976,7 @@ export default function CoordinationScreen() {
                     style={{
                       color: selected ? colors.primaryText : colors.text,
                       fontWeight: "700",
-                      fontSize: 13,
+                      fontSize: isCompactLayout ? 12 : 13,
                       textAlign: "center",
                     }}
                   >
@@ -993,7 +996,7 @@ export default function CoordinationScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={{
-            paddingHorizontal: isDesktopLayout ? 20 : 16,
+            paddingHorizontal: isDesktopLayout ? 20 : isCompactLayout ? 12 : 16,
             paddingBottom: 28,
             gap: 12,
           }}
@@ -1031,7 +1034,7 @@ export default function CoordinationScreen() {
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.card,
-              padding: isWideLayout ? 16 : 14,
+              padding: isWideLayout ? 16 : isCompactLayout ? 12 : 14,
               gap: 12,
             }}
           >

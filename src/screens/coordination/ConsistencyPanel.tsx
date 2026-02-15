@@ -1,4 +1,4 @@
-import { FlatList, Text, View } from "react-native";
+import { FlatList, Text, useWindowDimensions, View } from "react-native";
 
 import {
     type AdminPendingAttendance,
@@ -30,6 +30,9 @@ export function ConsistencyPanel({
   formatDateBr,
   formatDateTimeBr,
 }: ConsistencyPanelProps) {
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 430;
+
   return (
     <>
       <View
@@ -38,7 +41,7 @@ export function ConsistencyPanel({
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
-          padding: 16,
+          padding: isCompactLayout ? 12 : 16,
           gap: 10,
         }}
       >
@@ -82,7 +85,7 @@ export function ConsistencyPanel({
                   })
                 }
                 style={{
-                  padding: 12,
+                  padding: isCompactLayout ? 10 : 12,
                   borderRadius: 14,
                   borderWidth: 1,
                   borderColor: colors.border,
@@ -105,7 +108,7 @@ export function ConsistencyPanel({
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
-          padding: 16,
+          padding: isCompactLayout ? 12 : 16,
           gap: 10,
         }}
       >
@@ -159,7 +162,7 @@ export function ConsistencyPanel({
                     })
                   }
                   style={{
-                    padding: 12,
+                    padding: isCompactLayout ? 10 : 12,
                     borderRadius: 14,
                     borderWidth: 1,
                     borderColor: cardBorderColor,

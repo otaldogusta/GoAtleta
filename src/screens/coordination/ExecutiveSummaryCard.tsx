@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 
 import {
     type DataFixSuggestionsResult,
@@ -38,6 +38,9 @@ export function ExecutiveSummaryCard({
   onExportMarkdown,
   onExportPdf,
 }: ExecutiveSummaryCardProps) {
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 430;
+
   if (loading) return null;
 
   return (
@@ -47,11 +50,11 @@ export function ExecutiveSummaryCard({
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
-        padding: 16,
-        gap: 10,
+        padding: isCompactLayout ? 12 : 16,
+        gap: isCompactLayout ? 8 : 10,
       }}
     >
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: isCompactLayout ? "flex-start" : "center", gap: 8 }}>
         <View style={{ gap: 2, flex: 1 }}>
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
             IA Assistiva
@@ -67,7 +70,7 @@ export function ExecutiveSummaryCard({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 10,
-            paddingVertical: 6,
+            paddingVertical: isCompactLayout ? 5 : 6,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
@@ -84,11 +87,11 @@ export function ExecutiveSummaryCard({
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: aiLoading ? colors.secondaryBg : colors.primaryBg,
-            paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingHorizontal: 10,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
-          <Text style={{ color: aiLoading ? colors.muted : colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ color: aiLoading ? colors.muted : colors.primaryText, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
             Gerar resumo executivo
           </Text>
         </Pressable>
@@ -100,11 +103,11 @@ export function ExecutiveSummaryCard({
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
-            paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingHorizontal: 10,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
             Sugerir correções
           </Text>
         </Pressable>
@@ -116,11 +119,11 @@ export function ExecutiveSummaryCard({
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
-            paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingHorizontal: 10,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
             Copiar WhatsApp
           </Text>
         </Pressable>
@@ -132,11 +135,11 @@ export function ExecutiveSummaryCard({
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
-            paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingHorizontal: 10,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
             Exportar Markdown
           </Text>
         </Pressable>
@@ -148,11 +151,11 @@ export function ExecutiveSummaryCard({
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
-            paddingHorizontal: 12,
-            paddingVertical: 9,
+            paddingHorizontal: 10,
+            paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
             Exportar PDF
           </Text>
         </Pressable>

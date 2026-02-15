@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+import { Text, useWindowDimensions, View } from "react-native";
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -20,6 +20,9 @@ export function AuditPanel({
   pendingReportsCount,
   onOpenReports,
 }: AuditPanelProps) {
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 430;
+
   if (loading || (pendingAttendanceCount === 0 && pendingReportsCount === 0)) {
     return null;
   }
@@ -31,7 +34,7 @@ export function AuditPanel({
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
-        padding: 16,
+        padding: isCompactLayout ? 12 : 16,
         gap: 10,
       }}
     >
@@ -69,7 +72,7 @@ export function AuditPanel({
               borderColor: colors.border,
             }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "700", flex: 1 }}>
+            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: isCompactLayout ? 13 : 14, flex: 1 }}>
               Ver todas as pendências
             </Text>
             <View
