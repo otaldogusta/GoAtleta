@@ -81,10 +81,20 @@ const toOptionalString = (value: unknown) => {
   return value.trim();
 };
 
+const DEFAULT_WARMUP_TIME = "10 minutos";
+const DEFAULT_COOLDOWN_TIME = "5 minutos";
+
+const normalizeDraftTraining = (draft: DraftTraining): DraftTraining => ({
+  ...draft,
+  warmupTime: toOptionalString(draft.warmupTime) || DEFAULT_WARMUP_TIME,
+  cooldownTime: toOptionalString(draft.cooldownTime) || DEFAULT_COOLDOWN_TIME,
+  mainTime: toOptionalString(draft.mainTime),
+});
+
 const parseDraftTrainingFromReply = (value: string): DraftTraining | null => {
   try {
     const payload = JSON.parse(value) as Record<string, unknown>;
-    return {
+    return normalizeDraftTraining({
       title: toOptionalString(payload.title) || "Planejamento sugerido",
       tags: sanitizeList(payload.tags),
       warmup: sanitizeList(payload.warmup),
@@ -93,25 +103,26 @@ const parseDraftTrainingFromReply = (value: string): DraftTraining | null => {
       warmupTime: toOptionalString(payload.warmupTime),
       mainTime: toOptionalString(payload.mainTime),
       cooldownTime: toOptionalString(payload.cooldownTime),
-    };
+    });
   } catch {
     return null;
   }
 };
 
 const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
+  const normalizedDraft = normalizeDraftTraining(draft);
   const nowIso = new Date().toISOString();
   return {
     id: "t_ai_" + Date.now(),
     classId,
-    title: String(draft.title || "Planejamento sugerido"),
-    tags: sanitizeList(draft.tags),
-    warmup: sanitizeList(draft.warmup),
-    main: sanitizeList(draft.main),
-    cooldown: sanitizeList(draft.cooldown),
-    warmupTime: String(draft.warmupTime || ""),
-    mainTime: String(draft.mainTime || ""),
-    cooldownTime: String(draft.cooldownTime || ""),
+    title: String(normalizedDraft.title || "Planejamento sugerido"),
+    tags: sanitizeList(normalizedDraft.tags),
+    warmup: sanitizeList(normalizedDraft.warmup),
+    main: sanitizeList(normalizedDraft.main),
+    cooldown: sanitizeList(normalizedDraft.cooldown),
+    warmupTime: String(normalizedDraft.warmupTime || DEFAULT_WARMUP_TIME),
+    mainTime: String(normalizedDraft.mainTime || ""),
+    cooldownTime: String(normalizedDraft.cooldownTime || DEFAULT_COOLDOWN_TIME),
     createdAt: nowIso,
   };
 };
@@ -359,7 +370,9 @@ export default function AssistantScreen() {
       const draftFromReply = looksLikeJsonPayload(rawReply)
         ? parseDraftTrainingFromReply(rawReply)
         : null;
-      const nextDraft = data.draftTraining ?? draftFromReply;
+      const nextDraft = data.draftTraining
+        ? normalizeDraftTraining(data.draftTraining)
+        : draftFromReply;
       const reply =
         nextDraft && looksLikeJsonPayload(rawReply)
           ? "Montei um planejamento para você. Revise os blocos abaixo."
