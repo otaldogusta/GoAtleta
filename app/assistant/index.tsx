@@ -109,6 +109,7 @@ export default function AssistantScreen() {
   const [showSavedLink, setShowSavedLink] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [composerFocused, setComposerFocused] = useState(false);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -343,6 +344,22 @@ export default function AssistantScreen() {
     },
     [sendMessage]
   );
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !composerFocused) return;
+
+    const onWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void sendMessage();
+    };
+
+    window.addEventListener("keydown", onWindowKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onWindowKeyDown, true);
+    };
+  }, [composerFocused, sendMessage]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -711,6 +728,8 @@ export default function AssistantScreen() {
               placeholder="Descreva a aula ou o planejamento..."
               value={input}
               onChangeText={setInput}
+              onFocus={() => setComposerFocused(true)}
+              onBlur={() => setComposerFocused(false)}
               onKeyPress={handleComposerKeyPress}
               placeholderTextColor={colors.placeholder}
               multiline
