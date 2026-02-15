@@ -374,12 +374,8 @@ export default function AssistantScreen() {
             {messages.length === 0 ? (
               <View
                 style={{
-                  borderRadius: 18,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.background,
-                  paddingHorizontal: isDesktopLayout ? 24 : 16,
-                  paddingVertical: isDesktopLayout ? 26 : 20,
+                  paddingHorizontal: isDesktopLayout ? 8 : 2,
+                  paddingVertical: isDesktopLayout ? 8 : 4,
                   gap: 16,
                   alignItems: "center",
                 }}
