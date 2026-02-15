@@ -127,6 +127,7 @@ export default function AssistantScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [assistantTyping, setAssistantTyping] = useState(false);
   const [draft, setDraft] = useState<DraftTraining | null>(null);
   const [sources, setSources] = useState<AssistantSource[]>([]);
   const [showSavedLink, setShowSavedLink] = useState(false);
@@ -257,6 +258,44 @@ export default function AssistantScreen() {
     setInput("");
   }, []);
 
+  const typeAssistantReply = useCallback(async (reply: string) => {
+    const content = reply ?? "";
+    setAssistantTyping(true);
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    const chunkSize = Platform.OS === "web" ? 3 : 2;
+    const tickMs = 18;
+
+    await new Promise<void>((resolve) => {
+      let index = 0;
+      const timer = setInterval(() => {
+        index = Math.min(content.length, index + chunkSize);
+        const nextContent = content.slice(0, index);
+
+        setMessages((prev) => {
+          if (prev.length === 0) {
+            return [{ role: "assistant", content: nextContent }];
+          }
+          const next = [...prev];
+          const lastIndex = next.length - 1;
+          if (next[lastIndex].role === "assistant") {
+            next[lastIndex] = { ...next[lastIndex], content: nextContent };
+          } else {
+            next.push({ role: "assistant", content: nextContent });
+          }
+          return next;
+        });
+
+        if (index >= content.length) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, tickMs);
+    });
+
+    setAssistantTyping(false);
+  }, []);
+
   const handleSelectQuickPrompt = useCallback((prompt: string) => {
     setInput(prompt);
     if (Platform.OS === "web" && typeof document !== "undefined") {
@@ -269,7 +308,7 @@ export default function AssistantScreen() {
   }, []);
 
   const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || assistantTyping) return;
     const nextMessages = [...messages, { role: "user", content: input.trim() }];
     setMessages(nextMessages);
     setInput("");
@@ -326,7 +365,8 @@ export default function AssistantScreen() {
           ? "Montei um planejamento para você. Revise os blocos abaixo."
           : rawReply;
 
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      setLoading(false);
+      await typeAssistantReply(reply);
       setSources(Array.isArray(data.sources) ? data.sources : []);
       setDraft(nextDraft);
       if (nextDraft) {
@@ -827,7 +867,7 @@ export default function AssistantScreen() {
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {loading ? "..." : "Enviar"}
+                  {loading || assistantTyping ? "..." : "Enviar"}
                 </Text>
               </Pressable>
             </View>
