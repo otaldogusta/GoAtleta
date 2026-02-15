@@ -417,7 +417,7 @@ export default function AssistantScreen() {
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
-                        padding: 14,
+                        padding: 12,
                         justifyContent: "space-between",
                         alignItems: "flex-start",
                       }}
@@ -434,13 +434,19 @@ export default function AssistantScreen() {
                           borderColor: colors.border,
                         }}
                       >
-                        <Ionicons name={item.icon} size={18} color={colors.muted} />
+                        <Ionicons name={item.icon} size={16} color={colors.muted} />
                       </View>
                       <View style={{ gap: 6 }}>
-                        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18, lineHeight: 22 }}>
+                        <Text
+                          numberOfLines={2}
+                          style={{ color: colors.text, fontWeight: "800", fontSize: 13, lineHeight: 17 }}
+                        >
                           {item.title}
                         </Text>
-                        <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 18 }}>
+                        <Text
+                          numberOfLines={3}
+                          style={{ color: colors.muted, fontSize: 11, lineHeight: 15 }}
+                        >
                           {item.subtitle}
                         </Text>
                       </View>
