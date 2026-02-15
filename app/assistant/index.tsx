@@ -535,9 +535,9 @@ export default function AssistantScreen() {
                     width: "100%",
                     flexDirection: "row",
                     flexWrap: "nowrap",
-                    gap: 12,
+                    gap: 16,
                     justifyContent: "center",
-                    marginTop: 10,
+                    marginTop: 14,
                   }}
                 >
                   {quickPrompts.map((item) => (
@@ -552,7 +552,8 @@ export default function AssistantScreen() {
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
-                        padding: 10,
+                        paddingHorizontal: 16,
+                        paddingVertical: 14,
                         justifyContent: "space-between",
                         alignItems: "flex-start",
                         overflow: "hidden",
@@ -560,9 +561,9 @@ export default function AssistantScreen() {
                     >
                       <View
                         style={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: 17,
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
                           alignItems: "center",
                           justifyContent: "center",
                           backgroundColor: colors.secondaryBg,
@@ -575,13 +576,13 @@ export default function AssistantScreen() {
                       <View style={{ gap: 4 }}>
                         <Text
                           numberOfLines={2}
-                          style={{ color: colors.text, fontWeight: "800", fontSize: 12, lineHeight: 16 }}
+                          style={{ color: colors.text, fontWeight: "800", fontSize: 12, lineHeight: 15 }}
                         >
                           {item.title}
                         </Text>
                         <Text
                           numberOfLines={2}
-                          style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}
+                          style={{ color: colors.muted, fontSize: 10, lineHeight: 13 }}
                         >
                           {item.subtitle}
                         </Text>
