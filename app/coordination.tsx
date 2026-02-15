@@ -883,27 +883,76 @@ export default function CoordinationScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, gap: 12 }}>
-        <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
-            Coordenação
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            Dashboard e gestão de membros da organização • {organizationName}.
-          </Text>
+      <View
+        style={{
+          paddingHorizontal: isDesktopLayout ? 20 : 16,
+          paddingTop: 12,
+          paddingBottom: 12,
+          gap: 12,
+        }}
+      >
+        <View
+          style={{
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: isWideLayout ? 16 : 14,
+            gap: 10,
+          }}
+        >
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
+              Coordenação
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              Dashboard e gestão de membros da organização • {organizationName}.
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            <View
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                Relatórios pendentes: {loading ? "..." : pendingReports.length}
+              </Text>
+            </View>
+            <View
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                Falhas de sync: {loading ? "..." : failedWrites.length}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View
           style={{
-            borderRadius: 16,
+            borderRadius: 18,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
-            padding: 8,
+            padding: 6,
             gap: 8,
           }}
         >
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          <View style={{ flexDirection: "row", gap: 6, flexWrap: "nowrap" }}>
             {tabItems.map((tab) => {
               const selected = activeTab === tab.id;
               return (
@@ -911,11 +960,12 @@ export default function CoordinationScreen() {
                   key={tab.id}
                   onPress={() => setActiveTab(tab.id)}
                   style={{
-                    flexGrow: 1,
-                    minWidth: 130,
+                    flex: 1,
                     paddingHorizontal: 12,
-                    paddingVertical: 8,
+                    paddingVertical: 10,
                     borderRadius: 999,
+                    borderWidth: selected ? 1 : 0,
+                    borderColor: selected ? colors.border : "transparent",
                     backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
                   }}
                 >
