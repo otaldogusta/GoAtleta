@@ -57,6 +57,7 @@ import type { ClassGroup } from "../../core/models";
 import { useAuth } from "../../auth/auth";
 
 import { useRole } from "../../auth/role";
+import { useEffectiveProfile } from "../../core/effective-profile";
 
 import { useSmartSync } from "../../core/use-smart-sync";
 
@@ -119,12 +120,14 @@ export function HomeProfessorScreen({
   const { session } = useAuth();
 
   const { role } = useRole();
+  const effectiveProfile = useEffectiveProfile();
 
   const {
     activeOrganization,
     isLoading: organizationLoading,
   } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const canSeeCoordination = isOrgAdmin || effectiveProfile === "admin";
 
   const [inbox, setInbox] = useState<AppNotification[]>([]);
 
@@ -1990,7 +1993,7 @@ export function HomeProfessorScreen({
 
             </Pressable>
 
-            {isOrgAdmin ? (
+            {canSeeCoordination ? (
             <Pressable
 
               onPress={() => router.push({ pathname: "/coordination" })}
