@@ -247,7 +247,7 @@ export default function AssistantScreen() {
       },
       {
         title: "Melhorar prompt",
-        subtitle: "Refine para resultados melhores",
+        subtitle: "Refine para melhores resultados",
         icon: "create-outline" as const,
         prompt: "Me ajude a melhorar este pedido para o assistente gerar um treino mais específico para a turma atual.",
       },
@@ -533,6 +533,9 @@ export default function AssistantScreen() {
                 <View
                   style={{
                     width: "100%",
+                    maxWidth: 780,
+                    alignSelf: "center",
+                    paddingHorizontal: isDesktopLayout ? 18 : 8,
                     flexDirection: "row",
                     flexWrap: "nowrap",
                     gap: 16,
@@ -547,16 +550,17 @@ export default function AssistantScreen() {
                       focusable={Platform.OS !== "web"}
                       style={{
                         flex: 1,
-                        aspectRatio: 1,
+                        aspectRatio: 0.9,
                         borderRadius: 16,
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
-                        paddingHorizontal: 16,
-                        paddingVertical: 14,
-                        justifyContent: "space-between",
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                        justifyContent: "flex-start",
                         alignItems: "flex-start",
                         overflow: "hidden",
+                        gap: 10,
                       }}
                     >
                       <View
@@ -573,7 +577,7 @@ export default function AssistantScreen() {
                       >
                         <Ionicons name={item.icon} size={16} color={colors.muted} />
                       </View>
-                      <View style={{ gap: 4 }}>
+                      <View style={{ gap: 4, flexShrink: 1 }}>
                         <Text
                           numberOfLines={2}
                           style={{ color: colors.text, fontWeight: "800", fontSize: 11, lineHeight: 14 }}
@@ -581,7 +585,7 @@ export default function AssistantScreen() {
                           {item.title}
                         </Text>
                         <Text
-                          numberOfLines={3}
+                          numberOfLines={2}
                           style={{ color: colors.muted, fontSize: 9.5, lineHeight: 12 }}
                         >
                           {item.subtitle}
