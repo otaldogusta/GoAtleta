@@ -59,6 +59,17 @@ type AssistantResponse = {
 const sanitizeList = (value: unknown) =>
   Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 
+const looksLikeJsonPayload = (value: string) => {
+  const text = value.trim();
+  if (!text.startsWith("{") || !text.endsWith("}")) return false;
+  return (
+    text.includes('"title"') ||
+    text.includes('"warmup"') ||
+    text.includes('"main"') ||
+    text.includes('"cooldown"')
+  );
+};
+
 const renderList = (items: string[]) =>
   items.length ? items.join(" - ") : "Sem itens";
 
@@ -95,6 +106,7 @@ export default function AssistantScreen() {
   const [showSavedLink, setShowSavedLink] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [thinkingStep, setThinkingStep] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -126,6 +138,17 @@ export default function AssistantScreen() {
       hideSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      setThinkingStep(0);
+      return;
+    }
+    const intervalId = setInterval(() => {
+      setThinkingStep((current) => (current + 1) % 4);
+    }, 320);
+    return () => clearInterval(intervalId);
+  }, [loading]);
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId) ?? null,
@@ -223,13 +246,18 @@ export default function AssistantScreen() {
       }
 
       const data = JSON.parse(payloadText) as AssistantResponse;
-      const reply =
+      const rawReply =
         typeof data.reply === "string" && data.reply.trim()
            ? data.reply
           : "Sem resposta do assistente. Tente novamente.";
+      const nextDraft = data.draftTraining ?? null;
+      const reply =
+        nextDraft && looksLikeJsonPayload(rawReply)
+          ? "Montei um planejamento para você. Revise os blocos abaixo."
+          : rawReply;
+
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setSources(Array.isArray(data.sources) ? data.sources : []);
-      const nextDraft = data.draftTraining ?? null;
       setDraft(nextDraft);
       if (nextDraft) {
         void notifyTrainingCreated();
@@ -381,6 +409,24 @@ export default function AssistantScreen() {
                 </Text>
               </View>
             ))}
+
+            {loading ? (
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  maxWidth: "70%",
+                  padding: 12,
+                  borderRadius: 16,
+                  backgroundColor: colors.background,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                  {"Assistente está pensando" + ".".repeat(thinkingStep)}
+                </Text>
+              </View>
+            ) : null}
 
             { draft ? (
               <View
