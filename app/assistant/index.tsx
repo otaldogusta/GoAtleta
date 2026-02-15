@@ -374,24 +374,42 @@ export default function AssistantScreen() {
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.background,
-                  padding: 16,
-                  gap: 12,
+                  paddingHorizontal: isDesktopLayout ? 24 : 16,
+                  paddingVertical: isDesktopLayout ? 26 : 20,
+                  gap: 16,
+                  alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: isDesktopLayout ? 42 : 34,
+                    fontWeight: "800",
+                    textAlign: "center",
+                  }}
+                >
                   Bem-vindo, {userDisplayName}!
                 </Text>
-                <Text style={{ color: colors.muted }}>
+                <Text style={{ color: colors.muted, textAlign: "center" }}>
                   Como posso ajudar hoje?
                 </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                <View
+                  style={{
+                    width: "100%",
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    justifyContent: "center",
+                  }}
+                >
                   {quickPrompts.map((item) => (
                     <Pressable
                       key={item.title}
                       onPress={() => setInput(item.prompt)}
                       style={{
-                        flex: 1,
-                        minWidth: 160,
+                        width: isDesktopLayout ? "31.8%" : "31.8%",
+                        minWidth: 152,
+                        maxWidth: 220,
                         borderRadius: 14,
                         borderWidth: 1,
                         borderColor: colors.border,
