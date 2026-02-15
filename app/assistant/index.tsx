@@ -447,6 +447,7 @@ export default function AssistantScreen() {
                     <Pressable
                       key={item.title}
                       onPress={() => setInput(item.prompt)}
+                      focusable={Platform.OS !== "web"}
                       style={{
                         flex: 1,
                         aspectRatio: 1,
