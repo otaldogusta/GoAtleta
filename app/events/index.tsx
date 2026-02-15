@@ -213,7 +213,7 @@ export default function EventsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 12 }}
+        contentContainerStyle={{ padding: 16, gap: 14 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -230,116 +230,160 @@ export default function EventsScreen() {
           />
         }
       >
-        <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>Eventos</Text>
-          <Text style={{ color: colors.muted }}>Agenda da organização, filtros e criação rápida</Text>
+        <View style={{ gap: 2 }}>
+          <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>Eventos</Text>
+          <Text style={{ color: colors.muted }}>Agenda mensal da organização</Text>
         </View>
 
         <View
           style={{
-            padding: 14,
-            borderRadius: 16,
+            padding: 16,
+            borderRadius: 18,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
-            gap: 10,
+            gap: 12,
           }}
         >
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Visão mensal</Text>
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Visão mensal</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Navegue por mês e refine a lista com filtros.</Text>
+          </View>
+
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Pressable onPress={() => setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{"<"}</Text>
+            <Pressable
+              onPress={() => setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 999,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{"<"}</Text>
             </Pressable>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
               {formatMonthLabel(monthDate)}
             </Text>
-            <Pressable onPress={() => setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{">"}</Text>
+            <Pressable
+              onPress={() => setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 999,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{">"}</Text>
             </Pressable>
           </View>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Filtros da agenda</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={() => setSportFilter("todos")}
-                style={{
-                  borderRadius: 999,
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  backgroundColor: sportFilter === "todos" ? colors.primaryBg : colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: sportFilter === "todos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                  Todos esportes
-                </Text>
-              </Pressable>
-              {sportTypes.map((option) => (
+
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Esporte</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
-                  key={option}
-                  onPress={() => setSportFilter(option)}
+                  onPress={() => setSportFilter("todos")}
                   style={{
                     borderRadius: 999,
                     paddingHorizontal: 10,
                     paddingVertical: 6,
-                    backgroundColor: sportFilter === option ? colors.primaryBg : colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: sportFilter === "todos" ? colors.primaryBg : colors.border,
+                    backgroundColor: sportFilter === "todos" ? colors.primaryBg : colors.secondaryBg,
                   }}
                 >
-                  <Text style={{ color: sportFilter === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                    {sportTypeLabel[option]}
+                  <Text style={{ color: sportFilter === "todos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                    Todos esportes
                   </Text>
                 </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={() => setTypeFilter("todos")}
-                style={{
-                  borderRadius: 999,
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  backgroundColor: typeFilter === "todos" ? colors.primaryBg : colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: typeFilter === "todos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                  Todos tipos
-                </Text>
-              </Pressable>
-              {eventTypes.map((option) => (
+                {sportTypes.map((option) => (
+                  <Pressable
+                    key={option}
+                    onPress={() => setSportFilter(option)}
+                    style={{
+                      borderRadius: 999,
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderWidth: 1,
+                      borderColor: sportFilter === option ? colors.primaryBg : colors.border,
+                      backgroundColor: sportFilter === option ? colors.primaryBg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: sportFilter === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                      {sportTypeLabel[option]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Tipo</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
                 <Pressable
-                  key={option}
-                  onPress={() => setTypeFilter(option)}
+                  onPress={() => setTypeFilter("todos")}
                   style={{
                     borderRadius: 999,
                     paddingHorizontal: 10,
                     paddingVertical: 6,
-                    backgroundColor: typeFilter === option ? colors.primaryBg : colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: typeFilter === "todos" ? colors.primaryBg : colors.border,
+                    backgroundColor: typeFilter === "todos" ? colors.primaryBg : colors.secondaryBg,
                   }}
                 >
-                  <Text style={{ color: typeFilter === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                    {eventTypeLabel[option]}
+                  <Text style={{ color: typeFilter === "todos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                    Todos tipos
                   </Text>
                 </Pressable>
-              ))}
-            </View>
-          </ScrollView>
+                {eventTypes.map((option) => (
+                  <Pressable
+                    key={option}
+                    onPress={() => setTypeFilter(option)}
+                    style={{
+                      borderRadius: 999,
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderWidth: 1,
+                      borderColor: typeFilter === option ? colors.primaryBg : colors.border,
+                      backgroundColor: typeFilter === option ? colors.primaryBg : colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: typeFilter === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                      {eventTypeLabel[option]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
         </View>
 
         {isAdmin ? (
           <View
             style={{
-              padding: 14,
-              borderRadius: 16,
+              padding: 16,
+              borderRadius: 18,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.card,
-              gap: 12,
+              gap: 14,
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-              Novo evento
-            </Text>
+            <View style={{ gap: 2 }}>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+                Novo evento
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Preencha os dados principais e publique na agenda.
+              </Text>
+            </View>
             <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 12 }}>
               <View style={{ flex: 1.2, gap: 10 }}>
                 <View style={{ gap: 4 }}>
@@ -352,7 +396,7 @@ export default function EventsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       backgroundColor: colors.secondaryBg,
                       color: colors.text,
                       paddingHorizontal: 10,
@@ -372,7 +416,7 @@ export default function EventsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       backgroundColor: colors.secondaryBg,
                       color: colors.text,
                       paddingHorizontal: 10,
@@ -393,7 +437,7 @@ export default function EventsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       backgroundColor: colors.secondaryBg,
                       color: colors.text,
                       paddingHorizontal: 10,
@@ -421,6 +465,8 @@ export default function EventsScreen() {
                             borderRadius: 999,
                             paddingHorizontal: 10,
                             paddingVertical: 6,
+                            borderWidth: 1,
+                            borderColor: active ? colors.primaryBg : colors.border,
                             backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
                           }}
                         >
@@ -445,7 +491,7 @@ export default function EventsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       backgroundColor: colors.secondaryBg,
                       color: colors.text,
                       paddingHorizontal: 10,
@@ -464,7 +510,7 @@ export default function EventsScreen() {
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       backgroundColor: colors.secondaryBg,
                       color: colors.text,
                       paddingHorizontal: 10,
@@ -485,6 +531,8 @@ export default function EventsScreen() {
                             borderRadius: 999,
                             paddingHorizontal: 10,
                             paddingVertical: 6,
+                            borderWidth: 1,
+                            borderColor: eventType === option ? colors.primaryBg : colors.border,
                             backgroundColor: eventType === option ? colors.primaryBg : colors.secondaryBg,
                           }}
                         >
@@ -509,6 +557,8 @@ export default function EventsScreen() {
                             borderRadius: 999,
                             paddingHorizontal: 10,
                             paddingVertical: 6,
+                            borderWidth: 1,
+                            borderColor: sport === option ? colors.primaryBg : colors.border,
                             backgroundColor: sport === option ? colors.primaryBg : colors.secondaryBg,
                           }}
                         >
@@ -527,7 +577,7 @@ export default function EventsScreen() {
                     disabled={saving}
                     style={{
                       flex: 1,
-                      borderRadius: 10,
+                      borderRadius: 12,
                       paddingVertical: 11,
                       alignItems: "center",
                       backgroundColor: saving ? colors.primaryDisabledBg : colors.primaryBg,
@@ -540,7 +590,7 @@ export default function EventsScreen() {
                   <Pressable
                     onPress={resetCreateForm}
                     style={{
-                      borderRadius: 10,
+                      borderRadius: 12,
                       paddingHorizontal: 14,
                       justifyContent: "center",
                       borderWidth: 1,
@@ -556,10 +606,15 @@ export default function EventsScreen() {
           </View>
         ) : null}
 
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-            Lista do mês
-          </Text>
+        <View style={{ gap: 10 }}>
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+              Lista do mês
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {visibleEvents.length} {visibleEvents.length === 1 ? "evento encontrado" : "eventos encontrados"}
+            </Text>
+          </View>
           {loading ? <Text style={{ color: colors.muted }}>Carregando...</Text> : null}
           {error ? <Text style={{ color: colors.dangerText }}>{error}</Text> : null}
           {!loading && !error && visibleEvents.length === 0 ? (
@@ -573,34 +628,54 @@ export default function EventsScreen() {
                 key={event.id}
                 onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
                 style={{
-                  padding: 12,
-                  borderRadius: 14,
+                  padding: 14,
+                  borderRadius: 16,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.card,
-                  gap: 6,
+                  gap: 8,
                 }}
               >
-                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
-                  {event.title}
-                </Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800", flex: 1 }}>
+                    {event.title}
+                  </Text>
+                  {event.hasMyClass ? (
+                    <View style={{ borderRadius: 999, backgroundColor: colors.primaryBg, paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 11 }}>Minhas turmas</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   {start.toLocaleDateString("pt-BR")} •{" "}
                   {start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} -{" "}
                   {end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  <View style={{ borderRadius: 999, backgroundColor: colors.secondaryBg, paddingHorizontal: 8, paddingVertical: 4 }}>
+                  <View
+                    style={{
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                    }}
+                  >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>{eventTypeLabel[event.eventType]}</Text>
                   </View>
-                  <View style={{ borderRadius: 999, backgroundColor: colors.secondaryBg, paddingHorizontal: 8, paddingVertical: 4 }}>
+                  <View
+                    style={{
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                    }}
+                  >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>{sportTypeLabel[event.sport]}</Text>
                   </View>
-                  {event.hasMyClass ? (
-                    <View style={{ borderRadius: 999, backgroundColor: colors.primaryBg, paddingHorizontal: 8, paddingVertical: 4 }}>
-                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 11 }}>Minhas turmas</Text>
-                    </View>
-                  ) : null}
                 </View>
                 {event.locationLabel ? (
                   <Text style={{ color: colors.muted, fontSize: 12 }}>Local: {event.locationLabel}</Text>
