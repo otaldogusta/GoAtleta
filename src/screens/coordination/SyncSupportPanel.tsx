@@ -65,28 +65,44 @@ export function SyncSupportPanel({
   return (
     <View
       style={{
-        borderRadius: 16,
+        borderRadius: 18,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
-        padding: 14,
-        gap: 6,
+        padding: 16,
+        gap: 8,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-        Saúde da Sincronização
-      </Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
+          Saúde da Sincronização
+        </Text>
+        <View
+          style={{
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.secondaryBg,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+            Fila crítica
+          </Text>
+        </View>
+      </View>
       <Text style={{ color: colors.muted, fontSize: 12 }}>
         {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas • {pendingWritesDiagnostics.deadLetterStored} item(ns) arquivado(s) em dead-letter. Máx retry: {pendingWritesDiagnostics.maxRetry}.
       </Text>
       {syncPausedReason ? (
         <View
           style={{
-            borderRadius: 12,
+            borderRadius: 14,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
-            padding: 10,
+            padding: 12,
             gap: 6,
           }}
         >
@@ -157,7 +173,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: syncActionLoading ? colors.secondaryBg : colors.primaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text
@@ -179,7 +195,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -195,7 +211,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -211,7 +227,7 @@ export function SyncSupportPanel({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -236,11 +252,11 @@ export function SyncSupportPanel({
             renderItem={({ item }) => (
               <View
                 style={{
-                  borderRadius: 12,
+                  borderRadius: 14,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
-                  padding: 10,
+                  padding: 12,
                   gap: 6,
                 }}
               >

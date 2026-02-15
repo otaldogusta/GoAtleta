@@ -43,20 +43,38 @@ export function ExecutiveSummaryCard({
   return (
     <View
       style={{
-        borderRadius: 16,
+        borderRadius: 18,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
-        padding: 14,
-        gap: 8,
+        padding: 16,
+        gap: 10,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-        IA Assistiva
-      </Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>
-        Resumo executivo, classificação de erro e sugestões de correção.
-      </Text>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <View style={{ gap: 2, flex: 1 }}>
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
+            IA Assistiva
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Resumo executivo, classificação de erro e sugestões de correção.
+          </Text>
+        </View>
+        <View
+          style={{
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.secondaryBg,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+            Copilot
+          </Text>
+        </View>
+      </View>
       <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
         <Pressable
           onPress={onGenerateExecutiveSummary}
@@ -67,7 +85,7 @@ export function ExecutiveSummaryCard({
             borderColor: colors.border,
             backgroundColor: aiLoading ? colors.secondaryBg : colors.primaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: aiLoading ? colors.muted : colors.primaryText, fontWeight: "700", fontSize: 12 }}>
@@ -83,7 +101,7 @@ export function ExecutiveSummaryCard({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -99,7 +117,7 @@ export function ExecutiveSummaryCard({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -115,7 +133,7 @@ export function ExecutiveSummaryCard({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -131,7 +149,7 @@ export function ExecutiveSummaryCard({
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
             paddingHorizontal: 12,
-            paddingVertical: 8,
+            paddingVertical: 9,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
@@ -145,11 +163,11 @@ export function ExecutiveSummaryCard({
       {executiveSummary ? (
         <View
           style={{
-            borderRadius: 12,
+            borderRadius: 14,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
-            padding: 10,
+            padding: 12,
             gap: 4,
           }}
         >
@@ -164,11 +182,11 @@ export function ExecutiveSummaryCard({
       {dataFixSuggestions ? (
         <View
           style={{
-            borderRadius: 12,
+            borderRadius: 14,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
-            padding: 10,
+            padding: 12,
             gap: 4,
           }}
         >
