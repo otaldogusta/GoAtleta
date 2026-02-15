@@ -98,7 +98,7 @@ export default function AssistantScreen() {
   const { session } = useAuth();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classId, setClassId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -365,12 +365,31 @@ export default function AssistantScreen() {
             {messages.length === 0 ? (
               <View
                 style={{
-                  paddingHorizontal: isDesktopLayout ? 8 : 2,
-                  paddingVertical: isDesktopLayout ? 8 : 4,
+                  width: "100%",
+                  maxWidth: isDesktopLayout ? 860 : undefined,
+                  alignSelf: "center",
+                  minHeight: Platform.OS === "web" ? Math.max(470, Math.round(height * 0.6)) : undefined,
+                  paddingHorizontal: isDesktopLayout ? 20 : 6,
+                  paddingTop: isDesktopLayout ? 26 : 10,
+                  paddingBottom: 10,
                   gap: 16,
                   alignItems: "center",
                 }}
               >
+                <View
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 32,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Ionicons name="sparkles" size={30} color={colors.muted} />
+                </View>
                 <Text
                   style={{
                     color: colors.text,
@@ -391,6 +410,7 @@ export default function AssistantScreen() {
                     flexWrap: "nowrap",
                     gap: 12,
                     justifyContent: "center",
+                    marginTop: 10,
                   }}
                 >
                   {quickPrompts.map((item) => (
