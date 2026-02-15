@@ -260,6 +260,81 @@ export default function CoordinationScreen() {
     []
   );
 
+  const topDelaysByTrainer = useMemo(
+    () =>
+      pendingReports.slice(0, 5).map((item) => ({
+        classId: item.classId,
+        className: item.className,
+        unit: item.unit,
+        daysWithoutReport: item.lastReportAt
+          ? Math.max(
+              0,
+              Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
+            )
+          : null,
+      })),
+    [pendingReports]
+  );
+
+  const criticalPendingReports = useMemo(
+    () =>
+      pendingReports
+        .filter((item) => {
+          if (!item.lastReportAt) return true;
+          const days = Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24));
+          return days > 7;
+        })
+        .slice(0, 10),
+    [pendingReports]
+  );
+
+  const dataFixIssues = useMemo<DataFixIssue[]>(() => {
+    const issues: DataFixIssue[] = [];
+
+    pendingReports.forEach((item) => {
+      const daysWithoutReport = item.lastReportAt
+        ? Math.max(
+            0,
+            Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
+          )
+        : 999;
+      if (daysWithoutReport > 7) {
+        issues.push({
+          type: "MISSING_WEEKLY_REPORT",
+          severity: daysWithoutReport > 14 ? "critical" : "high",
+          entity: {
+            classId: item.classId,
+            className: item.className,
+            unit: item.unit,
+          },
+          evidence: {
+            lastReportAt: item.lastReportAt,
+            daysWithoutReport,
+          },
+        });
+      }
+    });
+
+    failedWrites.forEach((item) => {
+      issues.push({
+        type: "SYNC_FAILURE_PERSISTENT",
+        severity: item.retryCount >= 10 ? "critical" : "medium",
+        entity: {
+          pendingWriteId: item.id,
+          kind: item.kind,
+          streamKey: item.streamKey,
+        },
+        evidence: {
+          retryCount: item.retryCount,
+          lastError: item.lastError,
+          dedupKey: item.dedupKey,
+        },
+      });
+    });
+
+    return issues;
+  }, [failedWrites, pendingReports]);
+
   const loadDashboard = useCallback(async () => {
     if (!organizationId || !isAdmin) {
       setPendingAttendance([]);
@@ -483,18 +558,6 @@ export default function CoordinationScreen() {
     setAiLoading(true);
     setAiMessage(null);
     try {
-      const topDelaysByTrainer = pendingReports.slice(0, 5).map((item) => ({
-        classId: item.classId,
-        className: item.className,
-        unit: item.unit,
-        daysWithoutReport: item.lastReportAt
-          ? Math.max(
-              0,
-              Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
-            )
-          : null,
-      }));
-
       const periodLabel = "Coordenação - últimos 7 dias";
       const summary = await generateExecutiveSummary(
         {
@@ -508,13 +571,7 @@ export default function CoordinationScreen() {
             pendingReports: pendingReports.length,
             recentActivity: recentActivity.length,
           },
-          criticalClasses: pendingReports
-            .filter((item) => {
-              if (!item.lastReportAt) return true;
-              const days = Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24));
-              return days > 7;
-            })
-            .slice(0, 10),
+          criticalClasses: criticalPendingReports,
           pendingWritesDiagnostics,
           deadLettersRecent: failedWrites.slice(0, 10),
           topDelaysByTrainer,
@@ -541,12 +598,14 @@ export default function CoordinationScreen() {
       setAiLoading(false);
     }
   }, [
+    criticalPendingReports,
+    topDelaysByTrainer,
     failedWrites,
     pendingAttendance.length,
-    pendingReports,
     pendingWritesDiagnostics,
     recentActivity.length,
     syncPausedReason,
+    organizationId,
   ]);
 
   const handleClassifySyncError = useCallback(
@@ -603,56 +662,13 @@ export default function CoordinationScreen() {
     setAiLoading(true);
     setAiMessage(null);
     try {
-      const issues: DataFixIssue[] = [];
-
-      pendingReports.forEach((item) => {
-        const daysWithoutReport = item.lastReportAt
-          ? Math.max(
-              0,
-              Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
-            )
-          : 999;
-        if (daysWithoutReport > 7) {
-          issues.push({
-            type: "MISSING_WEEKLY_REPORT",
-            severity: daysWithoutReport > 14 ? "critical" : "high",
-            entity: {
-              classId: item.classId,
-              className: item.className,
-              unit: item.unit,
-            },
-            evidence: {
-              lastReportAt: item.lastReportAt,
-              daysWithoutReport,
-            },
-          });
-        }
-      });
-
-      failedWrites.forEach((item) => {
-        issues.push({
-          type: "SYNC_FAILURE_PERSISTENT",
-          severity: item.retryCount >= 10 ? "critical" : "medium",
-          entity: {
-            pendingWriteId: item.id,
-            kind: item.kind,
-            streamKey: item.streamKey,
-          },
-          evidence: {
-            retryCount: item.retryCount,
-            lastError: item.lastError,
-            dedupKey: item.dedupKey,
-          },
-        });
-      });
-
-      if (!issues.length) {
+      if (!dataFixIssues.length) {
         setAiMessage("Nenhuma inconsistência relevante para sugerir correções.");
         return;
       }
 
       const suggested = await suggestDataFixes(
-        { issues },
+        { issues: dataFixIssues },
         {
           cache: {
             organizationId,
@@ -673,7 +689,7 @@ export default function CoordinationScreen() {
     } finally {
       setAiLoading(false);
     }
-  }, [failedWrites, pendingReports]);
+  }, [dataFixIssues, organizationId]);
 
   const handleCopyWhatsappMessage = useCallback(async () => {
     try {

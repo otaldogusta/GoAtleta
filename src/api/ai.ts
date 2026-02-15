@@ -111,9 +111,59 @@ export type DataFixSuggestionsResult = {
 const assistantUrl = `${SUPABASE_URL}/functions/v1/assistant`;
 const DEFAULT_AI_CACHE_TTL_MS = 120_000;
 const MAX_AI_CACHE_ITEMS = 200;
+const MAX_CACHE_KEY_DEPTH = 4;
+const MAX_CACHE_KEY_ARRAY_ITEMS = 20;
+const MAX_CACHE_KEY_OBJECT_KEYS = 30;
+const MAX_CACHE_KEY_STRING_LENGTH = 240;
 
 const aiResponseCache = new Map<string, { expiresAt: number; value: unknown }>();
 const aiInFlightCache = new Map<string, Promise<unknown>>();
+
+const normalizeForCacheKey = (value: unknown, depth = 0): unknown => {
+  if (value == null) return value;
+
+  const valueType = typeof value;
+  if (valueType === "string") {
+    const text = value as string;
+    return text.length > MAX_CACHE_KEY_STRING_LENGTH
+      ? `${text.slice(0, MAX_CACHE_KEY_STRING_LENGTH)}…[${text.length}]`
+      : text;
+  }
+  if (valueType === "number" || valueType === "boolean") return value;
+
+  if (depth >= MAX_CACHE_KEY_DEPTH) {
+    if (Array.isArray(value)) return `[array:${value.length}]`;
+    return "[object]";
+  }
+
+  if (Array.isArray(value)) {
+    const limited = value
+      .slice(0, MAX_CACHE_KEY_ARRAY_ITEMS)
+      .map((item) => normalizeForCacheKey(item, depth + 1));
+    if (value.length > MAX_CACHE_KEY_ARRAY_ITEMS) {
+      limited.push(`[+${value.length - MAX_CACHE_KEY_ARRAY_ITEMS} items]`);
+    }
+    return limited;
+  }
+
+  if (valueType === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    const limitedKeys = keys.slice(0, MAX_CACHE_KEY_OBJECT_KEYS);
+    const normalized = limitedKeys.reduce<Record<string, unknown>>((accumulator, key) => {
+      accumulator[key] = normalizeForCacheKey(record[key], depth + 1);
+      return accumulator;
+    }, {});
+
+    if (keys.length > MAX_CACHE_KEY_OBJECT_KEYS) {
+      normalized.__truncatedKeys = keys.length - MAX_CACHE_KEY_OBJECT_KEYS;
+    }
+
+    return normalized;
+  }
+
+  return String(value);
+};
 
 const stableSerialize = (value: unknown) =>
   JSON.stringify(value, (_key, nestedValue) => {
@@ -133,13 +183,20 @@ const buildAiCacheKey = (task: string, input: unknown, cache?: AiCacheContext) =
   const org = cache?.organizationId ?? "org:none";
   const period = cache?.periodLabel ?? "period:none";
   const scope = cache?.scope ?? "scope:none";
-  return [task, String(org), String(period), String(scope), stableSerialize(input)].join("|");
+  const normalizedInput = normalizeForCacheKey(input);
+  return [task, String(org), String(period), String(scope), stableSerialize(normalizedInput)].join("|");
 };
 
-const pruneAiCacheIfNeeded = () => {
-  if (aiResponseCache.size < MAX_AI_CACHE_ITEMS) return;
-  const firstKey = aiResponseCache.keys().next().value;
-  if (firstKey) {
+const pruneAiCacheIfNeeded = (now: number) => {
+  for (const [key, entry] of aiResponseCache.entries()) {
+    if (entry.expiresAt <= now) {
+      aiResponseCache.delete(key);
+    }
+  }
+
+  while (aiResponseCache.size >= MAX_AI_CACHE_ITEMS) {
+    const firstKey = aiResponseCache.keys().next().value;
+    if (!firstKey) break;
     aiResponseCache.delete(firstKey);
   }
 };
@@ -148,6 +205,8 @@ const withAiCache = async <T>(key: string, ttlMs: number, producer: () => Promis
   const now = Date.now();
   const cached = aiResponseCache.get(key);
   if (cached && cached.expiresAt > now) {
+    aiResponseCache.delete(key);
+    aiResponseCache.set(key, cached);
     return cached.value as T;
   }
 
@@ -162,7 +221,7 @@ const withAiCache = async <T>(key: string, ttlMs: number, producer: () => Promis
 
   const promise = producer()
     .then((result) => {
-      pruneAiCacheIfNeeded();
+      pruneAiCacheIfNeeded(Date.now());
       aiResponseCache.set(key, {
         expiresAt: Date.now() + ttlMs,
         value: result,

@@ -3,17 +3,17 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Alert,
+  Alert,
   FlatList,
-    LayoutAnimation,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TextInput,
-    UIManager,
-    View,
-    useWindowDimensions,
+  LayoutAnimation,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  UIManager,
+  View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -124,7 +124,7 @@ const parseRpcErrorMessage = (err: unknown) => {
   }
 };
 
-  const toUiError = (err: unknown) => {
+const toUiError = (err: unknown) => {
   const message = parseRpcErrorMessage(err);
   if (message.includes("Member has responsible classes")) {
     return "Este membro ainda \u00e9 respons\u00e1vel por turmas. Reatribua as turmas antes de continuar.";
@@ -658,8 +658,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
 
   const Container = embedded ? View : SafeAreaView;
 
-return (
-  <Container style={{ flex: 1, backgroundColor: colors.background }}>
+  return (
+    <Container style={{ flex: 1, backgroundColor: colors.background }}>
     <FlatList
       data={loading && members.length === 0 ? [] : filteredMembers}
       keyExtractor={(item) => item.userId}
