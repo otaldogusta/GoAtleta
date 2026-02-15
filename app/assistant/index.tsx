@@ -354,15 +354,6 @@ export default function AssistantScreen() {
             gap: 12,
           }}
         >
-          <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 32, fontWeight: "800", color: colors.text }}>
-              Assistente
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              Planejamento inteligente para treinos e aulas
-            </Text>
-          </View>
-
           <ScrollView
             contentContainerStyle={{
               gap: 10,
