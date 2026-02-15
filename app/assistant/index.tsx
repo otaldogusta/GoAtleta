@@ -397,7 +397,7 @@ export default function AssistantScreen() {
                   style={{
                     width: "100%",
                     flexDirection: "row",
-                    flexWrap: "wrap",
+                    flexWrap: "nowrap",
                     gap: 12,
                     justifyContent: "center",
                   }}
@@ -407,15 +407,15 @@ export default function AssistantScreen() {
                       key={item.title}
                       onPress={() => setInput(item.prompt)}
                       style={{
-                        width: isDesktopLayout ? "31.8%" : "31.8%",
-                        minWidth: 152,
-                        maxWidth: 220,
+                        flex: 1,
+                        aspectRatio: 1,
                         borderRadius: 14,
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
                         padding: 12,
-                        gap: 4,
+                        gap: 6,
+                        justifyContent: "center",
                       }}
                     >
                       <Text style={{ color: colors.text, fontWeight: "700" }}>
