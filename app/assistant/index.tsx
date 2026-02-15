@@ -76,6 +76,29 @@ const looksLikeJsonPayload = (value: string) => {
 const renderList = (items: string[]) =>
   items.length ? items.join(" - ") : "Sem itens";
 
+const toOptionalString = (value: unknown) => {
+  if (typeof value !== "string") return "";
+  return value.trim();
+};
+
+const parseDraftTrainingFromReply = (value: string): DraftTraining | null => {
+  try {
+    const payload = JSON.parse(value) as Record<string, unknown>;
+    return {
+      title: toOptionalString(payload.title) || "Planejamento sugerido",
+      tags: sanitizeList(payload.tags),
+      warmup: sanitizeList(payload.warmup),
+      main: sanitizeList(payload.main),
+      cooldown: sanitizeList(payload.cooldown),
+      warmupTime: toOptionalString(payload.warmupTime),
+      mainTime: toOptionalString(payload.mainTime),
+      cooldownTime: toOptionalString(payload.cooldownTime),
+    };
+  } catch {
+    return null;
+  }
+};
+
 const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
   const nowIso = new Date().toISOString();
   return {
@@ -183,13 +206,19 @@ export default function AssistantScreen() {
   const isDesktopLayout = Platform.OS === "web" && width >= 1100;
 
   const userDisplayName = useMemo(() => {
-    const email = session?.user?.email ?? "";
-    const beforeAt = email.split("@")[0] ?? "";
-    if (!beforeAt) return "Coach";
-    const normalized = beforeAt.replace(/[._-]+/g, " ").trim();
-    if (!normalized) return "Coach";
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  }, [session?.user?.email]);
+    const meta = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
+    const profileName =
+      toOptionalString(meta.full_name) ||
+      toOptionalString(meta.name) ||
+      toOptionalString(meta.display_name) ||
+      toOptionalString(meta.preferred_username);
+
+    if (profileName) {
+      return profileName;
+    }
+
+    return "Coach";
+  }, [session?.user?.user_metadata]);
 
   const recentUserPrompts = useMemo(
     () => messages.filter((message) => message.role === "user").slice(-6).reverse(),
@@ -288,7 +317,10 @@ export default function AssistantScreen() {
         typeof data.reply === "string" && data.reply.trim()
            ? data.reply
           : "Sem resposta do assistente. Tente novamente.";
-      const nextDraft = data.draftTraining ?? null;
+      const draftFromReply = looksLikeJsonPayload(rawReply)
+        ? parseDraftTrainingFromReply(rawReply)
+        : null;
+      const nextDraft = data.draftTraining ?? draftFromReply;
       const reply =
         nextDraft && looksLikeJsonPayload(rawReply)
           ? "Montei um planejamento para você. Revise os blocos abaixo."
