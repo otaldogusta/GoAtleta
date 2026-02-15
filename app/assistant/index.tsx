@@ -3,9 +3,11 @@ import {
   useCallback,
     useEffect,
     useMemo,
+    useRef,
     useState
 } from "react";
 import {
+    Animated,
     Alert,
     Keyboard,
     Platform,
@@ -106,7 +108,7 @@ export default function AssistantScreen() {
   const [showSavedLink, setShowSavedLink] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [thinkingStep, setThinkingStep] = useState(0);
+  const thinkingPulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let alive = true;
@@ -141,14 +143,33 @@ export default function AssistantScreen() {
 
   useEffect(() => {
     if (!loading) {
-      setThinkingStep(0);
+      thinkingPulse.stopAnimation();
+      thinkingPulse.setValue(0);
       return;
     }
-    const intervalId = setInterval(() => {
-      setThinkingStep((current) => (current + 1) % 4);
-    }, 320);
-    return () => clearInterval(intervalId);
-  }, [loading]);
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(thinkingPulse, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(thinkingPulse, {
+          toValue: 0,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    loop.start();
+    return () => {
+      loop.stop();
+      thinkingPulse.stopAnimation();
+      thinkingPulse.setValue(0);
+    };
+  }, [loading, thinkingPulse]);
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId) ?? null,
@@ -414,7 +435,7 @@ export default function AssistantScreen() {
               <View
                 style={{
                   alignSelf: "flex-start",
-                  maxWidth: "70%",
+                  maxWidth: "58%",
                   padding: 12,
                   borderRadius: 16,
                   backgroundColor: colors.background,
@@ -422,9 +443,35 @@ export default function AssistantScreen() {
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.muted, fontWeight: "600" }}>
-                  {"Assistente está pensando" + ".".repeat(thinkingStep)}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  {[0, 1, 2].map((index) => {
+                    const phase = index * 0.2;
+                    const opacity = thinkingPulse.interpolate({
+                      inputRange: [0, phase, phase + 0.2, 1],
+                      outputRange: [0.3, 0.45, 1, 0.35],
+                      extrapolate: "clamp",
+                    });
+                    const translateY = thinkingPulse.interpolate({
+                      inputRange: [0, phase, phase + 0.2, 1],
+                      outputRange: [0, 0, -3, 0],
+                      extrapolate: "clamp",
+                    });
+
+                    return (
+                      <Animated.View
+                        key={`thinking-dot-${index}`}
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: colors.muted,
+                          opacity,
+                          transform: [{ translateY }],
+                        }}
+                      />
+                    );
+                  })}
+                </View>
               </View>
             ) : null}
 
