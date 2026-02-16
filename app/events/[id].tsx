@@ -1,5 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -22,6 +23,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -42,6 +44,7 @@ const sportTypeLabel: Record<EventSport, string> = {
   volei_praia: "Vôlei de praia",
   futebol: "Futebol",
 };
+type DropdownLayout = { x: number; y: number; width: number; height: number };
 
 const toInputDate = (iso: string) => {
   const date = new Date(iso);
@@ -90,6 +93,13 @@ export default function EventDetailsScreen() {
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showEventTypeDropdown, setShowEventTypeDropdown] = useState(false);
+  const [showSportDropdown, setShowSportDropdown] = useState(false);
+  const [eventTypeTriggerLayout, setEventTypeTriggerLayout] = useState<DropdownLayout | null>(null);
+  const [sportTriggerLayout, setSportTriggerLayout] = useState<DropdownLayout | null>(null);
+
+  const eventTypeTriggerRef = useRef<View | null>(null);
+  const sportTriggerRef = useRef<View | null>(null);
 
   const startLabel = useMemo(() => (startsInput ? new Date(parseInputDate(startsInput) ?? 0).toLocaleString("pt-BR") : "-"), [startsInput]);
 
@@ -180,9 +190,47 @@ export default function EventDetailsScreen() {
     ]);
   };
 
+  const closeDetailDropdowns = () => {
+    setShowEventTypeDropdown(false);
+    setShowSportDropdown(false);
+  };
+
+  const openEventTypeDropdown = () => {
+    if (!isAdmin) return;
+    const next = !showEventTypeDropdown;
+    closeDetailDropdowns();
+    if (!next) return;
+    requestAnimationFrame(() => {
+      if (!eventTypeTriggerRef.current) return;
+      eventTypeTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
+        setEventTypeTriggerLayout({ x, y, width: widthValue, height });
+        setShowEventTypeDropdown(true);
+      });
+    });
+  };
+
+  const openSportDropdown = () => {
+    if (!isAdmin) return;
+    const next = !showSportDropdown;
+    closeDetailDropdowns();
+    if (!next) return;
+    requestAnimationFrame(() => {
+      if (!sportTriggerRef.current) return;
+      sportTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
+        setSportTriggerLayout({ x, y, width: widthValue, height });
+        setShowSportDropdown(true);
+      });
+    });
+  };
+
   const closeDetails = () => {
+    closeDetailDropdowns();
     router.back();
   };
+
+  useEffect(() => {
+    closeDetailDropdowns();
+  }, [width]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
@@ -254,27 +302,59 @@ export default function EventDetailsScreen() {
           <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {eventTypes.map((option) => (
-                    <Pressable key={option} disabled={!isAdmin} onPress={() => setEventType(option)} style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: eventType === option ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}>
-                      <Text style={{ color: eventType === option ? colors.primaryText : colors.text, fontWeight: "700" }}>{eventTypeLabel[option]}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
+              <View ref={eventTypeTriggerRef}>
+                <Pressable
+                  onPress={openEventTypeDropdown}
+                  disabled={!isAdmin}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 10,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 10,
+                    paddingVertical: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    opacity: isAdmin ? 1 : 0.7,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
+                  <Ionicons
+                    name={showEventTypeDropdown ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.muted}
+                  />
+                </Pressable>
+              </View>
             </View>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {sportTypes.map((option) => (
-                    <Pressable key={option} disabled={!isAdmin} onPress={() => setSport(option)} style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: sport === option ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}>
-                      <Text style={{ color: sport === option ? colors.primaryText : colors.text, fontWeight: "700" }}>{sportTypeLabel[option]}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
+              <View ref={sportTriggerRef}>
+                <Pressable
+                  onPress={openSportDropdown}
+                  disabled={!isAdmin}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 10,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 10,
+                    paddingVertical: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    opacity: isAdmin ? 1 : 0.7,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
+                  <Ionicons
+                    name={showSportDropdown ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.muted}
+                  />
+                </Pressable>
+              </View>
             </View>
           </View>
 
@@ -310,6 +390,82 @@ export default function EventDetailsScreen() {
             </Pressable>
           ) : null}
         </ScrollView>
+
+        <AnchoredDropdown
+          visible={showEventTypeDropdown}
+          layout={eventTypeTriggerLayout}
+          container={null}
+          animationStyle={{ opacity: 1 }}
+          zIndex={420}
+          maxHeight={220}
+          nestedScrollEnabled
+          onRequestClose={closeDetailDropdowns}
+          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {eventTypes.map((option, index) => {
+            const active = eventType === option;
+            return (
+              <Pressable
+                key={option}
+                onPress={() => {
+                  setEventType(option);
+                  setShowEventTypeDropdown(false);
+                }}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 10,
+                  borderTopWidth: index === 0 ? 0 : 1,
+                  borderTopColor: colors.border,
+                  borderRadius: 8,
+                  backgroundColor: active ? colors.primaryBg : colors.background,
+                }}
+              >
+                <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                  {eventTypeLabel[option]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showSportDropdown}
+          layout={sportTriggerLayout}
+          container={null}
+          animationStyle={{ opacity: 1 }}
+          zIndex={420}
+          maxHeight={220}
+          nestedScrollEnabled
+          onRequestClose={closeDetailDropdowns}
+          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
+          scrollContentStyle={{ padding: 4 }}
+        >
+          {sportTypes.map((option, index) => {
+            const active = sport === option;
+            return (
+              <Pressable
+                key={option}
+                onPress={() => {
+                  setSport(option);
+                  setShowSportDropdown(false);
+                }}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 10,
+                  borderTopWidth: index === 0 ? 0 : 1,
+                  borderTopColor: colors.border,
+                  borderRadius: 8,
+                  backgroundColor: active ? colors.primaryBg : colors.background,
+                }}
+              >
+                <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                  {sportTypeLabel[option]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </AnchoredDropdown>
       </ModalSheet>
     </SafeAreaView>
   );
