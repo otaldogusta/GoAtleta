@@ -1196,7 +1196,7 @@ export default function EventsScreen() {
         container={null}
         animationStyle={{ opacity: 1 }}
         zIndex={340}
-        maxHeight={148}
+        maxHeight={108}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
         panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
