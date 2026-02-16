@@ -161,7 +161,7 @@ export default function EventDetailsScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
       <ModalSheet
         visible
         onClose={closeDetails}
