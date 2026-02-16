@@ -34,6 +34,13 @@ type AssistantResponse = {
   reply: string;
   sources: AssistantSource[];
   draftTraining: DraftTraining | null;
+  confidence: number;
+  citations: {
+    sourceTitle: string;
+    evidence: string;
+  }[];
+  assumptions: string[];
+  missingData: string[];
 };
 
 const isPrivateIpv4 = (host: string) => {
@@ -109,10 +116,11 @@ const requireUser = async (req: Request) => {
 
 const systemPrompt = [
   "You are a volleyball and training assistant for a coaching app.",
-  "Always base answers on scientific sources or reputable coaching references.",
+  "Always base answers on scientific sources or reputable coaching references available to you.",
   "Return a JSON object only, no extra text.",
   "If suggesting drills from videos, include author and a stable URL.",
-  "If unsure, say so and avoid hallucinating citations.",
+  "Never invent evidence. If evidence is not sufficient, lower confidence and list missing data.",
+  "If confidence is below 0.55, be explicit that recommendation is limited.",
   "Use simple Portuguese in the reply.",
 ].join(" ");
 
@@ -162,8 +170,41 @@ const responseSchema = {
         },
       ],
     },
+    confidence: {
+      type: "number",
+      minimum: 0,
+      maximum: 1,
+    },
+    citations: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          sourceTitle: { type: "string" },
+          evidence: { type: "string" },
+        },
+        required: ["sourceTitle", "evidence"],
+        additionalProperties: false,
+      },
+    },
+    assumptions: {
+      type: "array",
+      items: { type: "string" },
+    },
+    missingData: {
+      type: "array",
+      items: { type: "string" },
+    },
   },
-  required: ["reply", "sources", "draftTraining"],
+  required: [
+    "reply",
+    "sources",
+    "draftTraining",
+    "confidence",
+    "citations",
+    "assumptions",
+    "missingData",
+  ],
   additionalProperties: false,
 };
 
@@ -235,7 +276,7 @@ Deno.serve(async (req) => {
     }
 
     const data = await response.json();
-    const content = data.choices.[0].message.content ?? "";
+    const content = data.choices?.[0]?.message?.content ?? "";
     let parsed: AssistantResponse;
     try {
       parsed = JSON.parse(content) as AssistantResponse;
@@ -251,11 +292,22 @@ Deno.serve(async (req) => {
         reply: "Não consegui gerar a resposta. Tente novamente.",
         sources: [],
         draftTraining: null,
+        confidence: 0,
+        citations: [],
+        assumptions: [],
+        missingData: ["Não foi possível interpretar a resposta da IA."],
       };
     }
 
     parsed.sources = Array.isArray(parsed.sources) ? parsed.sources : [];
     parsed.draftTraining = parsed.draftTraining ?? null;
+    parsed.citations = Array.isArray(parsed.citations) ? parsed.citations : [];
+    parsed.assumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
+    parsed.missingData = Array.isArray(parsed.missingData) ? parsed.missingData : [];
+    parsed.confidence =
+      Number.isFinite(parsed.confidence) && parsed.confidence >= 0 && parsed.confidence <= 1
+        ? parsed.confidence
+        : 0;
 
     const checkedSources: AssistantSource[] = [];
     for (const source of parsed.sources) {

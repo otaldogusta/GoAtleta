@@ -216,3 +216,83 @@ export type Exercise = {
   notes: string;
   createdAt: string;
 };
+
+export type VolleyballSkill =
+  | "passe"
+  | "levantamento"
+  | "ataque"
+  | "bloqueio"
+  | "defesa"
+  | "saque"
+  | "transicao";
+
+export type ProgressionDimension =
+  | "consistencia"
+  | "precisao"
+  | "pressao_tempo"
+  | "oposicao"
+  | "tomada_decisao"
+  | "transferencia_jogo";
+
+export type KnowledgeDocument = {
+  id: string;
+  organizationId: string;
+  title: string;
+  source: string;
+  chunk: string;
+  embedding: number[];
+  tags: string[];
+  sport: string;
+  level: string;
+  createdAt: string;
+};
+
+export type OrganizationAiProfile = {
+  id: string;
+  organizationId: string;
+  philosophy: string;
+  constraints: string[];
+  goals: string[];
+  equipmentNotes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UnitAiProfile = {
+  id: string;
+  organizationId: string;
+  unitId: string;
+  realityNotes: string;
+  constraints: string[];
+  focus: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SessionSkillSnapshot = {
+  id: string;
+  organizationId: string;
+  classId: string;
+  unitId: string;
+  sessionDate: string;
+  objective: string;
+  focusSkills: VolleyballSkill[];
+  consistencyScore: number;
+  successRate: number;
+  decisionQuality: number;
+  appliedDrillIds: string[];
+  notes: string[];
+  createdAt: string;
+};
+
+export type ProgressionSessionPlan = {
+  objective: string;
+  progressionDimension: ProgressionDimension;
+  warmup: string[];
+  technicalTactical: string[];
+  conditionedGame: string[];
+  successCriteria: string[];
+  regressions: string[];
+  progressions: string[];
+  riskAdjustments: string[];
+};

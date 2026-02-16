@@ -125,6 +125,57 @@ export function initDb() {
       updatedAt TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS kb_documents (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT '',
+      chunk TEXT NOT NULL DEFAULT '',
+      embedding TEXT NOT NULL DEFAULT '[]',
+      tags TEXT NOT NULL DEFAULT '[]',
+      sport TEXT NOT NULL DEFAULT '',
+      level TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS org_ai_profiles (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      philosophy TEXT NOT NULL DEFAULT '',
+      constraints TEXT NOT NULL DEFAULT '[]',
+      goals TEXT NOT NULL DEFAULT '[]',
+      equipmentNotes TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS unit_ai_profiles (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      unitId TEXT NOT NULL DEFAULT '',
+      realityNotes TEXT NOT NULL DEFAULT '',
+      constraints TEXT NOT NULL DEFAULT '[]',
+      focus TEXT NOT NULL DEFAULT '[]',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS session_skill_snapshots (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      classId TEXT NOT NULL DEFAULT '',
+      unitId TEXT NOT NULL DEFAULT '',
+      sessionDate TEXT NOT NULL DEFAULT '',
+      objective TEXT NOT NULL DEFAULT '',
+      focusSkills TEXT NOT NULL DEFAULT '[]',
+      consistencyScore REAL NOT NULL DEFAULT 0,
+      successRate REAL NOT NULL DEFAULT 0,
+      decisionQuality REAL NOT NULL DEFAULT 0,
+      appliedDrillIds TEXT NOT NULL DEFAULT '[]',
+      notes TEXT NOT NULL DEFAULT '[]',
+      createdAt TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS pending_writes (
       id TEXT PRIMARY KEY NOT NULL,
       kind TEXT NOT NULL,
@@ -203,6 +254,30 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_pending_writes_dead_dedupKey ON pending_writes_dead (dedupKey)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_sport ON kb_documents (organizationId, sport)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_org_ai_profiles_org ON org_ai_profiles (organizationId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_unit_ai_profiles_org_unit ON unit_ai_profiles (organizationId, unitId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_session_skill_snapshots_class_date ON session_skill_snapshots (classId, sessionDate)"
     );
   } catch {}
 
