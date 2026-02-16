@@ -48,6 +48,11 @@ const sportTypeLabel: Record<EventSport, string> = {
 type DropdownLayout = { x: number; y: number; width: number; height: number };
 type DropdownPoint = { x: number; y: number };
 
+const splitDateTimeInput = (value: string) => {
+  const [datePart = "", timePart = ""] = value.trim().split(" ");
+  return { datePart, timePart };
+};
+
 const toInputDate = (iso: string) => {
   const date = new Date(iso);
   return formatDateTimeInputPtBr(date);
@@ -82,8 +87,10 @@ export default function EventDetailsScreen() {
   const [description, setDescription] = useState("");
   const [eventType, setEventType] = useState<EventType>("treino");
   const [sport, setSport] = useState<EventSport>("geral");
-  const [startsInput, setStartsInput] = useState("");
-  const [endsInput, setEndsInput] = useState("");
+  const [startDateInput, setStartDateInput] = useState("");
+  const [startTimeInput, setStartTimeInput] = useState("");
+  const [endDateInput, setEndDateInput] = useState("");
+  const [endTimeInput, setEndTimeInput] = useState("");
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -97,7 +104,10 @@ export default function EventDetailsScreen() {
   const eventTypeTriggerRef = useRef<View | null>(null);
   const sportTriggerRef = useRef<View | null>(null);
 
-  const startLabel = useMemo(() => (startsInput ? new Date(parseInputDate(startsInput) ?? 0).toLocaleString("pt-BR") : "-"), [startsInput]);
+  const startLabel = useMemo(() => {
+    const parsed = parseInputDate(`${startDateInput} ${startTimeInput}`);
+    return parsed ? parsed.toLocaleString("pt-BR") : "-";
+  }, [startDateInput, startTimeInput]);
 
   const loadData = useCallback(async () => {
     if (!activeOrganization?.id || !eventId) return;
@@ -117,8 +127,12 @@ export default function EventDetailsScreen() {
       setDescription(event.description);
       setEventType(event.eventType);
       setSport(event.sport);
-      setStartsInput(toInputDate(event.startsAt));
-      setEndsInput(toInputDate(event.endsAt));
+      const startValue = splitDateTimeInput(toInputDate(event.startsAt));
+      const endValue = splitDateTimeInput(toInputDate(event.endsAt));
+      setStartDateInput(startValue.datePart);
+      setStartTimeInput(startValue.timePart);
+      setEndDateInput(endValue.datePart);
+      setEndTimeInput(endValue.timePart);
       setLocationLabel(event.locationLabel || "");
       setClassIds(event.classIds);
     } catch (err) {
@@ -134,10 +148,10 @@ export default function EventDetailsScreen() {
 
   const submitUpdate = async () => {
     if (!activeOrganization?.id || !isAdmin) return;
-    const startsAt = parseInputDate(startsInput);
-    const endsAt = parseInputDate(endsInput);
+    const startsAt = parseInputDate(`${startDateInput} ${startTimeInput}`);
+    const endsAt = parseInputDate(`${endDateInput} ${endTimeInput}`);
     if (!startsAt || !endsAt || endsAt <= startsAt) {
-      Alert.alert("Validação", "Datas inválidas. Use DD/MM/AAAA HH:mm.");
+      Alert.alert("Validação", "Datas inválidas. Use Data (DD/MM/AAAA) e Horário (HH:mm).");
       return;
     }
     setSaving(true);
@@ -316,12 +330,23 @@ export default function EventDetailsScreen() {
 
               <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
                 <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Início</Text>
-                  <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Data início</Text>
+                  <TextInput value={startDateInput} onChangeText={setStartDateInput} editable={isAdmin} placeholder="DD/MM/AAAA" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
                 </View>
                 <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Fim</Text>
-                  <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Horário início</Text>
+                  <TextInput value={startTimeInput} onChangeText={setStartTimeInput} editable={isAdmin} placeholder="HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                </View>
+              </View>
+
+              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Data fim</Text>
+                  <TextInput value={endDateInput} onChangeText={setEndDateInput} editable={isAdmin} placeholder="DD/MM/AAAA" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                </View>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Horário fim</Text>
+                  <TextInput value={endTimeInput} onChangeText={setEndTimeInput} editable={isAdmin} placeholder="HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
                 </View>
               </View>
 
