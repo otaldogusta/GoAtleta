@@ -107,7 +107,6 @@ const sportTypeLabel: Record<EventSport, string> = {
 
 const reminderOptions = ["15m antes", "1h antes", "1 dia antes"];
 type DropdownLayout = { x: number; y: number; width: number; height: number };
-type ContainerPoint = { x: number; y: number };
 
 export default function EventsScreen() {
   const router = useRouter();
@@ -161,7 +160,6 @@ export default function EventsScreen() {
   const [showSportDropdown, setShowSportDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showReminderDropdown, setShowReminderDropdown] = useState(false);
-  const [dropdownContainerWindow, setDropdownContainerWindow] = useState<ContainerPoint | null>(null);
   const [eventTypeTriggerLayout, setEventTypeTriggerLayout] = useState<DropdownLayout | null>(null);
   const [sportTriggerLayout, setSportTriggerLayout] = useState<DropdownLayout | null>(null);
   const [notificationTriggerLayout, setNotificationTriggerLayout] = useState<DropdownLayout | null>(null);
@@ -170,7 +168,6 @@ export default function EventsScreen() {
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const dropdownContainerRef = useRef<View | null>(null);
   const eventTypeTriggerRef = useRef<View | null>(null);
   const sportTriggerRef = useRef<View | null>(null);
   const notificationTriggerRef = useRef<View | null>(null);
@@ -182,13 +179,6 @@ export default function EventsScreen() {
     setShowNotificationDropdown(false);
     setShowReminderDropdown(false);
   };
-
-  const syncDropdownContainerWindow = useCallback(() => {
-    if (!dropdownContainerRef.current) return;
-    dropdownContainerRef.current.measureInWindow((x, y) => {
-      setDropdownContainerWindow({ x, y });
-    });
-  }, []);
 
   const measureTriggerLayout = useCallback(
     (trigger: View | null, setter: (layout: DropdownLayout | null) => void) => {
@@ -209,7 +199,6 @@ export default function EventsScreen() {
     if (!next) return;
     setShowEventTypeDropdown(true);
     requestAnimationFrame(() => {
-      syncDropdownContainerWindow();
       measureTriggerLayout(eventTypeTriggerRef.current, setEventTypeTriggerLayout);
     });
   };
@@ -220,7 +209,6 @@ export default function EventsScreen() {
     if (!next) return;
     setShowSportDropdown(true);
     requestAnimationFrame(() => {
-      syncDropdownContainerWindow();
       measureTriggerLayout(sportTriggerRef.current, setSportTriggerLayout);
     });
   };
@@ -231,7 +219,6 @@ export default function EventsScreen() {
     if (!next) return;
     setShowNotificationDropdown(true);
     requestAnimationFrame(() => {
-      syncDropdownContainerWindow();
       measureTriggerLayout(notificationTriggerRef.current, setNotificationTriggerLayout);
     });
   };
@@ -242,7 +229,6 @@ export default function EventsScreen() {
     if (!next) return;
     setShowReminderDropdown(true);
     requestAnimationFrame(() => {
-      syncDropdownContainerWindow();
       measureTriggerLayout(reminderTriggerRef.current, setReminderTriggerLayout);
     });
   };
@@ -403,17 +389,15 @@ export default function EventsScreen() {
 
   useEffect(() => {
     requestAnimationFrame(() => {
-      syncDropdownContainerWindow();
       measureTriggerLayout(eventTypeTriggerRef.current, setEventTypeTriggerLayout);
       measureTriggerLayout(sportTriggerRef.current, setSportTriggerLayout);
       measureTriggerLayout(notificationTriggerRef.current, setNotificationTriggerLayout);
       measureTriggerLayout(reminderTriggerRef.current, setReminderTriggerLayout);
     });
-  }, [width, syncDropdownContainerWindow, measureTriggerLayout]);
+  }, [width, measureTriggerLayout]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View ref={dropdownContainerRef} style={{ flex: 1 }} onLayout={syncDropdownContainerWindow}>
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
         refreshControl={
@@ -1068,7 +1052,7 @@ export default function EventsScreen() {
       <AnchoredDropdown
         visible={showEventTypeDropdown}
         layout={eventTypeTriggerLayout}
-        container={dropdownContainerWindow}
+        container={null}
         animationStyle={{ opacity: 1 }}
         zIndex={340}
         maxHeight={220}
@@ -1106,7 +1090,7 @@ export default function EventsScreen() {
       <AnchoredDropdown
         visible={showSportDropdown}
         layout={sportTriggerLayout}
-        container={dropdownContainerWindow}
+        container={null}
         animationStyle={{ opacity: 1 }}
         zIndex={340}
         maxHeight={220}
@@ -1144,7 +1128,7 @@ export default function EventsScreen() {
       <AnchoredDropdown
         visible={showNotificationDropdown}
         layout={notificationTriggerLayout}
-        container={dropdownContainerWindow}
+        container={null}
         animationStyle={{ opacity: 1 }}
         zIndex={340}
         maxHeight={200}
@@ -1185,7 +1169,7 @@ export default function EventsScreen() {
       <AnchoredDropdown
         visible={showReminderDropdown}
         layout={reminderTriggerLayout}
-        container={dropdownContainerWindow}
+        container={null}
         animationStyle={{ opacity: 1 }}
         zIndex={340}
         maxHeight={220}
@@ -1219,7 +1203,6 @@ export default function EventsScreen() {
           );
         })}
       </AnchoredDropdown>
-      </View>
     </SafeAreaView>
   );
 }
