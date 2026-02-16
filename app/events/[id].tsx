@@ -519,15 +519,13 @@ export default function EventDetailsScreen() {
                 <Pressable
                   onPress={handleDelete}
                   style={{
-                    borderRadius: 10,
-                    paddingVertical: 11,
+                    borderRadius: 12,
+                    paddingVertical: 10,
                     alignItems: "center",
-                    borderWidth: 1,
-                    borderColor: colors.dangerText,
-                    backgroundColor: colors.secondaryBg,
+                    backgroundColor: colors.dangerSolidBg,
                   }}
                 >
-                  <Text style={{ color: colors.dangerText, fontWeight: "800" }}>Excluir evento</Text>
+                  <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>Excluir evento</Text>
                 </Pressable>
               ) : null}
             </>
