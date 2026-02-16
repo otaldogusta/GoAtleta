@@ -14,7 +14,9 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 const eventTypes: EventType[] = ["torneio", "amistoso", "treino", "reuniao", "outro"];
@@ -45,6 +47,12 @@ export default function EventDetailsScreen() {
   const { activeOrganization } = useOrganization();
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const sheetCardStyle = useModalCardStyle({
+    maxHeight: "90%",
+    maxWidth: 840,
+    gap: 12,
+    padding: 14,
+  });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,20 +156,48 @@ export default function EventDetailsScreen() {
     ]);
   };
 
+  const closeDetails = () => {
+    router.back();
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <Text style={{ color: colors.text, fontSize: 26, fontWeight: "800" }}>Detalhes do evento</Text>
-        {loading ? <Text style={{ color: colors.muted }}>Carregando...</Text> : null}
-        {error ? <Text style={{ color: colors.dangerText }}>{error}</Text> : null}
-        <Text style={{ color: colors.muted }}>Início: {startLabel}</Text>
+      <ModalSheet
+        visible
+        onClose={closeDetails}
+        cardStyle={[sheetCardStyle, { overflow: "hidden" }]}
+        position="center"
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <View style={{ gap: 2, flex: 1 }}>
+            <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>Detalhes do evento</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Início: {startLabel}</Text>
+          </View>
+          <Pressable
+            onPress={closeDetails}
+            style={{
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
+          </Pressable>
+        </View>
 
-        <View style={{ padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, gap: 8 }}>
+        <ScrollView style={{ width: "100%" }} contentContainerStyle={{ gap: 10 }} showsVerticalScrollIndicator={false}>
+          {loading ? <Text style={{ color: colors.muted }}>Carregando...</Text> : null}
+          {error ? <Text style={{ color: colors.dangerText }}>{error}</Text> : null}
+
           <TextInput value={title} onChangeText={setTitle} editable={isAdmin} placeholder="Título" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
           <TextInput value={description} onChangeText={setDescription} editable={isAdmin} placeholder="Descrição" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
           <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="Início (YYYY-MM-DD HH:mm)" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
           <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="Fim (YYYY-MM-DD HH:mm)" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
           <TextInput value={locationLabel} onChangeText={setLocationLabel} editable={isAdmin} placeholder="Local" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {eventTypes.map((option) => (
@@ -171,6 +207,7 @@ export default function EventDetailsScreen() {
               ))}
             </View>
           </ScrollView>
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {sportTypes.map((option) => (
@@ -180,6 +217,7 @@ export default function EventDetailsScreen() {
               ))}
             </View>
           </ScrollView>
+
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {classes.map((cls) => {
@@ -211,8 +249,8 @@ export default function EventDetailsScreen() {
               <Text style={{ color: colors.dangerText, fontWeight: "700" }}>Excluir evento</Text>
             </Pressable>
           ) : null}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </ModalSheet>
     </SafeAreaView>
   );
 }
