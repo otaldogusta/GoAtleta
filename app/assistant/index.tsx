@@ -24,12 +24,33 @@ import { Pressable } from "../../src/ui/Pressable";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
-import type { ClassGroup, TrainingPlan } from "../../src/core/models";
-import { getClasses, saveTrainingPlan } from "../../src/db/seed";
+import {
+  buildAutoFixSuggestions,
+  buildCommunicationDraft,
+  buildExecutiveSummary,
+  buildSupportModeAnalysis,
+  inferSkillsFromText,
+  progressionPlanToDraft,
+  type AutoFixSuggestion,
+} from "../../src/core/ai-operations";
+import type { ClassGroup, SessionLog, TrainingPlan } from "../../src/core/models";
+import { buildNextSessionProgression } from "../../src/core/progression-engine";
+import { getLatestSessionSkillSnapshot } from "../../src/db/ai-foundation";
+import {
+  buildSyncHealthReport,
+  clearPendingWritesDeadLetterCandidates,
+  getClasses,
+  getSessionLogsByRange,
+  getTrainingPlans,
+  reprocessPendingWritesNetworkFailures,
+  saveTrainingPlan,
+} from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
+import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -57,6 +78,10 @@ type AssistantResponse = {
   reply: string;
   sources: AssistantSource[];
   draftTraining: DraftTraining | null;
+  confidence?: number;
+  citations?: { sourceTitle: string; evidence: string }[];
+  assumptions?: string[];
+  missingData?: string[];
 };
 
 const sanitizeList = (value: unknown) =>
@@ -130,6 +155,8 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
 export default function AssistantScreen() {
   const router = useRouter();
   const { session } = useAuth();
+  const { activeOrganization } = useOrganization();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -142,6 +169,11 @@ export default function AssistantScreen() {
   const [draft, setDraft] = useState<DraftTraining | null>(null);
   const [sources, setSources] = useState<AssistantSource[]>([]);
   const [showSavedLink, setShowSavedLink] = useState(false);
+  const [confidence, setConfidence] = useState<number | null>(null);
+  const [citations, setCitations] = useState<{ sourceTitle: string; evidence: string }[]>([]);
+  const [missingData, setMissingData] = useState<string[]>([]);
+  const [assumptions, setAssumptions] = useState<string[]>([]);
+  const [autoFixSuggestions, setAutoFixSuggestions] = useState<AutoFixSuggestion[]>([]);
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
@@ -268,8 +300,17 @@ export default function AssistantScreen() {
     setMessages([]);
     setDraft(null);
     setSources([]);
+    setConfidence(null);
+    setCitations([]);
+    setMissingData([]);
+    setAssumptions([]);
+    setAutoFixSuggestions([]);
     setShowSavedLink(false);
     setInput("");
+  }, []);
+
+  const pushAssistantMessage = useCallback((content: string) => {
+    setMessages((prev) => [...prev, { role: "assistant", content }]);
   }, []);
 
   const typeAssistantReply = useCallback(async (reply: string) => {
@@ -329,6 +370,11 @@ export default function AssistantScreen() {
     setLoading(true);
     setDraft(null);
     setSources([]);
+    setConfidence(null);
+    setCitations([]);
+    setMissingData([]);
+    setAssumptions([]);
+    setAutoFixSuggestions([]);
     setShowSavedLink(false);
 
     try {
@@ -384,6 +430,12 @@ export default function AssistantScreen() {
       setLoading(false);
       await typeAssistantReply(reply);
       setSources(Array.isArray(data.sources) ? data.sources : []);
+      setConfidence(
+        Number.isFinite(data.confidence) ? Math.max(0, Math.min(1, Number(data.confidence))) : null
+      );
+      setCitations(Array.isArray(data.citations) ? data.citations : []);
+      setMissingData(Array.isArray(data.missingData) ? data.missingData : []);
+      setAssumptions(Array.isArray(data.assumptions) ? data.assumptions : []);
       setDraft(nextDraft);
       if (nextDraft) {
         void notifyTrainingCreated();
@@ -431,6 +483,147 @@ export default function AssistantScreen() {
       ]);
     }
   };
+
+  const getRecentLogs = useCallback(async () => {
+    const now = new Date();
+    const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const logs = await getSessionLogsByRange(start.toISOString(), now.toISOString(), {
+      organizationId: activeOrganization?.id,
+    });
+    return logs.filter((log) => log.classId === classId);
+  }, [activeOrganization?.id, classId]);
+
+  const handleGenerateProgression = useCallback(async () => {
+    if (!classId || !selectedClass) {
+      Alert.alert("Atenção", "Selecione uma turma para gerar progressão.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const snapshot = await getLatestSessionSkillSnapshot(classId);
+      const logs = await getRecentLogs();
+      const fallbackConsistency = logs.length
+        ? Math.min(0.95, Math.max(0.3, logs.filter((log) => log.technique !== "ruim").length / logs.length))
+        : 0.55;
+      const fallbackSuccess = logs.length
+        ? Math.min(0.95, Math.max(0.3, logs.filter((log) => log.attendance >= 1).length / logs.length))
+        : 0.55;
+
+      const plan = buildNextSessionProgression({
+        className: selectedClass.name,
+        objective: `Progressão para ${selectedClass.name}`,
+        focusSkills: inferSkillsFromText([input, ...messages.map((item) => item.content)].join(" ")),
+        previousSnapshot: {
+          consistencyScore: snapshot?.consistencyScore ?? fallbackConsistency,
+          successRate: snapshot?.successRate ?? fallbackSuccess,
+          decisionQuality: snapshot?.decisionQuality ?? 0.62,
+          notes: snapshot?.notes ?? [],
+        },
+      });
+
+      const nextDraft = progressionPlanToDraft(plan, selectedClass.name);
+      setDraft(nextDraft);
+      setSources([]);
+      setConfidence(0.74);
+      setCitations([
+        {
+          sourceTitle: "Progression Engine (determinístico)",
+          evidence: `Dimensão escolhida: ${plan.progressionDimension}.`,
+        },
+      ]);
+      setMissingData([]);
+      setAssumptions([
+        "Progressão baseada no snapshot mais recente ou fallback de sessões dos últimos 7 dias.",
+      ]);
+      setAutoFixSuggestions([]);
+      pushAssistantMessage(
+        `Gerei a próxima aula com progressão por ${plan.progressionDimension.replace("_", " ")} e critérios mensuráveis.`
+      );
+    } catch (error) {
+      pushAssistantMessage("Não consegui gerar a progressão automática agora.");
+    } finally {
+      setLoading(false);
+    }
+  }, [classId, getRecentLogs, input, messages, pushAssistantMessage, selectedClass]);
+
+  const handleExecutiveSummary = useCallback(async () => {
+    if (!classId || !selectedClass) return;
+    setLoading(true);
+    try {
+      const [trainingPlans, sessionLogs, syncHealth] = await Promise.all([
+        getTrainingPlans({ organizationId: activeOrganization?.id }),
+        getRecentLogs(),
+        buildSyncHealthReport({ organizationId: activeOrganization?.id }),
+      ]);
+
+      const classPlans = trainingPlans.filter((plan) => plan.classId === classId);
+      const summary = buildExecutiveSummary({
+        className: selectedClass.name,
+        trainingPlans: classPlans,
+        sessionLogs: sessionLogs as SessionLog[],
+        syncHealth,
+      });
+      setAutoFixSuggestions([]);
+      pushAssistantMessage(summary);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeOrganization?.id, classId, getRecentLogs, pushAssistantMessage, selectedClass]);
+
+  const handleCommunicationCopilot = useCallback(() => {
+    if (!selectedClass) return;
+    const text = buildCommunicationDraft({
+      className: selectedClass.name,
+      nextObjective: "evoluir consistência de passe e transição ofensiva",
+      criticalPoint: "reduzir erro não forçado no primeiro contato",
+    });
+    setInput(text);
+    pushAssistantMessage("Copiloto de comunicação pronto. Ajuste o texto e envie no canal desejado.");
+  }, [pushAssistantMessage, selectedClass]);
+
+  const handleSupportMode = useCallback(async () => {
+    setLoading(true);
+    try {
+      const health = await buildSyncHealthReport({ organizationId: activeOrganization?.id });
+      const analysis = buildSupportModeAnalysis(health);
+      const suggestions = buildAutoFixSuggestions(health);
+      setAutoFixSuggestions(suggestions);
+      pushAssistantMessage(analysis);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeOrganization?.id, pushAssistantMessage]);
+
+  const applyAutoFixSuggestion = useCallback(
+    (suggestion: AutoFixSuggestion) => {
+      confirmDialog({
+        title: suggestion.title,
+        message: `${suggestion.rationale} Impacto: ${suggestion.impact}`,
+        confirmLabel: "Aplicar",
+        cancelLabel: "Cancelar",
+        tone: suggestion.action === "move_dead_letter" ? "danger" : "default",
+        onConfirm: async () => {
+          try {
+            if (suggestion.action === "reprocess_network") {
+              const result = await reprocessPendingWritesNetworkFailures();
+              pushAssistantMessage(
+                `Auto-fix aplicado: reprocessados ${result.flushed} itens. Restantes na fila: ${result.remaining}.`
+              );
+            } else {
+              const result = await clearPendingWritesDeadLetterCandidates(10);
+              pushAssistantMessage(
+                `Auto-fix aplicado: ${result.removed} item(ns) movidos para dead-letter. Restantes: ${result.remaining}.`
+              );
+            }
+            setAutoFixSuggestions([]);
+          } catch {
+            pushAssistantMessage("Não foi possível aplicar auto-fix agora.");
+          }
+        },
+      });
+    },
+    [confirmDialog, pushAssistantMessage]
+  );
 
   const handleComposerKeyPress = useCallback(
     (event: any) => {
@@ -823,6 +1016,91 @@ export default function AssistantScreen() {
                 ))}
               </View>
             ) : null}
+
+            {confidence !== null || citations.length > 0 || assumptions.length > 0 || missingData.length > 0 ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.background,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>Qualidade da resposta</Text>
+                {confidence !== null ? (
+                  <Text style={{ color: colors.muted }}>
+                    Confiança: {(confidence * 100).toFixed(0)}%
+                  </Text>
+                ) : null}
+                {citations.length > 0 ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Evidências</Text>
+                    {citations.map((item, index) => (
+                      <Text key={`citation-${index}`} style={{ color: colors.muted }}>
+                        - {item.sourceTitle}: {item.evidence}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {assumptions.length > 0 ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Premissas</Text>
+                    {assumptions.map((item, index) => (
+                      <Text key={`assumption-${index}`} style={{ color: colors.muted }}>
+                        - {item}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {missingData.length > 0 ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Dados faltantes</Text>
+                    {missingData.map((item, index) => (
+                      <Text key={`missing-${index}`} style={{ color: colors.muted }}>
+                        - {item}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            {autoFixSuggestions.length > 0 ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.background,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>Auto-fix sugerido</Text>
+                {autoFixSuggestions.map((suggestion) => (
+                  <View key={suggestion.id} style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{suggestion.title}</Text>
+                    <Text style={{ color: colors.muted }}>{suggestion.rationale}</Text>
+                    <Pressable
+                      onPress={() => applyAutoFixSuggestion(suggestion)}
+                      style={{
+                        alignSelf: "flex-start",
+                        borderRadius: 999,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        paddingVertical: 6,
+                        paddingHorizontal: 12,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>Aplicar</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </ScrollView>
 
           <View
@@ -887,6 +1165,50 @@ export default function AssistantScreen() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Limpar chat</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleGenerateProgression()}
+                  style={{
+                    borderRadius: 999,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Progressão</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleExecutiveSummary()}
+                  style={{
+                    borderRadius: 999,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Resumo</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleCommunicationCopilot}
+                  style={{
+                    borderRadius: 999,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Comunicação</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleSupportMode()}
+                  style={{
+                    borderRadius: 999,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Support mode</Text>
                 </Pressable>
               </View>
               <Pressable
