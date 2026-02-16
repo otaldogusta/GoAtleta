@@ -27,6 +27,7 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
 
@@ -47,6 +48,18 @@ const sportTypeLabel: Record<EventSport, string> = {
 };
 type DropdownLayout = { x: number; y: number; width: number; height: number };
 type DropdownPoint = { x: number; y: number };
+type EventFormSnapshot = {
+  title: string;
+  description: string;
+  eventType: EventType;
+  sport: EventSport;
+  startDateInput: string;
+  startTimeInput: string;
+  endDateInput: string;
+  endTimeInput: string;
+  locationLabel: string;
+  classIds: string[];
+};
 
 const splitDateTimeInput = (value: string) => {
   const [datePart = "", timePart = ""] = value.trim().split(" ");
@@ -62,12 +75,23 @@ const parseInputDate = (value: string) => {
   return parseDateTimeInput(value);
 };
 
+const buildSnapshot = (values: EventFormSnapshot) => {
+  return JSON.stringify({
+    ...values,
+    title: values.title.trim(),
+    description: values.description.trim(),
+    locationLabel: values.locationLabel.trim(),
+    classIds: [...values.classIds].sort(),
+  });
+};
+
 export default function EventDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const eventId = params.id ?? "";
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { activeOrganization } = useOrganization();
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
@@ -99,6 +123,7 @@ export default function EventDetailsScreen() {
   const [eventTypeTriggerLayout, setEventTypeTriggerLayout] = useState<DropdownLayout | null>(null);
   const [sportTriggerLayout, setSportTriggerLayout] = useState<DropdownLayout | null>(null);
   const [dropdownContainer, setDropdownContainer] = useState<DropdownPoint | null>(null);
+  const [initialSnapshot, setInitialSnapshot] = useState("");
 
   const modalBodyRef = useRef<View | null>(null);
   const eventTypeTriggerRef = useRef<View | null>(null);
@@ -108,6 +133,35 @@ export default function EventDetailsScreen() {
     const parsed = parseInputDate(`${startDateInput} ${startTimeInput}`);
     return parsed ? parsed.toLocaleString("pt-BR") : "-";
   }, [startDateInput, startTimeInput]);
+
+  const currentSnapshot = useMemo(
+    () =>
+      buildSnapshot({
+        title,
+        description,
+        eventType,
+        sport,
+        startDateInput,
+        startTimeInput,
+        endDateInput,
+        endTimeInput,
+        locationLabel,
+        classIds,
+      }),
+    [
+      classIds,
+      description,
+      endDateInput,
+      endTimeInput,
+      eventType,
+      locationLabel,
+      sport,
+      startDateInput,
+      startTimeInput,
+      title,
+    ]
+  );
+  const hasChanges = currentSnapshot !== initialSnapshot;
 
   const loadData = useCallback(async () => {
     if (!activeOrganization?.id || !eventId) return;
@@ -135,6 +189,20 @@ export default function EventDetailsScreen() {
       setEndTimeInput(endValue.timePart);
       setLocationLabel(event.locationLabel || "");
       setClassIds(event.classIds);
+      setInitialSnapshot(
+        buildSnapshot({
+          title: event.title,
+          description: event.description,
+          eventType: event.eventType,
+          sport: event.sport,
+          startDateInput: startValue.datePart,
+          startTimeInput: startValue.timePart,
+          endDateInput: endValue.datePart,
+          endTimeInput: endValue.timePart,
+          locationLabel: event.locationLabel || "",
+          classIds: event.classIds,
+        })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar evento.");
     } finally {
@@ -148,6 +216,7 @@ export default function EventDetailsScreen() {
 
   const submitUpdate = async () => {
     if (!activeOrganization?.id || !isAdmin) return;
+    if (!hasChanges) return;
     const startsAt = parseInputDate(`${startDateInput} ${startTimeInput}`);
     const endsAt = parseInputDate(`${endDateInput} ${endTimeInput}`);
     if (!startsAt || !endsAt || endsAt <= startsAt) {
@@ -172,8 +241,8 @@ export default function EventDetailsScreen() {
         locationLabel: locationLabel.trim(),
       });
       await setEventClasses(eventId, activeOrganization.id, classIds);
-      await loadData();
-      closeDetails();
+      const nav = router as unknown as { replace: (path: string) => void };
+      nav.replace("/events");
     } catch (err) {
       Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao salvar.");
     } finally {
@@ -183,21 +252,21 @@ export default function EventDetailsScreen() {
 
   const handleDelete = async () => {
     if (!activeOrganization?.id || !isAdmin) return;
-    Alert.alert("Excluir", "Deseja excluir este evento?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Excluir",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteEvent(eventId, activeOrganization.id);
-            router.replace("/events");
-          } catch (err) {
-            Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao excluir.");
-          }
-        },
+    confirmDialog({
+      title: "Excluir evento",
+      message: "Deseja realmente excluir este evento? Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteEvent(eventId, activeOrganization.id);
+          router.replace("/events");
+        } catch (err) {
+          Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao excluir.");
+        }
       },
-    ]);
+    });
   };
 
   const closeDetailDropdowns = () => {
@@ -431,13 +500,34 @@ export default function EventDetailsScreen() {
               </View>
 
               {isAdmin ? (
-                <Pressable onPress={submitUpdate} disabled={saving} style={{ borderRadius: 10, paddingVertical: 11, alignItems: "center", backgroundColor: saving ? colors.primaryDisabledBg : colors.primaryBg }}>
-                  <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{saving ? "Salvando..." : "Salvar alterações"}</Text>
+                <Pressable
+                  onPress={submitUpdate}
+                  disabled={saving || !hasChanges}
+                  style={{
+                    borderRadius: 10,
+                    paddingVertical: 11,
+                    alignItems: "center",
+                    backgroundColor: saving || !hasChanges ? colors.primaryDisabledBg : colors.primaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+                    {saving ? "Salvando..." : "Salvar alterações"}
+                  </Text>
                 </Pressable>
               ) : null}
               {isAdmin ? (
-                <Pressable onPress={handleDelete}>
-                  <Text style={{ color: colors.dangerText, fontWeight: "700" }}>Excluir evento</Text>
+                <Pressable
+                  onPress={handleDelete}
+                  style={{
+                    borderRadius: 10,
+                    paddingVertical: 11,
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: colors.dangerText,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.dangerText, fontWeight: "800" }}>Excluir evento</Text>
                 </Pressable>
               ) : null}
             </>
