@@ -7,7 +7,7 @@ import {
     ScrollView,
     Text,
     TextInput,
-  useWindowDimensions,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -49,6 +49,46 @@ const toInputDate = (date: Date) =>
     date.getHours()
   )}:${pad2(date.getMinutes())}`;
 
+const parseDurationMinutes = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const hhmm = normalized.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmm) {
+    const hours = Number(hhmm[1]);
+    const minutes = Number(hhmm[2]);
+    if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+      return Math.max(0, hours * 60 + minutes);
+    }
+  }
+
+  const withHourMinute = normalized.match(/^(\d+)h(?:\s*(\d{1,2})m?)?$/);
+  if (withHourMinute) {
+    const hours = Number(withHourMinute[1] ?? 0);
+    const minutes = Number(withHourMinute[2] ?? 0);
+    if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+      return Math.max(0, hours * 60 + minutes);
+    }
+  }
+
+  const minuteOnly = normalized.match(/^(\d+)m?$/);
+  if (minuteOnly) {
+    const minutes = Number(minuteOnly[1]);
+    return Number.isFinite(minutes) ? Math.max(0, minutes) : null;
+  }
+
+  return null;
+};
+
+const formatDurationMinutes = (value: number) => {
+  const safe = Math.max(0, Math.round(value));
+  const hours = Math.floor(safe / 60);
+  const minutes = safe % 60;
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes <= 0) return `${hours}h`;
+  return `${hours}h ${pad2(minutes)}m`;
+};
+
 const eventTypeLabel: Record<EventType, string> = {
   torneio: "Torneio",
   amistoso: "Amistoso",
@@ -86,12 +126,31 @@ export default function EventsScreen() {
   const [description, setDescription] = useState("");
   const [eventType, setEventType] = useState<EventType>("treino");
   const [sport, setSport] = useState<EventSport>("geral");
-  const [startsInput, setStartsInput] = useState(() => toInputDate(new Date()));
+  const [startsInput, setStartsInput] = useState(() => {
+    const next = new Date();
+    next.setMinutes(0, 0, 0);
+    return toInputDate(next);
+  });
   const [endsInput, setEndsInput] = useState(() => {
     const next = new Date();
+    next.setMinutes(0, 0, 0);
     next.setHours(next.getHours() + 1);
     return toInputDate(next);
   });
+  const [startDateInput, setStartDateInput] = useState(() => startsInput.split(" ")[0] ?? "");
+  const [startTimeInput, setStartTimeInput] = useState(() => startsInput.split(" ")[1] ?? "");
+  const [durationInput, setDurationInput] = useState(() => {
+    const start = parseInputDate(startsInput);
+    const end = parseInputDate(endsInput);
+    if (!start || !end) return "1h";
+    const minutes = Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000));
+    return formatDurationMinutes(minutes);
+  });
+  const [showDescription, setShowDescription] = useState(false);
+  const [guestEmailInput, setGuestEmailInput] = useState("");
+  const [guestEmails, setGuestEmails] = useState<string[]>([]);
+  const [notificationChannel, setNotificationChannel] = useState<"email" | "whatsapp">("email");
+  const [reminderValue, setReminderValue] = useState("1h antes");
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -204,11 +263,50 @@ export default function EventsScreen() {
   };
 
   const resetCreateForm = () => {
+    const nextStart = new Date();
+    nextStart.setMinutes(0, 0, 0);
+    const nextEnd = new Date(nextStart.getTime() + 60 * 60000);
+
     setTitle("");
     setDescription("");
+    setShowDescription(false);
     setLocationLabel("");
+    setStartsInput(toInputDate(nextStart));
+    setEndsInput(toInputDate(nextEnd));
+    setStartDateInput(toInputDate(nextStart).split(" ")[0] ?? "");
+    setStartTimeInput(toInputDate(nextStart).split(" ")[1] ?? "");
+    setDurationInput("1h");
+    setGuestEmailInput("");
+    setGuestEmails([]);
+    setNotificationChannel("email");
+    setReminderValue("1h antes");
     setClassIds([]);
   };
+
+  const addGuestEmail = () => {
+    const value = guestEmailInput.trim();
+    if (!value) return;
+    if (guestEmails.includes(value.toLowerCase())) {
+      setGuestEmailInput("");
+      return;
+    }
+    setGuestEmails((prev) => [...prev, value.toLowerCase()]);
+    setGuestEmailInput("");
+  };
+
+  const removeGuestEmail = (email: string) => {
+    setGuestEmails((prev) => prev.filter((item) => item !== email));
+  };
+
+  useEffect(() => {
+    const durationMinutes = parseDurationMinutes(durationInput) ?? 60;
+    const start = parseInputDate(`${startDateInput} ${startTimeInput}`);
+    if (!start) return;
+
+    const end = new Date(start.getTime() + Math.max(15, durationMinutes) * 60000);
+    setStartsInput(toInputDate(start));
+    setEndsInput(toInputDate(end));
+  }, [startDateInput, startTimeInput, durationInput]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -378,20 +476,23 @@ export default function EventsScreen() {
           >
             <View style={{ gap: 2 }}>
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-                Novo evento
+                Criar evento
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Preencha os dados principais e publique na agenda.
+                Formulário rápido para publicar na agenda
               </Text>
             </View>
-            <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 12 }}>
-              <View style={{ flex: 1.2, gap: 10 }}>
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Título</Text>
+
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.border, opacity: 0.8 }} />
+
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Título</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
                   <TextInput
                     value={title}
                     onChangeText={setTitle}
-                    placeholder="Nome do evento"
+                    placeholder="Título do evento"
                     placeholderTextColor={colors.muted}
                     style={{
                       borderWidth: 1,
@@ -404,15 +505,57 @@ export default function EventsScreen() {
                     }}
                   />
                 </View>
+                <Pressable
+                  onPress={() => setShowDescription((prev) => !prev)}
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingHorizontal: 12,
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    {showDescription ? "Ocultar descrição" : "+ Adicionar descrição"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
 
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
+            {showDescription ? (
+              <View style={{ gap: 6 }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Detalhes para professores e turmas"
+                  placeholderTextColor={colors.muted}
+                  multiline
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    color: colors.text,
+                    paddingHorizontal: 10,
+                    paddingVertical: 9,
+                    minHeight: 80,
+                    textAlignVertical: "top",
+                  }}
+                />
+              </View>
+            ) : null}
+
+            <View style={{ gap: 6 }}>
+              <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 8 }}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Data</Text>
                   <TextInput
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder="Detalhes para professores e turmas"
+                    value={startDateInput}
+                    onChangeText={setStartDateInput}
+                    placeholder="YYYY-MM-DD"
                     placeholderTextColor={colors.muted}
-                    multiline
                     style={{
                       borderWidth: 1,
                       borderColor: colors.border,
@@ -421,18 +564,16 @@ export default function EventsScreen() {
                       color: colors.text,
                       paddingHorizontal: 10,
                       paddingVertical: 9,
-                      minHeight: 80,
-                      textAlignVertical: "top",
                     }}
                   />
                 </View>
 
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Hora</Text>
                   <TextInput
-                    value={locationLabel}
-                    onChangeText={setLocationLabel}
-                    placeholder="Quadra, ginásio, online..."
+                    value={startTimeInput}
+                    onChangeText={setStartTimeInput}
+                    placeholder="HH:mm"
                     placeholderTextColor={colors.muted}
                     style={{
                       borderWidth: 1,
@@ -446,162 +587,308 @@ export default function EventsScreen() {
                   />
                 </View>
 
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {classes.map((cls) => {
-                      const active = classIds.includes(cls.id);
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Duração</Text>
+                  <TextInput
+                    value={durationInput}
+                    onChangeText={setDurationInput}
+                    placeholder="1h 45m"
+                    placeholderTextColor={colors.muted}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      color: colors.text,
+                      paddingHorizontal: 10,
+                      paddingVertical: 9,
+                    }}
+                  />
+                </View>
+              </View>
+
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Este evento acontecerá em {startDateInput || "--"} às {startTimeInput || "--"} e termina em {endsInput.split(" ")[1] ?? "--"}.
+              </Text>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
+              <TextInput
+                value={locationLabel}
+                onChangeText={setLocationLabel}
+                placeholder="Quadra, ginásio, online..."
+                placeholderTextColor={colors.muted}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  backgroundColor: colors.secondaryBg,
+                  color: colors.text,
+                  paddingHorizontal: 10,
+                  paddingVertical: 9,
+                }}
+              />
+            </View>
+
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.border, opacity: 0.8 }} />
+
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Convidados</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  value={guestEmailInput}
+                  onChangeText={setGuestEmailInput}
+                  placeholder="Email do convidado"
+                  placeholderTextColor={colors.muted}
+                  autoCapitalize="none"
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    backgroundColor: colors.secondaryBg,
+                    color: colors.text,
+                    paddingHorizontal: 10,
+                    paddingVertical: 9,
+                  }}
+                />
+                <Pressable
+                  onPress={addGuestEmail}
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    paddingHorizontal: 16,
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Adicionar</Text>
+                </Pressable>
+              </View>
+
+              {guestEmails.length > 0 ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {guestEmails.map((email) => {
+                    const initials = (email[0] ?? "?").toUpperCase();
+                    return (
+                      <View
+                        key={email}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingVertical: 4,
+                          paddingLeft: 4,
+                          paddingRight: 8,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 11,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: colors.primaryBg,
+                          }}
+                        >
+                          <Text style={{ color: colors.primaryText, fontSize: 11, fontWeight: "800" }}>{initials}</Text>
+                        </View>
+                        <Text style={{ color: colors.text, fontSize: 12 }}>{email}</Text>
+                        <Pressable onPress={() => removeGuestEmail(email)}>
+                          <Text style={{ color: colors.muted, fontWeight: "700" }}>×</Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 10 }}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Notificação</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {[
+                      { key: "email" as const, label: "Email" },
+                      { key: "whatsapp" as const, label: "WhatsApp" },
+                    ].map((option) => {
+                      const active = notificationChannel === option.key;
                       return (
                         <Pressable
-                          key={cls.id}
-                          onPress={() =>
-                            setClassIds((prev) =>
-                              prev.includes(cls.id)
-                                ? prev.filter((id) => id !== cls.id)
-                                : [...prev, cls.id]
-                            )
-                          }
+                          key={option.key}
+                          onPress={() => setNotificationChannel(option.key)}
                           style={{
-                            borderRadius: 999,
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
+                            flex: 1,
+                            borderRadius: 12,
                             borderWidth: 1,
-                            borderColor: active ? colors.primaryBg : colors.border,
+                            borderColor: colors.border,
                             backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                            alignItems: "center",
+                            paddingVertical: 9,
                           }}
                         >
                           <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                            {cls.name}
+                            {option.label}
                           </Text>
                         </Pressable>
                       );
                     })}
                   </View>
                 </View>
+
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Lembrete</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {["15m antes", "1h antes", "1 dia antes"].map((option) => {
+                        const active = reminderValue === option;
+                        return (
+                          <Pressable
+                            key={option}
+                            onPress={() => setReminderValue(option)}
+                            style={{
+                              borderRadius: 12,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                              paddingHorizontal: 12,
+                              paddingVertical: 9,
+                            }}
+                          >
+                            <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                              {option}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
               </View>
+            </View>
 
-              <View style={{ flex: 1, gap: 10 }}>
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Início</Text>
-                  <TextInput
-                    value={startsInput}
-                    onChangeText={setStartsInput}
-                    placeholder="YYYY-MM-DD HH:mm"
-                    placeholderTextColor={colors.muted}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      color: colors.text,
-                      paddingHorizontal: 10,
-                      paddingVertical: 9,
-                    }}
-                  />
-                </View>
-
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Fim</Text>
-                  <TextInput
-                    value={endsInput}
-                    onChangeText={setEndsInput}
-                    placeholder="YYYY-MM-DD HH:mm"
-                    placeholderTextColor={colors.muted}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      color: colors.text,
-                      paddingHorizontal: 10,
-                      paddingVertical: 9,
-                    }}
-                  />
-                </View>
-
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {eventTypes.map((option) => (
-                        <Pressable
-                          key={option}
-                          onPress={() => setEventType(option)}
-                          style={{
-                            borderRadius: 999,
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            borderWidth: 1,
-                            borderColor: eventType === option ? colors.primaryBg : colors.border,
-                            backgroundColor: eventType === option ? colors.primaryBg : colors.secondaryBg,
-                          }}
-                        >
-                          <Text style={{ color: eventType === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                            {eventTypeLabel[option]}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {sportTypes.map((option) => (
-                        <Pressable
-                          key={option}
-                          onPress={() => setSport(option)}
-                          style={{
-                            borderRadius: 999,
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            borderWidth: 1,
-                            borderColor: sport === option ? colors.primaryBg : colors.border,
-                            backgroundColor: sport === option ? colors.primaryBg : colors.secondaryBg,
-                          }}
-                        >
-                          <Text style={{ color: sport === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                            {sportTypeLabel[option]}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={submitCreate}
-                    disabled={saving}
-                    style={{
-                      flex: 1,
-                      borderRadius: 12,
-                      paddingVertical: 11,
-                      alignItems: "center",
-                      backgroundColor: saving ? colors.primaryDisabledBg : colors.primaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-                      {saving ? "Salvando..." : "Salvar evento"}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={resetCreateForm}
-                    style={{
-                      borderRadius: 12,
-                      paddingHorizontal: 14,
-                      justifyContent: "center",
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Limpar</Text>
-                  </Pressable>
+                  {eventTypes.map((option) => (
+                    <Pressable
+                      key={option}
+                      onPress={() => setEventType(option)}
+                      style={{
+                        borderRadius: 999,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderWidth: 1,
+                        borderColor: eventType === option ? colors.primaryBg : colors.border,
+                        backgroundColor: eventType === option ? colors.primaryBg : colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: eventType === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                        {eventTypeLabel[option]}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
+              </ScrollView>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {sportTypes.map((option) => (
+                    <Pressable
+                      key={option}
+                      onPress={() => setSport(option)}
+                      style={{
+                        borderRadius: 999,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderWidth: 1,
+                        borderColor: sport === option ? colors.primaryBg : colors.border,
+                        backgroundColor: sport === option ? colors.primaryBg : colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: sport === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                        {sportTypeLabel[option]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {classes.map((cls) => {
+                  const active = classIds.includes(cls.id);
+                  return (
+                    <Pressable
+                      key={cls.id}
+                      onPress={() =>
+                        setClassIds((prev) =>
+                          prev.includes(cls.id)
+                            ? prev.filter((id) => id !== cls.id)
+                            : [...prev, cls.id]
+                        )
+                      }
+                      style={{
+                        borderRadius: 999,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderWidth: 1,
+                        borderColor: active ? colors.primaryBg : colors.border,
+                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                        {cls.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={submitCreate}
+                disabled={saving}
+                style={{
+                  flex: 1,
+                  borderRadius: 12,
+                  paddingVertical: 11,
+                  alignItems: "center",
+                  backgroundColor: saving ? colors.primaryDisabledBg : colors.primaryBg,
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+                  {saving ? "Salvando..." : "Salvar evento"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={resetCreateForm}
+                style={{
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Limpar</Text>
+              </Pressable>
             </View>
           </View>
         ) : null}
