@@ -442,6 +442,26 @@ export default function EventsScreen() {
             }}
           >
             <Pressable
+              onPress={() => setActiveTab("create")}
+              style={{
+                flex: 1,
+                borderRadius: 10,
+                paddingVertical: 10,
+                alignItems: "center",
+                backgroundColor:
+                  activeTab === "create" ? colors.primaryBg : colors.secondaryBg,
+              }}
+            >
+              <Text
+                style={{
+                  color: activeTab === "create" ? colors.primaryText : colors.text,
+                  fontWeight: "800",
+                }}
+              >
+                Criar evento
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => {
                 closeCreateDropdowns();
                 setActiveTab("created");
@@ -462,26 +482,6 @@ export default function EventsScreen() {
                 }}
               >
                 Eventos criados
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setActiveTab("create")}
-              style={{
-                flex: 1,
-                borderRadius: 10,
-                paddingVertical: 10,
-                alignItems: "center",
-                backgroundColor:
-                  activeTab === "create" ? colors.primaryBg : colors.secondaryBg,
-              }}
-            >
-              <Text
-                style={{
-                  color: activeTab === "create" ? colors.primaryText : colors.text,
-                  fontWeight: "800",
-                }}
-              >
-                Criar evento
               </Text>
             </Pressable>
           </View>
