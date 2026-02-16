@@ -425,8 +425,6 @@ export default function EventDetailsScreen() {
                 style={{
                   paddingHorizontal: 10,
                   paddingVertical: 10,
-                  borderTopWidth: index === 0 ? 0 : 1,
-                  borderTopColor: colors.border,
                   borderRadius: 8,
                   backgroundColor: active ? colors.primaryBg : colors.background,
                 }}
@@ -463,8 +461,6 @@ export default function EventDetailsScreen() {
                 style={{
                   paddingHorizontal: 10,
                   paddingVertical: 10,
-                  borderTopWidth: index === 0 ? 0 : 1,
-                  borderTopColor: colors.border,
                   borderRadius: 8,
                   backgroundColor: active ? colors.primaryBg : colors.background,
                 }}
