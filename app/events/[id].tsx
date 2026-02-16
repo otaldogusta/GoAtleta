@@ -27,8 +27,8 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
 
-const pad2 = (value: number) => String(value).padStart(2, "0");
 const eventTypes: EventType[] = ["torneio", "amistoso", "treino", "reuniao", "outro"];
 const sportTypes: EventSport[] = ["geral", "volei_quadra", "volei_praia", "futebol"];
 const eventTypeLabel: Record<EventType, string> = {
@@ -49,34 +49,11 @@ type DropdownPoint = { x: number; y: number };
 
 const toInputDate = (iso: string) => {
   const date = new Date(iso);
-  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()} ${pad2(
-    date.getHours()
-  )}:${pad2(date.getMinutes())}`;
+  return formatDateTimeInputPtBr(date);
 };
 
 const parseInputDate = (value: string) => {
-  const [datePart, timePart] = value.trim().replace("T", " ").split(" ");
-  if (!datePart || !timePart) return null;
-  let y = 0;
-  let m = 0;
-  let d = 0;
-
-  if (datePart.includes("/")) {
-    const [day, month, year] = datePart.split("/").map(Number);
-    d = day;
-    m = month;
-    y = year;
-  } else {
-    const [year, month, day] = datePart.split("-").map(Number);
-    y = year;
-    m = month;
-    d = day;
-  }
-
-  const [h, min] = timePart.split(":").map(Number);
-  if ([y, m, d, h, min].some((n) => !Number.isFinite(n))) return null;
-  const next = new Date(y, m - 1, d, h, min, 0, 0);
-  return Number.isNaN(next.getTime()) ? null : next;
+  return parseDateTimeInput(value);
 };
 
 export default function EventDetailsScreen() {

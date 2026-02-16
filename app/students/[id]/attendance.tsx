@@ -18,6 +18,7 @@ import type { AttendanceRecord, ClassGroup, Student } from "../../../src/core/mo
 import { Card } from "../../../src/ui/Card";
 import { Typography } from "../../../src/ui/Typography";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { formatIsoDateToPtBr } from "../../../src/utils/date-time";
 
 export default function StudentAttendanceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -45,14 +46,17 @@ export default function StudentAttendanceScreen() {
   }, [id]);
 
   const grouped = useMemo(() => {
+    const normalizedFilter = filter.trim().toLowerCase();
     const map: Record<string, AttendanceRecord[]> = {};
     records.forEach((record) => {
       if (!map[record.date]) map[record.date] = [];
       map[record.date].push(record);
     });
-    return Object.entries(map).filter(([date]) =>
-      date.includes(filter.trim())
-    );
+    return Object.entries(map).filter(([date]) => {
+      const datePtBr = formatIsoDateToPtBr(date).toLowerCase();
+      const dateIso = date.toLowerCase();
+      return datePtBr.includes(normalizedFilter) || dateIso.includes(normalizedFilter);
+    });
   }, [records, filter]);
 
   const summary = useMemo(() => {
@@ -83,7 +87,7 @@ export default function StudentAttendanceScreen() {
 
       <View style={{ marginTop: 8 }}>
         <TextInput
-          placeholder="Filtrar por data (YYYY-MM-DD)"
+          placeholder="Filtrar por data (DD/MM/AAAA)"
           value={filter}
           onChangeText={setFilter}
           placeholderTextColor={colors.placeholder}
@@ -107,7 +111,7 @@ export default function StudentAttendanceScreen() {
         ) : (
           grouped.map(([date, list]) => (
             <View key={date} style={{ gap: 8 }}>
-              <Typography variant="body">Data: {date}</Typography>
+              <Typography variant="body">Data: {formatIsoDateToPtBr(date)}</Typography>
               {list.map((item) => (
                 <Card
                   key={item.id}

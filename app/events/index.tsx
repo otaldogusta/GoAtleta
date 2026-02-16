@@ -27,26 +27,16 @@ import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
 
 const eventTypes: EventType[] = ["torneio", "amistoso", "treino", "reuniao", "outro"];
 const sportTypes: EventSport[] = ["geral", "volei_quadra", "volei_praia", "futebol"];
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
-const parseInputDate = (value: string) => {
-  const [datePart, timePart] = value.trim().replace("T", " ").split(" ");
-  if (!datePart || !timePart) return null;
-  const [y, m, d] = datePart.split("-").map(Number);
-  const [h, min] = timePart.split(":").map(Number);
-  if ([y, m, d, h, min].some((n) => !Number.isFinite(n))) return null;
-  const next = new Date(y, m - 1, d, h, min, 0, 0);
-  return Number.isNaN(next.getTime()) ? null : next;
-};
+const parseInputDate = (value: string) => parseDateTimeInput(value);
 
-const toInputDate = (date: Date) =>
-  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(
-    date.getHours()
-  )}:${pad2(date.getMinutes())}`;
+const toInputDate = (date: Date) => formatDateTimeInputPtBr(date);
 
 const parseDurationMinutes = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -294,7 +284,7 @@ export default function EventsScreen() {
     const startsAt = parseInputDate(startsInput);
     const endsAt = parseInputDate(endsInput);
     if (!startsAt || !endsAt) {
-      Alert.alert("Validação", "Use formato YYYY-MM-DD HH:mm.");
+      Alert.alert("Validação", "Use formato DD/MM/AAAA HH:mm.");
       return;
     }
     if (endsAt <= startsAt) {
@@ -665,7 +655,7 @@ export default function EventsScreen() {
                       <TextInput
                         value={startDateInput}
                         onChangeText={setStartDateInput}
-                        placeholder="YYYY-MM-DD"
+                        placeholder="DD/MM/AAAA"
                         placeholderTextColor={colors.muted}
                         style={{
                           borderWidth: 1,
