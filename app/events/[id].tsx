@@ -69,7 +69,7 @@ export default function EventDetailsScreen() {
   const { activeOrganization } = useOrganization();
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-  const isRowLayout = width >= 760;
+  const isRowLayout = width >= 560;
   const sheetCardStyle = useModalCardStyle({
     maxHeight: "90%",
     maxWidth: 840,
@@ -225,9 +225,15 @@ export default function EventDetailsScreen() {
               gap: 10,
             }}
           >
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Título</Text>
-              <TextInput value={title} onChangeText={setTitle} editable={isAdmin} placeholder="Título" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+            <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Título</Text>
+                <TextInput value={title} onChangeText={setTitle} editable={isAdmin} placeholder="Título" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
+                <TextInput value={locationLabel} onChangeText={setLocationLabel} editable={isAdmin} placeholder="Local" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+              </View>
             </View>
 
             <View style={{ gap: 6 }}>
@@ -281,10 +287,6 @@ export default function EventDetailsScreen() {
               </View>
             </View>
 
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
-              <TextInput value={locationLabel} onChangeText={setLocationLabel} editable={isAdmin} placeholder="Local" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-            </View>
           </View>
 
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
