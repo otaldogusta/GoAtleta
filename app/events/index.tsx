@@ -163,7 +163,7 @@ export default function EventsScreen() {
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"created" | "create">("created");
+  const [activeTab, setActiveTab] = useState<"created" | "create">("create");
 
   const eventTypeTriggerRef = useRef<View | null>(null);
   const sportTriggerRef = useRef<View | null>(null);
