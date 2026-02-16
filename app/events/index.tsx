@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Pressable,
@@ -24,6 +24,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { useAppTheme } from "../../src/ui/app-theme";
 
 const eventTypes: EventType[] = ["torneio", "amistoso", "treino", "reuniao", "outro"];
@@ -105,6 +106,8 @@ const sportTypeLabel: Record<EventSport, string> = {
 };
 
 const reminderOptions = ["15m antes", "1h antes", "1 dia antes"];
+type DropdownLayout = { x: number; y: number; width: number; height: number };
+type ContainerPoint = { x: number; y: number };
 
 export default function EventsScreen() {
   const router = useRouter();
@@ -158,15 +161,90 @@ export default function EventsScreen() {
   const [showSportDropdown, setShowSportDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showReminderDropdown, setShowReminderDropdown] = useState(false);
+  const [dropdownContainerWindow, setDropdownContainerWindow] = useState<ContainerPoint | null>(null);
+  const [eventTypeTriggerLayout, setEventTypeTriggerLayout] = useState<DropdownLayout | null>(null);
+  const [sportTriggerLayout, setSportTriggerLayout] = useState<DropdownLayout | null>(null);
+  const [notificationTriggerLayout, setNotificationTriggerLayout] = useState<DropdownLayout | null>(null);
+  const [reminderTriggerLayout, setReminderTriggerLayout] = useState<DropdownLayout | null>(null);
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const dropdownContainerRef = useRef<View | null>(null);
+  const eventTypeTriggerRef = useRef<View | null>(null);
+  const sportTriggerRef = useRef<View | null>(null);
+  const notificationTriggerRef = useRef<View | null>(null);
+  const reminderTriggerRef = useRef<View | null>(null);
 
   const closeCreateDropdowns = () => {
     setShowEventTypeDropdown(false);
     setShowSportDropdown(false);
     setShowNotificationDropdown(false);
     setShowReminderDropdown(false);
+  };
+
+  const syncDropdownContainerWindow = useCallback(() => {
+    if (!dropdownContainerRef.current) return;
+    dropdownContainerRef.current.measureInWindow((x, y) => {
+      setDropdownContainerWindow({ x, y });
+    });
+  }, []);
+
+  const measureTriggerLayout = useCallback(
+    (trigger: View | null, setter: (layout: DropdownLayout | null) => void) => {
+      if (!trigger) {
+        setter(null);
+        return;
+      }
+      trigger.measureInWindow((x, y, width, height) => {
+        setter({ x, y, width, height });
+      });
+    },
+    []
+  );
+
+  const openEventTypeDropdown = () => {
+    const next = !showEventTypeDropdown;
+    closeCreateDropdowns();
+    if (!next) return;
+    setShowEventTypeDropdown(true);
+    requestAnimationFrame(() => {
+      syncDropdownContainerWindow();
+      measureTriggerLayout(eventTypeTriggerRef.current, setEventTypeTriggerLayout);
+    });
+  };
+
+  const openSportDropdown = () => {
+    const next = !showSportDropdown;
+    closeCreateDropdowns();
+    if (!next) return;
+    setShowSportDropdown(true);
+    requestAnimationFrame(() => {
+      syncDropdownContainerWindow();
+      measureTriggerLayout(sportTriggerRef.current, setSportTriggerLayout);
+    });
+  };
+
+  const openNotificationDropdown = () => {
+    const next = !showNotificationDropdown;
+    closeCreateDropdowns();
+    if (!next) return;
+    setShowNotificationDropdown(true);
+    requestAnimationFrame(() => {
+      syncDropdownContainerWindow();
+      measureTriggerLayout(notificationTriggerRef.current, setNotificationTriggerLayout);
+    });
+  };
+
+  const openReminderDropdown = () => {
+    const next = !showReminderDropdown;
+    closeCreateDropdowns();
+    if (!next) return;
+    setShowReminderDropdown(true);
+    requestAnimationFrame(() => {
+      syncDropdownContainerWindow();
+      measureTriggerLayout(reminderTriggerRef.current, setReminderTriggerLayout);
+    });
   };
 
   const visibleEvents = useMemo(() => {
@@ -323,8 +401,19 @@ export default function EventsScreen() {
     setEndsInput(toInputDate(end));
   }, [startDateInput, startTimeInput, durationInput]);
 
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      syncDropdownContainerWindow();
+      measureTriggerLayout(eventTypeTriggerRef.current, setEventTypeTriggerLayout);
+      measureTriggerLayout(sportTriggerRef.current, setSportTriggerLayout);
+      measureTriggerLayout(notificationTriggerRef.current, setNotificationTriggerLayout);
+      measureTriggerLayout(reminderTriggerRef.current, setReminderTriggerLayout);
+    });
+  }, [width, syncDropdownContainerWindow, measureTriggerLayout]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View ref={dropdownContainerRef} style={{ flex: 1 }} onLayout={syncDropdownContainerWindow}>
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
         refreshControl={
@@ -733,124 +822,48 @@ export default function EventsScreen() {
 
                 <View style={{ gap: 6 }}>
                   <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
-                  <Pressable
-                    onPress={() => {
-                      setShowEventTypeDropdown((prev) => !prev);
-                      setShowSportDropdown(false);
-                      setShowNotificationDropdown(false);
-                      setShowReminderDropdown(false);
-                    }}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      paddingHorizontal: 10,
-                      paddingVertical: 10,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
-                    <Text style={{ color: colors.muted, fontWeight: "700" }}>{showEventTypeDropdown ? "▴" : "▾"}</Text>
-                  </Pressable>
-                  {showEventTypeDropdown ? (
-                    <View
+                  <View ref={eventTypeTriggerRef}>
+                    <Pressable
+                      onPress={openEventTypeDropdown}
                       style={{
                         borderWidth: 1,
                         borderColor: colors.border,
                         borderRadius: 12,
-                        overflow: "hidden",
-                        backgroundColor: colors.card,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                       }}
                     >
-                      {eventTypes.map((option, index) => {
-                        const active = eventType === option;
-                        return (
-                          <Pressable
-                            key={option}
-                            onPress={() => {
-                              setEventType(option);
-                              setShowEventTypeDropdown(false);
-                            }}
-                            style={{
-                              paddingHorizontal: 10,
-                              paddingVertical: 10,
-                              borderTopWidth: index === 0 ? 0 : 1,
-                              borderTopColor: colors.border,
-                              backgroundColor: active ? colors.primaryBg : colors.card,
-                            }}
-                          >
-                            <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                              {eventTypeLabel[option]}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  ) : null}
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
+                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showEventTypeDropdown ? "▴" : "▾"}</Text>
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View style={{ gap: 6 }}>
                   <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
-                  <Pressable
-                    onPress={() => {
-                      setShowSportDropdown((prev) => !prev);
-                      setShowEventTypeDropdown(false);
-                      setShowNotificationDropdown(false);
-                      setShowReminderDropdown(false);
-                    }}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      paddingHorizontal: 10,
-                      paddingVertical: 10,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
-                    <Text style={{ color: colors.muted, fontWeight: "700" }}>{showSportDropdown ? "▴" : "▾"}</Text>
-                  </Pressable>
-                  {showSportDropdown ? (
-                    <View
+                  <View ref={sportTriggerRef}>
+                    <Pressable
+                      onPress={openSportDropdown}
                       style={{
                         borderWidth: 1,
                         borderColor: colors.border,
                         borderRadius: 12,
-                        overflow: "hidden",
-                        backgroundColor: colors.card,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                       }}
                     >
-                      {sportTypes.map((option, index) => {
-                        const active = sport === option;
-                        return (
-                          <Pressable
-                            key={option}
-                            onPress={() => {
-                              setSport(option);
-                              setShowSportDropdown(false);
-                            }}
-                            style={{
-                              paddingHorizontal: 10,
-                              paddingVertical: 10,
-                              borderTopWidth: index === 0 ? 0 : 1,
-                              borderTopColor: colors.border,
-                              backgroundColor: active ? colors.primaryBg : colors.card,
-                            }}
-                          >
-                            <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                              {sportTypeLabel[option]}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  ) : null}
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
+                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showSportDropdown ? "▴" : "▾"}</Text>
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View style={{ gap: 8 }}>
@@ -934,129 +947,50 @@ export default function EventsScreen() {
                 <View style={{ flexDirection: isFormRowLayout ? "row" : "column", gap: 8 }}>
                   <View style={{ flex: 1, gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Notificação</Text>
-                    <Pressable
-                      onPress={() => {
-                        setShowNotificationDropdown((prev) => !prev);
-                        setShowEventTypeDropdown(false);
-                        setShowSportDropdown(false);
-                        setShowReminderDropdown(false);
-                      }}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 10,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        {notificationChannel === "email" ? "Email" : "WhatsApp"}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showNotificationDropdown ? "▴" : "▾"}</Text>
-                    </Pressable>
-                    {showNotificationDropdown ? (
-                      <View
+                    <View ref={notificationTriggerRef}>
+                      <Pressable
+                        onPress={openNotificationDropdown}
                         style={{
                           borderWidth: 1,
                           borderColor: colors.border,
                           borderRadius: 12,
-                          overflow: "hidden",
-                          backgroundColor: colors.card,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 10,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
                         }}
                       >
-                        {[
-                          { key: "email" as const, label: "Email" },
-                          { key: "whatsapp" as const, label: "WhatsApp" },
-                        ].map((option, index) => {
-                          const active = notificationChannel === option.key;
-                          return (
-                            <Pressable
-                              key={option.key}
-                              onPress={() => {
-                                setNotificationChannel(option.key);
-                                setShowNotificationDropdown(false);
-                              }}
-                              style={{
-                                paddingHorizontal: 10,
-                                paddingVertical: 10,
-                                borderTopWidth: index === 0 ? 0 : 1,
-                                borderTopColor: colors.border,
-                                backgroundColor: active ? colors.primaryBg : colors.card,
-                              }}
-                            >
-                              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                                {option.label}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ) : null}
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>
+                          {notificationChannel === "email" ? "Email" : "WhatsApp"}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showNotificationDropdown ? "▴" : "▾"}</Text>
+                      </Pressable>
+                    </View>
                   </View>
 
                   <View style={{ flex: 1, gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Lembrete</Text>
-                    <Pressable
-                      onPress={() => {
-                        setShowReminderDropdown((prev) => !prev);
-                        setShowEventTypeDropdown(false);
-                        setShowSportDropdown(false);
-                        setShowNotificationDropdown(false);
-                      }}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 10,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{reminderValue}</Text>
-                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showReminderDropdown ? "▴" : "▾"}</Text>
-                    </Pressable>
-                    {showReminderDropdown ? (
-                      <View
+                    <View ref={reminderTriggerRef}>
+                      <Pressable
+                        onPress={openReminderDropdown}
                         style={{
                           borderWidth: 1,
                           borderColor: colors.border,
                           borderRadius: 12,
-                          overflow: "hidden",
-                          backgroundColor: colors.card,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 10,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
                         }}
                       >
-                        {reminderOptions.map((option, index) => {
-                          const active = reminderValue === option;
-                          return (
-                            <Pressable
-                              key={option}
-                              onPress={() => {
-                                setReminderValue(option);
-                                setShowReminderDropdown(false);
-                              }}
-                              style={{
-                                paddingHorizontal: 10,
-                                paddingVertical: 10,
-                                borderTopWidth: index === 0 ? 0 : 1,
-                                borderTopColor: colors.border,
-                                backgroundColor: active ? colors.primaryBg : colors.card,
-                              }}
-                            >
-                              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                                {option}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ) : null}
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>{reminderValue}</Text>
+                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showReminderDropdown ? "▴" : "▾"}</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
 
@@ -1128,6 +1062,162 @@ export default function EventsScreen() {
         ) : null}
 
       </ScrollView>
+
+      <AnchoredDropdown
+        visible={showEventTypeDropdown}
+        layout={eventTypeTriggerLayout}
+        container={dropdownContainerWindow}
+        animationStyle={{ opacity: 1 }}
+        zIndex={340}
+        maxHeight={220}
+        nestedScrollEnabled
+        onRequestClose={closeCreateDropdowns}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
+        scrollContentStyle={{ padding: 4 }}
+      >
+        {eventTypes.map((option, index) => {
+          const active = eventType === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => {
+                setEventType(option);
+                setShowEventTypeDropdown(false);
+              }}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 10,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+                borderRadius: 8,
+                backgroundColor: active ? colors.primaryBg : colors.background,
+              }}
+            >
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                {eventTypeLabel[option]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </AnchoredDropdown>
+
+      <AnchoredDropdown
+        visible={showSportDropdown}
+        layout={sportTriggerLayout}
+        container={dropdownContainerWindow}
+        animationStyle={{ opacity: 1 }}
+        zIndex={340}
+        maxHeight={220}
+        nestedScrollEnabled
+        onRequestClose={closeCreateDropdowns}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
+        scrollContentStyle={{ padding: 4 }}
+      >
+        {sportTypes.map((option, index) => {
+          const active = sport === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => {
+                setSport(option);
+                setShowSportDropdown(false);
+              }}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 10,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+                borderRadius: 8,
+                backgroundColor: active ? colors.primaryBg : colors.background,
+              }}
+            >
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                {sportTypeLabel[option]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </AnchoredDropdown>
+
+      <AnchoredDropdown
+        visible={showNotificationDropdown}
+        layout={notificationTriggerLayout}
+        container={dropdownContainerWindow}
+        animationStyle={{ opacity: 1 }}
+        zIndex={340}
+        maxHeight={200}
+        nestedScrollEnabled
+        onRequestClose={closeCreateDropdowns}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
+        scrollContentStyle={{ padding: 4 }}
+      >
+        {[
+          { key: "email" as const, label: "Email" },
+          { key: "whatsapp" as const, label: "WhatsApp" },
+        ].map((option, index) => {
+          const active = notificationChannel === option.key;
+          return (
+            <Pressable
+              key={option.key}
+              onPress={() => {
+                setNotificationChannel(option.key);
+                setShowNotificationDropdown(false);
+              }}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 10,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+                borderRadius: 8,
+                backgroundColor: active ? colors.primaryBg : colors.background,
+              }}
+            >
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </AnchoredDropdown>
+
+      <AnchoredDropdown
+        visible={showReminderDropdown}
+        layout={reminderTriggerLayout}
+        container={dropdownContainerWindow}
+        animationStyle={{ opacity: 1 }}
+        zIndex={340}
+        maxHeight={220}
+        nestedScrollEnabled
+        onRequestClose={closeCreateDropdowns}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
+        scrollContentStyle={{ padding: 4 }}
+      >
+        {reminderOptions.map((option, index) => {
+          const active = reminderValue === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => {
+                setReminderValue(option);
+                setShowReminderDropdown(false);
+              }}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 10,
+                borderTopWidth: index === 0 ? 0 : 1,
+                borderTopColor: colors.border,
+                borderRadius: 8,
+                backgroundColor: active ? colors.primaryBg : colors.background,
+              }}
+            >
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                {option}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </AnchoredDropdown>
+      </View>
     </SafeAreaView>
   );
 }
