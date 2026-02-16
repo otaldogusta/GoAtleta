@@ -104,6 +104,8 @@ const sportTypeLabel: Record<EventSport, string> = {
   futebol: "Futebol",
 };
 
+const reminderOptions = ["15m antes", "1h antes", "1 dia antes"];
+
 export default function EventsScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -151,9 +153,20 @@ export default function EventsScreen() {
   const [guestEmails, setGuestEmails] = useState<string[]>([]);
   const [notificationChannel, setNotificationChannel] = useState<"email" | "whatsapp">("email");
   const [reminderValue, setReminderValue] = useState("1h antes");
+  const [showEventTypeDropdown, setShowEventTypeDropdown] = useState(false);
+  const [showSportDropdown, setShowSportDropdown] = useState(false);
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
+  const [showReminderDropdown, setShowReminderDropdown] = useState(false);
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const closeCreateDropdowns = () => {
+    setShowEventTypeDropdown(false);
+    setShowSportDropdown(false);
+    setShowNotificationDropdown(false);
+    setShowReminderDropdown(false);
+  };
 
   const visibleEvents = useMemo(() => {
     return [...events].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
@@ -280,6 +293,7 @@ export default function EventsScreen() {
     setGuestEmails([]);
     setNotificationChannel("email");
     setReminderValue("1h antes");
+    closeCreateDropdowns();
     setClassIds([]);
   };
 
@@ -485,378 +499,517 @@ export default function EventsScreen() {
 
             <View style={{ borderTopWidth: 1, borderTopColor: colors.border, opacity: 0.8 }} />
 
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Título</Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={{ flex: 1 }}>
-                  <TextInput
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder="Título do evento"
-                    placeholderTextColor={colors.muted}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      color: colors.text,
-                      paddingHorizontal: 10,
-                      paddingVertical: 9,
-                    }}
-                  />
-                </View>
-                <Pressable
-                  onPress={() => setShowDescription((prev) => !prev)}
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 12,
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {showDescription ? "Ocultar descrição" : "+ Adicionar descrição"}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {showDescription ? (
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Detalhes para professores e turmas"
-                  placeholderTextColor={colors.muted}
-                  multiline
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    color: colors.text,
-                    paddingHorizontal: 10,
-                    paddingVertical: 9,
-                    minHeight: 80,
-                    textAlignVertical: "top",
-                  }}
-                />
-              </View>
-            ) : null}
-
-            <View style={{ gap: 6 }}>
-              <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 8 }}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Data</Text>
-                  <TextInput
-                    value={startDateInput}
-                    onChangeText={setStartDateInput}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor={colors.muted}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      color: colors.text,
-                      paddingHorizontal: 10,
-                      paddingVertical: 9,
-                    }}
-                  />
-                </View>
-
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Hora</Text>
-                  <TextInput
-                    value={startTimeInput}
-                    onChangeText={setStartTimeInput}
-                    placeholder="HH:mm"
-                    placeholderTextColor={colors.muted}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      color: colors.text,
-                      paddingHorizontal: 10,
-                      paddingVertical: 9,
-                    }}
-                  />
-                </View>
-
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Duração</Text>
-                  <TextInput
-                    value={durationInput}
-                    onChangeText={setDurationInput}
-                    placeholder="1h 45m"
-                    placeholderTextColor={colors.muted}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      color: colors.text,
-                      paddingHorizontal: 10,
-                      paddingVertical: 9,
-                    }}
-                  />
-                </View>
-              </View>
-
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Este evento acontecerá em {startDateInput || "--"} às {startTimeInput || "--"} e termina em {endsInput.split(" ")[1] ?? "--"}.
-              </Text>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
-              <TextInput
-                value={locationLabel}
-                onChangeText={setLocationLabel}
-                placeholder="Quadra, ginásio, online..."
-                placeholderTextColor={colors.muted}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  color: colors.text,
-                  paddingHorizontal: 10,
-                  paddingVertical: 9,
-                }}
-              />
-            </View>
-
-            <View style={{ borderTopWidth: 1, borderTopColor: colors.border, opacity: 0.8 }} />
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Convidados</Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <TextInput
-                  value={guestEmailInput}
-                  onChangeText={setGuestEmailInput}
-                  placeholder="Email do convidado"
-                  placeholderTextColor={colors.muted}
-                  autoCapitalize="none"
-                  style={{
-                    flex: 1,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    color: colors.text,
-                    paddingHorizontal: 10,
-                    paddingVertical: 9,
-                  }}
-                />
-                <Pressable
-                  onPress={addGuestEmail}
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    paddingHorizontal: 16,
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Adicionar</Text>
-                </Pressable>
-              </View>
-
-              {guestEmails.length > 0 ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {guestEmails.map((email) => {
-                    const initials = (email[0] ?? "?").toUpperCase();
-                    return (
-                      <View
-                        key={email}
+            <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 12 }}>
+              <View style={{ flex: 1, gap: 10 }}>
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Título</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <TextInput
+                        value={title}
+                        onChangeText={setTitle}
+                        placeholder="Título do evento"
+                        placeholderTextColor={colors.muted}
                         style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 6,
-                          borderRadius: 999,
                           borderWidth: 1,
                           borderColor: colors.border,
+                          borderRadius: 12,
                           backgroundColor: colors.secondaryBg,
-                          paddingVertical: 4,
-                          paddingLeft: 4,
-                          paddingRight: 8,
+                          color: colors.text,
+                          paddingHorizontal: 10,
+                          paddingVertical: 9,
+                        }}
+                      />
+                    </View>
+                    <Pressable
+                      onPress={() => setShowDescription((prev) => !prev)}
+                      style={{
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 12,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {showDescription ? "Ocultar descrição" : "+ Adicionar descrição"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {showDescription ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
+                    <TextInput
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholder="Detalhes para professores e turmas"
+                      placeholderTextColor={colors.muted}
+                      multiline
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 12,
+                        backgroundColor: colors.secondaryBg,
+                        color: colors.text,
+                        paddingHorizontal: 10,
+                        paddingVertical: 9,
+                        minHeight: 80,
+                        textAlignVertical: "top",
+                      }}
+                    />
+                  </View>
+                ) : null}
+
+                <View style={{ gap: 6 }}>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>Data</Text>
+                      <TextInput
+                        value={startDateInput}
+                        onChangeText={setStartDateInput}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={colors.muted}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          backgroundColor: colors.secondaryBg,
+                          color: colors.text,
+                          paddingHorizontal: 10,
+                          paddingVertical: 9,
+                        }}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>Hora</Text>
+                      <TextInput
+                        value={startTimeInput}
+                        onChangeText={setStartTimeInput}
+                        placeholder="HH:mm"
+                        placeholderTextColor={colors.muted}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          backgroundColor: colors.secondaryBg,
+                          color: colors.text,
+                          paddingHorizontal: 10,
+                          paddingVertical: 9,
+                        }}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>Duração</Text>
+                      <TextInput
+                        value={durationInput}
+                        onChangeText={setDurationInput}
+                        placeholder="1h 45m"
+                        placeholderTextColor={colors.muted}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          backgroundColor: colors.secondaryBg,
+                          color: colors.text,
+                          paddingHorizontal: 10,
+                          paddingVertical: 9,
+                        }}
+                      />
+                    </View>
+                  </View>
+
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Este evento acontecerá em {startDateInput || "--"} às {startTimeInput || "--"} e termina em {endsInput.split(" ")[1] ?? "--"}.
+                  </Text>
+                </View>
+
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
+                  <TextInput
+                    value={locationLabel}
+                    onChangeText={setLocationLabel}
+                    placeholder="Quadra, ginásio, online..."
+                    placeholderTextColor={colors.muted}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      color: colors.text,
+                      paddingHorizontal: 10,
+                      paddingVertical: 9,
+                    }}
+                  />
+                </View>
+
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
+                  <Pressable
+                    onPress={() => {
+                      setShowEventTypeDropdown((prev) => !prev);
+                      setShowSportDropdown(false);
+                      setShowNotificationDropdown(false);
+                      setShowReminderDropdown(false);
+                    }}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      paddingHorizontal: 10,
+                      paddingVertical: 10,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
+                    <Text style={{ color: colors.muted, fontWeight: "700" }}>{showEventTypeDropdown ? "▴" : "▾"}</Text>
+                  </Pressable>
+                  {showEventTypeDropdown ? (
+                    <View
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        backgroundColor: colors.card,
+                      }}
+                    >
+                      {eventTypes.map((option, index) => {
+                        const active = eventType === option;
+                        return (
+                          <Pressable
+                            key={option}
+                            onPress={() => {
+                              setEventType(option);
+                              setShowEventTypeDropdown(false);
+                            }}
+                            style={{
+                              paddingHorizontal: 10,
+                              paddingVertical: 10,
+                              borderTopWidth: index === 0 ? 0 : 1,
+                              borderTopColor: colors.border,
+                              backgroundColor: active ? colors.primaryBg : colors.card,
+                            }}
+                          >
+                            <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                              {eventTypeLabel[option]}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
+                  <Pressable
+                    onPress={() => {
+                      setShowSportDropdown((prev) => !prev);
+                      setShowEventTypeDropdown(false);
+                      setShowNotificationDropdown(false);
+                      setShowReminderDropdown(false);
+                    }}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      paddingHorizontal: 10,
+                      paddingVertical: 10,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
+                    <Text style={{ color: colors.muted, fontWeight: "700" }}>{showSportDropdown ? "▴" : "▾"}</Text>
+                  </Pressable>
+                  {showSportDropdown ? (
+                    <View
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        backgroundColor: colors.card,
+                      }}
+                    >
+                      {sportTypes.map((option, index) => {
+                        const active = sport === option;
+                        return (
+                          <Pressable
+                            key={option}
+                            onPress={() => {
+                              setSport(option);
+                              setShowSportDropdown(false);
+                            }}
+                            style={{
+                              paddingHorizontal: 10,
+                              paddingVertical: 10,
+                              borderTopWidth: index === 0 ? 0 : 1,
+                              borderTopColor: colors.border,
+                              backgroundColor: active ? colors.primaryBg : colors.card,
+                            }}
+                          >
+                            <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                              {sportTypeLabel[option]}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
+              <View style={{ flex: 1, gap: 10 }}>
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Convidados</Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TextInput
+                      value={guestEmailInput}
+                      onChangeText={setGuestEmailInput}
+                      placeholder="Email do convidado"
+                      placeholderTextColor={colors.muted}
+                      autoCapitalize="none"
+                      style={{
+                        flex: 1,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 12,
+                        backgroundColor: colors.secondaryBg,
+                        color: colors.text,
+                        paddingHorizontal: 10,
+                        paddingVertical: 9,
+                      }}
+                    />
+                    <Pressable
+                      onPress={addGuestEmail}
+                      style={{
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        paddingHorizontal: 16,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>Adicionar</Text>
+                    </Pressable>
+                  </View>
+
+                  {guestEmails.length > 0 ? (
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {guestEmails.map((email) => {
+                        const initials = (email[0] ?? "?").toUpperCase();
+                        return (
+                          <View
+                            key={email}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.secondaryBg,
+                              paddingVertical: 4,
+                              paddingLeft: 4,
+                              paddingRight: 8,
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: 11,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: colors.primaryBg,
+                              }}
+                            >
+                              <Text style={{ color: colors.primaryText, fontSize: 11, fontWeight: "800" }}>{initials}</Text>
+                            </View>
+                            <Text style={{ color: colors.text, fontSize: 12 }}>{email}</Text>
+                            <Pressable onPress={() => removeGuestEmail(email)}>
+                              <Text style={{ color: colors.muted, fontWeight: "700" }}>×</Text>
+                            </Pressable>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Notificação</Text>
+                    <Pressable
+                      onPress={() => {
+                        setShowNotificationDropdown((prev) => !prev);
+                        setShowEventTypeDropdown(false);
+                        setShowSportDropdown(false);
+                        setShowReminderDropdown(false);
+                      }}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 12,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {notificationChannel === "email" ? "Email" : "WhatsApp"}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showNotificationDropdown ? "▴" : "▾"}</Text>
+                    </Pressable>
+                    {showNotificationDropdown ? (
+                      <View
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          backgroundColor: colors.card,
                         }}
                       >
-                        <View
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 11,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: colors.primaryBg,
-                          }}
-                        >
-                          <Text style={{ color: colors.primaryText, fontSize: 11, fontWeight: "800" }}>{initials}</Text>
-                        </View>
-                        <Text style={{ color: colors.text, fontSize: 12 }}>{email}</Text>
-                        <Pressable onPress={() => removeGuestEmail(email)}>
-                          <Text style={{ color: colors.muted, fontWeight: "700" }}>×</Text>
-                        </Pressable>
+                        {[
+                          { key: "email" as const, label: "Email" },
+                          { key: "whatsapp" as const, label: "WhatsApp" },
+                        ].map((option, index) => {
+                          const active = notificationChannel === option.key;
+                          return (
+                            <Pressable
+                              key={option.key}
+                              onPress={() => {
+                                setNotificationChannel(option.key);
+                                setShowNotificationDropdown(false);
+                              }}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 10,
+                                borderTopWidth: index === 0 ? 0 : 1,
+                                borderTopColor: colors.border,
+                                backgroundColor: active ? colors.primaryBg : colors.card,
+                              }}
+                            >
+                              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
                       </View>
-                    );
-                  })}
-                </View>
-              ) : null}
-            </View>
+                    ) : null}
+                  </View>
 
-            <View style={{ gap: 8 }}>
-              <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 10 }}>
-                <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Notificação</Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {[
-                      { key: "email" as const, label: "Email" },
-                      { key: "whatsapp" as const, label: "WhatsApp" },
-                    ].map((option) => {
-                      const active = notificationChannel === option.key;
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Lembrete</Text>
+                    <Pressable
+                      onPress={() => {
+                        setShowReminderDropdown((prev) => !prev);
+                        setShowEventTypeDropdown(false);
+                        setShowSportDropdown(false);
+                        setShowNotificationDropdown(false);
+                      }}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 12,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{reminderValue}</Text>
+                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showReminderDropdown ? "▴" : "▾"}</Text>
+                    </Pressable>
+                    {showReminderDropdown ? (
+                      <View
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          overflow: "hidden",
+                          backgroundColor: colors.card,
+                        }}
+                      >
+                        {reminderOptions.map((option, index) => {
+                          const active = reminderValue === option;
+                          return (
+                            <Pressable
+                              key={option}
+                              onPress={() => {
+                                setReminderValue(option);
+                                setShowReminderDropdown(false);
+                              }}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 10,
+                                borderTopWidth: index === 0 ? 0 : 1,
+                                borderTopColor: colors.border,
+                                backgroundColor: active ? colors.primaryBg : colors.card,
+                              }}
+                            >
+                              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                                {option}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {classes.map((cls) => {
+                      const active = classIds.includes(cls.id);
                       return (
                         <Pressable
-                          key={option.key}
-                          onPress={() => setNotificationChannel(option.key)}
+                          key={cls.id}
+                          onPress={() =>
+                            setClassIds((prev) =>
+                              prev.includes(cls.id)
+                                ? prev.filter((id) => id !== cls.id)
+                                : [...prev, cls.id]
+                            )
+                          }
                           style={{
-                            flex: 1,
-                            borderRadius: 12,
+                            borderRadius: 999,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
                             borderWidth: 1,
-                            borderColor: colors.border,
+                            borderColor: active ? colors.primaryBg : colors.border,
                             backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                            alignItems: "center",
-                            paddingVertical: 9,
                           }}
                         >
                           <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                            {option.label}
+                            {cls.name}
                           </Text>
                         </Pressable>
                       );
                     })}
                   </View>
                 </View>
-
-                <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Lembrete</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {["15m antes", "1h antes", "1 dia antes"].map((option) => {
-                        const active = reminderValue === option;
-                        return (
-                          <Pressable
-                            key={option}
-                            onPress={() => setReminderValue(option)}
-                            style={{
-                              borderRadius: 12,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                              paddingHorizontal: 12,
-                              paddingVertical: 9,
-                            }}
-                          >
-                            <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                              {option}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </ScrollView>
-                </View>
-              </View>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {eventTypes.map((option) => (
-                    <Pressable
-                      key={option}
-                      onPress={() => setEventType(option)}
-                      style={{
-                        borderRadius: 999,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderWidth: 1,
-                        borderColor: eventType === option ? colors.primaryBg : colors.border,
-                        backgroundColor: eventType === option ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: eventType === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                        {eventTypeLabel[option]}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {sportTypes.map((option) => (
-                    <Pressable
-                      key={option}
-                      onPress={() => setSport(option)}
-                      style={{
-                        borderRadius: 999,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderWidth: 1,
-                        borderColor: sport === option ? colors.primaryBg : colors.border,
-                        backgroundColor: sport === option ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: sport === option ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                        {sportTypeLabel[option]}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {classes.map((cls) => {
-                  const active = classIds.includes(cls.id);
-                  return (
-                    <Pressable
-                      key={cls.id}
-                      onPress={() =>
-                        setClassIds((prev) =>
-                          prev.includes(cls.id)
-                            ? prev.filter((id) => id !== cls.id)
-                            : [...prev, cls.id]
-                        )
-                      }
-                      style={{
-                        borderRadius: 999,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderWidth: 1,
-                        borderColor: active ? colors.primaryBg : colors.border,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                        {cls.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
               </View>
             </View>
 
