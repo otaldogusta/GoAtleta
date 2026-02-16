@@ -45,6 +45,7 @@ const sportTypeLabel: Record<EventSport, string> = {
   futebol: "Futebol",
 };
 type DropdownLayout = { x: number; y: number; width: number; height: number };
+type DropdownPoint = { x: number; y: number };
 
 const toInputDate = (iso: string) => {
   const date = new Date(iso);
@@ -97,7 +98,9 @@ export default function EventDetailsScreen() {
   const [showSportDropdown, setShowSportDropdown] = useState(false);
   const [eventTypeTriggerLayout, setEventTypeTriggerLayout] = useState<DropdownLayout | null>(null);
   const [sportTriggerLayout, setSportTriggerLayout] = useState<DropdownLayout | null>(null);
+  const [dropdownContainer, setDropdownContainer] = useState<DropdownPoint | null>(null);
 
+  const modalBodyRef = useRef<View | null>(null);
   const eventTypeTriggerRef = useRef<View | null>(null);
   const sportTriggerRef = useRef<View | null>(null);
 
@@ -201,10 +204,13 @@ export default function EventDetailsScreen() {
     closeDetailDropdowns();
     if (!next) return;
     requestAnimationFrame(() => {
-      if (!eventTypeTriggerRef.current) return;
-      eventTypeTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
-        setEventTypeTriggerLayout({ x, y, width: widthValue, height });
-        setShowEventTypeDropdown(true);
+      if (!eventTypeTriggerRef.current || !modalBodyRef.current) return;
+      modalBodyRef.current.measureInWindow((containerX, containerY) => {
+        setDropdownContainer({ x: containerX, y: containerY });
+        eventTypeTriggerRef.current?.measureInWindow((x, y, widthValue, height) => {
+          setEventTypeTriggerLayout({ x, y, width: widthValue, height });
+          setShowEventTypeDropdown(true);
+        });
       });
     });
   };
@@ -215,10 +221,13 @@ export default function EventDetailsScreen() {
     closeDetailDropdowns();
     if (!next) return;
     requestAnimationFrame(() => {
-      if (!sportTriggerRef.current) return;
-      sportTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
-        setSportTriggerLayout({ x, y, width: widthValue, height });
-        setShowSportDropdown(true);
+      if (!sportTriggerRef.current || !modalBodyRef.current) return;
+      modalBodyRef.current.measureInWindow((containerX, containerY) => {
+        setDropdownContainer({ x: containerX, y: containerY });
+        sportTriggerRef.current?.measureInWindow((x, y, widthValue, height) => {
+          setSportTriggerLayout({ x, y, width: widthValue, height });
+          setShowSportDropdown(true);
+        });
       });
     });
   };
@@ -240,6 +249,7 @@ export default function EventDetailsScreen() {
         cardStyle={[sheetCardStyle, { overflow: "hidden" }]}
         position="center"
       >
+        <View ref={modalBodyRef} style={{ width: "100%", gap: 10 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <View style={{ gap: 2, flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>Detalhes do evento</Text>
@@ -394,7 +404,7 @@ export default function EventDetailsScreen() {
         <AnchoredDropdown
           visible={showEventTypeDropdown}
           layout={eventTypeTriggerLayout}
-          container={null}
+          container={dropdownContainer}
           animationStyle={{ opacity: 1 }}
           zIndex={420}
           maxHeight={220}
@@ -432,7 +442,7 @@ export default function EventDetailsScreen() {
         <AnchoredDropdown
           visible={showSportDropdown}
           layout={sportTriggerLayout}
-          container={null}
+          container={dropdownContainer}
           animationStyle={{ opacity: 1 }}
           zIndex={420}
           maxHeight={220}
@@ -466,6 +476,7 @@ export default function EventDetailsScreen() {
             );
           })}
         </AnchoredDropdown>
+        </View>
       </ModalSheet>
     </SafeAreaView>
   );
