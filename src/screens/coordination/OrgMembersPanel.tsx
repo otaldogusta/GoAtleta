@@ -3,17 +3,17 @@ import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  FlatList,
-  LayoutAnimation,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  UIManager,
-  View,
-  useWindowDimensions,
+    Alert,
+    FlatList,
+    LayoutAnimation,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TextInput,
+    UIManager,
+    View,
+    useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -49,6 +49,7 @@ import { useModalCardStyle } from "../../ui/use-modal-card-style";
 
 type RoleLevel = 5 | 10 | 50;
 type SectionKey = "role" | "classes" | "permissions";
+type QuickInviteTarget = "collaborator" | "student" | "moderator";
 
 const ROLE_OPTIONS: { label: string; value: RoleLevel; summary: string }[] = [
   { label: "Estagi\u00e1rio", value: 5, summary: "Acesso operacional b\u00e1sico" },
@@ -210,6 +211,9 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const [memberTrainerBusy, setMemberTrainerBusy] = useState(false);
   const [memberTrainerMessage, setMemberTrainerMessage] = useState<TrainerMessageResult | null>(null);
   const [memberTrainerFeedback, setMemberTrainerFeedback] = useState<string | null>(null);
+  const [showInviteSheet, setShowInviteSheet] = useState(false);
+  const [inviteTarget, setInviteTarget] = useState<QuickInviteTarget>("collaborator");
+  const [inviteRecipient, setInviteRecipient] = useState("");
   const latestLoadRequestRef = useRef(0);
 
   const adminsCount = useMemo(
@@ -656,6 +660,75 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     setMemberTrainerTone("formal");
   };
 
+  const quickInviteOptions: {
+    key: QuickInviteTarget;
+    label: string;
+    subtitle: string;
+    icon: keyof typeof Ionicons.glyphMap;
+  }[] = [
+    {
+      key: "collaborator",
+      label: "Colaborador",
+      subtitle: "Professor ou estagiário para apoiar as turmas.",
+      icon: "people-outline",
+    },
+    {
+      key: "student",
+      label: "Aluno",
+      subtitle: "Convidar para acesso ao plano e rotina de treino.",
+      icon: "school-outline",
+    },
+    {
+      key: "moderator",
+      label: "Moderador",
+      subtitle: "Perfil de coordenação para gestão da organização.",
+      icon: "shield-checkmark-outline",
+    },
+  ];
+
+  const inviteRoleLabel: Record<QuickInviteTarget, string> = {
+    collaborator: "Colaborador",
+    student: "Aluno",
+    moderator: "Moderador",
+  };
+
+  const buildQuickInviteText = (target: QuickInviteTarget) => {
+    const recipient = inviteRecipient.trim();
+    const baseGreeting = recipient ? `Olá, ${recipient}!` : "Olá!";
+
+    if (target === "student") {
+      return `${baseGreeting}\n\nVocê foi convidado para participar da organização ${organizationName} no GoAtleta como aluno(a).\n\nA coordenação vai enviar seu link de acesso individual em seguida.`;
+    }
+
+    const roleHint =
+      target === "moderator" ? "Moderador (coordenação)" : "Colaborador (professor/estagiário)";
+
+    return `${baseGreeting}\n\nVocê foi convidado para a organização ${organizationName} no GoAtleta, com perfil ${roleHint}.\n\n1) Crie sua conta no app\n2) Entre com seu e-mail\n3) Avise a coordenação para liberar seu cargo na aba de membros`;
+  };
+
+  const onCopyQuickInvite = async () => {
+    try {
+      await Clipboard.setStringAsync(buildQuickInviteText(inviteTarget));
+      Alert.alert("Convite pronto", "Mensagem copiada para compartilhar.");
+    } catch {
+      Alert.alert("Erro", "Não foi possível copiar a mensagem.");
+    }
+  };
+
+  const onContinueQuickInvite = () => {
+    if (inviteTarget === "student") {
+      setShowInviteSheet(false);
+      router.push("/students");
+      return;
+    }
+
+    setShowInviteSheet(false);
+    Alert.alert(
+      "Próximo passo",
+      "Depois do cadastro da pessoa no app, selecione o membro nesta tela para ajustar cargo e permissões."
+    );
+  };
+
   const Container = embedded ? View : SafeAreaView;
 
   return (
@@ -978,9 +1051,219 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
       contentContainerStyle={{
         paddingHorizontal: isCompact ? 14 : 16,
         paddingTop: 12,
-        paddingBottom: 28,
+        paddingBottom: 120,
       }}
     />
+
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          right: isCompact ? 14 : 18,
+          bottom: embedded ? 16 : 24,
+          alignItems: "flex-end",
+        }}
+      >
+        <Pressable
+          onPress={() => setShowInviteSheet(true)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            paddingVertical: 10,
+            paddingLeft: 10,
+            paddingRight: 14,
+            shadowColor: "#000",
+            shadowOpacity: 0.12,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 6,
+          }}
+        >
+          <View
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.primaryBg,
+            }}
+          >
+            <Ionicons name="add" size={17} color={colors.primaryText} />
+          </View>
+          <View style={{ gap: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>Convidar</Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Membros e alunos</Text>
+          </View>
+        </Pressable>
+      </View>
+
+      <ModalSheet
+        visible={showInviteSheet}
+        onClose={() => setShowInviteSheet(false)}
+        cardStyle={sheetCardStyle}
+        position="center"
+      >
+        <View style={{ gap: 12 }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+              Convidar pessoas
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              Escolha o perfil e compartilhe uma mensagem de convite.
+            </Text>
+          </View>
+
+          <View style={{ gap: 8 }}>
+            {quickInviteOptions.map((option) => {
+              const selected = inviteTarget === option.key;
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => setInviteTarget(option.key)}
+                  style={{
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: selected ? colors.primaryBg : colors.border,
+                    backgroundColor: selected ? colors.primaryBg : colors.card,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    flexDirection: "row",
+                    gap: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: selected ? colors.card : colors.secondaryBg,
+                    }}
+                  >
+                    <Ionicons
+                      name={option.icon}
+                      size={16}
+                      color={selected ? colors.text : colors.muted}
+                    />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={{
+                        color: selected ? colors.primaryText : colors.text,
+                        fontWeight: "800",
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={{
+                        color: selected ? colors.primaryText : colors.muted,
+                        fontSize: 12,
+                      }}
+                    >
+                      {option.subtitle}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Nome (opcional)</Text>
+            <TextInput
+              value={inviteRecipient}
+              onChangeText={setInviteRecipient}
+              placeholder="Para personalizar a mensagem"
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+            />
+          </View>
+
+          <View
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              padding: 10,
+              gap: 4,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Perfil selecionado: {inviteRoleLabel[inviteTarget]}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {inviteTarget === "student"
+                ? "Use a área de alunos para gerar o convite individual."
+                : "Após o cadastro, ajuste cargo e permissões do membro nesta tela."}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: isCompact ? "column" : "row", gap: 8 }}>
+            <Pressable
+              onPress={() => setShowInviteSheet(false)}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                alignItems: "center",
+                paddingVertical: 11,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => void onCopyQuickInvite()}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                alignItems: "center",
+                paddingVertical: 11,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800" }}>Copiar mensagem</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onContinueQuickInvite}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                backgroundColor: colors.primaryBg,
+                alignItems: "center",
+                paddingVertical: 11,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+                {inviteTarget === "student" ? "Abrir Alunos" : "Continuar"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </ModalSheet>
 
       <ModalSheet
         visible={showMemberSheet && !!selectedMember}
