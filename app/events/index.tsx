@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -830,7 +831,11 @@ export default function EventsScreen() {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
-                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showEventTypeDropdown ? "▴" : "▾"}</Text>
+                        <Ionicons
+                          name={showEventTypeDropdown ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color={colors.muted}
+                        />
                       </Pressable>
                     </View>
                   </View>
@@ -853,7 +858,11 @@ export default function EventsScreen() {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
-                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showSportDropdown ? "▴" : "▾"}</Text>
+                        <Ionicons
+                          name={showSportDropdown ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color={colors.muted}
+                        />
                       </Pressable>
                     </View>
                   </View>
@@ -958,7 +967,11 @@ export default function EventsScreen() {
                         <Text style={{ color: colors.text, fontWeight: "700" }}>
                           {notificationChannel === "email" ? "Email" : "WhatsApp"}
                         </Text>
-                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showNotificationDropdown ? "▴" : "▾"}</Text>
+                        <Ionicons
+                          name={showNotificationDropdown ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color={colors.muted}
+                        />
                       </Pressable>
                     </View>
                   </View>
@@ -981,7 +994,11 @@ export default function EventsScreen() {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700" }}>{reminderValue}</Text>
-                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showReminderDropdown ? "▴" : "▾"}</Text>
+                        <Ionicons
+                          name={showReminderDropdown ? "chevron-up" : "chevron-down"}
+                          size={16}
+                          color={colors.muted}
+                        />
                       </Pressable>
                     </View>
                   </View>
