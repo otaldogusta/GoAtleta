@@ -121,8 +121,6 @@ export default function EventsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [classes, setClasses] = useState<{ id: string; name: string; unitId: string }[]>([]);
-  const [sportFilter, setSportFilter] = useState<"todos" | EventSport>("todos");
-  const [typeFilter, setTypeFilter] = useState<"todos" | EventType>("todos");
   const [error, setError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
@@ -267,16 +265,16 @@ export default function EventsScreen() {
           organizationId: activeOrganization.id,
           fromIso: from.toISOString(),
           toIso: to.toISOString(),
-          sport: sportFilter === "todos" ? undefined : sportFilter,
-          eventType: typeFilter === "todos" ? undefined : typeFilter,
+          sport: undefined,
+          eventType: undefined,
           userId: session?.user?.id,
         }),
         getClasses({ organizationId: activeOrganization.id }),
       ]);
       setEvents(rows);
       setClasses(classRows.map((item) => ({ id: item.id, name: item.name, unitId: item.unitId })));
-            sport: undefined,
-            eventType: undefined,
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar eventos.");
     } finally {
       setLoading(false);
     }
