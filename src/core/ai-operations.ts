@@ -1,4 +1,10 @@
-import type { ProgressionSessionPlan, SessionLog, TrainingPlan, VolleyballSkill } from "./models";
+import type {
+    ProgressionSessionPlan,
+    SessionLog,
+    TrainingPlan,
+    VolleyballLessonPlan,
+    VolleyballSkill,
+} from "./models";
 
 export type SyncHealthLike = {
   pendingWrites: {
@@ -155,4 +161,47 @@ export const progressionPlanToDraft = (
   warmupTime: "12 minutos",
   mainTime: "38 minutos",
   cooldownTime: "10 minutos",
+});
+
+export const volleyballLessonPlanToDraft = (
+  plan: VolleyballLessonPlan,
+  className: string
+) => ({
+  title: `Progressão - ${className}`,
+  tags: [
+    "progressao",
+    "proxima-aula",
+    plan.primaryFocus.skill,
+    plan.secondaryFocus.skill,
+    ...plan.rulesTriggered.slice(0, 2),
+  ],
+  warmup: plan.blocks
+    .filter((block) => block.type === "warmup_preventive")
+    .flatMap((block) => [
+      `${block.minutes} min - ${block.drillIds.join(", ")}`,
+      ...(block.successCriteria ?? []),
+    ]),
+  main: plan.blocks
+    .filter((block) => block.type === "skill" || block.type === "game_conditioned")
+    .flatMap((block) => [
+      `${block.minutes} min - ${block.drillIds.join(", ")}`,
+      ...(block.successCriteria ?? []),
+      ...(block.notes ? [block.notes] : []),
+      ...(block.scoring ? [`Pontuação: ${block.scoring}`] : []),
+    ]),
+  cooldown: plan.blocks
+    .filter((block) => block.type === "cooldown_feedback")
+    .flatMap((block) => [
+      `${block.minutes} min - ${block.drillIds.join(", ")}`,
+      ...(block.notes ? [block.notes] : []),
+    ]),
+  warmupTime: `${plan.blocks
+    .filter((block) => block.type === "warmup_preventive")
+    .reduce((acc, block) => acc + block.minutes, 0)} minutos`,
+  mainTime: `${plan.blocks
+    .filter((block) => block.type === "skill" || block.type === "game_conditioned")
+    .reduce((acc, block) => acc + block.minutes, 0)} minutos`,
+  cooldownTime: `${plan.blocks
+    .filter((block) => block.type === "cooldown_feedback")
+    .reduce((acc, block) => acc + block.minutes, 0)} minutos`,
 });

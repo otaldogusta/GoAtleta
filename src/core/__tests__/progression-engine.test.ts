@@ -1,4 +1,7 @@
-import { buildNextSessionProgression } from "../progression-engine";
+import {
+    buildNextSessionProgression,
+    buildNextVolleyballLessonPlan,
+} from "../progression-engine";
 
 describe("progression-engine", () => {
   it("uses consistencia when previous quality is low", () => {
@@ -33,5 +36,28 @@ describe("progression-engine", () => {
 
     expect(plan.progressionDimension).toBe("transferencia_jogo");
     expect(plan.objective).toContain("Consolidar");
+  });
+
+  it("returns structured volleyball lesson plan with rules and citations", () => {
+    const plan = buildNextVolleyballLessonPlan({
+      classId: "class-1",
+      unitId: "unit-1",
+      className: "Sub 16",
+      objective: "Consolidar leitura de saque",
+      focusSkills: ["passe", "levantamento"],
+      previousSnapshot: {
+        consistencyScore: 0.66,
+        successRate: 0.61,
+        decisionQuality: 0.58,
+        notes: [],
+      },
+      lastRpeGroup: 7,
+      lastAttendanceCount: 12,
+    });
+
+    expect(plan.sport).toBe("volleyball_indoor");
+    expect(plan.rulesTriggered.length).toBeGreaterThan(0);
+    expect(plan.blocks.some((block) => block.type === "warmup_preventive")).toBe(true);
+    expect(plan.citations.length).toBeGreaterThan(0);
   });
 });

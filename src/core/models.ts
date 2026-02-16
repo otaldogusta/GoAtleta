@@ -296,3 +296,74 @@ export type ProgressionSessionPlan = {
   progressions: string[];
   riskAdjustments: string[];
 };
+
+export type ClassProfile = {
+  classId: string;
+  organizationId: string;
+  unitId: string;
+  modality: "volleyball_indoor";
+  ageBand: string;
+  level: "initiation" | "development" | "performance";
+  sessionsPerWeek: number;
+  cycleGoal: string;
+  constraintsDefault: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SessionExecutionDrill = {
+  drillId: string;
+  minutes: number;
+  variationId?: string;
+  notes?: string;
+  successMetric?: string;
+};
+
+export type SessionExecutionLog = {
+  id: string;
+  classId: string;
+  date: string;
+  plannedFocusTags: string[];
+  executedDrills: SessionExecutionDrill[];
+  rpeGroup: number;
+  quality: "low" | "medium" | "high";
+  constraints: string[];
+  coachNotes: string;
+  attendanceCount: number;
+  createdAt: string;
+};
+
+export type LessonPlanCitation = {
+  docId: string;
+  pages: string;
+  why: string;
+};
+
+export type VolleyballLessonPlan = {
+  sport: "volleyball_indoor";
+  classId: string;
+  unitId: string;
+  cycle: { mesoWeek: number; microDay: string };
+  primaryFocus: { skill: string; ladderFrom: string; ladderTo: string };
+  secondaryFocus: { skill: string; ladderFrom: string; ladderTo: string };
+  loadIntent: "low" | "moderate" | "high";
+  rulesTriggered: string[];
+  blocks: Array<{
+    type: "warmup_preventive" | "skill" | "game_conditioned" | "cooldown_feedback";
+    minutes: number;
+    drillIds: string[];
+    successCriteria?: string[];
+    scoring?: string;
+    notes?: string;
+  }>;
+  adaptations: Array<{ if: string; change: string }>;
+  evidence: {
+    lastSession: {
+      rpeGroup: number;
+      quality: "low" | "medium" | "high";
+      attendanceCount: number;
+      focusTags: string[];
+    };
+  };
+  citations: LessonPlanCitation[];
+};

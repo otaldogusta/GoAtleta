@@ -176,6 +176,34 @@ export function initDb() {
       createdAt TEXT NOT NULL DEFAULT ''
     );
 
+    CREATE TABLE IF NOT EXISTS class_profiles (
+      classId TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      unitId TEXT NOT NULL DEFAULT '',
+      modality TEXT NOT NULL DEFAULT 'volleyball_indoor',
+      ageBand TEXT NOT NULL DEFAULT '',
+      level TEXT NOT NULL DEFAULT 'development',
+      sessionsPerWeek INTEGER NOT NULL DEFAULT 2,
+      cycleGoal TEXT NOT NULL DEFAULT '',
+      constraintsDefault TEXT NOT NULL DEFAULT '[]',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS session_execution_log (
+      id TEXT PRIMARY KEY NOT NULL,
+      classId TEXT NOT NULL,
+      date TEXT NOT NULL,
+      plannedFocusTags TEXT NOT NULL DEFAULT '[]',
+      executedDrills TEXT NOT NULL DEFAULT '[]',
+      rpeGroup INTEGER NOT NULL DEFAULT 5,
+      quality TEXT NOT NULL DEFAULT 'medium',
+      constraints TEXT NOT NULL DEFAULT '[]',
+      coachNotes TEXT NOT NULL DEFAULT '',
+      attendanceCount INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS pending_writes (
       id TEXT PRIMARY KEY NOT NULL,
       kind TEXT NOT NULL,
@@ -278,6 +306,18 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_session_skill_snapshots_class_date ON session_skill_snapshots (classId, sessionDate)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_class_profiles_org_unit ON class_profiles (organizationId, unitId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_session_execution_log_class_date ON session_execution_log (classId, date DESC)"
     );
   } catch {}
 

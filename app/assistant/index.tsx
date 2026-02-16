@@ -25,25 +25,25 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
 import {
-  buildAutoFixSuggestions,
-  buildCommunicationDraft,
-  buildExecutiveSummary,
-  buildSupportModeAnalysis,
-  inferSkillsFromText,
-  progressionPlanToDraft,
-  type AutoFixSuggestion,
+    buildAutoFixSuggestions,
+    buildCommunicationDraft,
+    buildExecutiveSummary,
+    buildSupportModeAnalysis,
+    inferSkillsFromText,
+    volleyballLessonPlanToDraft,
+    type AutoFixSuggestion,
 } from "../../src/core/ai-operations";
 import type { ClassGroup, SessionLog, TrainingPlan } from "../../src/core/models";
-import { buildNextSessionProgression } from "../../src/core/progression-engine";
+import { buildNextVolleyballLessonPlan } from "../../src/core/progression-engine";
 import { getLatestSessionSkillSnapshot } from "../../src/db/ai-foundation";
 import {
-  buildSyncHealthReport,
-  clearPendingWritesDeadLetterCandidates,
-  getClasses,
-  getSessionLogsByRange,
-  getTrainingPlans,
-  reprocessPendingWritesNetworkFailures,
-  saveTrainingPlan,
+    buildSyncHealthReport,
+    clearPendingWritesDeadLetterCandidates,
+    getClasses,
+    getSessionLogsByRange,
+    getTrainingPlans,
+    reprocessPendingWritesNetworkFailures,
+    saveTrainingPlan,
 } from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
@@ -403,6 +403,8 @@ export default function AssistantScreen() {
             content: m.content,
           })),
           classId,
+          organizationId: activeOrganization?.id ?? "",
+          sport: selectedClass?.modality ?? "volleyball",
         }),
       });
 
@@ -509,7 +511,17 @@ export default function AssistantScreen() {
         ? Math.min(0.95, Math.max(0.3, logs.filter((log) => log.attendance >= 1).length / logs.length))
         : 0.55;
 
-      const plan = buildNextSessionProgression({
+      const latestLog = [...logs].sort((a, b) =>
+        String(a.createdAt).localeCompare(String(b.createdAt))
+      )[logs.length - 1];
+
+      const plan = buildNextVolleyballLessonPlan({
+        classId,
+        unitId: selectedClass.unitId || "",
+        mesoWeek: 1,
+        microDay: "D1",
+        lastRpeGroup: Number(latestLog?.PSE ?? 6),
+        lastAttendanceCount: Number(latestLog?.participantsCount ?? 0),
         className: selectedClass.name,
         objective: `Progressão para ${selectedClass.name}`,
         focusSkills: inferSkillsFromText([input, ...messages.map((item) => item.content)].join(" ")),
@@ -521,23 +533,23 @@ export default function AssistantScreen() {
         },
       });
 
-      const nextDraft = progressionPlanToDraft(plan, selectedClass.name);
+      const nextDraft = volleyballLessonPlanToDraft(plan, selectedClass.name);
       setDraft(nextDraft);
       setSources([]);
       setConfidence(0.74);
-      setCitations([
-        {
-          sourceTitle: "Progression Engine (determinístico)",
-          evidence: `Dimensão escolhida: ${plan.progressionDimension}.`,
-        },
-      ]);
+      setCitations(
+        plan.citations.map((citation) => ({
+          sourceTitle: `${citation.docId} (${citation.pages})`,
+          evidence: citation.why,
+        }))
+      );
       setMissingData([]);
       setAssumptions([
         "Progressão baseada no snapshot mais recente ou fallback de sessões dos últimos 7 dias.",
       ]);
       setAutoFixSuggestions([]);
       pushAssistantMessage(
-        `Gerei a próxima aula com progressão por ${plan.progressionDimension.replace("_", " ")} e critérios mensuráveis.`
+        `Gerei a próxima aula com foco em ${plan.primaryFocus.skill}/${plan.secondaryFocus.skill}, regras explícitas (${plan.rulesTriggered.length}) e critérios mensuráveis.`
       );
     } catch (error) {
       pushAssistantMessage("Não consegui gerar a progressão automática agora.");

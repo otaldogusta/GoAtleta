@@ -1,9 +1,11 @@
 import type {
-  ProgressionDimension,
-  ProgressionSessionPlan,
-  SessionSkillSnapshot,
-  VolleyballSkill,
+    ProgressionDimension,
+    ProgressionSessionPlan,
+    SessionSkillSnapshot,
+    VolleyballLessonPlan,
+    VolleyballSkill,
 } from "./models";
+import { resolveLadderTransition } from "./volleyball/skill-ladders";
 
 export type ProgressionRequest = {
   className: string;
@@ -13,6 +15,15 @@ export type ProgressionRequest = {
     SessionSkillSnapshot,
     "consistencyScore" | "successRate" | "decisionQuality" | "notes"
   >;
+};
+
+export type VolleyballLessonPlanRequest = ProgressionRequest & {
+  classId: string;
+  unitId: string;
+  mesoWeek?: number;
+  microDay?: string;
+  lastRpeGroup?: number;
+  lastAttendanceCount?: number;
 };
 
 const skillCue: Record<VolleyballSkill, string> = {
@@ -115,6 +126,139 @@ export const buildNextSessionProgression = (
     riskAdjustments: [
       "Controlar volume de salto/ataque em blocos de alta intensidade.",
       "Inserir rotina preventiva de ombro e core no aquecimento.",
+    ],
+  };
+};
+
+export const buildNextVolleyballLessonPlan = (
+  request: VolleyballLessonPlanRequest
+): VolleyballLessonPlan => {
+  const dimension = resolveProgressionDimension(
+    request.previousSnapshot.consistencyScore,
+    request.previousSnapshot.successRate,
+    request.previousSnapshot.decisionQuality
+  );
+
+  const skills = request.focusSkills.length
+    ? request.focusSkills
+    : (["passe", "levantamento"] as VolleyballSkill[]);
+  const primarySkill = skills[0] ?? "passe";
+  const secondarySkill = skills[1] ?? skills[0] ?? "levantamento";
+  const primaryLadder = resolveLadderTransition(primarySkill, dimension);
+  const secondaryLadder = resolveLadderTransition(secondarySkill, dimension);
+  const lastRpe = Number(request.lastRpeGroup ?? 6);
+
+  const loadIntent: VolleyballLessonPlan["loadIntent"] =
+    lastRpe >= 8
+      ? "low"
+      : dimension === "transferencia_jogo" || dimension === "oposicao"
+        ? "high"
+        : "moderate";
+
+  const rulesTriggered = [
+    `R1_progression_dimension:${dimension}`,
+    `R2_load_intent:${loadIntent}`,
+    `R3_focus_primary:${primarySkill}`,
+    `R4_focus_secondary:${secondarySkill}`,
+    "R5_preventive_block:mandatory",
+  ];
+
+  const adaptations: VolleyballLessonPlan["adaptations"] = [
+    {
+      if: "attendanceCount < 8",
+      change: "Reduzir tamanho da quadra e priorizar duplas com mais contatos por atleta.",
+    },
+    {
+      if: "lastSession.quality == low",
+      change: "Voltar um degrau no ladder de habilidade e manter oposição passiva no bloco técnico.",
+    },
+    {
+      if: "rpeGroup >= 8",
+      change: "Diminuir volume de saltos e acelerar transição para jogo condicionado com pausas curtas.",
+    },
+  ];
+
+  return {
+    sport: "volleyball_indoor",
+    classId: request.classId,
+    unitId: request.unitId,
+    cycle: {
+      mesoWeek: request.mesoWeek ?? 1,
+      microDay: request.microDay ?? "D1",
+    },
+    primaryFocus: {
+      skill: primarySkill,
+      ladderFrom: primaryLadder.from,
+      ladderTo: primaryLadder.to,
+    },
+    secondaryFocus: {
+      skill: secondarySkill,
+      ladderFrom: secondaryLadder.from,
+      ladderTo: secondaryLadder.to,
+    },
+    loadIntent,
+    rulesTriggered,
+    blocks: [
+      {
+        type: "warmup_preventive",
+        minutes: 12,
+        drillIds: ["vwv_warmup_preventive_01"],
+        successCriteria: [
+          "Todos os atletas completam ativação de ombro/core sem dor reportada.",
+        ],
+      },
+      {
+        type: "skill",
+        minutes: 22,
+        drillIds: ["vwv_skill_primary_01", "vwv_skill_secondary_01"],
+        successCriteria: buildSuccessCriteria(dimension, skills),
+        notes: `Progressão orientada por ${dimension.replace("_", " ")}.`,
+      },
+      {
+        type: "game_conditioned",
+        minutes: 20,
+        drillIds: ["vwv_game_conditioned_01"],
+        scoring: "Ponto extra quando o foco técnico aparece com execução qualificada.",
+      },
+      {
+        type: "cooldown_feedback",
+        minutes: 6,
+        drillIds: ["vwv_cooldown_feedback_01"],
+        notes: "Fechar com autoavaliação rápida e um ajuste objetivo para próxima sessão.",
+      },
+    ],
+    adaptations,
+    evidence: {
+      lastSession: {
+        rpeGroup: lastRpe,
+        quality:
+          request.previousSnapshot.consistencyScore < 0.45 ||
+          request.previousSnapshot.successRate < 0.45
+            ? "low"
+            : request.previousSnapshot.consistencyScore > 0.75 &&
+                request.previousSnapshot.successRate > 0.75
+              ? "high"
+              : "medium",
+        attendanceCount: Number(request.lastAttendanceCount ?? 0),
+        focusTags: skills,
+      },
+    },
+    citations: [
+      {
+        docId: "ltd-3.0-volleyball",
+        pages: "pp. 11-18",
+        why: "Progressão por estágios e critérios observáveis por faixa de desenvolvimento.",
+      },
+      {
+        docId: "volleyveilig-v1",
+        pages: "pp. 6-9",
+        why: "Inclusão obrigatória de bloco preventivo em aquecimento.",
+      },
+      {
+        docId: "joel_smith_spt_notes",
+        pages: "pp. 22-24",
+        why: "Ajuste de carga via percepção subjetiva de esforço coletiva.",
+      },
     ],
   };
 };

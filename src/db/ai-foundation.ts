@@ -1,8 +1,10 @@
 import type {
-  KnowledgeDocument,
-  OrganizationAiProfile,
-  SessionSkillSnapshot,
-  UnitAiProfile,
+    ClassProfile,
+    KnowledgeDocument,
+    OrganizationAiProfile,
+    SessionExecutionLog,
+    SessionSkillSnapshot,
+    UnitAiProfile,
 } from "../core/models";
 import { db } from "./sqlite";
 
@@ -239,4 +241,119 @@ export async function getLatestSessionSkillSnapshot(classId: string) {
     notes: parseJsonArray<string>(row.notes, []),
     createdAt: row.createdAt,
   } as SessionSkillSnapshot;
+}
+
+export async function upsertClassProfile(profile: ClassProfile) {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO class_profiles (
+      classId, organizationId, unitId, modality, ageBand, level,
+      sessionsPerWeek, cycleGoal, constraintsDefault, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      profile.classId,
+      profile.organizationId,
+      profile.unitId,
+      profile.modality,
+      profile.ageBand,
+      profile.level,
+      profile.sessionsPerWeek,
+      profile.cycleGoal,
+      JSON.stringify(profile.constraintsDefault ?? []),
+      profile.createdAt,
+      profile.updatedAt,
+    ]
+  );
+}
+
+export async function getClassProfile(classId: string) {
+  const row = await db.getFirstAsync<{
+    classId: string;
+    organizationId: string;
+    unitId: string;
+    modality: "volleyball_indoor";
+    ageBand: string;
+    level: "initiation" | "development" | "performance";
+    sessionsPerWeek: number;
+    cycleGoal: string;
+    constraintsDefault: string;
+    createdAt: string;
+    updatedAt: string;
+  }>(
+    `SELECT * FROM class_profiles WHERE classId = ? LIMIT 1`,
+    [classId]
+  );
+
+  if (!row) return null;
+  return {
+    classId: row.classId,
+    organizationId: row.organizationId,
+    unitId: row.unitId,
+    modality: row.modality,
+    ageBand: row.ageBand,
+    level: row.level,
+    sessionsPerWeek: Number(row.sessionsPerWeek ?? 2),
+    cycleGoal: row.cycleGoal,
+    constraintsDefault: parseJsonArray<string>(row.constraintsDefault, []),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  } as ClassProfile;
+}
+
+export async function saveSessionExecutionLog(log: SessionExecutionLog) {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO session_execution_log (
+      id, classId, date, plannedFocusTags, executedDrills, rpeGroup,
+      quality, constraints, coachNotes, attendanceCount, createdAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      log.id,
+      log.classId,
+      log.date,
+      JSON.stringify(log.plannedFocusTags ?? []),
+      JSON.stringify(log.executedDrills ?? []),
+      log.rpeGroup,
+      log.quality,
+      JSON.stringify(log.constraints ?? []),
+      log.coachNotes,
+      log.attendanceCount,
+      log.createdAt,
+    ]
+  );
+}
+
+export async function getLastSessionExecutionLog(classId: string) {
+  const row = await db.getFirstAsync<{
+    id: string;
+    classId: string;
+    date: string;
+    plannedFocusTags: string;
+    executedDrills: string;
+    rpeGroup: number;
+    quality: "low" | "medium" | "high";
+    constraints: string;
+    coachNotes: string;
+    attendanceCount: number;
+    createdAt: string;
+  }>(
+    `SELECT * FROM session_execution_log WHERE classId = ? ORDER BY date DESC, createdAt DESC LIMIT 1`,
+    [classId]
+  );
+
+  if (!row) return null;
+  return {
+    id: row.id,
+    classId: row.classId,
+    date: row.date,
+    plannedFocusTags: parseJsonArray<string>(row.plannedFocusTags, []),
+    executedDrills: parseJsonArray<SessionExecutionLog["executedDrills"][number]>(
+      row.executedDrills,
+      []
+    ),
+    rpeGroup: Number(row.rpeGroup ?? 5),
+    quality: row.quality,
+    constraints: parseJsonArray<string>(row.constraints, []),
+    coachNotes: row.coachNotes,
+    attendanceCount: Number(row.attendanceCount ?? 0),
+    createdAt: row.createdAt,
+  } as SessionExecutionLog;
 }

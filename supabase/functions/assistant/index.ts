@@ -12,6 +12,18 @@ type AssistantSource = {
   url: string;
 };
 
+type KbDocument = {
+  id: string;
+  organizationId: string;
+  title: string;
+  source: string;
+  chunk: string;
+  tags: string[];
+  sport: string;
+  level: string;
+  createdAt: string;
+};
+
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -41,7 +53,28 @@ type AssistantResponse = {
   }[];
   assumptions: string[];
   missingData: string[];
+  _debug?: {
+    orgId: string;
+    sport: string;
+    retrievedChunksCount: number;
+    docIds: string[];
+    retrievalLatencyMs: number;
+    totalLatencyMs: number;
+    cacheHit: boolean;
+    queryType: string;
+  };
 };
+
+type RetrievalResult = {
+  docs: KbDocument[];
+  cacheHit: boolean;
+  retrievalLatencyMs: number;
+};
+
+const RETRIEVAL_CACHE_TTL_MS = 120_000;
+const RETRIEVAL_CACHE_MAX_ITEMS = 120;
+const retrievalCache = new Map<string, { expiresAt: number; docs: KbDocument[] }>();
+const retrievalInFlight = new Map<string, Promise<RetrievalResult>>();
 
 const isPrivateIpv4 = (host: string) => {
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
@@ -102,6 +135,20 @@ const createSupabaseClient = () => {
   });
 };
 
+const createSupabaseClientWithToken = (token: string) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false },
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  });
+};
+
 const requireUser = async (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return null;
@@ -111,15 +158,250 @@ const requireUser = async (req: Request) => {
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) return null;
-  return data.user;
+  return { user: data.user, token };
+};
+
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const stopwords = new Set([
+  "a",
+  "o",
+  "os",
+  "as",
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "e",
+  "em",
+  "para",
+  "por",
+  "com",
+  "na",
+  "no",
+  "nas",
+  "nos",
+  "um",
+  "uma",
+  "que",
+  "se",
+  "ao",
+  "aos",
+  "ou",
+  "the",
+  "and",
+  "for",
+]);
+
+const tokenize = (value: string) => {
+  const normalized = normalizeText(value);
+  if (!normalized) return [] as string[];
+  return normalized
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopwords.has(token));
+};
+
+const buildRetrievalQuery = (messages: ChatMessage[]) => {
+  const recent = messages
+    .slice(-6)
+    .map((message) => message.content)
+    .join(" ");
+  return recent;
+};
+
+const inferQueryType = (messages: ChatMessage[]) => {
+  const text = normalizeText(
+    messages
+      .filter((message) => message.role === "user")
+      .slice(-2)
+      .map((message) => message.content)
+      .join(" ")
+  );
+  if (!text) return "general";
+  if (/(plano|treino|sessao|session|aula)/.test(text)) return "lesson_plan";
+  if (/(resumo|executivo|summary|coordenacao)/.test(text)) return "executive_summary";
+  if (/(suporte|erro|falha|sync|fila)/.test(text)) return "support";
+  if (/(comunicado|mensagem|whatsapp|email)/.test(text)) return "communication";
+  return "general";
+};
+
+const rankKbDocuments = (documents: KbDocument[], queryText: string) => {
+  const queryTokens = tokenize(queryText);
+  if (!queryTokens.length) return documents.slice(0, 4);
+
+  const scored = documents
+    .map((document) => {
+      const haystack = normalizeText(
+        `${document.title} ${document.tags.join(" ")} ${document.chunk}`
+      );
+      const matches = queryTokens.reduce((acc, token) => {
+        return haystack.includes(token) ? acc + 1 : acc;
+      }, 0);
+      const density = matches / queryTokens.length;
+      const exactTagBoost = document.tags.some((tag) =>
+        queryTokens.includes(normalizeText(tag))
+      )
+        ? 0.2
+        : 0;
+      return {
+        document,
+        score: density + exactTagBoost,
+      };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (!scored.length) return documents.slice(0, 4);
+  return scored.slice(0, 4).map((item) => item.document);
+};
+
+const buildRagContext = (documents: KbDocument[]) => {
+  if (!documents.length) return "RAG_CONTEXT: sem documentos relevantes recuperados.";
+  const entries = documents.map((document, index) => {
+    const excerpt = document.chunk.length > 700 ? `${document.chunk.slice(0, 700)}...` : document.chunk;
+    return [
+      `Doc ${index + 1}`,
+      `docId: ${document.id}`,
+      `title: ${document.title || "Sem título"}`,
+      `source: ${document.source || "Sem fonte"}`,
+      `tags: ${(document.tags ?? []).join(", ")}`,
+      `chunk: ${excerpt}`,
+    ].join("\n");
+  });
+  return [
+    "RAG_CONTEXT: use apenas estes documentos para evidência e citação.",
+    ...entries,
+    "Regra: toda recomendação prática deve apontar no campo citations ao menos um docId usado.",
+  ].join("\n\n");
+};
+
+const getKnowledgeDocuments = async (params: {
+  token: string;
+  organizationId: string;
+  sportHint: string;
+  queryText: string;
+}) => {
+  const supabase = createSupabaseClientWithToken(params.token);
+  if (!supabase || !params.organizationId) return [] as KbDocument[];
+
+  const sportCandidates = [params.sportHint, "volleyball", "voleibol", "volleyball_indoor"]
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  let query = supabase
+    .from("kb_documents")
+    .select("id,organization_id,title,source,chunk,tags,sport,level,created_at")
+    .eq("organization_id", params.organizationId)
+    .limit(80);
+
+  if (sportCandidates.length) {
+    query = query.in("sport", Array.from(new Set(sportCandidates)));
+  }
+
+  const { data, error } = await query;
+  if (error || !Array.isArray(data)) return [];
+
+  const mapped: KbDocument[] = data.map((row) => ({
+    id: String(row.id ?? ""),
+    organizationId: String(row.organization_id ?? ""),
+    title: String(row.title ?? ""),
+    source: String(row.source ?? ""),
+    chunk: String(row.chunk ?? ""),
+    tags: Array.isArray(row.tags) ? row.tags.map((tag) => String(tag)) : [],
+    sport: String(row.sport ?? ""),
+    level: String(row.level ?? ""),
+    createdAt: String(row.created_at ?? ""),
+  }));
+
+  return rankKbDocuments(mapped, params.queryText);
+};
+
+const buildRetrievalCacheKey = (organizationId: string, sportHint: string, queryText: string) => {
+  const querySlice = normalizeText(queryText).slice(0, 300);
+  return [organizationId.trim(), sportHint.trim().toLowerCase(), querySlice].join("|");
+};
+
+const pruneRetrievalCache = () => {
+  const now = Date.now();
+  for (const [key, item] of retrievalCache.entries()) {
+    if (item.expiresAt <= now) retrievalCache.delete(key);
+  }
+  while (retrievalCache.size > RETRIEVAL_CACHE_MAX_ITEMS) {
+    const firstKey = retrievalCache.keys().next().value;
+    if (!firstKey) break;
+    retrievalCache.delete(firstKey);
+  }
+};
+
+const getKnowledgeDocumentsCached = async (params: {
+  token: string;
+  organizationId: string;
+  sportHint: string;
+  queryText: string;
+}): Promise<RetrievalResult> => {
+  const start = Date.now();
+  const key = buildRetrievalCacheKey(params.organizationId, params.sportHint, params.queryText);
+  const cached = retrievalCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return {
+      docs: cached.docs,
+      cacheHit: true,
+      retrievalLatencyMs: Date.now() - start,
+    };
+  }
+
+  const inFlight = retrievalInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const run = (async () => {
+    const docs = await getKnowledgeDocuments(params);
+    pruneRetrievalCache();
+    retrievalCache.set(key, {
+      docs,
+      expiresAt: Date.now() + RETRIEVAL_CACHE_TTL_MS,
+    });
+    return {
+      docs,
+      cacheHit: false,
+      retrievalLatencyMs: Date.now() - start,
+    } as RetrievalResult;
+  })().finally(() => {
+    retrievalInFlight.delete(key);
+  });
+
+  retrievalInFlight.set(key, run);
+  return run;
+};
+
+const canUseDebugMode = (user: { id?: string; email?: string | null }) => {
+  const raw = Deno.env.get("ASSISTANT_DEBUG_ADMINS") ?? "";
+  if (!raw.trim()) return false;
+  const allowList = raw
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const userId = String(user.id ?? "").trim().toLowerCase();
+  const email = String(user.email ?? "").trim().toLowerCase();
+  return allowList.includes(userId) || (email ? allowList.includes(email) : false);
 };
 
 const systemPrompt = [
   "You are a volleyball and training assistant for a coaching app.",
-  "Always base answers on scientific sources or reputable coaching references available to you.",
+  "Always base answers on provided sources and retrieved documents.",
   "Return a JSON object only, no extra text.",
   "If suggesting drills from videos, include author and a stable URL.",
   "Never invent evidence. If evidence is not sufficient, lower confidence and list missing data.",
+  "Every practical recommendation must be grounded in RAG_CONTEXT docs when provided.",
+  "In citations, identify documents by docId in sourceTitle.",
   "If confidence is below 0.55, be explicit that recommendation is limited.",
   "Use simple Portuguese in the reply.",
 ].join(" ");
@@ -214,9 +496,10 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const requestStartedAt = Date.now();
     console.log("assistant: request received");
-    const user = await requireUser(req);
-    if (!user) {
+    const auth = await requireUser(req);
+    if (!auth) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -235,14 +518,48 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const classId = typeof body.classId === "string" ? body.classId : "";
+    const organizationId = typeof body.organizationId === "string" ? body.organizationId : "";
+    const sportHint = typeof body.sport === "string" ? body.sport : "volleyball";
+    const debugRequested = Boolean(body.debug);
+    const debugAllowed = canUseDebugMode(auth.user);
+    if (debugRequested && !debugAllowed) {
+      return new Response(JSON.stringify({ error: "Debug mode not allowed" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const queryType = inferQueryType(messages);
     const userHint = classId ? `Turma selecionada: ${classId}.` : "";
-    console.log("assistant: messages", messages.length, "classId", classId);
+    const retrievalQuery = buildRetrievalQuery(messages);
+    const retrieval = await getKnowledgeDocumentsCached({
+      token: auth.token,
+      organizationId,
+      sportHint,
+      queryText: retrievalQuery,
+    });
+    const kbDocs = retrieval.docs;
+    const ragContext = buildRagContext(kbDocs);
+    console.log(
+      JSON.stringify({
+        event: "assistant_rag_retrieval",
+        orgId: organizationId,
+        sport: sportHint,
+        queryType,
+        classId,
+        retrieved_chunks_count: kbDocs.length,
+        docIds: kbDocs.map((doc) => doc.id),
+        latency_ms_retrieval: retrieval.retrievalLatencyMs,
+        cache_hit: retrieval.cacheHit,
+      })
+    );
 
     const payload = {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "system", content: userHint },
+        { role: "system", content: ragContext },
         ...messages,
       ] as ChatMessage[],
       response_format: {
@@ -309,6 +626,26 @@ Deno.serve(async (req) => {
         ? parsed.confidence
         : 0;
 
+    if (kbDocs.length === 0) {
+      parsed.missingData = Array.from(
+        new Set([...(parsed.missingData ?? []), "Base de conhecimento sem documentos relevantes para esta consulta."])
+      );
+      parsed.confidence = Math.min(parsed.confidence, 0.54);
+    }
+
+    if (debugRequested && debugAllowed) {
+      parsed._debug = {
+        orgId: organizationId,
+        sport: sportHint,
+        retrievedChunksCount: kbDocs.length,
+        docIds: kbDocs.map((doc) => doc.id),
+        retrievalLatencyMs: retrieval.retrievalLatencyMs,
+        totalLatencyMs: Date.now() - requestStartedAt,
+        cacheHit: retrieval.cacheHit,
+        queryType,
+      };
+    }
+
     const checkedSources: AssistantSource[] = [];
     for (const source of parsed.sources) {
       const safeUrl = normalizePublicUrl(source.url);
@@ -329,7 +666,18 @@ Deno.serve(async (req) => {
     }
     parsed.sources = checkedSources;
 
-    console.log("assistant: success");
+    console.log(
+      JSON.stringify({
+        event: "assistant_response",
+        orgId: organizationId,
+        sport: sportHint,
+        queryType,
+        citations_count: parsed.citations.length,
+        confidence: parsed.confidence,
+        missing_data_count: parsed.missingData.length,
+        latency_ms_total: Date.now() - requestStartedAt,
+      })
+    );
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
