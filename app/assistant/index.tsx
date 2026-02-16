@@ -1,22 +1,22 @@
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import {
-  useCallback,
+    useCallback,
     useEffect,
     useMemo,
     useRef,
     useState
 } from "react";
 import {
-    Animated,
     Alert,
+    Animated,
     Keyboard,
     Platform,
     ScrollView,
     Text,
     TextInput,
-  View,
-  useWindowDimensions
+    View,
+    useWindowDimensions
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
@@ -216,6 +216,9 @@ export default function AssistantScreen() {
   const className = selectedClass?.name ?? "Turma";
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1100;
+  const quickPromptColumns = width >= 1080 ? 3 : width >= 700 ? 2 : 1;
+  const quickPromptCardWidth =
+    quickPromptColumns === 3 ? "31.8%" : quickPromptColumns === 2 ? "48.5%" : "100%";
 
   const userDisplayName = useMemo(() => {
     const meta = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
@@ -533,13 +536,13 @@ export default function AssistantScreen() {
                 <View
                   style={{
                     width: "100%",
-                    maxWidth: 780,
+                    maxWidth: 920,
                     alignSelf: "center",
                     paddingHorizontal: isDesktopLayout ? 18 : 8,
                     flexDirection: "row",
-                    flexWrap: "nowrap",
-                    gap: 16,
-                    justifyContent: "center",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    justifyContent: quickPromptColumns === 1 ? "flex-start" : "center",
                     marginTop: 10,
                   }}
                 >
@@ -549,8 +552,8 @@ export default function AssistantScreen() {
                       onPress={() => handleSelectQuickPrompt(item.prompt)}
                       focusable={Platform.OS !== "web"}
                       style={{
-                        flex: 1,
-                        aspectRatio: 0.9,
+                        width: quickPromptCardWidth,
+                        minHeight: quickPromptColumns === 1 ? 116 : 152,
                         borderRadius: 16,
                         borderWidth: 1,
                         borderColor: colors.border,
@@ -579,12 +582,12 @@ export default function AssistantScreen() {
                       </View>
                       <View style={{ gap: 4, flexShrink: 1 }}>
                         <Text
-                          numberOfLines={1}
+                          numberOfLines={2}
                           style={{
                             color: colors.text,
                             fontWeight: "700",
-                            fontSize: 9.5,
-                            lineHeight: 12,
+                            fontSize: quickPromptColumns === 1 ? 18 : 16,
+                            lineHeight: quickPromptColumns === 1 ? 24 : 22,
                             width: "100%",
                           }}
                         >
@@ -592,7 +595,11 @@ export default function AssistantScreen() {
                         </Text>
                         <Text
                           numberOfLines={2}
-                          style={{ color: colors.muted, fontSize: 9.5, lineHeight: 12 }}
+                          style={{
+                            color: colors.muted,
+                            fontSize: quickPromptColumns === 1 ? 15 : 13,
+                            lineHeight: quickPromptColumns === 1 ? 20 : 18,
+                          }}
                         >
                           {item.subtitle}
                         </Text>
