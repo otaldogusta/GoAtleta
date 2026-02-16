@@ -49,7 +49,7 @@ type DropdownPoint = { x: number; y: number };
 
 const toInputDate = (iso: string) => {
   const date = new Date(iso);
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(
+  return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()} ${pad2(
     date.getHours()
   )}:${pad2(date.getMinutes())}`;
 };
@@ -57,7 +57,22 @@ const toInputDate = (iso: string) => {
 const parseInputDate = (value: string) => {
   const [datePart, timePart] = value.trim().replace("T", " ").split(" ");
   if (!datePart || !timePart) return null;
-  const [y, m, d] = datePart.split("-").map(Number);
+  let y = 0;
+  let m = 0;
+  let d = 0;
+
+  if (datePart.includes("/")) {
+    const [day, month, year] = datePart.split("/").map(Number);
+    d = day;
+    m = month;
+    y = year;
+  } else {
+    const [year, month, day] = datePart.split("-").map(Number);
+    y = year;
+    m = month;
+    d = day;
+  }
+
   const [h, min] = timePart.split(":").map(Number);
   if ([y, m, d, h, min].some((n) => !Number.isFinite(n))) return null;
   const next = new Date(y, m - 1, d, h, min, 0, 0);
@@ -144,7 +159,7 @@ export default function EventDetailsScreen() {
     const startsAt = parseInputDate(startsInput);
     const endsAt = parseInputDate(endsInput);
     if (!startsAt || !endsAt || endsAt <= startsAt) {
-      Alert.alert("Validação", "Datas inválidas. Use YYYY-MM-DD HH:mm.");
+      Alert.alert("Validação", "Datas inválidas. Use DD/MM/AAAA HH:mm.");
       return;
     }
     setSaving(true);
@@ -301,11 +316,11 @@ export default function EventDetailsScreen() {
           <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ color: colors.text, fontWeight: "700" }}>Início</Text>
-              <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="YYYY-MM-DD HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+              <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
             </View>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ color: colors.text, fontWeight: "700" }}>Fim</Text>
-              <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="YYYY-MM-DD HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+              <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
             </View>
           </View>
 
