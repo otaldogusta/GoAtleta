@@ -117,7 +117,7 @@ export default function EventsScreen() {
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const isWideLayout = width >= 980;
-  const isFormRowLayout = width >= 760;
+  const isFormRowLayout = width >= 0;
 
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
