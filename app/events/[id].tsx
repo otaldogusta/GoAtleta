@@ -2,29 +2,30 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
+    Alert,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  deleteEvent,
-  EventSport,
-  EventType,
-  getEventById,
-  setEventClasses,
-  updateEvent,
+    deleteEvent,
+    EventSport,
+    EventType,
+    getEventById,
+    setEventClasses,
+    updateEvent,
 } from "../../src/api/events";
 import { useAuth } from "../../src/auth/auth";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { ModalSheet } from "../../src/ui/ModalSheet";
+import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
@@ -263,134 +264,154 @@ export default function EventDetailsScreen() {
         </View>
 
         <ScrollView style={{ width: "100%" }} contentContainerStyle={{ gap: 10 }} showsVerticalScrollIndicator={false}>
-          {loading ? <Text style={{ color: colors.muted }}>Carregando...</Text> : null}
           {error ? <Text style={{ color: colors.dangerText }}>{error}</Text> : null}
-
-          <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Título</Text>
-              <TextInput value={title} onChangeText={setTitle} editable={isAdmin} placeholder="Título" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-            </View>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
-              <TextInput value={locationLabel} onChangeText={setLocationLabel} editable={isAdmin} placeholder="Local" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-            </View>
-          </View>
-
-          <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              editable={isAdmin}
-              placeholder="Descrição"
-              placeholderTextColor={colors.muted}
-              multiline
-              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9, minHeight: 72, textAlignVertical: "top" }}
-            />
-          </View>
-
-          <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Início</Text>
-              <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-            </View>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Fim</Text>
-              <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-            </View>
-          </View>
-
-          <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
-              <View ref={eventTypeTriggerRef}>
-                <Pressable
-                  onPress={openEventTypeDropdown}
-                  disabled={!isAdmin}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 10,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 10,
-                    paddingVertical: 10,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    opacity: isAdmin ? 1 : 0.7,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
-                  <Ionicons
-                    name={showEventTypeDropdown ? "chevron-up" : "chevron-down"}
-                    size={16}
-                    color={colors.muted}
-                  />
-                </Pressable>
+          {loading ? (
+            <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
+                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
               </View>
-            </View>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
-              <View ref={sportTriggerRef}>
-                <Pressable
-                  onPress={openSportDropdown}
-                  disabled={!isAdmin}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 10,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 10,
-                    paddingVertical: 10,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    opacity: isAdmin ? 1 : 0.7,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
-                  <Ionicons
-                    name={showSportDropdown ? "chevron-up" : "chevron-down"}
-                    size={16}
-                    color={colors.muted}
-                  />
-                </Pressable>
+              <ShimmerBlock style={{ height: 84, borderRadius: 10 }} />
+              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
+                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
               </View>
+              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
+                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
+              </View>
+              <ShimmerBlock style={{ height: 40, borderRadius: 999 }} />
+              <ShimmerBlock style={{ height: 44, borderRadius: 10 }} />
             </View>
-          </View>
+          ) : (
+            <>
+              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Título</Text>
+                  <TextInput value={title} onChangeText={setTitle} editable={isAdmin} placeholder="Título" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                </View>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
+                  <TextInput value={locationLabel} onChangeText={setLocationLabel} editable={isAdmin} placeholder="Local" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                </View>
+              </View>
 
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {classes.map((cls) => {
-              const active = classIds.includes(cls.id);
-              return (
-                <Pressable
-                  key={cls.id}
-                  disabled={!isAdmin}
-                  onPress={() =>
-                    setClassIds((prev) =>
-                      prev.includes(cls.id) ? prev.filter((id) => id !== cls.id) : [...prev, cls.id]
-                    )
-                  }
-                  style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: active ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}
-                >
-                  <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>{cls.name}</Text>
+              <View style={{ gap: 6 }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  editable={isAdmin}
+                  placeholder="Descrição"
+                  placeholderTextColor={colors.muted}
+                  multiline
+                  style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9, minHeight: 72, textAlignVertical: "top" }}
+                />
+              </View>
+
+              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Início</Text>
+                  <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                </View>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Fim</Text>
+                  <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="DD/MM/AAAA HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
+                </View>
+              </View>
+
+              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
+                  <View ref={eventTypeTriggerRef}>
+                    <Pressable
+                      onPress={openEventTypeDropdown}
+                      disabled={!isAdmin}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 10,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        opacity: isAdmin ? 1 : 0.7,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
+                      <Ionicons
+                        name={showEventTypeDropdown ? "chevron-up" : "chevron-down"}
+                        size={16}
+                        color={colors.muted}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
+                  <View ref={sportTriggerRef}>
+                    <Pressable
+                      onPress={openSportDropdown}
+                      disabled={!isAdmin}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 10,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        opacity: isAdmin ? 1 : 0.7,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
+                      <Ionicons
+                        name={showSportDropdown ? "chevron-up" : "chevron-down"}
+                        size={16}
+                        color={colors.muted}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {classes.map((cls) => {
+                  const active = classIds.includes(cls.id);
+                  return (
+                    <Pressable
+                      key={cls.id}
+                      disabled={!isAdmin}
+                      onPress={() =>
+                        setClassIds((prev) =>
+                          prev.includes(cls.id) ? prev.filter((id) => id !== cls.id) : [...prev, cls.id]
+                        )
+                      }
+                      style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: active ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}
+                    >
+                      <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>{cls.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {isAdmin ? (
+                <Pressable onPress={submitUpdate} disabled={saving} style={{ borderRadius: 10, paddingVertical: 11, alignItems: "center", backgroundColor: saving ? colors.primaryDisabledBg : colors.primaryBg }}>
+                  <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{saving ? "Salvando..." : "Salvar alterações"}</Text>
                 </Pressable>
-              );
-            })}
-          </View>
-
-          {isAdmin ? (
-            <Pressable onPress={submitUpdate} disabled={saving} style={{ borderRadius: 10, paddingVertical: 11, alignItems: "center", backgroundColor: saving ? colors.primaryDisabledBg : colors.primaryBg }}>
-              <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{saving ? "Salvando..." : "Salvar alterações"}</Text>
-            </Pressable>
-          ) : null}
-          {isAdmin ? (
-            <Pressable onPress={handleDelete}>
-              <Text style={{ color: colors.dangerText, fontWeight: "700" }}>Excluir evento</Text>
-            </Pressable>
-          ) : null}
+              ) : null}
+              {isAdmin ? (
+                <Pressable onPress={handleDelete}>
+                  <Text style={{ color: colors.dangerText, fontWeight: "700" }}>Excluir evento</Text>
+                </Pressable>
+              ) : null}
+            </>
+          )}
         </ScrollView>
 
         <AnchoredDropdown
