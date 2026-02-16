@@ -197,9 +197,12 @@ export default function EventsScreen() {
     const next = !showEventTypeDropdown;
     closeCreateDropdowns();
     if (!next) return;
-    setShowEventTypeDropdown(true);
     requestAnimationFrame(() => {
-      measureTriggerLayout(eventTypeTriggerRef.current, setEventTypeTriggerLayout);
+      if (!eventTypeTriggerRef.current) return;
+      eventTypeTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
+        setEventTypeTriggerLayout({ x, y, width: widthValue, height });
+        setShowEventTypeDropdown(true);
+      });
     });
   };
 
@@ -207,9 +210,12 @@ export default function EventsScreen() {
     const next = !showSportDropdown;
     closeCreateDropdowns();
     if (!next) return;
-    setShowSportDropdown(true);
     requestAnimationFrame(() => {
-      measureTriggerLayout(sportTriggerRef.current, setSportTriggerLayout);
+      if (!sportTriggerRef.current) return;
+      sportTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
+        setSportTriggerLayout({ x, y, width: widthValue, height });
+        setShowSportDropdown(true);
+      });
     });
   };
 
@@ -217,9 +223,12 @@ export default function EventsScreen() {
     const next = !showNotificationDropdown;
     closeCreateDropdowns();
     if (!next) return;
-    setShowNotificationDropdown(true);
     requestAnimationFrame(() => {
-      measureTriggerLayout(notificationTriggerRef.current, setNotificationTriggerLayout);
+      if (!notificationTriggerRef.current) return;
+      notificationTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
+        setNotificationTriggerLayout({ x, y, width: widthValue, height });
+        setShowNotificationDropdown(true);
+      });
     });
   };
 
@@ -227,9 +236,12 @@ export default function EventsScreen() {
     const next = !showReminderDropdown;
     closeCreateDropdowns();
     if (!next) return;
-    setShowReminderDropdown(true);
     requestAnimationFrame(() => {
-      measureTriggerLayout(reminderTriggerRef.current, setReminderTriggerLayout);
+      if (!reminderTriggerRef.current) return;
+      reminderTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
+        setReminderTriggerLayout({ x, y, width: widthValue, height });
+        setShowReminderDropdown(true);
+      });
     });
   };
 
@@ -388,13 +400,8 @@ export default function EventsScreen() {
   }, [startDateInput, startTimeInput, durationInput]);
 
   useEffect(() => {
-    requestAnimationFrame(() => {
-      measureTriggerLayout(eventTypeTriggerRef.current, setEventTypeTriggerLayout);
-      measureTriggerLayout(sportTriggerRef.current, setSportTriggerLayout);
-      measureTriggerLayout(notificationTriggerRef.current, setNotificationTriggerLayout);
-      measureTriggerLayout(reminderTriggerRef.current, setReminderTriggerLayout);
-    });
-  }, [width, measureTriggerLayout]);
+    closeCreateDropdowns();
+  }, [width]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
