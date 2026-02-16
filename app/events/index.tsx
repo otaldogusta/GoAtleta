@@ -163,6 +163,7 @@ export default function EventsScreen() {
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"created" | "create">("created");
 
   const eventTypeTriggerRef = useRef<View | null>(null);
   const sportTriggerRef = useRef<View | null>(null);
@@ -428,6 +429,65 @@ export default function EventsScreen() {
           <Text style={{ color: colors.muted }}>Agenda mensal da organização</Text>
         </View>
 
+        {isAdmin ? (
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              padding: 4,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+            }}
+          >
+            <Pressable
+              onPress={() => {
+                closeCreateDropdowns();
+                setActiveTab("created");
+              }}
+              style={{
+                flex: 1,
+                borderRadius: 10,
+                paddingVertical: 10,
+                alignItems: "center",
+                backgroundColor:
+                  activeTab === "created" ? colors.primaryBg : colors.secondaryBg,
+              }}
+            >
+              <Text
+                style={{
+                  color: activeTab === "created" ? colors.primaryText : colors.text,
+                  fontWeight: "800",
+                }}
+              >
+                Eventos criados
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setActiveTab("create")}
+              style={{
+                flex: 1,
+                borderRadius: 10,
+                paddingVertical: 10,
+                alignItems: "center",
+                backgroundColor:
+                  activeTab === "create" ? colors.primaryBg : colors.secondaryBg,
+              }}
+            >
+              <Text
+                style={{
+                  color: activeTab === "create" ? colors.primaryText : colors.text,
+                  fontWeight: "800",
+                }}
+              >
+                Criar evento
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!isAdmin || activeTab === "created" ? (
         <View style={{ gap: 10 }}>
           <View style={{ gap: 2 }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
@@ -511,8 +571,9 @@ export default function EventsScreen() {
             );
           })}
         </View>
+        ) : null}
 
-        {isAdmin ? (
+        {isAdmin && activeTab === "create" ? (
           <View
             style={{
               padding: 16,
