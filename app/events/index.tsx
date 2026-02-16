@@ -820,49 +820,51 @@ export default function EventsScreen() {
                   />
                 </View>
 
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
-                  <View ref={eventTypeTriggerRef}>
-                    <Pressable
-                      onPress={openEventTypeDropdown}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 10,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
-                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showEventTypeDropdown ? "▴" : "▾"}</Text>
-                    </Pressable>
+                <View style={{ flexDirection: isFormRowLayout ? "row" : "column", gap: 8 }}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
+                    <View ref={eventTypeTriggerRef}>
+                      <Pressable
+                        onPress={openEventTypeDropdown}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 10,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
+                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showEventTypeDropdown ? "▴" : "▾"}</Text>
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
 
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
-                  <View ref={sportTriggerRef}>
-                    <Pressable
-                      onPress={openSportDropdown}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        borderRadius: 12,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 10,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
-                      <Text style={{ color: colors.muted, fontWeight: "700" }}>{showSportDropdown ? "▴" : "▾"}</Text>
-                    </Pressable>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
+                    <View ref={sportTriggerRef}>
+                      <Pressable
+                        onPress={openSportDropdown}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 10,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
+                        <Text style={{ color: colors.muted, fontWeight: "700" }}>{showSportDropdown ? "▴" : "▾"}</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
 
