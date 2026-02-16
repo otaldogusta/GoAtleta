@@ -33,9 +33,6 @@ const sportTypes: EventSport[] = ["geral", "volei_quadra", "volei_praia", "futeb
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
-const formatMonthLabel = (date: Date) =>
-  date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-
 const parseInputDate = (value: string) => {
   const [datePart, timePart] = value.trim().replace("T", " ").split(" ");
   if (!datePart || !timePart) return null;
@@ -161,14 +158,10 @@ export default function EventsScreen() {
   const [showSportDropdown, setShowSportDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showReminderDropdown, setShowReminderDropdown] = useState(false);
-  const [showMonthSportDropdown, setShowMonthSportDropdown] = useState(false);
-  const [showMonthTypeDropdown, setShowMonthTypeDropdown] = useState(false);
   const [eventTypeTriggerLayout, setEventTypeTriggerLayout] = useState<DropdownLayout | null>(null);
   const [sportTriggerLayout, setSportTriggerLayout] = useState<DropdownLayout | null>(null);
   const [notificationTriggerLayout, setNotificationTriggerLayout] = useState<DropdownLayout | null>(null);
   const [reminderTriggerLayout, setReminderTriggerLayout] = useState<DropdownLayout | null>(null);
-  const [monthSportTriggerLayout, setMonthSportTriggerLayout] = useState<DropdownLayout | null>(null);
-  const [monthTypeTriggerLayout, setMonthTypeTriggerLayout] = useState<DropdownLayout | null>(null);
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -177,8 +170,6 @@ export default function EventsScreen() {
   const sportTriggerRef = useRef<View | null>(null);
   const notificationTriggerRef = useRef<View | null>(null);
   const reminderTriggerRef = useRef<View | null>(null);
-  const monthSportTriggerRef = useRef<View | null>(null);
-  const monthTypeTriggerRef = useRef<View | null>(null);
 
   const closeCreateDropdowns = () => {
     setShowEventTypeDropdown(false);
@@ -187,14 +178,8 @@ export default function EventsScreen() {
     setShowReminderDropdown(false);
   };
 
-  const closeMonthDropdowns = () => {
-    setShowMonthSportDropdown(false);
-    setShowMonthTypeDropdown(false);
-  };
-
   const closeAllDropdowns = () => {
     closeCreateDropdowns();
-    closeMonthDropdowns();
   };
 
   const measureTriggerLayout = useCallback(
@@ -262,32 +247,6 @@ export default function EventsScreen() {
     });
   };
 
-  const openMonthSportDropdown = () => {
-    const next = !showMonthSportDropdown;
-    closeAllDropdowns();
-    if (!next) return;
-    requestAnimationFrame(() => {
-      if (!monthSportTriggerRef.current) return;
-      monthSportTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
-        setMonthSportTriggerLayout({ x, y, width: widthValue, height });
-        setShowMonthSportDropdown(true);
-      });
-    });
-  };
-
-  const openMonthTypeDropdown = () => {
-    const next = !showMonthTypeDropdown;
-    closeAllDropdowns();
-    if (!next) return;
-    requestAnimationFrame(() => {
-      if (!monthTypeTriggerRef.current) return;
-      monthTypeTriggerRef.current.measureInWindow((x, y, widthValue, height) => {
-        setMonthTypeTriggerLayout({ x, y, width: widthValue, height });
-        setShowMonthTypeDropdown(true);
-      });
-    });
-  };
-
   const visibleEvents = useMemo(() => {
     return [...events].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   }, [events]);
@@ -316,12 +275,12 @@ export default function EventsScreen() {
       ]);
       setEvents(rows);
       setClasses(classRows.map((item) => ({ id: item.id, name: item.name, unitId: item.unitId })));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar eventos.");
+            sport: undefined,
+            eventType: undefined,
     } finally {
       setLoading(false);
     }
-  }, [activeOrganization?.id, monthDate, session?.user?.id, sportFilter, typeFilter]);
+  }, [activeOrganization?.id, monthDate, session?.user?.id]);
 
   useEffect(() => {
     loadData();
@@ -469,119 +428,6 @@ export default function EventsScreen() {
         <View style={{ gap: 2 }}>
           <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>Eventos</Text>
           <Text style={{ color: colors.muted }}>Agenda mensal da organização</Text>
-        </View>
-
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            gap: 12,
-          }}
-        >
-          <View style={{ gap: 2 }}>
-            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Visão mensal</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Escolha o mês e aplique filtros para focar a agenda.</Text>
-          </View>
-
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Pressable
-              onPress={() => setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 999,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{"<"}</Text>
-            </Pressable>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
-              {formatMonthLabel(monthDate)}
-            </Text>
-            <Pressable
-              onPress={() => setMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 999,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{">"}</Text>
-            </Pressable>
-          </View>
-
-          <View style={{ flexDirection: isWideLayout ? "row" : "column", gap: 8 }}>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Esporte</Text>
-              <View ref={monthSportTriggerRef}>
-                <Pressable
-                  onPress={openMonthSportDropdown}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 10,
-                    paddingVertical: 10,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {sportFilter === "todos" ? "Todos esportes" : sportTypeLabel[sportFilter]}
-                  </Text>
-                  <Ionicons name={showMonthSportDropdown ? "chevron-up" : "chevron-down"} size={16} color={colors.muted} />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Tipo</Text>
-              <View ref={monthTypeTriggerRef}>
-                <Pressable
-                  onPress={openMonthTypeDropdown}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 10,
-                    paddingVertical: 10,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {typeFilter === "todos" ? "Todos tipos" : eventTypeLabel[typeFilter]}
-                  </Text>
-                  <Ionicons name={showMonthTypeDropdown ? "chevron-up" : "chevron-down"} size={16} color={colors.muted} />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          {sportFilter !== "todos" || typeFilter !== "todos" ? (
-            <Pressable
-              onPress={() => {
-                setSportFilter("todos");
-                setTypeFilter("todos");
-                closeMonthDropdowns();
-              }}
-              style={{ alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Limpar filtros</Text>
-            </Pressable>
-          ) : null}
         </View>
 
         <View style={{ gap: 10 }}>
@@ -1123,114 +969,6 @@ export default function EventsScreen() {
                 paddingHorizontal: 10,
                 paddingVertical: 10,
                 borderTopWidth: index === 0 ? 0 : 1,
-                borderTopColor: colors.border,
-                borderRadius: 8,
-                backgroundColor: active ? colors.primaryBg : colors.background,
-              }}
-            >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                {eventTypeLabel[option]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </AnchoredDropdown>
-
-      <AnchoredDropdown
-        visible={showMonthSportDropdown}
-        layout={monthSportTriggerLayout}
-        container={null}
-        animationStyle={{ opacity: 1 }}
-        zIndex={340}
-        maxHeight={220}
-        nestedScrollEnabled
-        onRequestClose={closeAllDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-        scrollContentStyle={{ padding: 4 }}
-      >
-        <Pressable
-          onPress={() => {
-            setSportFilter("todos");
-            setShowMonthSportDropdown(false);
-          }}
-          style={{
-            paddingHorizontal: 10,
-            paddingVertical: 10,
-            borderRadius: 8,
-            backgroundColor: sportFilter === "todos" ? colors.primaryBg : colors.background,
-          }}
-        >
-          <Text style={{ color: sportFilter === "todos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-            Todos esportes
-          </Text>
-        </Pressable>
-        {sportTypes.map((option, index) => {
-          const active = sportFilter === option;
-          return (
-            <Pressable
-              key={option}
-              onPress={() => {
-                setSportFilter(option);
-                setShowMonthSportDropdown(false);
-              }}
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderTopWidth: 1,
-                borderTopColor: colors.border,
-                borderRadius: 8,
-                backgroundColor: active ? colors.primaryBg : colors.background,
-              }}
-            >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                {sportTypeLabel[option]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </AnchoredDropdown>
-
-      <AnchoredDropdown
-        visible={showMonthTypeDropdown}
-        layout={monthTypeTriggerLayout}
-        container={null}
-        animationStyle={{ opacity: 1 }}
-        zIndex={340}
-        maxHeight={220}
-        nestedScrollEnabled
-        onRequestClose={closeAllDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-        scrollContentStyle={{ padding: 4 }}
-      >
-        <Pressable
-          onPress={() => {
-            setTypeFilter("todos");
-            setShowMonthTypeDropdown(false);
-          }}
-          style={{
-            paddingHorizontal: 10,
-            paddingVertical: 10,
-            borderRadius: 8,
-            backgroundColor: typeFilter === "todos" ? colors.primaryBg : colors.background,
-          }}
-        >
-          <Text style={{ color: typeFilter === "todos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-            Todos tipos
-          </Text>
-        </Pressable>
-        {eventTypes.map((option) => {
-          const active = typeFilter === option;
-          return (
-            <Pressable
-              key={option}
-              onPress={() => {
-                setTypeFilter(option);
-                setShowMonthTypeDropdown(false);
-              }}
-              style={{
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderTopWidth: 1,
                 borderTopColor: colors.border,
                 borderRadius: 8,
                 backgroundColor: active ? colors.primaryBg : colors.background,
