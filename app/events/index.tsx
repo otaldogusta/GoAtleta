@@ -114,7 +114,7 @@ export default function EventsScreen() {
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const isWideLayout = width >= 980;
-  const isTwoColumnCreateLayout = width >= 1240;
+  const isFormRowLayout = width >= 760;
 
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
@@ -584,8 +584,7 @@ export default function EventsScreen() {
 
             <View style={{ borderTopWidth: 1, borderTopColor: colors.border, opacity: 0.8 }} />
 
-            <View style={{ flexDirection: isTwoColumnCreateLayout ? "row" : "column", gap: 12 }}>
-              <View style={{ flex: 1, gap: 10 }}>
+            <View style={{ flexDirection: "column", gap: 10 }}>
                 <View style={{ gap: 8 }}>
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Título</Text>
                   <View style={{ flexDirection: "row", gap: 8 }}>
@@ -649,7 +648,7 @@ export default function EventsScreen() {
                 ) : null}
 
                 <View style={{ gap: 6 }}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ flexDirection: isFormRowLayout ? "row" : "column", gap: 8 }}>
                     <View style={{ flex: 1, gap: 4 }}>
                       <Text style={{ color: colors.text, fontWeight: "700" }}>Data</Text>
                       <TextInput
@@ -853,9 +852,7 @@ export default function EventsScreen() {
                     </View>
                   ) : null}
                 </View>
-              </View>
 
-              <View style={{ flex: 1, gap: 10 }}>
                 <View style={{ gap: 8 }}>
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Convidados</Text>
                   <View style={{ flexDirection: "row", gap: 8 }}>
@@ -934,7 +931,7 @@ export default function EventsScreen() {
                   ) : null}
                 </View>
 
-                <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flexDirection: isFormRowLayout ? "row" : "column", gap: 8 }}>
                   <View style={{ flex: 1, gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Notificação</Text>
                     <Pressable
@@ -1095,7 +1092,6 @@ export default function EventsScreen() {
                     })}
                   </View>
                 </View>
-              </View>
             </View>
 
             <View style={{ flexDirection: "row", gap: 8 }}>
