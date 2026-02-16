@@ -216,78 +216,66 @@ export default function EventDetailsScreen() {
           {loading ? <Text style={{ color: colors.muted }}>Carregando...</Text> : null}
           {error ? <Text style={{ color: colors.dangerText }}>{error}</Text> : null}
 
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 14,
-              backgroundColor: colors.card,
-              padding: 10,
-              gap: 10,
-            }}
-          >
-            <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Título</Text>
-                <TextInput value={title} onChangeText={setTitle} editable={isAdmin} placeholder="Título" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-              </View>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
-                <TextInput value={locationLabel} onChangeText={setLocationLabel} editable={isAdmin} placeholder="Local" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-              </View>
+          <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Título</Text>
+              <TextInput value={title} onChangeText={setTitle} editable={isAdmin} placeholder="Título" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
             </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
-              <TextInput
-                value={description}
-                onChangeText={setDescription}
-                editable={isAdmin}
-                placeholder="Descrição"
-                placeholderTextColor={colors.muted}
-                multiline
-                style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9, minHeight: 72, textAlignVertical: "top" }}
-              />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Local</Text>
+              <TextInput value={locationLabel} onChangeText={setLocationLabel} editable={isAdmin} placeholder="Local" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
             </View>
+          </View>
 
-            <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Início</Text>
-                <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="YYYY-MM-DD HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-              </View>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Fim</Text>
-                <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="YYYY-MM-DD HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
-              </View>
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Descrição</Text>
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              editable={isAdmin}
+              placeholder="Descrição"
+              placeholderTextColor={colors.muted}
+              multiline
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9, minHeight: 72, textAlignVertical: "top" }}
+            />
+          </View>
+
+          <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Início</Text>
+              <TextInput value={startsInput} onChangeText={setStartsInput} editable={isAdmin} placeholder="YYYY-MM-DD HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
             </View>
-
-            <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {eventTypes.map((option) => (
-                      <Pressable key={option} disabled={!isAdmin} onPress={() => setEventType(option)} style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: eventType === option ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}>
-                        <Text style={{ color: eventType === option ? colors.primaryText : colors.text, fontWeight: "700" }}>{eventTypeLabel[option]}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {sportTypes.map((option) => (
-                      <Pressable key={option} disabled={!isAdmin} onPress={() => setSport(option)} style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: sport === option ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}>
-                        <Text style={{ color: sport === option ? colors.primaryText : colors.text, fontWeight: "700" }}>{sportTypeLabel[option]}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Fim</Text>
+              <TextInput value={endsInput} onChangeText={setEndsInput} editable={isAdmin} placeholder="YYYY-MM-DD HH:mm" placeholderTextColor={colors.muted} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, color: colors.text, backgroundColor: colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 9 }} />
             </View>
+          </View>
 
+          <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Categoria</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {eventTypes.map((option) => (
+                    <Pressable key={option} disabled={!isAdmin} onPress={() => setEventType(option)} style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: eventType === option ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}>
+                      <Text style={{ color: eventType === option ? colors.primaryText : colors.text, fontWeight: "700" }}>{eventTypeLabel[option]}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Esporte</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {sportTypes.map((option) => (
+                    <Pressable key={option} disabled={!isAdmin} onPress={() => setSport(option)} style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: sport === option ? colors.primaryBg : colors.secondaryBg, opacity: isAdmin ? 1 : 0.7 }}>
+                      <Text style={{ color: sport === option ? colors.primaryText : colors.text, fontWeight: "700" }}>{sportTypeLabel[option]}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
           </View>
 
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turmas vinculadas</Text>
