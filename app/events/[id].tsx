@@ -227,7 +227,12 @@ export default function EventDetailsScreen() {
 
   const closeDetails = () => {
     closeDetailDropdowns();
-    router.back();
+    const nav = router as unknown as { canGoBack?: () => boolean; back: () => void; replace: (path: string) => void };
+    if (typeof nav.canGoBack === "function" && nav.canGoBack()) {
+      nav.back();
+      return;
+    }
+    nav.replace("/events");
   };
 
   useEffect(() => {
