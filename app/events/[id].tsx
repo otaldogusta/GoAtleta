@@ -153,6 +153,7 @@ export default function EventDetailsScreen() {
       });
       await setEventClasses(eventId, activeOrganization.id, classIds);
       await loadData();
+      closeDetails();
     } catch (err) {
       Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao salvar.");
     } finally {
