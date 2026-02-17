@@ -518,8 +518,17 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const classId = typeof body.classId === "string" ? body.classId : "";
-    const organizationId = typeof body.organizationId === "string" ? body.organizationId : "";
-    const sportHint = typeof body.sport === "string" ? body.sport : "volleyball";
+    const organizationIdRaw =
+      typeof body.organizationId === "string"
+        ? body.organizationId
+        : typeof body.organization_id === "string"
+          ? body.organization_id
+          : "";
+    const organizationId = organizationIdRaw.trim();
+    const sportHint =
+      typeof body.sport === "string" && body.sport.trim().length > 0
+        ? body.sport.trim()
+        : "volleyball";
     const debugRequested = Boolean(body.debug);
     const debugAllowed = canUseDebugMode(auth.user);
     if (debugRequested && !debugAllowed) {
@@ -532,6 +541,16 @@ Deno.serve(async (req) => {
     const queryType = inferQueryType(messages);
     const userHint = classId ? `Turma selecionada: ${classId}.` : "";
     const retrievalQuery = buildRetrievalQuery(messages);
+    if (!organizationId) {
+      console.warn(
+        JSON.stringify({
+          event: "assistant_rag_missing_org_id",
+          queryType,
+          classId,
+          sport: sportHint,
+        })
+      );
+    }
     const retrieval = await getKnowledgeDocumentsCached({
       token: auth.token,
       organizationId,

@@ -22,63 +22,28 @@ create index if not exists idx_kb_documents_org_created_at
 alter table public.kb_documents enable row level security;
 
 -- Read for org members
+drop policy if exists "kb_documents_select_org_member" on public.kb_documents;
 create policy "kb_documents_select_org_member"
 on public.kb_documents
 for select
-using (
-  exists (
-    select 1
-    from public.organization_members om
-    where om.organization_id = kb_documents.organization_id
-      and om.user_id = auth.uid()
-  )
-);
+using (public.is_org_member(kb_documents.organization_id));
 
 -- Insert/update/delete only for org admins (role_level >= 50)
+drop policy if exists "kb_documents_insert_org_admin" on public.kb_documents;
 create policy "kb_documents_insert_org_admin"
 on public.kb_documents
 for insert
-with check (
-  exists (
-    select 1
-    from public.organization_members om
-    where om.organization_id = kb_documents.organization_id
-      and om.user_id = auth.uid()
-      and om.role_level >= 50
-  )
-);
+with check (public.is_org_admin(kb_documents.organization_id));
 
+drop policy if exists "kb_documents_update_org_admin" on public.kb_documents;
 create policy "kb_documents_update_org_admin"
 on public.kb_documents
 for update
-using (
-  exists (
-    select 1
-    from public.organization_members om
-    where om.organization_id = kb_documents.organization_id
-      and om.user_id = auth.uid()
-      and om.role_level >= 50
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.organization_members om
-    where om.organization_id = kb_documents.organization_id
-      and om.user_id = auth.uid()
-      and om.role_level >= 50
-  )
-);
+using (public.is_org_admin(kb_documents.organization_id))
+with check (public.is_org_admin(kb_documents.organization_id));
 
+drop policy if exists "kb_documents_delete_org_admin" on public.kb_documents;
 create policy "kb_documents_delete_org_admin"
 on public.kb_documents
 for delete
-using (
-  exists (
-    select 1
-    from public.organization_members om
-    where om.organization_id = kb_documents.organization_id
-      and om.user_id = auth.uid()
-      and om.role_level >= 50
-  )
-);
+using (public.is_org_admin(kb_documents.organization_id));
