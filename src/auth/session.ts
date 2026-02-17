@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 
 export type AuthSession = {
@@ -13,6 +15,7 @@ export type AuthSession = {
 
 const STORAGE_KEY = "auth_session_v1";
 const REMEMBER_KEY = "auth_remember_me";
+const isNative = Platform.OS !== "web";
 
 let accessToken = "";
 let currentSession: AuthSession | null = null;
@@ -44,12 +47,30 @@ export const loadSession = async (): Promise<AuthSession | null> => {
   const remember = await AsyncStorage.getItem(REMEMBER_KEY);
   if (remember !== "true") {
     await AsyncStorage.removeItem(STORAGE_KEY);
+    if (isNative) {
+      await SecureStore.deleteItemAsync(STORAGE_KEY);
+    }
     removeWebKey(STORAGE_KEY);
     accessToken = "";
     currentSession = null;
     return null;
   }
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  let raw = "";
+  if (isNative) {
+    raw = (await SecureStore.getItemAsync(STORAGE_KEY)) ?? "";
+    if (!raw) {
+      const legacyRaw = await AsyncStorage.getItem(STORAGE_KEY);
+      if (legacyRaw) {
+        raw = legacyRaw;
+        await SecureStore.setItemAsync(STORAGE_KEY, legacyRaw, {
+          keychainAccessible: SecureStore.WHEN_UNLOCKED,
+        });
+        await AsyncStorage.removeItem(STORAGE_KEY);
+      }
+    }
+  } else {
+    raw = (await AsyncStorage.getItem(STORAGE_KEY)) ?? "";
+  }
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as AuthSession;
@@ -57,6 +78,11 @@ export const loadSession = async (): Promise<AuthSession | null> => {
     currentSession = parsed ?? null;
     return parsed;
   } catch {
+    if (isNative) {
+      await SecureStore.deleteItemAsync(STORAGE_KEY);
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+    }
     return null;
   }
 };
@@ -66,6 +92,9 @@ export const saveSession = async (session: AuthSession | null, remember = true) 
     accessToken = "";
     currentSession = null;
     await AsyncStorage.removeItem(STORAGE_KEY);
+    if (isNative) {
+      await SecureStore.deleteItemAsync(STORAGE_KEY);
+    }
     await AsyncStorage.removeItem(REMEMBER_KEY);
     removeWebKey(STORAGE_KEY);
     removeWebKey(REMEMBER_KEY);
@@ -75,12 +104,22 @@ export const saveSession = async (session: AuthSession | null, remember = true) 
   currentSession = session;
   if (!remember) {
     await AsyncStorage.removeItem(STORAGE_KEY);
+    if (isNative) {
+      await SecureStore.deleteItemAsync(STORAGE_KEY);
+    }
     await AsyncStorage.setItem(REMEMBER_KEY, "false");
     removeWebKey(STORAGE_KEY);
     setWebKey(REMEMBER_KEY, "false");
     return;
   }
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  if (isNative) {
+    await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(session), {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED,
+    });
+    await AsyncStorage.removeItem(STORAGE_KEY);
+  } else {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  }
   await AsyncStorage.setItem(REMEMBER_KEY, "true");
   setWebKey(STORAGE_KEY, JSON.stringify(session));
   setWebKey(REMEMBER_KEY, "true");
@@ -95,6 +134,9 @@ export const setRememberPreference = async (remember: boolean) => {
   accessToken = "";
   currentSession = null;
   await AsyncStorage.removeItem(STORAGE_KEY);
+  if (isNative) {
+    await SecureStore.deleteItemAsync(STORAGE_KEY);
+  }
   await AsyncStorage.setItem(REMEMBER_KEY, "false");
   removeWebKey(STORAGE_KEY);
   setWebKey(REMEMBER_KEY, "false");

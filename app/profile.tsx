@@ -26,6 +26,8 @@ import {
 } from "../src/api/student-photo-storage";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
 import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useBiometricLock } from "../src/security/biometric-lock";
+import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
@@ -39,6 +41,12 @@ export default function ProfileScreen() {
   const { signOut, session } = useAuth();
   const { student, refresh: refreshRole } = useRole();
   const { organizations, activeOrganization, setActiveOrganizationId, devProfilePreview, setDevProfilePreview } = useOrganization();
+  const {
+    isEnabled: biometricsEnabled,
+    isUnlocked,
+    ensureUnlocked,
+    setEnabled: setBiometricsEnabled,
+  } = useBiometricLock();
   const router = useRouter();
   const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
   const NOTIFY_SETTINGS_KEY = "notify_settings_v1";
@@ -51,6 +59,7 @@ export default function ProfileScreen() {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
   const photoSheetStyle = useModalCardStyle({
     maxHeight: "70%",
     radius: 22,
@@ -232,13 +241,17 @@ export default function ProfileScreen() {
     async (orgId: string) => {
       if (activeOrganization?.id === orgId) return;
       try {
+        if (biometricsEnabled && !isUnlocked) {
+          const ok = await ensureUnlocked("Confirmar troca de workspace");
+          if (!ok) return;
+        }
         await setActiveOrganizationId(orgId);
       } catch (error) {
         console.error("Failed to change active organization", error);
         Alert.alert("Erro", "Não foi possível trocar de workspace.");
       }
     },
-    [activeOrganization?.id, setActiveOrganizationId]
+    [activeOrganization?.id, biometricsEnabled, ensureUnlocked, isUnlocked, setActiveOrganizationId]
   );
 
   const handleToggleNotifications = useCallback(async () => {
@@ -272,6 +285,37 @@ export default function ProfileScreen() {
       Alert.alert("Erro", "Não foi possível alterar configurações de notificação.");
     }
   }, [notificationsEnabled, isWeb, NOTIFY_SETTINGS_KEY]);
+
+  const handleToggleBiometrics = useCallback(async () => {
+    if (updatingBiometrics) return;
+    setUpdatingBiometrics(true);
+    try {
+      if (biometricsEnabled) {
+        await setBiometricsEnabled(false);
+        return;
+      }
+      const support = await isBiometricsSupported();
+      if (!support.hasHardware) {
+        Alert.alert("Biometria indisponível", "Este aparelho não possui hardware biométrico.");
+        return;
+      }
+      if (!support.isEnrolled) {
+        Alert.alert(
+          "Biometria não configurada",
+          "Cadastre sua biometria nas configurações do aparelho para ativar este recurso."
+        );
+        return;
+      }
+      const result = await promptBiometrics("Ativar biometria no GoAtleta");
+      if (!result.success) return;
+      await setBiometricsEnabled(true);
+    } catch (error) {
+      console.error("Failed to toggle biometrics", error);
+      Alert.alert("Erro", "Não foi possível atualizar a biometria agora.");
+    } finally {
+      setUpdatingBiometrics(false);
+    }
+  }, [biometricsEnabled, setBiometricsEnabled, updatingBiometrics]);
 
   const applyProfilePreview = useCallback(async (preview: "professor" | "student" | "admin" | "auto") => {
     await setDevProfilePreview(preview);
@@ -728,6 +772,38 @@ export default function ProfileScreen() {
                   </View>
                 }
               />
+              {Platform.OS !== "web" ? (
+                <SettingsRow
+                  icon="finger-print-outline"
+                  iconBg="rgba(100, 190, 255, 0.16)"
+                  label="Entrar com biometria"
+                  onPress={() => {
+                    void handleToggleBiometrics();
+                  }}
+                  rightContent={
+                    <View
+                      style={{
+                        paddingVertical: 5,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: biometricsEnabled ? colors.primaryBg : colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: biometricsEnabled ? colors.primaryText : colors.text,
+                          fontWeight: "700",
+                          fontSize: 12,
+                        }}
+                      >
+                        {updatingBiometrics ? "..." : biometricsEnabled ? "Ligado" : "Desligado"}
+                      </Text>
+                    </View>
+                  }
+                />
+              ) : null}
               <SettingsRow
                 icon="moon-outline"
                 iconBg="rgba(96, 187, 255, 0.16)"

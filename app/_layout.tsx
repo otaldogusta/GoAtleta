@@ -29,6 +29,8 @@ import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { OrganizationProvider, useOrganization } from "../src/providers/OrganizationProvider";
+import { BiometricGate } from "../src/security/BiometricGate";
+import { BiometricLockProvider, useBiometricLock } from "../src/security/biometric-lock";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
@@ -78,10 +80,11 @@ function RootLayoutContent() {
   const { loading: bootstrapLoading, error: bootstrapError, retry: retryBootstrap } =
     useBootstrap();
   const rootState = useRootNavigationState();
-  const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
+  const { session, loading, exchangeCodeForSession, consumeAuthUrl, signOut } = useAuth();
   const { role, loading: roleLoading } = useRole();
-  const { memberPermissions, permissionsLoading, isLoading: organizationLoading } =
+  const { memberPermissions, permissionsLoading, isLoading: organizationLoading, activeOrganization } =
     useOrganization();
+  const { isEnabled: biometricsEnabled, isUnlocked, isPrompting, unlock } = useBiometricLock();
   const navReady = Boolean(rootState.key);
   const isBooting =
     bootstrapLoading ||
@@ -129,6 +132,9 @@ function RootLayoutContent() {
     Platform.OS === "web" &&
     pathname !== "/" &&
     !isPublicRoute;
+  const sensitivePrefixes = ["/coordination", "/org-members", "/reports"];
+  const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const isSensitiveRoute = sensitivePrefixes.some((prefix) => pathname.startsWith(prefix));
 
   useEffect(() => {
     LogBox.ignoreLogs([
@@ -460,6 +466,35 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
     );
   }
 
+  if (
+    Platform.OS !== "web" &&
+    session &&
+    biometricsEnabled &&
+    !isUnlocked &&
+    (!isPublicRoute || (isAdmin && isSensitiveRoute))
+  ) {
+    return (
+      <View style={{ flex: 1 }}>
+        <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
+        <StatusBar
+          style={mode === "dark" ? "light" : "dark"}
+          backgroundColor="transparent"
+        />
+        <BiometricGate
+          isPrompting={isPrompting}
+          onUnlock={() => {
+            void unlock("Desbloquear GoAtleta");
+          }}
+          onForceLogin={() => {
+            void signOut().finally(() => {
+              router.replace("/welcome");
+            });
+          }}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
@@ -621,6 +656,22 @@ function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
     <AuthProvider initialSession={data?.session}>
+      <BiometricAuthBoundary />
+    </AuthProvider>
+  );
+}
+
+function BiometricAuthBoundary() {
+  const { session, signOut } = useAuth();
+  const router = useRouter();
+  return (
+    <BiometricLockProvider
+      sessionActive={Boolean(session)}
+      onForceRelogin={async () => {
+        await signOut();
+        router.replace("/welcome");
+      }}
+    >
       <RoleProvider>
         <OrganizationProvider>
           <WhatsAppSettingsProvider>
@@ -636,6 +687,6 @@ function BootstrapAuthProviders() {
           </WhatsAppSettingsProvider>
         </OrganizationProvider>
       </RoleProvider>
-    </AuthProvider>
+    </BiometricLockProvider>
   );
 }

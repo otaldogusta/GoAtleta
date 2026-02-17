@@ -39,6 +39,13 @@ const plugins = [
 			cameraPermission: "Permitir acesso \u00e0 c\u00e2mera para escanear QR Code.",
 		},
 	],
+	[
+		"expo-local-authentication",
+		{
+			faceIDPermission: "Permitir uso do Face ID para desbloquear o GoAtleta.",
+		},
+	],
+	"expo-secure-store",
 	"@react-native-community/datetimepicker",
 	"@sentry/react-native",
 	[
