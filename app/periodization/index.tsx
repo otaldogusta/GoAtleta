@@ -3617,6 +3617,9 @@ export default function PeriodizationScreen() {
                     )
                   : normalizeText("Nenhuma proposta de autopilot encontrada para esta turma.")}
             </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {normalizeText("Contrato de segurança: nada aplica sem aprovação explícita (status approved).")}
+            </Text>
             {latestAutopilotProposal ? (
               <>
                 <Text style={{ color: colors.text, fontSize: 12 }}>
@@ -3624,7 +3627,11 @@ export default function PeriodizationScreen() {
                 </Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
-                    disabled={isUpdatingAutopilotProposal || !isOrgAdmin}
+                    disabled={
+                      isUpdatingAutopilotProposal ||
+                      !isOrgAdmin ||
+                      latestAutopilotProposal.status === "approved"
+                    }
                     onPress={() => {
                       void handleAutopilotDecision("approved");
                     }}
@@ -3634,7 +3641,10 @@ export default function PeriodizationScreen() {
                       borderRadius: 10,
                       alignItems: "center",
                       backgroundColor: isOrgAdmin ? colors.successBg : colors.secondaryBg,
-                      opacity: isUpdatingAutopilotProposal ? 0.7 : 1,
+                      opacity:
+                        isUpdatingAutopilotProposal || latestAutopilotProposal.status === "approved"
+                          ? 0.7
+                          : 1,
                     }}
                   >
                     <Text style={{ color: isOrgAdmin ? colors.successText : colors.muted, fontWeight: "700" }}>
@@ -3642,7 +3652,9 @@ export default function PeriodizationScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
-                    disabled={isUpdatingAutopilotProposal}
+                    disabled={
+                      isUpdatingAutopilotProposal || latestAutopilotProposal.status === "rejected"
+                    }
                     onPress={() => {
                       void handleAutopilotDecision("rejected");
                     }}
@@ -3652,7 +3664,10 @@ export default function PeriodizationScreen() {
                       borderRadius: 10,
                       alignItems: "center",
                       backgroundColor: colors.dangerBg,
-                      opacity: isUpdatingAutopilotProposal ? 0.7 : 1,
+                      opacity:
+                        isUpdatingAutopilotProposal || latestAutopilotProposal.status === "rejected"
+                          ? 0.7
+                          : 1,
                     }}
                   >
                     <Text style={{ color: colors.dangerText, fontWeight: "700" }}>

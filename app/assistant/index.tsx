@@ -727,12 +727,19 @@ export default function AssistantScreen() {
 
   const applyNextClassSuggestion = useCallback(() => {
     if (!nextClassSuggestion) return;
+    if (autopilotProposal && autopilotProposal.status !== "approved") {
+      Alert.alert(
+        "Aprovação obrigatória",
+        `A proposta semanal está com status \"${autopilotProposal.status}\". Nada aplica sem aprovação explícita.`
+      );
+      return;
+    }
     setInput(nextClassSuggestion.nextTrainingPrompt);
     pushAssistantMessage("Sugestão aplicada no composer. Revise e gere o próximo treino quando estiver pronto.");
     requestAnimationFrame(() => {
       composerInputRef.current?.focus();
     });
-  }, [nextClassSuggestion, pushAssistantMessage]);
+  }, [autopilotProposal, nextClassSuggestion, pushAssistantMessage]);
 
   const handleWeeklyAutopilot = useCallback(async () => {
     if (!selectedClass || !activeOrganization?.id || !session?.user?.id) return;
@@ -1351,6 +1358,7 @@ export default function AssistantScreen() {
                   ))}
                 </View>
                 <Pressable
+                  disabled={Boolean(autopilotProposal && autopilotProposal.status !== "approved")}
                   onPress={applyNextClassSuggestion}
                   style={{
                     alignSelf: "flex-start",
@@ -1360,10 +1368,16 @@ export default function AssistantScreen() {
                     borderColor: colors.border,
                     paddingVertical: 6,
                     paddingHorizontal: 12,
+                    opacity: autopilotProposal && autopilotProposal.status !== "approved" ? 0.6 : 1,
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700" }}>Aplicar no próximo treino</Text>
                 </Pressable>
+                {autopilotProposal && autopilotProposal.status !== "approved" ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Bloqueado até aprovação do autopilot semanal.
+                  </Text>
+                ) : null}
               </View>
             ) : null}
 
@@ -1380,6 +1394,9 @@ export default function AssistantScreen() {
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>Autopilot semanal</Text>
                 <Text style={{ color: colors.muted }}>Status: {autopilotProposal.status}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Contrato: nada aplica sem status aprovado.
+                </Text>
                 <Text style={{ color: colors.text }}>{autopilotProposal.summary}</Text>
                 {autopilotProposal.actions.map((item, index) => (
                   <Text key={`autopilot-action-${index}`} style={{ color: colors.muted }}>
@@ -1388,6 +1405,7 @@ export default function AssistantScreen() {
                 ))}
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
+                    disabled={autopilotProposal.status === "approved"}
                     onPress={handleApproveAutopilot}
                     style={{
                       borderRadius: 999,
@@ -1396,11 +1414,13 @@ export default function AssistantScreen() {
                       borderColor: colors.border,
                       paddingVertical: 6,
                       paddingHorizontal: 12,
+                      opacity: autopilotProposal.status === "approved" ? 0.6 : 1,
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Aprovar</Text>
                   </Pressable>
                   <Pressable
+                    disabled={autopilotProposal.status === "rejected"}
                     onPress={handleRejectAutopilot}
                     style={{
                       borderRadius: 999,
@@ -1409,6 +1429,7 @@ export default function AssistantScreen() {
                       borderColor: colors.border,
                       paddingVertical: 6,
                       paddingHorizontal: 12,
+                      opacity: autopilotProposal.status === "rejected" ? 0.6 : 1,
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Rejeitar</Text>
