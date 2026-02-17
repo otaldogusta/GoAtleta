@@ -31,6 +31,13 @@ type AiRequestOptions = {
   cache?: AiCacheContext;
 };
 
+export type AssistantMemoryContextItem = {
+  scope: "organization" | "class" | "coach";
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+};
+
 export type ExecutiveSummaryInput = {
   syncHealth: unknown;
   slaStats: unknown;
@@ -253,6 +260,18 @@ export const getAiCacheMetrics = () => ({
   size: aiResponseCache.size,
   inFlight: aiInFlightCache.size,
 });
+
+export const buildScopedMemoryContext = (
+  entries: AssistantMemoryContextItem[],
+  limit = 5
+) => {
+  const normalized = entries
+    .filter((entry) => Boolean(entry.content?.trim()))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, Math.max(1, limit));
+
+  return normalized.map((entry) => `${entry.role}/${entry.scope}: ${entry.content.trim()}`);
+};
 
 const extractJsonObject = (value: string) => {
   const trimmed = value.trim();

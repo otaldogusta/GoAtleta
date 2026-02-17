@@ -20,8 +20,8 @@ import {
     ScrollView,
     Text,
     TextInput,
-  View,
-  useWindowDimensions
+    View,
+    useWindowDimensions
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
@@ -100,6 +100,17 @@ const monthNames = [
 ];
 
 const weekdayShortLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+const athletePositionOptions = [
+  "indefinido",
+  "levantador",
+  "oposto",
+  "ponteiro",
+  "central",
+  "libero",
+] as const;
+const athleteObjectiveOptions = ["ludico", "base", "rendimento"] as const;
+const athleteLearningStyleOptions = ["misto", "visual", "auditivo", "cinestesico"] as const;
 
 const formatStartTimeLabel = (value: string) => {
   const raw = value.trim();
@@ -195,6 +206,12 @@ export default function StudentsScreen() {
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
   const [guardianRelation, setGuardianRelation] = useState("");
+  const [positionPrimary, setPositionPrimary] = useState<Student["positionPrimary"]>("indefinido");
+  const [positionSecondary, setPositionSecondary] = useState<Student["positionSecondary"]>(
+    "indefinido"
+  );
+  const [athleteObjective, setAthleteObjective] = useState<Student["athleteObjective"]>("base");
+  const [learningStyle, setLearningStyle] = useState<Student["learningStyle"]>("misto");
   const [healthIssue, setHealthIssue] = useState(false);
   const [healthIssueNotes, setHealthIssueNotes] = useState("");
   const [medicationUse, setMedicationUse] = useState(false);
@@ -258,6 +275,10 @@ export default function StudentsScreen() {
     guardianName: string;
     guardianPhone: string;
     guardianRelation: string;
+    positionPrimary: Student["positionPrimary"];
+    positionSecondary: Student["positionSecondary"];
+    athleteObjective: Student["athleteObjective"];
+    learningStyle: Student["learningStyle"];
     healthIssue: boolean;
     healthIssueNotes: string;
     medicationUse: boolean;
@@ -736,6 +757,10 @@ export default function StudentsScreen() {
         guardianName: guardianName.trim(),
         guardianPhone: guardianPhone.trim(),
         guardianRelation: guardianRelation.trim(),
+        positionPrimary,
+        positionSecondary,
+        athleteObjective,
+        learningStyle,
         healthIssue,
         healthIssueNotes: healthIssue ? healthIssueNotes.trim() : "",
         medicationUse,
@@ -778,6 +803,10 @@ export default function StudentsScreen() {
     guardianName.trim() ||
     guardianPhone.trim() ||
     guardianRelation.trim() ||
+    positionPrimary !== "indefinido" ||
+    positionSecondary !== "indefinido" ||
+    athleteObjective !== "base" ||
+    learningStyle !== "misto" ||
     healthIssue ||
     medicationUse ||
     healthIssueNotes.trim() ||
@@ -807,6 +836,10 @@ export default function StudentsScreen() {
       editSnapshot.guardianName !== guardianName ||
       editSnapshot.guardianPhone !== guardianPhone ||
       editSnapshot.guardianRelation !== guardianRelation ||
+      editSnapshot.positionPrimary !== positionPrimary ||
+      editSnapshot.positionSecondary !== positionSecondary ||
+      editSnapshot.athleteObjective !== athleteObjective ||
+      editSnapshot.learningStyle !== learningStyle ||
       editSnapshot.healthIssue !== healthIssue ||
       editSnapshot.healthIssueNotes !== healthIssueNotes ||
       editSnapshot.medicationUse !== medicationUse ||
@@ -818,6 +851,7 @@ export default function StudentsScreen() {
     birthDate,
     classId,
     customAgeBand,
+    athleteObjective,
     editSnapshot,
     editingId,
     guardianName,
@@ -827,9 +861,12 @@ export default function StudentsScreen() {
     healthIssueNotes,
     medicationUse,
     medicationNotes,
+    learningStyle,
     healthObservations,
     loginEmail,
     name,
+    positionPrimary,
+    positionSecondary,
     photoUrl,
     phone,
     unit,
@@ -850,6 +887,10 @@ export default function StudentsScreen() {
     setGuardianName("");
     setGuardianPhone("");
     setGuardianRelation("");
+    setPositionPrimary("indefinido");
+    setPositionSecondary("indefinido");
+    setAthleteObjective("base");
+    setLearningStyle("misto");
     setHealthIssue(false);
     setHealthIssueNotes("");
     setMedicationUse(false);
@@ -882,6 +923,10 @@ export default function StudentsScreen() {
     setGuardianName("");
     setGuardianPhone("");
     setGuardianRelation("");
+    setPositionPrimary("indefinido");
+    setPositionSecondary("indefinido");
+    setAthleteObjective("base");
+    setLearningStyle("misto");
     setHealthIssue(false);
     setHealthIssueNotes("");
     setMedicationUse(false);
@@ -982,6 +1027,18 @@ export default function StudentsScreen() {
         const guardianNameValue = safeText(student.guardianName);
         const guardianPhoneValue = safeText(student.guardianPhone);
         const guardianRelationValue = safeText(student.guardianRelation);
+        const positionPrimaryValue = athletePositionOptions.includes(student.positionPrimary)
+          ? student.positionPrimary
+          : "indefinido";
+        const positionSecondaryValue = athletePositionOptions.includes(student.positionSecondary)
+          ? student.positionSecondary
+          : "indefinido";
+        const athleteObjectiveValue = athleteObjectiveOptions.includes(student.athleteObjective)
+          ? student.athleteObjective
+          : "base";
+        const learningStyleValue = athleteLearningStyleOptions.includes(student.learningStyle)
+          ? student.learningStyle
+          : "misto";
         const healthIssueNotesValue = safeText(student.healthIssueNotes);
         const medicationNotesValue = safeText(student.medicationNotes);
         const healthObservationsValue = safeText(student.healthObservations);
@@ -1007,6 +1064,10 @@ export default function StudentsScreen() {
           guardianName: guardianNameValue,
           guardianPhone: guardianPhoneValue,
           guardianRelation: guardianRelationValue,
+          positionPrimary: positionPrimaryValue,
+          positionSecondary: positionSecondaryValue,
+          athleteObjective: athleteObjectiveValue,
+          learningStyle: learningStyleValue,
           healthIssue: student.healthIssue ?? false,
           healthIssueNotes: healthIssueNotesValue,
           medicationUse: student.medicationUse ?? false,
@@ -1025,6 +1086,10 @@ export default function StudentsScreen() {
         setGuardianName(guardianNameValue);
         setGuardianPhone(guardianPhoneValue);
         setGuardianRelation(guardianRelationValue);
+        setPositionPrimary(positionPrimaryValue);
+        setPositionSecondary(positionSecondaryValue);
+        setAthleteObjective(athleteObjectiveValue);
+        setLearningStyle(learningStyleValue);
         setHealthIssue(student.healthIssue ?? false);
         setHealthIssueNotes(healthIssueNotesValue);
         setMedicationUse(student.medicationUse ?? false);
@@ -1045,7 +1110,15 @@ export default function StudentsScreen() {
         Alert.alert("Erro ao abrir aluno", detail);
       }
     },
-    [ageBandOptions, classes, closeAllPickers, unitLabel]
+    [
+      ageBandOptions,
+      athleteLearningStyleOptions,
+      athleteObjectiveOptions,
+      athletePositionOptions,
+      classes,
+      closeAllPickers,
+      unitLabel,
+    ]
   );
 
   const onDelete = (id: string) => {
@@ -1783,6 +1856,11 @@ export default function StudentsScreen() {
         const nameParts = item.name.trim().split(/\s+/);
         const shortName = nameParts.slice(0, 2).join(" ");
         const restName = nameParts.slice(2).join(" ");
+        const profileSummary = [
+          `Posição: ${item.positionPrimary || "indefinido"}`,
+          `Objetivo: ${item.athleteObjective || "base"}`,
+          `Estilo: ${item.learningStyle || "misto"}`,
+        ];
         return (
           <Pressable
             onPress={() => onPress(item)}
@@ -1844,6 +1922,12 @@ export default function StudentsScreen() {
                     </Text>
                   </FadeHorizontalScroll>
                 </View>
+                <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                  {className} • {unitName}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                  {profileSummary.join(" • ")}
+                </Text>
               </View>
               <Pressable
                 onPress={() => onWhatsApp(item)}
@@ -2280,6 +2364,96 @@ export default function StudentsScreen() {
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Posição principal</Text>
+                  <TextInput
+                    placeholder="indefinido | levantador | oposto..."
+                    value={positionPrimary}
+                    onChangeText={(value) =>
+                      setPositionPrimary(
+                        (value.trim().toLowerCase() as Student["positionPrimary"]) ||
+                          "indefinido"
+                      )
+                    }
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Posição secundária</Text>
+                  <TextInput
+                    placeholder="indefinido | ponteiro | libero..."
+                    value={positionSecondary}
+                    onChangeText={(value) =>
+                      setPositionSecondary(
+                        (value.trim().toLowerCase() as Student["positionSecondary"]) ||
+                          "indefinido"
+                      )
+                    }
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Objetivo esportivo</Text>
+                  <TextInput
+                    placeholder="ludico | base | rendimento"
+                    value={athleteObjective}
+                    onChangeText={(value) =>
+                      setAthleteObjective(
+                        (value.trim().toLowerCase() as Student["athleteObjective"]) || "base"
+                      )
+                    }
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+                  <Text style={{ color: colors.muted }}>Estilo de aprendizagem</Text>
+                  <TextInput
+                    placeholder="misto | visual | auditivo | cinestesico"
+                    value={learningStyle}
+                    onChangeText={(value) =>
+                      setLearningStyle(
+                        (value.trim().toLowerCase() as Student["learningStyle"]) || "misto"
+                      )
+                    }
                     placeholderTextColor={colors.placeholder}
                     style={{
                       borderWidth: 1,
@@ -3764,6 +3938,100 @@ export default function StudentsScreen() {
                       {studentFormError}
                     </Text>
                   ) : null}
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
+                      <TextInput
+                        placeholder="indefinido | levantador..."
+                        value={positionPrimary}
+                        onChangeText={(value) =>
+                          setPositionPrimary(
+                            (value.trim().toLowerCase() as Student["positionPrimary"]) ||
+                              "indefinido"
+                          )
+                        }
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.background,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
+                      <TextInput
+                        placeholder="indefinido | ponteiro..."
+                        value={positionSecondary}
+                        onChangeText={(value) =>
+                          setPositionSecondary(
+                            (value.trim().toLowerCase() as Student["positionSecondary"]) ||
+                              "indefinido"
+                          )
+                        }
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.background,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
+                      <TextInput
+                        placeholder="ludico | base | rendimento"
+                        value={athleteObjective}
+                        onChangeText={(value) =>
+                          setAthleteObjective(
+                            (value.trim().toLowerCase() as Student["athleteObjective"]) || "base"
+                          )
+                        }
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.background,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Estilo</Text>
+                      <TextInput
+                        placeholder="misto | visual | auditivo | cinestesico"
+                        value={learningStyle}
+                        onChangeText={(value) =>
+                          setLearningStyle(
+                            (value.trim().toLowerCase() as Student["learningStyle"]) || "misto"
+                          )
+                        }
+                        placeholderTextColor={colors.placeholder}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          padding: 10,
+                          fontSize: 13,
+                          borderRadius: 12,
+                          backgroundColor: colors.background,
+                          color: colors.inputText,
+                        }}
+                      />
+                    </View>
+                  </View>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                       <DateInput

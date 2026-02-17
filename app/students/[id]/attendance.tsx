@@ -1,20 +1,20 @@
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  TextInput,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    TextInput,
+    View,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import {
-  getAttendanceByStudent,
-  getClassById,
-  getStudentById,
-} from "../../../src/db/seed";
 import type { AttendanceRecord, ClassGroup, Student } from "../../../src/core/models";
+import {
+    getAttendanceByStudent,
+    getClassById,
+    getStudentById,
+} from "../../../src/db/seed";
 import { Card } from "../../../src/ui/Card";
 import { Typography } from "../../../src/ui/Typography";
 import { useAppTheme } from "../../../src/ui/app-theme";

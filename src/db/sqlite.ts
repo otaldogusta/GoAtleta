@@ -228,6 +228,32 @@ export function initDb() {
       resolvedAt TEXT,
       resolutionNote TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS assistant_memory_entries (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      classId TEXT NOT NULL DEFAULT '',
+      userId TEXT NOT NULL DEFAULT '',
+      scope TEXT NOT NULL DEFAULT 'class',
+      role TEXT NOT NULL DEFAULT 'assistant',
+      content TEXT NOT NULL DEFAULT '',
+      expiresAt TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS weekly_autopilot_proposals (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      classId TEXT NOT NULL DEFAULT '',
+      weekStart TEXT NOT NULL DEFAULT '',
+      summary TEXT NOT NULL DEFAULT '',
+      actions TEXT NOT NULL DEFAULT '[]',
+      proposedPlanIds TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'proposed',
+      createdBy TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
   `
   );
 
@@ -318,6 +344,24 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_session_execution_log_class_date ON session_execution_log (classId, date DESC)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_memory_org_class_created ON assistant_memory_entries (organizationId, classId, createdAt DESC)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_memory_expires ON assistant_memory_entries (expiresAt)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_weekly_autopilot_org_class_week ON weekly_autopilot_proposals (organizationId, classId, weekStart DESC)"
     );
   } catch {}
 

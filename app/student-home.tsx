@@ -437,6 +437,30 @@ export default function StudentHome() {
 
         <View
           style={{
+            padding: 14,
+            borderRadius: 16,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 8,
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+            Perfil esportivo
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Posição principal: {student.positionPrimary || "indefinido"}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Posição secundária: {student.positionSecondary || "indefinido"}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Objetivo: {student.athleteObjective || "base"} • Estilo: {student.learningStyle || "misto"}
+          </Text>
+        </View>
+
+        <View
+          style={{
             padding: 16,
             borderRadius: 20,
             backgroundColor: colors.card,

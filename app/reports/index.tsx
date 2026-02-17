@@ -4,12 +4,12 @@ import { FlatList, Platform, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  AdminPendingAttendance,
-  AdminPendingSessionLogs,
-  AdminRecentActivity,
-  listAdminPendingAttendance,
-  listAdminPendingSessionLogs,
-  listAdminRecentActivity,
+    AdminPendingAttendance,
+    AdminPendingSessionLogs,
+    AdminRecentActivity,
+    listAdminPendingAttendance,
+    listAdminPendingSessionLogs,
+    listAdminRecentActivity,
 } from "../../src/api/reports";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";

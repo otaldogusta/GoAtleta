@@ -2,8 +2,8 @@ import * as Sentry from "@sentry/react-native";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
-import { getDevProfilePreview, type DevProfilePreview } from "../dev/profile-preview";
 import type { Student } from "../core/models";
+import { getDevProfilePreview, type DevProfilePreview } from "../dev/profile-preview";
 import { useAuth } from "./auth";
 import { getSessionUserId, getValidAccessToken } from "./session";
 
@@ -31,6 +31,15 @@ type StudentRow = {
   guardian_name: string | null;
   guardian_phone: string | null;
   guardian_relation: string | null;
+  health_issue?: boolean | null;
+  health_issue_notes?: string | null;
+  medication_use?: boolean | null;
+  medication_notes?: string | null;
+  health_observations?: string | null;
+  position_primary?: string | null;
+  position_secondary?: string | null;
+  athlete_objective?: string | null;
+  learning_style?: string | null;
   birthdate: string | null;
   createdat: string;
 };
@@ -47,6 +56,15 @@ const mapStudent = (row: StudentRow): Student => ({
   guardianName: row.guardian_name ?? undefined,
   guardianPhone: row.guardian_phone ?? undefined,
   guardianRelation: row.guardian_relation ?? undefined,
+  healthIssue: row.health_issue ?? false,
+  healthIssueNotes: row.health_issue_notes ?? "",
+  medicationUse: row.medication_use ?? false,
+  medicationNotes: row.medication_notes ?? "",
+  healthObservations: row.health_observations ?? "",
+  positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
+  positionSecondary: (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
+  athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
+  learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
   birthDate: row.birthdate ?? "",
   createdAt: row.createdat,
 });
@@ -105,6 +123,15 @@ const buildPreviewStudent = (userId: string | null): Student => ({
   guardianName: "",
   guardianPhone: "",
   guardianRelation: "",
+  healthIssue: false,
+  healthIssueNotes: "",
+  medicationUse: false,
+  medicationNotes: "",
+  healthObservations: "",
+  positionPrimary: "indefinido",
+  positionSecondary: "indefinido",
+  athleteObjective: "base",
+  learningStyle: "misto",
   birthDate: "",
   createdAt: new Date().toISOString(),
 });

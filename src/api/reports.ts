@@ -65,6 +65,22 @@ export type AdminRecentActivity = {
   referenceDate: string | null;
 };
 
+export type TeamIntelligenceClassMetric = {
+  classId: string;
+  className: string;
+  unit: string;
+  avgAttendance: number;
+  avgPse: number;
+  sessions: number;
+};
+
+export type TeamIntelligenceSnapshot = {
+  globalAvgAttendance: number;
+  globalAvgPse: number;
+  classes: TeamIntelligenceClassMetric[];
+  rankingByAttendance: TeamIntelligenceClassMetric[];
+};
+
 const toInt = (value: number | string | null | undefined) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const parsed = Number(value ?? 0);
@@ -169,3 +185,60 @@ export async function listAdminRecentActivity(params: {
     referenceDate: row.reference_date,
   }));
 }
+
+export const buildTeamIntelligenceSnapshot = (input: {
+  classes: Array<{ id: string; name: string; unit: string }>;
+  sessionLogs: Array<{ classId: string; attendance: number; PSE: number }>;
+}): TeamIntelligenceSnapshot => {
+  const byClass = new Map<string, TeamIntelligenceClassMetric>();
+
+  input.classes.forEach((item) => {
+    byClass.set(item.id, {
+      classId: item.id,
+      className: item.name,
+      unit: item.unit,
+      avgAttendance: 0,
+      avgPse: 0,
+      sessions: 0,
+    });
+  });
+
+  input.sessionLogs.forEach((log) => {
+    const metric = byClass.get(log.classId);
+    if (!metric) return;
+    metric.sessions += 1;
+    metric.avgAttendance += Number(log.attendance || 0);
+    metric.avgPse += Number(log.PSE || 0);
+  });
+
+  const classes = Array.from(byClass.values()).map((item) => {
+    if (item.sessions <= 0) return item;
+    return {
+      ...item,
+      avgAttendance: item.avgAttendance / item.sessions,
+      avgPse: item.avgPse / item.sessions,
+    };
+  });
+
+  const globalSessions = classes.reduce((sum, item) => sum + item.sessions, 0);
+  const globalAvgAttendance =
+    globalSessions > 0
+      ? classes.reduce((sum, item) => sum + item.avgAttendance * item.sessions, 0) / globalSessions
+      : 0;
+  const globalAvgPse =
+    globalSessions > 0
+      ? classes.reduce((sum, item) => sum + item.avgPse * item.sessions, 0) / globalSessions
+      : 0;
+
+  const rankingByAttendance = [...classes]
+    .filter((item) => item.sessions > 0)
+    .sort((a, b) => b.avgAttendance - a.avgAttendance)
+    .slice(0, 5);
+
+  return {
+    globalAvgAttendance,
+    globalAvgPse,
+    classes,
+    rankingByAttendance,
+  };
+};

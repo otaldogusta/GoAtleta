@@ -9,8 +9,8 @@ import {
     useState,
 } from "react";
 
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearAiCache } from "../api/ai";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import {
     getMyMemberPermissions,
     type MemberPermissionKey,

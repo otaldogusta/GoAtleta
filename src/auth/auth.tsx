@@ -3,8 +3,8 @@ import * as WebBrowser from "expo-web-browser";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearAiCache } from "../api/ai";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import type { AuthSession } from "./session";
 import { loadSession, saveSession } from "./session";
@@ -222,20 +222,20 @@ export function AuthProvider({
       if (result.type !== "success") {
         throw new Error("OAuth cancelado.");
       }
-      
+
       // Extract code from the URL
       const url = new URL(result.url);
       const code = url.searchParams.get("code");
-      
+
       if (!code) {
         throw new Error("Falha ao autenticar.");
       }
-      
+
       // Exchange code for session
       const payload = await authFetch("/auth/v1/token?grant_type=authorization_code", {
         code,
       });
-      
+
       const next = normalizeAuthSession(payload);
       setSession(next);
       await saveSession(next, true);

@@ -31,11 +31,10 @@ import {
     listWeeklyAutopilotProposals,
 
     saveClassPlans,
-    updateWeeklyAutopilotProposalStatus,
-
     updateClassAcwrLimits,
 
     updateClassPlan,
+    updateWeeklyAutopilotProposalStatus,
 } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 

@@ -9,12 +9,12 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { buildTeamIntelligenceSnapshot } from "../../src/api/reports";
+import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { buildTeamIntelligenceSnapshot } from "../../src/api/reports";
-import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
 
 import type {
     AttendanceRecord,
@@ -399,7 +399,7 @@ export default function ReportsScreen() {
       console.warn("CSV export only available on web platform");
       return;
     }
-    
+
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");

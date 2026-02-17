@@ -25,7 +25,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
-import { normalizeAgeBand, parseAgeBandRange, sortAgeBandList } from "../../src/core/age-band";
+import { normalizeAgeBand, sortAgeBandList } from "../../src/core/age-band";
+import { translateMethodology } from "../../src/core/methodology/methodology-translator";
 import type {
     ClassGroup,
     HiddenTemplate,
@@ -163,110 +164,6 @@ const extractKeywords = (value: string) => {
     .map((token) => token.trim())
     .filter(Boolean)
     .filter((token) => token.length >= 3 && !stopwords.has(token));
-};
-
-const parseAgeBand = (value: string) => {
-  const range = parseAgeBandRange(value);
-  if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) return null;
-  return { start: range.start, end: range.end };
-};
-
-const getPiagetTags = (ageBand: string) => {
-  const range = parseAgeBand(ageBand);
-  if (!range) return [];
-  const start = range.start;
-  if (start <= 2) {
-    return [
-      "sensório-motor",
-      "jogo de exercício",
-      "exploração sensorial",
-      "permanência do objeto",
-    ];
-  }
-  if (start <= 7) {
-    return [
-      "pre-operatorio",
-      "jogo simbolico",
-      "faz de conta",
-      "linguagem",
-    ];
-  }
-  if (start <= 11) {
-    return [
-      "operatorio concreto",
-      "jogo de regras",
-      "cooperacao",
-      "logica concreta",
-    ];
-  }
-  return [
-    "operatorio formal",
-    "jogo estrategico",
-    "raciocinio abstrato",
-    "hipotético-dedutivo",
-  ];
-};
-
-const getMethodologyTags = (ageBand: string) => {
-  const range = parseAgeBand(ageBand);
-  if (!range) return [];
-  const start = range.start;
-  if (start <= 8) {
-    return [
-      "alfabetizacao motora",
-      "jogo reduzido",
-      "ludico",
-      "coordenacao",
-      "fundamentos basicos",
-      "variedade motora",
-    ];
-  }
-  if (start <= 11) {
-    return [
-      "fundamentos",
-      "tomada de decisao",
-      "jogo de regras",
-      "controle de volume",
-      "core e equilíbrio",
-      "volleyveilig",
-    ];
-  }
-  return [
-    "tecnica eficiente",
-    "potencia controlada",
-    "sistemas de jogo",
-    "transicao defesa-ataque",
-    "forca moderada",
-    "prevencao de lesoes",
-  ];
-};
-
-const getMethodologyTips = (ageBand: string) => {
-  const range = parseAgeBand(ageBand);
-  if (!range) return [];
-  const start = range.start;
-  if (start <= 8) {
-    return [
-      "Sessão curta e lúdica (45-60 min)",
-      "Priorize correr, saltar, lançar, receber",
-      "Jogo 1x1 ou 2x2 com bola leve",
-      "Sem carga externa, foco em técnica",
-    ];
-  }
-  if (start <= 11) {
-    return [
-      "2-3 sessões/semana com fundamentos",
-      "Aquecimento preventivo simples (core e equilíbrio)",
-      "Jogo 2x2 e 3x3 com regras simples",
-      "Controle de saltos e pausas ativas",
-    ];
-  }
-  return [
-    "3 sessões/semana, 60-90 min",
-    "Volleyveilig 2x/semana + mobilidade",
-    "Força 50-70% 1RM com progressão leve",
-    "Monitorar saltos e PSE",
-  ];
 };
 
 export default function TrainingList() {
@@ -1133,6 +1030,21 @@ export default function TrainingList() {
       .map((t) => t.toLowerCase());
   }, [templateTags]);
 
+  const selectedClassForMethodology = useMemo(
+    () => classes.find((item) => item.id === classId) ?? null,
+    [classId, classes]
+  );
+
+  const methodologyTranslation = useMemo(() => {
+    const selectedAgeBand = selectedClassForMethodology?.ageBand || templateAgeBand;
+    if (!selectedAgeBand) return null;
+    return translateMethodology({
+      ageBand: selectedAgeBand,
+      sessionDurationMinutes: selectedClassForMethodology?.durationMinutes ?? 60,
+      objectiveHint: title || templateTitle,
+    });
+  }, [classId, classes, selectedClassForMethodology, templateAgeBand, templateTitle, title]);
+
   const suggestions = useMemo(() => {
     const planText = [
       title,
@@ -1142,10 +1054,7 @@ export default function TrainingList() {
     ].join(" ");
     const keywords = extractKeywords(planText);
     const keywordSet = new Set(keywords);
-    const selectedAgeBand =
-      classes.find((item) => item.id === classId)?.ageBand || templateAgeBand;
-    const piagetTags = getPiagetTags(selectedAgeBand);
-    const methodologyTags = getMethodologyTags(selectedAgeBand);
+    const translatorTags = methodologyTranslation?.tags ?? [];
 
     const fromExistingTags = tagCounts
       .map(([tag]) => tag)
@@ -1167,8 +1076,7 @@ export default function TrainingList() {
       .filter((token) => !currentTags.includes(token));
 
     const combined = [
-      ...piagetTags,
-      ...methodologyTags,
+      ...translatorTags,
       ...fromExistingTags,
       ...fromPlanText,
     ];
@@ -1191,7 +1099,7 @@ export default function TrainingList() {
         });
     }
     return result.slice(0, 8);
-  }, [cooldown, currentTags, main, tagCounts, title, warmup, classId, templateAgeBand, classes]);
+  }, [cooldown, currentTags, main, methodologyTranslation, tagCounts, title, warmup]);
 
   const templateSuggestions = useMemo(() => {
     const templateText = [
@@ -1202,8 +1110,13 @@ export default function TrainingList() {
     ].join(" ");
     const keywords = extractKeywords(templateText);
     const keywordSet = new Set(keywords);
-    const selectedAgeBand = templateAge.trim() || templateAgeBand;
-    const piagetTags = getPiagetTags(selectedAgeBand);
+    const translatorTags =
+      templateAge.trim() || templateAgeBand
+        ? translateMethodology({
+            ageBand: templateAge.trim() || templateAgeBand,
+            objectiveHint: templateTitle,
+          }).tags
+        : [];
 
     const fromExistingTags = tagCounts
       .map(([tag]) => tag)
@@ -1224,7 +1137,7 @@ export default function TrainingList() {
       .map(([token]) => token)
       .filter((token) => !templateCurrentTags.includes(token));
 
-    const combined = [...piagetTags, ...fromExistingTags, ...fromTemplateText];
+    const combined = [...translatorTags, ...fromExistingTags, ...fromTemplateText];
     const seen = new Set<string>();
     const result: string[] = [];
     combined.forEach((tag) => {
@@ -2336,10 +2249,7 @@ export default function TrainingList() {
           ) : null}
           {hasFormContent ? (
             (() => {
-              const selectedAgeBand =
-                classes.find((item) => item.id === classId)?.ageBand ||
-                templateAgeBand;
-              const tips = getMethodologyTips(selectedAgeBand);
+              const tips = methodologyTranslation?.tips ?? [];
               if (!tips.length) return null;
               return (
                 <View
@@ -2355,6 +2265,11 @@ export default function TrainingList() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     Dicas da faixa etária
                   </Text>
+                  {methodologyTranslation ? (
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      Modo: {methodologyTranslation.mode} • Temp pedagógica: {methodologyTranslation.pedagogicalTemperature}
+                    </Text>
+                  ) : null}
                   {tips.map((tip) => (
                     <Text key={tip} style={{ color: colors.muted, fontSize: 12 }}>
                       {"- " + tip}

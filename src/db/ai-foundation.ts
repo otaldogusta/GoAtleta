@@ -1,4 +1,5 @@
 import type {
+    AssistantMemoryEntry,
     ClassProfile,
     KnowledgeDocument,
     OrganizationAiProfile,
@@ -356,4 +357,58 @@ export async function getLastSessionExecutionLog(classId: string) {
     attendanceCount: Number(row.attendanceCount ?? 0),
     createdAt: row.createdAt,
   } as SessionExecutionLog;
+}
+
+export async function saveAssistantMemoryEntry(entry: AssistantMemoryEntry) {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO assistant_memory_entries (
+      id, organizationId, classId, userId, scope, role, content, expiresAt, createdAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      entry.id,
+      entry.organizationId,
+      entry.classId,
+      entry.userId,
+      entry.scope,
+      entry.role,
+      entry.content,
+      entry.expiresAt,
+      entry.createdAt,
+    ]
+  );
+}
+
+export async function listAssistantMemories(options: {
+  organizationId: string;
+  classId?: string;
+  userId?: string;
+  limit?: number;
+}) {
+  const limit = Math.max(1, options.limit ?? 8);
+  const nowIso = new Date().toISOString();
+
+  const rows = await db.getAllAsync<AssistantMemoryEntry>(
+    options.classId
+      ? `SELECT * FROM assistant_memory_entries
+         WHERE organizationId = ? AND classId = ? AND expiresAt > ?
+         ORDER BY createdAt DESC
+         LIMIT ?`
+      : `SELECT * FROM assistant_memory_entries
+         WHERE organizationId = ? AND expiresAt > ?
+         ORDER BY createdAt DESC
+         LIMIT ?`,
+    options.classId
+      ? [options.organizationId, options.classId, nowIso, limit]
+      : [options.organizationId, nowIso, limit]
+  );
+
+  const filtered = options.userId
+    ? rows.filter((row) => row.userId === options.userId || row.scope !== "coach")
+    : rows;
+
+  return filtered;
+}
+
+export async function pruneExpiredAssistantMemories() {
+  await db.runAsync(`DELETE FROM assistant_memory_entries WHERE expiresAt <= ?`, [new Date().toISOString()]);
 }

@@ -1,10 +1,10 @@
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
-  cacheDirectory,
-  documentDirectory,
-  EncodingType,
-  writeAsStringAsync,
+    cacheDirectory,
+    documentDirectory,
+    EncodingType,
+    writeAsStringAsync,
 } from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -13,40 +13,46 @@ import { Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View }
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  classifySyncError,
-  generateExecutiveSummary,
-  suggestDataFixes,
-  type DataFixIssue,
-  type DataFixSuggestionsResult,
-  type ExecutiveSummaryResult,
-  type SyncErrorClassificationResult,
+    classifySyncError,
+    generateExecutiveSummary,
+    suggestDataFixes,
+    type DataFixIssue,
+    type DataFixSuggestionsResult,
+    type ExecutiveSummaryResult,
+    type SyncErrorClassificationResult,
 } from "../src/api/ai";
 import {
-  AdminPendingAttendance,
-  AdminPendingSessionLogs,
-  AdminRecentActivity,
-  listAdminPendingAttendance,
-  listAdminPendingSessionLogs,
-  listAdminRecentActivity,
+    AdminPendingAttendance,
+    AdminPendingSessionLogs,
+    AdminRecentActivity,
+    listAdminPendingAttendance,
+    listAdminPendingSessionLogs,
+    listAdminRecentActivity,
 } from "../src/api/reports";
+import {
+    buildNextClassSuggestion,
+    type NextClassSuggestion,
+} from "../src/core/intelligence/suggestion-engine";
 import { useSmartSync } from "../src/core/use-smart-sync";
 import {
-  clearPendingWritesDeadLetterCandidates,
-  exportSyncHealthReportJson,
-  flushPendingWrites,
-  getClasses,
-  getPendingWritePayloadById,
-  getPendingWritesDiagnostics,
-  listPendingWriteFailures,
-  reprocessPendingWriteById,
-  reprocessPendingWritesNetworkFailures,
-  type PendingWriteFailureRow,
-  type PendingWritesDiagnostics,
+    clearPendingWritesDeadLetterCandidates,
+    exportSyncHealthReportJson,
+    flushPendingWrites,
+    getClasses,
+    getPendingWritePayloadById,
+    getPendingWritesDiagnostics,
+    getSessionLogsByRange,
+    listPendingWriteFailures,
+    reprocessPendingWriteById,
+    reprocessPendingWritesNetworkFailures,
+    type PendingWriteFailureRow,
+    type PendingWritesDiagnostics,
 } from "../src/db/seed";
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { AuditPanel } from "../src/screens/coordination/AuditPanel";
+import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { ExecutiveSummaryCard } from "../src/screens/coordination/ExecutiveSummaryCard";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
@@ -252,6 +258,7 @@ export default function CoordinationScreen() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiExportLoading, setAiExportLoading] = useState(false);
+  const [classRadarItems, setClassRadarItems] = useState<ClassRadarItem[]>([]);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1180;
   const isWideLayout = width >= 860;
@@ -367,6 +374,7 @@ export default function CoordinationScreen() {
       setExecutiveSummary(null);
       setSyncClassifications({});
       setDataFixSuggestions(null);
+      setClassRadarItems([]);
       setAiMessage(null);
       setLoading(false);
       setRefreshing(false);
@@ -377,16 +385,19 @@ export default function CoordinationScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [attendanceRows, reportRows, activityRows, classes] = await Promise.all([
+      const now = new Date();
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      const [attendanceRows, reportRows, activityRows, classes, sessionLogs] = await Promise.all([
         listAdminPendingAttendance({ organizationId }),
         listAdminPendingSessionLogs({ organizationId }),
         listAdminRecentActivity({ organizationId, limit: 12 }),
         getClasses({ organizationId }),
+        getSessionLogsByRange(start.toISOString(), now.toISOString(), { organizationId }),
       ]);
       const queueDiagnostics = await getPendingWritesDiagnostics(10);
       const failed = await listPendingWriteFailures(12);
       const classesById = new Map(classes.map((item) => [item.id, item]));
-      const now = new Date();
       const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
         now.getDate()
       ).padStart(2, "0")}`;
@@ -405,6 +416,35 @@ export default function CoordinationScreen() {
       setRecentActivity(activityRows);
       setPendingWritesDiagnostics(queueDiagnostics);
       setFailedWrites(failed);
+
+      const logsByClass = sessionLogs.reduce<Record<string, typeof sessionLogs>>((acc, item) => {
+        if (!acc[item.classId]) acc[item.classId] = [];
+        acc[item.classId].push(item);
+        return acc;
+      }, {});
+
+      const radarRows: ClassRadarItem[] = classes
+        .map((item) => {
+          const logs = logsByClass[item.id] ?? [];
+          const suggestion: NextClassSuggestion = buildNextClassSuggestion({
+            className: item.name,
+            logs,
+          });
+          return {
+            classId: item.id,
+            className: item.name,
+            unit: item.unit,
+            radarScore: suggestion.radarScore,
+            trendLabel: suggestion.trendLabel,
+            alerts: suggestion.alerts,
+            nextTrainingPrompt: suggestion.nextTrainingPrompt,
+            logsCount: logs.length,
+          };
+        })
+        .sort((a, b) => a.radarScore - b.radarScore)
+        .slice(0, 6);
+
+      setClassRadarItems(radarRows);
     } catch (err) {
       setPendingAttendance([]);
       setPendingReports([]);
@@ -417,6 +457,7 @@ export default function CoordinationScreen() {
         deadLetterStored: 0,
       });
       setFailedWrites([]);
+      setClassRadarItems([]);
       setAiMessage(null);
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
@@ -732,6 +773,19 @@ export default function CoordinationScreen() {
       );
     }
   }, [executiveSummary]);
+
+  const handleCopyRadarPrompt = useCallback(async (item: ClassRadarItem) => {
+    try {
+      await Clipboard.setStringAsync(item.nextTrainingPrompt);
+      setAiMessage(`Prompt da turma ${item.className} copiado para o próximo treino.`);
+    } catch (error) {
+      setAiMessage(
+        error instanceof Error
+          ? `Falha ao copiar prompt da turma ${item.className}: ${error.message}`
+          : `Falha ao copiar prompt da turma ${item.className}.`
+      );
+    }
+  }, []);
 
   const handleExportMarkdown = useCallback(async () => {
     setAiExportLoading(true);
@@ -1085,6 +1139,13 @@ export default function CoordinationScreen() {
               />
             </View>
           </View>
+
+          <ClassRadarPanel
+            colors={colors}
+            loading={loading}
+            items={classRadarItems}
+            onCopyPrompt={handleCopyRadarPrompt}
+          />
 
           {isWideLayout ? (
             <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>

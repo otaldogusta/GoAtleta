@@ -3,6 +3,15 @@ export type Goal = string;
 export type Equipment = "quadra" | "funcional" | "academia" | "misto";
 export type ClassGender = "masculino" | "feminino" | "misto";
 export type Modality = "voleibol" | "fitness";
+export type AthletePosition =
+  | "indefinido"
+  | "levantador"
+  | "oposto"
+  | "ponteiro"
+  | "central"
+  | "libero";
+export type AthleteObjective = "ludico" | "base" | "rendimento";
+export type AthleteLearningStyle = "misto" | "visual" | "auditivo" | "cinestesico";
 
 export type ClassGroup = {
   id: string;
@@ -115,6 +124,10 @@ export type Student = {
   medicationUse: boolean;
   medicationNotes: string;
   healthObservations: string;
+  positionPrimary: AthletePosition;
+  positionSecondary: AthletePosition;
+  athleteObjective: AthleteObjective;
+  learningStyle: AthleteLearningStyle;
   createdAt: string;
 };
 
@@ -295,6 +308,52 @@ export type ProgressionSessionPlan = {
   regressions: string[];
   progressions: string[];
   riskAdjustments: string[];
+};
+
+export type WeeklyAutopilotStatus = "draft" | "proposed" | "approved" | "rejected";
+
+export type WeeklyAutopilotProposal = {
+  id: string;
+  organizationId: string;
+  classId: string;
+  weekStart: string;
+  summary: string;
+  actions: string[];
+  proposedPlanIds: string[];
+  status: WeeklyAutopilotStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MemoryScope = "organization" | "class" | "coach";
+
+export type AssistantMemoryEntry = {
+  id: string;
+  organizationId: string;
+  classId: string;
+  userId: string;
+  scope: MemoryScope;
+  role: "user" | "assistant";
+  content: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type EvolutionSimulationPoint = {
+  week: number;
+  projectedScore: number;
+  confidence: number;
+  focus: string;
+};
+
+export type EvolutionSimulationResult = {
+  classId: string;
+  baselineScore: number;
+  horizonWeeks: number;
+  assumptions: string[];
+  points: EvolutionSimulationPoint[];
+  requiresHumanApproval: true;
 };
 
 export type ClassProfile = {

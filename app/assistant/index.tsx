@@ -33,17 +33,34 @@ import {
     volleyballLessonPlanToDraft,
     type AutoFixSuggestion,
 } from "../../src/core/ai-operations";
-import type { ClassGroup, SessionLog, TrainingPlan } from "../../src/core/models";
+import { buildWeeklyAutopilotProposal } from "../../src/core/autopilot/weekly-autopilot";
+import { buildNextClassSuggestion, type NextClassSuggestion } from "../../src/core/intelligence/suggestion-engine";
+import type {
+    ClassGroup,
+    EvolutionSimulationResult,
+    SessionLog,
+    TrainingPlan,
+    WeeklyAutopilotProposal,
+} from "../../src/core/models";
 import { buildNextVolleyballLessonPlan } from "../../src/core/progression-engine";
-import { getLatestSessionSkillSnapshot } from "../../src/db/ai-foundation";
+import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
+import {
+    getLatestSessionSkillSnapshot,
+    listAssistantMemories,
+    pruneExpiredAssistantMemories,
+    saveAssistantMemoryEntry,
+} from "../../src/db/ai-foundation";
 import {
     buildSyncHealthReport,
     clearPendingWritesDeadLetterCandidates,
     getClasses,
     getSessionLogsByRange,
     getTrainingPlans,
+    listWeeklyAutopilotProposals,
     reprocessPendingWritesNetworkFailures,
     saveTrainingPlan,
+    saveWeeklyAutopilotProposal,
+    updateWeeklyAutopilotProposalStatus,
 } from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
@@ -174,6 +191,10 @@ export default function AssistantScreen() {
   const [missingData, setMissingData] = useState<string[]>([]);
   const [assumptions, setAssumptions] = useState<string[]>([]);
   const [autoFixSuggestions, setAutoFixSuggestions] = useState<AutoFixSuggestion[]>([]);
+  const [nextClassSuggestion, setNextClassSuggestion] = useState<NextClassSuggestion | null>(null);
+  const [autopilotProposal, setAutopilotProposal] = useState<WeeklyAutopilotProposal | null>(null);
+  const [simulationResult, setSimulationResult] = useState<EvolutionSimulationResult | null>(null);
+  const [memoryContextHints, setMemoryContextHints] = useState<string[]>([]);
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
@@ -194,6 +215,26 @@ export default function AssistantScreen() {
       alive = false;
     };
   }, [classId]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!classId) {
+        if (alive) setAutopilotProposal(null);
+        return;
+      }
+      const list = await listWeeklyAutopilotProposals({
+        classId,
+        organizationId: activeOrganization?.id,
+        limit: 1,
+      });
+      if (!alive) return;
+      setAutopilotProposal(list[0] ?? null);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [activeOrganization?.id, classId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -305,6 +346,10 @@ export default function AssistantScreen() {
     setMissingData([]);
     setAssumptions([]);
     setAutoFixSuggestions([]);
+    setNextClassSuggestion(null);
+    setAutopilotProposal(null);
+    setSimulationResult(null);
+    setMemoryContextHints([]);
     setShowSavedLink(false);
     setInput("");
   }, []);
@@ -375,6 +420,10 @@ export default function AssistantScreen() {
     setMissingData([]);
     setAssumptions([]);
     setAutoFixSuggestions([]);
+    setNextClassSuggestion(null);
+    setAutopilotProposal(null);
+    setSimulationResult(null);
+    setMemoryContextHints([]);
     setShowSavedLink(false);
 
     try {
@@ -390,6 +439,17 @@ export default function AssistantScreen() {
         ]);
         return;
       }
+
+      await pruneExpiredAssistantMemories();
+      const memoryEntries = await listAssistantMemories({
+        organizationId: activeOrganization?.id ?? "",
+        classId,
+        userId: session?.user?.id,
+        limit: 4,
+      });
+      const memoryContext = memoryEntries.map((item) => item.content);
+      setMemoryContextHints(memoryContext);
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/assistant`, {
         method: "POST",
         headers: {
@@ -405,6 +465,7 @@ export default function AssistantScreen() {
           classId,
           organizationId: activeOrganization?.id ?? "",
           sport: selectedClass?.modality ?? "volleyball",
+          memoryContext,
         }),
       });
 
@@ -439,6 +500,39 @@ export default function AssistantScreen() {
       setMissingData(Array.isArray(data.missingData) ? data.missingData : []);
       setAssumptions(Array.isArray(data.assumptions) ? data.assumptions : []);
       setDraft(nextDraft);
+
+      const nowIso = new Date().toISOString();
+      if (session?.user?.id && activeOrganization?.id) {
+        const lastUser = nextMessages[nextMessages.length - 1]?.content ?? "";
+        if (lastUser.trim()) {
+          await saveAssistantMemoryEntry({
+            id: `mem_local_user_${Date.now()}`,
+            organizationId: activeOrganization.id,
+            classId,
+            userId: session.user.id,
+            scope: classId ? "class" : "organization",
+            role: "user",
+            content: lastUser,
+            createdAt: nowIso,
+            expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        }
+
+        if (reply.trim()) {
+          await saveAssistantMemoryEntry({
+            id: `mem_local_assistant_${Date.now()}`,
+            organizationId: activeOrganization.id,
+            classId,
+            userId: session.user.id,
+            scope: classId ? "class" : "organization",
+            role: "assistant",
+            content: reply,
+            createdAt: nowIso,
+            expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        }
+      }
+
       if (nextDraft) {
         void notifyTrainingCreated();
       }
@@ -605,6 +699,114 @@ export default function AssistantScreen() {
       setLoading(false);
     }
   }, [activeOrganization?.id, pushAssistantMessage]);
+
+  const handlePostSessionIntelligence = useCallback(async () => {
+    if (!classId || !selectedClass) return;
+    setLoading(true);
+    try {
+      const logs = await getRecentLogs();
+      const suggestion = buildNextClassSuggestion({
+        className: selectedClass.name,
+        logs: logs as SessionLog[],
+      });
+      setNextClassSuggestion(suggestion);
+      setAutoFixSuggestions([]);
+      setConfidence(suggestion.radarScore);
+      setCitations([]);
+      setMissingData(logs.length ? [] : ["Sem sessões recentes registradas nos últimos 7 dias."]);
+      setAssumptions([
+        "Leitura determinística baseada em sessões recentes da turma e regras explícitas de tendência.",
+      ]);
+      pushAssistantMessage(
+        `${suggestion.headline}\n${suggestion.coachSummary}\nAprovação humana necessária antes de aplicar no treino.`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [classId, getRecentLogs, pushAssistantMessage, selectedClass]);
+
+  const applyNextClassSuggestion = useCallback(() => {
+    if (!nextClassSuggestion) return;
+    setInput(nextClassSuggestion.nextTrainingPrompt);
+    pushAssistantMessage("Sugestão aplicada no composer. Revise e gere o próximo treino quando estiver pronto.");
+    requestAnimationFrame(() => {
+      composerInputRef.current?.focus();
+    });
+  }, [nextClassSuggestion, pushAssistantMessage]);
+
+  const handleWeeklyAutopilot = useCallback(async () => {
+    if (!selectedClass || !activeOrganization?.id || !session?.user?.id) return;
+    setLoading(true);
+    try {
+      const logs = await getRecentLogs();
+      const proposal = buildWeeklyAutopilotProposal({
+        classGroup: selectedClass,
+        logs: logs as SessionLog[],
+        organizationId: activeOrganization.id,
+        createdBy: session.user.id,
+      });
+
+      await saveWeeklyAutopilotProposal(proposal);
+      setAutopilotProposal(proposal);
+      setAssumptions([
+        "Autopilot semanal é apenas proposta: só entra em vigor após aprovação humana explícita.",
+      ]);
+      pushAssistantMessage(`Autopilot semanal proposto para ${selectedClass.name}. Revise e aprove/rejeite.`);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeOrganization?.id, getRecentLogs, pushAssistantMessage, selectedClass, session?.user?.id]);
+
+  const handleApproveAutopilot = useCallback(() => {
+    if (!autopilotProposal) return;
+    confirmDialog({
+      title: "Aprovar autopilot semanal?",
+      message: "Esta ação confirma o plano semanal sugerido para execução humana.",
+      confirmLabel: "Aprovar",
+      cancelLabel: "Cancelar",
+      onConfirm: async () => {
+        await updateWeeklyAutopilotProposalStatus(autopilotProposal.id, "approved");
+        setAutopilotProposal((prev) => (prev ? { ...prev, status: "approved", updatedAt: new Date().toISOString() } : null));
+        pushAssistantMessage("Autopilot semanal aprovado. Próximo passo: gerar/validar treinos da semana.");
+      },
+    });
+  }, [autopilotProposal, confirmDialog, pushAssistantMessage]);
+
+  const handleRejectAutopilot = useCallback(() => {
+    if (!autopilotProposal) return;
+    confirmDialog({
+      title: "Rejeitar autopilot semanal?",
+      message: "A proposta será mantida em histórico com status rejeitado.",
+      confirmLabel: "Rejeitar",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        await updateWeeklyAutopilotProposalStatus(autopilotProposal.id, "rejected");
+        setAutopilotProposal((prev) => (prev ? { ...prev, status: "rejected", updatedAt: new Date().toISOString() } : null));
+        pushAssistantMessage("Autopilot semanal rejeitado. Ajuste manual recomendado antes de nova proposta.");
+      },
+    });
+  }, [autopilotProposal, confirmDialog, pushAssistantMessage]);
+
+  const handleRunEvolutionSimulation = useCallback(async () => {
+    if (!selectedClass) return;
+    setLoading(true);
+    try {
+      const logs = await getRecentLogs();
+      const result = simulateClassEvolution({
+        classId: selectedClass.id,
+        logs: logs as SessionLog[],
+        horizonWeeks: 6,
+        interventionIntensity: "balanced",
+      });
+      setSimulationResult(result);
+      pushAssistantMessage(
+        `Simulação de evolução gerada para ${selectedClass.name}. Projeção de ${result.horizonWeeks} semanas com aprovação humana obrigatória.`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [getRecentLogs, pushAssistantMessage, selectedClass]);
 
   const applyAutoFixSuggestion = useCallback(
     (suggestion: AutoFixSuggestion) => {
@@ -1113,6 +1315,150 @@ export default function AssistantScreen() {
                 ))}
               </View>
             ) : null}
+
+            {nextClassSuggestion ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.background,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>{nextClassSuggestion.headline}</Text>
+                <Text style={{ color: colors.muted }}>
+                  Radar da turma: {(nextClassSuggestion.radarScore * 100).toFixed(0)}% ({nextClassSuggestion.trendLabel})
+                </Text>
+                <Text style={{ color: colors.text }}>{nextClassSuggestion.coachSummary}</Text>
+                {nextClassSuggestion.alerts.length > 0 ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Alertas</Text>
+                    {nextClassSuggestion.alerts.map((item, index) => (
+                      <Text key={`radar-alert-${index}`} style={{ color: colors.muted }}>
+                        - {item}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Ações sugeridas</Text>
+                  {nextClassSuggestion.actions.map((item, index) => (
+                    <Text key={`radar-action-${index}`} style={{ color: colors.muted }}>
+                      - {item}
+                    </Text>
+                  ))}
+                </View>
+                <Pressable
+                  onPress={applyNextClassSuggestion}
+                  style={{
+                    alignSelf: "flex-start",
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Aplicar no próximo treino</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {autopilotProposal ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.background,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>Autopilot semanal</Text>
+                <Text style={{ color: colors.muted }}>Status: {autopilotProposal.status}</Text>
+                <Text style={{ color: colors.text }}>{autopilotProposal.summary}</Text>
+                {autopilotProposal.actions.map((item, index) => (
+                  <Text key={`autopilot-action-${index}`} style={{ color: colors.muted }}>
+                    - {item}
+                  </Text>
+                ))}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={handleApproveAutopilot}
+                    style={{
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Aprovar</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleRejectAutopilot}
+                    style={{
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Rejeitar</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {simulationResult ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.background,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>Simulação de evolução (assistiva)</Text>
+                <Text style={{ color: colors.muted }}>
+                  Baseline: {(simulationResult.baselineScore * 100).toFixed(0)}% • Horizonte: {simulationResult.horizonWeeks} semanas
+                </Text>
+                {simulationResult.points.slice(0, 4).map((point) => (
+                  <Text key={`sim-point-${point.week}`} style={{ color: colors.muted }}>
+                    - Semana {point.week}: {(point.projectedScore * 100).toFixed(0)}% ({point.focus})
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+
+            {memoryContextHints.length > 0 ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.background,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>Memória de contexto</Text>
+                {memoryContextHints.slice(0, 3).map((item, index) => (
+                  <Text key={`memory-hint-${index}`} style={{ color: colors.muted }}>
+                    - {item}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
           </ScrollView>
 
           <View
@@ -1221,6 +1567,39 @@ export default function AssistantScreen() {
                   }}
                 >
                   <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Support mode</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handlePostSessionIntelligence()}
+                  style={{
+                    borderRadius: 999,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Pós-sessão</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleWeeklyAutopilot()}
+                  style={{
+                    borderRadius: 999,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Autopilot</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleRunEvolutionSimulation()}
+                  style={{
+                    borderRadius: 999,
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Simular</Text>
                 </Pressable>
               </View>
               <Pressable

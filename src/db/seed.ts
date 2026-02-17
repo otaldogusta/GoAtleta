@@ -17,6 +17,7 @@ import type {
     StudentScoutingLog,
     TrainingPlan,
     TrainingTemplate,
+    WeeklyAutopilotProposal,
 } from "../core/models";
 import { normalizeUnitKey } from "../core/unit-key";
 import { canonicalizeUnitLabel } from "../core/unit-label";
@@ -1221,6 +1222,10 @@ type StudentRow = {
   medication_use?: boolean | null;
   medication_notes?: string | null;
   health_observations?: string | null;
+  position_primary?: string | null;
+  position_secondary?: string | null;
+  athlete_objective?: string | null;
+  learning_style?: string | null;
   birthdate?: string | null;
   createdat: string;
 };
@@ -2874,6 +2879,11 @@ export async function getStudents(
         medicationUse: row.medication_use ?? false,
         medicationNotes: row.medication_notes ?? "",
         healthObservations: row.health_observations ?? "",
+        positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
+        positionSecondary:
+          (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
+        athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
+        learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
         birthDate: row.birthdate ?? "",
         createdAt: row.createdat,
       };
@@ -2934,6 +2944,11 @@ export async function getStudentsByClass(
         medicationUse: row.medication_use ?? false,
         medicationNotes: row.medication_notes ?? "",
         healthObservations: row.health_observations ?? "",
+        positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
+        positionSecondary:
+          (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
+        athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
+        learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
         birthDate: row.birthdate ?? "",
         createdAt: row.createdat,
       };
@@ -2985,6 +3000,10 @@ export async function getStudentById(
     medicationUse: row.medication_use ?? false,
     medicationNotes: row.medication_notes ?? "",
     healthObservations: row.health_observations ?? "",
+    positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
+    positionSecondary: (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
+    athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
+    learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
     birthDate: row.birthdate ?? "",
     createdAt: row.createdat,
   };
@@ -3009,6 +3028,10 @@ export async function saveStudent(student: Student) {
     medication_use: student.medicationUse ?? false,
     medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
     health_observations: student.healthObservations?.trim() || null,
+    position_primary: student.positionPrimary ?? "indefinido",
+    position_secondary: student.positionSecondary ?? "indefinido",
+    athlete_objective: student.athleteObjective ?? "base",
+    learning_style: student.learningStyle ?? "misto",
     birthdate: student.birthDate ? student.birthDate : null,
     createdat: student.createdAt,
   };
@@ -3036,6 +3059,10 @@ export async function updateStudent(student: Student) {
     medication_use: student.medicationUse ?? false,
     medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
     health_observations: student.healthObservations?.trim() || null,
+    position_primary: student.positionPrimary ?? "indefinido",
+    position_secondary: student.positionSecondary ?? "indefinido",
+    athlete_objective: student.athleteObjective ?? "base",
+    learning_style: student.learningStyle ?? "misto",
     birthdate: student.birthDate ? student.birthDate : null,
     createdat: student.createdAt,
   };
@@ -3251,6 +3278,50 @@ type AbsenceNoticeInput = {
   status?: AbsenceNotice["status"];
 };
 
+type WeeklyAutopilotProposalRow = {
+  id: string;
+  organization_id: string;
+  class_id: string;
+  week_start: string;
+  summary: string;
+  actions: string;
+  proposed_plan_ids: string;
+  status: WeeklyAutopilotProposal["status"];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+const mapWeeklyAutopilotProposal = (
+  row: WeeklyAutopilotProposalRow
+): WeeklyAutopilotProposal => ({
+  id: row.id,
+  organizationId: row.organization_id,
+  classId: row.class_id,
+  weekStart: row.week_start,
+  summary: row.summary,
+  actions: (() => {
+    try {
+      const parsed = JSON.parse(row.actions ?? "[]");
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  })(),
+  proposedPlanIds: (() => {
+    try {
+      const parsed = JSON.parse(row.proposed_plan_ids ?? "[]");
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  })(),
+  status: row.status,
+  createdBy: row.created_by,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
 export async function getAbsenceNotices(
   options: { organizationId?: string | null } = {}
 ): Promise<AbsenceNotice[]> {
@@ -3292,6 +3363,67 @@ export async function updateAbsenceNoticeStatus(
       : "/absence_notices?id=eq." + encodeURIComponent(id),
     {
       status,
+    }
+  );
+}
+
+export async function listWeeklyAutopilotProposals(options: {
+  classId?: string;
+  organizationId?: string | null;
+  limit?: number;
+} = {}) {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+  const limit = Math.max(1, options.limit ?? 12);
+
+  const rows = await supabaseGet<WeeklyAutopilotProposalRow[]>(
+    organizationId
+      ? options.classId
+        ? `/weekly_autopilot_proposals?select=*&organization_id=eq.${encodeURIComponent(
+            organizationId
+          )}&class_id=eq.${encodeURIComponent(options.classId)}&order=updated_at.desc&limit=${limit}`
+        : `/weekly_autopilot_proposals?select=*&organization_id=eq.${encodeURIComponent(
+            organizationId
+          )}&order=updated_at.desc&limit=${limit}`
+      : "/weekly_autopilot_proposals?select=*&order=updated_at.desc&limit=" + String(limit)
+  );
+
+  return rows.map(mapWeeklyAutopilotProposal);
+}
+
+export async function saveWeeklyAutopilotProposal(proposal: WeeklyAutopilotProposal) {
+  await supabasePost("/weekly_autopilot_proposals", [
+    {
+      id: proposal.id,
+      organization_id: proposal.organizationId,
+      class_id: proposal.classId,
+      week_start: proposal.weekStart,
+      summary: proposal.summary,
+      actions: JSON.stringify(proposal.actions ?? []),
+      proposed_plan_ids: JSON.stringify(proposal.proposedPlanIds ?? []),
+      status: proposal.status,
+      created_by: proposal.createdBy,
+      created_at: proposal.createdAt,
+      updated_at: proposal.updatedAt,
+    },
+  ]);
+}
+
+export async function updateWeeklyAutopilotProposalStatus(
+  id: string,
+  status: WeeklyAutopilotProposal["status"]
+) {
+  const organizationId = await getActiveOrganizationId();
+  const nowIso = new Date().toISOString();
+  await supabasePatch(
+    organizationId
+      ? "/weekly_autopilot_proposals?id=eq." +
+          encodeURIComponent(id) +
+          "&organization_id=eq." +
+          encodeURIComponent(organizationId)
+      : "/weekly_autopilot_proposals?id=eq." + encodeURIComponent(id),
+    {
+      status,
+      updated_at: nowIso,
     }
   );
 }

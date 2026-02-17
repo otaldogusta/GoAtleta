@@ -1,5 +1,5 @@
-import type { ClassGroup, SessionLog } from "../models";
 import { buildWeeklyAutopilotProposal } from "../autopilot/weekly-autopilot";
+import type { ClassGroup, SessionLog } from "../models";
 import { simulateClassEvolution } from "../simulator/evolution-simulator";
 
 declare const describe: (name: string, fn: () => void) => void;
