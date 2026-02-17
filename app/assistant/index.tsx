@@ -198,8 +198,11 @@ export default function AssistantScreen() {
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
+  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
   const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
+  const sendButtonAnim = useRef(new Animated.Value(0)).current;
+  const suggestionsExpandAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let alive = true;
@@ -286,12 +289,35 @@ export default function AssistantScreen() {
     () => classes.find((item) => item.id === classId) ?? null,
     [classes, classId]
   );
+  const hasInputText = input.trim().length > 0;
+
+  useEffect(() => {
+    Animated.timing(sendButtonAnim, {
+      toValue: hasInputText ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [hasInputText, sendButtonAnim]);
+
+  const sendButtonScale = sendButtonAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.82, 1],
+  });
+
+  const sendButtonTranslateY = sendButtonAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [6, 0],
+  });
+
+  const suggestionsToggleRotate = suggestionsExpandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "45deg"],
+  });
+
   const className = selectedClass?.name ?? "Turma";
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1100;
-  const quickPromptColumns = width >= 1080 ? 3 : width >= 700 ? 2 : 1;
-  const quickPromptCardWidth =
-    quickPromptColumns === 3 ? "31.8%" : quickPromptColumns === 2 ? "48.5%" : "100%";
+  const isCompactMobile = width < 420;
 
   const userDisplayName = useMemo(() => {
     const meta = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
@@ -316,26 +342,65 @@ export default function AssistantScreen() {
   const quickPrompts = useMemo(
     () => [
       {
-        title: "Gerar treino",
-        subtitle: "Crie um plano por fase",
+        title: "Gerar treino da turma",
         icon: "sparkles-outline" as const,
-        prompt: "Monte um treino de 60 minutos para a turma atual com aquecimento, parte principal e volta à calma.",
+        prompt: "Monte um treino completo de 60 minutos para a turma atual com aquecimento, parte principal e volta à calma.",
       },
       {
-        title: "Melhorar prompt",
-        subtitle: "Refine para melhores resultados",
-        icon: "create-outline" as const,
-        prompt: "Me ajude a melhorar este pedido para o assistente gerar um treino mais específico para a turma atual.",
+        title: "Progressão técnica",
+        icon: "trending-up-outline" as const,
+        prompt: "Gere uma progressão técnica para as próximas 3 sessões da turma atual, com foco em consistência e tomada de decisão.",
       },
       {
-        title: "Explorar estilos",
-        subtitle: "Variações por objetivo",
-        icon: "color-palette-outline" as const,
-        prompt: "Sugira 3 variações de treino para foco em técnica, físico e jogo reduzido.",
+        title: "Resumo da turma",
+        icon: "document-text-outline" as const,
+        prompt: "Crie um resumo executivo da turma com principais riscos, pontos fortes e prioridades da semana.",
+      },
+      {
+        title: "Mensagem para pais",
+        icon: "chatbox-ellipses-outline" as const,
+        prompt: "Escreva uma mensagem curta para pais e alunos explicando objetivo e foco da próxima aula.",
+      },
+      {
+        title: "Pós-sessão",
+        icon: "book-outline" as const,
+        prompt: "Analise os últimos registros da turma e gere recomendações objetivas para o próximo treino.",
+      },
+      {
+        title: "Autopilot semanal",
+        icon: "calendar-outline" as const,
+        prompt: "Proponha um autopilot semanal para a turma atual com metas, ações e critérios de validação humana.",
+      },
+      {
+        title: "Simular evolução",
+        icon: "pulse-outline" as const,
+        prompt: "Simule a evolução da turma por 6 semanas com intervenção balanceada e destaque premissas e limites.",
+      },
+      {
+        title: "Support mode",
+        icon: "shield-checkmark-outline" as const,
+        prompt: "Analise o estado de sincronização e proponha auto-fixes seguros para reduzir pendências.",
       },
     ],
     []
   );
+
+  const secondaryPromptSamples = useMemo(() => quickPrompts.slice(1, 4), [quickPrompts]);
+  const hiddenQuickPrompts = useMemo(() => quickPrompts.slice(4), [quickPrompts]);
+
+  useEffect(() => {
+    if (messages.length > 0 && suggestionsExpanded) {
+      setSuggestionsExpanded(false);
+    }
+  }, [messages.length, suggestionsExpanded]);
+
+  useEffect(() => {
+    Animated.timing(suggestionsExpandAnim, {
+      toValue: suggestionsExpanded ? 1 : 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  }, [suggestionsExpandAnim, suggestionsExpanded]);
 
   const clearConversation = useCallback(() => {
     setMessages([]);
@@ -440,14 +505,19 @@ export default function AssistantScreen() {
         return;
       }
 
-      await pruneExpiredAssistantMemories();
-      const memoryEntries = await listAssistantMemories({
-        organizationId: activeOrganization?.id ?? "",
-        classId,
-        userId: session?.user?.id,
-        limit: 4,
-      });
-      const memoryContext = memoryEntries.map((item) => item.content);
+      let memoryContext: string[] = [];
+      try {
+        await pruneExpiredAssistantMemories();
+        const memoryEntries = await listAssistantMemories({
+          organizationId: activeOrganization?.id ?? "",
+          classId,
+          userId: session?.user?.id,
+          limit: 4,
+        });
+        memoryContext = memoryEntries.map((item) => item.content);
+      } catch {
+        memoryContext = [];
+      }
       setMemoryContextHints(memoryContext);
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/assistant`, {
@@ -503,33 +573,37 @@ export default function AssistantScreen() {
 
       const nowIso = new Date().toISOString();
       if (session?.user?.id && activeOrganization?.id) {
-        const lastUser = nextMessages[nextMessages.length - 1]?.content ?? "";
-        if (lastUser.trim()) {
-          await saveAssistantMemoryEntry({
-            id: `mem_local_user_${Date.now()}`,
-            organizationId: activeOrganization.id,
-            classId,
-            userId: session.user.id,
-            scope: classId ? "class" : "organization",
-            role: "user",
-            content: lastUser,
-            createdAt: nowIso,
-            expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          });
-        }
+        try {
+          const lastUser = nextMessages[nextMessages.length - 1]?.content ?? "";
+          if (lastUser.trim()) {
+            await saveAssistantMemoryEntry({
+              id: `mem_local_user_${Date.now()}`,
+              organizationId: activeOrganization.id,
+              classId,
+              userId: session.user.id,
+              scope: classId ? "class" : "organization",
+              role: "user",
+              content: lastUser,
+              createdAt: nowIso,
+              expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            });
+          }
 
-        if (reply.trim()) {
-          await saveAssistantMemoryEntry({
-            id: `mem_local_assistant_${Date.now()}`,
-            organizationId: activeOrganization.id,
-            classId,
-            userId: session.user.id,
-            scope: classId ? "class" : "organization",
-            role: "assistant",
-            content: reply,
-            createdAt: nowIso,
-            expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          });
+          if (reply.trim()) {
+            await saveAssistantMemoryEntry({
+              id: `mem_local_assistant_${Date.now()}`,
+              organizationId: activeOrganization.id,
+              classId,
+              userId: session.user.id,
+              scope: classId ? "class" : "organization",
+              role: "assistant",
+              content: reply,
+              createdAt: nowIso,
+              expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+            });
+          }
+        } catch {
+          // Falha de cache local não deve bloquear resposta do assistant
         }
       }
 
@@ -537,12 +611,16 @@ export default function AssistantScreen() {
         void notifyTrainingCreated();
       }
     } catch (error) {
+      const detail =
+        error instanceof Error
+          ? error.message.replace(/\s+/g, " ").trim().slice(0, 180)
+          : "Falha de rede ou deploy da Edge Function.";
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content:
-            "Erro ao consultar o assistente. Confira o deploy e tente novamente.",
+            "Erro ao consultar o assistente. Confira o deploy/token e tente novamente. Detalhe: " + detail,
         },
       ]);
     } finally {
@@ -912,114 +990,190 @@ export default function AssistantScreen() {
                   width: "100%",
                   maxWidth: isDesktopLayout ? 860 : undefined,
                   alignSelf: "center",
-                  minHeight: Platform.OS === "web" ? Math.max(470, Math.round(height * 0.6)) : undefined,
+                  minHeight: Platform.OS === "web" ? Math.max(360, Math.round(height * 0.45)) : undefined,
                   paddingHorizontal: isDesktopLayout ? 20 : 6,
-                  paddingTop: isDesktopLayout ? 26 : 18,
+                  paddingTop: isDesktopLayout ? 40 : 20,
                   paddingBottom: 10,
-                  gap: 16,
+                  gap: 12,
                   alignItems: "center",
                 }}
               >
                 <View
                   style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 32,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Ionicons name="sparkles" size={30} color={colors.muted} />
-                </View>
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: isDesktopLayout ? 42 : 34,
-                    fontWeight: "800",
-                    textAlign: "center",
-                  }}
-                >
-                  Bem-vindo, {userDisplayName}!
-                </Text>
-                <Text style={{ color: colors.muted, textAlign: "center" }}>
-                  Como posso ajudar hoje?
-                </Text>
-                <View
-                  style={{
                     width: "100%",
-                    maxWidth: 920,
+                    maxWidth: 1120,
                     alignSelf: "center",
                     paddingHorizontal: isDesktopLayout ? 18 : 8,
-                    flexDirection: "row",
-                    flexWrap: "wrap",
                     gap: 12,
-                    justifyContent: quickPromptColumns === 1 ? "flex-start" : "center",
-                    marginTop: 10,
+                    marginTop: 0,
                   }}
                 >
-                  {quickPrompts.map((item) => (
+                  {quickPrompts.length > 0 ? (
                     <Pressable
-                      key={item.title}
-                      onPress={() => handleSelectQuickPrompt(item.prompt)}
+                      key={quickPrompts[0].title}
+                      onPress={() => handleSelectQuickPrompt(quickPrompts[0].prompt)}
                       focusable={Platform.OS !== "web"}
                       style={{
-                        width: quickPromptCardWidth,
-                        minHeight: quickPromptColumns === 1 ? 116 : 152,
-                        borderRadius: 16,
+                        alignSelf: "center",
+                        minHeight: isCompactMobile ? 44 : 52,
+                        borderRadius: 999,
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
-                        paddingHorizontal: 14,
-                        paddingVertical: 12,
-                        justifyContent: "flex-start",
-                        alignItems: "flex-start",
+                        paddingHorizontal: isCompactMobile ? 14 : 18,
+                        paddingVertical: isCompactMobile ? 8 : 10,
+                        justifyContent: "center",
+                        alignItems: "center",
                         overflow: "hidden",
+                        gap: 6,
+                        flexDirection: "row",
+                        maxWidth: "95%",
+                      }}
+                    >
+                      <Ionicons name={quickPrompts[0].icon} size={isCompactMobile ? 16 : 18} color={colors.text} />
+                      <Text
+                        numberOfLines={1}
+                        style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 14 : 16 }}
+                      >
+                        {quickPrompts[0].title}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  <View
+                    style={{
+                      gap: 10,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        justifyContent: "center",
                         gap: 10,
                       }}
                     >
-                      <View
+                      {secondaryPromptSamples.map((item) => (
+                        <Pressable
+                          key={item.title}
+                          onPress={() => handleSelectQuickPrompt(item.prompt)}
+                          focusable={Platform.OS !== "web"}
+                          style={{
+                            minHeight: isCompactMobile ? 44 : 48,
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.card,
+                            paddingHorizontal: isCompactMobile ? 12 : 16,
+                            paddingVertical: isCompactMobile ? 8 : 10,
+                            justifyContent: "center",
+                            alignItems: "center",
+                            overflow: "hidden",
+                            gap: 6,
+                            flexDirection: "row",
+                          }}
+                        >
+                          <Ionicons name={item.icon} size={isCompactMobile ? 16 : 18} color={colors.text} />
+                          <Text
+                            numberOfLines={1}
+                            style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 13 : 15 }}
+                          >
+                            {item.title}
+                          </Text>
+                        </Pressable>
+                      ))}
+
+                      {hiddenQuickPrompts.length > 0 ? (
+                        <Pressable
+                          onPress={() => setSuggestionsExpanded((prev) => !prev)}
+                          style={{
+                            width: isCompactMobile ? 40 : 44,
+                            height: isCompactMobile ? 40 : 44,
+                            borderRadius: isCompactMobile ? 20 : 22,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.secondaryBg,
+                            justifyContent: "center",
+                            alignItems: "center",
+                            shadowColor: "#000",
+                            shadowOpacity: 0.08,
+                            shadowRadius: 6,
+                            shadowOffset: { width: 0, height: 2 },
+                            elevation: 1,
+                          }}
+                        >
+                          <Animated.View style={{ transform: [{ rotate: suggestionsToggleRotate }] }}>
+                            <Ionicons
+                              name="add"
+                              size={isCompactMobile ? 18 : 20}
+                              color={colors.text}
+                            />
+                          </Animated.View>
+                        </Pressable>
+                      ) : null}
+                    </View>
+
+                    {hiddenQuickPrompts.length > 0 ? (
+                      <Animated.View
                         style={{
-                          width: 36,
-                          height: 36,
-                          borderRadius: 18,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
+                          overflow: "hidden",
+                          opacity: suggestionsExpandAnim,
+                          maxHeight: suggestionsExpandAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 140],
+                          }),
+                          transform: [
+                            {
+                              translateY: suggestionsExpandAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [-6, 0],
+                              }),
+                            },
+                          ],
                         }}
                       >
-                        <Ionicons name={item.icon} size={16} color={colors.muted} />
-                      </View>
-                      <View style={{ gap: 4, flexShrink: 1 }}>
-                        <Text
-                          numberOfLines={2}
+                        <View
                           style={{
-                            color: colors.text,
-                            fontWeight: "700",
-                            fontSize: quickPromptColumns === 1 ? 18 : 16,
-                            lineHeight: quickPromptColumns === 1 ? 24 : 22,
-                            width: "100%",
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            justifyContent: "center",
+                            gap: 10,
+                            paddingTop: 2,
                           }}
                         >
-                          {item.title}
-                        </Text>
-                        <Text
-                          numberOfLines={2}
-                          style={{
-                            color: colors.muted,
-                            fontSize: quickPromptColumns === 1 ? 15 : 13,
-                            lineHeight: quickPromptColumns === 1 ? 20 : 18,
-                          }}
-                        >
-                          {item.subtitle}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ))}
+                          {hiddenQuickPrompts.map((item) => (
+                            <Pressable
+                              key={`hidden-${item.title}`}
+                              onPress={() => handleSelectQuickPrompt(item.prompt)}
+                              focusable={Platform.OS !== "web"}
+                              style={{
+                                minHeight: isCompactMobile ? 42 : 46,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                backgroundColor: colors.card,
+                                paddingHorizontal: isCompactMobile ? 11 : 14,
+                                paddingVertical: isCompactMobile ? 7 : 9,
+                                justifyContent: "center",
+                                alignItems: "center",
+                                overflow: "hidden",
+                                gap: 6,
+                                flexDirection: "row",
+                              }}
+                            >
+                              <Ionicons name={item.icon} size={isCompactMobile ? 15 : 17} color={colors.text} />
+                              <Text
+                                numberOfLines={1}
+                                style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 12 : 14 }}
+                              >
+                                {item.title}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </Animated.View>
+                    ) : null}
+                  </View>
                 </View>
               </View>
             ) : null}
@@ -1498,145 +1652,58 @@ export default function AssistantScreen() {
               paddingBottom: 12 + insets.bottom,
             }}
           >
-            <TextInput
-              ref={composerInputRef}
-              placeholder="Descreva a aula ou o planejamento..."
-              value={input}
-              onChangeText={setInput}
-              onFocus={() => setComposerFocused(true)}
-              onBlur={() => setComposerFocused(false)}
-              onKeyPress={handleComposerKeyPress}
-              placeholderTextColor={colors.placeholder}
-              multiline
-              style={{
-                minHeight: 54,
-                maxHeight: 130,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                color: colors.inputText,
-                textAlignVertical: "top",
-              }}
-            />
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  onPress={() => setInput(quickPrompts[0].prompt)}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Sugestão</Text>
-                </Pressable>
-                <Pressable
-                  onPress={clearConversation}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Limpar chat</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void handleGenerateProgression()}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Progressão</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void handleExecutiveSummary()}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Resumo</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleCommunicationCopilot}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Comunicação</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void handleSupportMode()}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Support mode</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void handlePostSessionIntelligence()}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Pós-sessão</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void handleWeeklyAutopilot()}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Autopilot</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void handleRunEvolutionSimulation()}
-                  style={{
-                    borderRadius: 999,
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>Simular</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                onPress={sendMessage}
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+              <TextInput
+                ref={composerInputRef}
+                placeholder="Descreva a aula ou o planejamento..."
+                value={input}
+                onChangeText={setInput}
+                onFocus={() => setComposerFocused(true)}
+                onBlur={() => setComposerFocused(false)}
+                onKeyPress={handleComposerKeyPress}
+                placeholderTextColor={colors.placeholder}
+                multiline
                 style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 14,
-                  borderRadius: 999,
-                  backgroundColor: colors.primaryBg,
+                  flex: 1,
+                  minHeight: 52,
+                  maxHeight: 120,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  paddingHorizontal: 10,
+                  paddingVertical: 10,
+                  color: colors.inputText,
+                  textAlignVertical: "top",
+                }}
+              />
+              <Animated.View
+                pointerEvents={hasInputText ? "auto" : "none"}
+                style={{
+                  opacity: sendButtonAnim,
+                  transform: [{ scale: sendButtonScale }, { translateY: sendButtonTranslateY }],
                 }}
               >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {loading || assistantTyping ? "..." : "Enviar"}
-                </Text>
-              </Pressable>
+                <Pressable
+                  onPress={sendMessage}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 999,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.primaryBg,
+                  }}
+                >
+                  <Ionicons
+                    name={loading || assistantTyping ? "hourglass-outline" : "arrow-up"}
+                    size={18}
+                    color={colors.primaryText}
+                  />
+                </Pressable>
+              </Animated.View>
             </View>
+
           </View>
         </View>
 
