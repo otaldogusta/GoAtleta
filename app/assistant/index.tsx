@@ -109,6 +109,8 @@ type ScientificReference = {
   url: string;
   doi: string;
   pmid: string;
+  year: string;
+  sourceLabel: string;
   evidence: string;
 };
 
@@ -138,6 +140,7 @@ const DOI_REGEX = /\b10\.\d{4,9}\/[A-Z0-9._;()/:-]+\b/i;
 const PMID_URL_REGEX = /pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)\/?/i;
 const PMID_TEXT_REGEX = /\bPMID\s*[:=]?\s*(\d{5,})\b/i;
 const URL_REGEX = /(https?:\/\/[^\s)]+)/i;
+const YEAR_REGEX = /\b(19|20)\d{2}\b/;
 
 const extractDoi = (value: string) => {
   const match = value.match(DOI_REGEX);
@@ -154,6 +157,17 @@ const extractPmid = (value: string) => {
 const extractFirstUrl = (value: string) => {
   const match = value.match(URL_REGEX);
   return match ? match[1] : "";
+};
+
+const extractYear = (value: string) => {
+  const match = String(value ?? "").match(YEAR_REGEX);
+  return match ? match[0] : "";
+};
+
+const extractSourceLabel = (evidence: string, fallback: string) => {
+  const match = String(evidence ?? "").match(/fonte:\s*([^.;\n]+)/i);
+  if (match?.[1]) return match[1].trim();
+  return fallback || "Fonte não informada";
 };
 
 const buildDoiUrl = (doi: string) => (doi ? `https://doi.org/${encodeURIComponent(doi)}` : "");
@@ -359,8 +373,10 @@ export default function AssistantScreen() {
       const mergedText = `${source.title} ${source.author} ${source.url} ${citationEvidence}`;
       const doi = extractDoi(mergedText);
       const pmid = extractPmid(mergedText);
+      const year = extractYear(mergedText);
       const fallbackUrl = extractFirstUrl(citationEvidence);
       const officialUrl = source.url || fallbackUrl || buildDoiUrl(doi);
+      const sourceLabel = extractSourceLabel(citationEvidence, source.author || "");
 
       return {
         id: `${source.title}-${source.url}-${index}`,
@@ -369,6 +385,8 @@ export default function AssistantScreen() {
         url: officialUrl,
         doi,
         pmid,
+        year,
+        sourceLabel,
         evidence: citationEvidence,
       };
     });
@@ -1485,6 +1503,10 @@ export default function AssistantScreen() {
                     </Text>
                     <Text style={{ color: colors.muted }}>
                       {reference.author}
+                    </Text>
+                    <Text style={{ color: colors.muted }}>
+                      {reference.sourceLabel}
+                      {reference.year ? ` • ${reference.year}` : ""}
                     </Text>
                     {reference.doi ? (
                       <Text style={{ color: colors.text }}>

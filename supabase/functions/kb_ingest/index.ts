@@ -120,6 +120,13 @@ const inferConfidence = (studies: PubMedStudy[]): SummaryPayload["confidence"] =
   return "low";
 };
 
+const DOI_REGEX = /\b10\.\d{4,9}\/[A-Z0-9._;()/:-]+\b/i;
+
+const extractDoi = (value: string) => {
+  const match = String(value ?? "").match(DOI_REGEX);
+  return match ? match[0] : "";
+};
+
 const esc = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -371,6 +378,14 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
           `limitations: ${summary.limitations.join(" | ")}`,
         ].join("\n")
       : "";
+    const doi = extractDoi(`${study.abstract || ""} ${study.title || ""}`);
+    const sourceMeta = [
+      `pubmed:PMID=${study.pmid}`,
+      `DOI=${doi || "n/a"}`,
+      `URL=${study.url || `https://pubmed.ncbi.nlm.nih.gov/${study.pmid}/`}`,
+      `YEAR=${study.publishedAt || "n/a"}`,
+      `JOURNAL=${study.journal || "n/a"}`,
+    ].join("|");
 
     const chunk = [
       `title: ${safeTitle}`,
@@ -386,10 +401,10 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
       .join("\n");
 
     return {
-      id: `pmid:${study.pmid}`,
+      id: `pmid_${study.pmid}`,
       organization_id: organizationId,
       title: safeTitle,
-      source: study.url || `https://pubmed.ncbi.nlm.nih.gov/${study.pmid}/`,
+      source: sourceMeta,
       chunk,
       embedding: [],
       tags,
