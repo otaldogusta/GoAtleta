@@ -42,6 +42,14 @@ type DraftTraining = {
   cooldownTime: string;
 };
 
+type AssistantMemoryEntryRow = {
+  id: string;
+  content: string;
+  role: "user" | "assistant";
+  scope: "organization" | "class" | "coach";
+  created_at: string;
+};
+
 type AssistantResponse = {
   reply: string;
   sources: AssistantSource[];
@@ -382,6 +390,61 @@ const getKnowledgeDocumentsCached = async (params: {
   return run;
 };
 
+const getMemoryContext = async (params: {
+  token: string;
+  organizationId: string;
+  classId: string;
+  userId: string;
+}) => {
+  const supabase = createSupabaseClientWithToken(params.token);
+  if (!supabase || !params.organizationId) return [] as AssistantMemoryEntryRow[];
+
+  const nowIso = new Date().toISOString();
+  const classFilter = params.classId || "";
+
+  const { data, error } = await supabase
+    .from("assistant_memory_entries")
+    .select("id,content,role,scope,created_at")
+    .eq("organization_id", params.organizationId)
+    .or(`class_id.eq.${classFilter},scope.eq.organization,user_id.eq.${params.userId}`)
+    .gt("expires_at", nowIso)
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  if (error || !Array.isArray(data)) return [];
+  return data as AssistantMemoryEntryRow[];
+};
+
+const saveMemoryEntry = async (params: {
+  token: string;
+  organizationId: string;
+  classId: string;
+  userId: string;
+  role: "user" | "assistant";
+  content: string;
+}) => {
+  if (!params.organizationId || !params.content.trim()) return;
+  const supabase = createSupabaseClientWithToken(params.token);
+  if (!supabase) return;
+
+  const now = Date.now();
+  const expiresAt = new Date(now + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+  await supabase.from("assistant_memory_entries").insert([
+    {
+      id: `mem_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      organization_id: params.organizationId,
+      class_id: params.classId || "",
+      user_id: params.userId,
+      scope: params.classId ? "class" : "organization",
+      role: params.role,
+      content: params.content.slice(0, 1200),
+      expires_at: expiresAt,
+      created_at: new Date(now).toISOString(),
+    },
+  ]);
+};
+
 const canUseDebugMode = (user: { id?: string; email?: string | null }) => {
   const raw = Deno.env.get("ASSISTANT_DEBUG_ADMINS") ?? "";
   if (!raw.trim()) return false;
@@ -530,6 +593,9 @@ Deno.serve(async (req) => {
         ? body.sport.trim()
         : "volleyball";
     const debugRequested = Boolean(body.debug);
+        const requestMemoryContext = Array.isArray(body.memoryContext)
+          ? body.memoryContext.map((item: unknown) => String(item || "").trim()).filter(Boolean)
+          : [];
     const debugAllowed = canUseDebugMode(auth.user);
     if (debugRequested && !debugAllowed) {
       return new Response(JSON.stringify({ error: "Debug mode not allowed" }), {
@@ -558,6 +624,16 @@ Deno.serve(async (req) => {
       queryText: retrievalQuery,
     });
     const kbDocs = retrieval.docs;
+    const memoryEntries = await getMemoryContext({
+      token: auth.token,
+      organizationId,
+      classId,
+      userId: auth.user.id,
+    });
+    const memoryContext = [
+      ...requestMemoryContext,
+      ...memoryEntries.map((item) => `${item.role}/${item.scope}: ${item.content}`),
+    ].slice(0, 6);
     const ragContext = buildRagContext(kbDocs);
     console.log(
       JSON.stringify({
@@ -579,6 +655,12 @@ Deno.serve(async (req) => {
         { role: "system", content: systemPrompt },
         { role: "system", content: userHint },
         { role: "system", content: ragContext },
+        {
+          role: "system",
+          content: memoryContext.length
+            ? `MEMORY_CONTEXT:\n${memoryContext.map((item) => `- ${item}`).join("\n")}`
+            : "MEMORY_CONTEXT: sem memórias relevantes para esta consulta.",
+        },
         ...messages,
       ] as ChatMessage[],
       response_format: {
@@ -652,6 +734,15 @@ Deno.serve(async (req) => {
       parsed.confidence = Math.min(parsed.confidence, 0.54);
     }
 
+    if (memoryContext.length > 0) {
+      parsed.assumptions = Array.from(
+        new Set([
+          ...parsed.assumptions,
+          `Contexto de memória aplicado (${memoryContext.length} item(ns)) com retenção limitada.`,
+        ])
+      );
+    }
+
     if (debugRequested && debugAllowed) {
       parsed._debug = {
         orgId: organizationId,
@@ -697,6 +788,31 @@ Deno.serve(async (req) => {
         latency_ms_total: Date.now() - requestStartedAt,
       })
     );
+
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === "user" && typeof message.content === "string")?.content;
+
+    if (lastUserMessage) {
+      await saveMemoryEntry({
+        token: auth.token,
+        organizationId,
+        classId,
+        userId: auth.user.id,
+        role: "user",
+        content: lastUserMessage,
+      });
+    }
+
+    await saveMemoryEntry({
+      token: auth.token,
+      organizationId,
+      classId,
+      userId: auth.user.id,
+      role: "assistant",
+      content: parsed.reply,
+    });
+
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

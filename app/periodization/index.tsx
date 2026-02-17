@@ -14,7 +14,7 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { normalizeAgeBand, parseAgeBandRange } from "../../src/core/age-band";
 
-import type { ClassGroup, ClassPlan } from "../../src/core/models";
+import type { ClassGroup, ClassPlan, WeeklyAutopilotProposal } from "../../src/core/models";
 
 import { normalizeUnitKey } from "../../src/core/unit-key";
 
@@ -28,8 +28,10 @@ import {
     getClassPlansByClass,
 
     getSessionLogsByRange,
+    listWeeklyAutopilotProposals,
 
     saveClassPlans,
+    updateWeeklyAutopilotProposalStatus,
 
     updateClassAcwrLimits,
 
@@ -867,6 +869,13 @@ export default function PeriodizationScreen() {
 
   const [acwrLimits, setAcwrLimits] = useState({ high: "1.3", low: "0.8" });
 
+  const [latestAutopilotProposal, setLatestAutopilotProposal] =
+    useState<WeeklyAutopilotProposal | null>(null);
+
+  const [isLoadingAutopilotProposal, setIsLoadingAutopilotProposal] = useState(false);
+
+  const [isUpdatingAutopilotProposal, setIsUpdatingAutopilotProposal] = useState(false);
+
   const acwrSavedRef = useRef({ high: "1.3", low: "0.8" });
 
   const [showUnitPicker, setShowUnitPicker] = useState(false);
@@ -1320,6 +1329,89 @@ export default function PeriodizationScreen() {
   const classStartTimeLabel = selectedClass?.startTime
     ? normalizeText(`Horário ${selectedClass.startTime}`)
     : normalizeText("Horário indefinido");
+
+  useEffect(() => {
+    if (!selectedClassId || !activeOrganization?.id) {
+      setLatestAutopilotProposal(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadProposal = async () => {
+      try {
+        setIsLoadingAutopilotProposal(true);
+        const proposals = await listWeeklyAutopilotProposals({
+          organizationId: activeOrganization.id,
+          classId: selectedClassId,
+          limit: 1,
+        });
+        if (!cancelled) {
+          setLatestAutopilotProposal(proposals[0] ?? null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLatestAutopilotProposal(null);
+        }
+        logAction("periodization_autopilot_load_failed", {
+          classId: selectedClassId,
+          organizationId: activeOrganization.id,
+          error: String(error),
+        });
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAutopilotProposal(false);
+        }
+      }
+    };
+
+    void loadProposal();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganization?.id, selectedClassId]);
+
+  const handleAutopilotDecision = useCallback(
+    async (status: "approved" | "rejected") => {
+      if (!latestAutopilotProposal?.id) return;
+      if (!isOrgAdmin && status === "approved") return;
+
+      const confirmed = await confirmDialog({
+        title: status === "approved" ? "Aprovar autopilot semanal?" : "Rejeitar autopilot semanal?",
+        message:
+          status === "approved"
+            ? "A proposta ficará marcada como aprovada para uso no próximo microciclo."
+            : "A proposta ficará marcada como rejeitada e não será aplicada automaticamente.",
+        confirmText: status === "approved" ? "Aprovar" : "Rejeitar",
+        cancelText: "Cancelar",
+        destructive: status === "rejected",
+      });
+      if (!confirmed) return;
+
+      try {
+        setIsUpdatingAutopilotProposal(true);
+        await updateWeeklyAutopilotProposalStatus(latestAutopilotProposal.id, status);
+        setLatestAutopilotProposal((current) =>
+          current
+            ? {
+                ...current,
+                status,
+                updatedAt: new Date().toISOString(),
+              }
+            : current
+        );
+      } catch (error) {
+        logAction("periodization_autopilot_status_failed", {
+          proposalId: latestAutopilotProposal.id,
+          status,
+          error: String(error),
+        });
+      } finally {
+        setIsUpdatingAutopilotProposal(false);
+      }
+    },
+    [confirmDialog, isOrgAdmin, latestAutopilotProposal]
+  );
 
 
 
@@ -3506,6 +3598,73 @@ export default function PeriodizationScreen() {
           })}
 
         </View>
+
+        {selectedClass ? (
+          <View
+            style={[
+              getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
+              { borderWidth: 1, borderColor: colors.border, gap: 8 },
+            ]}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              {normalizeText("Autopilot semanal")}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {isLoadingAutopilotProposal
+                ? normalizeText("Carregando proposta mais recente...")
+                : latestAutopilotProposal
+                  ? normalizeText(
+                      `Status atual: ${latestAutopilotProposal.status}. Revisar antes de aplicar no microciclo.`
+                    )
+                  : normalizeText("Nenhuma proposta de autopilot encontrada para esta turma.")}
+            </Text>
+            {latestAutopilotProposal ? (
+              <>
+                <Text style={{ color: colors.text, fontSize: 12 }}>
+                  {normalizeText(`Objetivo da semana: ${latestAutopilotProposal.weeklyGoal}`)}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    disabled={isUpdatingAutopilotProposal || !isOrgAdmin}
+                    onPress={() => {
+                      void handleAutopilotDecision("approved");
+                    }}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      backgroundColor: isOrgAdmin ? colors.successBg : colors.secondaryBg,
+                      opacity: isUpdatingAutopilotProposal ? 0.7 : 1,
+                    }}
+                  >
+                    <Text style={{ color: isOrgAdmin ? colors.successText : colors.muted, fontWeight: "700" }}>
+                      {normalizeText("Aprovar")}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={isUpdatingAutopilotProposal}
+                    onPress={() => {
+                      void handleAutopilotDecision("rejected");
+                    }}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      backgroundColor: colors.dangerBg,
+                      opacity: isUpdatingAutopilotProposal ? 0.7 : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
+                      {normalizeText("Rejeitar")}
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </View>
+        ) : null}
 
 
 

@@ -13,6 +13,8 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { buildTeamIntelligenceSnapshot } from "../../src/api/reports";
+import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
 
 import type {
     AttendanceRecord,
@@ -468,6 +470,47 @@ export default function ReportsScreen() {
     },
   ];
 
+  const teamIntelligence = useMemo(
+    () =>
+      buildTeamIntelligenceSnapshot({
+        classes: classes.map((item) => ({ id: item.id, name: item.name, unit: item.unit })),
+        sessionLogs: uniqueSessionLogs.map((item) => ({
+          classId: item.classId,
+          attendance: Number(item.attendance || 0),
+          PSE: Number(item.PSE || 0),
+        })),
+      }),
+    [classes, uniqueSessionLogs]
+  );
+
+  const simulationHighlights = useMemo(() => {
+    return classes
+      .map((cls) => {
+        const logs = uniqueSessionLogs
+          .filter((item) => item.classId === cls.id)
+          .slice(0, 8);
+        if (!logs.length) return null;
+        const simulation = simulateClassEvolution({
+          classId: cls.id,
+          logs,
+          horizonWeeks: 6,
+          interventionIntensity: "balanced",
+        });
+        const lastPoint = simulation.points[simulation.points.length - 1];
+        if (!lastPoint) return null;
+        return {
+          classId: cls.id,
+          className: cls.name,
+          baseline: simulation.baselineScore,
+          projected: lastPoint.projectedScore,
+          confidence: lastPoint.confidence,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .sort((a, b) => b.projected - a.projected)
+      .slice(0, 5);
+  }, [classes, uniqueSessionLogs]);
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -641,6 +684,44 @@ export default function ReportsScreen() {
                 </Text>
               </View>
             ))}
+          </View>
+
+          <View style={insetCardStyle}>
+            <Text style={sectionTitleStyle}>Team intelligence (comparativo)</Text>
+            <Text style={{ color: colors.muted }}>
+              Presença média global: {(teamIntelligence.globalAvgAttendance * 100).toFixed(0)}% • PSE médio global: {teamIntelligence.globalAvgPse.toFixed(1)}
+            </Text>
+            {teamIntelligence.rankingByAttendance.length === 0 ? (
+              <Text style={{ color: colors.muted }}>Sem sessões suficientes para ranking no período.</Text>
+            ) : (
+              <View style={{ gap: 6 }}>
+                {teamIntelligence.rankingByAttendance.map((item, index) => (
+                  <Text key={`team-ranking-${item.classId}`} style={{ color: colors.text }}>
+                    {index + 1}. {item.className} • {(item.avgAttendance * 100).toFixed(0)}% • PSE {item.avgPse.toFixed(1)}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={insetCardStyle}>
+            <Text style={sectionTitleStyle}>Simulação de evolução (6 semanas)</Text>
+            <Text style={{ color: colors.muted }}>
+              Projeção assistiva e determinística. Aplicação real exige validação humana.
+            </Text>
+            {simulationHighlights.length === 0 ? (
+              <Text style={{ color: colors.muted }}>
+                Sem histórico suficiente para simular no período atual.
+              </Text>
+            ) : (
+              <View style={{ gap: 6 }}>
+                {simulationHighlights.map((item) => (
+                  <Text key={`sim-${item.classId}`} style={{ color: colors.text }}>
+                    {item.className} • {Math.round(item.baseline * 100)}% → {Math.round(item.projected * 100)}% • confiança {Math.round(item.confidence * 100)}%
+                  </Text>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={insetCardStyle}>

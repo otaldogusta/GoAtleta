@@ -153,6 +153,23 @@ export default function ReportsScreen() {
     };
   }, [tab]);
 
+  const executiveSummary = useMemo(() => {
+    const attendancePending = pendingAttendance.length;
+    const sessionPending = pendingSessions.length;
+    const recentActions = recentActivity.length;
+    const activeClasses = new Set([
+      ...pendingAttendance.map((item) => item.classId),
+      ...pendingSessions.map((item) => item.classId),
+      ...recentActivity.map((item) => item.classId),
+    ]).size;
+    return {
+      attendancePending,
+      sessionPending,
+      recentActions,
+      activeClasses,
+    };
+  }, [pendingAttendance, pendingSessions, recentActivity]);
+
   const renderItem = useCallback(
     ({ item }: { item: DashboardListItem }) => {
       if (item.kind === "attendance") {
@@ -343,6 +360,79 @@ export default function ReportsScreen() {
             Recarregar
           </Text>
         </Pressable>
+      </View>
+
+      <View
+        style={{
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          padding: 12,
+          gap: 8,
+        }}
+      >
+        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
+          Resumo executivo
+        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Chamada pendente: {executiveSummary.attendancePending}
+            </Text>
+          </View>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Relatórios pendentes: {executiveSummary.sessionPending}
+            </Text>
+          </View>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Atividade recente: {executiveSummary.recentActions}
+            </Text>
+          </View>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Turmas em foco: {executiveSummary.activeClasses}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {error ? (
