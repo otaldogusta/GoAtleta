@@ -6,6 +6,8 @@ Uso o GoAtleta para planejar, registrar e acompanhar treinos com meus alunos.
 
 - `ROADMAP.md`
 - `RELEASE_CHECKLIST.md`
+- `PR_INDEX.md` (índice central de PRs e resumos)
+- `DOCS_INDEX.md` (hub de toda documentação)
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 

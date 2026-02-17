@@ -38,6 +38,7 @@ import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 
 const trainerPermissionByPrefix = [
   { prefix: "/coordination", permissionKey: "org_members" },
+  { prefix: "/evidence", permissionKey: "assistant" },
   { prefix: "/reports", permissionKey: "reports" },
   { prefix: "/events", permissionKey: "events" },
   { prefix: "/students", permissionKey: "students" },
@@ -105,6 +106,7 @@ function RootLayoutContent() {
   ];
   const trainerOnlyPrefixes = [
     "/coordination",
+    "/evidence",
     "/absence-notices",
     "/assistant",
     "/calendar",

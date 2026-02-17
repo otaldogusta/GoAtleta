@@ -292,6 +292,35 @@ const buildRagContext = (documents: KbDocument[]) => {
   ].join("\n\n");
 };
 
+const buildScientificEvidenceContext = (documents: KbDocument[]) => {
+  const evidenceDocs = documents.filter(
+    (document) => String(document.level ?? "").toLowerCase() === "evidence"
+  );
+  if (!evidenceDocs.length) {
+    return "SCIENTIFIC_EVIDENCE_CONTEXT: sem evidências científicas aprovadas para esta consulta.";
+  }
+
+  const entries = evidenceDocs.map((document, index) => {
+    const excerpt =
+      document.chunk.length > 420
+        ? `${document.chunk.slice(0, 420)}...`
+        : document.chunk;
+    return [
+      `Evidence ${index + 1}`,
+      `docId: ${document.id}`,
+      `title: ${document.title || "Sem título"}`,
+      `source: ${document.source || "Sem fonte"}`,
+      `createdAt: ${document.createdAt || ""}`,
+      `chunk: ${excerpt}`,
+    ].join("\n");
+  });
+
+  return [
+    "SCIENTIFIC_EVIDENCE_CONTEXT: priorize estes documentos científicos aprovados antes de outros níveis de KB.",
+    ...entries,
+  ].join("\n\n");
+};
+
 const getKnowledgeDocuments = async (params: {
   token: string;
   organizationId: string;
@@ -309,6 +338,7 @@ const getKnowledgeDocuments = async (params: {
     .from("kb_documents")
     .select("id,organization_id,title,source,chunk,tags,sport,level,created_at")
     .eq("organization_id", params.organizationId)
+    .order("created_at", { ascending: false })
     .limit(80);
 
   if (sportCandidates.length) {
@@ -330,7 +360,23 @@ const getKnowledgeDocuments = async (params: {
     createdAt: String(row.created_at ?? ""),
   }));
 
-  return rankKbDocuments(mapped, params.queryText);
+  const byRecency = [...mapped].sort((a, b) => {
+    const aTime = Date.parse(String(a.createdAt || "")) || 0;
+    const bTime = Date.parse(String(b.createdAt || "")) || 0;
+    return bTime - aTime;
+  });
+
+  const evidenceDocs = byRecency.filter(
+    (document) => String(document.level ?? "").toLowerCase() === "evidence"
+  );
+  const otherDocs = byRecency.filter(
+    (document) => String(document.level ?? "").toLowerCase() !== "evidence"
+  );
+
+  const rankedEvidence = rankKbDocuments(evidenceDocs, params.queryText);
+  const rankedOthers = rankKbDocuments(otherDocs, params.queryText);
+
+  return [...rankedEvidence, ...rankedOthers].slice(0, 6);
 };
 
 const buildRetrievalCacheKey = (organizationId: string, sportHint: string, queryText: string) => {
@@ -460,6 +506,7 @@ const canUseDebugMode = (user: { id?: string; email?: string | null }) => {
 const systemPrompt = [
   "You are a volleyball and training assistant for a coaching app.",
   "Always base answers on provided sources and retrieved documents.",
+  "Scientific evidence documents (level=evidence) are top priority when available.",
   "Return a JSON object only, no extra text.",
   "If suggesting drills from videos, include author and a stable URL.",
   "Never invent evidence. If evidence is not sufficient, lower confidence and list missing data.",
@@ -635,6 +682,7 @@ Deno.serve(async (req) => {
       ...memoryEntries.map((item) => `${item.role}/${item.scope}: ${item.content}`),
     ].slice(0, 6);
     const ragContext = buildRagContext(kbDocs);
+    const scientificEvidenceContext = buildScientificEvidenceContext(kbDocs);
     console.log(
       JSON.stringify({
         event: "assistant_rag_retrieval",
@@ -654,6 +702,7 @@ Deno.serve(async (req) => {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "system", content: userHint },
+        { role: "system", content: scientificEvidenceContext },
         { role: "system", content: ragContext },
         {
           role: "system",

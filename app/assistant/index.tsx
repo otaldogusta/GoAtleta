@@ -11,6 +11,7 @@ import {
     Alert,
     Animated,
     Keyboard,
+    Linking,
     Platform,
     ScrollView,
     Text,
@@ -101,6 +102,16 @@ type AssistantResponse = {
   missingData?: string[];
 };
 
+type ScientificReference = {
+  id: string;
+  title: string;
+  author: string;
+  url: string;
+  doi: string;
+  pmid: string;
+  evidence: string;
+};
+
 const sanitizeList = (value: unknown) =>
   Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 
@@ -122,6 +133,30 @@ const toOptionalString = (value: unknown) => {
   if (typeof value !== "string") return "";
   return value.trim();
 };
+
+const DOI_REGEX = /\b10\.\d{4,9}\/[A-Z0-9._;()/:-]+\b/i;
+const PMID_URL_REGEX = /pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)\/?/i;
+const PMID_TEXT_REGEX = /\bPMID\s*[:=]?\s*(\d{5,})\b/i;
+const URL_REGEX = /(https?:\/\/[^\s)]+)/i;
+
+const extractDoi = (value: string) => {
+  const match = value.match(DOI_REGEX);
+  return match ? match[0] : "";
+};
+
+const extractPmid = (value: string) => {
+  const fromUrl = value.match(PMID_URL_REGEX);
+  if (fromUrl?.[1]) return fromUrl[1];
+  const fromText = value.match(PMID_TEXT_REGEX);
+  return fromText?.[1] ?? "";
+};
+
+const extractFirstUrl = (value: string) => {
+  const match = value.match(URL_REGEX);
+  return match ? match[1] : "";
+};
+
+const buildDoiUrl = (doi: string) => (doi ? `https://doi.org/${encodeURIComponent(doi)}` : "");
 
 const DEFAULT_WARMUP_TIME = "10 minutos";
 const DEFAULT_COOLDOWN_TIME = "5 minutos";
@@ -315,6 +350,56 @@ export default function AssistantScreen() {
   });
 
   const className = selectedClass?.name ?? "Turma";
+
+  const scientificReferences = useMemo<ScientificReference[]>(() => {
+    if (!sources.length) return [];
+
+    const refs = sources.map((source, index) => {
+      const citationEvidence = citations[index]?.evidence ?? "";
+      const mergedText = `${source.title} ${source.author} ${source.url} ${citationEvidence}`;
+      const doi = extractDoi(mergedText);
+      const pmid = extractPmid(mergedText);
+      const fallbackUrl = extractFirstUrl(citationEvidence);
+      const officialUrl = source.url || fallbackUrl || buildDoiUrl(doi);
+
+      return {
+        id: `${source.title}-${source.url}-${index}`,
+        title: source.title || "Referência científica",
+        author: source.author || "Autor não informado",
+        url: officialUrl,
+        doi,
+        pmid,
+        evidence: citationEvidence,
+      };
+    });
+
+    const seen = new Set<string>();
+    return refs.filter((ref) => {
+      const key = `${ref.url}|${ref.doi}|${ref.pmid}|${ref.title}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [citations, sources]);
+
+  const openReferenceLink = useCallback(async (url: string) => {
+    const target = String(url ?? "").trim();
+    if (!target) {
+      Alert.alert("Link indisponível", "Essa referência não possui URL de acesso.");
+      return;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(target);
+      if (!supported) {
+        Alert.alert("Link inválido", "Não foi possível abrir esta referência.");
+        return;
+      }
+      await Linking.openURL(target);
+    } catch {
+      Alert.alert("Erro ao abrir", "Não foi possível abrir o link da referência.");
+    }
+  }, []);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1100;
   const isCompactMobile = width < 420;
@@ -1366,7 +1451,7 @@ export default function AssistantScreen() {
               </View>
             ) : null}
 
-            { sources.length > 0 ? (
+            { scientificReferences.length > 0 ? (
               <View
                 style={{
                   padding: 14,
@@ -1374,20 +1459,52 @@ export default function AssistantScreen() {
                   backgroundColor: colors.background,
                   borderWidth: 1,
                   borderColor: colors.border,
+                  gap: 8,
                 }}
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>
-                  Fontes citadas
+                  Referências científicas
                 </Text>
-                {sources.map((source, index) => (
-                  <View key={String(index)} style={{ marginTop: 8 }}>
+                {scientificReferences.map((reference) => (
+                  <Pressable
+                    key={reference.id}
+                    onPress={() => {
+                      void openReferenceLink(reference.url);
+                    }}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.card,
+                      borderRadius: 14,
+                      padding: 10,
+                      gap: 4,
+                    }}
+                  >
                     <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {source.title}
+                      {reference.title}
                     </Text>
                     <Text style={{ color: colors.muted }}>
-                      {source.author + " - " + source.url}
+                      {reference.author}
                     </Text>
-                  </View>
+                    {reference.doi ? (
+                      <Text style={{ color: colors.text }}>
+                        DOI: {reference.doi}
+                      </Text>
+                    ) : null}
+                    {reference.pmid ? (
+                      <Text style={{ color: colors.text }}>
+                        PMID: {reference.pmid}
+                      </Text>
+                    ) : null}
+                    <Text style={{ color: colors.primaryBg, textDecorationLine: "underline" }}>
+                      Link oficial: {reference.url || "indisponível"}
+                    </Text>
+                    {reference.evidence ? (
+                      <Text style={{ color: colors.muted }} numberOfLines={2}>
+                        Evidência: {reference.evidence}
+                      </Text>
+                    ) : null}
+                  </Pressable>
                 ))}
               </View>
             ) : null}
