@@ -88,44 +88,59 @@ const styles = StyleSheet.create({
   },
 });
 
+const asText = (value: unknown) => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return String(value);
+};
+
 export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
-  const hasObjective = Boolean(data.objective.trim());
-  const hasLoad = Boolean(data.plannedLoad.trim());
-  const hasTitle = Boolean(data.title.trim());
-  const hasMaterials = (data.materials ?? []).length > 0;
+  const objective = asText(data?.objective);
+  const plannedLoad = asText(data?.plannedLoad);
+  const title = asText(data?.title);
+  const notes = asText(data?.notes);
+  const materials = (Array.isArray(data?.materials) ? data.materials : []).map((item) =>
+    asText(item)
+  );
+  const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
+
+  const hasObjective = Boolean(objective.trim());
+  const hasLoad = Boolean(plannedLoad.trim());
+  const hasTitle = Boolean(title.trim());
+  const hasMaterials = materials.length > 0;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <Text style={styles.title}>Plano de Aula (Dia)</Text>
         <Text style={styles.subtitle}>
-          Turma: {data.className}
-          {data.ageGroup ? ` (${data.ageGroup})` : ""}{"\n"}
-          Data: {data.dateLabel}
-          {data.unitLabel ? `\nUnidade: ${data.unitLabel}` : ""}
+          Turma: {asText(data?.className)}
+          {asText(data?.ageGroup) ? ` (${asText(data?.ageGroup)})` : ""}{"\n"}
+          Data: {asText(data?.dateLabel)}
+          {asText(data?.unitLabel) ? `\nUnidade: ${asText(data?.unitLabel)}` : ""}
         </Text>
 
         <View style={styles.grid}>
           {hasTitle ? (
             <View style={styles.card}>
-              <Text style={styles.label}>Título / Tema</Text>
-              <Text style={styles.value}>{data.title}</Text>
+              <Text style={styles.label}>Titulo / Tema</Text>
+              <Text style={styles.value}>{title}</Text>
             </View>
           ) : null}
           <View style={styles.card}>
             <Text style={styles.label}>Tempo total</Text>
-            <Text style={styles.value}>{data.totalTime ?? "-"}</Text>
+            <Text style={styles.value}>{asText(data?.totalTime) || "-"}</Text>
           </View>
           {hasObjective ? (
             <View style={styles.card}>
               <Text style={styles.label}>Objetivo</Text>
-              <Text style={styles.value}>{data.objective}</Text>
+              <Text style={styles.value}>{objective}</Text>
             </View>
           ) : null}
           {hasLoad ? (
             <View style={styles.card}>
               <Text style={styles.label}>Carga planejada</Text>
-              <Text style={styles.value}>{data.plannedLoad}</Text>
+              <Text style={styles.value}>{plannedLoad}</Text>
             </View>
           ) : null}
         </View>
@@ -135,24 +150,24 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             <View style={styles.blockHeader}>
               <Text style={styles.blockTitle}>Materiais</Text>
             </View>
-            <Text style={styles.value}>{data.materials.join(", ")}</Text>
+            <Text style={styles.value}>{materials.join(", ")}</Text>
           </View>
         ) : null}
 
-        {data.blocks.map((block) => (
-          <View key={block.title} style={styles.block}>
+        {blocks.map((block, blockIndex) => (
+          <View key={`${asText(block?.title)}-${blockIndex}`} style={styles.block}>
             <View style={styles.blockHeader}>
-              <Text style={styles.blockTitle}>{block.title}</Text>
-              {block.time ? (
-                <Text style={styles.muted}>{block.time}</Text>
+              <Text style={styles.blockTitle}>{asText(block?.title)}</Text>
+              {asText(block?.time) ? (
+                <Text style={styles.muted}>{asText(block?.time)}</Text>
               ) : null}
             </View>
-            {block.items.length ? (
+            {Array.isArray(block?.items) && block.items.length ? (
               block.items.map((item, index) => (
-                <View key={`${block.title}-${index}`} style={styles.itemRow}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  {item.notes ? (
-                    <Text style={styles.muted}>{item.notes}</Text>
+                <View key={`${asText(block?.title)}-${index}`} style={styles.itemRow}>
+                  <Text style={styles.itemName}>{asText(item?.name)}</Text>
+                  {asText(item?.notes) ? (
+                    <Text style={styles.muted}>{asText(item?.notes)}</Text>
                   ) : null}
                 </View>
               ))
@@ -162,20 +177,20 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
           </View>
         ))}
 
-        {data.notes ? (
+        {notes ? (
           <View style={styles.block}>
             <View style={styles.blockHeader}>
-              <Text style={styles.blockTitle}>Observações</Text>
+              <Text style={styles.blockTitle}>Observacoes</Text>
             </View>
-            <Text style={styles.value}>{data.notes}</Text>
+            <Text style={styles.value}>{notes}</Text>
           </View>
         ) : null}
 
         <View style={styles.footer}>
           <Text>Gerado pelo app</Text>
           <Text style={styles.signature}>
-            {data.coachName
-            ? `Professor(a): ${data.coachName}`
+            {asText(data?.coachName)
+              ? `Professor(a): ${asText(data?.coachName)}`
               : "Assinatura: ____________________"}
           </Text>
         </View>

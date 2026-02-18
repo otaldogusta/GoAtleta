@@ -32,24 +32,38 @@ const esc = (value: string) =>
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
 
+const asText = (value: unknown) => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return String(value);
+};
+
 export const sessionPlanHtml = (data: SessionPlanPdfData) => {
-  const materials = (data.materials ?? [])
-    .map((item) => `<span class="chip">${esc(item)}</span>`)
+  const objective = asText(data?.objective);
+  const plannedLoad = asText(data?.plannedLoad);
+  const title = asText(data?.title);
+  const notes = asText(data?.notes);
+  const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
+  const materials = (Array.isArray(data?.materials) ? data.materials : [])
+    .map((item) => `<span class="chip">${esc(asText(item))}</span>`)
     .join("");
   const hasMaterials = materials.length > 0;
-  const hasObjective = Boolean(data.objective.trim());
-  const hasLoad = Boolean(data.plannedLoad.trim());
-  const hasTitle = Boolean(data.title.trim());
+  const hasObjective = Boolean(objective.trim());
+  const hasLoad = Boolean(plannedLoad.trim());
+  const hasTitle = Boolean(title.trim());
 
-  const blocksHtml = data.blocks
+  const blocksHtml = blocks
     .map((block) => {
-      const rows = block.items
+      const blockTitle = asText(block?.title);
+      const blockTime = asText(block?.time);
+      const blockItems = Array.isArray(block?.items) ? block.items : [];
+      const rows = blockItems
         .map(
           (item) => `
       <tr>
         <td class="col-name">
-          <strong>${esc(item.name)}</strong>
-          ${item.notes ? `<div class="muted">${esc(item.notes)}</div>` : ""}
+          <strong>${esc(asText(item?.name))}</strong>
+          ${asText(item?.notes) ? `<div class="muted">${esc(asText(item?.notes))}</div>` : ""}
         </td>
       </tr>
     `
@@ -60,8 +74,8 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       <div class="block">
         <div class="block-header">
           <div>
-            <div class="block-title">${esc(block.title)}</div>
-            ${block.time ? `<div class="muted">${esc(block.time)}</div>` : ""}
+            <div class="block-title">${esc(blockTitle)}</div>
+            ${blockTime ? `<div class="muted">${esc(blockTime)}</div>` : ""}
           </div>
         </div>
 
@@ -149,11 +163,11 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
     <body>
       <h1>Plano de Aula (Dia)</h1>
       <div class="sub">
-        <strong>Turma:</strong> ${esc(data.className)}${
-          data.ageGroup ? ` (${esc(data.ageGroup)})` : ""
+        <strong>Turma:</strong> ${esc(asText(data?.className))}${
+          asText(data?.ageGroup) ? ` (${esc(asText(data?.ageGroup))})` : ""
         }<br/>
-        <strong>Data:</strong> ${esc(data.dateLabel)}
-        ${data.unitLabel ? `<br/><strong>Unidade:</strong> ${esc(data.unitLabel)}` : ""}
+        <strong>Data:</strong> ${esc(asText(data?.dateLabel))}
+        ${asText(data?.unitLabel) ? `<br/><strong>Unidade:</strong> ${esc(asText(data?.unitLabel))}` : ""}
       </div>
 
       <div class="grid">
@@ -162,21 +176,21 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
             ? `
         <div class="card">
           <div class="label">T\u00edtulo / Tema</div>
-          <div class="value">${esc(data.title || "")}</div>
+          <div class="value">${esc(title || "")}</div>
         </div>
         `
             : ""
         }
         <div class="card">
           <div class="label">Tempo total</div>
-          <div class="value">${esc(data.totalTime || "-")}</div>
+          <div class="value">${esc(asText(data?.totalTime) || "-")}</div>
         </div>
         ${
           hasObjective
             ? `
         <div class="card">
           <div class="label">Objetivo</div>
-          <div class="value">${esc(data.objective || "")}</div>
+          <div class="value">${esc(objective || "")}</div>
         </div>
         `
             : ""
@@ -186,7 +200,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
             ? `
         <div class="card">
           <div class="label">Carga planejada</div>
-          <div class="value">${esc(data.plannedLoad || "")}</div>
+          <div class="value">${esc(plannedLoad || "")}</div>
         </div>
         `
             : ""
@@ -209,13 +223,13 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       ${blocksHtml}
 
       ${
-        data.notes
+        notes
           ? `
         <div class="block">
           <div class="block-header">
             <div class="block-title">Observa\u00e7\u00f5es</div>
           </div>
-          <div class="card prewrap">${esc(data.notes)}</div>
+          <div class="card prewrap">${esc(notes)}</div>
         </div>
       `
           : ""
@@ -225,8 +239,8 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         <div>Gerado pelo app - ${new Date().toLocaleDateString("pt-BR")}</div>
         <div class="signature">
           ${
-            data.coachName
-              ? `Professor(a): ${esc(data.coachName)}`
+            asText(data?.coachName)
+              ? `Professor(a): ${esc(asText(data?.coachName))}`
               : "Assinatura: ____________________"
           }
         </div>

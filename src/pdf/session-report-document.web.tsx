@@ -54,25 +54,31 @@ const styles = StyleSheet.create({
   },
 });
 
+const asText = (value: unknown) => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return String(value);
+};
+
 export function SessionReportDocument({ data }: { data: SessionReportPdfData }) {
   const participants =
-    typeof data.participantsCount === "number" && data.participantsCount > 0
+    typeof data?.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = data.deadlineLabel.trim() || "último dia da escolinha do mês";
+  const deadline = asText(data?.deadlineLabel).trim() || "ultimo dia da escolinha do mes";
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.title}>RELATÓRIO ESCOLINHA DE VOLEI</Text>
+        <Text style={styles.title}>RELATORIO ESCOLINHA DE VOLEI</Text>
         <Text style={styles.meta}>
-          Turma: {data.className || "-"}{"\n"}
-          Unidade: {data.unitLabel || "-"}
+          Turma: {asText(data?.className) || "-"}{"\n"}
+          Unidade: {asText(data?.unitLabel) || "-"}
         </Text>
 
         <View style={styles.row}>
           <View style={styles.cell}>
-            <Text>MÊS: {data.monthLabel}</Text>
+            <Text>MES: {asText(data?.monthLabel)}</Text>
           </View>
           <View style={styles.cell}>
             <Text>Prazo de entrega: {deadline}</Text>
@@ -82,27 +88,27 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
         <View style={styles.row}>
           <View style={styles.cellWide}>
             <Text style={styles.label}>Data:</Text>
-            <Text>{data.dateLabel}</Text>
+            <Text>{asText(data?.dateLabel)}</Text>
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
             <Text style={styles.label}>Atividade:</Text>
-            <Text>{data.activity ?? "-"}</Text>
+            <Text>{asText(data?.activity) || "-"}</Text>
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
-            <Text style={styles.label}>Conclusão:</Text>
-            <Text>{data.conclusion ?? "-"}</Text>
+            <Text style={styles.label}>Conclusao:</Text>
+            <Text>{asText(data?.conclusion) || "-"}</Text>
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
-            <Text style={styles.label}>Número de participantes:</Text>
+            <Text style={styles.label}>Numero de participantes:</Text>
             <Text>{participants}</Text>
           </View>
         </View>
@@ -110,7 +116,7 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
         <View style={styles.row}>
           <View style={[styles.cellWide, styles.photos]}>
             <Text style={styles.label}>Fotos:</Text>
-            <Text>{data.photos ?? "-"}</Text>
+            <Text>{asText(data?.photos) || "-"}</Text>
           </View>
         </View>
       </Page>

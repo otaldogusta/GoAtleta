@@ -10,24 +10,30 @@ export type SessionReportPdfData = {
   deadlineLabel: string;
 };
 
-const esc = (value: string) =>
-  value
+const asText = (value: unknown) => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return String(value);
+};
+
+const esc = (value: unknown) =>
+  asText(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
 
-const nl2br = (value: string) => esc(value).replace(/\n/g, "<br/>");
+const nl2br = (value: unknown) => esc(value).replace(/\n/g, "<br/>");
 
 export const sessionReportHtml = (data: SessionReportPdfData) => {
-  const activity = data.activity.trim() ?? "";
-  const conclusion = data.conclusion.trim() ?? "";
-  const photos = data.photos.trim() ?? "";
+  const activity = asText(data?.activity).trim();
+  const conclusion = asText(data?.conclusion).trim();
+  const photos = asText(data?.photos).trim();
   const participants =
-    typeof data.participantsCount === "number" && data.participantsCount > 0
+    typeof data?.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = data.deadlineLabel.trim() || "último dia da escolinha do mês";
+  const deadline = asText(data?.deadlineLabel).trim() || "ultimo dia da escolinha do mes";
 
   return `
   <html>
@@ -70,18 +76,18 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
       </style>
     </head>
     <body>
-      <h1>RELATÓRIO ESCOLINHA DE VÔLEI</h1>
+      <h1>RELATORIO ESCOLINHA DE VOLEI</h1>
       <div class="meta">
-        <strong>Turma:</strong> ${esc(data.className || "-")}<br/>
-        <strong>Unidade:</strong> ${esc(data.unitLabel || "-")}
+        <strong>Turma:</strong> ${esc(data?.className || "-")}<br/>
+        <strong>Unidade:</strong> ${esc(data?.unitLabel || "-")}
       </div>
       <table>
         <tr>
-          <td><strong>MES:</strong> ${esc(data.monthLabel)}</td>
+          <td><strong>MES:</strong> ${esc(data?.monthLabel)}</td>
           <td><strong>Prazo de entrega:</strong> ${esc(deadline)}</td>
         </tr>
         <tr>
-          <td colspan="2"><span class="label">Data:</span>${esc(data.dateLabel)}</td>
+          <td colspan="2"><span class="label">Data:</span>${esc(data?.dateLabel)}</td>
         </tr>
         <tr>
           <td colspan="2"><span class="label">Atividade:</span>${nl2br(activity || "-")}</td>
@@ -90,7 +96,7 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
           <td colspan="2"><span class="label">Conclusao:</span>${nl2br(conclusion || "-")}</td>
         </tr>
         <tr>
-          <td colspan="2"><span class="label">Número de participantes:</span>${esc(participants)}</td>
+          <td colspan="2"><span class="label">Numero de participantes:</span>${esc(participants)}</td>
         </tr>
         <tr>
           <td colspan="2" class="photos"><span class="label">Fotos:</span>${nl2br(photos || "-")}</td>
