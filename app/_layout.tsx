@@ -53,6 +53,7 @@ const trainerPermissionByPrefix = [
   { prefix: "/whatsapp-settings", permissionKey: "whatsapp_settings" },
   { prefix: "/assistant", permissionKey: "assistant" },
   { prefix: "/org-members", permissionKey: "org_members" },
+  { prefix: "/nfc-attendance", permissionKey: "classes" },
 ] as const;
 
 const enableSentryPii = __DEV__;
@@ -120,6 +121,7 @@ function RootLayoutContent() {
     "/periodization",
     "/reports",
     "/org-members",
+    "/nfc-attendance",
     "/students",
     "/training",
     "/whatsapp-settings",

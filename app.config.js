@@ -46,6 +46,7 @@ const plugins = [
 		},
 	],
 	"expo-secure-store",
+	"react-native-nfc-manager",
 	"@react-native-community/datetimepicker",
 	"@sentry/react-native",
 	[

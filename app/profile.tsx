@@ -804,6 +804,16 @@ export default function ProfileScreen() {
                   }
                 />
               ) : null}
+              {!student && Platform.OS !== "web" ? (
+                <SettingsRow
+                  icon="radio-outline"
+                  iconBg="rgba(120, 220, 180, 0.16)"
+                  label="Presença NFC"
+                  subtitle="Modo presença por tag UID"
+                  onPress={() => router.push("/nfc-attendance")}
+                  rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
+                />
+              ) : null}
               <SettingsRow
                 icon="moon-outline"
                 iconBg="rgba(96, 187, 255, 0.16)"

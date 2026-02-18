@@ -102,3 +102,34 @@ Este documento organiza os entregáveis recentes em blocos de PR para facilitar 
 - `ai-pr2-assistant-blocks`
 - `ai-pr3-rag-observability`
 - `ai-pr3-1-hardening`
+
+---
+
+## PR NFC1 — Presença NFC por UID (Android-first)
+### Scope
+- Leitura de tag NFC por UID (sem escrita NDEF), com fluxo de bind `tag_uid -> student_id` por organização.
+- Nova tela `app/nfc-attendance.tsx` com:
+  - seleção de turma
+  - scan de tag
+  - registro de check-in quando UID já está vinculado
+  - modal de vinculação quando UID ainda não existe (admin)
+- Módulos:
+  - `src/nfc/nfc.ts`
+  - `src/nfc/nfc-errors.ts`
+  - `src/nfc/nfc-types.ts`
+  - `src/nfc/nfc-hooks.ts`
+  - `src/data/nfc-tag-bindings.ts`
+  - `src/data/attendance-checkins.ts`
+- Migração:
+  - `supabase/migrations/20260218_add_nfc_presence.sql`
+- Guardrails:
+  - Web sem NFC
+  - fallback de erro quando módulo nativo NFC não está presente no build
+  - bind restrito por RLS para admin de org
+
+### Rebuild Required
+- Esta entrega exige novo build nativo (Dev Client/EAS), pois usa módulo NFC nativo.
+- Comandos recomendados:
+  - `eas build --profile development --platform android`
+  - instalar build no device
+  - `npx expo start -c`

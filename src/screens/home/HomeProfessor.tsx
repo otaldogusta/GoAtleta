@@ -2030,44 +2030,6 @@ export function HomeProfessorScreen({
 
             </Pressable>
             ) : null}
-
-
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/qr-scan" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Scanner QR
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Ler QR Code
-
-              </Text>
-
-            </Pressable>
-
             <Pressable
 
               onPress={() => router.push({ pathname: "/absence-notices" })}
@@ -2099,6 +2061,42 @@ export function HomeProfessorScreen({
               <Text style={{ color: colors.muted, marginTop: 6 }}>
 
                 Alunos ausentes
+
+              </Text>
+
+            </Pressable>
+
+            <Pressable
+
+              onPress={() => router.push({ pathname: "/nfc-attendance" })}
+
+              style={{
+
+                flexBasis: "48%",
+
+                padding: 14,
+
+                borderRadius: 18,
+
+                ...shortcutCardSurfaceStyle,
+
+              }}
+
+            >
+
+
+
+
+
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+
+                Presença NFC
+
+              </Text>
+
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+
+                Registrar por UID
 
               </Text>
 
