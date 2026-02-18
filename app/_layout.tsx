@@ -84,7 +84,7 @@ function RootLayoutContent() {
   const { role, loading: roleLoading } = useRole();
   const { memberPermissions, permissionsLoading, isLoading: organizationLoading } =
     useOrganization();
-  const { isEnabled: biometricsEnabled, isUnlocked } = useBiometricLock();
+  const { isEnabled: biometricsEnabled, isUnlocked, hasCredentialLoginBypass } = useBiometricLock();
   const hadSessionRef = useRef(false);
   const navReady = Boolean(rootState.key);
   const isBooting =
@@ -182,6 +182,7 @@ function RootLayoutContent() {
       Platform.OS !== "web" &&
       biometricsEnabled &&
       !isUnlocked &&
+      !hasCredentialLoginBypass &&
       pathname !== "/login" &&
       pathname !== "/reset-password" &&
       !isInviteRoute
@@ -228,7 +229,12 @@ function RootLayoutContent() {
       }
     }
     if (session && ["/welcome", "/login", "/signup"].includes(pathname)) {
-      if (Platform.OS !== "web" && biometricsEnabled && !isUnlocked) {
+      if (
+        Platform.OS !== "web" &&
+        biometricsEnabled &&
+        !isUnlocked &&
+        !hasCredentialLoginBypass
+      ) {
         if (pathname !== "/login") {
           router.replace("/login");
         }
@@ -240,6 +246,7 @@ function RootLayoutContent() {
     biometricsEnabled,
     isInviteRoute,
     isPublicRoute,
+    hasCredentialLoginBypass,
     isUnlocked,
     loading,
     memberPermissions,

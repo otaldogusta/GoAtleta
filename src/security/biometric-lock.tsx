@@ -41,6 +41,7 @@ type BiometricLockContextValue = {
   isUnlocked: boolean;
   isPrompting: boolean;
   failedAttempts: number;
+  hasCredentialLoginBypass: boolean;
   setEnabled: (enabled: boolean) => Promise<void>;
   lockNow: () => void;
   markCredentialLoginSuccess: () => void;
@@ -65,6 +66,7 @@ export function BiometricLockProvider({
   const [isUnlocked, setIsUnlocked] = useState(true);
   const [isPrompting, setIsPrompting] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [hasCredentialLoginBypass, setHasCredentialLoginBypass] = useState(false);
   const failedAttemptsRef = useRef(0);
   const skipNextAutoLockRef = useRef(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -90,6 +92,7 @@ export function BiometricLockProvider({
   useEffect(() => {
     if (!shouldLock) {
       setIsUnlocked(true);
+      setHasCredentialLoginBypass(false);
       setFailedAttempts(0);
       failedAttemptsRef.current = 0;
       return;
@@ -105,11 +108,13 @@ export function BiometricLockProvider({
 
   const lockNow = useCallback(() => {
     if (!shouldLock) return;
+    setHasCredentialLoginBypass(false);
     setIsUnlocked(false);
   }, [shouldLock]);
 
   const markCredentialLoginSuccess = useCallback(() => {
     skipNextAutoLockRef.current = true;
+    setHasCredentialLoginBypass(true);
     setIsUnlocked(true);
     setFailedAttempts(0);
     failedAttemptsRef.current = 0;
@@ -126,6 +131,7 @@ export function BiometricLockProvider({
       try {
         const result = await promptBiometrics(reason);
         if (result.success) {
+          setHasCredentialLoginBypass(false);
           setFailedAttempts(0);
           failedAttemptsRef.current = 0;
           setIsUnlocked(true);
@@ -156,6 +162,7 @@ export function BiometricLockProvider({
         const result = await promptBiometrics(reason);
         if (!result.success) return false;
         skipNextAutoLockRef.current = true;
+        setHasCredentialLoginBypass(false);
         setIsUnlocked(true);
         setFailedAttempts(0);
         failedAttemptsRef.current = 0;
@@ -180,11 +187,13 @@ export function BiometricLockProvider({
     setIsEnabled(enabled);
     if (enabled) {
       skipNextAutoLockRef.current = true;
+      setHasCredentialLoginBypass(false);
       setIsUnlocked(true);
       setFailedAttempts(0);
       failedAttemptsRef.current = 0;
       return;
     }
+    setHasCredentialLoginBypass(false);
     setIsUnlocked(true);
     setFailedAttempts(0);
     failedAttemptsRef.current = 0;
@@ -196,6 +205,7 @@ export function BiometricLockProvider({
       const prev = appStateRef.current;
       appStateRef.current = next;
       if (shouldRelockOnForeground(prev, next)) {
+        setHasCredentialLoginBypass(false);
         setIsUnlocked(false);
       }
     });
@@ -208,6 +218,7 @@ export function BiometricLockProvider({
       isUnlocked,
       isPrompting,
       failedAttempts,
+      hasCredentialLoginBypass,
       setEnabled,
       lockNow,
       markCredentialLoginSuccess,
@@ -217,6 +228,7 @@ export function BiometricLockProvider({
     }),
     [
       failedAttempts,
+      hasCredentialLoginBypass,
       isEnabled,
       isPrompting,
       isUnlocked,
