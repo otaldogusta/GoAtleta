@@ -153,7 +153,7 @@ function RootLayoutContent() {
     const hasSession = Boolean(session);
     hadSessionRef.current = hasSession;
     if (!hadSession && hasSession && pathname.startsWith("/events/")) {
-      router.replace("/events");
+      router.replace("/");
     }
   }, [pathname, router, session]);
 
