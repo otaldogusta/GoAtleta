@@ -102,6 +102,8 @@ function RootLayoutContent() {
     ...(__DEV__ ? ["/admin"] : []),
   ];
   const publicPrefixes = ["/invite"];
+  const normalizedPathname =
+    pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const studentOnlyRoutes = [
     "/absence-report",
     "/communications",
@@ -126,13 +128,17 @@ function RootLayoutContent() {
     "/training",
     "/whatsapp-settings",
   ];
-  const isInviteRoute = pathname.startsWith("/invite");
+  const isInviteRoute =
+    normalizedPathname === "/invite" || normalizedPathname.startsWith("/invite/");
   const isPublicRoute =
-    publicRoutes.includes(pathname) ||
-    publicPrefixes.some((prefix) => pathname.startsWith(prefix));
+    publicRoutes.includes(normalizedPathname) ||
+    publicPrefixes.some(
+      (prefix) =>
+        normalizedPathname === prefix || normalizedPathname.startsWith(`${prefix}/`)
+    );
   const canGoBack =
     Platform.OS === "web" &&
-    pathname !== "/" &&
+    normalizedPathname !== "/" &&
     !isPublicRoute;
 
   useEffect(() => {
@@ -152,10 +158,10 @@ function RootLayoutContent() {
     const hadSession = hadSessionRef.current;
     const hasSession = Boolean(session);
     hadSessionRef.current = hasSession;
-    if (!hadSession && hasSession && pathname.startsWith("/events")) {
+    if (!hadSession && hasSession && normalizedPathname.startsWith("/events")) {
       router.replace("/");
     }
-  }, [pathname, router, session]);
+  }, [normalizedPathname, router, session]);
 
   useEffect(() => {
     // If web OAuth code is present, let the code-exchange effect handle navigation first
@@ -183,8 +189,8 @@ function RootLayoutContent() {
       biometricsEnabled &&
       !isUnlocked &&
       !hasCredentialLoginBypass &&
-      pathname !== "/login" &&
-      pathname !== "/reset-password" &&
+      normalizedPathname !== "/login" &&
+      normalizedPathname !== "/reset-password" &&
       !isInviteRoute
     ) {
       router.replace("/login");
@@ -194,48 +200,48 @@ function RootLayoutContent() {
       router.replace("/welcome");
       return;
     }
-    if (session && role === "pending" && pathname !== "/pending" && !isInviteRoute) {
+    if (session && role === "pending" && normalizedPathname !== "/pending" && !isInviteRoute) {
       router.replace("/pending");
       return;
     }
-    if (session && role === "trainer" && pathname === "/pending") {
+    if (session && role === "trainer" && normalizedPathname === "/pending") {
       router.replace("/");
       return;
     }
-    if (session && role === "student" && pathname === "/pending") {
+    if (session && role === "student" && normalizedPathname === "/pending") {
       router.replace("/");
       return;
     }
     if (session && role === "student") {
       const blocked = trainerOnlyPrefixes.some((prefix) =>
-        pathname.startsWith(prefix)
+        normalizedPathname.startsWith(prefix)
       );
       if (blocked) {
         router.replace("/");
         return;
       }
     }
-    if (session && role === "trainer" && studentOnlyRoutes.includes(pathname)) {
+    if (session && role === "trainer" && studentOnlyRoutes.includes(normalizedPathname)) {
       router.replace("/");
       return;
     }
     if (session && role === "trainer") {
       const matched = trainerPermissionByPrefix.find((item) =>
-        pathname.startsWith(item.prefix)
+        normalizedPathname.startsWith(item.prefix)
       );
       if (matched && memberPermissions[matched.permissionKey] === false) {
         router.replace("/");
         return;
       }
     }
-    if (session && ["/welcome", "/login", "/signup"].includes(pathname)) {
+    if (session && ["/welcome", "/login", "/signup"].includes(normalizedPathname)) {
       if (
         Platform.OS !== "web" &&
         biometricsEnabled &&
         !isUnlocked &&
         !hasCredentialLoginBypass
       ) {
-        if (pathname !== "/login") {
+        if (normalizedPathname !== "/login") {
           router.replace("/login");
         }
         return;
@@ -251,7 +257,7 @@ function RootLayoutContent() {
     loading,
     memberPermissions,
     navReady,
-    pathname,
+    normalizedPathname,
     permissionsLoading,
     bootstrapLoading,
     router,

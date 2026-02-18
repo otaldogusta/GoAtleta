@@ -205,7 +205,6 @@ export default function LoginScreen() {
     try {
       await signIn(email.trim(), password, rememberMeRef.current);
       markCredentialLoginSuccess();
-      router.replace("/");
       setFailedLoginAttempt(false);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
@@ -283,7 +282,6 @@ export default function LoginScreen() {
         setMessage("Nao foi possivel validar biometria. Use email e senha.");
         return;
       }
-      router.replace("/");
     } finally {
       setBiometricBusy(false);
     }
