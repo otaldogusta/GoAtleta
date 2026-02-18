@@ -202,6 +202,7 @@ function RootLayoutContent() {
       biometricsEnabled &&
       !isUnlocked &&
       !hasCredentialLoginBypass &&
+      normalizedPathname !== "/" &&
       normalizedPathname !== "/login" &&
       normalizedPathname !== "/reset-password" &&
       !isInviteRoute

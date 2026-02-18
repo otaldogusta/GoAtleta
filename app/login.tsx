@@ -59,6 +59,7 @@ export default function LoginScreen() {
   const rememberToastAnim = useRef(new Animated.Value(0)).current;
   const rememberMeRef = useRef(false);
   const loginInFlightRef = useRef(false);
+  const postAuthNavigateRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
 
@@ -186,6 +187,11 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (!session) return;
+    if (postAuthNavigateRef.current) {
+      postAuthNavigateRef.current = false;
+      router.replace("/");
+      return;
+    }
     if (Platform.OS !== "web" && !isUnlocked && !hasCredentialLoginBypass) return;
     router.replace("/");
   }, [hasCredentialLoginBypass, isUnlocked, router, session]);
@@ -212,6 +218,7 @@ export default function LoginScreen() {
     try {
       await signIn(email.trim(), password, rememberMeRef.current);
       markCredentialLoginSuccess();
+      postAuthNavigateRef.current = true;
       setFailedLoginAttempt(false);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
@@ -289,6 +296,7 @@ export default function LoginScreen() {
         setMessage("Nao foi possivel validar biometria. Use email e senha.");
         return;
       }
+      postAuthNavigateRef.current = true;
     } finally {
       setBiometricBusy(false);
     }
