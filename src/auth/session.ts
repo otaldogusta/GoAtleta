@@ -112,6 +112,19 @@ export const loadSession = async (): Promise<AuthSession | null> => {
   }
 };
 
+export const hasStoredSession = async (): Promise<boolean> => {
+  if (!isNative) return false;
+  const secureStore = getSecureStore();
+  const remember = await AsyncStorage.getItem(REMEMBER_KEY);
+  if (remember !== "true") return false;
+  if (secureStore) {
+    const raw = (await secureStore.getItemAsync(STORAGE_KEY)) ?? "";
+    if (raw.trim()) return true;
+  }
+  const legacyRaw = (await AsyncStorage.getItem(STORAGE_KEY)) ?? "";
+  return Boolean(legacyRaw.trim());
+};
+
 export const saveSession = async (session: AuthSession | null, remember = true) => {
   const secureStore = getSecureStore();
   if (!session) {

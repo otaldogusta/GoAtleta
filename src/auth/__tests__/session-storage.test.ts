@@ -81,4 +81,17 @@ describe("session storage", () => {
     expect(secureStoreMock.deleteItemAsync).toHaveBeenCalledWith("auth_session_v1");
     expect(secureStoreMock.setItemAsync).not.toHaveBeenCalled();
   });
+
+  test("hasStoredSession returns true when secure store has payload", async () => {
+    const mod = await loadSessionModuleFor("ios");
+    asyncStorageMock.getItem.mockResolvedValue("true");
+    secureStoreMock.getItemAsync.mockResolvedValue('{"access_token":"a"}');
+
+    await expect(mod.hasStoredSession()).resolves.toBe(true);
+  });
+
+  test("hasStoredSession returns false on web", async () => {
+    const mod = await loadSessionModuleFor("web");
+    await expect(mod.hasStoredSession()).resolves.toBe(false);
+  });
 });

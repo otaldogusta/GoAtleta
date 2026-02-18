@@ -29,6 +29,13 @@ export function shouldRelockOnForeground(
   return (previous === "background" || previous === "inactive") && next === "active";
 }
 
+export function shouldAllowBiometricLoginPrompt(params: {
+  isNative: boolean;
+  isEnabled: boolean;
+}) {
+  return params.isNative && params.isEnabled;
+}
+
 type BiometricLockContextValue = {
   isEnabled: boolean;
   isUnlocked: boolean;
@@ -37,6 +44,7 @@ type BiometricLockContextValue = {
   setEnabled: (enabled: boolean) => Promise<void>;
   lockNow: () => void;
   unlock: (reason: string) => Promise<boolean>;
+  unlockForLogin: (reason: string) => Promise<boolean>;
   ensureUnlocked: (reason: string) => Promise<boolean>;
 };
 
@@ -131,6 +139,26 @@ export function BiometricLockProvider({
     [isPrompting, onForceRelogin, shouldLock]
   );
 
+  const unlockForLogin = useCallback(
+    async (reason: string): Promise<boolean> => {
+      if (!shouldAllowBiometricLoginPrompt({ isNative, isEnabled })) return false;
+      if (isPrompting) return false;
+      setIsPrompting(true);
+      try {
+        const result = await promptBiometrics(reason);
+        if (!result.success) return false;
+        skipNextAutoLockRef.current = true;
+        setIsUnlocked(true);
+        setFailedAttempts(0);
+        failedAttemptsRef.current = 0;
+        return true;
+      } finally {
+        setIsPrompting(false);
+      }
+    },
+    [isEnabled, isNative, isPrompting]
+  );
+
   const ensureUnlocked = useCallback(
     async (reason: string) => {
       if (!shouldLock || isUnlocked) return true;
@@ -175,9 +203,10 @@ export function BiometricLockProvider({
       setEnabled,
       lockNow,
       unlock,
+      unlockForLogin,
       ensureUnlocked,
     }),
-    [failedAttempts, isEnabled, isPrompting, isUnlocked, lockNow, setEnabled, unlock, ensureUnlocked]
+    [failedAttempts, isEnabled, isPrompting, isUnlocked, lockNow, setEnabled, unlock, unlockForLogin, ensureUnlocked]
   );
 
   return <BiometricLockContext.Provider value={value}>{children}</BiometricLockContext.Provider>;

@@ -21,7 +21,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
 import { useAuth } from "../src/auth/auth";
-import { setRememberPreference } from "../src/auth/session";
+import { hasStoredSession, setRememberPreference } from "../src/auth/session";
+import { getBiometricsEnabled } from "../src/security/biometric-settings";
+import { useBiometricLock } from "../src/security/biometric-lock";
+import { isBiometricsSupported } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Button } from "../src/ui/Button";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
@@ -32,6 +35,7 @@ export default function LoginScreen() {
 
   const solidInputBg = colors.inputBg;
   const { signIn, resetPassword, signInWithOAuth } = useAuth();
+  const { unlockForLogin } = useBiometricLock();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,6 +50,9 @@ export default function LoginScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberTouched, setRememberTouched] = useState(false);
   const [showRememberToast, setShowRememberToast] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricHint, setBiometricHint] = useState("");
   const rememberToastAnim = useRef(new Animated.Value(0)).current;
   const rememberMeRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
@@ -131,6 +138,49 @@ export default function LoginScreen() {
     }
   }, [showReset, resetCountdown, resetSent]);
 
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      setBiometricAvailable(false);
+      setBiometricHint("");
+      return;
+    }
+    let active = true;
+    (async () => {
+      try {
+        const [enabled, storedSession, support] = await Promise.all([
+          getBiometricsEnabled(),
+          hasStoredSession(),
+          isBiometricsSupported(),
+        ]);
+        if (!active) return;
+        if (!enabled || !storedSession) {
+          setBiometricAvailable(false);
+          setBiometricHint("");
+          return;
+        }
+        if (!support.hasHardware) {
+          setBiometricAvailable(false);
+          setBiometricHint("Biometria indisponivel neste aparelho.");
+          return;
+        }
+        if (!support.isEnrolled) {
+          setBiometricAvailable(false);
+          setBiometricHint("Cadastre biometria no aparelho para usar este acesso.");
+          return;
+        }
+        setBiometricAvailable(true);
+        setBiometricHint("");
+      } catch {
+        if (!active) return;
+        setBiometricAvailable(false);
+        setBiometricHint("");
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const formatCountdown = (value: number) => {
     const minutes = Math.floor(value / 60);
     const seconds = value % 60;
@@ -214,6 +264,22 @@ export default function LoginScreen() {
       );
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    if (busy || biometricBusy) return;
+    setMessage("");
+    setBiometricBusy(true);
+    try {
+      const ok = await unlockForLogin("Entrar no GoAtleta");
+      if (!ok) {
+        setMessage("Nao foi possivel validar biometria. Use email e senha.");
+        return;
+      }
+      router.replace("/");
+    } finally {
+      setBiometricBusy(false);
     }
   };
 
@@ -480,6 +546,18 @@ export default function LoginScreen() {
                     >
                       <Text style={{ color: colors.muted }}>Esqueceu a senha?</Text>
                     </Pressable>
+                  ) : null}
+
+                  {biometricAvailable ? (
+                    <Button
+                      label={biometricBusy ? "Validando biometria..." : "Entrar com biometria"}
+                      onPress={handleBiometricLogin}
+                      disabled={busy || biometricBusy}
+                      loading={biometricBusy}
+                    />
+                  ) : null}
+                  {!biometricAvailable && biometricHint ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{biometricHint}</Text>
                   ) : null}
 
                   <View style={{ marginTop: 12, gap: 12 }}>

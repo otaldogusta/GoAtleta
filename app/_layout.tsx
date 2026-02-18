@@ -29,7 +29,6 @@ import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { OrganizationProvider, useOrganization } from "../src/providers/OrganizationProvider";
-import { BiometricGate } from "../src/security/BiometricGate";
 import { BiometricLockProvider, useBiometricLock } from "../src/security/biometric-lock";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
@@ -81,11 +80,11 @@ function RootLayoutContent() {
   const { loading: bootstrapLoading, error: bootstrapError, retry: retryBootstrap } =
     useBootstrap();
   const rootState = useRootNavigationState();
-  const { session, loading, exchangeCodeForSession, consumeAuthUrl, signOut } = useAuth();
+  const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
-  const { memberPermissions, permissionsLoading, isLoading: organizationLoading, activeOrganization } =
+  const { memberPermissions, permissionsLoading, isLoading: organizationLoading } =
     useOrganization();
-  const { isEnabled: biometricsEnabled, isUnlocked, isPrompting, unlock } = useBiometricLock();
+  const { isEnabled: biometricsEnabled, isUnlocked } = useBiometricLock();
   const navReady = Boolean(rootState.key);
   const isBooting =
     bootstrapLoading ||
@@ -134,9 +133,6 @@ function RootLayoutContent() {
     Platform.OS === "web" &&
     pathname !== "/" &&
     !isPublicRoute;
-  const sensitivePrefixes = ["/coordination", "/org-members", "/reports"];
-  const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-  const isSensitiveRoute = sensitivePrefixes.some((prefix) => pathname.startsWith(prefix));
 
   useEffect(() => {
     LogBox.ignoreLogs([
@@ -171,6 +167,18 @@ function RootLayoutContent() {
     if (roleLoading) return;
     if (session && role === "trainer" && permissionsLoading) return;
     if (session && role === null) return;
+    if (
+      session &&
+      Platform.OS !== "web" &&
+      biometricsEnabled &&
+      !isUnlocked &&
+      pathname !== "/login" &&
+      pathname !== "/reset-password" &&
+      !isInviteRoute
+    ) {
+      router.replace("/login");
+      return;
+    }
     if (!session && !isPublicRoute) {
       router.replace("/welcome");
       return;
@@ -210,11 +218,19 @@ function RootLayoutContent() {
       }
     }
     if (session && ["/welcome", "/login", "/signup"].includes(pathname)) {
+      if (Platform.OS !== "web" && biometricsEnabled && !isUnlocked) {
+        if (pathname !== "/login") {
+          router.replace("/login");
+        }
+        return;
+      }
       router.replace("/");
     }
   }, [
+    biometricsEnabled,
     isInviteRoute,
     isPublicRoute,
+    isUnlocked,
     loading,
     memberPermissions,
     navReady,
@@ -463,35 +479,6 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
         <StatusBar
           style={mode === "dark" ? "light" : "dark"}
           backgroundColor="transparent"
-        />
-      </View>
-    );
-  }
-
-  if (
-    Platform.OS !== "web" &&
-    session &&
-    biometricsEnabled &&
-    !isUnlocked &&
-    (!isPublicRoute || (isAdmin && isSensitiveRoute))
-  ) {
-    return (
-      <View style={{ flex: 1 }}>
-        <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
-        <StatusBar
-          style={mode === "dark" ? "light" : "dark"}
-          backgroundColor="transparent"
-        />
-        <BiometricGate
-          isPrompting={isPrompting}
-          onUnlock={() => {
-            void unlock("Desbloquear GoAtleta");
-          }}
-          onForceLogin={() => {
-            void signOut().finally(() => {
-              router.replace("/welcome");
-            });
-          }}
         />
       </View>
     );

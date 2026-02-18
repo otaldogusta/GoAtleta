@@ -1,5 +1,6 @@
 import {
   nextBiometricFailureState,
+  shouldAllowBiometricLoginPrompt,
   shouldLockBiometricSession,
   shouldRelockOnForeground,
 } from "../biometric-lock";
@@ -47,5 +48,26 @@ describe("biometric-lock core", () => {
     expect(shouldRelockOnForeground("background", "active")).toBe(true);
     expect(shouldRelockOnForeground("inactive", "active")).toBe(true);
     expect(shouldRelockOnForeground("active", "active")).toBe(false);
+  });
+
+  test("allows biometric login prompt only on native with biometrics enabled", () => {
+    expect(
+      shouldAllowBiometricLoginPrompt({
+        isNative: true,
+        isEnabled: true,
+      })
+    ).toBe(true);
+    expect(
+      shouldAllowBiometricLoginPrompt({
+        isNative: true,
+        isEnabled: false,
+      })
+    ).toBe(false);
+    expect(
+      shouldAllowBiometricLoginPrompt({
+        isNative: false,
+        isEnabled: true,
+      })
+    ).toBe(false);
   });
 });
