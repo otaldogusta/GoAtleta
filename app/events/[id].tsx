@@ -212,6 +212,13 @@ export default function EventDetailsScreen() {
   }, [activeOrganization?.id, eventId, router, session?.user?.id]);
 
   useEffect(() => {
+    if (!session) {
+      router.replace("/login");
+      return;
+    }
+  }, [router, session]);
+
+  useEffect(() => {
     if (!eventId) {
       router.replace("/events");
       return;
@@ -335,6 +342,10 @@ export default function EventDetailsScreen() {
   useEffect(() => {
     closeDetailDropdowns();
   }, [width]);
+
+  if (!session || !eventId || (organizationLoading && !activeOrganization?.id)) {
+    return <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} />;
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
