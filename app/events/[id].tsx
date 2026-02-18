@@ -212,6 +212,13 @@ export default function EventDetailsScreen() {
   }, [activeOrganization?.id, eventId, router, session?.user?.id]);
 
   useEffect(() => {
+    if (!eventId) {
+      router.replace("/events");
+      return;
+    }
+  }, [eventId, router]);
+
+  useEffect(() => {
     if (organizationLoading) return;
     if (activeOrganization?.id) return;
     router.replace("/events");
