@@ -43,6 +43,7 @@ type BiometricLockContextValue = {
   failedAttempts: number;
   setEnabled: (enabled: boolean) => Promise<void>;
   lockNow: () => void;
+  markCredentialLoginSuccess: () => void;
   unlock: (reason: string) => Promise<boolean>;
   unlockForLogin: (reason: string) => Promise<boolean>;
   ensureUnlocked: (reason: string) => Promise<boolean>;
@@ -106,6 +107,13 @@ export function BiometricLockProvider({
     if (!shouldLock) return;
     setIsUnlocked(false);
   }, [shouldLock]);
+
+  const markCredentialLoginSuccess = useCallback(() => {
+    skipNextAutoLockRef.current = true;
+    setIsUnlocked(true);
+    setFailedAttempts(0);
+    failedAttemptsRef.current = 0;
+  }, []);
 
   const unlock = useCallback(
     async (reason: string): Promise<boolean> => {
@@ -202,11 +210,23 @@ export function BiometricLockProvider({
       failedAttempts,
       setEnabled,
       lockNow,
+      markCredentialLoginSuccess,
       unlock,
       unlockForLogin,
       ensureUnlocked,
     }),
-    [failedAttempts, isEnabled, isPrompting, isUnlocked, lockNow, setEnabled, unlock, unlockForLogin, ensureUnlocked]
+    [
+      failedAttempts,
+      isEnabled,
+      isPrompting,
+      isUnlocked,
+      lockNow,
+      markCredentialLoginSuccess,
+      setEnabled,
+      unlock,
+      unlockForLogin,
+      ensureUnlocked,
+    ]
   );
 
   return <BiometricLockContext.Provider value={value}>{children}</BiometricLockContext.Provider>;

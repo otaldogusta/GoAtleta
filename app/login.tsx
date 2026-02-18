@@ -37,7 +37,7 @@ export default function LoginScreen() {
 
   const solidInputBg = colors.inputBg;
   const { signIn, resetPassword, signInWithOAuth } = useAuth();
-  const { unlockForLogin } = useBiometricLock();
+  const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,6 +57,7 @@ export default function LoginScreen() {
   const [biometricHint, setBiometricHint] = useState("");
   const rememberToastAnim = useRef(new Animated.Value(0)).current;
   const rememberMeRef = useRef(false);
+  const loginInFlightRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
 
@@ -189,7 +190,7 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    if (busy) return;
+    if (busy || loginInFlightRef.current) return;
     if (!email.trim()) {
       setMessage("Informe seu email.");
       return;
@@ -199,9 +200,11 @@ export default function LoginScreen() {
       return;
     }
     setMessage("");
+    loginInFlightRef.current = true;
     setBusy(true);
     try {
       await signIn(email.trim(), password, rememberMeRef.current);
+      markCredentialLoginSuccess();
       setFailedLoginAttempt(false);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
@@ -213,6 +216,7 @@ export default function LoginScreen() {
         setMessage("Não foi possível concluir. Verifique os dados e tente novamente.");
       }
     } finally {
+      loginInFlightRef.current = false;
       setBusy(false);
     }
   };
