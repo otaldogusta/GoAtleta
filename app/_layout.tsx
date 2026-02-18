@@ -85,6 +85,7 @@ function RootLayoutContent() {
   const { memberPermissions, permissionsLoading, isLoading: organizationLoading } =
     useOrganization();
   const { isEnabled: biometricsEnabled, isUnlocked } = useBiometricLock();
+  const hadSessionRef = useRef(false);
   const navReady = Boolean(rootState.key);
   const isBooting =
     bootstrapLoading ||
@@ -146,6 +147,15 @@ function RootLayoutContent() {
     lastPathRef.current = pathname;
     logNavigation(pathname);
   }, [pathname]);
+
+  useEffect(() => {
+    const hadSession = hadSessionRef.current;
+    const hasSession = Boolean(session);
+    hadSessionRef.current = hasSession;
+    if (!hadSession && hasSession && pathname.startsWith("/events/")) {
+      router.replace("/events");
+    }
+  }, [pathname, router, session]);
 
   useEffect(() => {
     // If web OAuth code is present, let the code-exchange effect handle navigation first

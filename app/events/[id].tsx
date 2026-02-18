@@ -92,7 +92,7 @@ export default function EventDetailsScreen() {
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
-  const { activeOrganization } = useOrganization();
+  const { activeOrganization, isLoading: organizationLoading } = useOrganization();
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const isRowLayout = width >= 560;
@@ -174,6 +174,7 @@ export default function EventDetailsScreen() {
       ]);
       if (!event) {
         setError("Evento não encontrado.");
+        router.replace("/events");
         return;
       }
       setClasses(classRows.map((item) => ({ id: item.id, name: item.name, unitId: item.unitId })));
@@ -208,7 +209,13 @@ export default function EventDetailsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganization?.id, eventId, session?.user?.id]);
+  }, [activeOrganization?.id, eventId, router, session?.user?.id]);
+
+  useEffect(() => {
+    if (organizationLoading) return;
+    if (activeOrganization?.id) return;
+    router.replace("/events");
+  }, [activeOrganization?.id, organizationLoading, router]);
 
   useEffect(() => {
     loadData();
