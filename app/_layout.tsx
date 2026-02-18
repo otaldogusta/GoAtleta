@@ -92,8 +92,7 @@ function RootLayoutContent() {
     !navReady ||
     loading ||
     roleLoading ||
-    (session && role === "trainer" && organizationLoading) ||
-    (session && role === null);
+    (session && role === "trainer" && organizationLoading);
   const publicRoutes = [
     "/welcome",
     "/login",
@@ -180,9 +179,23 @@ function RootLayoutContent() {
     if (bootstrapLoading) return;
     if (!navReady) return;
     if (loading) return;
+    if (session && ["/welcome", "/login", "/signup"].includes(normalizedPathname)) {
+      if (
+        Platform.OS !== "web" &&
+        biometricsEnabled &&
+        !isUnlocked &&
+        !hasCredentialLoginBypass
+      ) {
+        if (normalizedPathname !== "/login") {
+          router.replace("/login");
+        }
+        return;
+      }
+      router.replace("/");
+      return;
+    }
     if (roleLoading) return;
     if (session && role === "trainer" && permissionsLoading) return;
-    if (session && role === null) return;
     if (
       session &&
       Platform.OS !== "web" &&
@@ -233,20 +246,6 @@ function RootLayoutContent() {
         router.replace("/");
         return;
       }
-    }
-    if (session && ["/welcome", "/login", "/signup"].includes(normalizedPathname)) {
-      if (
-        Platform.OS !== "web" &&
-        biometricsEnabled &&
-        !isUnlocked &&
-        !hasCredentialLoginBypass
-      ) {
-        if (normalizedPathname !== "/login") {
-          router.replace("/login");
-        }
-        return;
-      }
-      router.replace("/");
     }
   }, [
     biometricsEnabled,
