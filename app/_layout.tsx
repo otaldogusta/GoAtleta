@@ -180,17 +180,6 @@ function RootLayoutContent() {
     if (!navReady) return;
     if (loading) return;
     if (session && ["/welcome", "/login", "/signup"].includes(normalizedPathname)) {
-      if (
-        Platform.OS !== "web" &&
-        biometricsEnabled &&
-        !isUnlocked &&
-        !hasCredentialLoginBypass
-      ) {
-        if (normalizedPathname !== "/login") {
-          router.replace("/login");
-        }
-        return;
-      }
       router.replace("/");
       return;
     }

@@ -37,8 +37,7 @@ export default function LoginScreen() {
 
   const solidInputBg = colors.inputBg;
   const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
-  const { unlockForLogin, markCredentialLoginSuccess, isUnlocked, hasCredentialLoginBypass } =
-    useBiometricLock();
+  const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,7 +58,6 @@ export default function LoginScreen() {
   const rememberToastAnim = useRef(new Animated.Value(0)).current;
   const rememberMeRef = useRef(false);
   const loginInFlightRef = useRef(false);
-  const postAuthNavigateRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
 
@@ -187,14 +185,8 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (!session) return;
-    if (postAuthNavigateRef.current) {
-      postAuthNavigateRef.current = false;
-      router.replace("/");
-      return;
-    }
-    if (Platform.OS !== "web" && !isUnlocked && !hasCredentialLoginBypass) return;
     router.replace("/");
-  }, [hasCredentialLoginBypass, isUnlocked, router, session]);
+  }, [router, session]);
 
   const formatCountdown = (value: number) => {
     const minutes = Math.floor(value / 60);
@@ -218,7 +210,7 @@ export default function LoginScreen() {
     try {
       await signIn(email.trim(), password, rememberMeRef.current);
       markCredentialLoginSuccess();
-      postAuthNavigateRef.current = true;
+      router.replace("/");
       setFailedLoginAttempt(false);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
@@ -296,7 +288,7 @@ export default function LoginScreen() {
         setMessage("Nao foi possivel validar biometria. Use email e senha.");
         return;
       }
-      postAuthNavigateRef.current = true;
+      router.replace("/");
     } finally {
       setBiometricBusy(false);
     }
