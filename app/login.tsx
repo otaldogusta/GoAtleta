@@ -36,8 +36,9 @@ export default function LoginScreen() {
 
 
   const solidInputBg = colors.inputBg;
-  const { signIn, resetPassword, signInWithOAuth } = useAuth();
-  const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
+  const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
+  const { unlockForLogin, markCredentialLoginSuccess, isUnlocked, hasCredentialLoginBypass } =
+    useBiometricLock();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -182,6 +183,12 @@ export default function LoginScreen() {
       return undefined;
     }, [refreshBiometricAvailability])
   );
+
+  useEffect(() => {
+    if (!session) return;
+    if (Platform.OS !== "web" && !isUnlocked && !hasCredentialLoginBypass) return;
+    router.replace("/");
+  }, [hasCredentialLoginBypass, isUnlocked, router, session]);
 
   const formatCountdown = (value: number) => {
     const minutes = Math.floor(value / 60);
