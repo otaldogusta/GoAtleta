@@ -2,8 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import {
     useEffect,
+    useCallback,
     useRef,
     useState
 } from "react";
@@ -138,48 +140,47 @@ export default function LoginScreen() {
     }
   }, [showReset, resetCountdown, resetSent]);
 
-  useEffect(() => {
+  const refreshBiometricAvailability = useCallback(async () => {
     if (Platform.OS === "web") {
       setBiometricAvailable(false);
       setBiometricHint("");
       return;
     }
-    let active = true;
-    (async () => {
-      try {
-        const [enabled, storedSession, support] = await Promise.all([
-          getBiometricsEnabled(),
-          hasStoredSession(),
-          isBiometricsSupported(),
-        ]);
-        if (!active) return;
-        if (!enabled || !storedSession) {
-          setBiometricAvailable(false);
-          setBiometricHint("");
-          return;
-        }
-        if (!support.hasHardware) {
-          setBiometricAvailable(false);
-          setBiometricHint("Biometria indisponivel neste aparelho.");
-          return;
-        }
-        if (!support.isEnrolled) {
-          setBiometricAvailable(false);
-          setBiometricHint("Cadastre biometria no aparelho para usar este acesso.");
-          return;
-        }
-        setBiometricAvailable(true);
-        setBiometricHint("");
-      } catch {
-        if (!active) return;
+    try {
+      const [enabled, storedSession, support] = await Promise.all([
+        getBiometricsEnabled(),
+        hasStoredSession(),
+        isBiometricsSupported(),
+      ]);
+      if (!enabled || !storedSession) {
         setBiometricAvailable(false);
         setBiometricHint("");
+        return;
       }
-    })();
-    return () => {
-      active = false;
-    };
+      if (!support.hasHardware) {
+        setBiometricAvailable(false);
+        setBiometricHint("Biometria indisponivel neste aparelho.");
+        return;
+      }
+      if (!support.isEnrolled) {
+        setBiometricAvailable(false);
+        setBiometricHint("Cadastre biometria no aparelho para usar este acesso.");
+        return;
+      }
+      setBiometricAvailable(true);
+      setBiometricHint("");
+    } catch {
+      setBiometricAvailable(false);
+      setBiometricHint("");
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshBiometricAvailability();
+      return undefined;
+    }, [refreshBiometricAvailability])
+  );
 
   const formatCountdown = (value: number) => {
     const minutes = Math.floor(value / 60);

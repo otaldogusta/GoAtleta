@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { ClassGroup } from "../src/core/models";
 
 import { useAuth } from "../src/auth/auth";
+import { saveSession, setRememberPreference } from "../src/auth/session";
 
 import { useRole } from "../src/auth/role";
 
@@ -308,6 +309,10 @@ export default function ProfileScreen() {
       }
       const result = await promptBiometrics("Ativar biometria no GoAtleta");
       if (!result.success) return;
+      if (session) {
+        await setRememberPreference(true);
+        await saveSession(session, true);
+      }
       await setBiometricsEnabled(true);
     } catch (error) {
       console.error("Failed to toggle biometrics", error);
@@ -315,7 +320,7 @@ export default function ProfileScreen() {
     } finally {
       setUpdatingBiometrics(false);
     }
-  }, [biometricsEnabled, setBiometricsEnabled, updatingBiometrics]);
+  }, [biometricsEnabled, session, setBiometricsEnabled, updatingBiometrics]);
 
   const applyProfilePreview = useCallback(async (preview: "professor" | "student" | "admin" | "auto") => {
     await setDevProfilePreview(preview);
