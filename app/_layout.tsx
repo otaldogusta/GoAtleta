@@ -200,7 +200,7 @@ function RootLayoutContent() {
       return;
     }
     if (!session && !isPublicRoute) {
-      router.replace(normalizedPathname === "/" ? "/welcome" : "/login");
+      router.replace("/login");
       return;
     }
     if (session && role === "pending" && normalizedPathname !== "/pending" && !isInviteRoute) {
