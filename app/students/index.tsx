@@ -2141,7 +2141,7 @@ export default function StudentsScreen() {
             onRefresh={async () => {
               setRefreshing(true);
               try {
-                await load();
+                await reload();
               } finally {
                 setRefreshing(false);
               }
@@ -5121,5 +5121,4 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
-
 
