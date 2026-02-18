@@ -62,6 +62,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const hasLoadedOrganizationsRef = useRef(false);
   const fetchControllerRef = useRef<AbortController | null>(null);
+  const lastFetchTokenRef = useRef("");
+  const lastFetchErrorAtRef = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -109,9 +111,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, [activeOrganizationId, session]);
 
   const fetchOrganizations = useCallback(async () => {
-    if (!session?.access_token) {
-      fetchControllerRef.current?.abort();
+    const accessToken = session?.access_token ?? "";
+    if (!accessToken) {
       fetchControllerRef.current = null;
+      lastFetchTokenRef.current = "";
+      lastFetchErrorAtRef.current = 0;
       setOrganizations([]);
       setActiveOrgId(null);
       clearAiCache();
@@ -120,12 +124,26 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       return;
     }
 
+    if (fetchControllerRef.current && !fetchControllerRef.current.signal.aborted) {
+      return;
+    }
+
+    const now = Date.now();
+    const sameToken = lastFetchTokenRef.current === accessToken;
+    const isCoolingDown =
+      sameToken &&
+      lastFetchErrorAtRef.current > 0 &&
+      now - lastFetchErrorAtRef.current < 2500;
+    if (isCoolingDown) {
+      return;
+    }
+    lastFetchTokenRef.current = accessToken;
+
     const isFirstLoad = !hasLoadedOrganizationsRef.current;
     if (isFirstLoad) {
       setIsLoading(true);
     }
 
-    fetchControllerRef.current?.abort();
     const controller = new AbortController();
     fetchControllerRef.current = controller;
 
@@ -134,7 +152,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         method: "POST",
         headers: {
           apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         signal: controller.signal,
@@ -160,6 +178,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setActiveOrgId(selected);
       }
       hasLoadedOrganizationsRef.current = true;
+      lastFetchErrorAtRef.current = 0;
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         return;
@@ -169,12 +188,17 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setOrganizations([]);
         setActiveOrgId(null);
       }
+      hasLoadedOrganizationsRef.current = true;
+      lastFetchErrorAtRef.current = Date.now();
     } finally {
-      if (!controller.signal.aborted && isFirstLoad) {
+      if (fetchControllerRef.current === controller) {
+        fetchControllerRef.current = null;
+      }
+      if (isFirstLoad) {
         setIsLoading(false);
       }
     }
-  }, [session]);
+  }, [session?.access_token]);
 
   const setActiveOrganizationId = useCallback(async (orgId: string | null) => {
     if (orgId === activeOrganizationId) return;
@@ -211,7 +235,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       await setActiveOrganizationId(orgId);
       return orgId;
     },
-    [session, fetchOrganizations, setActiveOrganizationId]
+    [session?.access_token, fetchOrganizations, setActiveOrganizationId]
   );
 
   useEffect(() => {

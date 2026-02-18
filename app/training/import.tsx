@@ -31,6 +31,25 @@ type PreviewRow = {
   errors: string[];
 };
 
+const normalizeCsvDate = (value: string) => {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) {
+    const [, day, month, year] = br;
+    return `${year}-${month}-${day}`;
+  }
+  return raw;
+};
+
+const formatDatePtBr = (value: string) => {
+  const match = (value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return value;
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
+};
+
 const parseCsv = (text: string) => {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -69,21 +88,100 @@ const parseCsv = (text: string) => {
     rows.push(row);
   }
 
-  const header = rows.shift().map((value) => value.trim()) ?? [];
-  return rows
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const normalizeHeaderKey = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  const aliasMap: Record<string, string[]> = {
+    date: ["date", "data", "dia", "data inicio", "data aplicacao"],
+    title: ["title", "titulo", "titulo do planejamento", "nome", "planejamento"],
+    tags: ["tags", "tag", "etiquetas"],
+    warmup: ["warmup", "aquecimento"],
+    main: ["main", "parte principal", "principal"],
+    cooldown: ["cooldown", "volta a calma", "volta calma"],
+    warmup_time: ["warmup time", "warmup_time", "tempo aquecimento"],
+    main_time: ["main time", "main_time", "tempo principal"],
+    cooldown_time: ["cooldown time", "cooldown_time", "tempo volta calma", "tempo volta a calma"],
+  };
+
+  const resolveCanonicalKey = (headerValue: string) => {
+    const normalized = normalizeHeaderKey(headerValue);
+    const entries = Object.entries(aliasMap);
+    for (const [canonical, aliases] of entries) {
+      if (aliases.includes(normalized)) return canonical;
+    }
+    return "";
+  };
+
+  const firstRow = rows[0] ?? [];
+  const firstRowCanonical = firstRow.map(resolveCanonicalKey).filter(Boolean);
+  const hasHeader = firstRowCanonical.length >= 2;
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const headerCanonical = hasHeader ? firstRow.map(resolveCanonicalKey) : [];
+
+  return dataRows
     .filter((items) => items.some((value) => value.trim().length))
     .map((items) => {
-      const record: CsvRow = {};
-      header.forEach((key, index) => {
-        record[key] = (items[index] ?? "").trim();
-      });
+      const record: CsvRow = {
+        date: "",
+        title: "",
+        tags: "",
+        warmup: "",
+        main: "",
+        cooldown: "",
+        warmup_time: "",
+        main_time: "",
+        cooldown_time: "",
+      };
+
+      if (hasHeader) {
+        headerCanonical.forEach((key, index) => {
+          if (!key) return;
+          const cell = (items[index] ?? "").trim();
+          record[key] = key === "date" ? normalizeCsvDate(cell) : cell;
+        });
+      } else {
+        const cells = items.map((value) => (value ?? "").trim());
+        const firstCellDate = normalizeCsvDate(cells[0] ?? "");
+        const startsWithDate = isValidIsoDate(firstCellDate);
+        if (startsWithDate) {
+          record.date = firstCellDate;
+          record.title = cells[1] ?? "";
+          record.tags = cells[2] ?? "";
+          record.warmup = cells[3] ?? "";
+          record.main = cells[4] ?? "";
+          record.cooldown = cells[5] ?? "";
+          record.warmup_time = cells[6] ?? "";
+          record.main_time = cells[7] ?? "";
+          record.cooldown_time = cells[8] ?? "";
+        } else {
+          record.title = cells[0] ?? "";
+          record.tags = cells[1] ?? "";
+          record.warmup = cells[2] ?? "";
+          record.main = cells[3] ?? "";
+          record.cooldown = cells[4] ?? "";
+          record.warmup_time = cells[5] ?? "";
+          record.main_time = cells[6] ?? "";
+          record.cooldown_time = cells[7] ?? "";
+        }
+      }
+
+      if (!record.date) {
+        record.date = todayIso;
+      }
+
       return record;
     });
 };
 
 const splitList = (value: string) =>
   value
-    .split("|")
+    .split(/\r?\n|\|/g)
     .map((item) => item.trim())
     .filter(Boolean);
 
@@ -226,22 +324,13 @@ export default function ImportTrainingCsvScreen() {
     const rows = parseCsv(csvText);
     const results: PreviewRow[] = rows.map((row) => {
       const errors: string[] = [];
-      if (!row.date || !isValidIsoDate(row.date)) {
+      if (row.date && !isValidIsoDate(row.date)) {
         errors.push("Data inválida");
       }
       if (!row.title) {
         errors.push("Título ausente");
       }
       const info = extractTitleInfo(row.title || "");
-      if (!normalizeUnitKey(info.unit) && !normalizeUnitKey(unitHint)) {
-        errors.push("Unidade não encontrada no título");
-      }
-      if (!info.timeRange) {
-        errors.push("Horário não encontrado no título");
-      }
-      if (!info.ageBand) {
-        errors.push("Faixa etária não encontrada no título");
-      }
       let matched: ClassGroup[] = [];
       if (!errors.length) {
         matched = matchClass(classList, row, info, unitHint.trim());
@@ -251,10 +340,11 @@ export default function ImportTrainingCsvScreen() {
           errors.push("Turma ambígua (ajuste o título)");
         }
       }
+      const selectedClass = matched[0] ?? null;
       return {
         row,
-        classId: matched[0].id,
-        className: matched[0].name,
+        classId: selectedClass?.id ?? "",
+        className: selectedClass?.name ?? "",
         errors,
       };
     });
@@ -403,7 +493,7 @@ export default function ImportTrainingCsvScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "600" }}>
-                  {item.row.date} - {item.row.title}
+                  {formatDatePtBr(item.row.date)} - {item.row.title}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   {item.className ? `Turma: ${item.className}` : "Turma: -"}
@@ -457,3 +547,6 @@ export default function ImportTrainingCsvScreen() {
     </SafeAreaView>
   );
 }
+
+
+

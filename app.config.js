@@ -73,7 +73,7 @@ module.exports = {
 		icon: "./assets/images/icon.png",
 		scheme: "goatleta",
 		userInterfaceStyle: "automatic",
-		newArchEnabled: true,
+		newArchEnabled: false,
 		ios: {
 			supportsTablet: true,
 			bundleIdentifier: "com.otaldogusta.goatleta",
@@ -120,7 +120,7 @@ module.exports = {
 			url: "https://u.expo.dev/ac21b1cd-e0e3-495f-ba43-e262c8185ef5",
 		},
 		runtimeVersion: {
-			policy: "appVersion",
+			policy: "fingerprint",
 		},
 		experiments: {
 			typedRoutes: true,

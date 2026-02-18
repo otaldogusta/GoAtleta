@@ -55,6 +55,32 @@ const trainerPermissionByPrefix = [
   { prefix: "/nfc-attendance", permissionKey: "classes" },
 ] as const;
 
+const studentOnlyRoutes = [
+  "/absence-report",
+  "/communications",
+  "/student-plan",
+  "/student-home",
+];
+
+const trainerOnlyPrefixes = [
+  "/coordination",
+  "/evidence",
+  "/absence-notices",
+  "/assistant",
+  "/calendar",
+  "/class",
+  "/classes",
+  "/events",
+  "/exercises",
+  "/periodization",
+  "/reports",
+  "/org-members",
+  "/nfc-attendance",
+  "/students",
+  "/training",
+  "/whatsapp-settings",
+];
+
 const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
 
@@ -82,17 +108,14 @@ function RootLayoutContent() {
   const rootState = useRootNavigationState();
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
-  const { memberPermissions, permissionsLoading, isLoading: organizationLoading } =
-    useOrganization();
+  const { memberPermissions, permissionsLoading } = useOrganization();
   const { isEnabled: biometricsEnabled, isUnlocked, hasCredentialLoginBypass } = useBiometricLock();
   const hadSessionRef = useRef(false);
   const navReady = Boolean(rootState.key);
   const isBooting =
     bootstrapLoading ||
     !navReady ||
-    loading ||
-    roleLoading ||
-    (session && role === "trainer" && organizationLoading);
+    loading;
   const publicRoutes = [
     "/welcome",
     "/login",
@@ -103,30 +126,6 @@ function RootLayoutContent() {
   const publicPrefixes = ["/invite"];
   const normalizedPathname =
     pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  const studentOnlyRoutes = [
-    "/absence-report",
-    "/communications",
-    "/student-plan",
-    "/student-home",
-  ];
-  const trainerOnlyPrefixes = [
-    "/coordination",
-    "/evidence",
-    "/absence-notices",
-    "/assistant",
-    "/calendar",
-    "/class",
-    "/classes",
-    "/events",
-    "/exercises",
-    "/periodization",
-    "/reports",
-    "/org-members",
-    "/nfc-attendance",
-    "/students",
-    "/training",
-    "/whatsapp-settings",
-  ];
   const isInviteRoute =
     normalizedPathname === "/invite" || normalizedPathname.startsWith("/invite/");
   const isPublicRoute =
@@ -176,15 +175,28 @@ function RootLayoutContent() {
       }
     }
 
-    if (bootstrapLoading) return;
-    if (!navReady) return;
-    if (loading) return;
+    if (bootstrapLoading || !navReady || loading) return;
+
+    let redirectTo: string | null = null;
+
     if (session && ["/welcome", "/login", "/signup"].includes(normalizedPathname)) {
-      router.replace("/");
+      redirectTo = "/";
+    } else if (!session && normalizedPathname === "/") {
+      redirectTo = "/welcome";
+    } else if (!session && !isPublicRoute) {
+      redirectTo = "/login";
+    }
+
+    if (redirectTo) {
+      if (redirectTo !== normalizedPathname) {
+        router.replace(redirectTo);
+      }
       return;
     }
+
     if (roleLoading) return;
     if (session && role === "trainer" && permissionsLoading) return;
+
     if (
       session &&
       Platform.OS !== "web" &&
@@ -196,13 +208,12 @@ function RootLayoutContent() {
       normalizedPathname !== "/reset-password" &&
       !isInviteRoute
     ) {
-      router.replace("/login");
+      if (normalizedPathname !== "/login") {
+        router.replace("/login");
+      }
       return;
     }
-    if (!session && !isPublicRoute) {
-      router.replace("/login");
-      return;
-    }
+
     if (session && role === "pending" && normalizedPathname !== "/pending" && !isInviteRoute) {
       router.replace("/pending");
       return;

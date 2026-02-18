@@ -189,7 +189,7 @@ export default function TrainingList() {
     typeof params.viewPlanId === "string" ? params.viewPlanId : "";
   const targetDate =
     targetDateRaw && !Number.isNaN(new Date(targetDateRaw).getTime())
-       targetDateRaw
+      ? targetDateRaw
       : "";
   const [title, setTitle] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -1828,7 +1828,7 @@ export default function TrainingList() {
     if (targetClassId) {
       setClassId(targetClassId);
       const targetClass = classes.find((item) => item.id === targetClassId);
-      setFormUnit(unitLabel(targetClass.unit));
+      setFormUnit(unitLabel(targetClass?.unit ?? ""));
     }
   }, [openForm, targetClassId, classes]);
 
@@ -1853,7 +1853,7 @@ export default function TrainingList() {
       const pendingClass = classes.find(
         (item) => item.id === pendingPlanCreate.classId
       );
-      setFormUnit(unitLabel(pendingClass.unit));
+      setFormUnit(unitLabel(pendingClass?.unit ?? ""));
     }
     setPendingPlanCreate(null);
   }, [pendingPlanCreate, setPendingPlanCreate, classes]);
