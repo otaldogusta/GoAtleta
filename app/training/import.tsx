@@ -173,6 +173,7 @@ const parseCsv = (text: string) => {
 
       if (!record.date) {
         record.date = todayIso;
+        record.__autoDate = "1";
       }
 
       return record;
@@ -202,7 +203,8 @@ const extractTitleInfo = (title: string): TitleInfo => {
     .split("|")
     .map((item) => item.trim())
     .filter(Boolean);
-  const unit = parts[0] ?? "";
+  // Only treat first segment as unit when metadata is explicitly pipe-separated.
+  const unit = parts.length > 1 ? parts[0] ?? "" : "";
   const timePart = parts.find((part) =>
     /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(part)
   );
@@ -239,13 +241,66 @@ const buildMain = (row: CsvRow) => {
   return [...extras, ...mainItems];
 };
 
+const normalizeText = (value: string) =>
+  (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const resolveAmbiguousClass = (candidates: ClassGroup[], title: string) => {
+  if (candidates.length <= 1) return candidates[0] ?? null;
+
+  const normalizedNames = new Set(candidates.map((item) => normalizeText(item.name)));
+  if (normalizedNames.size === 1) return candidates[0];
+
+  const titleHintRaw = (title ?? "").split("-")[0]?.trim() ?? "";
+  const titleHint = normalizeText(titleHintRaw);
+  if (!titleHint) return null;
+
+  const exact = candidates.filter((item) => normalizeText(item.name) === titleHint);
+  if (exact.length === 1) return exact[0];
+
+  const contains = candidates.filter((item) => {
+    const name = normalizeText(item.name);
+    return name.includes(titleHint) || titleHint.includes(name);
+  });
+  if (contains.length === 1) return contains[0];
+
+  const tokens = titleHint.split(/\s+/).filter((token) => token.length >= 2);
+  if (!tokens.length) return null;
+
+  let best: ClassGroup | null = null;
+  let bestScore = 0;
+  let tie = false;
+
+  candidates.forEach((item) => {
+    const normalizedName = normalizeText(item.name);
+    const score = tokens.reduce(
+      (total, token) => total + (normalizedName.includes(token) ? 1 : 0),
+      0
+    );
+    if (score > bestScore) {
+      best = item;
+      bestScore = score;
+      tie = false;
+      return;
+    }
+    if (score === bestScore && score > 0) {
+      tie = true;
+    }
+  });
+
+  if (best && bestScore > 0 && !tie) return best;
+  return null;
+};
+
 const matchClass = (
   classes: ClassGroup[],
   row: CsvRow,
   titleInfo: TitleInfo,
   unitHint: string
 ) => {
-  const weekday = getWeekday(row.date);
   let candidates = classes;
 
   const resolvedUnit = titleInfo.unit || unitHint;
@@ -265,10 +320,15 @@ const matchClass = (
       (cls) => normalizeAgeBand(cls.ageBand) === titleInfo.ageBand
     );
   }
-  candidates = candidates.filter((cls) => {
-    if (!Array.isArray(cls.daysOfWeek) || !cls.daysOfWeek.length) return true;
-    return cls.daysOfWeek.includes(weekday);
-  });
+  const shouldFilterWeekday =
+    row.__autoDate !== "1" && Boolean(row.date) && isValidIsoDate(row.date);
+  if (shouldFilterWeekday) {
+    const weekday = getWeekday(row.date);
+    candidates = candidates.filter((cls) => {
+      if (!Array.isArray(cls.daysOfWeek) || !cls.daysOfWeek.length) return true;
+      return cls.daysOfWeek.includes(weekday);
+    });
+  }
 
   return candidates;
 };
@@ -337,7 +397,12 @@ export default function ImportTrainingCsvScreen() {
         if (matched.length === 0) {
           errors.push("Turma não encontrada");
         } else if (matched.length > 1) {
-          errors.push("Turma ambígua (ajuste o título)");
+          const resolved = resolveAmbiguousClass(matched, row.title || "");
+          if (resolved) {
+            matched = [resolved];
+          } else {
+            errors.push("Turma ambígua (ajuste o título)");
+          }
         }
       }
       const selectedClass = matched[0] ?? null;
