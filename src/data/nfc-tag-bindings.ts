@@ -92,11 +92,16 @@ export async function deleteBinding(params: {
   organizationId: string;
   bindingId: string;
 }): Promise<void> {
-  await supabaseRestDelete<null>(
+  const rows = await supabaseRestDelete<NfcTagBindingRow[]>(
     "/nfc_tag_bindings?id=eq." +
       encodeURIComponent(params.bindingId) +
       "&organization_id=eq." +
       encodeURIComponent(params.organizationId),
-    "return=minimal"
+    "return=representation"
   );
+  if (!rows.length) {
+    throw new Error(
+      "Nao foi possivel remover a tag. Verifique permissao de admin e aplique a migration 2026021903_nfc_bindings_delete_policy.sql."
+    );
+  }
 }
