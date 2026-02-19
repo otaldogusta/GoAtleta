@@ -16,6 +16,7 @@ type NfcManagerModule = {
 };
 
 let nfcModuleCache: NfcManagerModule | null | undefined;
+let technologyRequestOpen = false;
 
 const getNfcModule = (): NfcManagerModule | null => {
   if (Platform.OS === "web") return null;
@@ -47,12 +48,23 @@ const extractUid = (tag: any): string => {
   return "";
 };
 
+const isCancelledError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("cancel") ||
+    lower.includes("cancelled") ||
+    lower.includes("canceled") ||
+    lower.includes("user canceled")
+  );
+};
+
 export async function startScan() {
   const mod = getNfcModule();
   if (!mod) {
     throw new NfcError(
       NFC_ERRORS.NOT_AVAILABLE,
-      "NFC indisponível neste build. Use um Dev Client com módulo NFC."
+      "NFC indisponivel neste build. Use um Dev Client com modulo NFC."
     );
   }
   await mod.default.start();
@@ -65,6 +77,8 @@ export async function stopScan() {
     await mod.default.cancelTechnologyRequest();
   } catch {
     // ignore
+  } finally {
+    technologyRequestOpen = false;
   }
 }
 
@@ -74,25 +88,25 @@ export async function isNfcSupported(): Promise<NfcSupportInfo> {
     return {
       available: false,
       enabled: false,
-      reason: "NFC indisponível (web/Expo Go ou módulo nativo ausente).",
+      reason: "NFC indisponivel (web/Expo Go ou modulo nativo ausente).",
     };
   }
   try {
     await mod.default.start();
     const available = await mod.default.isSupported();
     if (!available) {
-      return { available: false, enabled: false, reason: "Este aparelho não suporta NFC." };
+      return { available: false, enabled: false, reason: "Este aparelho nao suporta NFC." };
     }
     const enabled = await mod.default.isEnabled();
     if (!enabled) {
-      return { available: true, enabled: false, reason: "Ative o NFC nas configurações do aparelho." };
+      return { available: true, enabled: false, reason: "Ative o NFC nas configuracoes do aparelho." };
     }
     return { available: true, enabled: true };
   } catch {
     return {
       available: false,
       enabled: false,
-      reason: "Não foi possível inicializar NFC neste dispositivo.",
+      reason: "Nao foi possivel inicializar NFC neste dispositivo.",
     };
   }
 }
@@ -102,7 +116,7 @@ export async function readTagUid(): Promise<NfcScanResult> {
   if (!mod) {
     throw new NfcError(
       NFC_ERRORS.NOT_AVAILABLE,
-      "NFC indisponível neste build. Use um Dev Client com módulo NFC."
+      "NFC indisponivel neste build. Use um Dev Client com modulo NFC."
     );
   }
   const manager = mod.default;
@@ -121,22 +135,30 @@ export async function readTagUid(): Promise<NfcScanResult> {
 
   try {
     await manager.requestTechnology(requestedTech, {
-      alertMessage: "Aproxime a tag NFC para registrar presença",
+      alertMessage: "Aproxime a tag NFC para registrar presenca",
     });
+    technologyRequestOpen = true;
     const tag = await manager.getTag();
     const uid = extractUid(tag);
     if (!uid) {
-      throw new NfcError(NFC_ERRORS.TAG_UID_MISSING, "Tag lida sem UID/serial disponível.");
+      throw new NfcError(NFC_ERRORS.TAG_UID_MISSING, "Tag lida sem UID/serial disponivel.");
     }
     return { uid, rawTag: tag };
   } catch (error) {
+    if (isCancelledError(error)) {
+      throw new NfcError(NFC_ERRORS.CANCELLED, "Leitura NFC cancelada.");
+    }
     if (error instanceof NfcError) throw error;
     throw new NfcError(NFC_ERRORS.READ_FAILED, "Falha ao ler tag NFC.");
   } finally {
     try {
-      await manager.cancelTechnologyRequest();
+      if (technologyRequestOpen) {
+        await manager.cancelTechnologyRequest();
+      }
     } catch {
       // ignore
+    } finally {
+      technologyRequestOpen = false;
     }
   }
 }

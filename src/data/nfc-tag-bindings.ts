@@ -52,19 +52,28 @@ export async function createBinding(params: {
   studentId: string;
   createdBy: string;
 }): Promise<NfcTagBinding> {
-  const rows = await supabaseRestPost<NfcTagBindingRow[]>(
-    "/nfc_tag_bindings",
-    [
-      {
-        organization_id: params.organizationId,
-        tag_uid: params.tagUid,
-        binding_type: "student",
-        student_id: params.studentId,
-        created_by: params.createdBy,
-      },
-    ],
-    "return=representation"
-  );
-  if (!rows.length) throw new Error("Falha ao vincular tag NFC.");
-  return mapBindingRow(rows[0]);
+  try {
+    const rows = await supabaseRestPost<NfcTagBindingRow[]>(
+      "/nfc_tag_bindings",
+      [
+        {
+          organization_id: params.organizationId,
+          tag_uid: params.tagUid,
+          binding_type: "student",
+          student_id: params.studentId,
+          created_by: params.createdBy,
+        },
+      ],
+      "return=representation"
+    );
+    if (!rows.length) throw new Error("Falha ao vincular tag NFC.");
+    return mapBindingRow(rows[0]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    const lower = message.toLowerCase();
+    if (lower.includes("duplicate key") || lower.includes("unique constraint")) {
+      throw new Error("Esta tag ja esta vinculada para esta organizacao.");
+    }
+    throw error;
+  }
 }

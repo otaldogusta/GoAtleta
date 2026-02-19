@@ -148,10 +148,24 @@ const WRITE_STRICT_PER_STREAM_LIMIT = (() => {
 
 type PendingWrite = {
   id: string;
-  kind: "session_log" | "attendance_records" | "scouting_log" | "student_scouting_log";
+  kind:
+    | "session_log"
+    | "attendance_records"
+    | "scouting_log"
+    | "student_scouting_log"
+    | "nfc_checkin";
   payload: unknown;
   createdAt: string;
   requeuedAt?: string | null;
+};
+
+export type NfcCheckinPendingPayload = {
+  organizationId: string;
+  classId: string | null;
+  studentId: string;
+  tagUid: string;
+  checkedInAt: string;
+  localRef: string;
 };
 
 type PendingWriteRow = {
@@ -470,6 +484,17 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
   }
 };
 
+export const buildNfcCheckinPendingWriteDedupKey = (
+  payload: Pick<NfcCheckinPendingPayload, "organizationId" | "tagUid" | "checkedInAt">,
+  fallbackCreatedAt: string
+) => {
+  if (!payload.organizationId || !payload.tagUid) return null;
+  const parsed = Date.parse(payload.checkedInAt || fallbackCreatedAt);
+  const baseMs = Number.isFinite(parsed) ? parsed : Date.now();
+  const bucket20s = Math.floor(baseMs / 20000);
+  return `nfc_checkin:${payload.organizationId}:${payload.tagUid}:${bucket20s}`;
+};
+
 const getPendingWriteDedupKey = (write: PendingWrite) => {
   if (write.kind === "session_log") {
     const payload = write.payload as SessionLog;
@@ -493,6 +518,10 @@ const getPendingWriteDedupKey = (write: PendingWrite) => {
     if (!payload.studentId || !payload.classId || !payload.date) return null;
     return `${write.kind}:${payload.studentId}:${payload.classId}:${payload.date}`;
   }
+  if (write.kind === "nfc_checkin") {
+    const payload = write.payload as NfcCheckinPendingPayload;
+    return buildNfcCheckinPendingWriteDedupKey(payload, write.createdAt);
+  }
   return null;
 };
 
@@ -514,6 +543,12 @@ const getPendingWriteStreamKey = (write: PendingWrite) => {
     if (payload.studentId) return `student:${payload.studentId}`;
     if (payload.classId) return `class:${payload.classId}`;
     return `student_scout:${write.id}`;
+  }
+  if (write.kind === "nfc_checkin") {
+    const payload = write.payload as NfcCheckinPendingPayload;
+    if (payload.classId) return `class:${payload.classId}`;
+    if (payload.organizationId) return `org:${payload.organizationId}`;
+    return `nfc_checkin:${write.id}`;
   }
   return `unknown:${write.id}`;
 };
@@ -585,6 +620,49 @@ const buildStudentScoutingClientId = (log: StudentScoutingLog) => {
   const datePart = log.date ? log.date.trim() : "unknown";
   return `student_scout_${log.studentId}_${log.classId}_${datePart}`;
 };
+
+const saveNfcCheckinFromQueue = async (
+  payload: NfcCheckinPendingPayload,
+  options?: { allowQueue?: boolean }
+) => {
+  const allowQueue = options?.allowQueue !== false;
+  try {
+    await supabasePost(
+      "/attendance_checkins",
+      [
+        {
+          organization_id: payload.organizationId,
+          class_id: payload.classId ?? null,
+          student_id: payload.studentId,
+          tag_uid: payload.tagUid,
+          source: "nfc",
+          checked_in_at: payload.checkedInAt,
+        },
+      ],
+      { Prefer: "return=minimal" }
+    );
+  } catch (error) {
+    if (allowQueue && isNetworkError(error)) {
+      await enqueueWrite({
+        id: payload.localRef || "queue_nfc_" + Date.now(),
+        kind: "nfc_checkin",
+        payload,
+        createdAt: payload.checkedInAt || new Date().toISOString(),
+      });
+      return;
+    }
+    throw error;
+  }
+};
+
+export async function queueNfcCheckinWrite(payload: NfcCheckinPendingPayload) {
+  await enqueueWrite({
+    id: payload.localRef || "queue_nfc_" + Date.now(),
+    kind: "nfc_checkin",
+    payload,
+    createdAt: payload.checkedInAt || new Date().toISOString(),
+  });
+}
 
 const enqueueWrite = async (write: PendingWrite) => {
   const dedupKey = getPendingWriteDedupKey(write) ?? "";
@@ -974,6 +1052,13 @@ export async function flushPendingWrites() {
       } else if (item.kind === "student_scouting_log") {
         await withTimeout(
           saveStudentScoutingLog(item.payload as StudentScoutingLog, {
+            allowQueue: false,
+          }),
+          WRITE_ITEM_TIMEOUT_MS
+        );
+      } else if (item.kind === "nfc_checkin") {
+        await withTimeout(
+          saveNfcCheckinFromQueue(item.payload as NfcCheckinPendingPayload, {
             allowQueue: false,
           }),
           WRITE_ITEM_TIMEOUT_MS

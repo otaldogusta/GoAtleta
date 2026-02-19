@@ -1,19 +1,37 @@
 import * as Haptics from "expo-haptics";
+import * as Network from "expo-network";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Platform, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
+import { useSmartSync } from "../src/core/use-smart-sync";
 import type { ClassGroup, Student } from "../src/core/models";
-import { createCheckin } from "../src/data/attendance-checkins";
+import {
+  createCheckinWithFallback,
+  type CheckinDeliveryStatus,
+} from "../src/data/attendance-checkins";
 import { createBinding, getBinding } from "../src/data/nfc-tag-bindings";
 import { getClasses, getStudents } from "../src/db/seed";
+import { NFC_ERRORS } from "../src/nfc/nfc-errors";
 import { isNfcSupported } from "../src/nfc/nfc";
-import { useNfcScanner } from "../src/nfc/nfc-hooks";
+import { useNfcContinuousScan } from "../src/nfc/nfc-hooks";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { getFriendlyErrorMessage } from "../src/ui/error-messages";
+import { useSaveToast } from "../src/ui/save-toast";
 
 type LiveCheckin = {
   id: string;
@@ -21,7 +39,11 @@ type LiveCheckin = {
   className: string;
   checkedInAt: string;
   tagUid: string;
+  syncStatus: CheckinDeliveryStatus | "error";
 };
+
+const DUPLICATE_WINDOW_MS = 20_000;
+const AUTO_SYNC_DEBOUNCE_MS = 1_500;
 
 const formatTime = (iso: string) => {
   const parsed = new Date(iso);
@@ -29,12 +51,19 @@ const formatTime = (iso: string) => {
   return parsed.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 };
 
+const getSyncLabel = (status: LiveCheckin["syncStatus"]) => {
+  if (status === "synced") return "Sincronizado";
+  if (status === "pending") return "Pendente";
+  return "Erro";
+};
+
 export default function NfcAttendanceScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
   const { activeOrganization } = useOrganization();
   const { session } = useAuth();
-  const { scanning, scanOnce } = useNfcScanner();
+  const { showSaveToast } = useSaveToast();
+  const { syncNow } = useSmartSync();
 
   const [supportMessage, setSupportMessage] = useState("");
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -46,8 +75,16 @@ export default function NfcAttendanceScreen() {
   const [showBindModal, setShowBindModal] = useState(false);
   const [bindingStudentId, setBindingStudentId] = useState("");
   const [savingBinding, setSavingBinding] = useState(false);
+  const [bindSearch, setBindSearch] = useState("");
+  const [adminRequiredUid, setAdminRequiredUid] = useState("");
 
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const recentScanByUidRef = useRef<Map<string, number>>(new Map());
+  const shouldResumeAfterBindRef = useRef(false);
+  const scanStateRef = useRef<"idle" | "scanning" | "paused">("idle");
+  const syncBusyRef = useRef(false);
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const studentsById = useMemo(
     () => new Map(students.map((item) => [item.id, item] as const)),
     [students]
@@ -64,9 +101,205 @@ export default function NfcAttendanceScreen() {
     [selectedClassId, students]
   );
 
+  const filteredBindCandidates = useMemo(() => {
+    const query = bindSearch.trim().toLowerCase();
+    if (!query) return bindCandidates;
+    return bindCandidates.filter((student) =>
+      student.name.toLowerCase().includes(query)
+    );
+  }, [bindCandidates, bindSearch]);
+
+  const markTagRead = useCallback((orgId: string, tagUid: string, checkedInAt?: string) => {
+    const key = `${orgId}:${tagUid}`;
+    const parsed = Date.parse(checkedInAt ?? "");
+    const base = Number.isFinite(parsed) ? parsed : Date.now();
+    recentScanByUidRef.current.set(key, base);
+  }, []);
+
+  const isDuplicateRead = useCallback((orgId: string, tagUid: string) => {
+    const key = `${orgId}:${tagUid}`;
+    const last = recentScanByUidRef.current.get(key);
+    if (!last) return false;
+    return Date.now() - last < DUPLICATE_WINDOW_MS;
+  }, []);
+
+  const registerCheckin = useCallback(
+    async (params: { studentId: string; tagUid: string }) => {
+      const orgId = activeOrganization?.id ?? "";
+      if (!orgId) {
+        setFeedback("Selecione uma organizacao ativa.");
+        return;
+      }
+
+      if (isDuplicateRead(orgId, params.tagUid)) {
+        setFeedback("Tag ja registrada ha instantes.");
+        showSaveToast({
+          variant: "warning",
+          message: "Ja registrado ha menos de 20 segundos.",
+        });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+
+      const student = studentsById.get(params.studentId);
+      if (!student) {
+        setFeedback("Aluno nao encontrado para esta tag.");
+        showSaveToast({ variant: "error", message: "Aluno da tag nao encontrado." });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+
+      const resolvedClassId = selectedClassId || student.classId || null;
+      const result = await createCheckinWithFallback({
+        organizationId: orgId,
+        classId: resolvedClassId,
+        studentId: params.studentId,
+        tagUid: params.tagUid,
+      });
+      const checkin = result.checkin;
+      const className = classesById.get(resolvedClassId ?? "")?.name ?? "Sem turma";
+      setLiveCheckins((prev) => [
+        {
+          id: checkin.id,
+          studentName: student.name,
+          className,
+          checkedInAt: checkin.checkedInAt,
+          tagUid: params.tagUid,
+          syncStatus: result.status,
+        },
+        ...prev,
+      ]);
+      markTagRead(orgId, params.tagUid, checkin.checkedInAt);
+
+      if (result.status === "pending") {
+        setFeedback(`Presenca salva offline: ${student.name}`);
+        showSaveToast({
+          variant: "warning",
+          message: `Sem internet. Presenca pendente para ${student.name}.`,
+        });
+      } else {
+        setFeedback(`Presenca registrada: ${student.name}`);
+        showSaveToast({
+          variant: "success",
+          message: `Presenca registrada: ${student.name}`,
+        });
+      }
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    [
+      activeOrganization?.id,
+      classesById,
+      isDuplicateRead,
+      markTagRead,
+      selectedClassId,
+      showSaveToast,
+      studentsById,
+    ]
+  );
+
+  const handleScanError = useCallback(
+    (error: unknown) => {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === NFC_ERRORS.CANCELLED) return;
+      const friendly = getFriendlyErrorMessage(error, "Falha ao ler tag NFC.");
+      setFeedback(friendly);
+      showSaveToast({ variant: "error", message: friendly });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    },
+    [showSaveToast]
+  );
+
+  const handleTagDetected = useCallback(
+    async (result: { uid: string }) => {
+      const uid = result.uid;
+      const orgId = activeOrganization?.id ?? "";
+      if (!orgId) {
+        setFeedback("Selecione uma organizacao ativa.");
+        return;
+      }
+      setAdminRequiredUid("");
+
+      const binding = await getBinding(orgId, uid);
+      if (binding) {
+        await registerCheckin({ studentId: binding.studentId, tagUid: uid });
+        return;
+      }
+
+      if (!isAdmin) {
+        setAdminRequiredUid(uid);
+        setFeedback("Somente admin pode vincular tags NFC.");
+        showSaveToast({
+          variant: "warning",
+          message: "Tag sem vinculo. Solicite um admin para vincular.",
+        });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+
+      shouldResumeAfterBindRef.current = scanStateRef.current === "scanning";
+      setPendingUid(uid);
+      setBindingStudentId("");
+      setBindSearch("");
+      setShowBindModal(true);
+      setFeedback(`Tag ${uid} sem vinculo. Selecione um aluno para vincular.`);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    },
+    [activeOrganization?.id, isAdmin, registerCheckin, showSaveToast]
+  );
+
+  const {
+    state: scanState,
+    isScanning,
+    start: startScan,
+    pause: pauseScan,
+    resume: resumeScan,
+    stop: stopScan,
+  } = useNfcContinuousScan({
+    onTag: handleTagDetected,
+    onError: handleScanError,
+    loopDelayMs: 120,
+  });
+
+  useEffect(() => {
+    scanStateRef.current = scanState;
+  }, [scanState]);
+
+  const handleSyncNow = useCallback(
+    async (origin: "manual" | "auto" | "mount" = "manual") => {
+      if (syncBusyRef.current) return;
+      syncBusyRef.current = true;
+      try {
+        const result = await syncNow();
+        if (result.flushed > 0) {
+          setLiveCheckins((prev) =>
+            prev.map((item) =>
+              item.syncStatus === "pending" ? { ...item, syncStatus: "synced" } : item
+            )
+          );
+          if (origin !== "auto") {
+            showSaveToast({
+              variant: "success",
+              message: `Sincronizados ${result.flushed} check-ins pendentes.`,
+            });
+          }
+        } else if (origin === "manual") {
+          showSaveToast({ variant: "info", message: "Nao ha pendencias para sincronizar." });
+        }
+      } catch (error) {
+        if (origin === "manual") {
+          const friendly = getFriendlyErrorMessage(error, "Falha ao sincronizar pendencias.");
+          showSaveToast({ variant: "error", message: friendly });
+        }
+      } finally {
+        syncBusyRef.current = false;
+      }
+    },
+    [showSaveToast, syncNow]
+  );
+
   useEffect(() => {
     if (Platform.OS === "web") {
-      setSupportMessage("NFC não é suportado no web.");
+      setSupportMessage("NFC nao e suportado no web.");
       return;
     }
     let alive = true;
@@ -74,7 +307,7 @@ export default function NfcAttendanceScreen() {
       const support = await isNfcSupported();
       if (!alive) return;
       if (!support.available || !support.enabled) {
-        setSupportMessage(support.reason ?? "NFC indisponível neste aparelho.");
+        setSupportMessage(support.reason ?? "NFC indisponivel neste aparelho.");
       } else {
         setSupportMessage("");
       }
@@ -109,86 +342,60 @@ export default function NfcAttendanceScreen() {
     };
   }, [activeOrganization?.id, selectedClassId]);
 
-  const registerCheckin = useCallback(
-    async (params: { studentId: string; tagUid: string }) => {
-      const orgId = activeOrganization?.id ?? "";
-      if (!orgId) {
-        setFeedback("Selecione uma organização ativa.");
-        return;
-      }
-      const student = studentsById.get(params.studentId);
-      if (!student) {
-        setFeedback("Aluno não encontrado para esta tag.");
-        return;
-      }
-      const resolvedClassId = selectedClassId || student.classId || null;
-      const checkin = await createCheckin({
-        organizationId: orgId,
-        classId: resolvedClassId,
-        studentId: params.studentId,
-        tagUid: params.tagUid,
-      });
-      const className = classesById.get(resolvedClassId ?? "")?.name ?? "Sem turma";
-      setLiveCheckins((prev) => [
-        {
-          id: checkin.id,
-          studentName: student.name,
-          className,
-          checkedInAt: checkin.checkedInAt,
-          tagUid: params.tagUid,
-        },
-        ...prev,
-      ]);
-      setFeedback(`Presença registrada: ${student.name}`);
-      console.log("[NFC] checkin OK", { uid: params.tagUid, studentId: params.studentId });
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-    [activeOrganization?.id, classesById, selectedClassId, studentsById]
-  );
+  useEffect(() => {
+    if (!showBindModal) return;
+    if (scanState !== "scanning") return;
+    void pauseScan();
+  }, [pauseScan, scanState, showBindModal]);
 
-  const handleScan = useCallback(async () => {
-    if (supportMessage) {
-      setFeedback(supportMessage);
-      return;
+  useEffect(() => {
+    return () => {
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeOrganization?.id) return;
+    void handleSyncNow("mount");
+  }, [activeOrganization?.id, handleSyncNow]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subscription = Network.addNetworkStateListener((state) => {
+      if (!state.isConnected || state.isInternetReachable === false) return;
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
+      }
+      syncDebounceRef.current = setTimeout(() => {
+        void handleSyncNow("auto");
+      }, AUTO_SYNC_DEBOUNCE_MS);
+    });
+    return () => {
+      subscription.remove();
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
+      }
+    };
+  }, [handleSyncNow]);
+
+  const closeBindModal = useCallback(() => {
+    setShowBindModal(false);
+    setPendingUid("");
+    setBindingStudentId("");
+    setBindSearch("");
+    if (shouldResumeAfterBindRef.current) {
+      shouldResumeAfterBindRef.current = false;
+      resumeScan();
     }
-    setFeedback("");
-    try {
-      const result = await scanOnce();
-      if (!result) return;
-      const uid = result.uid;
-      console.log("[NFC] UID scanned", uid, result.rawTag);
-      const orgId = activeOrganization?.id ?? "";
-      if (!orgId) {
-        setFeedback("Selecione uma organização ativa.");
-        return;
-      }
-      const binding = await getBinding(orgId, uid);
-      if (binding) {
-        await registerCheckin({ studentId: binding.studentId, tagUid: uid });
-        return;
-      }
-      if (!isAdmin) {
-        setFeedback("Tag sem vínculo. Um admin precisa vincular este UID.");
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        return;
-      }
-      setPendingUid(uid);
-      setBindingStudentId("");
-      setShowBindModal(true);
-      setFeedback(`Tag ${uid} sem vínculo. Escolha um aluno para vincular.`);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao ler tag NFC.";
-      setFeedback(message);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  }, [activeOrganization?.id, isAdmin, registerCheckin, scanOnce, supportMessage]);
+  }, [resumeScan]);
 
   const confirmBind = useCallback(async () => {
     if (!pendingUid || !bindingStudentId) return;
     if (!activeOrganization?.id) return;
     if (!session?.user?.id) {
-      Alert.alert("Sessão inválida", "Faça login novamente para vincular tags.");
+      Alert.alert("Sessao invalida", "Faca login novamente para vincular tags.");
       return;
     }
     setSavingBinding(true);
@@ -199,27 +406,64 @@ export default function NfcAttendanceScreen() {
         studentId: bindingStudentId,
         createdBy: session.user.id,
       });
-      console.log("[NFC] binding created", binding);
-      setShowBindModal(false);
-      await registerCheckin({ studentId: bindingStudentId, tagUid: pendingUid });
+      showSaveToast({ variant: "success", message: "Tag vinculada com sucesso." });
+      closeBindModal();
+      await registerCheckin({ studentId: binding.studentId, tagUid: binding.tagUid });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao vincular tag.";
-      setFeedback(message);
+      const friendly = getFriendlyErrorMessage(error, "Falha ao vincular tag.");
+      setFeedback(friendly);
+      showSaveToast({ variant: "error", message: friendly });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSavingBinding(false);
     }
-  }, [activeOrganization?.id, bindingStudentId, pendingUid, registerCheckin, session?.user?.id]);
+  }, [
+    activeOrganization?.id,
+    bindingStudentId,
+    closeBindModal,
+    pendingUid,
+    registerCheckin,
+    session?.user?.id,
+    showSaveToast,
+  ]);
+
+  const toggleScanning = useCallback(() => {
+    if (supportMessage) {
+      setFeedback(supportMessage);
+      return;
+    }
+    if (scanState === "idle") {
+      startScan();
+      setFeedback("Leitura continua iniciada.");
+      return;
+    }
+    if (scanState === "scanning") {
+      void pauseScan();
+      setFeedback("Leitura pausada.");
+      return;
+    }
+    resumeScan();
+    setFeedback("Leitura retomada.");
+  }, [pauseScan, resumeScan, scanState, startScan, supportMessage]);
+
+  const stopScanning = useCallback(async () => {
+    await stopScan();
+    shouldResumeAfterBindRef.current = false;
+    setShowBindModal(false);
+    setFeedback("Leitura parada.");
+  }, [stopScan]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>
-            Presença NFC
+            Presenca NFC
           </Text>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => {
+              void stopScanning().finally(() => router.back());
+            }}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 8,
@@ -244,11 +488,17 @@ export default function NfcAttendanceScreen() {
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Organização: {activeOrganization?.name ?? "Nenhuma"}
+            Organizacao: {activeOrganization?.name ?? "Nenhuma"}
           </Text>
           <Text style={{ color: colors.muted }}>
-            Encoste a tag para registrar presença por UID.
+            Estado: {scanState === "idle" ? "Idle" : scanState === "scanning" ? "Scanning" : "Paused"}
           </Text>
+          {isScanning ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <ActivityIndicator size="small" color={colors.primaryBg} />
+              <Text style={{ color: colors.text, fontWeight: "600" }}>Lendo tags em modo continuo...</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={{ gap: 8 }}>
@@ -278,21 +528,55 @@ export default function NfcAttendanceScreen() {
           </ScrollView>
         </View>
 
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={toggleScanning}
+            style={{
+              flex: 1,
+              borderRadius: 12,
+              paddingVertical: 12,
+              alignItems: "center",
+              backgroundColor: colors.primaryBg,
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+              {scanState === "idle" ? "Iniciar leitura" : scanState === "scanning" ? "Pausar leitura" : "Retomar leitura"}
+            </Text>
+          </Pressable>
+          {scanState !== "idle" ? (
+            <Pressable
+              onPress={() => {
+                void stopScanning();
+              }}
+              style={{
+                borderRadius: 12,
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                alignItems: "center",
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Parar</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
         <Pressable
           onPress={() => {
-            void handleScan();
+            void handleSyncNow("manual");
           }}
           style={{
             borderRadius: 12,
-            paddingVertical: 12,
+            paddingVertical: 10,
             alignItems: "center",
-            backgroundColor: colors.primaryBg,
-            opacity: scanning ? 0.7 : 1,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            {scanning ? "Lendo tag..." : "Iniciar leitura NFC"}
-          </Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>Sincronizar agora</Text>
         </Pressable>
 
         {supportMessage ? (
@@ -300,9 +584,29 @@ export default function NfcAttendanceScreen() {
         ) : null}
         {feedback ? <Text style={{ color: colors.text }}>{feedback}</Text> : null}
 
+        {adminRequiredUid ? (
+          <View
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.warningBg,
+              backgroundColor: colors.warningBg,
+              padding: 12,
+              gap: 4,
+            }}
+          >
+            <Text style={{ color: colors.warningText, fontWeight: "800" }}>
+              Somente admin pode vincular tags
+            </Text>
+            <Text style={{ color: colors.warningText }}>
+              UID {adminRequiredUid} ainda nao vinculado. Solicite um admin para concluir o bind.
+            </Text>
+          </View>
+        ) : null}
+
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
-            Presenças desta sessão
+            Presencas desta sessao
           </Text>
           {liveCheckins.length ? (
             liveCheckins.map((item) => (
@@ -320,17 +624,30 @@ export default function NfcAttendanceScreen() {
                 <Text style={{ color: colors.text, fontWeight: "700" }}>{item.studentName}</Text>
                 <Text style={{ color: colors.muted }}>{item.className}</Text>
                 <Text style={{ color: colors.muted }}>
-                  {formatTime(item.checkedInAt)} • UID {item.tagUid}
+                  {formatTime(item.checkedInAt)} - UID {item.tagUid}
+                </Text>
+                <Text
+                  style={{
+                    color:
+                      item.syncStatus === "synced"
+                        ? colors.successText
+                        : item.syncStatus === "pending"
+                        ? colors.warningText
+                        : colors.dangerText,
+                    fontWeight: "700",
+                  }}
+                >
+                  {getSyncLabel(item.syncStatus)}
                 </Text>
               </View>
             ))
           ) : (
-            <Text style={{ color: colors.muted }}>Nenhuma presença registrada ainda.</Text>
+            <Text style={{ color: colors.muted }}>Nenhuma presenca registrada ainda.</Text>
           )}
         </View>
       </ScrollView>
 
-      <Modal visible={showBindModal} transparent animationType="fade" onRequestClose={() => setShowBindModal(false)}>
+      <Modal visible={showBindModal} transparent animationType="fade" onRequestClose={closeBindModal}>
         <View
           style={{
             flex: 1,
@@ -347,14 +664,33 @@ export default function NfcAttendanceScreen() {
               backgroundColor: colors.background,
               padding: 14,
               gap: 10,
-              maxHeight: "80%",
+              maxHeight: "85%",
             }}
           >
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>Vincular tag NFC</Text>
             <Text style={{ color: colors.muted }}>UID: {pendingUid}</Text>
-            <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ gap: 8 }}>
-              {bindCandidates.map((student) => {
+
+            <TextInput
+              value={bindSearch}
+              onChangeText={setBindSearch}
+              placeholder="Buscar aluno por nome"
+              placeholderTextColor={colors.muted}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 10,
+                color: colors.text,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+              }}
+            />
+
+            <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: 8 }}>
+              {filteredBindCandidates.map((student) => {
                 const selected = bindingStudentId === student.id;
+                const className = classesById.get(student.classId)?.name ?? "Sem turma";
+                const position = student.positionPrimary ?? "indefinido";
                 return (
                   <Pressable
                     key={student.id}
@@ -365,18 +701,51 @@ export default function NfcAttendanceScreen() {
                       borderWidth: 1,
                       borderColor: selected ? colors.primaryBg : colors.border,
                       backgroundColor: selected ? colors.primaryBg : colors.card,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
                     }}
                   >
-                    <Text style={{ color: selected ? colors.primaryText : colors.text, fontWeight: "700" }}>
-                      {student.name}
-                    </Text>
+                    {student.photoUrl ? (
+                      <Image
+                        source={{ uri: student.photoUrl }}
+                        style={{ width: 34, height: 34, borderRadius: 17 }}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 17,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: selected ? "rgba(255,255,255,0.24)" : colors.secondaryBg,
+                        }}
+                      >
+                        <Text style={{ color: selected ? colors.primaryText : colors.text, fontWeight: "800" }}>
+                          {student.name.slice(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={{ color: selected ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                        {student.name}
+                      </Text>
+                      <Text style={{ color: selected ? colors.primaryText : colors.muted }}>
+                        {className} - {position}
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })}
+              {!filteredBindCandidates.length ? (
+                <Text style={{ color: colors.muted }}>Nenhum aluno encontrado.</Text>
+              ) : null}
             </ScrollView>
+
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
-                onPress={() => setShowBindModal(false)}
+                onPress={closeBindModal}
                 style={{
                   flex: 1,
                   borderRadius: 10,
@@ -403,7 +772,7 @@ export default function NfcAttendanceScreen() {
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {savingBinding ? "Salvando..." : "Vincular + Check-in"}
+                  {savingBinding ? "Salvando..." : "Vincular e registrar presenca"}
                 </Text>
               </Pressable>
             </View>
