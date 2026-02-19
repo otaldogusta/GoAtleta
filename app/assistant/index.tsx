@@ -658,10 +658,9 @@ export default function AssistantScreen() {
       const nextDraft = data.draftTraining
         ? normalizeDraftTraining(data.draftTraining)
         : draftFromReply;
-      const reply =
-        nextDraft && looksLikeJsonPayload(rawReply)
-          ? "Montei um planejamento para você. Revise os blocos abaixo."
-          : rawReply;
+      const reply = nextDraft
+        ? "Montei um planejamento para você. Revise os blocos abaixo e ajuste se necessário."
+        : rawReply;
 
       setLoading(false);
       await typeAssistantReply(reply);

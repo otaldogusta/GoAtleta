@@ -242,30 +242,67 @@ const inferQueryType = (messages: ChatMessage[]) => {
   return "general";
 };
 
+const extractDocumentYear = (document: KbDocument) => {
+  const sourceYearMatch = String(document.source ?? "").match(/YEAR=(\d{4})/i);
+  if (sourceYearMatch?.[1]) return Number(sourceYearMatch[1]);
+
+  const publishedMatch = String(document.chunk ?? "").match(/published_at:\s*(\d{4})/i);
+  if (publishedMatch?.[1]) return Number(publishedMatch[1]);
+
+  const genericYearMatch = String(document.chunk ?? "").match(/\b(19|20)\d{2}\b/);
+  if (genericYearMatch?.[0]) return Number(genericYearMatch[0]);
+
+  return 0;
+};
+
+const getEvidenceTypeBoost = (document: KbDocument) => {
+  const text = normalizeText(
+    `${document.title} ${document.tags.join(" ")} ${document.chunk} ${document.source}`
+  );
+
+  if (/(systematic review|meta analysis|meta-analysis)/.test(text)) return 0.22;
+  if (/(consensus|guideline|position statement)/.test(text)) return 0.18;
+  if (/(randomized|randomised|rct)/.test(text)) return 0.14;
+  if (/(cohort|prospective)/.test(text)) return 0.1;
+  return 0;
+};
+
+const getRecencyScore = (year: number) => {
+  if (!Number.isFinite(year) || year <= 0) return 0;
+  if (year < 2005) return -0.2;
+  const currentYear = new Date().getFullYear();
+  const normalized = Math.max(0, Math.min(1, (year - 2005) / Math.max(1, currentYear - 2005)));
+  return normalized * 0.35;
+};
+
 const rankKbDocuments = (documents: KbDocument[], queryText: string) => {
   const queryTokens = tokenize(queryText);
-  if (!queryTokens.length) return documents.slice(0, 4);
-
   const scored = documents
     .map((document) => {
       const haystack = normalizeText(
         `${document.title} ${document.tags.join(" ")} ${document.chunk}`
       );
-      const matches = queryTokens.reduce((acc, token) => {
-        return haystack.includes(token) ? acc + 1 : acc;
-      }, 0);
-      const density = matches / queryTokens.length;
+      const matches = queryTokens.length
+        ? queryTokens.reduce((acc, token) => {
+            return haystack.includes(token) ? acc + 1 : acc;
+          }, 0)
+        : 0;
+      const density = queryTokens.length ? matches / queryTokens.length : 0;
       const exactTagBoost = document.tags.some((tag) =>
         queryTokens.includes(normalizeText(tag))
       )
         ? 0.2
         : 0;
+      const year = extractDocumentYear(document);
+      const recencyScore = getRecencyScore(year);
+      const evidenceTypeBoost = getEvidenceTypeBoost(document);
+      const evidenceLevelBoost = String(document.level ?? "").toLowerCase() === "evidence" ? 0.12 : 0;
       return {
         document,
-        score: density + exactTagBoost,
+        score: density + exactTagBoost + recencyScore + evidenceTypeBoost + evidenceLevelBoost,
       };
     })
-    .filter((item) => item.score > 0)
+    .filter((item) => (queryTokens.length ? item.score > 0 : true))
     .sort((a, b) => b.score - a.score);
 
   if (!scored.length) return documents.slice(0, 4);
