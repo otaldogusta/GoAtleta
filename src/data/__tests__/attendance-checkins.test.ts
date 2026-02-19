@@ -15,6 +15,7 @@ jest.mock("../../db/seed", () => ({
 import {
   buildCheckinIdempotencyKey,
   createCheckinWithFallback,
+  listCheckinsByRange,
   shouldQueueNfcCheckinError,
 } from "../attendance-checkins";
 
@@ -77,5 +78,45 @@ describe("attendance checkins", () => {
 
   test("permission style error is not queued", () => {
     expect(shouldQueueNfcCheckinError(new Error("permission denied"))).toBe(false);
+  });
+
+  test("listCheckinsByRange applies org/class/range filters", async () => {
+    supabaseRestGetMock.mockResolvedValue([
+      {
+        id: "row_2",
+        organization_id: "org_1",
+        class_id: "c_1",
+        student_id: "s_2",
+        tag_uid: "UID999",
+        source: "nfc",
+        checked_in_at: "2026-02-19T12:00:00.000Z",
+      },
+    ]);
+
+    const rows = await listCheckinsByRange({
+      organizationId: "org_1",
+      classId: "c_1",
+      fromIso: "2026-02-10T00:00:00.000Z",
+      toIso: "2026-02-20T00:00:00.000Z",
+      limit: 20,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].studentId).toBe("s_2");
+    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+      expect.stringContaining("/attendance_checkins?")
+    );
+    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+      expect.stringContaining("organization_id=eq.org_1")
+    );
+    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+      expect.stringContaining("class_id=eq.c_1")
+    );
+    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+      expect.stringContaining("checked_in_at=gte.")
+    );
+    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+      expect.stringContaining("checked_in_at=lt.")
+    );
   });
 });

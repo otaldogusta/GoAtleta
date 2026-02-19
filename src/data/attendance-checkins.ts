@@ -184,3 +184,33 @@ export async function createCheckinWithFallback(params: {
     return { checkin, status: "pending" };
   }
 }
+
+export async function listCheckinsByRange(params: {
+  organizationId: string;
+  classId?: string;
+  fromIso: string;
+  toIso?: string;
+  limit?: number;
+}): Promise<AttendanceCheckin[]> {
+  const limit = Math.max(1, params.limit ?? 1000);
+  const clauses = [
+    "select=*",
+    `organization_id=eq.${encodeURIComponent(params.organizationId)}`,
+    `checked_in_at=gte.${encodeURIComponent(params.fromIso)}`,
+    `order=checked_in_at.desc`,
+    `limit=${limit}`,
+  ];
+
+  if (params.classId) {
+    clauses.push(`class_id=eq.${encodeURIComponent(params.classId)}`);
+  }
+
+  if (params.toIso) {
+    clauses.push(`checked_in_at=lt.${encodeURIComponent(params.toIso)}`);
+  }
+
+  const rows = await supabaseRestGet<AttendanceCheckinRow[]>(
+    `/attendance_checkins?${clauses.join("&")}`
+  );
+  return rows.map(mapRow);
+}

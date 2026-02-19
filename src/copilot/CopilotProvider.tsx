@@ -9,6 +9,11 @@ import {
 } from "react-native";
 
 import { useAuth } from "../auth/auth";
+import type { Signal as CopilotSignal } from "../ai/signal-engine";
+import {
+  getRecommendedSignalActions,
+  sortCopilotSignals,
+} from "./signal-utils";
 import { Pressable } from "../ui/Pressable";
 import { useAppTheme } from "../ui/app-theme";
 
@@ -17,6 +22,7 @@ type CopilotContextData = {
   title?: string;
   subtitle?: string;
   chips?: { label: string; value: string }[];
+  activeSignal?: CopilotSignal;
 };
 
 type CopilotActionResult = {
@@ -46,6 +52,8 @@ type CopilotHistoryItem = {
 type CopilotState = {
   context: CopilotContextData | null;
   actions: CopilotAction[];
+  signals: CopilotSignal[];
+  selectedSignalId: string | null;
   open: boolean;
   runningActionId: string | null;
   history: CopilotHistoryItem[];
@@ -57,6 +65,9 @@ type CopilotInternalContext = {
   clearContext: (ownerId: string) => void;
   setActions: (ownerId: string, actions: CopilotAction[]) => void;
   clearActions: (ownerId: string) => void;
+  setSignals: (ownerId: string, signals: CopilotSignal[]) => void;
+  clearSignals: (ownerId: string) => void;
+  setActiveSignal: (signalId: string | null) => void;
   open: () => void;
   close: () => void;
   runAction: (action: CopilotAction) => Promise<void>;
@@ -95,11 +106,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
   const contextRegistryRef = useRef<Map<string, CopilotContextData | null>>(new Map());
   const actionsRegistryRef = useRef<Map<string, CopilotAction[]>>(new Map());
+  const signalsRegistryRef = useRef<Map<string, CopilotSignal[]>>(new Map());
   const activeOwnerRef = useRef<string | null>(null);
 
   const [state, setState] = useState<CopilotState>({
     context: null,
     actions: [],
+    signals: [],
+    selectedSignalId: null,
     open: false,
     runningActionId: null,
     history: [],
@@ -139,6 +153,47 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setSignals = useCallback((ownerId: string, signals: CopilotSignal[]) => {
+    const sortedSignals = sortCopilotSignals(signals);
+    signalsRegistryRef.current.set(ownerId, sortedSignals);
+    activeOwnerRef.current = ownerId;
+    setState((prev) => {
+      const selectedStillExists = prev.selectedSignalId
+        ? sortedSignals.some((item) => item.id === prev.selectedSignalId)
+        : false;
+      return {
+        ...prev,
+        signals: sortedSignals,
+        selectedSignalId: selectedStillExists
+          ? prev.selectedSignalId
+          : sortedSignals[0]?.id ?? null,
+      };
+    });
+  }, []);
+
+  const clearSignals = useCallback((ownerId: string) => {
+    signalsRegistryRef.current.delete(ownerId);
+    const activeOwner = activeOwnerRef.current;
+    if (activeOwner === ownerId) {
+      const nextSignals = signalsRegistryRef.current.size
+        ? Array.from(signalsRegistryRef.current.values())[signalsRegistryRef.current.size - 1] ?? []
+        : [];
+      setState((prev) => ({
+        ...prev,
+        signals: nextSignals,
+        selectedSignalId: nextSignals[0]?.id ?? null,
+      }));
+    }
+  }, []);
+
+  const setActiveSignal = useCallback((signalId: string | null) => {
+    setState((prev) => {
+      if (!signalId) return { ...prev, selectedSignalId: null };
+      const exists = prev.signals.some((item) => item.id === signalId);
+      return { ...prev, selectedSignalId: exists ? signalId : prev.selectedSignalId };
+    });
+  }, []);
+
   const open = useCallback(() => {
     setState((prev) => ({ ...prev, open: true }));
   }, []);
@@ -148,7 +203,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const runAction = useCallback(async (action: CopilotAction) => {
-    const requirementError = action.requires?.(state.context ?? null);
+    const selectedSignal =
+      state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
+    const actionContext: CopilotContextData | null = selectedSignal
+      ? {
+          ...(state.context ?? { screen: "copilot" }),
+          activeSignal: selectedSignal,
+        }
+      : state.context ?? null;
+
+    const requirementError = action.requires?.(actionContext);
     if (requirementError) {
       const result = { message: requirementError };
       setState((prev) => ({
@@ -163,7 +227,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
     setState((prev) => ({ ...prev, runningActionId: action.id }));
     try {
-      const output = await action.run(state.context ?? null);
+      const output = await action.run(actionContext);
       const normalized = toActionResult(output);
       setState((prev) => ({
         ...prev,
@@ -186,7 +250,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         ),
       }));
     }
-  }, [state.context]);
+  }, [state.context, state.selectedSignalId, state.signals]);
 
   const value = useMemo<CopilotInternalContext>(
     () => ({
@@ -195,18 +259,38 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       clearContext,
       setActions,
       clearActions,
+      setSignals,
+      clearSignals,
+      setActiveSignal,
       open,
       close,
       runAction,
     }),
-    [state, setContext, clearContext, setActions, clearActions, open, close, runAction]
+    [
+      state,
+      setContext,
+      clearContext,
+      setActions,
+      clearActions,
+      setSignals,
+      clearSignals,
+      setActiveSignal,
+      open,
+      close,
+      runAction,
+    ]
   );
 
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const selectedSignal =
+    state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
+  const recommendedActions = useMemo(() => {
+    return getRecommendedSignalActions(selectedSignal, state.actions);
+  }, [selectedSignal, state.actions]);
   const showFab =
     Boolean(session) &&
     !publicRoutes.has(normalizedPath) &&
-    state.actions.length > 0 &&
+    (state.actions.length > 0 || state.signals.length > 0) &&
     !normalizedPath.startsWith("/invite");
 
   return (
@@ -298,6 +382,82 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             ) : null}
 
             <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>
+                {`Hoje o sistema detectou ${state.signals.length} sinais relevantes`}
+              </Text>
+              {state.signals.length ? (
+                <>
+                  <ScrollView style={{ maxHeight: 160 }} contentContainerStyle={{ gap: 8 }}>
+                    {state.signals.map((signal) => {
+                      const isSelected = signal.id === selectedSignal?.id;
+                      const severityColor =
+                        signal.severity === "critical"
+                          ? colors.dangerText
+                          : signal.severity === "high"
+                            ? colors.warningText
+                            : signal.severity === "medium"
+                              ? colors.text
+                              : colors.muted;
+                      return (
+                        <Pressable
+                          key={signal.id}
+                          onPress={() => {
+                            setActiveSignal(signal.id);
+                          }}
+                          style={{
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: isSelected ? colors.primaryBg : colors.border,
+                            backgroundColor: colors.card,
+                            padding: 10,
+                            gap: 4,
+                          }}
+                        >
+                          <Text style={{ color: severityColor, fontWeight: "800", fontSize: 11 }}>
+                            {signal.severity.toUpperCase()}
+                          </Text>
+                          <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  {recommendedActions.length ? (
+                    <View style={{ gap: 6 }}>
+                      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                        Acoes rapidas para o sinal selecionado
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                        {recommendedActions.map((action) => (
+                          <Pressable
+                            key={`signal_action_${action.id}`}
+                            onPress={() => {
+                              void runAction(action);
+                            }}
+                            disabled={Boolean(state.runningActionId)}
+                            style={{
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.secondaryBg,
+                              paddingHorizontal: 10,
+                              paddingVertical: 7,
+                              opacity: state.runningActionId ? 0.7 : 1,
+                            }}
+                          >
+                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{action.title}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={{ color: colors.muted }}>Sem sinais relevantes neste momento.</Text>
+              )}
+            </View>
+
+            <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>Ações sugeridas</Text>
               <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ gap: 8 }}>
                 {state.actions.length ? (
@@ -384,6 +544,11 @@ export function useCopilot() {
     runAction: context.runAction,
     isOpen: context.state.open,
     actionCount: context.state.actions.length,
+    signalCount: context.state.signals.length,
+    signals: context.state.signals,
+    activeSignal:
+      context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
+    setActiveSignal: context.setActiveSignal,
     context: context.state.context,
     history: context.state.history,
   };
@@ -425,6 +590,24 @@ export function useCopilotActions(actions: CopilotAction[]) {
   }, [context, stableActions]);
 }
 
+export function useCopilotSignals(signals: CopilotSignal[]) {
+  const context = useContext(CopilotContext);
+  if (!context) {
+    throw new Error("useCopilotSignals must be used within CopilotProvider");
+  }
+
+  const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
+  const stableSignals = useMemo(() => sortCopilotSignals(signals), [signals]);
+
+  useEffect(() => {
+    const ownerId = ownerIdRef.current;
+    context.setSignals(ownerId, stableSignals);
+    return () => {
+      context.clearSignals(ownerId);
+    };
+  }, [context, stableSignals]);
+}
+
 const styles = StyleSheet.create({
   fabWrapper: {
     position: "absolute",
@@ -442,4 +625,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export type { CopilotAction, CopilotActionResult, CopilotContextData };
+export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };

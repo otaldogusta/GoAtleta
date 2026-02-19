@@ -21,6 +21,7 @@ import {
     type ExecutiveSummaryResult,
     type SyncErrorClassificationResult,
 } from "../src/api/ai";
+import { getSignals, type Signal } from "../src/ai/signal-engine";
 import {
     AdminPendingAttendance,
     AdminPendingSessionLogs,
@@ -60,6 +61,7 @@ import {
   useCopilot,
   useCopilotActions,
   useCopilotContext,
+  useCopilotSignals,
 } from "../src/copilot/CopilotProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -139,6 +141,97 @@ const formatDataFixesText = (result: DataFixSuggestionsResult) => {
   });
   return [result.summary || "Sugestões indisponíveis", "", ...blocks].join("\n\n");
 };
+
+const signalSeverityLabel: Record<Signal["severity"], string> = {
+  low: "baixo",
+  medium: "medio",
+  high: "alto",
+  critical: "critico",
+};
+
+const toPrettyJson = (value: unknown) => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value ?? "");
+  }
+};
+
+const buildInterventionPlanFromSignal = (signal: Signal) => {
+  const steps: string[] = [];
+  if (signal.type === "attendance_drop") {
+    steps.push("Revisar lista de alunos com maior ausencia na turma.");
+    steps.push("Confirmar horario e comunicacao da aula com responsaveis.");
+    steps.push("Executar plano de 2 semanas com meta de presenca > 75%.");
+  } else if (signal.type === "repeated_absence") {
+    steps.push("Contato com responsavel em ate 24h.");
+    steps.push("Registrar motivo principal da ausencia.");
+    steps.push("Definir acao de retorno com acompanhamento por 2 semanas.");
+  } else if (signal.type === "report_delay") {
+    steps.push("Definir responsavel por fechar relatorio da turma no mesmo dia.");
+    steps.push("Aplicar checklist minimo de fechamento apos cada sessao.");
+    steps.push("Revisar gargalos de processo e redistribuir carga da equipe.");
+  } else if (signal.type === "unusual_presence_pattern") {
+    steps.push("Validar se houve mudanca de calendario/unidade no dia.");
+    steps.push("Conferir funcionamento do fluxo NFC e tags ativas.");
+    steps.push("Acionar plano de contingencia de chamada manual na proxima sessao.");
+  } else {
+    steps.push("Priorizar turmas com maior risco de evasao esta semana.");
+    steps.push("Abrir plano integrado coordenacao + professores com metas objetivas.");
+    steps.push("Reavaliar sinais em 7 dias e ajustar plano de intervencao.");
+  }
+
+  return [
+    `Plano de intervencao (${signalSeverityLabel[signal.severity]})`,
+    `Sinal: ${signal.title}`,
+    "",
+    ...steps.map((item, index) => `${index + 1}. ${item}`),
+    "",
+    "Evidencias:",
+    toPrettyJson(signal.evidence),
+  ].join("\n");
+};
+
+const buildParentMessageFromSignal = (signal: Signal) => {
+  const classChunk = signal.classId ? ` na turma ${signal.classId}` : "";
+  const studentChunk = signal.studentId ? ` para o aluno ${signal.studentId}` : "";
+  return [
+    "Ola, tudo bem?",
+    `Identificamos um ponto de atencao${studentChunk}${classChunk}.`,
+    `Sinal observado: ${signal.title}.`,
+    "Queremos alinhar um plano simples para manter continuidade no processo do atleta.",
+    "Podemos confirmar disponibilidade para um contato rapido hoje?",
+    "",
+    "Equipe GoAtleta",
+  ].join("\n");
+};
+
+const buildCauseAnalysisFallback = (signal: Signal) =>
+  [
+    `Analise de causa - ${signal.title}`,
+    `Severidade: ${signalSeverityLabel[signal.severity]}`,
+    "Hipoteses iniciais:",
+    "1. Variacao operacional (agenda, comunicacao ou processo).",
+    "2. Variacao de engajamento do grupo/familias.",
+    "3. Falha de registro ou atraso de fechamento de dados.",
+    "",
+    "Evidencias coletadas:",
+    toPrettyJson(signal.evidence),
+  ].join("\n");
+
+const buildDataFixIssuesFromSignal = (signal: Signal): DataFixIssue[] => [
+  {
+    type: `SIGNAL_${signal.type.toUpperCase()}`,
+    severity: signal.severity,
+    entity: {
+      organizationId: signal.organizationId,
+      classId: signal.classId ?? null,
+      studentId: signal.studentId ?? null,
+      signalId: signal.id,
+    },
+    evidence: signal.evidence,
+  },
+];
 
 type AiExportBundle = {
   title: string;
@@ -263,6 +356,7 @@ export default function CoordinationScreen() {
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiExportLoading, setAiExportLoading] = useState(false);
   const [classRadarItems, setClassRadarItems] = useState<ClassRadarItem[]>([]);
+  const [signals, setSignals] = useState<Signal[]>([]);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1180;
   const isWideLayout = width >= 860;
@@ -379,6 +473,7 @@ export default function CoordinationScreen() {
       setSyncClassifications({});
       setDataFixSuggestions(null);
       setClassRadarItems([]);
+      setSignals([]);
       setAiMessage(null);
       setLoading(false);
       setRefreshing(false);
@@ -449,6 +544,13 @@ export default function CoordinationScreen() {
         .slice(0, 6);
 
       setClassRadarItems(radarRows);
+
+      try {
+        const signalRows = await getSignals({ organizationId });
+        setSignals(signalRows);
+      } catch {
+        setSignals([]);
+      }
     } catch (err) {
       setPendingAttendance([]);
       setPendingReports([]);
@@ -462,6 +564,7 @@ export default function CoordinationScreen() {
       });
       setFailedWrites([]);
       setClassRadarItems([]);
+      setSignals([]);
       setAiMessage(null);
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
@@ -792,6 +895,73 @@ export default function CoordinationScreen() {
     }
   }, []);
 
+  const handleSignalInterventionPlan = useCallback(
+    async (signal: Signal) => {
+      const message = buildInterventionPlanFromSignal(signal);
+      await Clipboard.setStringAsync(message);
+      setAiMessage(`Plano de intervencao copiado para o sinal "${signal.title}".`);
+      return message;
+    },
+    []
+  );
+
+  const handleSignalParentMessage = useCallback(
+    async (signal: Signal) => {
+      const message = buildParentMessageFromSignal(signal);
+      await Clipboard.setStringAsync(message);
+      setAiMessage(`Mensagem para responsaveis copiada para o sinal "${signal.title}".`);
+      return message;
+    },
+    []
+  );
+
+  const handleSignalCauseAnalysis = useCallback(
+    async (signal: Signal) => {
+      setAiLoading(true);
+      setAiMessage(null);
+      try {
+        const supportsAdvanced =
+          signal.type === "attendance_drop" ||
+          signal.type === "report_delay" ||
+          signal.type === "unusual_presence_pattern" ||
+          signal.type === "engagement_risk";
+        if (!supportsAdvanced) {
+          const fallbackText = buildCauseAnalysisFallback(signal);
+          await Clipboard.setStringAsync(fallbackText);
+          setAiMessage(`Analise de causa copiada para o sinal "${signal.title}".`);
+          return fallbackText;
+        }
+
+        const suggested = await suggestDataFixes(
+          { issues: buildDataFixIssuesFromSignal(signal) },
+          {
+            cache: {
+              organizationId,
+              periodLabel: "Coordination - signal analysis",
+              scope: signal.id,
+              ttlMs: 120_000,
+            },
+          }
+        );
+        const text =
+          suggested.suggestions.length > 0
+            ? formatDataFixesText(suggested)
+            : buildCauseAnalysisFallback(signal);
+        await Clipboard.setStringAsync(text);
+        setAiMessage(`Analise de causa copiada para o sinal "${signal.title}".`);
+        return text;
+      } catch {
+        const fallbackText = buildCauseAnalysisFallback(signal);
+        await Clipboard.setStringAsync(fallbackText);
+        setAiMessage(`Analise de causa (fallback) copiada para o sinal "${signal.title}".`);
+        return fallbackText;
+      } finally {
+        setAiLoading(false);
+      }
+    },
+    [organizationId]
+  );
+
   const handleExportMarkdown = useCallback(async () => {
     setAiExportLoading(true);
     try {
@@ -893,7 +1063,7 @@ export default function CoordinationScreen() {
     }
   }, [dataFixSuggestions, executiveSummary, organizationName]);
 
-  const { open: openCopilot, actionCount } = useCopilot();
+  const { open: openCopilot, actionCount, signalCount } = useCopilot();
 
   useCopilotContext(
     useMemo(
@@ -907,6 +1077,7 @@ export default function CoordinationScreen() {
                 { label: "Org", value: organizationName },
                 { label: "Pendências", value: String(pendingAttendance.length + pendingReports.length) },
                 { label: "Sync", value: String(pendingWritesDiagnostics.total) },
+                { label: "Sinais", value: String(signals.length) },
               ],
             }
           : {
@@ -921,6 +1092,7 @@ export default function CoordinationScreen() {
         pendingAttendance.length,
         pendingReports.length,
         pendingWritesDiagnostics.total,
+        signals.length,
       ]
     )
   );
@@ -931,9 +1103,42 @@ export default function CoordinationScreen() {
         ? []
         : [
             {
+              id: "signal_intervention_plan",
+              title: "Plano de intervencao",
+              description: "Gera plano tatico para o sinal selecionado.",
+              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal no Copilot primeiro."),
+              run: async (ctx) => {
+                if (!ctx?.activeSignal) return { message: "Selecione um sinal no Copilot primeiro." };
+                await handleSignalInterventionPlan(ctx.activeSignal);
+                return { message: "Plano de intervencao gerado e copiado." };
+              },
+            },
+            {
+              id: "signal_parent_message",
+              title: "Mensagem para pais",
+              description: "Monta mensagem curta para comunicacao com responsaveis.",
+              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal no Copilot primeiro."),
+              run: async (ctx) => {
+                if (!ctx?.activeSignal) return { message: "Selecione um sinal no Copilot primeiro." };
+                await handleSignalParentMessage(ctx.activeSignal);
+                return { message: "Mensagem para responsaveis copiada." };
+              },
+            },
+            {
+              id: "signal_cause_analysis",
+              title: "Analisar causas",
+              description: "Executa analise estruturada de causa para o sinal.",
+              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal no Copilot primeiro."),
+              run: async (ctx) => {
+                if (!ctx?.activeSignal) return { message: "Selecione um sinal no Copilot primeiro." };
+                await handleSignalCauseAnalysis(ctx.activeSignal);
+                return { message: "Analise de causa pronta e copiada." };
+              },
+            },
+            {
               id: "coord_exec_summary",
               title: "Gerar resumo executivo",
-              description: "Atualiza visão executiva da operação e copia o texto.",
+              description: "Atualiza visao executiva da operacao e copia o texto.",
               run: async () => {
                 await handleGenerateExecutiveSummary();
                 return { message: "Resumo executivo atualizado." };
@@ -941,19 +1146,19 @@ export default function CoordinationScreen() {
             },
             {
               id: "coord_fix_suggestions",
-              title: "Sugerir correções",
-              description: "Analisa inconsistências e propõe opções de correção.",
+              title: "Sugerir correcoes",
+              description: "Analisa inconsistencias e propoe opcoes de correcao.",
               requires: () =>
-                dataFixIssues.length ? null : "Sem inconsistências relevantes para correção neste momento.",
+                dataFixIssues.length ? null : "Sem inconsistencias relevantes para correcao neste momento.",
               run: async () => {
                 await handleSuggestDataFixes();
-                return { message: "Sugestões de correção atualizadas." };
+                return { message: "Sugestoes de correcao atualizadas." };
               },
             },
             {
               id: "coord_whatsapp",
               title: "Copiar mensagem para WhatsApp",
-              description: "Gera versão curta para comunicação rápida com a equipe.",
+              description: "Gera versao curta para comunicacao rapida com a equipe.",
               requires: () =>
                 executiveSummary ? null : "Gere primeiro um resumo executivo para montar a mensagem.",
               run: async () => {
@@ -964,27 +1169,27 @@ export default function CoordinationScreen() {
             {
               id: "coord_export_md",
               title: "Exportar markdown",
-              description: "Exporta resumo + correções em .md.",
+              description: "Exporta resumo + correcoes em .md.",
               requires: () =>
                 executiveSummary || dataFixSuggestions
                   ? null
                   : "Gere pelo menos um bloco de IA antes de exportar.",
               run: async () => {
                 await handleExportMarkdown();
-                return { message: "Exportação markdown concluída." };
+                return { message: "Exportacao markdown concluida." };
               },
             },
             {
               id: "coord_export_pdf",
               title: "Exportar PDF",
-              description: "Gera PDF para compartilhar com a coordenação.",
+              description: "Gera PDF para compartilhar com a coordenacao.",
               requires: () =>
                 executiveSummary || dataFixSuggestions
                   ? null
                   : "Gere pelo menos um bloco de IA antes de exportar.",
               run: async () => {
                 await handleExportPdf();
-                return { message: "Exportação PDF concluída." };
+                return { message: "Exportacao PDF concluida." };
               },
             },
           ],
@@ -997,11 +1202,15 @@ export default function CoordinationScreen() {
       handleExportMarkdown,
       handleExportPdf,
       handleGenerateExecutiveSummary,
+      handleSignalCauseAnalysis,
+      handleSignalInterventionPlan,
+      handleSignalParentMessage,
       handleSuggestDataFixes,
     ]
   );
 
   useCopilotActions(coordinationCopilotActions);
+  useCopilotSignals(activeTab === "dashboard" ? signals : []);
 
   useFocusEffect(
     useCallback(() => {
@@ -1274,16 +1483,16 @@ export default function CoordinationScreen() {
           >
             <Text style={{ color: colors.text, fontWeight: "800" }}>Copilot central</Text>
             <Text style={{ color: colors.muted }}>
-              {actionCount
-                ? `Copilot disponível com ${actionCount} ação(ões) para esta tela.`
-                : "Copilot sem ações para este contexto."}
+              {actionCount || signalCount
+                ? `Copilot disponivel com ${signalCount} sinal(is) e ${actionCount} acao(oes) para esta tela.`
+                : "Copilot sem sinais ou acoes para este contexto."}
             </Text>
             {aiMessage ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>{aiMessage}</Text>
             ) : null}
             <Pressable
               onPress={openCopilot}
-              disabled={!actionCount || aiLoading || aiExportLoading}
+              disabled={!(actionCount || signalCount) || aiLoading || aiExportLoading}
               style={{
                 alignSelf: "flex-start",
                 borderRadius: 999,
@@ -1292,7 +1501,7 @@ export default function CoordinationScreen() {
                 backgroundColor: colors.secondaryBg,
                 paddingHorizontal: 12,
                 paddingVertical: 8,
-                opacity: actionCount && !aiLoading && !aiExportLoading ? 1 : 0.6,
+                opacity: actionCount || signalCount ? (aiLoading || aiExportLoading ? 0.6 : 1) : 0.6,
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700" }}>
@@ -1425,3 +1634,4 @@ export default function CoordinationScreen() {
     </SafeAreaView>
   );
 }
+
