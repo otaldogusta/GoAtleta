@@ -1,4 +1,5 @@
 import * as Haptics from "expo-haptics";
+import * as IntentLauncher from "expo-intent-launcher";
 import * as Network from "expo-network";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,6 +11,7 @@ import {
   ScrollView,
   Text,
   TextInput,
+  Vibration,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -71,6 +73,8 @@ const emptyMetrics = (): NfcMetrics => ({
 
 const DUPLICATE_WINDOW_MS = 20_000;
 const AUTO_SYNC_DEBOUNCE_MS = 1_500;
+const SEARCH_SIGNAL_PATTERN = [0, 220, 100, 90, 100, 220, 100, 90];
+const SEARCH_SIGNAL_INTERVAL_MS = 1_400;
 
 const formatTime = (iso: string) => {
   const parsed = new Date(iso);
@@ -115,6 +119,7 @@ export default function NfcAttendanceScreen() {
   const scanStateRef = useRef<"idle" | "scanning" | "paused">("idle");
   const syncBusyRef = useRef(false);
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSignalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const studentsById = useMemo(
     () => new Map(students.map((item) => [item.id, item] as const)),
@@ -430,6 +435,27 @@ export default function NfcAttendanceScreen() {
     return { ok: true as const };
   }, []);
 
+  const openNfcSettings = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      setFeedback("Ative o NFC nas configuracoes do aparelho.");
+      return;
+    }
+    try {
+      await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.NFC_SETTINGS);
+    } catch (error) {
+      const friendly = getFriendlyErrorMessage(error, "Nao foi possivel abrir configuracoes NFC.");
+      setFeedback(friendly);
+      showSaveToast({ variant: "error", message: friendly });
+    } finally {
+      const support = await refreshNfcSupport();
+      if (!support.ok) {
+        setFeedback(support.reason);
+      } else {
+        setFeedback("NFC ativo. Pode iniciar a leitura.");
+      }
+    }
+  }, [refreshNfcSupport, showSaveToast]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -484,10 +510,41 @@ export default function NfcAttendanceScreen() {
   }, [pauseScan, scanState, showBindModal]);
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    if (scanState !== "scanning" || showBindModal || supportMessage) {
+      if (searchSignalTimerRef.current) {
+        clearInterval(searchSignalTimerRef.current);
+        searchSignalTimerRef.current = null;
+      }
+      Vibration.cancel();
+      return;
+    }
+
+    Vibration.vibrate(SEARCH_SIGNAL_PATTERN, false);
+    searchSignalTimerRef.current = setInterval(() => {
+      Vibration.vibrate(SEARCH_SIGNAL_PATTERN, false);
+    }, SEARCH_SIGNAL_INTERVAL_MS);
+
+    return () => {
+      if (searchSignalTimerRef.current) {
+        clearInterval(searchSignalTimerRef.current);
+        searchSignalTimerRef.current = null;
+      }
+      Vibration.cancel();
+    };
+  }, [scanState, showBindModal, supportMessage]);
+
+  useEffect(() => {
     return () => {
       if (syncDebounceRef.current) {
         clearTimeout(syncDebounceRef.current);
       }
+      if (searchSignalTimerRef.current) {
+        clearInterval(searchSignalTimerRef.current);
+        searchSignalTimerRef.current = null;
+      }
+      Vibration.cancel();
     };
   }, []);
 
@@ -878,7 +935,32 @@ export default function NfcAttendanceScreen() {
         </Pressable>
 
         {supportMessage ? (
-          <Text style={{ color: colors.muted }}>{supportMessage}</Text>
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.muted }}>{supportMessage}</Text>
+            {Platform.OS === "android" ? (
+              <Pressable
+                onPress={() => {
+                  void openNfcSettings();
+                }}
+                style={{
+                  alignSelf: "flex-start",
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Abrir configuracoes NFC</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        {scanState === "scanning" && !supportMessage ? (
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Sinal de busca ativo (padrao Morse: _ . _ .)
+          </Text>
         ) : null}
         {feedback ? <Text style={{ color: colors.text }}>{feedback}</Text> : null}
 
