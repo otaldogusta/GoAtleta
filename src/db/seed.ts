@@ -621,14 +621,23 @@ const buildStudentScoutingClientId = (log: StudentScoutingLog) => {
   return `student_scout_${log.studentId}_${log.classId}_${datePart}`;
 };
 
+const buildNfcCheckinIdempotencyKey = (payload: NfcCheckinPendingPayload) => {
+  const parsed = Date.parse(payload.checkedInAt || "");
+  const day = Number.isFinite(parsed)
+    ? new Date(parsed).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  return `${payload.organizationId}:${payload.classId ?? "__none__"}:${payload.studentId}:${day}`;
+};
+
 const saveNfcCheckinFromQueue = async (
   payload: NfcCheckinPendingPayload,
   options?: { allowQueue?: boolean }
 ) => {
   const allowQueue = options?.allowQueue !== false;
   try {
+    const idempotencyKey = buildNfcCheckinIdempotencyKey(payload);
     await supabasePost(
-      "/attendance_checkins",
+      "/attendance_checkins?on_conflict=idempotency_key",
       [
         {
           organization_id: payload.organizationId,
@@ -637,9 +646,10 @@ const saveNfcCheckinFromQueue = async (
           tag_uid: payload.tagUid,
           source: "nfc",
           checked_in_at: payload.checkedInAt,
+          idempotency_key: idempotencyKey,
         },
       ],
-      { Prefer: "return=minimal" }
+      { Prefer: "resolution=ignore-duplicates,return=minimal" }
     );
   } catch (error) {
     if (allowQueue && isNetworkError(error)) {

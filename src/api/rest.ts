@@ -29,7 +29,10 @@ const makeHeaders = (token: string, options: RestRequestOptions) => {
   };
 
   if (options.prefer) {
-    headers.Prefer = options.prefer;
+    const existingPrefer = headers.Prefer?.trim();
+    headers.Prefer = existingPrefer
+      ? `${existingPrefer},${options.prefer}`
+      : options.prefer;
   }
 
   if (options.body !== undefined) {

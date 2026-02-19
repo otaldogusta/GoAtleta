@@ -1,9 +1,11 @@
 /* eslint-disable import/first */
-const supabaseRestPostMock = jest.fn();
+const supabaseRestRequestMock = jest.fn();
+const supabaseRestGetMock = jest.fn();
 const queueNfcCheckinWriteMock = jest.fn();
 
 jest.mock("../../api/rest", () => ({
-  supabaseRestPost: (...args: unknown[]) => supabaseRestPostMock(...args),
+  supabaseRestRequest: (...args: unknown[]) => supabaseRestRequestMock(...args),
+  supabaseRestGet: (...args: unknown[]) => supabaseRestGetMock(...args),
 }));
 
 jest.mock("../../db/seed", () => ({
@@ -11,6 +13,7 @@ jest.mock("../../db/seed", () => ({
 }));
 
 import {
+  buildCheckinIdempotencyKey,
   createCheckinWithFallback,
   shouldQueueNfcCheckinError,
 } from "../attendance-checkins";
@@ -21,7 +24,7 @@ describe("attendance checkins", () => {
   });
 
   test("remote success returns synced status", async () => {
-    supabaseRestPostMock.mockResolvedValue([
+    supabaseRestRequestMock.mockResolvedValue([
       {
         id: "row_1",
         organization_id: "org_1",
@@ -46,7 +49,7 @@ describe("attendance checkins", () => {
   });
 
   test("network failure enqueues and returns pending", async () => {
-    supabaseRestPostMock.mockRejectedValue(new Error("Failed to fetch"));
+    supabaseRestRequestMock.mockRejectedValue(new Error("Failed to fetch"));
     queueNfcCheckinWriteMock.mockResolvedValue(undefined);
 
     const result = await createCheckinWithFallback({
@@ -60,6 +63,16 @@ describe("attendance checkins", () => {
     expect(result.status).toBe("pending");
     expect(result.checkin.id.startsWith("queue_nfc_")).toBe(true);
     expect(queueNfcCheckinWriteMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("idempotency key is scoped by day", () => {
+    const key = buildCheckinIdempotencyKey({
+      organizationId: "org_1",
+      classId: "c_1",
+      studentId: "s_1",
+      checkedInAt: "2026-02-19T10:30:00.000Z",
+    });
+    expect(key).toBe("org_1:c_1:s_1:2026-02-19");
   });
 
   test("permission style error is not queued", () => {

@@ -2,7 +2,7 @@ import {
   queueNfcCheckinWrite,
   type NfcCheckinPendingPayload,
 } from "../db/seed";
-import { supabaseRestPost } from "../api/rest";
+import { supabaseRestGet, supabaseRestRequest } from "../api/rest";
 
 export type AttendanceCheckin = {
   id: string;
@@ -22,6 +22,7 @@ type AttendanceCheckinRow = {
   class_id: string | null;
   student_id: string;
   tag_uid: string;
+  idempotency_key?: string;
   source: "nfc";
   checked_in_at: string;
 };
@@ -49,6 +50,24 @@ export const shouldQueueNfcCheckinError = (error: unknown) => {
   );
 };
 
+const extractIsoDate = (value?: string) => {
+  const parsed = Date.parse(value ?? "");
+  if (Number.isFinite(parsed)) {
+    return new Date(parsed).toISOString().slice(0, 10);
+  }
+  return new Date().toISOString().slice(0, 10);
+};
+
+export const buildCheckinIdempotencyKey = (params: {
+  organizationId: string;
+  classId?: string | null;
+  studentId: string;
+  checkedInAt?: string;
+}) =>
+  `${params.organizationId}:${params.classId ?? "__none__"}:${params.studentId}:${extractIsoDate(
+    params.checkedInAt
+  )}`;
+
 const buildPendingPayload = (params: {
   organizationId: string;
   classId?: string | null;
@@ -75,22 +94,44 @@ const insertCheckin = async (params: {
   tagUid: string;
   checkedInAt?: string;
 }): Promise<AttendanceCheckin> => {
-  const rows = await supabaseRestPost<AttendanceCheckinRow[]>(
-    "/attendance_checkins",
-    [
-      {
-        organization_id: params.organizationId,
-        class_id: params.classId ?? null,
-        student_id: params.studentId,
-        tag_uid: params.tagUid,
-        source: "nfc",
-        checked_in_at: params.checkedInAt ?? new Date().toISOString(),
+  const checkedInAt = params.checkedInAt ?? new Date().toISOString();
+  const idempotencyKey = buildCheckinIdempotencyKey({
+    organizationId: params.organizationId,
+    classId: params.classId ?? null,
+    studentId: params.studentId,
+    checkedInAt,
+  });
+  const rows = await supabaseRestRequest<AttendanceCheckinRow[]>(
+    `/attendance_checkins?on_conflict=${encodeURIComponent("idempotency_key")}`,
+    {
+      method: "POST",
+      body: [
+        {
+          organization_id: params.organizationId,
+          class_id: params.classId ?? null,
+          student_id: params.studentId,
+          tag_uid: params.tagUid,
+          source: "nfc",
+          checked_in_at: checkedInAt,
+          idempotency_key: idempotencyKey,
+        },
+      ],
+      prefer: "return=representation",
+      additionalHeaders: {
+        Prefer: "resolution=ignore-duplicates,return=representation",
       },
-    ],
-    "return=representation"
+    }
   );
-  if (!rows.length) throw new Error("Falha ao registrar check-in NFC.");
-  return mapRow(rows[0]);
+  if (rows.length) return mapRow(rows[0]);
+
+  const existing = await supabaseRestGet<AttendanceCheckinRow[]>(
+    "/attendance_checkins?select=*&idempotency_key=eq." +
+      encodeURIComponent(idempotencyKey) +
+      "&limit=1"
+  );
+  if (existing.length) return mapRow(existing[0]);
+
+  throw new Error("Falha ao registrar check-in NFC.");
 };
 
 export async function queueNfcCheckin(params: {
