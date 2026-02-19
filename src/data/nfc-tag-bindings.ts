@@ -1,4 +1,4 @@
-import { supabaseRestGet, supabaseRestPost } from "../api/rest";
+import { supabaseRestDelete, supabaseRestGet, supabaseRestPost } from "../api/rest";
 
 export type NfcTagBinding = {
   id: string;
@@ -46,6 +46,16 @@ export async function getBinding(
   return mapBindingRow(rows[0]);
 }
 
+export async function listBindings(organizationId: string): Promise<NfcTagBinding[]> {
+  if (!organizationId) return [];
+  const rows = await supabaseRestGet<NfcTagBindingRow[]>(
+    "/nfc_tag_bindings?select=*&organization_id=eq." +
+      encodeURIComponent(organizationId) +
+      "&order=created_at.desc"
+  );
+  return rows.map(mapBindingRow);
+}
+
 export async function createBinding(params: {
   organizationId: string;
   tagUid: string;
@@ -76,4 +86,17 @@ export async function createBinding(params: {
     }
     throw error;
   }
+}
+
+export async function deleteBinding(params: {
+  organizationId: string;
+  bindingId: string;
+}): Promise<void> {
+  await supabaseRestDelete<null>(
+    "/nfc_tag_bindings?id=eq." +
+      encodeURIComponent(params.bindingId) +
+      "&organization_id=eq." +
+      encodeURIComponent(params.organizationId),
+    "return=minimal"
+  );
 }

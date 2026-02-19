@@ -22,7 +22,13 @@ import {
   createCheckinWithFallback,
   type CheckinDeliveryStatus,
 } from "../src/data/attendance-checkins";
-import { createBinding, getBinding } from "../src/data/nfc-tag-bindings";
+import {
+  type NfcTagBinding,
+  createBinding,
+  deleteBinding,
+  getBinding,
+  listBindings,
+} from "../src/data/nfc-tag-bindings";
 import { getClasses, getStudents } from "../src/db/seed";
 import { NFC_ERRORS } from "../src/nfc/nfc-errors";
 import {
@@ -99,6 +105,8 @@ export default function NfcAttendanceScreen() {
   const [bindSearch, setBindSearch] = useState("");
   const [adminRequiredUid, setAdminRequiredUid] = useState("");
   const [metrics, setMetrics] = useState<NfcMetrics>(emptyMetrics());
+  const [bindings, setBindings] = useState<NfcTagBinding[]>([]);
+  const [removingBindingId, setRemovingBindingId] = useState("");
 
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const recentScanByUidRef = useRef<Map<string, number>>(new Map());
@@ -122,6 +130,24 @@ export default function NfcAttendanceScreen() {
       ),
     [selectedClassId, students]
   );
+  const bindingsByStudentId = useMemo(() => {
+    const map = new Map<string, NfcTagBinding>();
+    for (const item of bindings) {
+      if (!map.has(item.studentId)) {
+        map.set(item.studentId, item);
+      }
+    }
+    return map;
+  }, [bindings]);
+  const classBindings = useMemo(
+    () =>
+      bindings.filter((binding) => {
+        const student = studentsById.get(binding.studentId);
+        if (!student) return false;
+        return selectedClassId ? student.classId === selectedClassId : true;
+      }),
+    [bindings, selectedClassId, studentsById]
+  );
 
   const filteredBindCandidates = useMemo(() => {
     const query = bindSearch.trim().toLowerCase();
@@ -130,6 +156,15 @@ export default function NfcAttendanceScreen() {
       student.name.toLowerCase().includes(query)
     );
   }, [bindCandidates, bindSearch]);
+
+  const loadBindings = useCallback(async (organizationId: string) => {
+    if (!organizationId) {
+      setBindings([]);
+      return;
+    }
+    const rows = await listBindings(organizationId);
+    setBindings(rows);
+  }, []);
 
   const recordMetric = useCallback(
     async (key: NfcMetricKey, delta = 1) => {
@@ -404,24 +439,34 @@ export default function NfcAttendanceScreen() {
     if (!orgId) {
       setClasses([]);
       setStudents([]);
+      setBindings([]);
       return;
     }
     (async () => {
-      const [classRows, studentRows] = await Promise.all([
-        getClasses({ organizationId: orgId }),
-        getStudents({ organizationId: orgId }),
-      ]);
-      if (!alive) return;
-      setClasses(classRows);
-      setStudents(studentRows);
-      if (!selectedClassId && classRows.length) {
-        setSelectedClassId(classRows[0].id);
+      try {
+        const [classRows, studentRows, bindingRows] = await Promise.all([
+          getClasses({ organizationId: orgId }),
+          getStudents({ organizationId: orgId }),
+          listBindings(orgId),
+        ]);
+        if (!alive) return;
+        setClasses(classRows);
+        setStudents(studentRows);
+        setBindings(bindingRows);
+        if (!selectedClassId && classRows.length) {
+          setSelectedClassId(classRows[0].id);
+        }
+      } catch (error) {
+        if (!alive) return;
+        const friendly = getFriendlyErrorMessage(error, "Falha ao carregar dados NFC.");
+        setFeedback(friendly);
+        showSaveToast({ variant: "error", message: friendly });
       }
     })();
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id, selectedClassId]);
+  }, [activeOrganization?.id, selectedClassId, showSaveToast]);
 
   useEffect(() => {
     if (!showBindModal) return;
@@ -478,6 +523,85 @@ export default function NfcAttendanceScreen() {
     };
   }, [handleSyncNow]);
 
+  const selectedStudentCurrentBinding = useMemo(() => {
+    if (!bindingStudentId) return null;
+    return bindingsByStudentId.get(bindingStudentId) ?? null;
+  }, [bindingStudentId, bindingsByStudentId]);
+
+  const removeBindingForStudent = useCallback(
+    async (
+      binding: NfcTagBinding,
+      options?: {
+        silent?: boolean;
+      }
+    ) => {
+      if (!activeOrganization?.id) return false;
+      setRemovingBindingId(binding.id);
+      try {
+        await deleteBinding({
+          organizationId: activeOrganization.id,
+          bindingId: binding.id,
+        });
+        await loadBindings(activeOrganization.id);
+        logNfcEvent("binding_removed", {
+          organizationId: activeOrganization.id,
+          bindingId: binding.id,
+          studentId: binding.studentId,
+          tagUid: binding.tagUid,
+        });
+        if (!options?.silent) {
+          const studentName = studentsById.get(binding.studentId)?.name ?? "Aluno";
+          setFeedback(`Tag removida para ${studentName}.`);
+          showSaveToast({ variant: "success", message: "Tag removida com sucesso." });
+        }
+        return true;
+      } catch (error) {
+        logNfcError(error, {
+          organizationId: activeOrganization.id,
+          bindingId: binding.id,
+          studentId: binding.studentId,
+          tagUid: binding.tagUid,
+          screen: "nfc-attendance",
+        });
+        if (!options?.silent) {
+          const friendly = getFriendlyErrorMessage(error, "Falha ao remover tag.");
+          setFeedback(friendly);
+          showSaveToast({ variant: "error", message: friendly });
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+        return false;
+      } finally {
+        setRemovingBindingId("");
+      }
+    },
+    [activeOrganization?.id, loadBindings, showSaveToast, studentsById]
+  );
+
+  const confirmRemoveBinding = useCallback(
+    (binding: NfcTagBinding) => {
+      if (!isAdmin) {
+        setFeedback("Somente admin pode remover tags NFC.");
+        return;
+      }
+      const studentName = studentsById.get(binding.studentId)?.name ?? "aluno";
+      Alert.alert(
+        "Remover tag",
+        `Deseja remover a tag ${binding.tagUid} de ${studentName}?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Remover",
+            style: "destructive",
+            onPress: () => {
+              void removeBindingForStudent(binding);
+            },
+          },
+        ]
+      );
+    },
+    [isAdmin, removeBindingForStudent, studentsById]
+  );
+
   const closeBindModal = useCallback(() => {
     setShowBindModal(false);
     setPendingUid("");
@@ -498,12 +622,18 @@ export default function NfcAttendanceScreen() {
     }
     setSavingBinding(true);
     try {
+      const existingBinding = bindingsByStudentId.get(bindingStudentId);
+      if (existingBinding && existingBinding.tagUid !== pendingUid) {
+        const removed = await removeBindingForStudent(existingBinding, { silent: true });
+        if (!removed) return;
+      }
       const binding = await createBinding({
         organizationId: activeOrganization.id,
         tagUid: pendingUid,
         studentId: bindingStudentId,
         createdBy: session.user.id,
       });
+      await loadBindings(activeOrganization.id);
       void recordMetric("bindCreated");
       logNfcEvent("binding_created", {
         organizationId: activeOrganization.id,
@@ -530,9 +660,12 @@ export default function NfcAttendanceScreen() {
   }, [
     activeOrganization?.id,
     bindingStudentId,
+    bindingsByStudentId,
     closeBindModal,
+    loadBindings,
     pendingUid,
     recordMetric,
+    removeBindingForStudent,
     registerCheckin,
     session?.user?.id,
     showSaveToast,
@@ -756,6 +889,55 @@ export default function NfcAttendanceScreen() {
 
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+            Tags vinculadas
+          </Text>
+          {classBindings.length ? (
+            classBindings.map((binding) => {
+              const student = studentsById.get(binding.studentId);
+              if (!student) return null;
+              return (
+                <View
+                  key={binding.id}
+                  style={{
+                    borderRadius: 12,
+                    padding: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    gap: 6,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{student.name}</Text>
+                  <Text style={{ color: colors.muted }}>UID {binding.tagUid}</Text>
+                  {isAdmin ? (
+                    <Pressable
+                      onPress={() => confirmRemoveBinding(binding)}
+                      style={{
+                        borderRadius: 10,
+                        paddingVertical: 8,
+                        alignItems: "center",
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        opacity: removingBindingId === binding.id ? 0.6 : 1,
+                      }}
+                      disabled={removingBindingId === binding.id}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {removingBindingId === binding.id ? "Removendo..." : "Remover tag"}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })
+          ) : (
+            <Text style={{ color: colors.muted }}>Nenhuma tag vinculada para esta turma.</Text>
+          )}
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
             Presencas desta sessao
           </Text>
           {liveCheckins.length ? (
@@ -836,6 +1018,46 @@ export default function NfcAttendanceScreen() {
               }}
             />
 
+            {selectedStudentCurrentBinding &&
+            selectedStudentCurrentBinding.tagUid !== pendingUid ? (
+              <View
+                style={{
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  padding: 10,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Tag atual do aluno selecionado
+                </Text>
+                <Text style={{ color: colors.muted }}>UID {selectedStudentCurrentBinding.tagUid}</Text>
+                <Pressable
+                  onPress={() => {
+                    void removeBindingForStudent(selectedStudentCurrentBinding);
+                  }}
+                  style={{
+                    borderRadius: 10,
+                    paddingVertical: 8,
+                    alignItems: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    opacity: removingBindingId === selectedStudentCurrentBinding.id ? 0.6 : 1,
+                  }}
+                  disabled={removingBindingId === selectedStudentCurrentBinding.id}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    {removingBindingId === selectedStudentCurrentBinding.id
+                      ? "Removendo..."
+                      : "Remover tag atual"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: 8 }}>
               {filteredBindCandidates.map((student) => {
                 const selected = bindingStudentId === student.id;
@@ -910,6 +1132,7 @@ export default function NfcAttendanceScreen() {
               </Pressable>
               <Pressable
                 onPress={() => {
+                  if (removingBindingId) return;
                   void confirmBind();
                 }}
                 style={{
@@ -918,8 +1141,9 @@ export default function NfcAttendanceScreen() {
                   paddingVertical: 10,
                   alignItems: "center",
                   backgroundColor: colors.primaryBg,
-                  opacity: bindingStudentId && !savingBinding ? 1 : 0.6,
+                  opacity: bindingStudentId && !savingBinding && !removingBindingId ? 1 : 0.6,
                 }}
+                disabled={!bindingStudentId || savingBinding || Boolean(removingBindingId)}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
                   {savingBinding ? "Salvando..." : "Vincular e registrar presenca"}
