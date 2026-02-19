@@ -103,7 +103,7 @@ export default function EventDetailsScreen() {
     padding: 14,
   });
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [classes, setClasses] = useState<{ id: string; name: string; unitId: string }[]>([]);
 
@@ -164,7 +164,10 @@ export default function EventDetailsScreen() {
   const hasChanges = currentSnapshot !== initialSnapshot;
 
   const loadData = useCallback(async () => {
-    if (!activeOrganization?.id || !eventId) return;
+    if (!activeOrganization?.id || !eventId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

@@ -564,11 +564,18 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
       >
         <Stack.Screen
           name="events/[id]"
-          options={{
-            presentation: "transparentModal",
-            animation: "fade",
-            contentStyle: { backgroundColor: "transparent" },
-          }}
+          options={
+            Platform.OS === "web"
+              ? {
+                  presentation: "transparentModal",
+                  animation: "fade",
+                  contentStyle: { backgroundColor: "transparent" },
+                }
+              : {
+                  presentation: "card",
+                  animation: "slide_from_right",
+                }
+          }
         />
       </Stack>
     </View>
