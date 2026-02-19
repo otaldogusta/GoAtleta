@@ -41,7 +41,7 @@ export const getFriendlyErrorMessage = (
   if (!raw) return fallback;
 
   const parsed = parseJsonMessage(raw);
-  const message = parsed.message || raw;
+  const message = parsed?.message || raw;
   const lower = message.toLowerCase();
 
   if (
@@ -57,7 +57,7 @@ export const getFriendlyErrorMessage = (
     lower.includes("row-level security") ||
     lower.includes("permission denied") ||
     lower.includes("not authorized") ||
-    parsed.code === "42501"
+    parsed?.code === "42501"
   ) {
     return "Você não tem permissão para essa ação.";
   }
