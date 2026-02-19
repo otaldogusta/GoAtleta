@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   Platform,
@@ -43,6 +42,7 @@ import { logNfcError, logNfcEvent } from "../src/nfc/telemetry";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { getFriendlyErrorMessage } from "../src/ui/error-messages";
 import { useSaveToast } from "../src/ui/save-toast";
 
@@ -90,6 +90,7 @@ export default function NfcAttendanceScreen() {
   const { activeOrganization } = useOrganization();
   const { session } = useAuth();
   const { showSaveToast } = useSaveToast();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { syncNow } = useSmartSync();
 
   const [supportMessage, setSupportMessage] = useState("");
@@ -413,25 +414,33 @@ export default function NfcAttendanceScreen() {
     [activeOrganization?.id, recordMetric, showSaveToast, syncNow]
   );
 
-  useEffect(() => {
+  const refreshNfcSupport = useCallback(async () => {
     if (Platform.OS === "web") {
-      setSupportMessage("NFC nao e suportado no web.");
-      return;
+      const reason = "NFC nao e suportado no web.";
+      setSupportMessage(reason);
+      return { ok: false as const, reason };
     }
+    const support = await isNfcSupported();
+    if (!support.available || !support.enabled) {
+      const reason = support.reason ?? "NFC indisponivel neste aparelho.";
+      setSupportMessage(reason);
+      return { ok: false as const, reason };
+    }
+    setSupportMessage("");
+    return { ok: true as const };
+  }, []);
+
+  useEffect(() => {
     let alive = true;
     (async () => {
-      const support = await isNfcSupported();
+      const support = await refreshNfcSupport();
       if (!alive) return;
-      if (!support.available || !support.enabled) {
-        setSupportMessage(support.reason ?? "NFC indisponivel neste aparelho.");
-      } else {
-        setSupportMessage("");
-      }
+      if (!support.ok) setFeedback(support.reason);
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshNfcSupport]);
 
   useEffect(() => {
     let alive = true;
@@ -584,22 +593,18 @@ export default function NfcAttendanceScreen() {
         return;
       }
       const studentName = studentsById.get(binding.studentId)?.name ?? "aluno";
-      Alert.alert(
-        "Remover tag",
-        `Deseja remover a tag ${binding.tagUid} de ${studentName}?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Remover",
-            style: "destructive",
-            onPress: () => {
-              void removeBindingForStudent(binding);
-            },
-          },
-        ]
-      );
+      confirmDialog({
+        title: "Remover tag",
+        message: `Deseja remover a tag ${binding.tagUid} de ${studentName}?`,
+        confirmLabel: "Remover",
+        cancelLabel: "Cancelar",
+        tone: "danger",
+        onConfirm: async () => {
+          await removeBindingForStudent(binding);
+        },
+      });
     },
-    [isAdmin, removeBindingForStudent, studentsById]
+    [confirmDialog, isAdmin, removeBindingForStudent, studentsById]
   );
 
   const closeBindModal = useCallback(() => {
@@ -617,7 +622,9 @@ export default function NfcAttendanceScreen() {
     if (!pendingUid || !bindingStudentId) return;
     if (!activeOrganization?.id) return;
     if (!session?.user?.id) {
-      Alert.alert("Sessao invalida", "Faca login novamente para vincular tags.");
+      const message = "Sessao invalida. Faca login novamente para vincular tags.";
+      setFeedback(message);
+      showSaveToast({ variant: "error", message });
       return;
     }
     setSavingBinding(true);
@@ -671,12 +678,13 @@ export default function NfcAttendanceScreen() {
     showSaveToast,
   ]);
 
-  const toggleScanning = useCallback(() => {
-    if (supportMessage) {
-      setFeedback(supportMessage);
-      return;
-    }
+  const toggleScanning = useCallback(async () => {
     if (scanState === "idle") {
+      const support = await refreshNfcSupport();
+      if (!support.ok) {
+        setFeedback(support.reason);
+        return;
+      }
       startScan();
       setFeedback("Leitura continua iniciada.");
       return;
@@ -686,9 +694,14 @@ export default function NfcAttendanceScreen() {
       setFeedback("Leitura pausada.");
       return;
     }
+    const support = await refreshNfcSupport();
+    if (!support.ok) {
+      setFeedback(support.reason);
+      return;
+    }
     resumeScan();
     setFeedback("Leitura retomada.");
-  }, [pauseScan, resumeScan, scanState, startScan, supportMessage]);
+  }, [pauseScan, refreshNfcSupport, resumeScan, scanState, startScan]);
 
   const stopScanning = useCallback(async () => {
     await stopScan();
@@ -813,7 +826,9 @@ export default function NfcAttendanceScreen() {
 
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable
-            onPress={toggleScanning}
+            onPress={() => {
+              void toggleScanning();
+            }}
             style={{
               flex: 1,
               borderRadius: 12,
