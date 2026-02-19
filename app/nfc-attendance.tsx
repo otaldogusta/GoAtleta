@@ -73,8 +73,8 @@ const emptyMetrics = (): NfcMetrics => ({
 
 const DUPLICATE_WINDOW_MS = 20_000;
 const AUTO_SYNC_DEBOUNCE_MS = 1_500;
-const SEARCH_SIGNAL_PATTERN = [0, 220, 100, 90, 100, 220, 100, 90];
-const SEARCH_SIGNAL_INTERVAL_MS = 1_400;
+const SEARCH_SIGNAL_PATTERN = [0, 70, 120, 70];
+const SEARCH_SIGNAL_INTERVAL_MS = 2_400;
 
 const formatTime = (iso: string) => {
   const parsed = new Date(iso);
