@@ -54,9 +54,13 @@ import { useOrganization } from "../src/providers/OrganizationProvider";
 import { AuditPanel } from "../src/screens/coordination/AuditPanel";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
-import { ExecutiveSummaryCard } from "../src/screens/coordination/ExecutiveSummaryCard";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
+import {
+  useCopilot,
+  useCopilotActions,
+  useCopilotContext,
+} from "../src/copilot/CopilotProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -659,6 +663,7 @@ export default function CoordinationScreen() {
     topDelaysByTrainer,
     failedWrites,
     pendingAttendance.length,
+    pendingReports.length,
     pendingWritesDiagnostics,
     recentActivity.length,
     syncPausedReason,
@@ -887,6 +892,116 @@ export default function CoordinationScreen() {
       setAiExportLoading(false);
     }
   }, [dataFixSuggestions, executiveSummary, organizationName]);
+
+  const { open: openCopilot, actionCount } = useCopilot();
+
+  useCopilotContext(
+    useMemo(
+      () =>
+        activeTab === "dashboard"
+          ? {
+              screen: "coordination_dashboard",
+              title: "Coordenação",
+              subtitle: "Assistente contextual da coordenação",
+              chips: [
+                { label: "Org", value: organizationName },
+                { label: "Pendências", value: String(pendingAttendance.length + pendingReports.length) },
+                { label: "Sync", value: String(pendingWritesDiagnostics.total) },
+              ],
+            }
+          : {
+              screen: "coordination_members",
+              title: "Coordenação - membros",
+              subtitle: "Gestão de membros",
+              chips: [{ label: "Org", value: organizationName }],
+            },
+      [
+        activeTab,
+        organizationName,
+        pendingAttendance.length,
+        pendingReports.length,
+        pendingWritesDiagnostics.total,
+      ]
+    )
+  );
+
+  const coordinationCopilotActions = useMemo(
+    () =>
+      activeTab !== "dashboard"
+        ? []
+        : [
+            {
+              id: "coord_exec_summary",
+              title: "Gerar resumo executivo",
+              description: "Atualiza visão executiva da operação e copia o texto.",
+              run: async () => {
+                await handleGenerateExecutiveSummary();
+                return { message: "Resumo executivo atualizado." };
+              },
+            },
+            {
+              id: "coord_fix_suggestions",
+              title: "Sugerir correções",
+              description: "Analisa inconsistências e propõe opções de correção.",
+              requires: () =>
+                dataFixIssues.length ? null : "Sem inconsistências relevantes para correção neste momento.",
+              run: async () => {
+                await handleSuggestDataFixes();
+                return { message: "Sugestões de correção atualizadas." };
+              },
+            },
+            {
+              id: "coord_whatsapp",
+              title: "Copiar mensagem para WhatsApp",
+              description: "Gera versão curta para comunicação rápida com a equipe.",
+              requires: () =>
+                executiveSummary ? null : "Gere primeiro um resumo executivo para montar a mensagem.",
+              run: async () => {
+                await handleCopyWhatsappMessage();
+                return { message: "Mensagem para WhatsApp copiada." };
+              },
+            },
+            {
+              id: "coord_export_md",
+              title: "Exportar markdown",
+              description: "Exporta resumo + correções em .md.",
+              requires: () =>
+                executiveSummary || dataFixSuggestions
+                  ? null
+                  : "Gere pelo menos um bloco de IA antes de exportar.",
+              run: async () => {
+                await handleExportMarkdown();
+                return { message: "Exportação markdown concluída." };
+              },
+            },
+            {
+              id: "coord_export_pdf",
+              title: "Exportar PDF",
+              description: "Gera PDF para compartilhar com a coordenação.",
+              requires: () =>
+                executiveSummary || dataFixSuggestions
+                  ? null
+                  : "Gere pelo menos um bloco de IA antes de exportar.",
+              run: async () => {
+                await handleExportPdf();
+                return { message: "Exportação PDF concluída." };
+              },
+            },
+          ],
+    [
+      activeTab,
+      dataFixIssues.length,
+      dataFixSuggestions,
+      executiveSummary,
+      handleCopyWhatsappMessage,
+      handleExportMarkdown,
+      handleExportPdf,
+      handleGenerateExecutiveSummary,
+      handleSuggestDataFixes,
+    ]
+  );
+
+  useCopilotActions(coordinationCopilotActions);
 
   useFocusEffect(
     useCallback(() => {
@@ -1147,24 +1262,48 @@ export default function CoordinationScreen() {
             onCopyPrompt={handleCopyRadarPrompt}
           />
 
+          <View
+            style={{
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: 12,
+              gap: 8,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "800" }}>Copilot central</Text>
+            <Text style={{ color: colors.muted }}>
+              {actionCount
+                ? `Copilot disponível com ${actionCount} ação(ões) para esta tela.`
+                : "Copilot sem ações para este contexto."}
+            </Text>
+            {aiMessage ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>{aiMessage}</Text>
+            ) : null}
+            <Pressable
+              onPress={openCopilot}
+              disabled={!actionCount || aiLoading || aiExportLoading}
+              style={{
+                alignSelf: "flex-start",
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                opacity: actionCount && !aiLoading && !aiExportLoading ? 1 : 0.6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                {aiLoading || aiExportLoading ? "Executando..." : "Abrir Copilot"}
+              </Text>
+            </Pressable>
+          </View>
+
           {isWideLayout ? (
             <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
               <View style={{ flex: 1.2, gap: 12 }}>
-                <ExecutiveSummaryCard
-                  colors={colors}
-                  loading={loading}
-                  aiLoading={aiLoading}
-                  aiExportLoading={aiExportLoading}
-                  aiMessage={aiMessage}
-                  executiveSummary={executiveSummary}
-                  dataFixSuggestions={dataFixSuggestions}
-                  onGenerateExecutiveSummary={handleGenerateExecutiveSummary}
-                  onSuggestDataFixes={handleSuggestDataFixes}
-                  onCopyWhatsappMessage={handleCopyWhatsappMessage}
-                  onExportMarkdown={handleExportMarkdown}
-                  onExportPdf={handleExportPdf}
-                />
-
                 <ConsistencyPanel
                   colors={colors}
                   loading={loading}
@@ -1225,21 +1364,6 @@ export default function CoordinationScreen() {
             </View>
           ) : (
             <>
-              <ExecutiveSummaryCard
-                colors={colors}
-                loading={loading}
-                aiLoading={aiLoading}
-                aiExportLoading={aiExportLoading}
-                aiMessage={aiMessage}
-                executiveSummary={executiveSummary}
-                dataFixSuggestions={dataFixSuggestions}
-                onGenerateExecutiveSummary={handleGenerateExecutiveSummary}
-                onSuggestDataFixes={handleSuggestDataFixes}
-                onCopyWhatsappMessage={handleCopyWhatsappMessage}
-                onExportMarkdown={handleExportMarkdown}
-                onExportPdf={handleExportPdf}
-              />
-
               <SyncSupportPanel
                 colors={colors}
                 loading={loading}

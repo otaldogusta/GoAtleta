@@ -31,6 +31,7 @@ import { setSentryBaseTags } from "../src/observability/sentry";
 import { OrganizationProvider, useOrganization } from "../src/providers/OrganizationProvider";
 import { BiometricLockProvider, useBiometricLock } from "../src/security/biometric-lock";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
+import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
@@ -698,7 +699,9 @@ function BiometricAuthBoundary() {
               <ConfirmUndoProvider>
                 <SaveToastProvider>
                   <GuidanceProvider>
-                    <RootLayoutContent />
+                    <CopilotProvider>
+                      <RootLayoutContent />
+                    </CopilotProvider>
                   </GuidanceProvider>
                 </SaveToastProvider>
               </ConfirmUndoProvider>
