@@ -1,5 +1,6 @@
 import * as Haptics from "expo-haptics";
 import * as IntentLauncher from "expo-intent-launcher";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Network from "expo-network";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -767,20 +768,37 @@ export default function NfcAttendanceScreen() {
     setFeedback("Leitura parada.");
   }, [stopScan]);
 
+  const scanStateLabel =
+    scanState === "idle" ? "Pronto" : scanState === "scanning" ? "Lendo" : "Pausado";
+  const scanStateTone =
+    scanState === "scanning"
+      ? colors.successText
+      : scanState === "paused"
+      ? colors.warningText
+      : colors.muted;
+  const scanGuideText = supportMessage
+    ? "Ative o NFC no aparelho para iniciar."
+    : scanState === "scanning"
+    ? "Aproxime a tag da traseira do celular."
+    : "Toque em Iniciar leitura para entrar no modo continuo.";
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>
-            Presenca NFC
-          </Text>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 30 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: colors.text, fontSize: 30, fontWeight: "900" }}>Presenca NFC</Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              {activeOrganization?.name ?? "Organizacao nao selecionada"}
+            </Text>
+          </View>
           <Pressable
             onPress={() => {
               void stopScanning().finally(() => router.back());
             }}
             style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 9,
               borderRadius: 999,
               backgroundColor: colors.secondaryBg,
               borderWidth: 1,
@@ -793,63 +811,269 @@ export default function NfcAttendanceScreen() {
 
         <View
           style={{
-            borderRadius: 14,
-            padding: 12,
+            borderRadius: 22,
+            padding: 14,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
-            gap: 8,
+            gap: 12,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Organizacao: {activeOrganization?.name ?? "Nenhuma"}
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            Estado: {scanState === "idle" ? "Idle" : scanState === "scanning" ? "Scanning" : "Paused"}
-          </Text>
-          {isScanning ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <ActivityIndicator size="small" color={colors.primaryBg} />
-              <Text style={{ color: colors.text, fontWeight: "600" }}>Lendo tags em modo continuo...</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <View
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: scanStateTone, fontWeight: "800", fontSize: 12 }}>
+                Estado: {scanStateLabel}
+              </Text>
             </View>
-          ) : null}
+            {isScanning ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <ActivityIndicator size="small" color={colors.primaryBg} />
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Lendo</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View
+            style={{
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              padding: 14,
+              gap: 12,
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                width: "100%",
+                maxWidth: 320,
+                aspectRatio: 1,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              <View
+                style={{
+                  width: 170,
+                  height: 170,
+                  borderRadius: 24,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "900", fontSize: 20 }}>NFC</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Aproxime a tag</Text>
+              </View>
+
+              {scanState === "scanning" ? (
+                <LinearGradient
+                  colors={["transparent", colors.primaryBg, "transparent"]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    height: 3,
+                    opacity: 0.55,
+                  }}
+                />
+              ) : null}
+            </View>
+
+            <Text style={{ color: colors.muted, textAlign: "center", fontSize: 13 }}>{scanGuideText}</Text>
+
+            {scanState === "scanning" && !supportMessage ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Vibracao de busca ativa (padrao Morse: _ . _ .)
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                void toggleScanning();
+              }}
+              style={{
+                flex: 1,
+                borderRadius: 14,
+                paddingVertical: 12,
+                alignItems: "center",
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+                {scanState === "idle"
+                  ? "Iniciar leitura"
+                  : scanState === "scanning"
+                  ? "Pausar leitura"
+                  : "Retomar leitura"}
+              </Text>
+            </Pressable>
+            {scanState !== "idle" ? (
+              <Pressable
+                onPress={() => {
+                  void stopScanning();
+                }}
+                style={{
+                  borderRadius: 14,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
+                  alignItems: "center",
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Parar</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                void handleSyncNow("manual");
+              }}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                paddingVertical: 10,
+                alignItems: "center",
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Sincronizar agora</Text>
+            </Pressable>
+
+            {Platform.OS === "android" ? (
+              <Pressable
+                onPress={() => {
+                  void openNfcSettings();
+                }}
+                style={{
+                  borderRadius: 12,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  alignItems: "center",
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Config NFC</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
+
+        {supportMessage ? (
+          <View
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.warningBg,
+              backgroundColor: colors.warningBg,
+              padding: 12,
+              gap: 6,
+            }}
+          >
+            <Text style={{ color: colors.warningText, fontWeight: "800" }}>NFC indisponivel</Text>
+            <Text style={{ color: colors.warningText }}>{supportMessage}</Text>
+          </View>
+        ) : null}
+
+        {feedback ? (
+          <View
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: 12,
+            }}
+          >
+            <Text style={{ color: colors.text }}>{feedback}</Text>
+          </View>
+        ) : null}
+
+        {adminRequiredUid ? (
+          <View
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.warningBg,
+              backgroundColor: colors.warningBg,
+              padding: 12,
+              gap: 4,
+            }}
+          >
+            <Text style={{ color: colors.warningText, fontWeight: "800" }}>
+              Somente admin pode vincular tags
+            </Text>
+            <Text style={{ color: colors.warningText }}>
+              UID {adminRequiredUid} ainda nao vinculado. Solicite um admin para concluir o bind.
+            </Text>
+          </View>
+        ) : null}
 
         <View
           style={{
-            borderRadius: 14,
+            borderRadius: 18,
             padding: 12,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
-            gap: 8,
+            gap: 10,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "800" }}>Indicadores NFC</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <View style={{ minWidth: "48%" }}>
+            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Scans totais</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{metrics.totalScans}</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.totalScans}</Text>
             </View>
-            <View style={{ minWidth: "48%" }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Duplicados bloqueados</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{metrics.duplicateScans}</Text>
+            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Duplicados</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.duplicateScans}</Text>
             </View>
-            <View style={{ minWidth: "48%" }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Check-ins sincronizados</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{metrics.checkinsSynced}</Text>
+            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Sincronizados</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.checkinsSynced}</Text>
             </View>
-            <View style={{ minWidth: "48%" }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Check-ins pendentes</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{metrics.checkinsPending}</Text>
+            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Pendentes</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.checkinsPending}</Text>
             </View>
-            <View style={{ minWidth: "48%" }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Flush de sync</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{metrics.syncFlushed}</Text>
+            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Flush sync</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.syncFlushed}</Text>
             </View>
-            <View style={{ minWidth: "48%" }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Erros de sync</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{metrics.syncErrors}</Text>
+            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Erros sync</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.syncErrors}</Text>
             </View>
           </View>
         </View>
@@ -880,109 +1104,6 @@ export default function NfcAttendanceScreen() {
             })}
           </ScrollView>
         </View>
-
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <Pressable
-            onPress={() => {
-              void toggleScanning();
-            }}
-            style={{
-              flex: 1,
-              borderRadius: 12,
-              paddingVertical: 12,
-              alignItems: "center",
-              backgroundColor: colors.primaryBg,
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              {scanState === "idle" ? "Iniciar leitura" : scanState === "scanning" ? "Pausar leitura" : "Retomar leitura"}
-            </Text>
-          </Pressable>
-          {scanState !== "idle" ? (
-            <Pressable
-              onPress={() => {
-                void stopScanning();
-              }}
-              style={{
-                borderRadius: 12,
-                paddingVertical: 12,
-                paddingHorizontal: 14,
-                alignItems: "center",
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Parar</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <Pressable
-          onPress={() => {
-            void handleSyncNow("manual");
-          }}
-          style={{
-            borderRadius: 12,
-            paddingVertical: 10,
-            alignItems: "center",
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Sincronizar agora</Text>
-        </Pressable>
-
-        {supportMessage ? (
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.muted }}>{supportMessage}</Text>
-            {Platform.OS === "android" ? (
-              <Pressable
-                onPress={() => {
-                  void openNfcSettings();
-                }}
-                style={{
-                  alignSelf: "flex-start",
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Abrir configuracoes NFC</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        {scanState === "scanning" && !supportMessage ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Sinal de busca ativo (padrao Morse: _ . _ .)
-          </Text>
-        ) : null}
-        {feedback ? <Text style={{ color: colors.text }}>{feedback}</Text> : null}
-
-        {adminRequiredUid ? (
-          <View
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.warningBg,
-              backgroundColor: colors.warningBg,
-              padding: 12,
-              gap: 4,
-            }}
-          >
-            <Text style={{ color: colors.warningText, fontWeight: "800" }}>
-              Somente admin pode vincular tags
-            </Text>
-            <Text style={{ color: colors.warningText }}>
-              UID {adminRequiredUid} ainda nao vinculado. Solicite um admin para concluir o bind.
-            </Text>
-          </View>
-        ) : null}
 
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
