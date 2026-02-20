@@ -356,11 +356,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const recommendedActions = useMemo(() => {
     return getRecommendedSignalActions(selectedSignal, state.actions);
   }, [selectedSignal, state.actions]);
-  const generalActions = useMemo(() => {
+  const recommendedActionIds = useMemo(() => {
+    return new Set(recommendedActions.map((item) => item.id));
+  }, [recommendedActions]);
+  const orderedActions = useMemo(() => {
     if (!recommendedActions.length) return state.actions;
-    const recommendedIds = new Set(recommendedActions.map((item) => item.id));
-    return state.actions.filter((item) => !recommendedIds.has(item.id));
-  }, [recommendedActions, state.actions]);
+    const remainingActions = state.actions.filter((item) => !recommendedActionIds.has(item.id));
+    return [...recommendedActions, ...remainingActions];
+  }, [recommendedActionIds, recommendedActions, state.actions]);
   const selectedSeverityColor =
     selectedSignal?.severity === "critical"
       ? colors.dangerText
@@ -625,39 +628,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                     })}
                   </ScrollView>
 
-                  {recommendedActions.length ? (
-                    <View style={{ gap: 6 }}>
-                      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                        Acoes para este alerta
-                      </Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                        {recommendedActions.map((action) => (
-                          <Pressable
-                            key={`signal_action_${action.id}`}
-                            onPress={() => {
-                              void runAction(action);
-                            }}
-                            disabled={Boolean(state.runningActionId)}
-                            style={{
-                              borderRadius: 999,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              backgroundColor: colors.secondaryBg,
-                              paddingHorizontal: 10,
-                              paddingVertical: 7,
-                              opacity: state.runningActionId ? 0.7 : 1,
-                            }}
-                          >
-                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{action.title}</Text>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  ) : selectedSignal ? (
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Este alerta nao possui acoes recomendadas no momento.
-                    </Text>
-                  ) : null}
                 </>
               ) : (
                 <Text style={{ color: colors.muted }}>Sem alertas para monitorar agora.</Text>
@@ -666,9 +636,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes gerais da tela</Text>
+              {selectedSignal && recommendedActions.length ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Acoes recomendadas para o alerta em foco aparecem primeiro.
+                </Text>
+              ) : null}
               <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ gap: 8 }}>
-                {generalActions.length ? (
-                  generalActions.map((action) => (
+                {orderedActions.length ? (
+                  orderedActions.map((action) => {
+                    const isRecommended = recommendedActionIds.has(action.id);
+                    return (
                     <Pressable
                       key={action.id}
                       onPress={() => {
@@ -678,12 +655,17 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                       style={{
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: colors.border,
+                        borderColor: isRecommended ? colors.primaryBg : colors.border,
                         backgroundColor: colors.card,
                         padding: 12,
                         opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
                       }}
                     >
+                      {isRecommended ? (
+                        <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800", marginBottom: 4 }}>
+                          RECOMENDADA PARA O ALERTA
+                        </Text>
+                      ) : null}
                       <Text style={{ color: colors.text, fontWeight: "700" }}>
                         {state.runningActionId === action.id ? "Executando..." : action.title}
                       </Text>
@@ -691,9 +673,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         <Text style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>{action.description}</Text>
                       ) : null}
                     </Pressable>
-                  ))
+                  );
+                  })
                 ) : (
-                  <Text style={{ color: colors.muted }}>Sem acoes gerais disponiveis neste contexto.</Text>
+                  <Text style={{ color: colors.muted }}>Sem acoes disponiveis neste contexto.</Text>
                 )}
               </ScrollView>
             </View>
