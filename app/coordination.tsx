@@ -360,12 +360,7 @@ export default function CoordinationScreen() {
         classId: item.classId,
         className: item.className,
         unit: item.unit,
-        daysWithoutReport: item.lastReportAt
-          ? Math.max(
-              0,
-              Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
-            )
-          : null,
+        daysWithoutReport: item.daysWithoutReport,
       })),
     [pendingReports]
   );
@@ -374,9 +369,7 @@ export default function CoordinationScreen() {
     () =>
       pendingReports
         .filter((item) => {
-          if (!item.lastReportAt) return true;
-          const days = Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24));
-          return days > 7;
+          return item.daysWithoutReport > 7;
         })
         .slice(0, 10),
     [pendingReports]
@@ -397,14 +390,9 @@ export default function CoordinationScreen() {
     const issues: DataFixIssue[] = [];
 
     pendingReports.forEach((item) => {
-      const daysWithoutReport = item.lastReportAt
-        ? Math.max(
-            0,
-            Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
-          )
-        : null;
-      const hasCriticalGap = daysWithoutReport === null || daysWithoutReport > 14;
-      const hasGap = daysWithoutReport === null || daysWithoutReport > 7;
+      const daysWithoutReport = item.daysWithoutReport;
+      const hasCriticalGap = daysWithoutReport > 14;
+      const hasGap = daysWithoutReport > 7;
       if (hasGap) {
         issues.push({
           type: "MISSING_WEEKLY_REPORT",
@@ -417,7 +405,7 @@ export default function CoordinationScreen() {
           evidence: {
             lastReportAt: item.lastReportAt,
             daysWithoutReport,
-            reportStatus: daysWithoutReport === null ? "sem_historico" : "atrasado",
+            reportStatus: "atrasado",
           },
         });
       }

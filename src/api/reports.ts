@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/react-native";
 import { supabaseRestGet } from "./rest";
+import { canonicalizeUnitLabel } from "../core/unit-label";
 
 type AdminPendingAttendanceRow = {
   organization_id: string;
@@ -25,7 +26,6 @@ type AdminClassScheduleRow = {
   id: string;
   days: number[] | null;
   daysperweek: number | string | null;
-  created_at?: string | null;
   gender?: string | null;
 };
 
@@ -106,6 +106,35 @@ const formatDateKey = (value: Date) => {
   return `${y}-${m}-${d}`;
 };
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const parseDateKeyLocal = (value: string) => {
+  const parts = value.split("-");
+  if (parts.length !== 3) return null;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+};
+
+const calcDaysSinceDateKey = (dateKey: string) => {
+  const target = parseDateKeyLocal(dateKey);
+  if (!target) return 0;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((now.getTime() - target.getTime()) / MS_PER_DAY));
+};
+
 const resolveSuggestedSessionDate = (scheduledDays: number[]) => {
   const now = new Date();
   for (let offset = 0; offset < 7; offset += 1) {
@@ -163,7 +192,7 @@ export async function listAdminPendingAttendance(params: {
     organizationId: row.organization_id,
     classId: row.class_id,
     className: row.class_name,
-    unit: row.unit,
+    unit: canonicalizeUnitLabel(row.unit ?? null) || row.unit,
     targetDate: row.target_date,
     studentCount: toInt(row.student_count),
     hasAttendanceToday: row.has_attendance_today,
@@ -181,7 +210,7 @@ export async function listAdminPendingSessionLogs(params: {
         "/v_admin_pending_session_logs?organization_id=eq." + encodedOrgId + "&select=*"
       ),
       supabaseRestGet<AdminClassScheduleRow[]>(
-        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek,created_at,gender"
+        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek,gender"
       ),
     ]);
     return { rows: pendingRows, classSchedules: scheduleRows };
@@ -222,25 +251,21 @@ export async function listAdminPendingSessionLogs(params: {
           .filter((value) => Number.isFinite(value) && value >= 1 && value <= 7)
       : [];
 
-    const classCreatedAt = schedule?.created_at ?? null;
     const classGender =
       schedule?.gender === "masculino" || schedule?.gender === "feminino" || schedule?.gender === "misto"
         ? schedule.gender
         : null;
-    const referenceDateIso = row.last_report_at ?? classCreatedAt ?? row.period_start;
-    const referenceDate = new Date(referenceDateIso);
-    const daysWithoutReport = Number.isNaN(referenceDate.getTime())
-      ? 0
-      : Math.max(0, Math.floor((Date.now() - referenceDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const suggestedDate = resolveSuggestedSessionDate(scheduledDays);
+    const daysWithoutReport = calcDaysSinceDateKey(suggestedDate);
 
     return {
       organizationId: row.organization_id,
       classId: row.class_id,
       className: row.class_name,
-      unit: row.unit,
+      unit: canonicalizeUnitLabel(row.unit ?? null) || row.unit,
       gender: classGender,
       periodStart: row.period_start,
-      suggestedDate: resolveSuggestedSessionDate(scheduledDays),
+      suggestedDate,
       daysWithoutReport,
       hasReportHistory: Boolean(row.last_report_at),
       reportsLast7d: toInt(row.reports_last_7d),
@@ -268,7 +293,7 @@ export async function listAdminRecentActivity(params: {
     kind: row.kind,
     classId: row.class_id,
     className: row.class_name,
-    unit: row.unit,
+    unit: canonicalizeUnitLabel(row.unit ?? null) || row.unit,
     occurredAt: row.occurred_at,
     actorUserId: row.actor_user_id,
     affectedRows: toInt(row.affected_rows),

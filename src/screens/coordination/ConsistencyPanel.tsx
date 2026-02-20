@@ -158,8 +158,8 @@ export function ConsistencyPanel({
               const metaBadgeStyle = {
                 borderRadius: 999,
                 borderWidth: 1,
-                borderColor: cardBorderColor,
-                backgroundColor: colors.card,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
                 paddingHorizontal: 8,
                 paddingVertical: 3,
               } as const;
@@ -193,12 +193,12 @@ export function ConsistencyPanel({
                       <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                         <Text style={{ color: titleColor, fontWeight: "700" }}>{item.className}</Text>
                         <View style={metaBadgeStyle}>
-                          <Text style={{ color: subtitleColor, fontSize: 10, fontWeight: "700" }}>
+                          <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
                             {formatGenderLabel(item.gender)}
                           </Text>
                         </View>
                         <View style={metaBadgeStyle}>
-                          <Text style={{ color: subtitleColor, fontSize: 10, fontWeight: "700" }}>
+                          <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
                             {item.unit || "Sem unidade"}
                           </Text>
                         </View>
