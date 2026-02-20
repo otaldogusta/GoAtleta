@@ -242,7 +242,7 @@ export default function ReportsScreen() {
               onPress={() =>
                 router.push({
                   pathname: "/class/[id]/session",
-                  params: { id: session.classId, tab: "relatório", date: todayDateKey },
+                  params: { id: session.classId, tab: "relatório", date: session.suggestedDate },
                 })
               }
               style={{

@@ -15,7 +15,7 @@ type ConsistencyPanelProps = {
   pendingAttendance: AdminPendingAttendance[];
   pendingReports: AdminPendingSessionLogs[];
   onOpenAttendance: (params: { classId: string; targetDate: string }) => void;
-  onOpenReport: (params: { classId: string; periodStart: string }) => void;
+  onOpenReport: (params: { classId: string; targetDate: string }) => void;
   formatDateBr: (value: string | null | undefined) => string;
   formatDateTimeBr: (value: string | null | undefined) => string;
 };
@@ -162,7 +162,7 @@ export function ConsistencyPanel({
                   onPress={() =>
                     onOpenReport({
                       classId: item.classId,
-                      periodStart: item.periodStart,
+                      targetDate: item.suggestedDate,
                     })
                   }
                   style={{

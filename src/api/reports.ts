@@ -55,6 +55,7 @@ export type AdminPendingSessionLogs = {
   className: string;
   unit: string;
   periodStart: string;
+  suggestedDate: string;
   reportsLast7d: number;
   lastReportAt: string | null;
 };
@@ -91,6 +92,27 @@ const toInt = (value: number | string | null | undefined) => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatDateKey = (value: Date) => {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const resolveSuggestedSessionDate = (scheduledDays: number[]) => {
+  const now = new Date();
+  for (let offset = 0; offset < 7; offset += 1) {
+    const date = new Date(now);
+    date.setDate(now.getDate() - offset);
+    const jsWeekday = date.getDay();
+    const isoWeekday = jsWeekday === 0 ? 7 : jsWeekday;
+    if (scheduledDays.includes(isoWeekday)) {
+      return formatDateKey(date);
+    }
+  }
+  return formatDateKey(now);
 };
 
 const assertOrganizationId = (organizationId: string, feature: string) => {
@@ -187,15 +209,25 @@ export async function listAdminPendingSessionLogs(params: {
     return toInt(schedule.daysperweek) > 0;
   });
 
-  return filteredRows.map<AdminPendingSessionLogs>((row) => ({
-    organizationId: row.organization_id,
-    classId: row.class_id,
-    className: row.class_name,
-    unit: row.unit,
-    periodStart: row.period_start,
-    reportsLast7d: toInt(row.reports_last_7d),
-    lastReportAt: row.last_report_at,
-  }));
+  return filteredRows.map<AdminPendingSessionLogs>((row) => {
+    const schedule = scheduleByClassId.get(row.class_id);
+    const scheduledDays = Array.isArray(schedule?.days)
+      ? schedule.days
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value) && value >= 1 && value <= 7)
+      : [];
+
+    return {
+      organizationId: row.organization_id,
+      classId: row.class_id,
+      className: row.class_name,
+      unit: row.unit,
+      periodStart: row.period_start,
+      suggestedDate: resolveSuggestedSessionDate(scheduledDays),
+      reportsLast7d: toInt(row.reports_last_7d),
+      lastReportAt: row.last_report_at,
+    };
+  });
 }
 
 export async function listAdminRecentActivity(params: {
