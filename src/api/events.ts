@@ -6,6 +6,7 @@ export type EventSport = "geral" | "volei_quadra" | "volei_praia" | "futebol";
 export type EventRecord = {
   id: string;
   organizationId: string;
+  ruleSetId: string | null;
   title: string;
   description: string;
   eventType: EventType;
@@ -28,6 +29,7 @@ export type EventListItem = EventRecord & {
 type EventRow = {
   id: string;
   organization_id: string;
+  rule_set_id: string | null;
   title: string;
   description: string;
   event_type: EventType;
@@ -55,6 +57,7 @@ type ClassStaffRow = {
 const toRecord = (row: EventRow): EventRecord => ({
   id: row.id,
   organizationId: row.organization_id,
+  ruleSetId: row.rule_set_id,
   title: row.title,
   description: row.description,
   eventType: row.event_type,
@@ -200,6 +203,7 @@ export async function createEvent(input: {
   endsAt: string;
   allDay?: boolean;
   unitId?: string | null;
+  ruleSetId?: string | null;
   locationLabel?: string;
   createdBy: string;
 }) {
@@ -216,6 +220,7 @@ export async function createEvent(input: {
         ends_at: input.endsAt,
         all_day: input.allDay ?? false,
         unit_id: input.unitId ?? null,
+        rule_set_id: input.ruleSetId ?? null,
         location_label: input.locationLabel ?? "",
         created_by: input.createdBy,
       },
@@ -239,6 +244,7 @@ export async function updateEvent(
     endsAt?: string;
     allDay?: boolean;
     unitId?: string | null;
+    ruleSetId?: string | null;
     locationLabel?: string;
   }
 ) {
@@ -251,6 +257,7 @@ export async function updateEvent(
   if (patch.endsAt !== undefined) body.ends_at = patch.endsAt;
   if (patch.allDay !== undefined) body.all_day = patch.allDay;
   if (patch.unitId !== undefined) body.unit_id = patch.unitId;
+  if (patch.ruleSetId !== undefined) body.rule_set_id = patch.ruleSetId;
   if (patch.locationLabel !== undefined) body.location_label = patch.locationLabel;
 
   const path =
