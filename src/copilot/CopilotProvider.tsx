@@ -31,7 +31,6 @@ type CopilotContextData = {
   screen: string;
   title?: string;
   subtitle?: string;
-  chips?: { label: string; value: string }[];
   activeSignal?: CopilotSignal;
 };
 
