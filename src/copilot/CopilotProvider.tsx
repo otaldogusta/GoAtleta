@@ -356,6 +356,27 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const recommendedActions = useMemo(() => {
     return getRecommendedSignalActions(selectedSignal, state.actions);
   }, [selectedSignal, state.actions]);
+  const generalActions = useMemo(() => {
+    if (!recommendedActions.length) return state.actions;
+    const recommendedIds = new Set(recommendedActions.map((item) => item.id));
+    return state.actions.filter((item) => !recommendedIds.has(item.id));
+  }, [recommendedActions, state.actions]);
+  const selectedSeverityColor =
+    selectedSignal?.severity === "critical"
+      ? colors.dangerText
+      : selectedSignal?.severity === "high"
+        ? colors.warningText
+        : selectedSignal?.severity === "medium"
+          ? colors.text
+          : colors.muted;
+  const selectedSeverityLabel =
+    selectedSignal?.severity === "critical"
+      ? "Critico"
+      : selectedSignal?.severity === "high"
+        ? "Alto"
+        : selectedSignal?.severity === "medium"
+          ? "Medio"
+          : "Baixo";
   const showFab =
     Boolean(session) &&
     !publicRoutes.has(normalizedPath) &&
@@ -541,9 +562,33 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             ) : null}
 
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{`Sinais do momento: ${state.signals.length}`}</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>Alertas ativos</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {state.signals.length
+                  ? `${state.signals.length} alerta(s) detectado(s) no contexto atual.`
+                  : "Nenhum alerta ativo neste momento."}
+              </Text>
               {state.signals.length ? (
                 <>
+                  {selectedSignal ? (
+                    <View
+                      style={{
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        padding: 10,
+                        gap: 4,
+                      }}
+                    >
+                      <Text style={{ color: selectedSeverityColor, fontSize: 11, fontWeight: "800" }}>
+                        Alerta em foco - {selectedSeverityLabel}
+                      </Text>
+                      <Text style={{ color: colors.text, fontWeight: "800" }}>{selectedSignal.title}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>{selectedSignal.summary}</Text>
+                    </View>
+                  ) : null}
+
                   <ScrollView style={{ maxHeight: 160 }} contentContainerStyle={{ gap: 8 }}>
                     {state.signals.map((signal) => {
                       const isSelected = signal.id === selectedSignal?.id;
@@ -579,10 +624,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                       );
                     })}
                   </ScrollView>
+
                   {recommendedActions.length ? (
                     <View style={{ gap: 6 }}>
                       <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                        Acoes rapidas do sinal
+                        Acoes para este alerta
                       </Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                         {recommendedActions.map((action) => (
@@ -607,18 +653,22 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         ))}
                       </ScrollView>
                     </View>
+                  ) : selectedSignal ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Este alerta nao possui acoes recomendadas no momento.
+                    </Text>
                   ) : null}
                 </>
               ) : (
-                <Text style={{ color: colors.muted }}>Sem sinais relevantes neste momento.</Text>
+                <Text style={{ color: colors.muted }}>Sem alertas para monitorar agora.</Text>
               )}
             </View>
 
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes disponiveis</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes gerais da tela</Text>
               <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ gap: 8 }}>
-                {state.actions.length ? (
-                  state.actions.map((action) => (
+                {generalActions.length ? (
+                  generalActions.map((action) => (
                     <Pressable
                       key={action.id}
                       onPress={() => {
@@ -643,7 +693,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                     </Pressable>
                   ))
                 ) : (
-                  <Text style={{ color: colors.muted }}>Sem ações disponíveis neste contexto.</Text>
+                  <Text style={{ color: colors.muted }}>Sem acoes gerais disponiveis neste contexto.</Text>
                 )}
               </ScrollView>
             </View>
@@ -758,5 +808,6 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
+
 
 
