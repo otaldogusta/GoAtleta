@@ -72,4 +72,36 @@ describe("copilot signals", () => {
     const result = getRecommendedSignalActions(signal, actions);
     expect(result.map((item) => item.id)).toEqual(["a2", "a1"]);
   });
+
+  test("sortCopilotSignals keeps stable order when severity and detectedAt are equal", () => {
+    const signals: Signal[] = [
+      {
+        id: "s1",
+        type: "attendance_drop",
+        severity: "medium",
+        scope: "class",
+        organizationId: "org_1",
+        title: "First",
+        summary: "First",
+        evidence: {},
+        recommendedActionIds: [],
+        detectedAt: "2026-02-19T10:00:00.000Z",
+      },
+      {
+        id: "s2",
+        type: "report_delay",
+        severity: "medium",
+        scope: "class",
+        organizationId: "org_1",
+        title: "Second",
+        summary: "Second",
+        evidence: {},
+        recommendedActionIds: [],
+        detectedAt: "2026-02-19T10:00:00.000Z",
+      },
+    ];
+
+    const sorted = sortCopilotSignals(signals);
+    expect(sorted.map((item) => item.id)).toEqual(["s1", "s2"]);
+  });
 });

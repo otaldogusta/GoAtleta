@@ -58,7 +58,6 @@ import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
 import {
-  useCopilot,
   useCopilotActions,
   useCopilotContext,
   useCopilotSignals,
@@ -353,8 +352,8 @@ export default function CoordinationScreen() {
   const [syncClassifications, setSyncClassifications] = useState<Record<string, SyncErrorClassificationResult>>({});
   const [dataFixSuggestions, setDataFixSuggestions] = useState<DataFixSuggestionsResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiMessage, setAiMessage] = useState<string | null>(null);
-  const [aiExportLoading, setAiExportLoading] = useState(false);
+  const [, setAiMessage] = useState<string | null>(null);
+  const [, setAiExportLoading] = useState(false);
   const [classRadarItems, setClassRadarItems] = useState<ClassRadarItem[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
 
@@ -1063,8 +1062,6 @@ export default function CoordinationScreen() {
     }
   }, [dataFixSuggestions, executiveSummary, organizationName]);
 
-  const { open: openCopilot, actionCount, signalCount } = useCopilot();
-
   useCopilotContext(
     useMemo(
       () =>
@@ -1106,9 +1103,9 @@ export default function CoordinationScreen() {
               id: "signal_intervention_plan",
               title: "Plano de intervencao",
               description: "Gera plano tatico para o sinal selecionado.",
-              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal no Copilot primeiro."),
+              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
               run: async (ctx) => {
-                if (!ctx?.activeSignal) return { message: "Selecione um sinal no Copilot primeiro." };
+                if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalInterventionPlan(ctx.activeSignal);
                 return { message: "Plano de intervencao gerado e copiado." };
               },
@@ -1117,9 +1114,9 @@ export default function CoordinationScreen() {
               id: "signal_parent_message",
               title: "Mensagem para pais",
               description: "Monta mensagem curta para comunicacao com responsaveis.",
-              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal no Copilot primeiro."),
+              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
               run: async (ctx) => {
-                if (!ctx?.activeSignal) return { message: "Selecione um sinal no Copilot primeiro." };
+                if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalParentMessage(ctx.activeSignal);
                 return { message: "Mensagem para responsaveis copiada." };
               },
@@ -1128,9 +1125,9 @@ export default function CoordinationScreen() {
               id: "signal_cause_analysis",
               title: "Analisar causas",
               description: "Executa analise estruturada de causa para o sinal.",
-              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal no Copilot primeiro."),
+              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
               run: async (ctx) => {
-                if (!ctx?.activeSignal) return { message: "Selecione um sinal no Copilot primeiro." };
+                if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalCauseAnalysis(ctx.activeSignal);
                 return { message: "Analise de causa pronta e copiada." };
               },
@@ -1470,45 +1467,6 @@ export default function CoordinationScreen() {
             items={classRadarItems}
             onCopyPrompt={handleCopyRadarPrompt}
           />
-
-          <View
-            style={{
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: 12,
-              gap: 8,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "800" }}>Copilot central</Text>
-            <Text style={{ color: colors.muted }}>
-              {actionCount || signalCount
-                ? `Copilot disponivel com ${signalCount} sinal(is) e ${actionCount} acao(oes) para esta tela.`
-                : "Copilot sem sinais ou acoes para este contexto."}
-            </Text>
-            {aiMessage ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>{aiMessage}</Text>
-            ) : null}
-            <Pressable
-              onPress={openCopilot}
-              disabled={!(actionCount || signalCount) || aiLoading || aiExportLoading}
-              style={{
-                alignSelf: "flex-start",
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                opacity: actionCount || signalCount ? (aiLoading || aiExportLoading ? 0.6 : 1) : 0.6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {aiLoading || aiExportLoading ? "Executando..." : "Abrir Copilot"}
-              </Text>
-            </Pressable>
-          </View>
 
           {isWideLayout ? (
             <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>

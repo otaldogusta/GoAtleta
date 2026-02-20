@@ -1,6 +1,7 @@
 import { usePathname } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   Modal,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,12 @@ import {
   getRecommendedSignalActions,
   sortCopilotSignals,
 } from "./signal-utils";
+import {
+  buildCentralSnapshot,
+  countUnreadFromSnapshot,
+  hasSnapshotChanged,
+  type CentralSnapshot,
+} from "./updates-utils";
 import { Pressable } from "../ui/Pressable";
 import { useAppTheme } from "../ui/app-theme";
 
@@ -57,6 +64,8 @@ type CopilotState = {
   open: boolean;
   runningActionId: string | null;
   history: CopilotHistoryItem[];
+  hasUnreadUpdates: boolean;
+  unreadCount: number;
 };
 
 type CopilotInternalContext = {
@@ -80,7 +89,7 @@ const MAX_HISTORY_ITEMS = 12;
 const publicRoutes = new Set(["/welcome", "/login", "/signup", "/reset-password"]);
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
-  if (!value) return { message: "Ação concluída." };
+  if (!value) return { message: "Acao concluida." };
   if (typeof value === "string") return { message: value };
   return value;
 };
@@ -108,6 +117,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const actionsRegistryRef = useRef<Map<string, CopilotAction[]>>(new Map());
   const signalsRegistryRef = useRef<Map<string, CopilotSignal[]>>(new Map());
   const activeOwnerRef = useRef<string | null>(null);
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
+  const lastComputedSnapshotRef = useRef<CentralSnapshot | null>(null);
 
   const [state, setState] = useState<CopilotState>({
     context: null,
@@ -117,6 +129,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     open: false,
     runningActionId: null,
     history: [],
+    hasUnreadUpdates: false,
+    unreadCount: 0,
   });
 
   const setContext = useCallback((ownerId: string, context: CopilotContextData | null) => {
@@ -194,20 +208,70 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const currentSnapshot = useMemo(() => {
+    return buildCentralSnapshot({
+      screenKey: state.context?.screen ?? "__none__",
+      signals: state.signals,
+      actions: state.actions,
+      historyHead: state.history[0]
+        ? { id: state.history[0].id, createdAt: state.history[0].createdAt }
+        : null,
+    });
+  }, [state.actions, state.context?.screen, state.history, state.signals]);
+
   const open = useCallback(() => {
-    setState((prev) => ({ ...prev, open: true }));
-  }, []);
+    const latestSnapshot = lastComputedSnapshotRef.current ?? currentSnapshot;
+    lastSeenSnapshotRef.current = latestSnapshot;
+    setState((prev) => ({
+      ...prev,
+      open: true,
+      hasUnreadUpdates: false,
+      unreadCount: 0,
+    }));
+  }, [currentSnapshot]);
 
   const close = useCallback(() => {
     setState((prev) => ({ ...prev, open: false }));
   }, []);
+
+  useEffect(() => {
+    const previousSnapshot = lastComputedSnapshotRef.current;
+    const changed = hasSnapshotChanged(previousSnapshot, currentSnapshot);
+    lastComputedSnapshotRef.current = currentSnapshot;
+
+    if (state.open) {
+      lastSeenSnapshotRef.current = currentSnapshot;
+      if (state.hasUnreadUpdates || state.unreadCount > 0) {
+        setState((prev) => ({
+          ...prev,
+          hasUnreadUpdates: false,
+          unreadCount: 0,
+        }));
+      }
+      return;
+    }
+
+    if (!changed) return;
+    const unread = countUnreadFromSnapshot(lastSeenSnapshotRef.current, currentSnapshot);
+    if (unread <= 0) return;
+
+    setState((prev) => {
+      if (prev.open) return prev;
+      if (prev.hasUnreadUpdates && prev.unreadCount === unread) return prev;
+      return {
+        ...prev,
+        hasUnreadUpdates: true,
+        unreadCount: unread,
+      };
+    });
+  }, [currentSnapshot, state.hasUnreadUpdates, state.open, state.unreadCount]);
 
   const runAction = useCallback(async (action: CopilotAction) => {
     const selectedSignal =
       state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
     const actionContext: CopilotContextData | null = selectedSignal
       ? {
-          ...(state.context ?? { screen: "copilot" }),
+          ...(state.context ?? { screen: "central" }),
           activeSignal: selectedSignal,
         }
       : state.context ?? null;
@@ -239,7 +303,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       }));
     } catch (error) {
       const result: CopilotActionResult = {
-        message: error instanceof Error ? error.message : "Falha ao executar ação do Copilot.",
+        message: error instanceof Error ? error.message : "Falha ao executar acao da Central.",
       };
       setState((prev) => ({
         ...prev,
@@ -290,16 +354,71 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const showFab =
     Boolean(session) &&
     !publicRoutes.has(normalizedPath) &&
-    (state.actions.length > 0 || state.signals.length > 0) &&
     !normalizedPath.startsWith("/invite");
+  const unreadBadgeLabel = state.unreadCount > 9 ? "9+" : String(state.unreadCount);
+
+  useEffect(() => {
+    if (!(showFab && state.hasUnreadUpdates)) {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(0);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(0);
+    };
+  }, [pulseAnim, showFab, state.hasUnreadUpdates]);
 
   return (
     <CopilotContext.Provider value={value}>
       {children}
       {showFab ? (
         <View pointerEvents="box-none" style={styles.fabWrapper}>
+          {state.hasUnreadUpdates ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.fabPulseRing,
+                {
+                  borderColor: colors.primaryBg,
+                  opacity: pulseAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.28, 0],
+                  }),
+                  transform: [
+                    {
+                      scale: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.14],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          ) : null}
           <Pressable
             onPress={open}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir central"
             style={{
               borderRadius: 999,
               borderWidth: 1,
@@ -307,6 +426,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               backgroundColor: colors.primaryBg,
               paddingHorizontal: 16,
               paddingVertical: 12,
+              minHeight: 44,
+              minWidth: 112,
+              alignItems: "center",
+              justifyContent: "center",
               shadowColor: "#000",
               shadowOpacity: 0.22,
               shadowRadius: 12,
@@ -314,9 +437,26 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               elevation: 5,
             }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>
-              Copilot
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>
+                Central
+              </Text>
+              {state.unreadCount > 0 ? (
+                <View
+                  style={{
+                    borderRadius: 999,
+                    minWidth: 20,
+                    height: 20,
+                    paddingHorizontal: 6,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.background,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>{unreadBadgeLabel}</Text>
+                </View>
+              ) : null}
+            </View>
           </Pressable>
         </View>
       ) : null}
@@ -339,9 +479,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           >
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <View style={{ gap: 2 }}>
-                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Copilot</Text>
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Resumo do dia</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {state.context?.title ?? state.context?.screen ?? "Assistência contextual"}
+                  {state.context?.title ?? state.context?.screen ?? "Painel contextual"}
                 </Text>
               </View>
               <Pressable
@@ -382,9 +522,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             ) : null}
 
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>
-                {`Hoje o sistema detectou ${state.signals.length} sinais relevantes`}
-              </Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>{`Sinais do momento: ${state.signals.length}`}</Text>
               {state.signals.length ? (
                 <>
                   <ScrollView style={{ maxHeight: 160 }} contentContainerStyle={{ gap: 8 }}>
@@ -425,7 +563,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                   {recommendedActions.length ? (
                     <View style={{ gap: 6 }}>
                       <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                        Acoes rapidas para o sinal selecionado
+                        Acoes rapidas do sinal
                       </Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                         {recommendedActions.map((action) => (
@@ -458,7 +596,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             </View>
 
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Ações sugeridas</Text>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes disponiveis</Text>
               <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ gap: 8 }}>
                 {state.actions.length ? (
                   state.actions.map((action) => (
@@ -545,6 +683,8 @@ export function useCopilot() {
     isOpen: context.state.open,
     actionCount: context.state.actions.length,
     signalCount: context.state.signals.length,
+    hasUnreadUpdates: context.state.hasUnreadUpdates,
+    unreadCount: context.state.unreadCount,
     signals: context.state.signals,
     activeSignal:
       context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
@@ -614,6 +754,15 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 24,
     zIndex: 90,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fabPulseRing: {
+    position: "absolute",
+    width: 120,
+    height: 52,
+    borderRadius: 999,
+    borderWidth: 2,
   },
   backdrop: {
     flex: 1,
