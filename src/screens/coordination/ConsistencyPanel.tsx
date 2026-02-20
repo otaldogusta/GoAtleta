@@ -144,18 +144,13 @@ export function ConsistencyPanel({
             windowSize={6}
             contentContainerStyle={{ gap: 8 }}
             renderItem={({ item }) => {
-              const daysSinceReport = item.lastReportAt
-                ? Math.max(
-                    0,
-                    Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
-                  )
-                : null;
-              const isCritical = daysSinceReport === null || daysSinceReport > 7;
+              const daysSinceReport = item.daysWithoutReport;
+              const isCritical = daysSinceReport > 7;
               const cardBorderColor = isCritical ? colors.dangerBorder : colors.border;
               const cardBackgroundColor = isCritical ? colors.dangerBg : colors.secondaryBg;
               const titleColor = isCritical ? colors.dangerText : colors.text;
               const subtitleColor = isCritical ? colors.dangerText : colors.muted;
-              const badgeLabel = daysSinceReport === null ? "Sem relatorio" : `${daysSinceReport}d`;
+              const badgeLabel = `${daysSinceReport}d`;
 
               return (
                 <Pressable
@@ -202,7 +197,10 @@ export function ConsistencyPanel({
                   </View>
                   <Text style={{ color: subtitleColor, fontSize: 12 }}>
                     {item.unit || "Sem unidade"} - Ultimo:{" "}
-                    {item.lastReportAt ? formatDateTimeBr(item.lastReportAt) : "Sem historico"}
+                    {item.hasReportHistory ? formatDateTimeBr(item.lastReportAt) : "Nunca enviado"}
+                  </Text>
+                  <Text style={{ color: subtitleColor, fontSize: 12 }}>
+                    Data sugerida para registrar: {formatDateBr(item.suggestedDate)}
                   </Text>
                 </Pressable>
               );
