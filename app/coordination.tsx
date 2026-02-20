@@ -88,6 +88,12 @@ const formatDateTimeBr = (value: string | null | undefined) => {
 };
 
 const toDateKey = (value: string) => (value.includes("T") ? value.split("T")[0] : value);
+const formatDateKey = (value: Date) => {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
 
 const parseTimeToMinutes = (value: string | null | undefined) => {
   if (!value) return null;
@@ -367,6 +373,7 @@ export default function CoordinationScreen() {
     ],
     []
   );
+  const todayDateKey = useMemo(() => formatDateKey(new Date()), []);
 
   const topDelaysByTrainer = useMemo(
     () =>
@@ -1433,13 +1440,13 @@ export default function CoordinationScreen() {
                       params: { id: classId, date: targetDate },
                     })
                   }
-                  onOpenReport={({ classId, periodStart }) =>
+                  onOpenReport={({ classId }) =>
                     router.push({
                       pathname: "/class/[id]/session",
                       params: {
                         id: classId,
                         tab: "relatório",
-                        date: periodStart,
+                        date: todayDateKey,
                       },
                     })
                   }
@@ -1508,13 +1515,13 @@ export default function CoordinationScreen() {
                     params: { id: classId, date: targetDate },
                   })
                 }
-                onOpenReport={({ classId, periodStart }) =>
+                onOpenReport={({ classId }) =>
                   router.push({
                     pathname: "/class/[id]/session",
                     params: {
                       id: classId,
                       tab: "relatório",
-                      date: periodStart,
+                      date: todayDateKey,
                     },
                   })
                 }

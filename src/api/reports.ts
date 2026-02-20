@@ -21,6 +21,12 @@ type AdminPendingSessionLogsRow = {
   last_report_at: string | null;
 };
 
+type AdminClassScheduleRow = {
+  id: string;
+  days: number[] | null;
+  daysperweek: number | string | null;
+};
+
 type AdminRecentActivityRow = {
   organization_id: string;
   kind: "attendance" | "session_log";
@@ -141,14 +147,47 @@ export async function listAdminPendingSessionLogs(params: {
   organizationId: string;
 }) {
   assertOrganizationId(params.organizationId, "listAdminPendingSessionLogs");
-  const rows = await withTiming("listAdminPendingSessionLogs", () =>
-    supabaseRestGet<AdminPendingSessionLogsRow[]>(
-      "/v_admin_pending_session_logs?organization_id=eq." +
-        encodeURIComponent(params.organizationId) +
-        "&select=*"
-    )
-  );
-  return rows.map<AdminPendingSessionLogs>((row) => ({
+  const { rows, classSchedules } = await withTiming("listAdminPendingSessionLogs", async () => {
+    const encodedOrgId = encodeURIComponent(params.organizationId);
+    const [pendingRows, scheduleRows] = await Promise.all([
+      supabaseRestGet<AdminPendingSessionLogsRow[]>(
+        "/v_admin_pending_session_logs?organization_id=eq." + encodedOrgId + "&select=*"
+      ),
+      supabaseRestGet<AdminClassScheduleRow[]>(
+        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek"
+      ),
+    ]);
+    return { rows: pendingRows, classSchedules: scheduleRows };
+  });
+
+  const isoWeekdaysInWindow = new Set<number>();
+  for (let offset = 0; offset < 7; offset += 1) {
+    const day = new Date();
+    day.setDate(day.getDate() - offset);
+    const jsWeekday = day.getDay();
+    const isoWeekday = jsWeekday === 0 ? 7 : jsWeekday;
+    isoWeekdaysInWindow.add(isoWeekday);
+  }
+
+  const scheduleByClassId = new Map(classSchedules.map((item) => [item.id, item]));
+  const filteredRows = rows.filter((row) => {
+    const schedule = scheduleByClassId.get(row.class_id);
+    if (!schedule) return true;
+
+    const scheduledDays = Array.isArray(schedule.days)
+      ? schedule.days
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value) && value >= 1 && value <= 7)
+      : [];
+    if (scheduledDays.length > 0) {
+      return scheduledDays.some((weekday) => isoWeekdaysInWindow.has(weekday));
+    }
+
+    // Legacy fallback: if days are missing but class has weekly frequency, keep the pending item.
+    return toInt(schedule.daysperweek) > 0;
+  });
+
+  return filteredRows.map<AdminPendingSessionLogs>((row) => ({
     organizationId: row.organization_id,
     classId: row.class_id,
     className: row.class_name,
