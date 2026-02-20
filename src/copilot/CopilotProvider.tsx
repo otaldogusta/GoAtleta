@@ -364,13 +364,13 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
   const unreadBadgeLabel = state.unreadCount > 9 ? "9+" : String(state.unreadCount);
-  const sheetBottomSpacing = Math.max(
-    insets.bottom + 8,
-    Platform.OS === "web" ? 16 : 12
+  const sheetContentBottomPadding = Math.max(
+    insets.bottom + 10,
+    Platform.OS === "web" ? 16 : 14
   );
   const sheetMaxHeight = Math.max(
     420,
-    Math.min(viewportHeight * 0.82, viewportHeight - sheetBottomSpacing - 16)
+    Math.min(viewportHeight * 0.82, viewportHeight - 16)
   );
   const sheetMinHeight = Math.min(sheetMaxHeight, Math.max(340, viewportHeight * 0.52));
 
@@ -483,7 +483,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <Pressable onPress={close} style={styles.overlayCloseArea} />
           <View
             style={{
-              marginBottom: sheetBottomSpacing,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               borderWidth: 1,
@@ -493,6 +492,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               minHeight: sheetMinHeight,
               overflow: "hidden",
               padding: 14,
+              paddingBottom: sheetContentBottomPadding,
               gap: 12,
             }}
           >
@@ -786,7 +786,7 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(4, 8, 16, 0.3)",
+    backgroundColor: "rgba(4, 8, 16, 0.42)",
   },
   overlayCloseArea: {
     flex: 1,
