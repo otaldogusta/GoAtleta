@@ -1,6 +1,7 @@
 export type CentralSnapshot = {
   screenKey: string;
   signalKeys: string[];
+  ruleUpdateKeys: string[];
   actionKeys: string[];
   historyHeadKey: string;
   serialized: string;
@@ -9,6 +10,12 @@ export type CentralSnapshot = {
 type SnapshotInput = {
   screenKey?: string | null;
   signals: { id: string; severity?: string | null; detectedAt?: string | null }[];
+  ruleUpdates?: {
+    id: string;
+    publishedAt?: string | null;
+    createdAt?: string | null;
+    checksum?: string | null;
+  }[];
   actions: { id: string }[];
   historyHead?: { id: string; createdAt?: string | null } | null;
 };
@@ -24,6 +31,12 @@ export const buildCentralSnapshot = (input: SnapshotInput): CentralSnapshot => {
       (item) => `${item.id}:${item.severity ?? NONE}:${item.detectedAt ?? NONE}`
     )
   );
+  const ruleUpdateKeys = sortUnique(
+    (input.ruleUpdates ?? []).map(
+      (item) =>
+        `${item.id}:${item.publishedAt ?? NONE}:${item.createdAt ?? NONE}:${item.checksum ?? NONE}`
+    )
+  );
   const actionKeys = sortUnique(input.actions.map((item) => item.id));
   const historyHeadKey = input.historyHead
     ? `${input.historyHead.id}:${input.historyHead.createdAt ?? NONE}`
@@ -31,6 +44,7 @@ export const buildCentralSnapshot = (input: SnapshotInput): CentralSnapshot => {
   const serialized = [
     screenKey,
     signalKeys.join(","),
+    ruleUpdateKeys.join(","),
     actionKeys.join(","),
     historyHeadKey,
   ].join("|");
@@ -38,6 +52,7 @@ export const buildCentralSnapshot = (input: SnapshotInput): CentralSnapshot => {
   return {
     screenKey,
     signalKeys,
+    ruleUpdateKeys,
     actionKeys,
     historyHeadKey,
     serialized,
@@ -60,10 +75,12 @@ export const countUnreadFromSnapshot = (
   if (lastSeenSnapshot.serialized === currentSnapshot.serialized) return 0;
 
   const lastSignals = new Set(lastSeenSnapshot.signalKeys);
+  const lastRuleUpdates = new Set(lastSeenSnapshot.ruleUpdateKeys ?? []);
   const lastActions = new Set(lastSeenSnapshot.actionKeys);
 
   let unread = 0;
   unread += currentSnapshot.signalKeys.filter((item) => !lastSignals.has(item)).length;
+  unread += (currentSnapshot.ruleUpdateKeys ?? []).filter((item) => !lastRuleUpdates.has(item)).length;
   unread += currentSnapshot.actionKeys.filter((item) => !lastActions.has(item)).length;
 
   if (

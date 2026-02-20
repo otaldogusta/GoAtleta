@@ -1,0 +1,71 @@
+name: Rules Sync
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      organization_id:
+        description: "Optional organization id filter"
+        required: false
+        type: string
+      source_id:
+        description: "Optional source id filter"
+        required: false
+        type: string
+      force:
+        description: "Ignore check interval for this run"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger rules sync function
+        env:
+          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
+          RULES_SYNC_SECRET: ${{ secrets.RULES_SYNC_SECRET }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          INPUT_ORG_ID: ${{ github.event.inputs.organization_id }}
+          INPUT_SOURCE_ID: ${{ github.event.inputs.source_id }}
+          INPUT_FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_PROJECT_URL:-}" ] || [ -z "${RULES_SYNC_SECRET:-}" ]; then
+            echo "Missing required secrets (SUPABASE_PROJECT_URL or RULES_SYNC_SECRET)."
+            exit 1
+          fi
+
+          BODY="$(jq -n \
+            --arg org "${INPUT_ORG_ID:-}" \
+            --arg source "${INPUT_SOURCE_ID:-}" \
+            --arg force "${INPUT_FORCE:-}" \
+            '{
+              organizationId: (if $org == "" then null else $org end),
+              sourceId: (if $source == "" then null else $source end),
+              force: (if $force == "" then false else ($force == "true") end)
+            }'
+          )"
+
+          echo "Request body: $BODY"
+
+          HTTP_CODE="$(curl -sS \
+            -o response.json \
+            -w "%{http_code}" \
+            -X POST "${SUPABASE_PROJECT_URL}/functions/v1/rules-sync" \
+            -H "Content-Type: application/json" \
+            -H "x-rules-sync-secret: ${RULES_SYNC_SECRET}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY:-}" \
+            -d "$BODY"
+          )"
+
+          echo "HTTP status: ${HTTP_CODE}"
+          cat response.json
+
+          if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
+            echo "rules-sync failed"
+            exit 1
+          fi

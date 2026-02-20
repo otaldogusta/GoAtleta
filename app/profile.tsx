@@ -159,6 +159,7 @@ export default function ProfileScreen() {
   const loadingProfile = loadingClasses || loadingPhoto;
   const showWorkspaceSwitcher = !student && organizations.length > 1;
   const isDevUser = session?.user?.email === "gusantinho753@gmail.com";
+  const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const currentClass = useMemo(() => {
     if (!student || !student.classId) return null;
@@ -816,6 +817,16 @@ export default function ProfileScreen() {
                   label="Presença NFC"
                   subtitle="Modo presença por tag UID"
                   onPress={() => router.push("/nfc-attendance")}
+                  rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
+                />
+              ) : null}
+              {!student && isOrgAdmin ? (
+                <SettingsRow
+                  icon="document-text-outline"
+                  iconBg="rgba(255, 210, 140, 0.16)"
+                  label="Fontes de regulamento"
+                  subtitle="Monitoramento e sync de fontes oficiais"
+                  onPress={() => router.push("/regulation-sources")}
                   rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
                 />
               ) : null}

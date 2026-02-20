@@ -54,6 +54,7 @@ const trainerPermissionByPrefix = [
   { prefix: "/assistant", permissionKey: "assistant" },
   { prefix: "/org-members", permissionKey: "org_members" },
   { prefix: "/nfc-attendance", permissionKey: "classes" },
+  { prefix: "/regulation-sources", permissionKey: "org_members" },
 ] as const;
 
 const studentOnlyRoutes = [
@@ -76,6 +77,7 @@ const trainerOnlyPrefixes = [
   "/periodization",
   "/reports",
   "/org-members",
+  "/regulation-sources",
   "/nfc-attendance",
   "/students",
   "/training",

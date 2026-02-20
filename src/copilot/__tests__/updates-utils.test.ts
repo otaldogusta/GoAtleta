@@ -81,4 +81,39 @@ describe("copilot updates utils", () => {
     expect(hasSnapshotChanged(previous, current)).toBe(true);
     expect(countUnreadFromSnapshot(previous, current)).toBe(1);
   });
+
+  test("counts unread when a regulation update key changes", () => {
+    const previous = buildCentralSnapshot({
+      screenKey: "coordination",
+      signals: [],
+      ruleUpdates: [
+        {
+          id: "ru_1",
+          publishedAt: "2026-02-19T10:00:00.000Z",
+          createdAt: "2026-02-19T10:01:00.000Z",
+          checksum: "abc",
+        },
+      ],
+      actions: [],
+      historyHead: null,
+    });
+
+    const current = buildCentralSnapshot({
+      screenKey: "coordination",
+      signals: [],
+      ruleUpdates: [
+        {
+          id: "ru_1",
+          publishedAt: "2026-02-19T10:00:00.000Z",
+          createdAt: "2026-02-19T10:01:00.000Z",
+          checksum: "def",
+        },
+      ],
+      actions: [],
+      historyHead: null,
+    });
+
+    expect(hasSnapshotChanged(previous, current)).toBe(true);
+    expect(countUnreadFromSnapshot(previous, current)).toBe(1);
+  });
 });

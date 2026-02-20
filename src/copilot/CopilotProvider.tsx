@@ -2,6 +2,7 @@ import { usePathname } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,9 +11,17 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "../auth/auth";
 import type { Signal as CopilotSignal } from "../ai/signal-engine";
+import {
+  listRegulationUpdates,
+  markRegulationUpdateRead,
+  type RegulationUpdate,
+} from "../api/regulation-updates";
+import { addNotification } from "../notificationsInbox";
+import { useOrganization } from "../providers/OrganizationProvider";
 import {
   getRecommendedSignalActions,
   sortCopilotSignals,
@@ -63,17 +72,21 @@ type InsightsCategory =
   | "absences"
   | "nfc"
   | "attendance"
-  | "engagement";
+  | "engagement"
+  | "regulation";
+
+type SignalInsightsCategory = Exclude<InsightsCategory, "regulation">;
 
 type InsightsView =
   | { mode: "root" }
   | { mode: "category"; category: InsightsCategory }
-  | { mode: "detail"; category: InsightsCategory; signalId: string };
+  | { mode: "detail"; category: InsightsCategory; itemId: string };
 
 type CopilotState = {
   context: CopilotContextData | null;
   actions: CopilotAction[];
   signals: CopilotSignal[];
+  regulationUpdates: RegulationUpdate[];
   selectedSignalId: string | null;
   open: boolean;
   runningActionId: string | null;
@@ -99,6 +112,8 @@ type CopilotInternalContext = {
 const CopilotContext = createContext<CopilotInternalContext | null>(null);
 
 const MAX_HISTORY_ITEMS = 12;
+const REGULATION_POLL_INTERVAL_MS = 90_000;
+const REGULATION_NOTIFIED_STORAGE_PREFIX = "reg_updates_notified_v1";
 
 const publicRoutes = new Set(["/welcome", "/login", "/signup", "/reset-password"]);
 
@@ -108,9 +123,11 @@ const categoryLabelById: Record<InsightsCategory, string> = {
   nfc: "Presença NFC",
   attendance: "Queda de presença",
   engagement: "Risco de engajamento",
+  regulation: "Regulamento atualizado",
 };
 
 const categorySortOrder: InsightsCategory[] = [
+  "regulation",
   "reports",
   "absences",
   "nfc",
@@ -131,6 +148,26 @@ const signalToCategory = (signalType: CopilotSignal["type"]): InsightsCategory =
     case "engagement_risk":
       return "engagement";
   }
+};
+
+const buildRegulationNotificationKey = (userId: string, organizationId: string) =>
+  `${REGULATION_NOTIFIED_STORAGE_PREFIX}:${userId}:${organizationId}`;
+
+const normalizeNotificationIds = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+  const unique = new Set<string>();
+  for (const item of value) {
+    const id = String(item ?? "").trim();
+    if (id) unique.add(id);
+  }
+  return Array.from(unique);
+};
+
+const regulationDateLabel = (value: string | null | undefined) => {
+  if (!value) return "-";
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return "-";
+  return new Date(parsed).toLocaleDateString("pt-BR");
 };
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
@@ -157,6 +194,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
   const pathname = usePathname();
   const { session } = useAuth();
+  const { activeOrganizationId } = useOrganization();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
 
@@ -167,11 +205,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
   const lastComputedSnapshotRef = useRef<CentralSnapshot | null>(null);
+  const notifiedUpdatesCacheKeyRef = useRef<string | null>(null);
+  const notifiedUpdateIdsRef = useRef<Set<string>>(new Set());
 
   const [state, setState] = useState<CopilotState>({
     context: null,
     actions: [],
     signals: [],
+    regulationUpdates: [],
     selectedSignalId: null,
     open: false,
     runningActionId: null,
@@ -256,16 +297,101 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const loadNotifiedRegulationIds = useCallback(async () => {
+    const userId = session?.user?.id ?? "";
+    const organizationId = activeOrganizationId ?? "";
+    if (!userId || !organizationId) {
+      notifiedUpdatesCacheKeyRef.current = null;
+      notifiedUpdateIdsRef.current = new Set();
+      return new Set<string>();
+    }
+
+    const storageKey = buildRegulationNotificationKey(userId, organizationId);
+    if (notifiedUpdatesCacheKeyRef.current === storageKey) {
+      return new Set(notifiedUpdateIdsRef.current);
+    }
+
+    let loadedIds: string[] = [];
+    try {
+      const raw = await AsyncStorage.getItem(storageKey);
+      if (raw) {
+        loadedIds = normalizeNotificationIds(JSON.parse(raw));
+      }
+    } catch {
+      loadedIds = [];
+    }
+
+    notifiedUpdatesCacheKeyRef.current = storageKey;
+    notifiedUpdateIdsRef.current = new Set(loadedIds);
+    return new Set(notifiedUpdateIdsRef.current);
+  }, [activeOrganizationId, session?.user?.id]);
+
+  const persistNotifiedRegulationIds = useCallback(async (nextIds: Set<string>) => {
+    const storageKey = notifiedUpdatesCacheKeyRef.current;
+    if (!storageKey) return;
+    const serialized = Array.from(nextIds).slice(-300);
+    try {
+      await AsyncStorage.setItem(storageKey, JSON.stringify(serialized));
+    } catch {
+      // Non-blocking cache write.
+    }
+  }, []);
+
+  const loadRegulationUpdates = useCallback(async () => {
+    const organizationId = activeOrganizationId ?? "";
+    if (!organizationId) {
+      setState((prev) => ({ ...prev, regulationUpdates: [] }));
+      return;
+    }
+
+    try {
+      const result = await listRegulationUpdates({
+        organizationId,
+        unreadOnly: false,
+        limit: 25,
+      });
+      const updates = result.items;
+      setState((prev) => ({ ...prev, regulationUpdates: updates }));
+
+      const unreadUpdates = updates.filter((item) => !item.isRead);
+      if (!unreadUpdates.length) return;
+
+      const knownIds = await loadNotifiedRegulationIds();
+      const freshUpdates = unreadUpdates.filter((item) => !knownIds.has(item.id));
+      if (!freshUpdates.length) return;
+
+      for (const update of freshUpdates.slice(0, 3)) {
+        const topicsPreview = update.changedTopics.slice(0, 2).join(", ");
+        const body = topicsPreview
+          ? `Mudanças em: ${topicsPreview}.`
+          : update.diffSummary;
+        await addNotification("Regulamento atualizado", body);
+      }
+
+      const mergedIds = new Set([...knownIds, ...freshUpdates.map((item) => item.id)]);
+      notifiedUpdateIdsRef.current = mergedIds;
+      await persistNotifiedRegulationIds(mergedIds);
+    } catch {
+      setState((prev) => ({ ...prev, regulationUpdates: [] }));
+    }
+  }, [activeOrganizationId, loadNotifiedRegulationIds, persistNotifiedRegulationIds]);
+
   const currentSnapshot = useMemo(() => {
     return buildCentralSnapshot({
       screenKey: state.context?.screen ?? "__none__",
       signals: state.signals,
+      ruleUpdates: state.regulationUpdates.map((item) => ({
+        id: item.id,
+        publishedAt: item.publishedAt ?? null,
+        createdAt: item.createdAt,
+        checksum: item.checksumSha256,
+      })),
       actions: state.actions,
       historyHead: state.history[0]
         ? { id: state.history[0].id, createdAt: state.history[0].createdAt }
         : null,
     });
-  }, [state.actions, state.context?.screen, state.history, state.signals]);
+  }, [state.actions, state.context?.screen, state.history, state.regulationUpdates, state.signals]);
 
   const open = useCallback(() => {
     const latestSnapshot = lastComputedSnapshotRef.current ?? currentSnapshot;
@@ -314,6 +440,19 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       };
     });
   }, [currentSnapshot, state.hasUnreadUpdates, state.open, state.unreadCount]);
+
+  useEffect(() => {
+    void loadRegulationUpdates();
+  }, [loadRegulationUpdates]);
+
+  useEffect(() => {
+    if (!state.open) return;
+    void loadRegulationUpdates();
+    const timer = setInterval(() => {
+      void loadRegulationUpdates();
+    }, REGULATION_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [loadRegulationUpdates, state.open]);
 
   const runAction = useCallback(async (action: CopilotAction) => {
     const selectedSignal =
@@ -397,7 +536,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const selectedSignal =
     state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
-  const signalsByCategory = useMemo<Record<InsightsCategory, CopilotSignal[]>>(
+  const signalsByCategory = useMemo<Record<SignalInsightsCategory, CopilotSignal[]>>(
     () => ({
       reports: state.signals.filter((item) => signalToCategory(item.type) === "reports"),
       absences: state.signals.filter((item) => signalToCategory(item.type) === "absences"),
@@ -407,18 +546,39 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     }),
     [state.signals]
   );
-  const categoriesWithSignals = useMemo(
-    () => categorySortOrder.filter((category) => signalsByCategory[category].length > 0),
-    [signalsByCategory]
+  const unreadRegulationCount = useMemo(
+    () => state.regulationUpdates.filter((item) => !item.isRead).length,
+    [state.regulationUpdates]
+  );
+  const categoriesWithInsights = useMemo(
+    () =>
+      categorySortOrder.filter((category) => {
+        if (category === "regulation") {
+          return unreadRegulationCount > 0;
+        }
+        return signalsByCategory[category as SignalInsightsCategory].length > 0;
+      }),
+    [signalsByCategory, unreadRegulationCount]
   );
   const detailSignal = useMemo(() => {
     if (insightsView.mode !== "detail") return null;
-    return state.signals.find((item) => item.id === insightsView.signalId) ?? null;
+    if (insightsView.category === "regulation") return null;
+    return state.signals.find((item) => item.id === insightsView.itemId) ?? null;
   }, [insightsView, state.signals]);
-  const activeDrawerSignal = detailSignal ?? selectedSignal;
+  const detailRegulationUpdate = useMemo(() => {
+    if (insightsView.mode !== "detail") return null;
+    if (insightsView.category !== "regulation") return null;
+    return state.regulationUpdates.find((item) => item.id === insightsView.itemId) ?? null;
+  }, [insightsView, state.regulationUpdates]);
+  const activeDrawerSignal =
+    insightsView.mode === "detail" && insightsView.category === "regulation"
+      ? null
+      : detailSignal ?? selectedSignal;
   const activeCategoryForActions =
     insightsView.mode === "category" || insightsView.mode === "detail"
-      ? insightsView.category
+      ? insightsView.category === "regulation"
+        ? null
+        : insightsView.category
       : activeDrawerSignal
         ? signalToCategory(activeDrawerSignal.type)
         : null;
@@ -426,19 +586,65 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (insightsView.mode === "root") return;
     if (insightsView.mode === "category") {
-      if (!signalsByCategory[insightsView.category].length) {
+      if (insightsView.category === "regulation") {
+        if (!unreadRegulationCount) {
+          setInsightsView({ mode: "root" });
+        }
+        return;
+      }
+      if (!signalsByCategory[insightsView.category as SignalInsightsCategory].length) {
+        setInsightsView({ mode: "root" });
+      }
+      return;
+    }
+    if (insightsView.category === "regulation") {
+      if (detailRegulationUpdate) return;
+      if (unreadRegulationCount) {
+        setInsightsView({ mode: "category", category: "regulation" });
+      } else {
         setInsightsView({ mode: "root" });
       }
       return;
     }
     if (!detailSignal) {
-      if (signalsByCategory[insightsView.category].length) {
+      if (signalsByCategory[insightsView.category as SignalInsightsCategory].length) {
         setInsightsView({ mode: "category", category: insightsView.category });
       } else {
         setInsightsView({ mode: "root" });
       }
     }
-  }, [detailSignal, insightsView, signalsByCategory]);
+  }, [detailRegulationUpdate, detailSignal, insightsView, signalsByCategory, unreadRegulationCount]);
+
+  useEffect(() => {
+    if (insightsView.mode !== "detail" || insightsView.category !== "regulation") return;
+    if (!detailRegulationUpdate || detailRegulationUpdate.isRead) return;
+    if (!activeOrganizationId) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await markRegulationUpdateRead({
+          organizationId: activeOrganizationId,
+          ruleUpdateId: detailRegulationUpdate.id,
+        });
+        if (cancelled) return;
+        setState((prev) => ({
+          ...prev,
+          regulationUpdates: prev.regulationUpdates.map((item) =>
+            item.id === detailRegulationUpdate.id
+              ? { ...item, isRead: true, readAt: new Date().toISOString() }
+              : item
+          ),
+        }));
+      } catch {
+        // Non-blocking failure.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId, detailRegulationUpdate, insightsView]);
 
   const recommendedActions = useMemo(() => {
     return getRecommendedSignalActions(activeDrawerSignal, state.actions);
@@ -667,13 +873,13 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>Temas do momento</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {categoriesWithSignals.length
+                {categoriesWithInsights.length
                   ? "Selecione um tema para abrir os insights."
                   : "Nenhum insight relevante neste momento."}
               </Text>
-              {categoriesWithSignals.length ? (
+              {categoriesWithInsights.length ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {categoriesWithSignals.map((category) => (
+                  {categoriesWithInsights.map((category) => (
                     <Pressable
                       key={category}
                       onPress={() => setInsightsView({ mode: "category", category })}
@@ -702,49 +908,148 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                 {categoryLabelById[insightsView.category]}
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Toque em um insight para ver detalhes e ações relacionadas.
+                {insightsView.category === "regulation"
+                  ? "Toque em uma atualização para ver detalhes e fonte oficial."
+                  : "Toque em um insight para ver detalhes e ações relacionadas."}
               </Text>
-              {signalsByCategory[insightsView.category].map((signal) => {
-                const severityColor =
-                  signal.severity === "critical"
-                    ? colors.dangerText
-                    : signal.severity === "high"
-                      ? colors.warningText
-                      : signal.severity === "medium"
-                        ? colors.text
-                        : colors.muted;
-                return (
-                  <Pressable
-                    key={signal.id}
-                    onPress={() => {
-                      setActiveSignal(signal.id);
-                      setInsightsView({
-                        mode: "detail",
-                        category: insightsView.category,
-                        signalId: signal.id,
-                      });
-                    }}
-                    style={{
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.card,
-                      padding: 10,
-                      gap: 4,
-                    }}
-                  >
-                    <Text style={{ color: severityColor, fontWeight: "800", fontSize: 11 }}>
-                      {signal.severity.toUpperCase()}
-                    </Text>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
-                  </Pressable>
-                );
-              })}
+              {insightsView.category === "regulation"
+                ? state.regulationUpdates.filter((item) => !item.isRead).map((item) => (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => {
+                        setInsightsView({
+                          mode: "detail",
+                          category: "regulation",
+                          itemId: item.id,
+                        });
+                      }}
+                      style={{
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        padding: 10,
+                        gap: 4,
+                      }}
+                    >
+                      <Text style={{ color: colors.primaryBg, fontWeight: "800", fontSize: 11 }}>
+                        {item.sourceAuthority}
+                      </Text>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{item.title}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>{item.diffSummary}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        Publicado em {regulationDateLabel(item.publishedAt ?? item.createdAt)}
+                        {item.isRead ? " - lido" : " - não lido"}
+                      </Text>
+                    </Pressable>
+                  ))
+                : signalsByCategory[insightsView.category as SignalInsightsCategory].map((signal) => {
+                    const severityColor =
+                      signal.severity === "critical"
+                        ? colors.dangerText
+                        : signal.severity === "high"
+                          ? colors.warningText
+                          : signal.severity === "medium"
+                            ? colors.text
+                            : colors.muted;
+                    return (
+                      <Pressable
+                        key={signal.id}
+                        onPress={() => {
+                          setActiveSignal(signal.id);
+                          setInsightsView({
+                            mode: "detail",
+                            category: insightsView.category,
+                            itemId: signal.id,
+                          });
+                        }}
+                        style={{
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.card,
+                          padding: 10,
+                          gap: 4,
+                        }}
+                      >
+                        <Text style={{ color: severityColor, fontWeight: "800", fontSize: 11 }}>
+                          {signal.severity.toUpperCase()}
+                        </Text>
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
+                      </Pressable>
+                    );
+                  })}
             </View>
           ) : null}
 
-          {insightsView.mode === "detail" && activeDrawerSignal ? (
+          {insightsView.mode === "detail" && insightsView.category === "regulation" && detailRegulationUpdate ? (
+            <View style={{ gap: 10 }}>
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  padding: 12,
+                  gap: 6,
+                }}
+              >
+                <Text style={{ color: colors.primaryBg, fontWeight: "800", fontSize: 11 }}>
+                  {detailRegulationUpdate.sourceAuthority}
+                </Text>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>
+                  {detailRegulationUpdate.title}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {detailRegulationUpdate.diffSummary}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  Publicado em {regulationDateLabel(detailRegulationUpdate.publishedAt ?? detailRegulationUpdate.createdAt)}
+                </Text>
+                {detailRegulationUpdate.changedTopics.length ? (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                    {detailRegulationUpdate.changedTopics.map((topic) => (
+                      <View
+                        key={`${detailRegulationUpdate.id}_${topic}`}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                          {topic}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  if (!detailRegulationUpdate.sourceUrl) return;
+                  void Linking.openURL(detailRegulationUpdate.sourceUrl);
+                }}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.primaryBg,
+                  backgroundColor: colors.secondaryBg,
+                  paddingVertical: 11,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Ver fonte</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {insightsView.mode === "detail" && insightsView.category !== "regulation" && activeDrawerSignal ? (
             <>
               <View style={{ gap: 8 }}>
                 <Text style={{ color: colors.text, fontWeight: "800" }}>
@@ -835,6 +1140,7 @@ export function useCopilot() {
     hasUnreadUpdates: context.state.hasUnreadUpdates,
     unreadCount: context.state.unreadCount,
     signals: context.state.signals,
+    regulationUpdates: context.state.regulationUpdates,
     activeSignal:
       context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
     setActiveSignal: context.setActiveSignal,
@@ -856,6 +1162,7 @@ export function useOptionalCopilot() {
     hasUnreadUpdates: context.state.hasUnreadUpdates,
     unreadCount: context.state.unreadCount,
     signals: context.state.signals,
+    regulationUpdates: context.state.regulationUpdates,
     activeSignal:
       context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
     setActiveSignal: context.setActiveSignal,
@@ -937,6 +1244,7 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
+
 
 
 
