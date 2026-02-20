@@ -17,7 +17,6 @@ type ConsistencyPanelProps = {
   onOpenAttendance: (params: { classId: string; targetDate: string }) => void;
   onOpenReport: (params: { classId: string; targetDate: string }) => void;
   formatDateBr: (value: string | null | undefined) => string;
-  formatDateTimeBr: (value: string | null | undefined) => string;
 };
 
 export function ConsistencyPanel({
@@ -28,10 +27,15 @@ export function ConsistencyPanel({
   onOpenAttendance,
   onOpenReport,
   formatDateBr,
-  formatDateTimeBr,
 }: ConsistencyPanelProps) {
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 430;
+  const formatGenderLabel = (value: string | null) => {
+    if (value === "masculino") return "Masculino";
+    if (value === "feminino") return "Feminino";
+    if (value === "misto") return "Misto";
+    return "Sem genero";
+  };
 
   return (
     <>
@@ -151,6 +155,14 @@ export function ConsistencyPanel({
               const titleColor = isCritical ? colors.dangerText : colors.text;
               const subtitleColor = isCritical ? colors.dangerText : colors.muted;
               const badgeLabel = `${daysSinceReport}d`;
+              const metaBadgeStyle = {
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: cardBorderColor,
+                backgroundColor: colors.card,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+              } as const;
 
               return (
                 <Pressable
@@ -172,14 +184,26 @@ export function ConsistencyPanel({
                   <View
                     style={{
                       flexDirection: "row",
-                      alignItems: "center",
                       justifyContent: "space-between",
-                      gap: 8,
+                      alignItems: "flex-start",
+                      gap: 10,
                     }}
                   >
-                    <Text style={{ color: titleColor, fontWeight: "700", flex: 1 }}>
-                      {item.className}
-                    </Text>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                        <Text style={{ color: titleColor, fontWeight: "700" }}>{item.className}</Text>
+                        <View style={metaBadgeStyle}>
+                          <Text style={{ color: subtitleColor, fontSize: 10, fontWeight: "700" }}>
+                            {formatGenderLabel(item.gender)}
+                          </Text>
+                        </View>
+                        <View style={metaBadgeStyle}>
+                          <Text style={{ color: subtitleColor, fontSize: 10, fontWeight: "700" }}>
+                            {item.unit || "Sem unidade"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
                     {isCritical ? (
                       <View
                         style={{
@@ -196,11 +220,7 @@ export function ConsistencyPanel({
                     ) : null}
                   </View>
                   <Text style={{ color: subtitleColor, fontSize: 12 }}>
-                    {item.unit || "Sem unidade"} - Ultimo:{" "}
-                    {item.hasReportHistory ? formatDateTimeBr(item.lastReportAt) : "Nunca enviado"}
-                  </Text>
-                  <Text style={{ color: subtitleColor, fontSize: 12 }}>
-                    Data sugerida para registrar: {formatDateBr(item.suggestedDate)}
+                    Data da aula: {formatDateBr(item.suggestedDate)}
                   </Text>
                 </Pressable>
               );

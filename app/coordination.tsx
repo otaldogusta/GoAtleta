@@ -74,19 +74,6 @@ const formatDateBr = (value: string | null | undefined) => {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
-const formatDateTimeBr = (value: string | null | undefined) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
 const toDateKey = (value: string) => (value.includes("T") ? value.split("T")[0] : value);
 const parseTimeToMinutes = (value: string | null | undefined) => {
   if (!value) return null;
@@ -1443,7 +1430,6 @@ export default function CoordinationScreen() {
                     })
                   }
                   formatDateBr={formatDateBr}
-                  formatDateTimeBr={formatDateTimeBr}
                 />
               </View>
 
@@ -1518,7 +1504,6 @@ export default function CoordinationScreen() {
                   })
                 }
                 formatDateBr={formatDateBr}
-                formatDateTimeBr={formatDateTimeBr}
               />
             </>
           )}

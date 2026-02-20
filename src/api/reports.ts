@@ -26,6 +26,7 @@ type AdminClassScheduleRow = {
   days: number[] | null;
   daysperweek: number | string | null;
   created_at?: string | null;
+  gender?: string | null;
 };
 
 type AdminRecentActivityRow = {
@@ -55,6 +56,7 @@ export type AdminPendingSessionLogs = {
   classId: string;
   className: string;
   unit: string;
+  gender: string | null;
   periodStart: string;
   suggestedDate: string;
   daysWithoutReport: number;
@@ -179,7 +181,7 @@ export async function listAdminPendingSessionLogs(params: {
         "/v_admin_pending_session_logs?organization_id=eq." + encodedOrgId + "&select=*"
       ),
       supabaseRestGet<AdminClassScheduleRow[]>(
-        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek,created_at"
+        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek,created_at,gender"
       ),
     ]);
     return { rows: pendingRows, classSchedules: scheduleRows };
@@ -221,6 +223,10 @@ export async function listAdminPendingSessionLogs(params: {
       : [];
 
     const classCreatedAt = schedule?.created_at ?? null;
+    const classGender =
+      schedule?.gender === "masculino" || schedule?.gender === "feminino" || schedule?.gender === "misto"
+        ? schedule.gender
+        : null;
     const referenceDateIso = row.last_report_at ?? classCreatedAt ?? row.period_start;
     const referenceDate = new Date(referenceDateIso);
     const daysWithoutReport = Number.isNaN(referenceDate.getTime())
@@ -232,6 +238,7 @@ export async function listAdminPendingSessionLogs(params: {
       classId: row.class_id,
       className: row.class_name,
       unit: row.unit,
+      gender: classGender,
       periodStart: row.period_start,
       suggestedDate: resolveSuggestedSessionDate(scheduledDays),
       daysWithoutReport,
