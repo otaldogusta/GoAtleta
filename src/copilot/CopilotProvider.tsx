@@ -3,11 +3,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   Animated,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "../auth/auth";
 import type { Signal as CopilotSignal } from "../ai/signal-engine";
@@ -112,6 +114,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
   const pathname = usePathname();
   const { session } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const contextRegistryRef = useRef<Map<string, CopilotContextData | null>>(new Map());
   const actionsRegistryRef = useRef<Map<string, CopilotAction[]>>(new Map());
@@ -359,6 +362,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
   const unreadBadgeLabel = state.unreadCount > 9 ? "9+" : String(state.unreadCount);
+  const sheetBottomSpacing = Math.max(
+    insets.bottom + 8,
+    Platform.OS === "web" ? 16 : 12
+  );
 
   useEffect(() => {
     if (!(showFab && state.hasUnreadUpdates)) {
@@ -469,6 +476,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <Pressable onPress={close} style={styles.overlayCloseArea} />
           <View
             style={{
+              marginBottom: sheetBottomSpacing,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               borderWidth: 1,
@@ -770,7 +778,7 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(4, 8, 16, 0.3)",
   },
   overlayCloseArea: {
     flex: 1,
