@@ -52,7 +52,6 @@ import {
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
-import { AuditPanel } from "../src/screens/coordination/AuditPanel";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
@@ -417,11 +416,13 @@ export default function CoordinationScreen() {
             0,
             Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
           )
-        : 999;
-      if (daysWithoutReport > 7) {
+        : null;
+      const hasCriticalGap = daysWithoutReport === null || daysWithoutReport > 14;
+      const hasGap = daysWithoutReport === null || daysWithoutReport > 7;
+      if (hasGap) {
         issues.push({
           type: "MISSING_WEEKLY_REPORT",
-          severity: daysWithoutReport > 14 ? "critical" : "high",
+          severity: hasCriticalGap ? "critical" : "high",
           entity: {
             classId: item.classId,
             className: item.className,
@@ -430,6 +431,7 @@ export default function CoordinationScreen() {
           evidence: {
             lastReportAt: item.lastReportAt,
             daysWithoutReport,
+            reportStatus: daysWithoutReport === null ? "sem_historico" : "atrasado",
           },
         });
       }
@@ -880,19 +882,6 @@ export default function CoordinationScreen() {
       );
     }
   }, [executiveSummary]);
-
-  const handleCopyRadarPrompt = useCallback(async (item: ClassRadarItem) => {
-    try {
-      await Clipboard.setStringAsync(item.nextTrainingPrompt);
-      setAiMessage(`Prompt da turma ${item.className} copiado para o próximo treino.`);
-    } catch (error) {
-      setAiMessage(
-        error instanceof Error
-          ? `Falha ao copiar prompt da turma ${item.className}: ${error.message}`
-          : `Falha ao copiar prompt da turma ${item.className}.`
-      );
-    }
-  }, []);
 
   const handleSignalInterventionPlan = useCallback(
     async (signal: Signal) => {
@@ -1368,40 +1357,13 @@ export default function CoordinationScreen() {
               gap: 12,
             }}
           >
-            <View
-              style={{
-                flexDirection: isWideLayout ? "row" : "column",
-                justifyContent: "space-between",
-                alignItems: isWideLayout ? "center" : "flex-start",
-                gap: 10,
-              }}
-            >
-              <View style={{ gap: 3 }}>
-                <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
-                  Visão geral da coordenação
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Indicadores operacionais da organização {organizationName}.
-                </Text>
-              </View>
-              <View
-                style={{
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>
-                  SAÚDE OPERACIONAL
-                </Text>
-                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                  {coordinationHealthScore === null ? "..." : `${coordinationHealthScore}%`}
-                </Text>
-              </View>
+            <View style={{ gap: 3 }}>
+              <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+                Visão geral da coordenação
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Indicadores operacionais da organização {organizationName}.
+              </Text>
             </View>
 
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
@@ -1416,15 +1378,19 @@ export default function CoordinationScreen() {
                 colors={colors}
               />
               <IndicatorCard
-                label="Atividade (7d)"
+                label="Sessões registradas (7d)"
                 value={loading ? "..." : recentActivity.length}
                 colors={colors}
               />
-              <IndicatorCard
-                label="Sync local pendente"
-                value={loading ? "..." : pendingWritesDiagnostics.total}
-                colors={colors}
-              />
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                Status operacional do mês
+              </Text>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                {coordinationHealthScore === null ? "..." : `${coordinationHealthScore}%`}
+              </Text>
             </View>
 
             <View
@@ -1451,7 +1417,6 @@ export default function CoordinationScreen() {
             colors={colors}
             loading={loading}
             items={classRadarItems}
-            onCopyPrompt={handleCopyRadarPrompt}
           />
 
           {isWideLayout ? (
@@ -1506,13 +1471,6 @@ export default function CoordinationScreen() {
                   onClassifySyncError={handleClassifySyncError}
                 />
 
-                <AuditPanel
-                  colors={colors}
-                  loading={loading}
-                  pendingAttendanceCount={pendingAttendance.length}
-                  pendingReportsCount={pendingReports.length}
-                  onOpenReports={() => router.push("/reports")}
-                />
               </View>
             </View>
           ) : (
@@ -1537,14 +1495,6 @@ export default function CoordinationScreen() {
                 onReprocessSingleItem={handleReprocessSingleItem}
                 onCopyFailedPayload={handleCopyFailedPayload}
                 onClassifySyncError={handleClassifySyncError}
-              />
-
-              <AuditPanel
-                colors={colors}
-                loading={loading}
-                pendingAttendanceCount={pendingAttendance.length}
-                pendingReportsCount={pendingReports.length}
-                onOpenReports={() => router.push("/reports")}
               />
 
               <ConsistencyPanel
@@ -1578,4 +1528,3 @@ export default function CoordinationScreen() {
     </SafeAreaView>
   );
 }
-

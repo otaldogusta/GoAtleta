@@ -1,6 +1,5 @@
 import { Text, useWindowDimensions, View } from "react-native";
 
-import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 
 type AppColors = ReturnType<typeof useAppTheme>["colors"];
@@ -20,10 +19,15 @@ type ClassRadarPanelProps = {
   colors: AppColors;
   loading: boolean;
   items: ClassRadarItem[];
-  onCopyPrompt: (item: ClassRadarItem) => void;
 };
 
-export function ClassRadarPanel({ colors, loading, items, onCopyPrompt }: ClassRadarPanelProps) {
+const trendCopy: Record<ClassRadarItem["trendLabel"], string> = {
+  subindo: "Em alta",
+  estavel: "Estavel",
+  queda: "Em queda",
+};
+
+export function ClassRadarPanel({ colors, loading, items }: ClassRadarPanelProps) {
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 430;
 
@@ -38,32 +42,12 @@ export function ClassRadarPanel({ colors, loading, items, onCopyPrompt }: ClassR
         gap: 10,
       }}
     >
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
-          Radar IA por turma
-        </Text>
-        <View
-          style={{
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-          }}
-        >
-          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-            {loading ? "..." : items.length}
-          </Text>
-        </View>
-      </View>
+      <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Radar por turma</Text>
 
       {loading ? (
         <Text style={{ color: colors.muted }}>Carregando radar...</Text>
       ) : items.length === 0 ? (
-        <Text style={{ color: colors.muted }}>
-          Sem turmas com leitura recente. Registre sessões para liberar o radar determinístico.
-        </Text>
+        <Text style={{ color: colors.muted }}>Sem dados suficientes para radar neste momento.</Text>
       ) : (
         <View style={{ gap: 8 }}>
           {items.map((item) => (
@@ -81,33 +65,13 @@ export function ClassRadarPanel({ colors, loading, items, onCopyPrompt }: ClassR
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>{item.className}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                  {(item.radarScore * 100).toFixed(0)}% • {item.trendLabel}
+                  {(item.radarScore * 100).toFixed(0)}% - {trendCopy[item.trendLabel]}
                 </Text>
               </View>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {item.unit || "Sem unidade"} • Sessões analisadas: {item.logsCount}
+              <Text style={{ color: colors.muted, fontSize: 12 }}>{item.unit || "Sem unidade"}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                {item.alerts[0] || "Sem alertas relevantes no momento."}
               </Text>
-              {item.alerts.length > 0 ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
-                  Alerta: {item.alerts[0]}
-                </Text>
-              ) : null}
-              <Pressable
-                onPress={() => onCopyPrompt(item)}
-                style={{
-                  alignSelf: "flex-start",
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                }}
-              >
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                  Copiar prompt próximo treino
-                </Text>
-              </Pressable>
             </View>
           ))}
         </View>

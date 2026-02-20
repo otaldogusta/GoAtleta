@@ -1,8 +1,8 @@
 import { FlatList, Text, useWindowDimensions, View } from "react-native";
 
 import {
-    type AdminPendingAttendance,
-    type AdminPendingSessionLogs,
+  type AdminPendingAttendance,
+  type AdminPendingSessionLogs,
 } from "../../api/reports";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -94,7 +94,7 @@ export function ConsistencyPanel({
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>{item.className}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {item.unit || "Sem unidade"} • {item.studentCount} alunos • {formatDateBr(item.targetDate)}
+                  {item.unit || "Sem unidade"} - {item.studentCount} alunos - {formatDateBr(item.targetDate)}
                 </Text>
               </Pressable>
             )}
@@ -114,7 +114,7 @@ export function ConsistencyPanel({
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
-            Relatórios pendentes
+            Relatorios pendentes
           </Text>
           <View
             style={{
@@ -134,7 +134,7 @@ export function ConsistencyPanel({
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : pendingReports.length === 0 ? (
-          <Text style={{ color: colors.muted }}>Nenhuma turma sem relatório recente.</Text>
+          <Text style={{ color: colors.muted }}>Nenhuma turma sem relatorio recente.</Text>
         ) : (
           <FlatList
             data={pendingReports}
@@ -145,13 +145,17 @@ export function ConsistencyPanel({
             contentContainerStyle={{ gap: 8 }}
             renderItem={({ item }) => {
               const daysSinceReport = item.lastReportAt
-                ? Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
-                : 999;
-              const isCritical = daysSinceReport > 7;
+                ? Math.max(
+                    0,
+                    Math.floor((Date.now() - new Date(item.lastReportAt).getTime()) / (1000 * 60 * 60 * 24))
+                  )
+                : null;
+              const isCritical = daysSinceReport === null || daysSinceReport > 7;
               const cardBorderColor = isCritical ? colors.dangerBorder : colors.border;
               const cardBackgroundColor = isCritical ? colors.dangerBg : colors.secondaryBg;
               const titleColor = isCritical ? colors.dangerText : colors.text;
               const subtitleColor = isCritical ? colors.dangerText : colors.muted;
+              const badgeLabel = daysSinceReport === null ? "Sem relatorio" : `${daysSinceReport}d`;
 
               return (
                 <Pressable
@@ -191,13 +195,14 @@ export function ConsistencyPanel({
                         }}
                       >
                         <Text style={{ color: colors.primaryText, fontSize: 10, fontWeight: "800" }}>
-                          {daysSinceReport}d
+                          {badgeLabel}
                         </Text>
                       </View>
                     ) : null}
                   </View>
                   <Text style={{ color: subtitleColor, fontSize: 12 }}>
-                    {item.unit || "Sem unidade"} • Último: {formatDateTimeBr(item.lastReportAt)}
+                    {item.unit || "Sem unidade"} - Ultimo:{" "}
+                    {item.lastReportAt ? formatDateTimeBr(item.lastReportAt) : "Sem historico"}
                   </Text>
                 </Pressable>
               );
