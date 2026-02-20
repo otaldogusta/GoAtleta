@@ -103,10 +103,10 @@ const MAX_HISTORY_ITEMS = 12;
 const publicRoutes = new Set(["/welcome", "/login", "/signup", "/reset-password"]);
 
 const categoryLabelById: Record<InsightsCategory, string> = {
-  reports: "Relatorios",
+  reports: "Relatórios",
   absences: "Faltas consecutivas",
-  nfc: "Presenca NFC",
-  attendance: "Queda de presenca",
+  nfc: "Presença NFC",
+  attendance: "Queda de presença",
   engagement: "Risco de engajamento",
 };
 
@@ -134,7 +134,7 @@ const signalToCategory = (signalType: CopilotSignal["type"]): InsightsCategory =
 };
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
-  if (!value) return { message: "Acao concluida." };
+  if (!value) return { message: "Ação concluída." };
   if (typeof value === "string") return { message: value };
   return value;
 };
@@ -352,7 +352,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       }));
     } catch (error) {
       const result: CopilotActionResult = {
-        message: error instanceof Error ? error.message : "Falha ao executar acao.",
+        message: error instanceof Error ? error.message : "Falha ao executar ação.",
       };
       setState((prev) => ({
         ...prev,
@@ -461,11 +461,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           : colors.muted;
   const selectedSeverityLabel =
     activeDrawerSignal?.severity === "critical"
-      ? "Critico"
+      ? "Crítico"
       : activeDrawerSignal?.severity === "high"
         ? "Alto"
         : activeDrawerSignal?.severity === "medium"
-          ? "Medio"
+          ? "Médio"
           : "Baixo";
   const activeCategoryLabel = activeCategoryForActions
     ? categoryLabelById[activeCategoryForActions]
@@ -617,7 +617,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <View style={{ gap: 2 }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Insights</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {state.context?.title ?? state.context?.screen ?? "Visao operacional"}
+              {state.context?.title ?? state.context?.screen ?? "Visão operacional"}
             </Text>
           </View>
           <Pressable
@@ -702,7 +702,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                 {categoryLabelById[insightsView.category]}
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Toque em um insight para ver detalhes e acoes relacionadas.
+                Toque em um insight para ver detalhes e ações relacionadas.
               </Text>
               {signalsByCategory[insightsView.category].map((signal) => {
                 const severityColor =
@@ -769,10 +769,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               </View>
 
               <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes gerais</Text>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Ações gerais</Text>
                 {recommendedActions.length ? (
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    As acoes recomendadas para este insight aparecem primeiro.
+                    As ações recomendadas para este insight aparecem primeiro.
                   </Text>
                 ) : null}
                 {orderedActions.length ? (
@@ -809,7 +809,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                     );
                   })
                 ) : (
-                  <Text style={{ color: colors.muted }}>Sem acoes disponiveis neste contexto.</Text>
+                  <Text style={{ color: colors.muted }}>Sem ações disponíveis neste contexto.</Text>
                 )}
               </View>
             </>

@@ -23,7 +23,7 @@ type ClassRadarPanelProps = {
 
 const trendCopy: Record<ClassRadarItem["trendLabel"], string> = {
   subindo: "Em alta",
-  estavel: "Estavel",
+  estavel: "Estável",
   queda: "Em queda",
 };
 

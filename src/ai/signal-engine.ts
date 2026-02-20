@@ -201,8 +201,8 @@ const buildAttendanceDropSignals = (params: {
       scope: "class",
       organizationId: params.organizationId,
       classId,
-      title: `Queda de presenca na turma ${className}`,
-      summary: `Media recente ${toFixed(avgRecent)} vs anterior ${toFixed(avgPrev)} (queda ${toFixed(drop)}).`,
+      title: `Queda de presença na turma ${className}`,
+      summary: `Média recente ${toFixed(avgRecent)} vs anterior ${toFixed(avgPrev)} (queda ${toFixed(drop)}).`,
       evidence: {
         avgRecent: toFixed(avgRecent),
         avgPrev: toFixed(avgPrev),
@@ -273,7 +273,7 @@ const buildRepeatedAbsenceSignals = (params: {
       classId: student?.classId,
       studentId,
       title: `Faltas consecutivas de ${student?.name ?? "aluno"}`,
-      summary: `${streak} faltas seguidas em ate 30 dias.`,
+      summary: `${streak} faltas seguidas em até 30 dias.`,
       evidence: {
         streak,
         latestDate,
@@ -323,11 +323,11 @@ const buildReportDelaySignals = (params: {
       scope: "class",
       organizationId: params.organizationId,
       classId: item.classId,
-      title: `Relatorio em atraso: ${item.className}`,
+      title: `Relatório em atraso: ${item.className}`,
       summary:
         daysWithoutReport === null
-          ? "Turma sem relatorio recente registrado."
-          : `${daysWithoutReport} dias sem relatorio da turma.`,
+          ? "Turma sem relatório recente registrado."
+          : `${daysWithoutReport} dias sem relatório da turma.`,
       evidence: {
         className: item.className,
         unit: item.unit,
@@ -387,8 +387,8 @@ const buildUnusualPresenceSignals = (params: {
       scope: "class",
       organizationId: params.organizationId,
       classId,
-      title: `Padrao atipico de presenca NFC em ${className}`,
-      summary: `Ultimo dia com ${latestCount} check-ins vs mediana ${toFixed(historicalMedian)}.`,
+      title: `Padrão atípico de presença NFC em ${className}`,
+      summary: `Último dia com ${latestCount} check-ins vs mediana ${toFixed(historicalMedian)}.`,
       evidence: {
         latestDate,
         latestCount,
@@ -441,8 +441,8 @@ const buildEngagementRiskSignal = (params: {
     title: "Risco geral de engajamento",
     summary:
       conditionsMet >= 2
-        ? "Risco alto: combinacao de faltas, queda de presenca e atrasos em relatorios."
-        : "Risco elevado: um padrao forte de queda/atraso foi detectado.",
+        ? "Risco alto: combinação de faltas, queda de presença e atrasos em relatórios."
+        : "Risco elevado: um padrão forte de queda/atraso foi detectado.",
     evidence: {
       conditionsMet,
       attendanceDropCount,

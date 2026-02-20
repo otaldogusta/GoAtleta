@@ -34,7 +34,7 @@ export function ConsistencyPanel({
     if (value === "masculino") return "Masculino";
     if (value === "feminino") return "Feminino";
     if (value === "misto") return "Misto";
-    return "Sem genero";
+    return "Sem gênero";
   };
 
   return (
@@ -118,7 +118,7 @@ export function ConsistencyPanel({
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
-            Relatorios pendentes
+            Relatórios pendentes
           </Text>
           <View
             style={{
@@ -138,7 +138,7 @@ export function ConsistencyPanel({
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : pendingReports.length === 0 ? (
-          <Text style={{ color: colors.muted }}>Nenhuma turma sem relatorio recente.</Text>
+          <Text style={{ color: colors.muted }}>Nenhuma turma sem relatório recente.</Text>
         ) : (
           <FlatList
             data={pendingReports}
@@ -204,20 +204,26 @@ export function ConsistencyPanel({
                         </View>
                       </View>
                     </View>
-                    {isCritical ? (
-                      <View
+                    <View
+                      style={{
+                        paddingVertical: 3,
+                        paddingHorizontal: 7,
+                        borderRadius: 999,
+                        borderWidth: isCritical ? 0 : 1,
+                        borderColor: isCritical ? colors.dangerSolidBg : colors.border,
+                        backgroundColor: isCritical ? colors.dangerSolidBg : colors.secondaryBg,
+                      }}
+                    >
+                      <Text
                         style={{
-                          paddingVertical: 3,
-                          paddingHorizontal: 7,
-                          borderRadius: 999,
-                          backgroundColor: colors.dangerSolidBg,
+                          color: isCritical ? colors.primaryText : colors.text,
+                          fontSize: 10,
+                          fontWeight: "800",
                         }}
                       >
-                        <Text style={{ color: colors.primaryText, fontSize: 10, fontWeight: "800" }}>
-                          {badgeLabel}
-                        </Text>
-                      </View>
-                    ) : null}
+                        {badgeLabel}
+                      </Text>
+                    </View>
                   </View>
                   <Text style={{ color: subtitleColor, fontSize: 12 }}>
                     Data da aula: {formatDateBr(item.suggestedDate)}

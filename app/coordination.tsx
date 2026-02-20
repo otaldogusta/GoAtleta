@@ -128,9 +128,9 @@ const formatDataFixesText = (result: DataFixSuggestionsResult) => {
 
 const signalSeverityLabel: Record<Signal["severity"], string> = {
   low: "baixo",
-  medium: "medio",
+  medium: "médio",
   high: "alto",
-  critical: "critico",
+  critical: "crítico",
 };
 
 const toPrettyJson = (value: unknown) => {
@@ -144,34 +144,34 @@ const toPrettyJson = (value: unknown) => {
 const buildInterventionPlanFromSignal = (signal: Signal) => {
   const steps: string[] = [];
   if (signal.type === "attendance_drop") {
-    steps.push("Revisar lista de alunos com maior ausencia na turma.");
-    steps.push("Confirmar horario e comunicacao da aula com responsaveis.");
-    steps.push("Executar plano de 2 semanas com meta de presenca > 75%.");
+    steps.push("Revisar lista de alunos com maior ausência na turma.");
+    steps.push("Confirmar horário e comunicação da aula com responsáveis.");
+    steps.push("Executar plano de 2 semanas com meta de presença > 75%.");
   } else if (signal.type === "repeated_absence") {
-    steps.push("Contato com responsavel em ate 24h.");
-    steps.push("Registrar motivo principal da ausencia.");
-    steps.push("Definir acao de retorno com acompanhamento por 2 semanas.");
+    steps.push("Contato com responsável em até 24h.");
+    steps.push("Registrar motivo principal da ausência.");
+    steps.push("Definir ação de retorno com acompanhamento por 2 semanas.");
   } else if (signal.type === "report_delay") {
-    steps.push("Definir responsavel por fechar relatorio da turma no mesmo dia.");
-    steps.push("Aplicar checklist minimo de fechamento apos cada sessao.");
+    steps.push("Definir responsável por fechar relatório da turma no mesmo dia.");
+    steps.push("Aplicar checklist mínimo de fechamento após cada sessão.");
     steps.push("Revisar gargalos de processo e redistribuir carga da equipe.");
   } else if (signal.type === "unusual_presence_pattern") {
-    steps.push("Validar se houve mudanca de calendario/unidade no dia.");
+    steps.push("Validar se houve mudança de calendário/unidade no dia.");
     steps.push("Conferir funcionamento do fluxo NFC e tags ativas.");
-    steps.push("Acionar plano de contingencia de chamada manual na proxima sessao.");
+    steps.push("Acionar plano de contingência de chamada manual na próxima sessão.");
   } else {
-    steps.push("Priorizar turmas com maior risco de evasao esta semana.");
-    steps.push("Abrir plano integrado coordenacao + professores com metas objetivas.");
-    steps.push("Reavaliar sinais em 7 dias e ajustar plano de intervencao.");
+    steps.push("Priorizar turmas com maior risco de evasão esta semana.");
+    steps.push("Abrir plano integrado coordenação + professores com metas objetivas.");
+    steps.push("Reavaliar sinais em 7 dias e ajustar plano de intervenção.");
   }
 
   return [
-    `Plano de intervencao (${signalSeverityLabel[signal.severity]})`,
+    `Plano de intervenção (${signalSeverityLabel[signal.severity]})`,
     `Sinal: ${signal.title}`,
     "",
     ...steps.map((item, index) => `${index + 1}. ${item}`),
     "",
-    "Evidencias:",
+    "Evidências:",
     toPrettyJson(signal.evidence),
   ].join("\n");
 };
@@ -181,10 +181,10 @@ const buildParentMessageFromSignal = (signal: Signal) => {
   const studentChunk = signal.studentId ? ` para o aluno ${signal.studentId}` : "";
   return [
     "Ola, tudo bem?",
-    `Identificamos um ponto de atencao${studentChunk}${classChunk}.`,
+    `Identificamos um ponto de atenção${studentChunk}${classChunk}.`,
     `Sinal observado: ${signal.title}.`,
     "Queremos alinhar um plano simples para manter continuidade no processo do atleta.",
-    "Podemos confirmar disponibilidade para um contato rapido hoje?",
+    "Podemos confirmar disponibilidade para um contato rápido hoje?",
     "",
     "Equipe GoAtleta",
   ].join("\n");
@@ -192,14 +192,14 @@ const buildParentMessageFromSignal = (signal: Signal) => {
 
 const buildCauseAnalysisFallback = (signal: Signal) =>
   [
-    `Analise de causa - ${signal.title}`,
+    `Análise de causa - ${signal.title}`,
     `Severidade: ${signalSeverityLabel[signal.severity]}`,
-    "Hipoteses iniciais:",
-    "1. Variacao operacional (agenda, comunicacao ou processo).",
-    "2. Variacao de engajamento do grupo/familias.",
+    "Hipóteses iniciais:",
+    "1. Variação operacional (agenda, comunicação ou processo).",
+    "2. Variação de engajamento do grupo/famílias.",
     "3. Falha de registro ou atraso de fechamento de dados.",
     "",
-    "Evidencias coletadas:",
+    "Evidências coletadas:",
     toPrettyJson(signal.evidence),
   ].join("\n");
 
@@ -861,7 +861,7 @@ export default function CoordinationScreen() {
     async (signal: Signal) => {
       const message = buildInterventionPlanFromSignal(signal);
       await Clipboard.setStringAsync(message);
-      setAiMessage(`Plano de intervencao copiado para o sinal "${signal.title}".`);
+      setAiMessage(`Plano de intervenção copiado para o sinal "${signal.title}".`);
       return message;
     },
     []
@@ -871,7 +871,7 @@ export default function CoordinationScreen() {
     async (signal: Signal) => {
       const message = buildParentMessageFromSignal(signal);
       await Clipboard.setStringAsync(message);
-      setAiMessage(`Mensagem para responsaveis copiada para o sinal "${signal.title}".`);
+      setAiMessage(`Mensagem para responsáveis copiada para o sinal "${signal.title}".`);
       return message;
     },
     []
@@ -890,7 +890,7 @@ export default function CoordinationScreen() {
         if (!supportsAdvanced) {
           const fallbackText = buildCauseAnalysisFallback(signal);
           await Clipboard.setStringAsync(fallbackText);
-          setAiMessage(`Analise de causa copiada para o sinal "${signal.title}".`);
+          setAiMessage(`Análise de causa copiada para o sinal "${signal.title}".`);
           return fallbackText;
         }
 
@@ -910,12 +910,12 @@ export default function CoordinationScreen() {
             ? formatDataFixesText(suggested)
             : buildCauseAnalysisFallback(signal);
         await Clipboard.setStringAsync(text);
-        setAiMessage(`Analise de causa copiada para o sinal "${signal.title}".`);
+        setAiMessage(`Análise de causa copiada para o sinal "${signal.title}".`);
         return text;
       } catch {
         const fallbackText = buildCauseAnalysisFallback(signal);
         await Clipboard.setStringAsync(fallbackText);
-        setAiMessage(`Analise de causa (fallback) copiada para o sinal "${signal.title}".`);
+        setAiMessage(`Análise de causa (fallback) copiada para o sinal "${signal.title}".`);
         return fallbackText;
       } finally {
         setAiLoading(false);
@@ -1032,7 +1032,7 @@ export default function CoordinationScreen() {
           ? {
               screen: "coordination_dashboard",
               title: "Coordenação",
-              subtitle: "Visao operacional da coordenacao",
+              subtitle: "Visão operacional da coordenação",
             }
           : {
               screen: "coordination_members",
@@ -1050,41 +1050,41 @@ export default function CoordinationScreen() {
         : [
             {
               id: "signal_intervention_plan",
-              title: "Plano de intervencao",
+              title: "Plano de intervenção",
               description: "Gera plano tatico para o sinal selecionado.",
               requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
               run: async (ctx) => {
                 if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalInterventionPlan(ctx.activeSignal);
-                return { message: "Plano de intervencao gerado e copiado." };
+                return { message: "Plano de intervenção gerado e copiado." };
               },
             },
             {
               id: "signal_parent_message",
               title: "Mensagem para pais",
-              description: "Monta mensagem curta para comunicacao com responsaveis.",
+              description: "Monta mensagem curta para comunicação com responsáveis.",
               requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
               run: async (ctx) => {
                 if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalParentMessage(ctx.activeSignal);
-                return { message: "Mensagem para responsaveis copiada." };
+                return { message: "Mensagem para responsáveis copiada." };
               },
             },
             {
               id: "signal_cause_analysis",
               title: "Analisar causas",
-              description: "Executa analise estruturada de causa para o sinal.",
+              description: "Executa análise estruturada de causa para o sinal.",
               requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
               run: async (ctx) => {
                 if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalCauseAnalysis(ctx.activeSignal);
-                return { message: "Analise de causa pronta e copiada." };
+                return { message: "Análise de causa pronta e copiada." };
               },
             },
             {
               id: "coord_exec_summary",
               title: "Gerar resumo executivo",
-              description: "Atualiza visao executiva da operacao e copia o texto.",
+              description: "Atualiza visão executiva da operação e copia o texto.",
               run: async () => {
                 await handleGenerateExecutiveSummary();
                 return { message: "Resumo executivo atualizado." };
@@ -1104,7 +1104,7 @@ export default function CoordinationScreen() {
             {
               id: "coord_whatsapp",
               title: "Copiar mensagem para WhatsApp",
-              description: "Gera versao curta para comunicacao rapida com a equipe.",
+              description: "Gera versão curta para comunicação rápida com a equipe.",
               requires: () =>
                 executiveSummary ? null : "Gere primeiro um resumo executivo para montar a mensagem.",
               run: async () => {
@@ -1122,20 +1122,20 @@ export default function CoordinationScreen() {
                   : "Gere pelo menos um bloco de IA antes de exportar.",
               run: async () => {
                 await handleExportMarkdown();
-                return { message: "Exportacao markdown concluida." };
+                return { message: "Exportação markdown concluída." };
               },
             },
             {
               id: "coord_export_pdf",
               title: "Exportar PDF",
-              description: "Gera PDF para compartilhar com a coordenacao.",
+              description: "Gera PDF para compartilhar com a coordenação.",
               requires: () =>
                 executiveSummary || dataFixSuggestions
                   ? null
                   : "Gere pelo menos um bloco de IA antes de exportar.",
               run: async () => {
                 await handleExportPdf();
-                return { message: "Exportacao PDF concluida." };
+                return { message: "Exportação PDF concluída." };
               },
             },
           ],

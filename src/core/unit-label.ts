@@ -1,7 +1,7 @@
 import { normalizeUnitKey } from "./unit-key";
 
 const UNIT_CANONICAL: Record<string, string> = {
-  "rede esperanca": "Rede Esperança",
+  "rede esperanca": "Rede Esperan\u00E7a",
   "rede esportes pinhais": "Rede Esportes Pinhais",
   "rede esportes pinhas": "Rede Esportes Pinhais",
 };
