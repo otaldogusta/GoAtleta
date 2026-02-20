@@ -159,6 +159,8 @@ describe("signal engine", () => {
     const engagement = signals.find((item) => item.type === "engagement_risk");
     expect(engagement).toBeTruthy();
     expect(engagement?.severity).toBe("critical");
+    expect(engagement?.title).toBe("Risco geral de engajamento");
+    expect(engagement?.summary).toContain("combinacao de faltas");
     expect(signals[0].type).toBe("engagement_risk");
   });
 });

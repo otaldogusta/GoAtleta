@@ -73,6 +73,29 @@ type AssistantResponse = {
   };
 };
 
+type AppSnapshotSignal = {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  classId: string | null;
+  studentId: string | null;
+};
+
+type AppSnapshotAction = {
+  actionTitle: string;
+  status: string;
+  createdAt: string;
+};
+
+type AppSnapshotPayload = {
+  screen: string | null;
+  contextTitle: string | null;
+  activeSignal: AppSnapshotSignal | null;
+  signalsTop: AppSnapshotSignal[];
+  recentActions: AppSnapshotAction[];
+};
+
 type RetrievalResult = {
   docs: KbDocument[];
   cacheHit: boolean;
@@ -540,6 +563,106 @@ const canUseDebugMode = (user: { id?: string; email?: string | null }) => {
   return allowList.includes(userId) || (email ? allowList.includes(email) : false);
 };
 
+const APP_SNAPSHOT_TEXT_LIMIT = 180;
+const APP_SNAPSHOT_MAX_SIGNALS = 5;
+const APP_SNAPSHOT_MAX_ACTIONS = 3;
+
+const normalizeSnapshotText = (value: unknown) =>
+  String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, APP_SNAPSHOT_TEXT_LIMIT);
+
+const normalizeNullableId = (value: unknown) => {
+  const text = normalizeSnapshotText(value);
+  return text ? text : null;
+};
+
+const normalizeAppSnapshotSignal = (value: unknown): AppSnapshotSignal | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const id = normalizeSnapshotText(record.id);
+  if (!id) return null;
+  return {
+    id,
+    type: normalizeSnapshotText(record.type) || "unknown",
+    severity: normalizeSnapshotText(record.severity) || "unknown",
+    title: normalizeSnapshotText(record.title) || "Insight sem titulo",
+    classId: normalizeNullableId(record.classId),
+    studentId: normalizeNullableId(record.studentId),
+  };
+};
+
+const normalizeAppSnapshotAction = (value: unknown): AppSnapshotAction | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const actionTitle = normalizeSnapshotText(record.actionTitle);
+  if (!actionTitle) return null;
+  return {
+    actionTitle,
+    status: normalizeSnapshotText(record.status) || "unknown",
+    createdAt: normalizeSnapshotText(record.createdAt) || "",
+  };
+};
+
+const normalizeAppSnapshot = (value: unknown): AppSnapshotPayload | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const activeSignal = normalizeAppSnapshotSignal(record.activeSignal);
+  const signalsTop = Array.isArray(record.signalsTop)
+    ? record.signalsTop
+        .map((item) => normalizeAppSnapshotSignal(item))
+        .filter((item): item is AppSnapshotSignal => Boolean(item))
+        .slice(0, APP_SNAPSHOT_MAX_SIGNALS)
+    : [];
+  const recentActions = Array.isArray(record.recentActions)
+    ? record.recentActions
+        .map((item) => normalizeAppSnapshotAction(item))
+        .filter((item): item is AppSnapshotAction => Boolean(item))
+        .slice(0, APP_SNAPSHOT_MAX_ACTIONS)
+    : [];
+  const screen = normalizeNullableId(record.screen);
+  const contextTitle = normalizeNullableId(record.contextTitle);
+  if (!screen && !contextTitle && !activeSignal && !signalsTop.length && !recentActions.length) {
+    return null;
+  }
+  return {
+    screen,
+    contextTitle,
+    activeSignal,
+    signalsTop,
+    recentActions,
+  };
+};
+
+const buildAppSnapshotContext = (snapshot: AppSnapshotPayload | null) => {
+  if (!snapshot) return "APP_SNAPSHOT: sem contexto operacional adicional.";
+  const lines: string[] = [];
+  if (snapshot.screen) lines.push(`screen: ${snapshot.screen}`);
+  if (snapshot.contextTitle) lines.push(`contextTitle: ${snapshot.contextTitle}`);
+  if (snapshot.activeSignal) {
+    lines.push(
+      `activeSignal: ${snapshot.activeSignal.title} [${snapshot.activeSignal.severity}]`
+    );
+  }
+  if (snapshot.signalsTop.length) {
+    lines.push("signalsTop:");
+    for (const signal of snapshot.signalsTop) {
+      lines.push(`- ${signal.title} [${signal.severity}]`);
+    }
+  }
+  if (snapshot.recentActions.length) {
+    lines.push("recentActions:");
+    for (const action of snapshot.recentActions) {
+      lines.push(`- ${action.actionTitle} (${action.status})`);
+    }
+  }
+  if (!lines.length) {
+    return "APP_SNAPSHOT: sem contexto operacional adicional.";
+  }
+  return `APP_SNAPSHOT:\n${lines.join("\n")}`;
+};
+
 const systemPrompt = [
   "You are a volleyball and training assistant for a coaching app.",
   "Always base answers on provided sources and retrieved documents.",
@@ -677,9 +800,10 @@ Deno.serve(async (req) => {
         ? body.sport.trim()
         : "volleyball";
     const debugRequested = Boolean(body.debug);
-        const requestMemoryContext = Array.isArray(body.memoryContext)
-          ? body.memoryContext.map((item: unknown) => String(item || "").trim()).filter(Boolean)
-          : [];
+    const requestMemoryContext = Array.isArray(body.memoryContext)
+      ? body.memoryContext.map((item: unknown) => String(item || "").trim()).filter(Boolean)
+      : [];
+    const appSnapshot = normalizeAppSnapshot(body.appSnapshot);
     const debugAllowed = canUseDebugMode(auth.user);
     if (debugRequested && !debugAllowed) {
       return new Response(JSON.stringify({ error: "Debug mode not allowed" }), {
@@ -720,6 +844,7 @@ Deno.serve(async (req) => {
     ].slice(0, 6);
     const ragContext = buildRagContext(kbDocs);
     const scientificEvidenceContext = buildScientificEvidenceContext(kbDocs);
+    const appSnapshotContext = buildAppSnapshotContext(appSnapshot);
     console.log(
       JSON.stringify({
         event: "assistant_rag_retrieval",
@@ -727,6 +852,7 @@ Deno.serve(async (req) => {
         sport: sportHint,
         queryType,
         classId,
+        hasAppSnapshot: Boolean(appSnapshot),
         retrieved_chunks_count: kbDocs.length,
         docIds: kbDocs.map((doc) => doc.id),
         latency_ms_retrieval: retrieval.retrievalLatencyMs,
@@ -741,6 +867,7 @@ Deno.serve(async (req) => {
         { role: "system", content: userHint },
         { role: "system", content: scientificEvidenceContext },
         { role: "system", content: ragContext },
+        { role: "system", content: appSnapshotContext },
         {
           role: "system",
           content: memoryContext.length

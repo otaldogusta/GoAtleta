@@ -1069,28 +1069,14 @@ export default function CoordinationScreen() {
           ? {
               screen: "coordination_dashboard",
               title: "Coordenação",
-              subtitle: "Assistente contextual da coordenação",
-              chips: [
-                { label: "Org", value: organizationName },
-                { label: "Pendências", value: String(pendingAttendance.length + pendingReports.length) },
-                { label: "Sync", value: String(pendingWritesDiagnostics.total) },
-                { label: "Sinais", value: String(signals.length) },
-              ],
+              subtitle: "Visao operacional da coordenacao",
             }
           : {
               screen: "coordination_members",
               title: "Coordenação - membros",
-              subtitle: "Gestão de membros",
-              chips: [{ label: "Org", value: organizationName }],
+              subtitle: "Gestao de membros",
             },
-      [
-        activeTab,
-        organizationName,
-        pendingAttendance.length,
-        pendingReports.length,
-        pendingWritesDiagnostics.total,
-        signals.length,
-      ]
+      [ activeTab ]
     )
   );
 

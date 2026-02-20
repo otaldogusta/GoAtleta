@@ -59,6 +59,18 @@ type CopilotHistoryItem = {
   confidence?: number;
 };
 
+type InsightsCategory =
+  | "reports"
+  | "absences"
+  | "nfc"
+  | "attendance"
+  | "engagement";
+
+type InsightsView =
+  | { mode: "root" }
+  | { mode: "category"; category: InsightsCategory }
+  | { mode: "detail"; category: InsightsCategory; signalId: string };
+
 type CopilotState = {
   context: CopilotContextData | null;
   actions: CopilotAction[];
@@ -90,6 +102,37 @@ const CopilotContext = createContext<CopilotInternalContext | null>(null);
 const MAX_HISTORY_ITEMS = 12;
 
 const publicRoutes = new Set(["/welcome", "/login", "/signup", "/reset-password"]);
+
+const categoryLabelById: Record<InsightsCategory, string> = {
+  reports: "Relatorios",
+  absences: "Faltas consecutivas",
+  nfc: "Presenca NFC",
+  attendance: "Queda de presenca",
+  engagement: "Risco de engajamento",
+};
+
+const categorySortOrder: InsightsCategory[] = [
+  "reports",
+  "absences",
+  "nfc",
+  "attendance",
+  "engagement",
+];
+
+const signalToCategory = (signalType: CopilotSignal["type"]): InsightsCategory => {
+  switch (signalType) {
+    case "report_delay":
+      return "reports";
+    case "repeated_absence":
+      return "absences";
+    case "unusual_presence_pattern":
+      return "nfc";
+    case "attendance_drop":
+      return "attendance";
+    case "engagement_risk":
+      return "engagement";
+  }
+};
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
   if (!value) return { message: "Acao concluida." };
@@ -137,6 +180,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     hasUnreadUpdates: false,
     unreadCount: 0,
   });
+  const [insightsView, setInsightsView] = useState<InsightsView>({ mode: "root" });
 
   const setContext = useCallback((ownerId: string, context: CopilotContextData | null) => {
     contextRegistryRef.current.set(ownerId, context);
@@ -227,6 +271,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const open = useCallback(() => {
     const latestSnapshot = lastComputedSnapshotRef.current ?? currentSnapshot;
     lastSeenSnapshotRef.current = latestSnapshot;
+    setInsightsView({ mode: "root" });
     setState((prev) => ({
       ...prev,
       open: true,
@@ -308,7 +353,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       }));
     } catch (error) {
       const result: CopilotActionResult = {
-        message: error instanceof Error ? error.message : "Falha ao executar acao do assistente.",
+        message: error instanceof Error ? error.message : "Falha ao executar acao.",
       };
       setState((prev) => ({
         ...prev,
@@ -353,13 +398,52 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const selectedSignal =
     state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
-  const otherSignals = useMemo(() => {
-    if (!selectedSignal) return state.signals;
-    return state.signals.filter((item) => item.id !== selectedSignal.id);
-  }, [selectedSignal, state.signals]);
+  const signalsByCategory = useMemo<Record<InsightsCategory, CopilotSignal[]>>(
+    () => ({
+      reports: state.signals.filter((item) => signalToCategory(item.type) === "reports"),
+      absences: state.signals.filter((item) => signalToCategory(item.type) === "absences"),
+      nfc: state.signals.filter((item) => signalToCategory(item.type) === "nfc"),
+      attendance: state.signals.filter((item) => signalToCategory(item.type) === "attendance"),
+      engagement: state.signals.filter((item) => signalToCategory(item.type) === "engagement"),
+    }),
+    [state.signals]
+  );
+  const categoriesWithSignals = useMemo(
+    () => categorySortOrder.filter((category) => signalsByCategory[category].length > 0),
+    [signalsByCategory]
+  );
+  const detailSignal = useMemo(() => {
+    if (insightsView.mode !== "detail") return null;
+    return state.signals.find((item) => item.id === insightsView.signalId) ?? null;
+  }, [insightsView, state.signals]);
+  const activeDrawerSignal = detailSignal ?? selectedSignal;
+  const activeCategoryForActions =
+    insightsView.mode === "category" || insightsView.mode === "detail"
+      ? insightsView.category
+      : activeDrawerSignal
+        ? signalToCategory(activeDrawerSignal.type)
+        : null;
+
+  useEffect(() => {
+    if (insightsView.mode === "root") return;
+    if (insightsView.mode === "category") {
+      if (!signalsByCategory[insightsView.category].length) {
+        setInsightsView({ mode: "root" });
+      }
+      return;
+    }
+    if (!detailSignal) {
+      if (signalsByCategory[insightsView.category].length) {
+        setInsightsView({ mode: "category", category: insightsView.category });
+      } else {
+        setInsightsView({ mode: "root" });
+      }
+    }
+  }, [detailSignal, insightsView, signalsByCategory]);
+
   const recommendedActions = useMemo(() => {
-    return getRecommendedSignalActions(selectedSignal, state.actions);
-  }, [selectedSignal, state.actions]);
+    return getRecommendedSignalActions(activeDrawerSignal, state.actions);
+  }, [activeDrawerSignal, state.actions]);
   const recommendedActionIds = useMemo(() => {
     return new Set(recommendedActions.map((item) => item.id));
   }, [recommendedActions]);
@@ -369,21 +453,24 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     return [...recommendedActions, ...remainingActions];
   }, [recommendedActionIds, recommendedActions, state.actions]);
   const selectedSeverityColor =
-    selectedSignal?.severity === "critical"
+    activeDrawerSignal?.severity === "critical"
       ? colors.dangerText
-      : selectedSignal?.severity === "high"
+      : activeDrawerSignal?.severity === "high"
         ? colors.warningText
-        : selectedSignal?.severity === "medium"
+        : activeDrawerSignal?.severity === "medium"
           ? colors.text
           : colors.muted;
   const selectedSeverityLabel =
-    selectedSignal?.severity === "critical"
+    activeDrawerSignal?.severity === "critical"
       ? "Critico"
-      : selectedSignal?.severity === "high"
+      : activeDrawerSignal?.severity === "high"
         ? "Alto"
-        : selectedSignal?.severity === "medium"
+        : activeDrawerSignal?.severity === "medium"
           ? "Medio"
           : "Baixo";
+  const activeCategoryLabel = activeCategoryForActions
+    ? categoryLabelById[activeCategoryForActions]
+    : null;
   const showFab =
     Boolean(session) &&
     !publicRoutes.has(normalizedPath) &&
@@ -391,7 +478,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     normalizedPath !== "/index" &&
     !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
-  const unreadBadgeLabel = state.unreadCount > 9 ? "9+" : String(state.unreadCount);
   const sheetContentBottomPadding = Math.max(
     insets.bottom + 10,
     Platform.OS === "web" ? 16 : 14
@@ -464,7 +550,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <Pressable
             onPress={open}
             accessibilityRole="button"
-            accessibilityLabel="Abrir assistente"
+            accessibilityLabel="Abrir insights"
             style={{
               borderRadius: 999,
               borderWidth: 1,
@@ -483,24 +569,21 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               elevation: 5,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>
                 Insights
               </Text>
-              {state.unreadCount > 0 ? (
+              {state.hasUnreadUpdates ? (
                 <View
                   style={{
                     borderRadius: 999,
-                    minWidth: 20,
-                    height: 20,
-                    paddingHorizontal: 6,
+                    width: 8,
+                    height: 8,
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: colors.background,
+                    backgroundColor: colors.primaryText,
                   }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>{unreadBadgeLabel}</Text>
-                </View>
+                />
               ) : null}
             </View>
           </Pressable>
@@ -535,7 +618,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <View style={{ gap: 2 }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Insights</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {state.context?.title ?? state.context?.screen ?? "Assistente contextual"}
+              {state.context?.title ?? state.context?.screen ?? "Visao operacional"}
             </Text>
           </View>
           <Pressable
@@ -558,142 +641,180 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           showsVerticalScrollIndicator
           contentContainerStyle={{ gap: 12, paddingBottom: 4 }}
         >
-          {state.context?.chips?.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {state.context.chips.map((chip) => (
-                <View
-                  key={`${chip.label}:${chip.value}`}
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                    {chip.label}: {chip.value}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
+          {insightsView.mode !== "root" ? (
+            <Pressable
+              onPress={() => {
+                if (insightsView.mode === "detail") {
+                  setInsightsView({ mode: "category", category: insightsView.category });
+                  return;
+                }
+                setInsightsView({ mode: "root" });
+              }}
+              style={{
+                alignSelf: "flex-start",
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Voltar</Text>
+            </Pressable>
           ) : null}
 
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>Alertas ativos</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {state.signals.length
-                ? `${state.signals.length} alerta(s) detectado(s) no contexto atual.`
-                : "Nenhum alerta ativo neste momento."}
-            </Text>
-
-            {selectedSignal ? (
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 10,
-                  gap: 4,
-                }}
-              >
-                <Text style={{ color: selectedSeverityColor, fontSize: 11, fontWeight: "800" }}>
-                  Alerta em foco - {selectedSeverityLabel}
-                </Text>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>{selectedSignal.title}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{selectedSignal.summary}</Text>
-              </View>
-            ) : null}
-
-            {otherSignals.length ? (
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                  {selectedSignal ? "Outros alertas" : "Lista de alertas"}
-                </Text>
-                {otherSignals.map((signal) => {
-                  const severityColor =
-                    signal.severity === "critical"
-                      ? colors.dangerText
-                      : signal.severity === "high"
-                        ? colors.warningText
-                        : signal.severity === "medium"
-                          ? colors.text
-                          : colors.muted;
-                  return (
+          {insightsView.mode === "root" ? (
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>Temas do momento</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {categoriesWithSignals.length
+                  ? "Selecione um tema para abrir os insights."
+                  : "Nenhum insight relevante neste momento."}
+              </Text>
+              {categoriesWithSignals.length ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {categoriesWithSignals.map((category) => (
                     <Pressable
-                      key={signal.id}
-                      onPress={() => {
-                        setActiveSignal(signal.id);
-                      }}
+                      key={category}
+                      onPress={() => setInsightsView({ mode: "category", category })}
                       style={{
-                        borderRadius: 12,
+                        borderRadius: 999,
                         borderWidth: 1,
                         borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        padding: 10,
-                        gap: 4,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
                       }}
                     >
-                      <Text style={{ color: severityColor, fontWeight: "800", fontSize: 11 }}>
-                        {signal.severity.toUpperCase()}
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                        {categoryLabelById[category]}
                       </Text>
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
                     </Pressable>
-                  );
-                })}
-              </View>
-            ) : state.signals.length === 0 ? (
-              <Text style={{ color: colors.muted }}>Sem alertas para monitorar agora.</Text>
-            ) : null}
-          </View>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes gerais da tela</Text>
-            {selectedSignal && recommendedActions.length ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Acoes recomendadas para o alerta em foco aparecem primeiro.
+          {insightsView.mode === "category" ? (
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>
+                {categoryLabelById[insightsView.category]}
               </Text>
-            ) : null}
-            {orderedActions.length ? (
-              orderedActions.map((action) => {
-                const isRecommended = recommendedActionIds.has(action.id);
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Toque em um insight para ver detalhes e acoes relacionadas.
+              </Text>
+              {signalsByCategory[insightsView.category].map((signal) => {
+                const severityColor =
+                  signal.severity === "critical"
+                    ? colors.dangerText
+                    : signal.severity === "high"
+                      ? colors.warningText
+                      : signal.severity === "medium"
+                        ? colors.text
+                        : colors.muted;
                 return (
                   <Pressable
-                    key={action.id}
+                    key={signal.id}
                     onPress={() => {
-                      void runAction(action);
+                      setActiveSignal(signal.id);
+                      setInsightsView({
+                        mode: "detail",
+                        category: insightsView.category,
+                        signalId: signal.id,
+                      });
                     }}
-                    disabled={Boolean(state.runningActionId)}
                     style={{
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: isRecommended ? colors.primaryBg : colors.border,
+                      borderColor: colors.border,
                       backgroundColor: colors.card,
-                      padding: 12,
-                      opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
+                      padding: 10,
+                      gap: 4,
                     }}
                   >
-                    {isRecommended ? (
-                      <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800", marginBottom: 4 }}>
-                        RECOMENDADA PARA O ALERTA
-                      </Text>
-                    ) : null}
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {state.runningActionId === action.id ? "Executando..." : action.title}
+                    <Text style={{ color: severityColor, fontWeight: "800", fontSize: 11 }}>
+                      {signal.severity.toUpperCase()}
                     </Text>
-                    {action.description ? (
-                      <Text style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>{action.description}</Text>
-                    ) : null}
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
                   </Pressable>
                 );
-              })
-            ) : (
-              <Text style={{ color: colors.muted }}>Sem acoes disponiveis neste contexto.</Text>
-            )}
-          </View>
+              })}
+            </View>
+          ) : null}
+
+          {insightsView.mode === "detail" && activeDrawerSignal ? (
+            <>
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>
+                  {activeCategoryLabel ?? "Insight selecionado"}
+                </Text>
+                <View
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    padding: 10,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ color: selectedSeverityColor, fontSize: 11, fontWeight: "800" }}>
+                    Prioridade - {selectedSeverityLabel}
+                  </Text>
+                  <Text style={{ color: colors.text, fontWeight: "800" }}>{activeDrawerSignal.title}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>{activeDrawerSignal.summary}</Text>
+                </View>
+              </View>
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes gerais</Text>
+                {recommendedActions.length ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    As acoes recomendadas para este insight aparecem primeiro.
+                  </Text>
+                ) : null}
+                {orderedActions.length ? (
+                  orderedActions.map((action) => {
+                    const isRecommended = recommendedActionIds.has(action.id);
+                    return (
+                      <Pressable
+                        key={action.id}
+                        onPress={() => {
+                          void runAction(action);
+                        }}
+                        disabled={Boolean(state.runningActionId)}
+                        style={{
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: isRecommended ? colors.primaryBg : colors.border,
+                          backgroundColor: colors.card,
+                          padding: 12,
+                          opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
+                        }}
+                      >
+                        {isRecommended ? (
+                          <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800", marginBottom: 4 }}>
+                            RECOMENDADA PARA ESTE INSIGHT
+                          </Text>
+                        ) : null}
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>
+                          {state.runningActionId === action.id ? "Executando..." : action.title}
+                        </Text>
+                        {action.description ? (
+                          <Text style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>{action.description}</Text>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <Text style={{ color: colors.muted }}>Sem acoes disponiveis neste contexto.</Text>
+                )}
+              </View>
+            </>
+          ) : null}
         </ScrollView>
       </ModalSheet>
     </CopilotContext.Provider>
@@ -705,6 +826,27 @@ export function useCopilot() {
   if (!context) {
     throw new Error("useCopilot must be used within CopilotProvider");
   }
+  return {
+    open: context.open,
+    close: context.close,
+    runAction: context.runAction,
+    isOpen: context.state.open,
+    actionCount: context.state.actions.length,
+    signalCount: context.state.signals.length,
+    hasUnreadUpdates: context.state.hasUnreadUpdates,
+    unreadCount: context.state.unreadCount,
+    signals: context.state.signals,
+    activeSignal:
+      context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
+    setActiveSignal: context.setActiveSignal,
+    context: context.state.context,
+    history: context.state.history,
+  };
+}
+
+export function useOptionalCopilot() {
+  const context = useContext(CopilotContext);
+  if (!context) return null;
   return {
     open: context.open,
     close: context.close,

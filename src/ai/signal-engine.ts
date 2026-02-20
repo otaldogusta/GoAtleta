@@ -438,11 +438,11 @@ const buildEngagementRiskSignal = (params: {
     severity,
     scope: "organization" as const,
     organizationId: params.organizationId,
-    title: "Risco sistemico de engajamento",
+    title: "Risco geral de engajamento",
     summary:
       conditionsMet >= 2
-        ? "Multiplos sinais fortes detectados em turmas e alunos."
-        : "Sinal forte de risco de engajamento detectado.",
+        ? "Risco alto: combinacao de faltas, queda de presenca e atrasos em relatorios."
+        : "Risco elevado: um padrao forte de queda/atraso foi detectado.",
     evidence: {
       conditionsMet,
       attendanceDropCount,

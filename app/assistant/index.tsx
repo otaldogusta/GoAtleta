@@ -64,6 +64,7 @@ import {
     updateWeeklyAutopilotProposalStatus,
 } from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
+import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -221,6 +222,7 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
 export default function AssistantScreen() {
   const router = useRouter();
   const { session } = useAuth();
+  const optionalCopilot = useOptionalCopilot();
   const { activeOrganization } = useOrganization();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { colors } = useAppTheme();
@@ -622,6 +624,35 @@ export default function AssistantScreen() {
         memoryContext = [];
       }
       setMemoryContextHints(memoryContext);
+      const appSnapshot = optionalCopilot
+        ? {
+            screen: optionalCopilot.context?.screen ?? null,
+            contextTitle: optionalCopilot.context?.title ?? null,
+            activeSignal: optionalCopilot.activeSignal
+              ? {
+                  id: optionalCopilot.activeSignal.id,
+                  type: optionalCopilot.activeSignal.type,
+                  severity: optionalCopilot.activeSignal.severity,
+                  title: optionalCopilot.activeSignal.title,
+                  classId: optionalCopilot.activeSignal.classId ?? null,
+                  studentId: optionalCopilot.activeSignal.studentId ?? null,
+                }
+              : null,
+            signalsTop: optionalCopilot.signals.slice(0, 5).map((signal) => ({
+              id: signal.id,
+              type: signal.type,
+              severity: signal.severity,
+              title: signal.title,
+              classId: signal.classId ?? null,
+              studentId: signal.studentId ?? null,
+            })),
+            recentActions: optionalCopilot.history.slice(0, 3).map((item) => ({
+              actionTitle: item.actionTitle,
+              status: item.status,
+              createdAt: item.createdAt,
+            })),
+          }
+        : null;
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/assistant`, {
         method: "POST",
@@ -639,6 +670,7 @@ export default function AssistantScreen() {
           organizationId: activeOrganization?.id ?? "",
           sport: selectedClass?.modality ?? "volleyball",
           memoryContext,
+          appSnapshot,
         }),
       });
 

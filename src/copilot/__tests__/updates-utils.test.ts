@@ -50,4 +50,35 @@ describe("copilot updates utils", () => {
     expect(countUnreadFromSnapshot(null, current)).toBe(0);
     expect(hasSnapshotChanged(null, current)).toBe(true);
   });
+
+  test("counts unread when same signal changes severity", () => {
+    const previous = buildCentralSnapshot({
+      screenKey: "coordination",
+      signals: [
+        {
+          id: "s1",
+          severity: "medium",
+          detectedAt: "2026-02-19T10:00:00.000Z",
+        },
+      ],
+      actions: [],
+      historyHead: null,
+    });
+
+    const current = buildCentralSnapshot({
+      screenKey: "coordination",
+      signals: [
+        {
+          id: "s1",
+          severity: "high",
+          detectedAt: "2026-02-19T10:00:00.000Z",
+        },
+      ],
+      actions: [],
+      historyHead: null,
+    });
+
+    expect(hasSnapshotChanged(previous, current)).toBe(true);
+    expect(countUnreadFromSnapshot(previous, current)).toBe(1);
+  });
 });

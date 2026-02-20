@@ -8,7 +8,7 @@ export type CentralSnapshot = {
 
 type SnapshotInput = {
   screenKey?: string | null;
-  signals: { id: string; detectedAt?: string | null }[];
+  signals: { id: string; severity?: string | null; detectedAt?: string | null }[];
   actions: { id: string }[];
   historyHead?: { id: string; createdAt?: string | null } | null;
 };
@@ -19,7 +19,11 @@ const sortUnique = (values: string[]) => Array.from(new Set(values)).sort((left,
 
 export const buildCentralSnapshot = (input: SnapshotInput): CentralSnapshot => {
   const screenKey = input.screenKey ?? NONE;
-  const signalKeys = sortUnique(input.signals.map((item) => `${item.id}:${item.detectedAt ?? NONE}`));
+  const signalKeys = sortUnique(
+    input.signals.map(
+      (item) => `${item.id}:${item.severity ?? NONE}:${item.detectedAt ?? NONE}`
+    )
+  );
   const actionKeys = sortUnique(input.actions.map((item) => item.id));
   const historyHeadKey = input.historyHead
     ? `${input.historyHead.id}:${input.historyHead.createdAt ?? NONE}`
