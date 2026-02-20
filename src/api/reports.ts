@@ -26,7 +26,6 @@ type AdminClassScheduleRow = {
   days: number[] | null;
   daysperweek: number | string | null;
   created_at?: string | null;
-  createdat?: string | null;
 };
 
 type AdminRecentActivityRow = {
@@ -180,7 +179,7 @@ export async function listAdminPendingSessionLogs(params: {
         "/v_admin_pending_session_logs?organization_id=eq." + encodedOrgId + "&select=*"
       ),
       supabaseRestGet<AdminClassScheduleRow[]>(
-        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek,created_at,createdat"
+        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek,created_at"
       ),
     ]);
     return { rows: pendingRows, classSchedules: scheduleRows };
@@ -221,7 +220,7 @@ export async function listAdminPendingSessionLogs(params: {
           .filter((value) => Number.isFinite(value) && value >= 1 && value <= 7)
       : [];
 
-    const classCreatedAt = schedule?.created_at ?? schedule?.createdat ?? null;
+    const classCreatedAt = schedule?.created_at ?? null;
     const referenceDateIso = row.last_report_at ?? classCreatedAt ?? row.period_start;
     const referenceDate = new Date(referenceDateIso);
     const daysWithoutReport = Number.isNaN(referenceDate.getTime())
