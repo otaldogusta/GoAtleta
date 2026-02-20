@@ -353,6 +353,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const selectedSignal =
     state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
+  const otherSignals = useMemo(() => {
+    if (!selectedSignal) return state.signals;
+    return state.signals.filter((item) => item.id !== selectedSignal.id);
+  }, [selectedSignal, state.signals]);
   const recommendedActions = useMemo(() => {
     return getRecommendedSignalActions(selectedSignal, state.actions);
   }, [selectedSignal, state.actions]);
@@ -394,9 +398,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   );
   const sheetMaxHeight = Math.max(
     420,
-    Math.min(viewportHeight * 0.82, viewportHeight - 16)
+    Math.min(viewportHeight * (Platform.OS === "web" ? 0.9 : 0.88), viewportHeight - 8)
   );
-  const sheetMinHeight = Math.min(sheetMaxHeight, Math.max(340, viewportHeight * 0.52));
+  const sheetMinHeight = Math.min(sheetMaxHeight, Math.max(360, viewportHeight * 0.6));
 
   useEffect(() => {
     if (!(showFab && state.hasUnreadUpdates)) {
@@ -542,59 +546,66 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               </Pressable>
             </View>
 
-            {state.context?.chips?.length ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {state.context.chips.map((chip) => (
-                  <View
-                    key={`${chip.label}:${chip.value}`}
-                    style={{
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                      {chip.label}: {chip.value}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : null}
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Alertas ativos</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {state.signals.length
-                  ? `${state.signals.length} alerta(s) detectado(s) no contexto atual.`
-                  : "Nenhum alerta ativo neste momento."}
-              </Text>
-              {state.signals.length ? (
-                <>
-                  {selectedSignal ? (
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator
+              contentContainerStyle={{ gap: 12, paddingBottom: 4 }}
+            >
+              {state.context?.chips?.length ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {state.context.chips.map((chip) => (
                     <View
+                      key={`${chip.label}:${chip.value}`}
                       style={{
-                        borderRadius: 12,
+                        borderRadius: 999,
                         borderWidth: 1,
                         borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        padding: 10,
-                        gap: 4,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
                       }}
                     >
-                      <Text style={{ color: selectedSeverityColor, fontSize: 11, fontWeight: "800" }}>
-                        Alerta em foco - {selectedSeverityLabel}
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                        {chip.label}: {chip.value}
                       </Text>
-                      <Text style={{ color: colors.text, fontWeight: "800" }}>{selectedSignal.title}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{selectedSignal.summary}</Text>
                     </View>
-                  ) : null}
+                  ))}
+                </ScrollView>
+              ) : null}
 
-                  <ScrollView style={{ maxHeight: 160 }} contentContainerStyle={{ gap: 8 }}>
-                    {state.signals.map((signal) => {
-                      const isSelected = signal.id === selectedSignal?.id;
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Alertas ativos</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {state.signals.length
+                    ? `${state.signals.length} alerta(s) detectado(s) no contexto atual.`
+                    : "Nenhum alerta ativo neste momento."}
+                </Text>
+
+                {selectedSignal ? (
+                  <View
+                    style={{
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.card,
+                      padding: 10,
+                      gap: 4,
+                    }}
+                  >
+                    <Text style={{ color: selectedSeverityColor, fontSize: 11, fontWeight: "800" }}>
+                      Alerta em foco - {selectedSeverityLabel}
+                    </Text>
+                    <Text style={{ color: colors.text, fontWeight: "800" }}>{selectedSignal.title}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{selectedSignal.summary}</Text>
+                  </View>
+                ) : null}
+
+                {otherSignals.length ? (
+                  <View style={{ gap: 8 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                      {selectedSignal ? "Outros alertas" : "Lista de alertas"}
+                    </Text>
+                    {otherSignals.map((signal) => {
                       const severityColor =
                         signal.severity === "critical"
                           ? colors.dangerText
@@ -612,7 +623,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           style={{
                             borderRadius: 12,
                             borderWidth: 1,
-                            borderColor: isSelected ? colors.primaryBg : colors.border,
+                            borderColor: colors.border,
                             backgroundColor: colors.card,
                             padding: 10,
                             gap: 4,
@@ -626,60 +637,57 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                  </View>
+                ) : state.signals.length === 0 ? (
+                  <Text style={{ color: colors.muted }}>Sem alertas para monitorar agora.</Text>
+                ) : null}
+              </View>
 
-                </>
-              ) : (
-                <Text style={{ color: colors.muted }}>Sem alertas para monitorar agora.</Text>
-              )}
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes gerais da tela</Text>
-              {selectedSignal && recommendedActions.length ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Acoes recomendadas para o alerta em foco aparecem primeiro.
-                </Text>
-              ) : null}
-              <ScrollView style={{ maxHeight: 220 }} contentContainerStyle={{ gap: 8 }}>
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Acoes gerais da tela</Text>
+                {selectedSignal && recommendedActions.length ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Acoes recomendadas para o alerta em foco aparecem primeiro.
+                  </Text>
+                ) : null}
                 {orderedActions.length ? (
                   orderedActions.map((action) => {
                     const isRecommended = recommendedActionIds.has(action.id);
                     return (
-                    <Pressable
-                      key={action.id}
-                      onPress={() => {
-                        void runAction(action);
-                      }}
-                      disabled={Boolean(state.runningActionId)}
-                      style={{
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: isRecommended ? colors.primaryBg : colors.border,
-                        backgroundColor: colors.card,
-                        padding: 12,
-                        opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
-                      }}
-                    >
-                      {isRecommended ? (
-                        <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800", marginBottom: 4 }}>
-                          RECOMENDADA PARA O ALERTA
+                      <Pressable
+                        key={action.id}
+                        onPress={() => {
+                          void runAction(action);
+                        }}
+                        disabled={Boolean(state.runningActionId)}
+                        style={{
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: isRecommended ? colors.primaryBg : colors.border,
+                          backgroundColor: colors.card,
+                          padding: 12,
+                          opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
+                        }}
+                      >
+                        {isRecommended ? (
+                          <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800", marginBottom: 4 }}>
+                            RECOMENDADA PARA O ALERTA
+                          </Text>
+                        ) : null}
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>
+                          {state.runningActionId === action.id ? "Executando..." : action.title}
                         </Text>
-                      ) : null}
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        {state.runningActionId === action.id ? "Executando..." : action.title}
-                      </Text>
-                      {action.description ? (
-                        <Text style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>{action.description}</Text>
-                      ) : null}
-                    </Pressable>
-                  );
+                        {action.description ? (
+                          <Text style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>{action.description}</Text>
+                        ) : null}
+                      </Pressable>
+                    );
                   })
                 ) : (
                   <Text style={{ color: colors.muted }}>Sem acoes disponiveis neste contexto.</Text>
                 )}
-              </ScrollView>
-            </View>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
