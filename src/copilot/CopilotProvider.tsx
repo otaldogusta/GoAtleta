@@ -512,9 +512,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         onClose={close}
         backdropOpacity={0.62}
         cardStyle={{
-          width: "100%",
+          width: Platform.OS === "web" ? "96%" : "100%",
           maxWidth: sheetMaxWidth,
-          alignSelf: "stretch",
+          alignSelf: "center",
           maxHeight: sheetMaxHeight,
           minHeight: sheetMinHeight,
           marginBottom: Platform.OS === "web" ? 16 : 0,
