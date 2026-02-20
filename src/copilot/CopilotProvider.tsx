@@ -647,42 +647,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                 )}
               </ScrollView>
             </View>
-
-            <View style={{ gap: 8, flexShrink: 1, maxHeight: 220 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Histórico</Text>
-              <ScrollView style={{ maxHeight: 188 }} contentContainerStyle={{ gap: 8, paddingBottom: 6 }}>
-                {state.history.length ? (
-                  state.history.map((item) => (
-                    <View
-                      key={item.id}
-                      style={{
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        padding: 10,
-                        gap: 4,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{item.actionTitle}</Text>
-                      <Text style={{ color: item.status === "success" ? colors.successText : colors.dangerText, fontSize: 12 }}>
-                        {item.status === "success" ? "Concluído" : "Erro"}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{item.message}</Text>
-                      {(typeof item.confidence === "number" || typeof item.citationsCount === "number") ? (
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                          {typeof item.confidence === "number" ? `Confiança: ${Math.round(item.confidence * 100)}%` : ""}
-                          {typeof item.confidence === "number" && typeof item.citationsCount === "number" ? " • " : ""}
-                          {typeof item.citationsCount === "number" ? `Referências: ${item.citationsCount}` : ""}
-                        </Text>
-                      ) : null}
-                    </View>
-                  ))
-                ) : (
-                  <Text style={{ color: colors.muted }}>Nenhuma execução ainda.</Text>
-                )}
-              </ScrollView>
-            </View>
           </View>
         </View>
       </Modal>
@@ -794,3 +758,5 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
+
+
