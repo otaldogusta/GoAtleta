@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -115,6 +116,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session } = useAuth();
   const insets = useSafeAreaInsets();
+  const { height: viewportHeight } = useWindowDimensions();
 
   const contextRegistryRef = useRef<Map<string, CopilotContextData | null>>(new Map());
   const actionsRegistryRef = useRef<Map<string, CopilotAction[]>>(new Map());
@@ -366,6 +368,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     insets.bottom + 8,
     Platform.OS === "web" ? 16 : 12
   );
+  const sheetMaxHeight = Math.max(
+    420,
+    Math.min(viewportHeight * 0.82, viewportHeight - sheetBottomSpacing - 16)
+  );
+  const sheetMinHeight = Math.min(sheetMaxHeight, Math.max(340, viewportHeight * 0.52));
 
   useEffect(() => {
     if (!(showFab && state.hasUnreadUpdates)) {
@@ -482,8 +489,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.background,
-              maxHeight: "78%",
-              minHeight: "52%",
+              maxHeight: sheetMaxHeight,
+              minHeight: sheetMinHeight,
+              overflow: "hidden",
               padding: 14,
               gap: 12,
             }}
@@ -640,9 +648,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               </ScrollView>
             </View>
 
-            <View style={{ gap: 8, flex: 1 }}>
+            <View style={{ gap: 8, flexShrink: 1, maxHeight: 220 }}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>Histórico</Text>
-              <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 6 }}>
+              <ScrollView style={{ maxHeight: 188 }} contentContainerStyle={{ gap: 8, paddingBottom: 6 }}>
                 {state.history.length ? (
                   state.history.map((item) => (
                     <View
