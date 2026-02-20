@@ -271,7 +271,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
     const actionContext: CopilotContextData | null = selectedSignal
       ? {
-          ...(state.context ?? { screen: "central" }),
+          ...(state.context ?? { screen: "assistant" }),
           activeSignal: selectedSignal,
         }
       : state.context ?? null;
@@ -303,7 +303,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       }));
     } catch (error) {
       const result: CopilotActionResult = {
-        message: error instanceof Error ? error.message : "Falha ao executar acao da Central.",
+        message: error instanceof Error ? error.message : "Falha ao executar acao do assistente.",
       };
       setState((prev) => ({
         ...prev,
@@ -354,6 +354,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const showFab =
     Boolean(session) &&
     !publicRoutes.has(normalizedPath) &&
+    normalizedPath !== "/" &&
+    normalizedPath !== "/index" &&
+    !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
   const unreadBadgeLabel = state.unreadCount > 9 ? "9+" : String(state.unreadCount);
 
@@ -418,7 +421,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <Pressable
             onPress={open}
             accessibilityRole="button"
-            accessibilityLabel="Abrir central"
+            accessibilityLabel="Abrir assistente"
             style={{
               borderRadius: 999,
               borderWidth: 1,
@@ -439,7 +442,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>
-                Central
+                Insights
               </Text>
               {state.unreadCount > 0 ? (
                 <View
@@ -479,9 +482,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           >
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <View style={{ gap: 2 }}>
-                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Resumo do dia</Text>
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Insights</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {state.context?.title ?? state.context?.screen ?? "Painel contextual"}
+                  {state.context?.title ?? state.context?.screen ?? "Assistente contextual"}
                 </Text>
               </View>
               <Pressable
@@ -767,7 +770,7 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(4, 8, 16, 0.48)",
+    backgroundColor: "transparent",
   },
   overlayCloseArea: {
     flex: 1,
