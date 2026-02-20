@@ -1,4 +1,4 @@
--- Fix: only mark pending session logs for classes that had at least one scheduled day in the last 7 days.
+-- Fix: classes.days is jsonb in production; use jsonb-safe checks in pending session logs view.
 
 create or replace view public.v_admin_pending_session_logs as
 with window_days as (
