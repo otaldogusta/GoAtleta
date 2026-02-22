@@ -76,6 +76,61 @@ const normalizeTopics = (topics: unknown) => {
   return Array.from(unique);
 };
 
+const ensureDefaultClausesForRuleSet = async (params: {
+  supabase: ReturnType<typeof createServiceClient>;
+  source: RegulationSourceRow;
+  ruleSetId: string;
+}) => {
+  if ((params.source.sport || "volleyball") !== "volleyball") return;
+
+  const defaults = [
+    {
+      clause_key: "tournament.min_duration_minutes",
+      clause_label: "Duração mínima do torneio (minutos)",
+      clause_type: "number",
+      base_value: 60,
+      overrides: [],
+    },
+    {
+      clause_key: "tournament.require_location",
+      clause_label: "Exigir local no torneio",
+      clause_type: "boolean",
+      base_value: true,
+      overrides: [],
+    },
+    {
+      clause_key: "tournament.min_linked_classes",
+      clause_label: "Quantidade mínima de turmas vinculadas",
+      clause_type: "number",
+      base_value: 1,
+      overrides: [],
+    },
+  ];
+
+  const payload = defaults.map((item) => ({
+    organization_id: params.source.organization_id,
+    rule_set_id: params.ruleSetId,
+    clause_key: item.clause_key,
+    clause_label: item.clause_label,
+    clause_type: item.clause_type,
+    base_value: item.base_value,
+    overrides: item.overrides,
+    source_reference: "default_v1",
+    updated_at: nowIso(),
+  }));
+
+  const { error } = await params.supabase
+    .from("regulation_clauses")
+    .upsert(payload, {
+      onConflict: "organization_id,rule_set_id,clause_key",
+      ignoreDuplicates: false,
+    });
+
+  if (error) {
+    throw new Error(`Failed to upsert default regulation clauses: ${error.message}`);
+  }
+};
+
 const parseIsoOrNull = (value: string | null | undefined) => {
   if (!value) return null;
   const parsed = Date.parse(value);
@@ -428,6 +483,7 @@ export const runRulesSync = async (options: RunRulesSyncOptions = {}): Promise<R
         checksum: document.checksum,
         publishedAt: document.publishedAt,
       });
+      await ensureDefaultClausesForRuleSet({ supabase, source, ruleSetId });
       const storagePath = await uploadDocument({ supabase, source, document });
       const upsertResult = await upsertDocumentAndUpdate({
         supabase,

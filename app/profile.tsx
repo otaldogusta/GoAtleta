@@ -830,6 +830,16 @@ export default function ProfileScreen() {
                   rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
                 />
               ) : null}
+              {!student ? (
+                <SettingsRow
+                  icon="layers-outline"
+                  iconBg="rgba(140, 200, 255, 0.16)"
+                  label="Historico de regulamentos"
+                  subtitle="Comparar versoes e clausulas por ciclo"
+                  onPress={() => router.push("/regulation-history")}
+                  rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
+                />
+              ) : null}
               <SettingsRow
                 icon="moon-outline"
                 iconBg="rgba(96, 187, 255, 0.16)"

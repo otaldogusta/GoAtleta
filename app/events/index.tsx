@@ -25,6 +25,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
@@ -77,6 +78,21 @@ const formatDurationMinutes = (value: number) => {
   if (minutes <= 0) return `${hours}h`;
   return `${hours}h ${pad2(minutes)}m`;
 };
+
+const formatRuleIssues = (messages: string[]) =>
+  messages.map((message, index) => `${index + 1}. ${message}`).join("\n");
+
+const confirmRuleWarnings = (messages: string[]) =>
+  new Promise<boolean>((resolve) => {
+    Alert.alert(
+      "Conferencia de regulamento",
+      `Ha recomendacoes para este torneio:\n\n${formatRuleIssues(messages)}`,
+      [
+        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
+        { text: "Continuar", onPress: () => resolve(true) },
+      ]
+    );
+  });
 
 const eventTypeLabel: Record<EventType, string> = {
   torneio: "Torneio",
@@ -299,6 +315,32 @@ export default function EventsScreen() {
           .map((classId) => classes.find((cls) => cls.id === classId)?.unitId ?? "")
           .find((value) => Boolean(value)) ?? null;
 
+      const ruleCheck = await validateTournamentRules({
+        organizationId: activeOrganization.id,
+        eventType,
+        eventSport: sport,
+        startsAt,
+        endsAt,
+        locationLabel: locationLabel.trim(),
+        linkedClassCount: classIds.length,
+        unitId: linkedUnitId,
+      });
+      const errorIssues = ruleCheck.issues.filter((issue) => issue.severity === "error");
+      if (errorIssues.length) {
+        Alert.alert(
+          "Regulamento",
+          formatRuleIssues(errorIssues.map((issue) => issue.message))
+        );
+        return;
+      }
+      const warningIssues = ruleCheck.issues.filter((issue) => issue.severity === "warning");
+      if (warningIssues.length) {
+        const shouldContinue = await confirmRuleWarnings(
+          warningIssues.map((issue) => issue.message)
+        );
+        if (!shouldContinue) return;
+      }
+
       const created = await createEvent({
         organizationId: activeOrganization.id,
         title: title.trim(),
@@ -309,6 +351,7 @@ export default function EventsScreen() {
         endsAt: endsAt.toISOString(),
         locationLabel: locationLabel.trim(),
         unitId: linkedUnitId,
+        ruleSetId: ruleCheck.ruleSetId,
         createdBy: session.user.id,
       });
       await setEventClasses(created.id, activeOrganization.id, classIds);

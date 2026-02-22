@@ -23,6 +23,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
@@ -75,6 +76,21 @@ const parseInputDate = (value: string) => {
   return parseDateTimeInput(value);
 };
 
+const formatRuleIssues = (messages: string[]) =>
+  messages.map((message, index) => `${index + 1}. ${message}`).join("\n");
+
+const confirmRuleWarnings = (messages: string[]) =>
+  new Promise<boolean>((resolve) => {
+    Alert.alert(
+      "Conferencia de regulamento",
+      `Ha recomendacoes para este torneio:\n\n${formatRuleIssues(messages)}`,
+      [
+        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
+        { text: "Continuar", onPress: () => resolve(true) },
+      ]
+    );
+  });
+
 const buildSnapshot = (values: EventFormSnapshot) => {
   return JSON.stringify({
     ...values,
@@ -117,6 +133,7 @@ export default function EventDetailsScreen() {
   const [endTimeInput, setEndTimeInput] = useState("");
   const [locationLabel, setLocationLabel] = useState("");
   const [classIds, setClassIds] = useState<string[]>([]);
+  const [ruleSetId, setRuleSetId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showEventTypeDropdown, setShowEventTypeDropdown] = useState(false);
   const [showSportDropdown, setShowSportDropdown] = useState(false);
@@ -193,6 +210,7 @@ export default function EventDetailsScreen() {
       setEndTimeInput(endValue.timePart);
       setLocationLabel(event.locationLabel || "");
       setClassIds(event.classIds);
+      setRuleSetId(event.ruleSetId ?? null);
       setInitialSnapshot(
         buildSnapshot({
           title: event.title,
@@ -253,6 +271,33 @@ export default function EventDetailsScreen() {
         classIds
           .map((classId) => classes.find((cls) => cls.id === classId)?.unitId ?? "")
           .find((value) => Boolean(value)) ?? null;
+      const ruleCheck = await validateTournamentRules({
+        organizationId: activeOrganization.id,
+        eventType,
+        eventSport: sport,
+        startsAt,
+        endsAt,
+        locationLabel: locationLabel.trim(),
+        linkedClassCount: classIds.length,
+        unitId: linkedUnitId,
+        existingRuleSetId: ruleSetId,
+      });
+      const errorIssues = ruleCheck.issues.filter((issue) => issue.severity === "error");
+      if (errorIssues.length) {
+        Alert.alert(
+          "Regulamento",
+          formatRuleIssues(errorIssues.map((issue) => issue.message))
+        );
+        return;
+      }
+      const warningIssues = ruleCheck.issues.filter((issue) => issue.severity === "warning");
+      if (warningIssues.length) {
+        const shouldContinue = await confirmRuleWarnings(
+          warningIssues.map((issue) => issue.message)
+        );
+        if (!shouldContinue) return;
+      }
+      const resolvedRuleSetId = eventType === "torneio" ? ruleCheck.ruleSetId : null;
       await updateEvent(eventId, {
         organizationId: activeOrganization.id,
         title: title.trim(),
@@ -262,9 +307,11 @@ export default function EventDetailsScreen() {
         startsAt: startsAt.toISOString(),
         endsAt: endsAt.toISOString(),
         unitId: linkedUnitId,
+        ruleSetId: resolvedRuleSetId,
         locationLabel: locationLabel.trim(),
       });
       await setEventClasses(eventId, activeOrganization.id, classIds);
+      setRuleSetId(resolvedRuleSetId);
       const nav = router as unknown as { replace: (path: string) => void };
       nav.replace("/events");
     } catch (err) {
