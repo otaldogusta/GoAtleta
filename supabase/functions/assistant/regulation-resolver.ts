@@ -1,4 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { isRegulationIntent } from "./regulation-intent.ts";
 
 type ChatMessage = {
@@ -83,10 +82,22 @@ const toClauseValueLabel = (value: unknown) => {
   return "-";
 };
 
-const createSupabaseClientWithToken = (token: string) => {
+let cachedCreateClient:
+  | ((url: string, key: string, options: Record<string, unknown>) => any)
+  | null = null;
+
+const loadCreateClient = async () => {
+  if (cachedCreateClient) return cachedCreateClient;
+  const module = await import("https://esm.sh/@supabase/supabase-js@2");
+  cachedCreateClient = module.createClient;
+  return cachedCreateClient;
+};
+
+const createSupabaseClientWithToken = async (token: string) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (!supabaseUrl || !supabaseAnonKey) return null;
+  const createClient = await loadCreateClient();
   return createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false },
     global: {
@@ -177,7 +188,7 @@ export const resolveRegulationAssistantResponse = async (params: {
     });
   }
 
-  const supabase = createSupabaseClientWithToken(params.token);
+  const supabase = await createSupabaseClientWithToken(params.token);
   if (!supabase) {
     return buildLacunaResponse({
       reason: ["Cliente Supabase não inicializado na function assistant."],

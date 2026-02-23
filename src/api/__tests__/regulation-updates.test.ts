@@ -1,8 +1,8 @@
 /* eslint-disable import/first */
-const supabaseRestPostMock = jest.fn();
+const mockSupabaseRestPost = jest.fn();
 
 jest.mock("../rest", () => ({
-  supabaseRestPost: (...args: unknown[]) => supabaseRestPostMock(...args),
+  supabaseRestPost: (...args: unknown[]) => mockSupabaseRestPost(...args),
 }));
 
 import {
@@ -16,7 +16,7 @@ describe("regulation updates api", () => {
   });
 
   test("listRegulationUpdates maps rows and returns cursor", async () => {
-    supabaseRestPostMock.mockResolvedValue([
+    mockSupabaseRestPost.mockResolvedValue([
       {
         id: "ru_1",
         organization_id: "org_1",
@@ -52,14 +52,14 @@ describe("regulation updates api", () => {
   });
 
   test("markRegulationUpdateRead calls rpc with params", async () => {
-    supabaseRestPostMock.mockResolvedValue(null);
+    mockSupabaseRestPost.mockResolvedValue(null);
 
     await markRegulationUpdateRead({
       organizationId: "org_1",
       ruleUpdateId: "ru_1",
     });
 
-    expect(supabaseRestPostMock).toHaveBeenCalledWith(
+    expect(mockSupabaseRestPost).toHaveBeenCalledWith(
       "/rpc/mark_regulation_update_read",
       {
         p_organization_id: "org_1",

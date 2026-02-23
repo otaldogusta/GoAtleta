@@ -1,6 +1,34 @@
-import type { Signal as CopilotSignal } from "../ai/signal-engine";
-import type { RegulationRuleSet } from "../api/regulation-rule-sets";
-import type { RegulationUpdate } from "../api/regulation-updates";
+export type CopilotSignalSeverity = "low" | "medium" | "high" | "critical";
+
+export type CopilotSignal = {
+  id: string;
+  type: string;
+  severity: CopilotSignalSeverity;
+  classId?: string | null;
+  studentId?: string | null;
+  title: string;
+  summary: string;
+  evidence: Record<string, unknown>;
+  recommendedActionIds: string[];
+  detectedAt: string;
+};
+
+export type RegulationRuleSet = {
+  id: string;
+  versionLabel: string;
+  status: "draft" | "active" | "pending_next_cycle" | "archived";
+  sourceAuthority: string;
+  updatedAt: string;
+};
+
+export type RegulationUpdate = {
+  id: string;
+  publishedAt: string | null;
+  changedTopics: string[];
+  createdAt: string;
+  isRead: boolean;
+  impactAreas: string[];
+};
 
 type CopilotHistoryItem = {
   actionTitle: string;
@@ -74,6 +102,9 @@ const severityWeightBySignal: Record<CopilotSignal["severity"], number> = {
   medium: 50,
   low: 25,
 };
+const MAX_ATTENTION_ITEMS = 3;
+const MAX_SIGNALS_TOP = 5;
+const MAX_RECENT_ACTIONS = 3;
 
 const unique = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
 
@@ -167,7 +198,7 @@ export const buildOperationalContext = (
     })
     .map((entry) => entry.signal);
 
-  const attentionSignals = sortedSignals.slice(0, 3);
+  const attentionSignals = sortedSignals.slice(0, MAX_ATTENTION_ITEMS);
   const activeSignal =
     sortedSignals.find((signal) => signal.id === input.selectedSignalId) ??
     sortedSignals[0] ??
@@ -188,7 +219,7 @@ export const buildOperationalContext = (
 
   const recentActions = [...input.history]
     .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
-    .slice(0, 3)
+    .slice(0, MAX_RECENT_ACTIONS)
     .map((item) => ({
       actionTitle: item.actionTitle,
       status: item.status,
@@ -201,7 +232,7 @@ export const buildOperationalContext = (
     screen: input.screen ?? null,
     contextTitle: input.contextTitle ?? null,
     activeSignal: activeSignal ? toSnapshotSignal(activeSignal) : null,
-    signalsTop: sortedSignals.slice(0, 5).map(toSnapshotSignal),
+    signalsTop: sortedSignals.slice(0, MAX_SIGNALS_TOP).map(toSnapshotSignal),
     recentActions,
     regulationContext: {
       activeRuleSetId: activeRuleSet?.id ?? null,

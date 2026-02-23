@@ -175,6 +175,15 @@ const buildDoiUrl = (doi: string) => (doi ? `https://doi.org/${encodeURIComponen
 
 const DEFAULT_WARMUP_TIME = "10 minutos";
 const DEFAULT_COOLDOWN_TIME = "5 minutos";
+const MAX_STRATEGIC_BULLETS = 3;
+const MAX_BULLET_LINE_LENGTH = 88;
+
+const clampBulletLine = (value: string) => {
+  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (normalized.length <= MAX_BULLET_LINE_LENGTH) return normalized;
+  return `${normalized.slice(0, MAX_BULLET_LINE_LENGTH - 1).trimEnd()}…`;
+};
 
 const normalizeDraftTraining = (draft: DraftTraining): DraftTraining => ({
   ...draft,
@@ -504,7 +513,10 @@ export default function AssistantScreen() {
       bullets.push("Nenhum bloqueio crítico no momento.");
     }
 
-    return bullets.slice(0, 3);
+    return bullets
+      .map(clampBulletLine)
+      .filter(Boolean)
+      .slice(0, MAX_STRATEGIC_BULLETS);
   }, [optionalCopilot?.appSnapshot]);
 
   const clearConversation = useCallback(() => {

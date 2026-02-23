@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["react", "react-native", "jest", "node"]
+  },
+  "include": [
+    "src/copilot/operational-context.ts",
+    "src/copilot/updates-utils.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tmp/**",
+    "dist/**",
+    "coverage/**",
+    "supabase/functions/**",
+    "**/__tests__/**",
+    "**/__mocks__/**"
+  ]
+}
