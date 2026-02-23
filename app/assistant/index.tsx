@@ -454,14 +454,22 @@ export default function AssistantScreen() {
     return "Coach";
   }, [session?.user?.user_metadata]);
 
-    const quickPrompts = useMemo(
+  const assistantScopeLabel = selectedClass?.name
+    ? `Turma ${selectedClass.name}`
+    : "Organização atual";
+
+  const classContextTarget = selectedClass?.name
+    ? `a turma ${selectedClass.name}`
+    : "uma turma";
+
+  const quickPrompts = useMemo(
     () => [
       {
         title: "Gerar treino",
         icon: "sparkles-outline" as const,
-        description: "Monte sessão completa com foco na turma atual.",
+        description: "Monte sessão completa com foco no contexto ativo.",
         prompt:
-          "Monte um treino completo de 60 minutos para a turma atual com aquecimento, parte principal e volta à calma.",
+          `Monte um treino completo de 60 minutos para ${classContextTarget}, com aquecimento, parte principal e volta à calma.`,
         tint: colors.primaryBg,
       },
       {
@@ -469,7 +477,7 @@ export default function AssistantScreen() {
         icon: "document-text-outline" as const,
         description: "Consolide o que já aconteceu e próximas prioridades.",
         prompt:
-          "Crie um resumo executivo da turma com principais riscos, pontos fortes e prioridades da semana.",
+          `Crie um resumo executivo para ${classContextTarget}, com principais riscos, pontos fortes e prioridades da semana.`,
         tint: colors.infoText,
       },
       {
@@ -477,7 +485,7 @@ export default function AssistantScreen() {
         icon: "pulse-outline" as const,
         description: "Leia sinais de risco e níveis de consistência.",
         prompt:
-          "Simule a evolução da turma por 6 semanas com intervenção balanceada e destaque premissas e limites.",
+          `Simule a evolução de ${classContextTarget} por 6 semanas com intervenção balanceada e destaque premissas e limites.`,
         tint: colors.warningText,
       },
       {
@@ -485,7 +493,7 @@ export default function AssistantScreen() {
         icon: "search-outline" as const,
         description: "Encontre referência científica para a decisão.",
         prompt:
-          "Busque evidências científicas recentes para melhorar o próximo treino desta turma.",
+          `Busque evidências científicas recentes para melhorar o próximo treino de ${classContextTarget}.`,
         tint: colors.text,
       },
       {
@@ -493,19 +501,19 @@ export default function AssistantScreen() {
         icon: "chatbubble-ellipses-outline" as const,
         description: "Rascunhe comunicação objetiva e profissional.",
         prompt:
-          "Crie uma mensagem curta para pais/responsáveis com orientações da semana da turma atual.",
+          `Crie uma mensagem curta para pais/responsáveis com orientações da semana de ${classContextTarget}.`,
         tint: colors.successText,
       },
       {
         title: "Checklist da sessão",
         icon: "checkmark-done-outline" as const,
-        description: "Liste itens operacionais antes da aula com a turma.",
+        description: "Liste itens operacionais antes da aula no contexto ativo.",
         prompt:
-          "Monte um checklist prático para conduzir a próxima sessão da turma atual.",
+          `Monte um checklist prático para conduzir a próxima sessão de ${classContextTarget}.`,
         tint: colors.primaryBg,
       },
     ],
-    [colors.infoText, colors.primaryBg, colors.successText, colors.text, colors.warningText]
+    [classContextTarget, colors.infoText, colors.primaryBg, colors.successText, colors.text, colors.warningText]
   );
 
   const greetingLine = useMemo(() => {
@@ -1160,6 +1168,9 @@ export default function AssistantScreen() {
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 16, textAlign: "center", maxWidth: 580 }}>
                     Hoje, o que você quer resolver?
+                  </Text>
+                  <Text style={{ color: colors.placeholder, fontSize: 12 }}>
+                    Contexto ativo: {assistantScopeLabel}
                   </Text>
                 </View>
 
