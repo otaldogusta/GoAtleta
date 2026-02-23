@@ -454,30 +454,58 @@ export default function AssistantScreen() {
     return "Coach";
   }, [session?.user?.user_metadata]);
 
-  const recentUserPrompts = useMemo(
-    () => messages.filter((message) => message.role === "user").slice(-6).reverse(),
-    [messages]
-  );
-
-  const quickPrompts = useMemo(
+    const quickPrompts = useMemo(
     () => [
       {
         title: "Gerar treino",
         icon: "sparkles-outline" as const,
-        prompt: "Monte um treino completo de 60 minutos para a turma atual com aquecimento, parte principal e volta à calma.",
+        description: "Monte sessao completa com foco na turma atual.",
+        prompt:
+          "Monte um treino completo de 60 minutos para a turma atual com aquecimento, parte principal e volta a calma.",
+        tint: colors.primaryBg,
       },
       {
-        title: "Revisar relatórios",
+        title: "Resumo tecnico",
         icon: "document-text-outline" as const,
-        prompt: "Crie um resumo executivo da turma com principais riscos, pontos fortes e prioridades da semana.",
+        description: "Consolide o que ja aconteceu e proximas prioridades.",
+        prompt:
+          "Crie um resumo executivo da turma com principais riscos, pontos fortes e prioridades da semana.",
+        tint: colors.infoText,
       },
       {
         title: "Analisar engajamento",
         icon: "pulse-outline" as const,
-        prompt: "Simule a evolução da turma por 6 semanas com intervenção balanceada e destaque premissas e limites.",
+        description: "Leia sinais de risco e niveis de consistencia.",
+        prompt:
+          "Simule a evolucao da turma por 6 semanas com intervencao balanceada e destaque premissas e limites.",
+        tint: colors.warningText,
+      },
+      {
+        title: "Pesquisa rapida",
+        icon: "search-outline" as const,
+        description: "Encontre referencia cientifica para a decisao.",
+        prompt:
+          "Busque evidencias cientificas recentes para melhorar o proximo treino desta turma.",
+        tint: colors.text,
+      },
+      {
+        title: "Mensagem para pais",
+        icon: "chatbubble-ellipses-outline" as const,
+        description: "Rascunhe comunicacao objetiva e profissional.",
+        prompt:
+          "Crie uma mensagem curta para pais/responsaveis com orientacoes da semana da turma atual.",
+        tint: colors.successText,
+      },
+      {
+        title: "Checklist da sessao",
+        icon: "checkmark-done-outline" as const,
+        description: "Liste itens operacionais antes da aula com a turma.",
+        prompt:
+          "Monte um checklist pratico para conduzir a proxima sessao da turma atual.",
+        tint: colors.primaryBg,
       },
     ],
-    []
+    [colors.infoText, colors.primaryBg, colors.successText, colors.text, colors.warningText]
   );
 
   const greetingLine = useMemo(() => {
@@ -518,23 +546,6 @@ export default function AssistantScreen() {
       .filter(Boolean)
       .slice(0, MAX_STRATEGIC_BULLETS);
   }, [optionalCopilot?.appSnapshot]);
-
-  const clearConversation = useCallback(() => {
-    setMessages([]);
-    setDraft(null);
-    setSources([]);
-    setConfidence(null);
-    setCitations([]);
-    setMissingData([]);
-    setAssumptions([]);
-    setAutoFixSuggestions([]);
-    setNextClassSuggestion(null);
-    setAutopilotProposal(null);
-    setSimulationResult(null);
-    setMemoryContextHints([]);
-    setShowSavedLink(false);
-    setInput("");
-  }, []);
 
   const pushAssistantMessage = useCallback((content: string) => {
     setMessages((prev) => [...prev, { role: "assistant", content }]);
@@ -1094,24 +1105,6 @@ export default function AssistantScreen() {
             gap: 12,
           }}
         >
-          <View
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              gap: 2,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-              {greetingLine}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Hoje, o que você quer resolver?
-            </Text>
-          </View>
 
           <ScrollView
             contentContainerStyle={{
@@ -1125,27 +1118,68 @@ export default function AssistantScreen() {
               <View
                 style={{
                   width: "100%",
-                  maxWidth: isDesktopLayout ? 900 : undefined,
+                  maxWidth: isDesktopLayout ? 980 : undefined,
                   alignSelf: "center",
                   minHeight:
                     Platform.OS === "web"
-                      ? Math.max(300, Math.round(height * 0.38))
+                      ? Math.max(360, Math.round(height * 0.42))
                       : undefined,
-                  paddingHorizontal: isDesktopLayout ? 18 : 8,
-                  paddingTop: isDesktopLayout ? 28 : 18,
-                  paddingBottom: 10,
-                  gap: 14,
+                  paddingHorizontal: isDesktopLayout ? 20 : 6,
+                  paddingTop: isDesktopLayout ? 34 : 18,
+                  paddingBottom: 8,
+                  gap: 18,
                 }}
               >
-                <View style={{ width: "100%", gap: 8 }}>
+                <View style={{ alignItems: "center", gap: 10 }}>
+                  <View
+                    style={{
+                      width: 70,
+                      height: 70,
+                      borderRadius: 35,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.inputBg,
+                    }}
+                  >
+                    <View
+                      style={{
+                        position: "absolute",
+                        width: 54,
+                        height: 54,
+                        borderRadius: 27,
+                        backgroundColor: colors.primaryBg,
+                        opacity: 0.16,
+                      }}
+                    />
+                    <Ionicons name="sparkles-outline" size={26} color={colors.primaryBg} />
+                  </View>
+                  <Text style={{ color: colors.text, fontSize: isCompactMobile ? 28 : 42, fontWeight: "800" }}>
+                    {greetingLine}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 16, textAlign: "center", maxWidth: 580 }}>
+                    Hoje, o que voce quer resolver?
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    padding: 12,
+                    gap: 8,
+                  }}
+                >
                   {strategicBullets.map((bullet) => (
-                    <Text
-                      key={bullet}
-                      numberOfLines={1}
-                      style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}
-                    >
-                      - {bullet}
-                    </Text>
+                    <View key={bullet} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Ionicons name="ellipse" size={8} color={colors.primaryBg} />
+                      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "600", flex: 1 }}>
+                        {bullet}
+                      </Text>
+                    </View>
                   ))}
                 </View>
 
@@ -1154,28 +1188,38 @@ export default function AssistantScreen() {
                     <Pressable
                       key={item.title}
                       onPress={() => handleSelectQuickPrompt(item.prompt)}
-                      focusable={Platform.OS !== "web"}
                       style={{
-                        minHeight: isCompactMobile ? 42 : 48,
-                        borderRadius: 999,
+                        flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48%",
+                        flexGrow: 1,
+                        minHeight: 124,
+                        borderRadius: 14,
                         borderWidth: 1,
                         borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        paddingHorizontal: isCompactMobile ? 14 : 18,
-                        paddingVertical: isCompactMobile ? 8 : 9,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        overflow: "hidden",
-                        gap: 6,
-                        flexDirection: "row",
+                        backgroundColor: colors.inputBg,
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                        gap: 10,
                       }}
                     >
-                      <Ionicons name={item.icon} size={isCompactMobile ? 16 : 18} color={colors.text} />
-                      <Text
-                        numberOfLines={1}
-                        style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 13 : 15 }}
+                      <View
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 10,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: colors.card,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
                       >
+                        <Ionicons name={item.icon} size={16} color={item.tint} />
+                      </View>
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
                         {item.title}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+                        {item.description}
                       </Text>
                     </Pressable>
                   ))}
@@ -1686,17 +1730,36 @@ export default function AssistantScreen() {
               gap: 8,
               padding: 12,
               borderRadius: 16,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
               borderWidth: 1,
               borderColor: colors.border,
               marginBottom: keyboardHeight,
               paddingBottom: 12 + insets.bottom,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 10,
+                backgroundColor: colors.infoBg,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Ionicons name="information-circle-outline" size={14} color={colors.infoText} />
+              <Text style={{ color: colors.infoText, fontSize: 12, flex: 1 }}>
+                Selecione um recurso acima para acelerar sua conversa.
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
               <TextInput
                 ref={composerInputRef}
-                placeholder="Descreva a aula ou o planejamento..."
+                placeholder="Perguntar algo..."
                 value={input}
                 onChangeText={setInput}
                 onFocus={() => setComposerFocused(true)}
@@ -1706,14 +1769,14 @@ export default function AssistantScreen() {
                 multiline
                 style={{
                   flex: 1,
-                  minHeight: 52,
-                  maxHeight: 120,
+                  minHeight: 48,
+                  maxHeight: 96,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  paddingHorizontal: 10,
-                  paddingVertical: 10,
+                  backgroundColor: colors.inputBg,
+                  paddingHorizontal: 12,
+                  paddingVertical: 11,
                   color: colors.inputText,
                   textAlignVertical: "top",
                 }}
@@ -1747,89 +1810,6 @@ export default function AssistantScreen() {
 
           </View>
         </View>
-
-        {isDesktopLayout ? (
-          <View
-            style={{
-              width: 320,
-              borderRadius: 22,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: 12,
-              gap: 10,
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
-              Histórico
-            </Text>
-            <TextInput
-              placeholder="Buscar..."
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                paddingHorizontal: 10,
-                paddingVertical: 8,
-                color: colors.inputText,
-                backgroundColor: colors.background,
-              }}
-            />
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 8 }}>
-              {recentUserPrompts.length === 0 ? (
-                <View
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                    padding: 10,
-                  }}
-                >
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Sem conversas recentes.
-                  </Text>
-                </View>
-              ) : (
-                recentUserPrompts.map((message, index) => (
-                  <Pressable
-                    key={`history-${index}`}
-                    onPress={() => setInput(message.content)}
-                    style={{
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                      padding: 10,
-                      gap: 4,
-                    }}
-                  >
-                    <Text numberOfLines={2} style={{ color: colors.text, fontWeight: "700" }}>
-                      {message.content}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>
-                      Prompt recente
-                    </Text>
-                  </Pressable>
-                ))
-              )}
-            </ScrollView>
-            <Pressable
-              onPress={clearConversation}
-              style={{
-                borderRadius: 999,
-                backgroundColor: colors.primaryBg,
-                alignItems: "center",
-                paddingVertical: 10,
-              }}
-            >
-              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                Novo chat
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
       </View>
     </SafeAreaView>
   );
