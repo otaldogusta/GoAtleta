@@ -137,4 +137,59 @@ describe("copilot updates utils", () => {
     expect(hasSnapshotChanged(previous, current)).toBe(true);
     expect(countUnreadFromSnapshot(previous, current)).toBe(1);
   });
+
+  test("keeps snapshot stable when arrays only change order", () => {
+    const previous = buildCentralSnapshot({
+      screenKey: "coordination",
+      snapshotHash: "v2_hash_same",
+      signals: [
+        { id: "s2", severity: "high", detectedAt: "2026-02-20T10:00:00.000Z" },
+        { id: "s1", severity: "medium", detectedAt: "2026-02-20T11:00:00.000Z" },
+      ],
+      ruleUpdates: [
+        {
+          id: "ru2",
+          publishedAt: "2026-02-20T09:00:00.000Z",
+          createdAt: "2026-02-20T09:10:00.000Z",
+          checksum: "b",
+        },
+        {
+          id: "ru1",
+          publishedAt: "2026-02-20T08:00:00.000Z",
+          createdAt: "2026-02-20T08:10:00.000Z",
+          checksum: "a",
+        },
+      ],
+      actions: [{ id: "a2" }, { id: "a1" }],
+      historyHead: { id: "h1", createdAt: "2026-02-20T11:10:00.000Z" },
+    });
+
+    const current = buildCentralSnapshot({
+      screenKey: "coordination",
+      snapshotHash: "v2_hash_same",
+      signals: [
+        { id: "s1", severity: "medium", detectedAt: "2026-02-20T11:00:00.000Z" },
+        { id: "s2", severity: "high", detectedAt: "2026-02-20T10:00:00.000Z" },
+      ],
+      ruleUpdates: [
+        {
+          id: "ru1",
+          publishedAt: "2026-02-20T08:00:00.000Z",
+          createdAt: "2026-02-20T08:10:00.000Z",
+          checksum: "a",
+        },
+        {
+          id: "ru2",
+          publishedAt: "2026-02-20T09:00:00.000Z",
+          createdAt: "2026-02-20T09:10:00.000Z",
+          checksum: "b",
+        },
+      ],
+      actions: [{ id: "a1" }, { id: "a2" }],
+      historyHead: { id: "h1", createdAt: "2026-02-20T11:10:00.000Z" },
+    });
+
+    expect(hasSnapshotChanged(previous, current)).toBe(false);
+    expect(countUnreadFromSnapshot(previous, current)).toBe(0);
+  });
 });

@@ -16,6 +16,7 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ClassGroup, ScoutingLog, Student } from "../../src/core/models";
+import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getBlockForToday } from "../../src/core/periodization";
 import {
     countsFromLog,
@@ -298,6 +299,17 @@ export default function ClassDetails() {
   };
   const formatShortDate = (value: string) =>
     value.includes("-") ? value.split("-").reverse().join("/") : value;
+
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "class_detail",
+        title: cls?.name?.trim() || "Detalhes da turma",
+        subtitle: cls?.unit?.trim() || "Turma",
+      }),
+      [cls?.name, cls?.unit]
+    )
+  );
   const parseIsoDate = (value?: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);

@@ -21,6 +21,7 @@ import {
     updateEvent,
 } from "../../src/api/events";
 import { useAuth } from "../../src/auth/auth";
+import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
@@ -179,6 +180,17 @@ export default function EventDetailsScreen() {
     ]
   );
   const hasChanges = currentSnapshot !== initialSnapshot;
+
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "events_detail",
+        title: title.trim() || "Detalhes do evento",
+        subtitle: eventTypeLabel[eventType] ?? "Evento",
+      }),
+      [eventType, title]
+    )
+  );
 
   const loadData = useCallback(async () => {
     if (!activeOrganization?.id || !eventId) {

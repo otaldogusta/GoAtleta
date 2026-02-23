@@ -17,6 +17,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
+import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import type { ClassGroup } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
@@ -49,6 +50,17 @@ export default function ClassesScreen() {
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "classes_index",
+        title: "Turmas",
+        subtitle: "Gestão e configuração",
+      }),
+      []
+    )
+  );
 
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
   type SelectOptionValue = string | number;

@@ -13,6 +13,7 @@ import { Pressable } from "../../src/ui/Pressable";
 
 
 import { normalizeAgeBand, parseAgeBandRange } from "../../src/core/age-band";
+import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 
 import type { ClassGroup, ClassPlan, WeeklyAutopilotProposal } from "../../src/core/models";
 
@@ -777,6 +778,17 @@ export default function PeriodizationScreen() {
   const modalCardStyle = useModalCardStyle({ maxHeight: "100%" });
 
   const [activeTab, setActiveTab] = useState<PeriodizationTab>("geral");
+
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "periodization_index",
+        title: "Periodização",
+        subtitle: "Ciclos e carga semanal",
+      }),
+      []
+    )
+  );
 
   const [sectionOpen, setSectionOpen] = usePersistedState<Record<SectionKey, boolean>>(
 

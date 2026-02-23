@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
 import { useSmartSync } from "../src/core/use-smart-sync";
+import { useCopilotContext } from "../src/copilot/CopilotProvider";
 import type { ClassGroup, Student } from "../src/core/models";
 import {
   createCheckinWithFallback,
@@ -97,6 +98,17 @@ export default function NfcAttendanceScreen() {
   const { showSaveToast } = useSaveToast();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { syncNow } = useSmartSync();
+
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "nfc_attendance",
+        title: "Presença NFC",
+        subtitle: "Leitura e check-ins em tempo real",
+      }),
+      []
+    )
+  );
 
   const [supportMessage, setSupportMessage] = useState("");
   const [classes, setClasses] = useState<ClassGroup[]>([]);

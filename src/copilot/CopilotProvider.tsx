@@ -614,6 +614,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     () => state.regulationUpdates.filter((item) => !item.isRead).length,
     [state.regulationUpdates]
   );
+  const showRegulationSection =
+    normalizedPath.startsWith("/events") || unreadRegulationCount > 0;
   const categoriesWithInsights = useMemo(
     () =>
       categorySortOrder.filter((category) => {
@@ -745,6 +747,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     !publicRoutes.has(normalizedPath) &&
     normalizedPath !== "/" &&
     normalizedPath !== "/index" &&
+    normalizedPath !== "/assistant" &&
+    !normalizedPath.startsWith("/assistant/") &&
     !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
   const sheetContentBottomPadding = Math.max(
@@ -951,22 +955,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           ) : null}
 
           {insightsView.mode === "root" ? (
-            <View style={{ gap: 12 }}>
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 12,
-                  gap: 8,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800" }}>Pontos de atenção</Text>
-                {operationalContext.panel.attentionSignals.length ? (
-                  operationalContext.panel.attentionSignals.map((signal) => (
+            <View style={{ gap: 10 }}>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>Pontos de atenção</Text>
+              {operationalContext.panel.attentionSignals.length ? (
+                operationalContext.panel.attentionSignals.map((signal, index) => (
+                  <View key={signal.id} style={{ gap: 6 }}>
                     <Pressable
-                      key={signal.id}
                       onPress={() => {
                         setActiveSignal(signal.id);
                         setInsightsView({
@@ -975,117 +969,86 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           itemId: signal.id,
                         });
                       }}
-                      style={{
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 9,
-                        gap: 3,
-                      }}
+                      style={{ paddingVertical: 6, gap: 3 }}
                     >
                       <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
-                    </Pressable>
-                  ))
-                ) : (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Nenhum ponto crítico no momento.
-                  </Text>
-                )}
-              </View>
-
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 12,
-                  gap: 8,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800" }}>Regulamento aplicado</Text>
-                <Text style={{ color: colors.text, fontSize: 12 }}>
-                  Ativo: {operationalContext.panel.activeRuleSetLabel}
-                </Text>
-                {operationalContext.panel.pendingRuleSetLabel ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Próximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
-                  </Text>
-                ) : null}
-                {operationalContext.panel.topImpactAreas.length ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Impacto: {operationalContext.panel.topImpactAreas.join(", ")}
-                  </Text>
-                ) : null}
-                {operationalContext.panel.unreadRegulationCount > 0 ? (
-                  <Pressable
-                    onPress={() => setInsightsView({ mode: "category", category: "regulation" })}
-                    style={{
-                      alignSelf: "flex-start",
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: colors.primaryBg,
-                      backgroundColor: colors.secondaryBg,
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                      Ver atualizações
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>Ações rápidas</Text>
-                {orderedActions.slice(0, 3).map((action) => (
-                  <Pressable
-                    key={action.id}
-                    onPress={() => {
-                      void runAction(action);
-                    }}
-                    disabled={Boolean(state.runningActionId)}
-                    style={{
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.card,
-                      paddingHorizontal: 10,
-                      paddingVertical: 9,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {state.runningActionId === action.id ? "Executando..." : action.title}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {categoriesWithInsights.length ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {categoriesWithInsights.map((category) => (
-                    <Pressable
-                      key={category}
-                      onPress={() => setInsightsView({ mode: "category", category })}
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        {categoryLabelById[category]}
+                      <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
+                        {signal.summary}
                       </Text>
                     </Pressable>
-                  ))}
-                </View>
+                    {index < operationalContext.panel.attentionSignals.length - 1 ? (
+                      <View style={{ height: 1, backgroundColor: colors.border }} />
+                    ) : null}
+                  </View>
+                ))
+              ) : (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Nenhum ponto crítico no momento.
+                </Text>
+              )}
+
+              {showRegulationSection ? (
+                <>
+                  <View style={{ height: 1, backgroundColor: colors.border }} />
+                  <Text style={{ color: colors.text, fontWeight: "800" }}>Regulamento</Text>
+                  <Text style={{ color: colors.text, fontSize: 12 }}>
+                    Ativo: {operationalContext.panel.activeRuleSetLabel}
+                  </Text>
+                  {operationalContext.panel.pendingRuleSetLabel ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Próximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
+                    </Text>
+                  ) : null}
+                  {operationalContext.panel.topImpactAreas.length ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Impacto: {operationalContext.panel.topImpactAreas.join(", ")}
+                    </Text>
+                  ) : null}
+                  {operationalContext.panel.unreadRegulationCount > 0 ? (
+                    <Pressable
+                      onPress={() => setInsightsView({ mode: "category", category: "regulation" })}
+                      style={{
+                        alignSelf: "flex-start",
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.primaryBg,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                        Ver atualização
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </>
+              ) : null}
+
+              {categoriesWithInsights.length ? (
+                <>
+                  <View style={{ height: 1, backgroundColor: colors.border }} />
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {categoriesWithInsights.map((category) => (
+                      <Pressable
+                        key={category}
+                        onPress={() => setInsightsView({ mode: "category", category })}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          {categoryLabelById[category]}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
               ) : null}
             </View>
           ) : null}
@@ -1362,8 +1325,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               placeholderTextColor={colors.muted}
               returnKeyType="send"
               onSubmitEditing={submitComposer}
+              multiline={false}
               style={{
                 flex: 1,
+                height: 38,
                 borderRadius: 10,
                 borderWidth: 1,
                 borderColor: colors.border,
@@ -1521,8 +1486,4 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
-
-
-
-
 

@@ -250,12 +250,10 @@ export default function AssistantScreen() {
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
-  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
   const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
   const sendButtonAnim = useRef(new Animated.Value(0)).current;
-  const suggestionsExpandAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const incomingPrompt = String(params.prompt ?? "").trim();
@@ -373,11 +371,6 @@ export default function AssistantScreen() {
     outputRange: [6, 0],
   });
 
-  const suggestionsToggleRotate = suggestionsExpandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"],
-  });
-
   const className = selectedClass?.name ?? "Turma";
 
   const scientificReferences = useMemo<ScientificReference[]>(() => {
@@ -460,65 +453,59 @@ export default function AssistantScreen() {
   const quickPrompts = useMemo(
     () => [
       {
-        title: "Gerar treino da turma",
+        title: "Gerar treino",
         icon: "sparkles-outline" as const,
         prompt: "Monte um treino completo de 60 minutos para a turma atual com aquecimento, parte principal e volta à calma.",
       },
       {
-        title: "Progressão técnica",
-        icon: "trending-up-outline" as const,
-        prompt: "Gere uma progressão técnica para as próximas 3 sessões da turma atual, com foco em consistência e tomada de decisão.",
-      },
-      {
-        title: "Resumo da turma",
+        title: "Revisar relatórios",
         icon: "document-text-outline" as const,
         prompt: "Crie um resumo executivo da turma com principais riscos, pontos fortes e prioridades da semana.",
       },
       {
-        title: "Mensagem para pais",
-        icon: "chatbox-ellipses-outline" as const,
-        prompt: "Escreva uma mensagem curta para pais e alunos explicando objetivo e foco da próxima aula.",
-      },
-      {
-        title: "Pós-sessão",
-        icon: "book-outline" as const,
-        prompt: "Analise os últimos registros da turma e gere recomendações objetivas para o próximo treino.",
-      },
-      {
-        title: "Autopilot semanal",
-        icon: "calendar-outline" as const,
-        prompt: "Proponha um autopilot semanal para a turma atual com metas, ações e critérios de validação humana.",
-      },
-      {
-        title: "Simular evolução",
+        title: "Analisar engajamento",
         icon: "pulse-outline" as const,
         prompt: "Simule a evolução da turma por 6 semanas com intervenção balanceada e destaque premissas e limites.",
-      },
-      {
-        title: "Support mode",
-        icon: "shield-checkmark-outline" as const,
-        prompt: "Analise o estado de sincronização e proponha auto-fixes seguros para reduzir pendências.",
       },
     ],
     []
   );
 
-  const secondaryPromptSamples = useMemo(() => quickPrompts.slice(1, 4), [quickPrompts]);
-  const hiddenQuickPrompts = useMemo(() => quickPrompts.slice(4), [quickPrompts]);
+  const greetingLine = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return `Bom dia, ${userDisplayName}.`;
+    if (hour < 18) return `Boa tarde, ${userDisplayName}.`;
+    return `Boa noite, ${userDisplayName}.`;
+  }, [userDisplayName]);
 
-  useEffect(() => {
-    if (messages.length > 0 && suggestionsExpanded) {
-      setSuggestionsExpanded(false);
+  const strategicBullets = useMemo(() => {
+    const bullets: string[] = [];
+    const snapshot = optionalCopilot?.appSnapshot;
+    const signals = snapshot?.signalsTop ?? [];
+    const regulationContext = snapshot?.regulationContext;
+
+    if (signals.length > 0) {
+      bullets.push(`${signals.length} ponto${signals.length === 1 ? "" : "s"} de atenção em foco.`);
     }
-  }, [messages.length, suggestionsExpanded]);
 
-  useEffect(() => {
-    Animated.timing(suggestionsExpandAnim, {
-      toValue: suggestionsExpanded ? 1 : 0,
-      duration: 220,
-      useNativeDriver: false,
-    }).start();
-  }, [suggestionsExpandAnim, suggestionsExpanded]);
+    if ((regulationContext?.latestChangedTopics?.length ?? 0) > 0) {
+      bullets.push(
+        `Regulamento: ${regulationContext?.latestChangedTopics
+          .slice(0, 2)
+          .join(", ")}.`
+      );
+    }
+
+    if ((snapshot?.recentActions?.length ?? 0) > 0) {
+      bullets.push(`Ação recente: ${snapshot?.recentActions[0]?.actionTitle}.`);
+    }
+
+    if (bullets.length === 0) {
+      bullets.push("Nenhum bloqueio crítico no momento.");
+    }
+
+    return bullets.slice(0, 3);
+  }, [optionalCopilot?.appSnapshot]);
 
   const clearConversation = useCallback(() => {
     setMessages([]);
@@ -1106,9 +1093,11 @@ export default function AssistantScreen() {
               gap: 2,
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>IA Central</Text>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+              {greetingLine}
+            </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Visão estratégica e operacional
+              Hoje, o que você quer resolver?
             </Text>
           </View>
 
@@ -1124,192 +1113,60 @@ export default function AssistantScreen() {
               <View
                 style={{
                   width: "100%",
-                  maxWidth: isDesktopLayout ? 860 : undefined,
+                  maxWidth: isDesktopLayout ? 900 : undefined,
                   alignSelf: "center",
-                  minHeight: Platform.OS === "web" ? Math.max(360, Math.round(height * 0.45)) : undefined,
-                  paddingHorizontal: isDesktopLayout ? 20 : 6,
-                  paddingTop: isDesktopLayout ? 40 : 20,
+                  minHeight:
+                    Platform.OS === "web"
+                      ? Math.max(300, Math.round(height * 0.38))
+                      : undefined,
+                  paddingHorizontal: isDesktopLayout ? 18 : 8,
+                  paddingTop: isDesktopLayout ? 28 : 18,
                   paddingBottom: 10,
-                  gap: 12,
-                  alignItems: "center",
+                  gap: 14,
                 }}
               >
-                <View
-                  style={{
-                    width: "100%",
-                    maxWidth: 1120,
-                    alignSelf: "center",
-                    paddingHorizontal: isDesktopLayout ? 18 : 8,
-                    gap: 12,
-                    marginTop: 0,
-                  }}
-                >
-                  {quickPrompts.length > 0 ? (
+                <View style={{ width: "100%", gap: 8 }}>
+                  {strategicBullets.map((bullet) => (
+                    <Text
+                      key={bullet}
+                      numberOfLines={1}
+                      style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}
+                    >
+                      - {bullet}
+                    </Text>
+                  ))}
+                </View>
+
+                <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                  {quickPrompts.map((item) => (
                     <Pressable
-                      key={quickPrompts[0].title}
-                      onPress={() => handleSelectQuickPrompt(quickPrompts[0].prompt)}
+                      key={item.title}
+                      onPress={() => handleSelectQuickPrompt(item.prompt)}
                       focusable={Platform.OS !== "web"}
                       style={{
-                        alignSelf: "center",
-                        minHeight: isCompactMobile ? 44 : 52,
+                        minHeight: isCompactMobile ? 42 : 48,
                         borderRadius: 999,
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.card,
                         paddingHorizontal: isCompactMobile ? 14 : 18,
-                        paddingVertical: isCompactMobile ? 8 : 10,
+                        paddingVertical: isCompactMobile ? 8 : 9,
                         justifyContent: "center",
                         alignItems: "center",
                         overflow: "hidden",
                         gap: 6,
                         flexDirection: "row",
-                        maxWidth: "95%",
                       }}
                     >
-                      <Ionicons name={quickPrompts[0].icon} size={isCompactMobile ? 16 : 18} color={colors.text} />
+                      <Ionicons name={item.icon} size={isCompactMobile ? 16 : 18} color={colors.text} />
                       <Text
                         numberOfLines={1}
-                        style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 14 : 16 }}
+                        style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 13 : 15 }}
                       >
-                        {quickPrompts[0].title}
+                        {item.title}
                       </Text>
                     </Pressable>
-                  ) : null}
-
-                  <View
-                    style={{
-                      gap: 10,
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        flexWrap: "wrap",
-                        justifyContent: "center",
-                        gap: 10,
-                      }}
-                    >
-                      {secondaryPromptSamples.map((item) => (
-                        <Pressable
-                          key={item.title}
-                          onPress={() => handleSelectQuickPrompt(item.prompt)}
-                          focusable={Platform.OS !== "web"}
-                          style={{
-                            minHeight: isCompactMobile ? 44 : 48,
-                            borderRadius: 999,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.card,
-                            paddingHorizontal: isCompactMobile ? 12 : 16,
-                            paddingVertical: isCompactMobile ? 8 : 10,
-                            justifyContent: "center",
-                            alignItems: "center",
-                            overflow: "hidden",
-                            gap: 6,
-                            flexDirection: "row",
-                          }}
-                        >
-                          <Ionicons name={item.icon} size={isCompactMobile ? 16 : 18} color={colors.text} />
-                          <Text
-                            numberOfLines={1}
-                            style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 13 : 15 }}
-                          >
-                            {item.title}
-                          </Text>
-                        </Pressable>
-                      ))}
-
-                      {hiddenQuickPrompts.length > 0 ? (
-                        <Pressable
-                          onPress={() => setSuggestionsExpanded((prev) => !prev)}
-                          style={{
-                            width: isCompactMobile ? 40 : 44,
-                            height: isCompactMobile ? 40 : 44,
-                            borderRadius: isCompactMobile ? 20 : 22,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.secondaryBg,
-                            justifyContent: "center",
-                            alignItems: "center",
-                            shadowColor: "#000",
-                            shadowOpacity: 0.08,
-                            shadowRadius: 6,
-                            shadowOffset: { width: 0, height: 2 },
-                            elevation: 1,
-                          }}
-                        >
-                          <Animated.View style={{ transform: [{ rotate: suggestionsToggleRotate }] }}>
-                            <Ionicons
-                              name="add"
-                              size={isCompactMobile ? 18 : 20}
-                              color={colors.text}
-                            />
-                          </Animated.View>
-                        </Pressable>
-                      ) : null}
-                    </View>
-
-                    {hiddenQuickPrompts.length > 0 ? (
-                      <Animated.View
-                        style={{
-                          overflow: "hidden",
-                          opacity: suggestionsExpandAnim,
-                          maxHeight: suggestionsExpandAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, 140],
-                          }),
-                          transform: [
-                            {
-                              translateY: suggestionsExpandAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [-6, 0],
-                              }),
-                            },
-                          ],
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            flexWrap: "wrap",
-                            justifyContent: "center",
-                            gap: 10,
-                            paddingTop: 2,
-                          }}
-                        >
-                          {hiddenQuickPrompts.map((item) => (
-                            <Pressable
-                              key={`hidden-${item.title}`}
-                              onPress={() => handleSelectQuickPrompt(item.prompt)}
-                              focusable={Platform.OS !== "web"}
-                              style={{
-                                minHeight: isCompactMobile ? 42 : 46,
-                                borderRadius: 999,
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                                backgroundColor: colors.card,
-                                paddingHorizontal: isCompactMobile ? 11 : 14,
-                                paddingVertical: isCompactMobile ? 7 : 9,
-                                justifyContent: "center",
-                                alignItems: "center",
-                                overflow: "hidden",
-                                gap: 6,
-                                flexDirection: "row",
-                              }}
-                            >
-                              <Ionicons name={item.icon} size={isCompactMobile ? 15 : 17} color={colors.text} />
-                              <Text
-                                numberOfLines={1}
-                                style={{ color: colors.text, fontWeight: "700", fontSize: isCompactMobile ? 12 : 14 }}
-                              >
-                                {item.title}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      </Animated.View>
-                    ) : null}
-                  </View>
+                  ))}
                 </View>
               </View>
             ) : null}

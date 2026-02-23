@@ -23,6 +23,7 @@ import {
     setEventClasses,
 } from "../../src/api/events";
 import { useAuth } from "../../src/auth/auth";
+import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
@@ -121,6 +122,17 @@ export default function EventsScreen() {
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const isWideLayout = width >= 980;
   const isFormRowLayout = width >= 0;
+
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "events_index",
+        title: "Eventos",
+        subtitle: "Agenda e torneios",
+      }),
+      []
+    )
+  );
 
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
