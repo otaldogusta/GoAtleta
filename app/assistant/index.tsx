@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useCallback,
     useEffect,
@@ -221,6 +221,7 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
 
 export default function AssistantScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ prompt?: string; source?: string }>();
   const { session } = useAuth();
   const optionalCopilot = useOptionalCopilot();
   const { activeOrganization } = useOrganization();
@@ -250,10 +251,22 @@ export default function AssistantScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
   const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
+  const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
   const sendButtonAnim = useRef(new Animated.Value(0)).current;
   const suggestionsExpandAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const incomingPrompt = String(params.prompt ?? "").trim();
+    if (!incomingPrompt) return;
+    if (incomingPrompt === appliedPromptRef.current) return;
+    appliedPromptRef.current = incomingPrompt;
+    setInput(incomingPrompt);
+    requestAnimationFrame(() => {
+      composerInputRef.current?.focus();
+    });
+  }, [params.prompt]);
 
   useEffect(() => {
     let alive = true;
@@ -624,35 +637,7 @@ export default function AssistantScreen() {
         memoryContext = [];
       }
       setMemoryContextHints(memoryContext);
-      const appSnapshot = optionalCopilot
-        ? {
-            screen: optionalCopilot.context?.screen ?? null,
-            contextTitle: optionalCopilot.context?.title ?? null,
-            activeSignal: optionalCopilot.activeSignal
-              ? {
-                  id: optionalCopilot.activeSignal.id,
-                  type: optionalCopilot.activeSignal.type,
-                  severity: optionalCopilot.activeSignal.severity,
-                  title: optionalCopilot.activeSignal.title,
-                  classId: optionalCopilot.activeSignal.classId ?? null,
-                  studentId: optionalCopilot.activeSignal.studentId ?? null,
-                }
-              : null,
-            signalsTop: optionalCopilot.signals.slice(0, 5).map((signal) => ({
-              id: signal.id,
-              type: signal.type,
-              severity: signal.severity,
-              title: signal.title,
-              classId: signal.classId ?? null,
-              studentId: signal.studentId ?? null,
-            })),
-            recentActions: optionalCopilot.history.slice(0, 3).map((item) => ({
-              actionTitle: item.actionTitle,
-              status: item.status,
-              createdAt: item.createdAt,
-            })),
-          }
-        : null;
+      const appSnapshot = optionalCopilot?.appSnapshot ?? null;
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/assistant`, {
         method: "POST",
@@ -1110,6 +1095,23 @@ export default function AssistantScreen() {
             gap: 12,
           }}
         >
+          <View
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              gap: 2,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>IA Central</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Visão estratégica e operacional
+            </Text>
+          </View>
+
           <ScrollView
             contentContainerStyle={{
               gap: 10,

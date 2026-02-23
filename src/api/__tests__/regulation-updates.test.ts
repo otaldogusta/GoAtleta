@@ -46,6 +46,8 @@ describe("regulation updates api", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].title).toContain("FIVB");
     expect(result.items[0].isRead).toBe(false);
+    expect(result.items[0].impactAreas.length).toBeGreaterThan(0);
+    expect(result.items[0].impactActions.some((item) => item.route === "/regulation-history")).toBe(true);
     expect(result.nextCursor).toBe("2026-02-20T10:01:00.000Z");
   });
 

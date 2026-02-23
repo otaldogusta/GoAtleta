@@ -19,6 +19,11 @@ type RegulationUpdateRow = {
   is_read: boolean;
 };
 
+type ImpactAction = {
+  label: string;
+  route: string;
+};
+
 export type RegulationUpdate = {
   id: string;
   organizationId: string;
@@ -37,6 +42,8 @@ export type RegulationUpdate = {
   readAt: string | null;
   isRead: boolean;
   title: string;
+  impactAreas: string[];
+  impactActions: ImpactAction[];
 };
 
 export type ListRegulationUpdatesParams = {
@@ -54,6 +61,8 @@ export type ListRegulationUpdatesResult = {
 const mapRow = (row: RegulationUpdateRow): RegulationUpdate => {
   const authority = String(row.source_authority ?? "OUTRO").trim() || "OUTRO";
   const sourceLabel = String(row.source_label ?? "").trim() || "Fonte";
+  const changedTopics = Array.isArray(row.changed_topics) ? row.changed_topics : [];
+  const impact = deriveRegulationImpact(changedTopics);
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -61,7 +70,7 @@ const mapRow = (row: RegulationUpdateRow): RegulationUpdate => {
     sourceId: row.source_id,
     documentId: row.document_id,
     publishedAt: row.published_at,
-    changedTopics: Array.isArray(row.changed_topics) ? row.changed_topics : [],
+    changedTopics,
     diffSummary: row.diff_summary,
     sourceUrl: row.source_url,
     checksumSha256: row.checksum_sha256,
@@ -72,6 +81,57 @@ const mapRow = (row: RegulationUpdateRow): RegulationUpdate => {
     readAt: row.read_at,
     isRead: Boolean(row.is_read),
     title: `Regulamento atualizado - ${authority} (${sourceLabel})`,
+    impactAreas: impact.areas,
+    impactActions: impact.actions,
+  };
+};
+
+const containsTopic = (topics: string[], pattern: RegExp) =>
+  topics.some((topic) => pattern.test(String(topic ?? "").toLowerCase()));
+
+const deriveRegulationImpact = (topics: string[]) => {
+  const normalizedTopics = topics.map((item) => String(item ?? "").toLowerCase());
+  const areas = new Set<string>();
+  const actions = new Map<string, ImpactAction>();
+
+  const addArea = (area: string) => areas.add(area);
+  const addAction = (action: ImpactAction) => {
+    if (!actions.has(action.route)) actions.set(action.route, action);
+  };
+
+  if (
+    containsTopic(normalizedTopics, /(substitui|líbero|libero|set|ponto|disputa|playoff|campeonato|torneio)/)
+  ) {
+    addArea("Torneios");
+    addAction({ label: "Ver torneios", route: "/events" });
+  }
+
+  if (
+    containsTopic(normalizedTopics, /(relat[oó]rio|prazo|registro|presen[çc]a|frequ[eê]ncia)/)
+  ) {
+    addArea("Coordenação");
+    addAction({ label: "Ver coordenação", route: "/coordination" });
+  }
+
+  if (containsTopic(normalizedTopics, /(turma|treino|periodiza|carga|sess[aã]o)/)) {
+    addArea("Turmas");
+    addAction({ label: "Ver turmas", route: "/classes" });
+  }
+
+  if (containsTopic(normalizedTopics, /(nfc|tag|chamada|check-?in)/)) {
+    addArea("Presença NFC");
+    addAction({ label: "Ver presença NFC", route: "/nfc-attendance" });
+  }
+
+  if (!areas.size) {
+    addArea("Regulamento");
+  }
+  addAction({ label: "Ver histórico", route: "/regulation-history" });
+  addAction({ label: "Ver fontes", route: "/regulation-sources" });
+
+  return {
+    areas: Array.from(areas),
+    actions: Array.from(actions.values()).slice(0, 4),
   };
 };
 

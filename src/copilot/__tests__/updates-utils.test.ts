@@ -116,4 +116,25 @@ describe("copilot updates utils", () => {
     expect(hasSnapshotChanged(previous, current)).toBe(true);
     expect(countUnreadFromSnapshot(previous, current)).toBe(1);
   });
+
+  test("counts unread when snapshot hash changes without structural diff", () => {
+    const previous = buildCentralSnapshot({
+      screenKey: "coordination",
+      snapshotHash: "v2_hash_old",
+      signals: [],
+      actions: [],
+      historyHead: null,
+    });
+
+    const current = buildCentralSnapshot({
+      screenKey: "coordination",
+      snapshotHash: "v2_hash_new",
+      signals: [],
+      actions: [],
+      historyHead: null,
+    });
+
+    expect(hasSnapshotChanged(previous, current)).toBe(true);
+    expect(countUnreadFromSnapshot(previous, current)).toBe(1);
+  });
 });

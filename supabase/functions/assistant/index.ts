@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  resolveRegulationAssistantResponse,
+} from "./regulation-resolver.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,11 +92,20 @@ type AppSnapshotAction = {
 };
 
 type AppSnapshotPayload = {
+  snapshotVersion?: number | null;
+  snapshotHash?: string | null;
   screen: string | null;
   contextTitle: string | null;
   activeSignal: AppSnapshotSignal | null;
   signalsTop: AppSnapshotSignal[];
   recentActions: AppSnapshotAction[];
+  regulationContext?: {
+    activeRuleSetId: string | null;
+    pendingRuleSetId: string | null;
+    latestUpdateIds: string[];
+    latestChangedTopics: string[];
+    impactAreas: string[];
+  } | null;
 };
 
 type RetrievalResult = {
@@ -578,6 +590,14 @@ const normalizeNullableId = (value: unknown) => {
   return text ? text : null;
 };
 
+const normalizeStringList = (value: unknown, limit: number) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => normalizeSnapshotText(item))
+        .filter(Boolean)
+        .slice(0, limit)
+    : [];
+
 const normalizeAppSnapshotSignal = (value: unknown): AppSnapshotSignal | null => {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -621,17 +641,47 @@ const normalizeAppSnapshot = (value: unknown): AppSnapshotPayload | null => {
         .filter((item): item is AppSnapshotAction => Boolean(item))
         .slice(0, APP_SNAPSHOT_MAX_ACTIONS)
     : [];
+  const regulationContextRaw =
+    record.regulationContext && typeof record.regulationContext === "object"
+      ? (record.regulationContext as Record<string, unknown>)
+      : null;
+  const regulationContext = regulationContextRaw
+    ? {
+        activeRuleSetId: normalizeNullableId(regulationContextRaw.activeRuleSetId),
+        pendingRuleSetId: normalizeNullableId(regulationContextRaw.pendingRuleSetId),
+        latestUpdateIds: normalizeStringList(regulationContextRaw.latestUpdateIds, 8),
+        latestChangedTopics: normalizeStringList(
+          regulationContextRaw.latestChangedTopics,
+          8
+        ),
+        impactAreas: normalizeStringList(regulationContextRaw.impactAreas, 8),
+      }
+    : null;
   const screen = normalizeNullableId(record.screen);
   const contextTitle = normalizeNullableId(record.contextTitle);
-  if (!screen && !contextTitle && !activeSignal && !signalsTop.length && !recentActions.length) {
+  const snapshotVersion = Number.isFinite(Number(record.snapshotVersion))
+    ? Number(record.snapshotVersion)
+    : null;
+  const snapshotHash = normalizeNullableId(record.snapshotHash);
+  if (
+    !screen &&
+    !contextTitle &&
+    !activeSignal &&
+    !signalsTop.length &&
+    !recentActions.length &&
+    !regulationContext
+  ) {
     return null;
   }
   return {
+    snapshotVersion,
+    snapshotHash,
     screen,
     contextTitle,
     activeSignal,
     signalsTop,
     recentActions,
+    regulationContext,
   };
 };
 
@@ -640,6 +690,8 @@ const buildAppSnapshotContext = (snapshot: AppSnapshotPayload | null) => {
   const lines: string[] = [];
   if (snapshot.screen) lines.push(`screen: ${snapshot.screen}`);
   if (snapshot.contextTitle) lines.push(`contextTitle: ${snapshot.contextTitle}`);
+  if (snapshot.snapshotVersion) lines.push(`snapshotVersion: ${snapshot.snapshotVersion}`);
+  if (snapshot.snapshotHash) lines.push(`snapshotHash: ${snapshot.snapshotHash}`);
   if (snapshot.activeSignal) {
     lines.push(
       `activeSignal: ${snapshot.activeSignal.title} [${snapshot.activeSignal.severity}]`
@@ -655,6 +707,23 @@ const buildAppSnapshotContext = (snapshot: AppSnapshotPayload | null) => {
     lines.push("recentActions:");
     for (const action of snapshot.recentActions) {
       lines.push(`- ${action.actionTitle} (${action.status})`);
+    }
+  }
+  if (snapshot.regulationContext) {
+    lines.push("regulationContext:");
+    if (snapshot.regulationContext.activeRuleSetId) {
+      lines.push(`- activeRuleSetId: ${snapshot.regulationContext.activeRuleSetId}`);
+    }
+    if (snapshot.regulationContext.pendingRuleSetId) {
+      lines.push(`- pendingRuleSetId: ${snapshot.regulationContext.pendingRuleSetId}`);
+    }
+    if (snapshot.regulationContext.latestChangedTopics.length) {
+      lines.push(
+        `- latestChangedTopics: ${snapshot.regulationContext.latestChangedTopics.join(", ")}`
+      );
+    }
+    if (snapshot.regulationContext.impactAreas.length) {
+      lines.push(`- impactAreas: ${snapshot.regulationContext.impactAreas.join(", ")}`);
     }
   }
   if (!lines.length) {
@@ -808,6 +877,20 @@ Deno.serve(async (req) => {
     if (debugRequested && !debugAllowed) {
       return new Response(JSON.stringify({ error: "Debug mode not allowed" }), {
         status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const regulationDeterministic = await resolveRegulationAssistantResponse({
+      token: auth.token,
+      organizationId,
+      sportHint,
+      messages,
+      appSnapshot,
+    });
+    if (regulationDeterministic) {
+      return new Response(JSON.stringify(regulationDeterministic), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

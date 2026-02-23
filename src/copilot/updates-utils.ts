@@ -1,5 +1,6 @@
 export type CentralSnapshot = {
   screenKey: string;
+  snapshotHash: string;
   signalKeys: string[];
   ruleUpdateKeys: string[];
   actionKeys: string[];
@@ -9,6 +10,7 @@ export type CentralSnapshot = {
 
 type SnapshotInput = {
   screenKey?: string | null;
+  snapshotHash?: string | null;
   signals: { id: string; severity?: string | null; detectedAt?: string | null }[];
   ruleUpdates?: {
     id: string;
@@ -26,6 +28,7 @@ const sortUnique = (values: string[]) => Array.from(new Set(values)).sort((left,
 
 export const buildCentralSnapshot = (input: SnapshotInput): CentralSnapshot => {
   const screenKey = input.screenKey ?? NONE;
+  const snapshotHash = input.snapshotHash ?? NONE;
   const signalKeys = sortUnique(
     input.signals.map(
       (item) => `${item.id}:${item.severity ?? NONE}:${item.detectedAt ?? NONE}`
@@ -43,6 +46,7 @@ export const buildCentralSnapshot = (input: SnapshotInput): CentralSnapshot => {
     : NONE;
   const serialized = [
     screenKey,
+    snapshotHash,
     signalKeys.join(","),
     ruleUpdateKeys.join(","),
     actionKeys.join(","),
@@ -51,6 +55,7 @@ export const buildCentralSnapshot = (input: SnapshotInput): CentralSnapshot => {
 
   return {
     screenKey,
+    snapshotHash,
     signalKeys,
     ruleUpdateKeys,
     actionKeys,
@@ -86,6 +91,14 @@ export const countUnreadFromSnapshot = (
   if (
     currentSnapshot.historyHeadKey !== NONE &&
     currentSnapshot.historyHeadKey !== lastSeenSnapshot.historyHeadKey
+  ) {
+    unread += 1;
+  }
+
+  if (
+    currentSnapshot.snapshotHash !== NONE &&
+    currentSnapshot.snapshotHash !== lastSeenSnapshot.snapshotHash &&
+    unread === 0
   ) {
     unread += 1;
   }

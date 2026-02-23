@@ -2187,13 +2187,15 @@ export function HomeProfessorScreen({
 
           bottom: 24,
 
-          width: 58,
+          width: 60,
 
-          height: 58,
+          height: 60,
 
-          borderRadius: 29,
+          borderRadius: 30,
 
           backgroundColor: colors.primaryBg,
+          borderWidth: 1,
+          borderColor: colors.border,
 
           alignItems: "center",
 
@@ -2213,11 +2215,19 @@ export function HomeProfessorScreen({
 
       >
 
-        <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 16 }}>
-
-          AI
-
-        </Text>
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.3)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name="sparkles" size={14} color={colors.primaryText} />
+        </View>
 
       </Pressable>
 

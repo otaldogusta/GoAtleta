@@ -1,4 +1,4 @@
-import { usePathname } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -20,6 +21,10 @@ import {
   markRegulationUpdateRead,
   type RegulationUpdate,
 } from "../api/regulation-updates";
+import {
+  listRegulationRuleSets,
+  type RegulationRuleSet,
+} from "../api/regulation-rule-sets";
 import { addNotification } from "../notificationsInbox";
 import { useOrganization } from "../providers/OrganizationProvider";
 import {
@@ -32,6 +37,10 @@ import {
   hasSnapshotChanged,
   type CentralSnapshot,
 } from "./updates-utils";
+import {
+  buildOperationalContext,
+  type OperationalContextResult,
+} from "./operational-context";
 import { Pressable } from "../ui/Pressable";
 import { ModalSheet } from "../ui/ModalSheet";
 import { useAppTheme } from "../ui/app-theme";
@@ -87,6 +96,7 @@ type CopilotState = {
   actions: CopilotAction[];
   signals: CopilotSignal[];
   regulationUpdates: RegulationUpdate[];
+  regulationRuleSets: RegulationRuleSet[];
   selectedSignalId: string | null;
   open: boolean;
   runningActionId: string | null;
@@ -97,6 +107,7 @@ type CopilotState = {
 
 type CopilotInternalContext = {
   state: CopilotState;
+  operationalContext: OperationalContextResult;
   setContext: (ownerId: string, context: CopilotContextData | null) => void;
   clearContext: (ownerId: string) => void;
   setActions: (ownerId: string, actions: CopilotAction[]) => void;
@@ -191,6 +202,7 @@ const buildHistoryItem = (params: {
 });
 
 export function CopilotProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const pathname = usePathname();
   const { session } = useAuth();
@@ -213,6 +225,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     actions: [],
     signals: [],
     regulationUpdates: [],
+    regulationRuleSets: [],
     selectedSignalId: null,
     open: false,
     runningActionId: null,
@@ -221,6 +234,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     unreadCount: 0,
   });
   const [insightsView, setInsightsView] = useState<InsightsView>({ mode: "root" });
+  const [composerValue, setComposerValue] = useState("");
 
   const setContext = useCallback((ownerId: string, context: CopilotContextData | null) => {
     contextRegistryRef.current.set(ownerId, context);
@@ -340,18 +354,29 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const loadRegulationUpdates = useCallback(async () => {
     const organizationId = activeOrganizationId ?? "";
     if (!organizationId) {
-      setState((prev) => ({ ...prev, regulationUpdates: [] }));
+      setState((prev) => ({ ...prev, regulationUpdates: [], regulationRuleSets: [] }));
       return;
     }
 
     try {
-      const result = await listRegulationUpdates({
-        organizationId,
-        unreadOnly: false,
-        limit: 25,
-      });
-      const updates = result.items;
-      setState((prev) => ({ ...prev, regulationUpdates: updates }));
+      const [updatesResult, ruleSets] = await Promise.all([
+        listRegulationUpdates({
+          organizationId,
+          unreadOnly: false,
+          limit: 25,
+        }),
+        listRegulationRuleSets({
+          organizationId,
+          sport: "volleyball",
+          limit: 30,
+        }),
+      ]);
+      const updates = updatesResult.items;
+      setState((prev) => ({
+        ...prev,
+        regulationUpdates: updates,
+        regulationRuleSets: ruleSets,
+      }));
 
       const unreadUpdates = updates.filter((item) => !item.isRead);
       if (!unreadUpdates.length) return;
@@ -362,8 +387,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
       for (const update of freshUpdates.slice(0, 3)) {
         const topicsPreview = update.changedTopics.slice(0, 2).join(", ");
+        const impactPreview = update.impactAreas.slice(0, 2).join(", ");
         const body = topicsPreview
-          ? `Mudanças em: ${topicsPreview}.`
+          ? `Mudanças em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
           : update.diffSummary;
         await addNotification("Regulamento atualizado", body);
       }
@@ -372,13 +398,44 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       notifiedUpdateIdsRef.current = mergedIds;
       await persistNotifiedRegulationIds(mergedIds);
     } catch {
-      setState((prev) => ({ ...prev, regulationUpdates: [] }));
+      setState((prev) => ({ ...prev, regulationUpdates: [], regulationRuleSets: [] }));
     }
   }, [activeOrganizationId, loadNotifiedRegulationIds, persistNotifiedRegulationIds]);
+
+  const selectedSignal =
+    state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
+  const operationalContext = useMemo(
+    () =>
+      buildOperationalContext({
+        screen: state.context?.screen ?? null,
+        contextTitle: state.context?.title ?? null,
+        contextSubtitle: state.context?.subtitle ?? null,
+        signals: state.signals,
+        selectedSignalId: state.selectedSignalId,
+        regulationUpdates: state.regulationUpdates,
+        regulationRuleSets: state.regulationRuleSets,
+        history: state.history.map((item) => ({
+          actionTitle: item.actionTitle,
+          status: item.status,
+          createdAt: item.createdAt,
+        })),
+      }),
+    [
+      state.context?.screen,
+      state.context?.subtitle,
+      state.context?.title,
+      state.history,
+      state.regulationRuleSets,
+      state.regulationUpdates,
+      state.selectedSignalId,
+      state.signals,
+    ]
+  );
 
   const currentSnapshot = useMemo(() => {
     return buildCentralSnapshot({
       screenKey: state.context?.screen ?? "__none__",
+      snapshotHash: operationalContext.snapshot.snapshotHash,
       signals: state.signals,
       ruleUpdates: state.regulationUpdates.map((item) => ({
         id: item.id,
@@ -391,7 +448,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         ? { id: state.history[0].id, createdAt: state.history[0].createdAt }
         : null,
     });
-  }, [state.actions, state.context?.screen, state.history, state.regulationUpdates, state.signals]);
+  }, [
+    operationalContext.snapshot.snapshotHash,
+    state.actions,
+    state.context?.screen,
+    state.history,
+    state.regulationUpdates,
+    state.signals,
+  ]);
 
   const open = useCallback(() => {
     const latestSnapshot = lastComputedSnapshotRef.current ?? currentSnapshot;
@@ -507,6 +571,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<CopilotInternalContext>(
     () => ({
       state,
+      operationalContext,
       setContext,
       clearContext,
       setActions,
@@ -520,6 +585,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       state,
+      operationalContext,
       setContext,
       clearContext,
       setActions,
@@ -534,8 +600,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   );
 
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  const selectedSignal =
-    state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
   const signalsByCategory = useMemo<Record<SignalInsightsCategory, CopilotSignal[]>>(
     () => ({
       reports: state.signals.filter((item) => signalToCategory(item.type) === "reports"),
@@ -724,6 +788,20 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pulseAnim, showFab, state.hasUnreadUpdates]);
 
+  const submitComposer = useCallback(() => {
+    const prompt = composerValue.trim();
+    if (!prompt) return;
+    setComposerValue("");
+    close();
+    router.push({
+      pathname: "/assistant",
+      params: {
+        prompt,
+        source: state.context?.screen ?? "insights",
+      },
+    });
+  }, [close, composerValue, router, state.context?.screen]);
+
   return (
     <CopilotContext.Provider value={value}>
       {children}
@@ -823,7 +901,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <View style={{ gap: 2 }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Insights</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {state.context?.title ?? state.context?.screen ?? "Visão operacional"}
+              {operationalContext.panel.headerTitle || "Visão operacional"}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {operationalContext.panel.headerSubtitle}
             </Text>
           </View>
           <Pressable
@@ -870,13 +951,120 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           ) : null}
 
           {insightsView.mode === "root" ? (
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Temas do momento</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {categoriesWithInsights.length
-                  ? "Selecione um tema para abrir os insights."
-                  : "Nenhum insight relevante neste momento."}
-              </Text>
+            <View style={{ gap: 12 }}>
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  padding: 12,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Pontos de atenção</Text>
+                {operationalContext.panel.attentionSignals.length ? (
+                  operationalContext.panel.attentionSignals.map((signal) => (
+                    <Pressable
+                      key={signal.id}
+                      onPress={() => {
+                        setActiveSignal(signal.id);
+                        setInsightsView({
+                          mode: "detail",
+                          category: signalToCategory(signal.type),
+                          itemId: signal.id,
+                        });
+                      }}
+                      style={{
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 9,
+                        gap: 3,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Nenhum ponto crítico no momento.
+                  </Text>
+                )}
+              </View>
+
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  padding: 12,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Regulamento aplicado</Text>
+                <Text style={{ color: colors.text, fontSize: 12 }}>
+                  Ativo: {operationalContext.panel.activeRuleSetLabel}
+                </Text>
+                {operationalContext.panel.pendingRuleSetLabel ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Próximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
+                  </Text>
+                ) : null}
+                {operationalContext.panel.topImpactAreas.length ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Impacto: {operationalContext.panel.topImpactAreas.join(", ")}
+                  </Text>
+                ) : null}
+                {operationalContext.panel.unreadRegulationCount > 0 ? (
+                  <Pressable
+                    onPress={() => setInsightsView({ mode: "category", category: "regulation" })}
+                    style={{
+                      alignSelf: "flex-start",
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: colors.primaryBg,
+                      backgroundColor: colors.secondaryBg,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                      Ver atualizações
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Ações rápidas</Text>
+                {orderedActions.slice(0, 3).map((action) => (
+                  <Pressable
+                    key={action.id}
+                    onPress={() => {
+                      void runAction(action);
+                    }}
+                    disabled={Boolean(state.runningActionId)}
+                    style={{
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.card,
+                      paddingHorizontal: 10,
+                      paddingVertical: 9,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {state.runningActionId === action.id ? "Executando..." : action.title}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
               {categoriesWithInsights.length ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                   {categoriesWithInsights.map((category) => (
@@ -1028,6 +1216,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                     ))}
                   </View>
                 ) : null}
+                {detailRegulationUpdate.impactAreas.length ? (
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Impacto: {detailRegulationUpdate.impactAreas.join(", ")}
+                  </Text>
+                ) : null}
               </View>
 
               <Pressable
@@ -1046,6 +1239,32 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               >
                 <Text style={{ color: colors.text, fontWeight: "800" }}>Ver fonte</Text>
               </Pressable>
+
+              {detailRegulationUpdate.impactActions.length ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {detailRegulationUpdate.impactActions.map((action) => (
+                    <Pressable
+                      key={`${detailRegulationUpdate.id}_${action.route}`}
+                      onPress={() => {
+                        close();
+                        router.push(action.route as never);
+                      }}
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                        {action.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -1120,6 +1339,58 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             </>
           ) : null}
         </ScrollView>
+
+        <View
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            gap: 8,
+          }}
+        >
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>
+            Perguntar algo...
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TextInput
+              value={composerValue}
+              onChangeText={setComposerValue}
+              placeholder="Digite sua pergunta contextual"
+              placeholderTextColor={colors.muted}
+              returnKeyType="send"
+              onSubmitEditing={submitComposer}
+              style={{
+                flex: 1,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                color: colors.text,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                fontSize: 13,
+              }}
+            />
+            <Pressable
+              onPress={submitComposer}
+              style={{
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.primaryBg,
+                backgroundColor: colors.primaryBg,
+                paddingHorizontal: 12,
+                paddingVertical: 9,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                Perguntar
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </ModalSheet>
     </CopilotContext.Provider>
   );
@@ -1141,11 +1412,14 @@ export function useCopilot() {
     unreadCount: context.state.unreadCount,
     signals: context.state.signals,
     regulationUpdates: context.state.regulationUpdates,
+    regulationRuleSets: context.state.regulationRuleSets,
     activeSignal:
       context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
     setActiveSignal: context.setActiveSignal,
     context: context.state.context,
     history: context.state.history,
+    operationalContext: context.operationalContext,
+    appSnapshot: context.operationalContext.snapshot,
   };
 }
 
@@ -1163,11 +1437,14 @@ export function useOptionalCopilot() {
     unreadCount: context.state.unreadCount,
     signals: context.state.signals,
     regulationUpdates: context.state.regulationUpdates,
+    regulationRuleSets: context.state.regulationRuleSets,
     activeSignal:
       context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
     setActiveSignal: context.setActiveSignal,
     context: context.state.context,
     history: context.state.history,
+    operationalContext: context.operationalContext,
+    appSnapshot: context.operationalContext.snapshot,
   };
 }
 
@@ -1244,6 +1521,7 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
+
 
 
 
