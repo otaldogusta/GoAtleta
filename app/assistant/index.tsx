@@ -459,15 +459,15 @@ export default function AssistantScreen() {
       {
         title: "Gerar treino",
         icon: "sparkles-outline" as const,
-        description: "Monte sessao completa com foco na turma atual.",
+        description: "Monte sessão completa com foco na turma atual.",
         prompt:
-          "Monte um treino completo de 60 minutos para a turma atual com aquecimento, parte principal e volta a calma.",
+          "Monte um treino completo de 60 minutos para a turma atual com aquecimento, parte principal e volta à calma.",
         tint: colors.primaryBg,
       },
       {
-        title: "Resumo tecnico",
+        title: "Resumo técnico",
         icon: "document-text-outline" as const,
-        description: "Consolide o que ja aconteceu e proximas prioridades.",
+        description: "Consolide o que já aconteceu e próximas prioridades.",
         prompt:
           "Crie um resumo executivo da turma com principais riscos, pontos fortes e prioridades da semana.",
         tint: colors.infoText,
@@ -475,33 +475,33 @@ export default function AssistantScreen() {
       {
         title: "Analisar engajamento",
         icon: "pulse-outline" as const,
-        description: "Leia sinais de risco e niveis de consistencia.",
+        description: "Leia sinais de risco e níveis de consistência.",
         prompt:
-          "Simule a evolucao da turma por 6 semanas com intervencao balanceada e destaque premissas e limites.",
+          "Simule a evolução da turma por 6 semanas com intervenção balanceada e destaque premissas e limites.",
         tint: colors.warningText,
       },
       {
-        title: "Pesquisa rapida",
+        title: "Pesquisa rápida",
         icon: "search-outline" as const,
-        description: "Encontre referencia cientifica para a decisao.",
+        description: "Encontre referência científica para a decisão.",
         prompt:
-          "Busque evidencias cientificas recentes para melhorar o proximo treino desta turma.",
+          "Busque evidências científicas recentes para melhorar o próximo treino desta turma.",
         tint: colors.text,
       },
       {
         title: "Mensagem para pais",
         icon: "chatbubble-ellipses-outline" as const,
-        description: "Rascunhe comunicacao objetiva e profissional.",
+        description: "Rascunhe comunicação objetiva e profissional.",
         prompt:
-          "Crie uma mensagem curta para pais/responsaveis com orientacoes da semana da turma atual.",
+          "Crie uma mensagem curta para pais/responsáveis com orientações da semana da turma atual.",
         tint: colors.successText,
       },
       {
-        title: "Checklist da sessao",
+        title: "Checklist da sessão",
         icon: "checkmark-done-outline" as const,
         description: "Liste itens operacionais antes da aula com a turma.",
         prompt:
-          "Monte um checklist pratico para conduzir a proxima sessao da turma atual.",
+          "Monte um checklist prático para conduzir a próxima sessão da turma atual.",
         tint: colors.primaryBg,
       },
     ],
@@ -1159,7 +1159,7 @@ export default function AssistantScreen() {
                     {greetingLine}
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 16, textAlign: "center", maxWidth: 580 }}>
-                    Hoje, o que voce quer resolver?
+                    Hoje, o que você quer resolver?
                   </Text>
                 </View>
 

@@ -1773,7 +1773,7 @@ export function HomeProfessorScreen({
                     {event.title}
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {start.toLocaleDateString("pt-BR")} â€¢{" "}
+                    {start.toLocaleDateString("pt-BR")} {"\u2022"}{" "}
                     {start.toLocaleTimeString("pt-BR", {
                       hour: "2-digit",
                       minute: "2-digit",
