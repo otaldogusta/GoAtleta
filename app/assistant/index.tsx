@@ -235,7 +235,7 @@ export default function AssistantScreen() {
   const optionalCopilot = useOptionalCopilot();
   const { activeOrganization } = useOrganization();
   const { confirm: confirmDialog } = useConfirmDialog();
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -1213,7 +1213,11 @@ export default function AssistantScreen() {
                           borderColor: colors.border,
                         }}
                       >
-                        <Ionicons name={item.icon} size={16} color={item.tint} />
+                        <Ionicons
+                          name={item.icon}
+                          size={16}
+                          color={mode === "dark" ? "#FFFFFF" : item.tint}
+                        />
                       </View>
                       <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
                         {item.title}
