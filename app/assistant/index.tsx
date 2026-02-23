@@ -538,7 +538,7 @@ export default function AssistantScreen() {
     }
 
     if (bullets.length === 0) {
-      bullets.push("Nenhum bloqueio crítico no momento.");
+      bullets.push("Nenhum alerta urgente no momento.");
     }
 
     return bullets
