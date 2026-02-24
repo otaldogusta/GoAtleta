@@ -25,9 +25,9 @@ jobs:
     steps:
       - name: Trigger rules sync function
         env:
-          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
-          RULES_SYNC_SECRET: ${{ secrets.RULES_SYNC_SECRET }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL || secrets.EXPO_PUBLIC_SUPABASE_URL || vars.SUPABASE_PROJECT_URL || vars.EXPO_PUBLIC_SUPABASE_URL }}
+          RULES_SYNC_SECRET: ${{ secrets.RULES_SYNC_SECRET || vars.RULES_SYNC_SECRET }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY || vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
           INPUT_ORG_ID: ${{ github.event.inputs.organization_id }}
           INPUT_SOURCE_ID: ${{ github.event.inputs.source_id }}
           INPUT_FORCE: ${{ github.event.inputs.force }}
@@ -35,7 +35,9 @@ jobs:
           set -euo pipefail
 
           if [ -z "${SUPABASE_PROJECT_URL:-}" ] || [ -z "${RULES_SYNC_SECRET:-}" ]; then
-            echo "Missing required secrets (SUPABASE_PROJECT_URL or RULES_SYNC_SECRET)."
+            echo "Missing required config for rules sync."
+            echo "Provide one of: SUPABASE_PROJECT_URL or EXPO_PUBLIC_SUPABASE_URL"
+            echo "And provide: RULES_SYNC_SECRET"
             exit 1
           fi
 
@@ -52,15 +54,21 @@ jobs:
 
           echo "Request body: $BODY"
 
-          HTTP_CODE="$(curl -sS \
-            -o response.json \
-            -w "%{http_code}" \
-            -X POST "${SUPABASE_PROJECT_URL}/functions/v1/rules-sync" \
-            -H "Content-Type: application/json" \
-            -H "x-rules-sync-secret: ${RULES_SYNC_SECRET}" \
-            -H "Authorization: Bearer ${SUPABASE_ANON_KEY:-}" \
+          CURL_ARGS=(
+            -sS
+            -o response.json
+            -w "%{http_code}"
+            -X POST "${SUPABASE_PROJECT_URL}/functions/v1/rules-sync"
+            -H "Content-Type: application/json"
+            -H "x-rules-sync-secret: ${RULES_SYNC_SECRET}"
             -d "$BODY"
-          )"
+          )
+
+          if [ -n "${SUPABASE_ANON_KEY:-}" ]; then
+            CURL_ARGS+=(-H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          fi
+
+          HTTP_CODE="$(curl "${CURL_ARGS[@]}")"
 
           echo "HTTP status: ${HTTP_CODE}"
           cat response.json
