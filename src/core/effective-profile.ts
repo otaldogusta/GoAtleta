@@ -19,15 +19,19 @@ export const resolveEffectiveProfile = (params: {
 };
 
 export const useEffectiveProfile = (): EffectiveProfile => {
-  const { role } = useRole();
+  const { role, devProfilePreview } = useRole();
   const { activeOrganization } = useOrganization();
 
   return useMemo(
-    () =>
-      resolveEffectiveProfile({
+    () => {
+      if (devProfilePreview === "admin") return "admin";
+      if (devProfilePreview === "professor") return "professor";
+      if (devProfilePreview === "student") return "student";
+      return resolveEffectiveProfile({
         role,
         orgRoleLevel: activeOrganization?.role_level,
-      }),
-    [role, activeOrganization?.role_level]
+      });
+    },
+    [role, activeOrganization?.role_level, devProfilePreview]
   );
 };
