@@ -753,6 +753,14 @@ export function HomeProfessorScreen({
   const activeIndex = manualIndex ?? autoIndex;
 
   const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
+  const todayScheduleWindow = useMemo(
+    () => scheduleWindow.filter((item) => item.dateKey === todayDateKey),
+    [scheduleWindow, todayDateKey]
+  );
+  const isDayConcluded = useMemo(() => {
+    if (!todayScheduleWindow.length) return false;
+    return todayScheduleWindow.every((item) => nowTime >= item.endTime + 60 * 60 * 1000);
+  }, [nowTime, todayScheduleWindow]);
 
   const agendaCardGap = 10;
 
@@ -1623,6 +1631,25 @@ export function HomeProfessorScreen({
               )}
             </FadeHorizontalScroll>
           </View>
+          {isDayConcluded ? (
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Por hoje é isso.
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>
+                Todas as turmas de hoje já concluíram a janela de aula.
+              </Text>
+            </View>
+          ) : null}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               onPress={() => {

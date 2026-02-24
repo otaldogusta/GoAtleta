@@ -36,6 +36,14 @@ type CopilotHistoryItem = {
   createdAt: string;
 };
 
+type ScheduleWindowInput = {
+  daysOfWeek: number[] | null;
+  startTime: string | null;
+  durationMinutes: number | null;
+};
+
+export type DayScheduleStatus = "no_classes" | "in_progress" | "concluded";
+
 type OperationalContextInput = {
   screen: string | null | undefined;
   contextTitle: string | null | undefined;
@@ -45,6 +53,8 @@ type OperationalContextInput = {
   regulationUpdates: RegulationUpdate[];
   regulationRuleSets: RegulationRuleSet[];
   history: CopilotHistoryItem[];
+  scheduleWindows?: ScheduleWindowInput[];
+  nowMs?: number;
 };
 
 type SnapshotSignal = {
@@ -79,6 +89,7 @@ export type OperationalSnapshot = {
   signalsTop: SnapshotSignal[];
   recentActions: SnapshotAction[];
   regulationContext: RegulationSnapshotContext;
+  dayScheduleStatus: DayScheduleStatus;
 };
 
 export type OperationalPanelState = {
@@ -89,6 +100,8 @@ export type OperationalPanelState = {
   pendingRuleSetLabel: string | null;
   unreadRegulationCount: number;
   topImpactAreas: string[];
+  dayScheduleStatus: DayScheduleStatus;
+  dayScheduleLabel: string;
 };
 
 export type OperationalContextResult = {
@@ -178,9 +191,62 @@ const scoreSignal = (screen: string | null | undefined, signal: CopilotSignal) =
   return severityWeight * 2 + recencyBoost + screenRelevanceBoost;
 };
 
+const parseStartTimeToMinutes = (value: string | null) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+};
+
+const resolveDayScheduleStatus = (
+  scheduleWindows: ScheduleWindowInput[],
+  nowMs: number
+): DayScheduleStatus => {
+  if (!scheduleWindows.length) return "no_classes";
+  const now = new Date(nowMs);
+  const weekday = now.getDay();
+  const todaysWindows = scheduleWindows.filter((item) =>
+    (item.daysOfWeek ?? []).includes(weekday)
+  );
+  if (!todaysWindows.length) return "no_classes";
+
+  let hasPendingWindow = false;
+  let hasValidWindow = false;
+  for (const window of todaysWindows) {
+    const startMinutes = parseStartTimeToMinutes(window.startTime);
+    if (startMinutes == null) continue;
+    hasValidWindow = true;
+    const startAt = new Date(now);
+    startAt.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+    const durationMinutes = Math.max(15, Number(window.durationMinutes ?? 60));
+    const graceEndsAtMs = startAt.getTime() + durationMinutes * 60_000 + 60 * 60_000;
+    if (nowMs < graceEndsAtMs) {
+      hasPendingWindow = true;
+      break;
+    }
+  }
+
+  if (!hasValidWindow) return "in_progress";
+  return hasPendingWindow ? "in_progress" : "concluded";
+};
+
+const dayScheduleLabelByStatus: Record<DayScheduleStatus, string> = {
+  no_classes: "Sem turmas agendadas para hoje.",
+  in_progress: "Dia em andamento.",
+  concluded: "Dia concluído: não há mais turmas pendentes hoje.",
+};
+
 export const buildOperationalContext = (
   input: OperationalContextInput
 ): OperationalContextResult => {
+  const dayScheduleStatus = resolveDayScheduleStatus(
+    input.scheduleWindows ?? [],
+    Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now()
+  );
   const scoredSignals = input.signals.map((signal) => ({
     signal,
     score: scoreSignal(input.screen, signal),
@@ -241,6 +307,7 @@ export const buildOperationalContext = (
       latestChangedTopics: sortStrings(latestChangedTopics),
       impactAreas: sortStrings(impactAreas),
     },
+    dayScheduleStatus,
   };
 
   const hashPayload = JSON.stringify({
@@ -261,6 +328,7 @@ export const buildOperationalContext = (
       return left.actionTitle.localeCompare(right.actionTitle);
     }),
     regulationContext: snapshot.regulationContext,
+    dayScheduleStatus: snapshot.dayScheduleStatus,
   });
   snapshot.snapshotHash = stableHash(hashPayload);
 
@@ -277,6 +345,8 @@ export const buildOperationalContext = (
     pendingRuleSetLabel: pendingRuleSet ? buildRuleSetLabel(pendingRuleSet) : null,
     unreadRegulationCount: unreadUpdates.length,
     topImpactAreas: sortStrings(impactAreas).slice(0, 4),
+    dayScheduleStatus,
+    dayScheduleLabel: dayScheduleLabelByStatus[dayScheduleStatus],
   };
 
   return { snapshot, panel };

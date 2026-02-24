@@ -143,4 +143,55 @@ describe("operational context builder", () => {
     expect(result.snapshot.regulationContext.impactAreas).toEqual(["Torneios"]);
     expect(result.panel.unreadRegulationCount).toBe(1);
   });
+
+  test("marks day as concluded after last class + 1h grace window", () => {
+    const now = new Date(2026, 1, 24, 22, 5, 0, 0);
+    const weekday = now.getDay();
+    const result = buildOperationalContext({
+      screen: "assistant_home",
+      contextTitle: "Assistant",
+      contextSubtitle: "Visao operacional",
+      signals: [],
+      selectedSignalId: null,
+      regulationUpdates: [],
+      regulationRuleSets: [],
+      history: [],
+      nowMs: now.getTime(),
+      scheduleWindows: [
+        {
+          daysOfWeek: [weekday],
+          startTime: "20:00",
+          durationMinutes: 60,
+        },
+      ],
+    });
+
+    expect(result.snapshot.dayScheduleStatus).toBe("concluded");
+    expect(result.panel.dayScheduleStatus).toBe("concluded");
+  });
+
+  test("keeps day in progress while within class grace window", () => {
+    const now = new Date(2026, 1, 24, 21, 30, 0, 0);
+    const weekday = now.getDay();
+    const result = buildOperationalContext({
+      screen: "assistant_home",
+      contextTitle: "Assistant",
+      contextSubtitle: "Visao operacional",
+      signals: [],
+      selectedSignalId: null,
+      regulationUpdates: [],
+      regulationRuleSets: [],
+      history: [],
+      nowMs: now.getTime(),
+      scheduleWindows: [
+        {
+          daysOfWeek: [weekday],
+          startTime: "20:00",
+          durationMinutes: 60,
+        },
+      ],
+    });
+
+    expect(result.snapshot.dayScheduleStatus).toBe("in_progress");
+  });
 });

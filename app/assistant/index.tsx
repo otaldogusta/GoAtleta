@@ -670,7 +670,7 @@ export default function AssistantScreen() {
     return `Boa noite, ${userDisplayName}.`;
   }, [userDisplayName]);
 
-  const dayScheduleStatus = useMemo<"no_classes" | "in_progress" | "concluded">(() => {
+  const localDayScheduleStatus = useMemo<"no_classes" | "in_progress" | "concluded">(() => {
     const now = new Date(nowMs);
     const weekday = now.getDay();
     const todayClasses = classes.filter((item) => (item.daysOfWeek ?? []).includes(weekday));
@@ -695,6 +695,9 @@ export default function AssistantScreen() {
 
     return hasPendingWindow ? "in_progress" : "concluded";
   }, [classes, nowMs]);
+
+  const dayScheduleStatus =
+    optionalCopilot?.appSnapshot?.dayScheduleStatus ?? localDayScheduleStatus;
 
   const strategicBullets = useMemo(() => {
     const bullets: string[] = [];

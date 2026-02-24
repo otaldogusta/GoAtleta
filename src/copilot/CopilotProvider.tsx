@@ -41,6 +41,7 @@ import {
   buildOperationalContext,
   type OperationalContextResult,
 } from "./operational-context";
+import { getClasses } from "../db/seed";
 import { Pressable } from "../ui/Pressable";
 import { ModalSheet } from "../ui/ModalSheet";
 import { useAppTheme } from "../ui/app-theme";
@@ -201,6 +202,12 @@ const buildHistoryItem = (params: {
   confidence: params.result.confidence,
 });
 
+type ScheduleWindow = {
+  daysOfWeek: number[];
+  startTime: string | null;
+  durationMinutes: number | null;
+};
+
 export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -235,6 +242,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   });
   const [insightsView, setInsightsView] = useState<InsightsView>({ mode: "root" });
   const [composerValue, setComposerValue] = useState("");
+  const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const setContext = useCallback((ownerId: string, context: CopilotContextData | null) => {
     contextRegistryRef.current.set(ownerId, context);
@@ -402,6 +411,42 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeOrganizationId, loadNotifiedRegulationIds, persistNotifiedRegulationIds]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const organizationId = activeOrganizationId ?? "";
+      if (!organizationId) {
+        if (!cancelled) setScheduleWindows([]);
+        return;
+      }
+      try {
+        const classes = await getClasses({ organizationId });
+        if (cancelled) return;
+        setScheduleWindows(
+          classes.map((item) => ({
+            daysOfWeek: Array.isArray(item.daysOfWeek) ? item.daysOfWeek : [],
+            startTime: item.startTime ?? null,
+            durationMinutes: Number.isFinite(item.durationMinutes)
+              ? Number(item.durationMinutes)
+              : null,
+          }))
+        );
+      } catch {
+        if (!cancelled) setScheduleWindows([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganizationId]);
+
   const selectedSignal =
     state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
   const operationalContext = useMemo(
@@ -419,8 +464,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           status: item.status,
           createdAt: item.createdAt,
         })),
+        scheduleWindows,
+        nowMs,
       }),
     [
+      nowMs,
+      scheduleWindows,
       state.context?.screen,
       state.context?.subtitle,
       state.context?.title,
@@ -957,6 +1006,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           {insightsView.mode === "root" ? (
             <View style={{ gap: 10 }}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>Pontos de atenção</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {operationalContext.panel.dayScheduleLabel}
+              </Text>
               {operationalContext.panel.attentionSignals.length ? (
                 operationalContext.panel.attentionSignals.map((signal, index) => (
                   <View key={signal.id} style={{ gap: 6 }}>
@@ -1486,4 +1538,3 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
-
