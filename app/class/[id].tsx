@@ -102,9 +102,9 @@ export default function ClassDetails() {
   const whatsappSelectedBg = mode === "dark" ? toRgba(colors.successBg, 0.28) : toRgba(colors.successBg, 0.18);
   const whatsappSelectedBorder = mode === "dark" ? toRgba(colors.successBg, 0.7) : toRgba(colors.successBg, 0.55);
   const whatsappSelectedText = mode === "dark" ? colors.text : colors.successText;
-  const whatsappModalSurface = mode === "light" ? "rgba(255,255,255,0.86)" : colors.card;
-  const whatsappModalSubtleSurface = mode === "light" ? "#F7F9FC" : colors.inputBg;
-  const whatsappModalBorder = mode === "light" ? toRgba(colors.text, 0.14) : colors.border;
+  const whatsappModalSurface = colors.card;
+  const whatsappModalSubtleSurface = colors.inputBg;
+  const whatsappModalBorder = colors.border;
   const whatsappModalMuted = mode === "light" ? toRgba(colors.text, 0.72) : colors.muted;
   const [rosterMonthValue, setRosterMonthValue] = useState(() => {
     const now = new Date();
@@ -1991,14 +1991,12 @@ export default function ClassDetails() {
           whatsappModalCardStyle,
           {
             overflow: "hidden",
-            backgroundColor: whatsappModalSurface,
-            borderColor: whatsappModalBorder,
           },
         ]}
         position="center"
       >
         <ScrollView
-          style={{ maxHeight: "100%", backgroundColor: whatsappModalSurface }}
+          style={{ maxHeight: "100%" }}
           contentContainerStyle={{ gap: 12, paddingBottom: 6 }}
           showsVerticalScrollIndicator
         >
@@ -2217,7 +2215,7 @@ export default function ClassDetails() {
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: whatsappModalBorder,
-                  backgroundColor: whatsappModalSubtleSurface,
+                  backgroundColor: colors.background,
                   overflow: "hidden",
                 }}
               >
@@ -2302,7 +2300,7 @@ export default function ClassDetails() {
                 width: 50,
                 height: 28,
                 borderRadius: 14,
-                backgroundColor: defaultMessageEnabled ? colors.successBg : whatsappModalBorder,
+                backgroundColor: defaultMessageEnabled ? colors.successBg : colors.secondaryBg,
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -2312,7 +2310,7 @@ export default function ClassDetails() {
                   width: 24,
                   height: 24,
                   borderRadius: 12,
-                  backgroundColor: mode === "light" ? "#FFFFFF" : colors.card,
+                  backgroundColor: colors.card,
                   marginLeft: defaultMessageEnabled ? 22 : 2,
                   position: "absolute",
                 }}
