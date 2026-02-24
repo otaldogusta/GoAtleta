@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,6 +28,7 @@ export function ModalSheet({
   bottomOffset,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
+  const [isMounted, setIsMounted] = useState(visible);
   const previousOverflow = useRef<string | null>(null);
   const previousHtmlOverflow = useRef<string | null>(null);
   const previousPosition = useRef<string | null>(null);
@@ -48,18 +49,27 @@ export function ModalSheet({
   const resolvedCardStyle = [baseCardStyle, cardStyle];
 
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      setIsMounted(true);
       anim.setValue(0);
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
       return;
     }
-    anim.setValue(0);
+    if (!isMounted) return;
     Animated.timing(anim, {
-      toValue: 1,
-      duration: 240,
-      easing: Easing.out(Easing.cubic),
+      toValue: 0,
+      duration: 180,
+      easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
-    }).start();
-  }, [anim, visible]);
+    }).start(({ finished }) => {
+      if (finished) setIsMounted(false);
+    });
+  }, [anim, isMounted, visible]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -159,7 +169,7 @@ export function ModalSheet({
     }
   }, [visible]);
 
-  if (Platform.OS === "web" && !visible) {
+  if (!isMounted) {
     return null;
   }
 
@@ -231,7 +241,7 @@ export function ModalSheet({
 
   return (
     <Modal
-      visible={visible}
+      visible={isMounted}
       animationType="fade"
       transparent
       onRequestClose={onClose}

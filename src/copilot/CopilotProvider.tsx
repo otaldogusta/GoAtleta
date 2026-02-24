@@ -830,7 +830,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const isWebModal = Platform.OS === "web";
 
   useEffect(() => {
-    if (!(showFab && state.hasUnreadUpdates)) {
+    if (!(showFab && !state.open && state.hasUnreadUpdates)) {
       pulseAnim.stopAnimation();
       pulseAnim.setValue(0);
       return;
@@ -857,7 +857,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       pulseAnim.stopAnimation();
       pulseAnim.setValue(0);
     };
-  }, [pulseAnim, showFab, state.hasUnreadUpdates]);
+  }, [pulseAnim, showFab, state.hasUnreadUpdates, state.open]);
 
   const submitComposer = useCallback(() => {
     const prompt = composerValue.trim();
@@ -876,7 +876,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   return (
     <CopilotContext.Provider value={value}>
       {children}
-      {showFab ? (
+      {showFab && !state.open ? (
         <View pointerEvents="box-none" style={styles.fabWrapper}>
           {state.hasUnreadUpdates ? (
             <Animated.View
@@ -904,42 +904,35 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           <Pressable
             onPress={open}
             accessibilityRole="button"
-            accessibilityLabel="Abrir insights"
+            accessibilityLabel="Abrir chat"
             style={{
               borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.primaryBg,
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-              minHeight: 44,
-              minWidth: 112,
+              width: 58,
+              height: 58,
+              backgroundColor: "#111111",
               alignItems: "center",
               justifyContent: "center",
               shadowColor: "#000",
-              shadowOpacity: 0.22,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 5,
+              shadowOpacity: 0.26,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 7,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>
-                Insights
-              </Text>
-              {state.hasUnreadUpdates ? (
-                <View
-                  style={{
-                    borderRadius: 999,
-                    width: 8,
-                    height: 8,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.primaryText,
-                  }}
-                />
-              ) : null}
-            </View>
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color="#FFFFFF" />
+            {state.hasUnreadUpdates ? (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 9,
+                  right: 9,
+                  borderRadius: 999,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: colors.primaryBg,
+                }}
+              />
+            ) : null}
           </Pressable>
         </View>
       ) : null}
@@ -1656,9 +1649,9 @@ const styles = StyleSheet.create({
   },
   fabPulseRing: {
     position: "absolute",
-    width: 120,
-    height: 52,
-    borderRadius: 999,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     borderWidth: 2,
   },
 });
