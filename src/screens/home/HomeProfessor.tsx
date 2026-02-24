@@ -1546,20 +1546,18 @@ export function HomeProfessorScreen({
                     >
                       {agendaDivider?.index === idx ? (
                         <View
+                          pointerEvents="none"
                           style={{
-                            marginBottom: 8,
-                            paddingVertical: 6,
-                            paddingHorizontal: 10,
-                            borderRadius: 10,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.secondaryBg,
+                            position: "absolute",
+                            left: -Math.max(4, Math.round(agendaCardGap / 2)),
+                            top: 10,
+                            bottom: 10,
+                            width: 1,
+                            borderRadius: 999,
+                            backgroundColor: colors.border,
+                            opacity: 0.9,
                           }}
-                        >
-                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                            {agendaDivider.label}
-                          </Text>
-                        </View>
+                        />
                       ) : null}
                       <Pressable onPress={() => handleAgendaCardPress(idx)}>
                         <View
