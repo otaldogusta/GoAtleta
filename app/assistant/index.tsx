@@ -115,6 +115,16 @@ type ScientificReference = {
   evidence: string;
 };
 
+type QuickPromptCard = {
+  id: string;
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  description: string;
+  prompt: string;
+  tint: string;
+  contextLabel: string;
+};
+
 const sanitizeList = (value: unknown) =>
   Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 
@@ -136,6 +146,12 @@ const toOptionalString = (value: unknown) => {
   if (typeof value !== "string") return "";
   return value.trim();
 };
+
+const normalizeClassNameLabel = (value: string) =>
+  String(value ?? "")
+    .trim()
+    .replace(/^turma\s+/i, "")
+    .trim();
 
 const DOI_REGEX = /\b10\.\d{4,9}\/[A-Z0-9._;()/:-]+\b/i;
 const PMID_URL_REGEX = /pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)\/?/i;
@@ -360,6 +376,13 @@ export default function AssistantScreen() {
     () => classes.find((item) => item.id === classId) ?? null,
     [classes, classId]
   );
+  const classNameById = useMemo(() => {
+    const entries = new Map<string, string>();
+    classes.forEach((item) => {
+      entries.set(item.id, normalizeClassNameLabel(item.name) || item.name);
+    });
+    return entries;
+  }, [classes]);
   const hasInputText = input.trim().length > 0;
 
   useEffect(() => {
@@ -454,67 +477,183 @@ export default function AssistantScreen() {
     return "Coach";
   }, [session?.user?.user_metadata]);
 
-  const assistantScopeLabel = selectedClass?.name
-    ? `Turma ${selectedClass.name}`
+  const selectedClassDisplayName = useMemo(
+    () => normalizeClassNameLabel(selectedClass?.name ?? ""),
+    [selectedClass?.name]
+  );
+
+  useEffect(() => {
+    const contextClassId = optionalCopilot?.appSnapshot?.activeSignal?.classId;
+    if (!contextClassId) return;
+    if (!classes.some((item) => item.id === contextClassId)) return;
+    setClassId((current) => (current === contextClassId ? current : contextClassId));
+  }, [classes, optionalCopilot?.appSnapshot?.activeSignal?.classId]);
+
+  const assistantScopeLabel = selectedClassDisplayName
+    ? `Turma ${selectedClassDisplayName}`
     : "Organização atual";
 
-  const classContextTarget = selectedClass?.name
-    ? `a turma ${selectedClass.name}`
-    : "uma turma";
+  const classContextTarget = selectedClassDisplayName
+    ? `a turma ${selectedClassDisplayName}`
+    : "a organização atual";
 
-  const quickPrompts = useMemo(
-    () => [
+  const contextScreenLabel = useMemo(() => {
+    const screen = String(optionalCopilot?.appSnapshot?.screen ?? "");
+    if (screen.startsWith("coordination")) return "Coordenação";
+    if (screen.startsWith("events")) return "Torneios";
+    if (screen.startsWith("classes") || screen.startsWith("class_")) return "Turmas";
+    if (screen.startsWith("periodization")) return "Periodização";
+    if (screen.startsWith("nfc")) return "Presença NFC";
+    return "Central";
+  }, [optionalCopilot?.appSnapshot?.screen]);
+
+  const quickPrompts = useMemo<QuickPromptCard[]>(() => {
+    const baseCards: QuickPromptCard[] = [
       {
+        id: "generate_training",
         title: "Gerar treino",
-        icon: "sparkles-outline" as const,
+        icon: "sparkles-outline",
         description: "Monte sessão completa com foco no contexto ativo.",
-        prompt:
-          `Monte um treino completo de 60 minutos para ${classContextTarget}, com aquecimento, parte principal e volta à calma.`,
+        prompt: `Monte um treino completo de 60 minutos para ${classContextTarget}, com aquecimento, parte principal e volta à calma.`,
         tint: colors.primaryBg,
+        contextLabel: assistantScopeLabel,
       },
       {
+        id: "technical_summary",
         title: "Resumo técnico",
-        icon: "document-text-outline" as const,
+        icon: "document-text-outline",
         description: "Consolide o que já aconteceu e próximas prioridades.",
-        prompt:
-          `Crie um resumo executivo para ${classContextTarget}, com principais riscos, pontos fortes e prioridades da semana.`,
+        prompt: `Crie um resumo executivo para ${classContextTarget}, com principais riscos, pontos fortes e prioridades da semana.`,
         tint: colors.infoText,
+        contextLabel: contextScreenLabel,
       },
       {
+        id: "engagement_analysis",
         title: "Analisar engajamento",
-        icon: "pulse-outline" as const,
+        icon: "pulse-outline",
         description: "Leia sinais de risco e níveis de consistência.",
-        prompt:
-          `Simule a evolução de ${classContextTarget} por 6 semanas com intervenção balanceada e destaque premissas e limites.`,
+        prompt: `Simule a evolução de ${classContextTarget} por 6 semanas com intervenção balanceada e destaque premissas e limites.`,
         tint: colors.warningText,
+        contextLabel: assistantScopeLabel,
       },
       {
+        id: "quick_research",
         title: "Pesquisa rápida",
-        icon: "search-outline" as const,
+        icon: "search-outline",
         description: "Encontre referência científica para a decisão.",
-        prompt:
-          `Busque evidências científicas recentes para melhorar o próximo treino de ${classContextTarget}.`,
+        prompt: selectedClassDisplayName
+          ? `Busque evidências científicas recentes para melhorar o próximo treino da turma ${selectedClassDisplayName}.`
+          : "Busque evidências científicas recentes para melhorar o próximo treino do contexto atual.",
         tint: colors.text,
+        contextLabel: "Evidência",
       },
       {
+        id: "family_message",
         title: "Mensagem para pais",
-        icon: "chatbubble-ellipses-outline" as const,
+        icon: "chatbubble-ellipses-outline",
         description: "Rascunhe comunicação objetiva e profissional.",
-        prompt:
-          `Crie uma mensagem curta para pais/responsáveis com orientações da semana de ${classContextTarget}.`,
+        prompt: `Crie uma mensagem curta para pais/responsáveis com orientações da semana de ${classContextTarget}.`,
         tint: colors.successText,
+        contextLabel: assistantScopeLabel,
       },
       {
+        id: "session_checklist",
         title: "Checklist da sessão",
-        icon: "checkmark-done-outline" as const,
+        icon: "checkmark-done-outline",
         description: "Liste itens operacionais antes da aula no contexto ativo.",
-        prompt:
-          `Monte um checklist prático para conduzir a próxima sessão de ${classContextTarget}.`,
+        prompt: `Monte um checklist prático para conduzir a próxima sessão de ${classContextTarget}.`,
         tint: colors.primaryBg,
+        contextLabel: contextScreenLabel,
       },
-    ],
-    [classContextTarget, colors.infoText, colors.primaryBg, colors.successText, colors.text, colors.warningText]
-  );
+    ];
+
+    const signalCards: QuickPromptCard[] = (optionalCopilot?.appSnapshot?.signalsTop ?? [])
+      .slice(0, 2)
+      .map((signal, index) => {
+        const signalClassLabel =
+          signal.classId && classNameById.get(signal.classId)
+            ? `Turma ${classNameById.get(signal.classId)}`
+            : "Sinal do app";
+        const id = `signal_${signal.id}_${index}`;
+        if (signal.type === "report_delay") {
+          return {
+            id,
+            title: "Regularizar relatórios",
+            icon: "document-attach-outline",
+            description: "Defina plano curto para reduzir pendências de relatório.",
+            prompt: `Crie um plano objetivo para reduzir pendências de relatório em ${classContextTarget} nesta semana.`,
+            tint: colors.warningText,
+            contextLabel: signalClassLabel,
+          };
+        }
+        if (signal.type === "repeated_absence") {
+          return {
+            id,
+            title: "Plano para faltas",
+            icon: "people-outline",
+            description: "Estruture ações para reduzir faltas consecutivas.",
+            prompt: `Crie uma estratégia prática para reduzir faltas consecutivas em ${classContextTarget}.`,
+            tint: colors.warningText,
+            contextLabel: signalClassLabel,
+          };
+        }
+        if (signal.type === "unusual_presence_pattern") {
+          return {
+            id,
+            title: "Analisar presença NFC",
+            icon: "radio-outline",
+            description: "Investigue padrão anômalo de presença recente.",
+            prompt: `Analise o padrão de presença NFC em ${classContextTarget} e proponha ações corretivas.`,
+            tint: colors.warningText,
+            contextLabel: signalClassLabel,
+          };
+        }
+        return {
+          id,
+          title: "Plano de intervenção",
+          icon: "construct-outline",
+          description: "Monte próximos passos com base no sinal atual.",
+          prompt: `Gere um plano de intervenção para o sinal atual de ${classContextTarget}, com ações para 7 dias.`,
+          tint: colors.warningText,
+          contextLabel: signalClassLabel,
+        };
+      });
+
+    const recentAction = optionalCopilot?.appSnapshot?.recentActions?.[0];
+    const appActionCard: QuickPromptCard[] = recentAction
+      ? [
+          {
+            id: "recent_action",
+            title: "Continuar ação",
+            icon: "play-forward-outline",
+            description: recentAction.actionTitle,
+            prompt: `Continue a ação "${recentAction.actionTitle}" para ${classContextTarget} com próximos passos claros.`,
+            tint: colors.primaryBg,
+            contextLabel: assistantScopeLabel,
+          },
+        ]
+      : [];
+
+    const ordered = [...appActionCard, ...signalCards, ...baseCards];
+    const dedup = new Map<string, QuickPromptCard>();
+    ordered.forEach((item) => {
+      if (!dedup.has(item.id)) dedup.set(item.id, item);
+    });
+    return Array.from(dedup.values()).slice(0, 6);
+  }, [
+    classNameById,
+    assistantScopeLabel,
+    classContextTarget,
+    colors.infoText,
+    colors.primaryBg,
+    colors.successText,
+    colors.text,
+    colors.warningText,
+    contextScreenLabel,
+    selectedClassDisplayName,
+    optionalCopilot?.appSnapshot?.recentActions,
+    optionalCopilot?.appSnapshot?.signalsTop,
+  ]);
 
   const greetingLine = useMemo(() => {
     const hour = new Date().getHours();
@@ -1172,6 +1311,42 @@ export default function AssistantScreen() {
                   <Text style={{ color: colors.placeholder, fontSize: 12 }}>
                     Contexto ativo: {assistantScopeLabel}
                   </Text>
+                  {classes.length > 1 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 8, paddingTop: 4 }}
+                    >
+                      {classes.slice(0, 8).map((item) => {
+                        const optionLabel = normalizeClassNameLabel(item.name) || item.name;
+                        const selected = item.id === classId;
+                        return (
+                          <Pressable
+                            key={`context-class-${item.id}`}
+                            onPress={() => setClassId(item.id)}
+                            style={{
+                              borderRadius: 999,
+                              borderWidth: 1,
+                              borderColor: selected ? colors.primaryBg : colors.border,
+                              backgroundColor: selected ? colors.primaryBg : colors.inputBg,
+                              paddingHorizontal: 10,
+                              paddingVertical: 6,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: selected ? colors.primaryText : colors.text,
+                                fontSize: 12,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {optionLabel}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  ) : null}
                 </View>
 
                 <View
@@ -1197,7 +1372,7 @@ export default function AssistantScreen() {
                 <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                   {quickPrompts.map((item) => (
                     <Pressable
-                      key={item.title}
+                      key={item.id}
                       onPress={() => handleSelectQuickPrompt(item.prompt)}
                       style={{
                         flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48%",
@@ -1212,29 +1387,49 @@ export default function AssistantScreen() {
                         gap: 10,
                       }}
                     >
-                      <View
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: 10,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: colors.card,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Ionicons
-                          name={item.icon}
-                          size={16}
-                          color={mode === "dark" ? "#FFFFFF" : item.tint}
-                        />
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <View
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 10,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: colors.card,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Ionicons
+                            name={item.icon}
+                            size={16}
+                            color={mode === "dark" ? "#FFFFFF" : item.tint}
+                          />
+                        </View>
+                        <View
+                          style={{
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.secondaryBg,
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            maxWidth: "75%",
+                          }}
+                        >
+                          <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                            {item.contextLabel}
+                          </Text>
+                        </View>
                       </View>
                       <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
                         {item.title}
                       </Text>
                       <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
                         {item.description}
+                      </Text>
+                      <Text numberOfLines={1} style={{ color: colors.placeholder, fontSize: 11, fontWeight: "600" }}>
+                        Contexto: {item.contextLabel}
                       </Text>
                     </Pressable>
                   ))}
@@ -1467,7 +1662,7 @@ export default function AssistantScreen() {
                     </Text>
                     <Text style={{ color: colors.muted }}>
                       {reference.sourceLabel}
-                      {reference.year ? ` • ${reference.year}` : ""}
+                      {reference.year ? ` . ${reference.year}` : ""}
                     </Text>
                     {reference.doi ? (
                       <Text style={{ color: colors.text }}>
@@ -1705,7 +1900,7 @@ export default function AssistantScreen() {
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>Simulação de evolução (assistiva)</Text>
                 <Text style={{ color: colors.muted }}>
-                  Baseline: {(simulationResult.baselineScore * 100).toFixed(0)}% • Horizonte: {simulationResult.horizonWeeks} semanas
+                  Baseline: {(simulationResult.baselineScore * 100).toFixed(0)}% . Horizonte: {simulationResult.horizonWeeks} semanas
                 </Text>
                 {simulationResult.points.slice(0, 4).map((point) => (
                   <Text key={`sim-point-${point.week}`} style={{ color: colors.muted }}>
