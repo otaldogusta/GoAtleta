@@ -957,17 +957,13 @@ export function HomeProfessorScreen({
   }, [agendaCardGap, agendaCardWidth, agendaRefreshToken, autoIndex, agendaWidth]);
 
   const activeAttendanceTarget = useMemo(() => {
-
-    if (!activeItem) return null;
-
+    const classId = activeItem?.classId;
+    const date = activeItem?.dateKey;
+    if (!classId || !date) return null;
     return {
-
-      classId: activeItem.classId,
-
-      date: activeItem.dateKey,
-
+      classId,
+      date,
     };
-
   }, [activeItem]);
   const showToast = (message: string, type: "info" | "success" | "error") => {
 
@@ -1527,7 +1523,7 @@ export function HomeProfessorScreen({
                 </View>
               ) : (
                 scheduleWindow.map((item, idx) => {
-                  if (!item) return null;
+                  if (!item?.classId || !item?.dateKey) return null;
                   const label = getStatusLabelForItem(item);
                   const isPast = item.endTime <= nowTime;
                   const isActive = activeIndex === idx;
