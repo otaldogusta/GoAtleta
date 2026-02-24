@@ -460,7 +460,7 @@ export default function AssistantScreen() {
   }, []);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1100;
-  const isCompactMobile = width < 420;
+  const isCompactMobile = width < 360;
 
   const userDisplayName = useMemo(() => {
     const meta = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
@@ -1375,16 +1375,16 @@ export default function AssistantScreen() {
                       key={item.id}
                       onPress={() => handleSelectQuickPrompt(item.prompt)}
                       style={{
-                        flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48%",
+                        flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48.5%",
                         flexGrow: 1,
-                        minHeight: 124,
-                        borderRadius: 14,
+                        minHeight: 102,
+                        borderRadius: 12,
                         borderWidth: 1,
                         borderColor: colors.border,
                         backgroundColor: colors.inputBg,
-                        paddingHorizontal: 14,
-                        paddingVertical: 12,
-                        gap: 10,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        gap: 8,
                       }}
                     >
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -1422,14 +1422,11 @@ export default function AssistantScreen() {
                           </Text>
                         </View>
                       </View>
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+                      <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
                         {item.title}
                       </Text>
-                      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+                      <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
                         {item.description}
-                      </Text>
-                      <Text numberOfLines={1} style={{ color: colors.placeholder, fontSize: 11, fontWeight: "600" }}>
-                        Contexto: {item.contextLabel}
                       </Text>
                     </Pressable>
                   ))}
@@ -1947,25 +1944,6 @@ export default function AssistantScreen() {
               paddingBottom: 12 + insets.bottom,
             }}
           >
-            <View
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 10,
-                backgroundColor: colors.infoBg,
-                paddingHorizontal: 10,
-                paddingVertical: 8,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Ionicons name="information-circle-outline" size={14} color={colors.infoText} />
-              <Text style={{ color: colors.infoText, fontSize: 12, flex: 1 }}>
-                Selecione um recurso acima para acelerar sua conversa.
-              </Text>
-            </View>
-
             <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
               <TextInput
                 ref={composerInputRef}
