@@ -576,6 +576,18 @@ export default function AssistantScreen() {
     ];
 
     const signalCards: QuickPromptCard[] = (optionalCopilot?.appSnapshot?.signalsTop ?? [])
+      .filter(
+        (
+          signal
+        ): signal is {
+          id: string;
+          type: string;
+          severity: string;
+          title: string;
+          classId: string | null;
+          studentId: string | null;
+        } => Boolean(signal && typeof signal === "object" && "id" in signal)
+      )
       .slice(0, 2)
       .map((signal, index) => {
         const signalClassLabel =

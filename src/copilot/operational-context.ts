@@ -48,11 +48,11 @@ type OperationalContextInput = {
   screen: string | null | undefined;
   contextTitle: string | null | undefined;
   contextSubtitle: string | null | undefined;
-  signals: CopilotSignal[];
+  signals: (CopilotSignal | null | undefined)[];
   selectedSignalId: string | null;
-  regulationUpdates: RegulationUpdate[];
-  regulationRuleSets: RegulationRuleSet[];
-  history: CopilotHistoryItem[];
+  regulationUpdates: (RegulationUpdate | null | undefined)[];
+  regulationRuleSets: (RegulationRuleSet | null | undefined)[];
+  history: (CopilotHistoryItem | null | undefined)[];
   scheduleWindows?: ScheduleWindowInput[];
   nowMs?: number;
 };
@@ -131,6 +131,59 @@ const stableHash = (value: string) => {
     hash |= 0;
   }
   return `v2_${Math.abs(hash).toString(36)}`;
+};
+
+const isValidSeverity = (value: unknown): value is CopilotSignalSeverity =>
+  value === "low" || value === "medium" || value === "high" || value === "critical";
+
+const isValidSignal = (value: CopilotSignal | null | undefined): value is CopilotSignal => {
+  if (!value || typeof value !== "object") return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.type === "string" &&
+    isValidSeverity(value.severity) &&
+    typeof value.title === "string" &&
+    typeof value.summary === "string" &&
+    typeof value.detectedAt === "string"
+  );
+};
+
+const isValidRegulationUpdate = (
+  value: RegulationUpdate | null | undefined
+): value is RegulationUpdate => {
+  if (!value || typeof value !== "object") return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.createdAt === "string" &&
+    Array.isArray(value.changedTopics) &&
+    Array.isArray(value.impactAreas)
+  );
+};
+
+const isValidRuleSet = (
+  value: RegulationRuleSet | null | undefined
+): value is RegulationRuleSet => {
+  if (!value || typeof value !== "object") return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.versionLabel === "string" &&
+    typeof value.updatedAt === "string" &&
+    (value.status === "draft" ||
+      value.status === "active" ||
+      value.status === "pending_next_cycle" ||
+      value.status === "archived")
+  );
+};
+
+const isValidHistoryItem = (
+  value: CopilotHistoryItem | null | undefined
+): value is CopilotHistoryItem => {
+  if (!value || typeof value !== "object") return false;
+  return (
+    typeof value.actionTitle === "string" &&
+    (value.status === "success" || value.status === "error") &&
+    typeof value.createdAt === "string"
+  );
 };
 
 const toSnapshotSignal = (signal: CopilotSignal): SnapshotSignal => ({
@@ -243,11 +296,16 @@ const dayScheduleLabelByStatus: Record<DayScheduleStatus, string> = {
 export const buildOperationalContext = (
   input: OperationalContextInput
 ): OperationalContextResult => {
+  const safeSignals = (input.signals ?? []).filter(isValidSignal);
+  const safeRegulationUpdates = (input.regulationUpdates ?? []).filter(isValidRegulationUpdate);
+  const safeRuleSets = (input.regulationRuleSets ?? []).filter(isValidRuleSet);
+  const safeHistory = (input.history ?? []).filter(isValidHistoryItem);
+
   const dayScheduleStatus = resolveDayScheduleStatus(
     input.scheduleWindows ?? [],
     Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now()
   );
-  const scoredSignals = input.signals.map((signal) => ({
+  const scoredSignals = safeSignals.map((signal) => ({
     signal,
     score: scoreSignal(input.screen, signal),
   }));
@@ -271,19 +329,19 @@ export const buildOperationalContext = (
     null;
 
   const activeRuleSet =
-    input.regulationRuleSets.find((item) => item.status === "active") ?? null;
+    safeRuleSets.find((item) => item.status === "active") ?? null;
   const pendingRuleSet =
-    input.regulationRuleSets.find((item) => item.status === "pending_next_cycle") ?? null;
+    safeRuleSets.find((item) => item.status === "pending_next_cycle") ?? null;
 
-  const unreadUpdates = input.regulationUpdates.filter((item) => !item.isRead);
-  const latestUpdates = [...input.regulationUpdates]
+  const unreadUpdates = safeRegulationUpdates.filter((item) => !item.isRead);
+  const latestUpdates = [...safeRegulationUpdates]
     .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
     .slice(0, 5);
 
   const latestChangedTopics = unique(latestUpdates.flatMap((update) => update.changedTopics));
   const impactAreas = unique(latestUpdates.flatMap((update) => update.impactAreas ?? []));
 
-  const recentActions = [...input.history]
+  const recentActions = [...safeHistory]
     .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
     .slice(0, MAX_RECENT_ACTIONS)
     .map((item) => ({

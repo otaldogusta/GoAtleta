@@ -29,6 +29,7 @@ import { addNotification } from "../notificationsInbox";
 import { useOrganization } from "../providers/OrganizationProvider";
 import {
   getRecommendedSignalActions,
+  isValidCopilotSignal,
   sortCopilotSignals,
 } from "./signal-utils";
 import {
@@ -138,15 +139,6 @@ const categoryLabelById: Record<InsightsCategory, string> = {
   regulation: "Regulamento atualizado",
 };
 
-const categorySortOrder: InsightsCategory[] = [
-  "regulation",
-  "reports",
-  "absences",
-  "nfc",
-  "attendance",
-  "engagement",
-];
-
 const signalToCategory = (signalType: CopilotSignal["type"]): InsightsCategory => {
   switch (signalType) {
     case "report_delay":
@@ -180,6 +172,19 @@ const regulationDateLabel = (value: string | null | undefined) => {
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return "-";
   return new Date(parsed).toLocaleDateString("pt-BR");
+};
+
+const regulationRelativeLabel = (value: string | null | undefined, nowMs: number) => {
+  if (!value) return "sem data";
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return "sem data";
+  const diffHours = Math.max(0, (nowMs - parsed) / 36e5);
+  if (diffHours < 1) return "agora";
+  if (diffHours < 24) return `há ${Math.floor(diffHours)}h`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return "ontem";
+  if (diffDays < 7) return `há ${diffDays}d`;
+  return regulationDateLabel(value);
 };
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
@@ -242,6 +247,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   });
   const [insightsView, setInsightsView] = useState<InsightsView>({ mode: "root" });
   const [composerValue, setComposerValue] = useState("");
+  const [showAllRootActions, setShowAllRootActions] = useState(false);
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -280,7 +286,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setSignals = useCallback((ownerId: string, signals: CopilotSignal[]) => {
-    const sortedSignals = sortCopilotSignals(signals);
+    const sortedSignals = sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal));
     signalsRegistryRef.current.set(ownerId, sortedSignals);
     activeOwnerRef.current = ownerId;
     setState((prev) => {
@@ -510,6 +516,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     const latestSnapshot = lastComputedSnapshotRef.current ?? currentSnapshot;
     lastSeenSnapshotRef.current = latestSnapshot;
     setInsightsView({ mode: "root" });
+    setShowAllRootActions(false);
     setState((prev) => ({
       ...prev,
       open: true,
@@ -663,18 +670,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     () => state.regulationUpdates.filter((item) => !item.isRead).length,
     [state.regulationUpdates]
   );
-  const showRegulationSection =
-    normalizedPath.startsWith("/events") || unreadRegulationCount > 0;
-  const categoriesWithInsights = useMemo(
-    () =>
-      categorySortOrder.filter((category) => {
-        if (category === "regulation") {
-          return unreadRegulationCount > 0;
-        }
-        return signalsByCategory[category as SignalInsightsCategory].length > 0;
-      }),
-    [signalsByCategory, unreadRegulationCount]
+  const hasRuleSetContext = Boolean(
+    operationalContext.snapshot.regulationContext.activeRuleSetId ||
+      operationalContext.snapshot.regulationContext.pendingRuleSetId
   );
+  const showRegulationSection =
+    normalizedPath.startsWith("/events") || unreadRegulationCount > 0 || hasRuleSetContext;
+  const latestRegulationUpdate = useMemo(() => {
+    return [...state.regulationUpdates]
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))[0] ?? null;
+  }, [state.regulationUpdates]);
   const detailSignal = useMemo(() => {
     if (insightsView.mode !== "detail") return null;
     if (insightsView.category === "regulation") return null;
@@ -772,6 +777,17 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     const remainingActions = state.actions.filter((item) => !recommendedActionIds.has(item.id));
     return [...recommendedActions, ...remainingActions];
   }, [recommendedActionIds, recommendedActions, state.actions]);
+  const rootQuickActions = useMemo(
+    () => (showAllRootActions ? state.actions : state.actions.slice(0, 4)),
+    [showAllRootActions, state.actions]
+  );
+  const canExpandRootActions = state.actions.length > 4 && !showAllRootActions;
+  const hasRegulationDetails =
+    showRegulationSection &&
+    (hasRuleSetContext ||
+      unreadRegulationCount > 0 ||
+      operationalContext.panel.topImpactAreas.length > 0);
+  const latestRegulationSourceUrl = latestRegulationUpdate?.sourceUrl ?? "";
   const selectedSeverityColor =
     activeDrawerSignal?.severity === "critical"
       ? colors.dangerText
@@ -950,29 +966,53 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           gap: 12,
         }}
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <View style={{ gap: 2 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Insights</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {operationalContext.panel.headerTitle || "Visão operacional"}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>
-              {operationalContext.panel.headerSubtitle}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Assistente</Text>
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12, flexShrink: 1 }}>
+              {operationalContext.panel.headerTitle}
             </Text>
           </View>
-          <Pressable
-            onPress={close}
-            style={{
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                close();
+                router.push("/assistant");
+              }}
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 7,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Central</Text>
+            </Pressable>
+            <Pressable
+              onPress={close}
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                width: 32,
+                height: 32,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800" }}>x</Text>
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView
@@ -1004,103 +1044,163 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           ) : null}
 
           {insightsView.mode === "root" ? (
-            <View style={{ gap: 10 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Pontos de atenção</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {operationalContext.panel.dayScheduleLabel}
-              </Text>
+            <View style={{ gap: 12 }}>
               {operationalContext.panel.attentionSignals.length ? (
-                operationalContext.panel.attentionSignals.map((signal, index) => (
-                  <View key={signal.id} style={{ gap: 6 }}>
-                    <Pressable
-                      onPress={() => {
-                        setActiveSignal(signal.id);
-                        setInsightsView({
-                          mode: "detail",
-                          category: signalToCategory(signal.type),
-                          itemId: signal.id,
-                        });
-                      }}
-                      style={{ paddingVertical: 6, gap: 3 }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
-                        {signal.summary}
-                      </Text>
-                    </Pressable>
-                    {index < operationalContext.panel.attentionSignals.length - 1 ? (
-                      <View style={{ height: 1, backgroundColor: colors.border }} />
-                    ) : null}
-                  </View>
-                ))
-              ) : (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Nenhum ponto crítico no momento.
-                </Text>
-              )}
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
+                    PONTOS DE ATENÇÃO
+                  </Text>
+                  {operationalContext.panel.attentionSignals.map((signal, index) => (
+                    <View key={signal.id} style={{ gap: 6 }}>
+                      <Pressable
+                        onPress={() => {
+                          setActiveSignal(signal.id);
+                          setInsightsView({
+                            mode: "detail",
+                            category: signalToCategory(signal.type),
+                            itemId: signal.id,
+                          });
+                        }}
+                        style={{ paddingVertical: 3, gap: 2 }}
+                      >
+                        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
+                          {signal.title}
+                        </Text>
+                        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+                          {categoryLabelById[signalToCategory(signal.type)]} - {regulationRelativeLabel(signal.detectedAt, nowMs)}
+                        </Text>
+                      </Pressable>
+                      {index < operationalContext.panel.attentionSignals.length - 1 ? (
+                        <View style={{ height: 1, backgroundColor: colors.border }} />
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
 
-              {showRegulationSection ? (
-                <>
-                  <View style={{ height: 1, backgroundColor: colors.border }} />
-                  <Text style={{ color: colors.text, fontWeight: "800" }}>Regulamento</Text>
-                  <Text style={{ color: colors.text, fontSize: 12 }}>
-                    Ativo: {operationalContext.panel.activeRuleSetLabel}
+              {hasRegulationDetails ? (
+                <View style={{ gap: 8 }}>
+                  {operationalContext.panel.attentionSignals.length ? (
+                    <View style={{ height: 1, backgroundColor: colors.border }} />
+                  ) : null}
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
+                    REGULAMENTAÇÃO
+                  </Text>
+                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                    {operationalContext.panel.activeRuleSetLabel === "Sem ruleset ativo"
+                      ? "Sem regulamento ativo definido"
+                      : operationalContext.panel.activeRuleSetLabel + " - ativo"}
                   </Text>
                   {operationalContext.panel.pendingRuleSetLabel ? (
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
                       Próximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
                     </Text>
                   ) : null}
-                  {operationalContext.panel.topImpactAreas.length ? (
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Impacto: {operationalContext.panel.topImpactAreas.join(", ")}
-                    </Text>
-                  ) : null}
-                  {operationalContext.panel.unreadRegulationCount > 0 ? (
-                    <Pressable
-                      onPress={() => setInsightsView({ mode: "category", category: "regulation" })}
-                      style={{
-                        alignSelf: "flex-start",
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.primaryBg,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                        Ver atualização
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </>
-              ) : null}
-
-              {categoriesWithInsights.length ? (
-                <>
-                  <View style={{ height: 1, backgroundColor: colors.border }} />
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {categoriesWithInsights.map((category) => (
+                    {operationalContext.panel.unreadRegulationCount > 0 ? (
                       <Pressable
-                        key={category}
-                        onPress={() => setInsightsView({ mode: "category", category })}
+                        onPress={() => setInsightsView({ mode: "category", category: "regulation" })}
                         style={{
                           borderRadius: 999,
                           borderWidth: 1,
                           borderColor: colors.border,
                           backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 12,
-                          paddingVertical: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          {categoryLabelById[category]}
+                          Ver mudanças
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      onPress={() => {
+                        close();
+                        router.push("/regulation-history");
+                      }}
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                        Comparar
+                      </Text>
+                    </Pressable>
+                    {latestRegulationSourceUrl ? (
+                      <Pressable
+                        onPress={() => {
+                          void Linking.openURL(latestRegulationSourceUrl);
+                        }}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Fonte</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+
+              {state.actions.length ? (
+                <View style={{ gap: 8 }}>
+                  {hasRegulationDetails || operationalContext.panel.attentionSignals.length ? (
+                    <View style={{ height: 1, backgroundColor: colors.border }} />
+                  ) : null}
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
+                    AÇÕES RÁPIDAS
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {rootQuickActions.map((action) => (
+                      <Pressable
+                        key={"root_action_" + action.id}
+                        onPress={() => {
+                          void runAction(action);
+                        }}
+                        disabled={Boolean(state.runningActionId)}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          {state.runningActionId === action.id ? "Executando..." : action.title}
                         </Text>
                       </Pressable>
                     ))}
+                    {canExpandRootActions ? (
+                      <Pressable
+                        onPress={() => setShowAllRootActions(true)}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>+ Mais</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
-                </>
+                </View>
               ) : null}
             </View>
           ) : null}
@@ -1508,7 +1608,10 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
   }
 
   const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
-  const stableSignals = useMemo(() => sortCopilotSignals(signals), [signals]);
+  const stableSignals = useMemo(
+    () => sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal)),
+    [signals]
+  );
 
   useEffect(() => {
     const ownerId = ownerIdRef.current;

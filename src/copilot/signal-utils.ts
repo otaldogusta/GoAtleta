@@ -11,8 +11,25 @@ export type CopilotActionLite = {
   id: string;
 };
 
-export const sortCopilotSignals = (signals: CopilotSignal[]) =>
-  [...signals].sort((left, right) => {
+const isValidSeverity = (value: unknown): value is CopilotSignal["severity"] =>
+  value === "low" || value === "medium" || value === "high" || value === "critical";
+
+export const isValidCopilotSignal = (
+  value: CopilotSignal | null | undefined
+): value is CopilotSignal => {
+  if (!value || typeof value !== "object") return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.type === "string" &&
+    isValidSeverity(value.severity) &&
+    typeof value.title === "string" &&
+    typeof value.summary === "string" &&
+    typeof value.detectedAt === "string"
+  );
+};
+
+export const sortCopilotSignals = (signals: (CopilotSignal | null | undefined)[]) =>
+  signals.filter(isValidCopilotSignal).sort((left, right) => {
     const severityDiff =
       signalSeverityOrder[right.severity] - signalSeverityOrder[left.severity];
     if (severityDiff !== 0) return severityDiff;
