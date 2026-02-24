@@ -558,6 +558,44 @@ export function HomeProfessorScreen({
 
   };
 
+  type AgendaClassItem = {
+    classId: string;
+    className: string;
+    unit: string;
+    gender: ClassGroup["gender"] | null;
+    dateKey: string;
+    dateLabel: string;
+    startTime: number;
+    endTime: number;
+    timeLabel: string;
+  };
+
+  type AgendaDayBucket = {
+    dateKey: string;
+    dateLabel: string;
+    weekKey: string;
+    weekLabel: string;
+    items: AgendaClassItem[];
+    isWeekStart: boolean;
+  };
+
+  const getWeekStartKey = (dateKey: string) => {
+    const parsed = new Date(dateKey + "T00:00:00");
+    if (Number.isNaN(parsed.getTime())) return dateKey;
+    const day = parsed.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    parsed.setDate(parsed.getDate() + diff);
+    return formatIsoDate(parsed);
+  };
+
+  const buildWeekLabel = (weekKey: string) => {
+    const weekStart = new Date(weekKey + "T00:00:00");
+    if (Number.isNaN(weekStart.getTime())) return weekKey;
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return `${weekStart.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} - ${weekEnd.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
+  };
+
 
 
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
@@ -602,27 +640,7 @@ export function HomeProfessorScreen({
 
     if (!classes.length) return [];
 
-    const items: {
-
-      classId: string;
-
-      className: string;
-
-      unit: string;
-
-      gender: ClassGroup["gender"] | null;
-
-      dateKey: string;
-
-      dateLabel: string;
-
-      startTime: number;
-
-      endTime: number;
-
-      timeLabel: string;
-
-    }[] = [];
+    const items: AgendaClassItem[] = [];
 
     for (let offset = -7; offset <= 7; offset += 1) {
 
@@ -682,77 +700,101 @@ export function HomeProfessorScreen({
 
 
 
-  const autoIndex = useMemo(() => {
+  const agendaDayBuckets = useMemo<AgendaDayBucket[]>(() => {
+    if (!scheduleWindow.length) return [];
+    const todayWeekKey = getWeekStartKey(todayDateKey);
+    const grouped = new Map<string, AgendaClassItem[]>();
+    scheduleWindow.forEach((item) => {
+      const key = item.dateKey;
+      const list = grouped.get(key) ?? [];
+      list.push(item);
+      grouped.set(key, list);
+    });
 
-    if (!scheduleWindow.length) return null;
+    const orderedDateKeys = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
+    let previousWeekKey = "";
+    return orderedDateKeys.map((dateKey) => {
+      const items = (grouped.get(dateKey) ?? []).sort((a, b) => a.startTime - b.startTime);
+      const weekKey = getWeekStartKey(dateKey);
+      const weekStartDate = new Date(weekKey + "T00:00:00");
+      const todayWeekDate = new Date(todayWeekKey + "T00:00:00");
+      const weekDiffDays = Math.round((weekStartDate.getTime() - todayWeekDate.getTime()) / 86400000);
+
+      const weekLabel =
+        weekDiffDays === 0
+          ? "Esta semana"
+          : weekDiffDays === 7
+            ? "Próxima semana"
+            : weekDiffDays === -7
+              ? "Semana passada"
+              : `Semana ${buildWeekLabel(weekKey)}`;
+
+      const bucket: AgendaDayBucket = {
+        dateKey,
+        dateLabel: items[0]?.dateLabel ?? formatShortDate(dateKey),
+        weekKey,
+        weekLabel,
+        items,
+        isWeekStart: weekKey !== previousWeekKey,
+      };
+      previousWeekKey = weekKey;
+      return bucket;
+    });
+  }, [scheduleWindow, todayDateKey]);
+
+  const autoIndex = useMemo(() => {
+    if (!agendaDayBuckets.length) return null;
 
     let nextIndex = -1;
-    for (let index = 0; index < scheduleWindow.length; index += 1) {
-      const item = scheduleWindow[index];
-      if (nowTime >= item.startTime && nowTime < item.endTime) {
-        return index;
+    for (let index = 0; index < agendaDayBuckets.length; index += 1) {
+      const day = agendaDayBuckets[index];
+      if (day.dateKey === todayDateKey) {
+        const hasOngoing = day.items.some((item) => nowTime >= item.startTime && nowTime < item.endTime);
+        if (hasOngoing) return index;
+        const nextTodayStart = day.items.find((item) => item.startTime > nowTime);
+        if (nextTodayStart) return index;
       }
-      if (nextIndex === -1 && item.startTime > nowTime) {
+      if (nextIndex === -1 && day.dateKey > todayDateKey) {
         nextIndex = index;
       }
     }
     if (nextIndex !== -1) return nextIndex;
-
-    return scheduleWindow.length ? scheduleWindow.length - 1 : null;
-
-  }, [scheduleWindow, nowTime]);
+    return agendaDayBuckets.length ? agendaDayBuckets.length - 1 : null;
+  }, [agendaDayBuckets, nowTime, todayDateKey]);
 
   const [manualIndex, setManualIndex] = useState<number | null>(null);
 
 
 
   useEffect(() => {
-
-    if (!scheduleWindow.length || autoIndex === null) {
-
+    if (!agendaDayBuckets.length || autoIndex === null) {
       setManualIndex(null);
-
       return;
-
     }
-
     if (manualIndex == null) {
-
       setManualIndex(autoIndex);
-
     }
-
-  }, [autoIndex, manualIndex, scheduleWindow.length]);
+  }, [agendaDayBuckets.length, autoIndex, manualIndex]);
 
 
 
   useEffect(() => {
-
     if (manualIndex == null) return;
-
-    if (!scheduleWindow.length) {
-
+    if (!agendaDayBuckets.length) {
       setManualIndex(null);
-
       return;
-
     }
-
-    if (manualIndex >= scheduleWindow.length) {
-
+    if (manualIndex >= agendaDayBuckets.length) {
       setManualIndex(null);
-
       return;
-
     }
-
-  }, [manualIndex, scheduleWindow.length]);
+  }, [agendaDayBuckets.length, manualIndex]);
 
 
 
   const activeIndex = manualIndex ?? autoIndex;
 
-  const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
+  const activeDay = activeIndex !== null ? agendaDayBuckets[activeIndex] : null;
   const todayScheduleWindow = useMemo(
     () => scheduleWindow.filter((item) => item.dateKey === todayDateKey),
     [scheduleWindow, todayDateKey]
@@ -784,33 +826,31 @@ export function HomeProfessorScreen({
 
   const agendaSnapOffsets = useMemo(() => {
 
-    if (!agendaWidth || !scheduleWindow.length) return undefined;
+    if (!agendaWidth || !agendaDayBuckets.length) return undefined;
 
     const size = agendaCardWidth + agendaCardGap;
 
-    return scheduleWindow.map((_, index) => index * size);
+    return agendaDayBuckets.map((_, index) => index * size);
 
-  }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow]);
+  }, [agendaCardGap, agendaCardWidth, agendaDayBuckets, agendaWidth]);
 
-  const getStatusLabelForItem = useCallback(
+  const getStatusLabelForDay = useCallback(
 
-    (item: (typeof scheduleWindow)[number]) => {
+    (day: AgendaDayBucket) => {
 
-      if (item.dateKey === todayDateKey) {
+      if (day.dateKey === todayDateKey) {
 
-        if (nowTime >= item.startTime && nowTime < item.endTime) {
+        const hasOngoing = day.items.some((item) => nowTime >= item.startTime && nowTime < item.endTime);
+        if (hasOngoing) return "Aulas de hoje";
 
-          return "Aula de hoje";
+        const hasUpcoming = day.items.some((item) => item.startTime > nowTime);
+        if (hasUpcoming) return "Próximas de hoje";
 
-        }
-
-        if (item.endTime <= nowTime) return "Aula anterior";
-
-        return "Próxima aula";
+        return "Dia finalizado";
 
       }
 
-      return item.dateKey < todayDateKey ? "Aula anterior" : "Próxima aula";
+      return day.dateKey < todayDateKey ? "Dias anteriores" : "Próximos dias";
 
     },
 
@@ -824,7 +864,7 @@ export function HomeProfessorScreen({
 
     (event: any) => {
 
-      if (!scheduleWindow.length) return;
+      if (!agendaDayBuckets.length) return;
 
       const offset = event.nativeEvent.contentOffset.x;
 
@@ -832,13 +872,13 @@ export function HomeProfessorScreen({
 
       if (!size) return;
 
-      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
+      const index = Math.max(0, Math.min(agendaDayBuckets.length - 1, Math.round(offset / size)));
 
       setManualIndex(index);
 
     },
 
-    [agendaCardGap, agendaCardWidth, scheduleWindow.length]
+    [agendaCardGap, agendaCardWidth, agendaDayBuckets.length]
 
   );
 
@@ -864,7 +904,7 @@ export function HomeProfessorScreen({
 
     (event: any) => {
 
-      if (Platform.OS !== "web" || !scheduleWindow.length) return;
+      if (Platform.OS !== "web" || !agendaDayBuckets.length) return;
 
       const offset = event.nativeEvent.contentOffset.x;
 
@@ -872,7 +912,7 @@ export function HomeProfessorScreen({
 
       if (!size) return;
 
-      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
+      const index = Math.max(0, Math.min(agendaDayBuckets.length - 1, Math.round(offset / size)));
 
       if (agendaScrollEndTimer.current) {
 
@@ -888,7 +928,7 @@ export function HomeProfessorScreen({
 
     },
 
-    [agendaCardGap, agendaCardWidth, manualIndex, scheduleWindow.length]
+    [agendaCardGap, agendaCardWidth, agendaDayBuckets.length, manualIndex]
 
   );
 
@@ -920,7 +960,7 @@ export function HomeProfessorScreen({
 
     didInitialAgendaScroll.current = false;
 
-  }, [activeOrganization?.id, scheduleWindow.length, todayDateKey]);
+  }, [activeOrganization?.id, agendaDayBuckets.length, todayDateKey]);
 
   useEffect(() => {
     setManualIndex(null);
@@ -950,17 +990,18 @@ export function HomeProfessorScreen({
 
   const activeAttendanceTarget = useMemo(() => {
 
-    if (!activeItem) return null;
+    if (!activeDay || !activeDay.items.length) return null;
+    const firstUpcoming = activeDay.items.find((item) => item.endTime >= nowTime) ?? activeDay.items[0];
 
     return {
 
-      classId: activeItem.classId,
+      classId: firstUpcoming.classId,
 
-      date: activeItem.dateKey,
+      date: activeDay.dateKey,
 
     };
 
-  }, [activeItem]);
+  }, [activeDay, nowTime]);
   const showToast = (message: string, type: "info" | "success" | "error") => {
 
     showSaveToast({ message, variant: type });
@@ -1490,7 +1531,7 @@ export function HomeProfessorScreen({
             <FadeHorizontalScroll
               key={`agenda-${activeOrganization?.id ?? "none"}-${todayDateKey}`}
               ref={agendaScrollRef}
-              scrollEnabled={scheduleWindow.length > 1}
+              scrollEnabled={agendaDayBuckets.length > 1}
               scrollStyle={agendaScrollStyle}
               onMomentumScrollEnd={handleAgendaScrollEnd}
               onScroll={handleAgendaScroll}
@@ -1502,7 +1543,7 @@ export function HomeProfessorScreen({
               fadeWidth={8}
               contentContainerStyle={{ paddingRight: agendaCardGap }}
             >
-              { loadingClasses && scheduleWindow.length === 0 ? (
+              { loadingClasses && agendaDayBuckets.length === 0 ? (
                 <View style={{ flexDirection: "row", gap: agendaCardGap, paddingVertical: 2 }}>
                   <ShimmerBlock
                     style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
@@ -1511,17 +1552,17 @@ export function HomeProfessorScreen({
                     style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
                   />
                 </View>
-              ) : scheduleWindow.length === 0 ? (
+              ) : agendaDayBuckets.length === 0 ? (
                 <View style={{ paddingVertical: 6 }}>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     Nenhuma aula programada no período.
                   </Text>
                 </View>
               ) : (
-                scheduleWindow.map((item, idx) => {
-                  if (!item) return null;
-                  const label = getStatusLabelForItem(item);
-                  const isPast = item.endTime <= nowTime;
+                agendaDayBuckets.map((day, idx) => {
+                  if (!day) return null;
+                  const label = getStatusLabelForDay(day);
+                  const isPast = day.items.every((item) => item.endTime <= nowTime);
                   const isActive = activeIndex === idx;
                   const activeBorderColor =
                     isAndroidLight
@@ -1531,11 +1572,11 @@ export function HomeProfessorScreen({
                         : colors.primaryBg;
                   return (
                     <Pressable
-                      key={`${item.classId}-${item.dateKey}`}
+                      key={`agenda-day-${day.dateKey}`}
                       onPress={() => handleAgendaCardPress(idx)}
                       style={{
                         width: agendaCardWidth,
-                        marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
+                        marginRight: idx === agendaDayBuckets.length - 1 ? 0 : agendaCardGap,
                         ...(Platform.OS === "web"
                            ? ({ scrollSnapAlign: "start" } as const)
                           : null),
@@ -1569,6 +1610,11 @@ export function HomeProfessorScreen({
                           }}
                         >
                         <View style={{ gap: 6 }}>
+                          {day.isWeekStart ? (
+                            <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800" }}>
+                              {day.weekLabel}
+                            </Text>
+                          ) : null}
                           <View
                             style={{
                               flexDirection: "row",
@@ -1592,35 +1638,47 @@ export function HomeProfessorScreen({
                               </Text>
                             </View>
                             <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                              {item.dateLabel}
+                              {day.dateLabel}
                             </Text>
                           </View>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 8,
-                            }}
-                          >
-                            <Text
-                              style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
-                              numberOfLines={1}
-                            >
-                              {item.className}
-                            </Text>
-                            <LocationBadge
-                              location={item.unit ?? ""}
-                              palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
-                              size="sm"
-                              showIcon={true}
-                            />
-                          </View>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                            {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
-                            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
-                              {item.timeLabel}
-                            </Text>
+                          <View style={{ gap: 4 }}>
+                            {day.items.slice(0, 3).map((item) => (
+                              <View
+                                key={`${item.classId}-${item.startTime}`}
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 8,
+                                }}
+                              >
+                                <View style={{ flex: 1, gap: 2 }}>
+                                  <Text
+                                    style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}
+                                    numberOfLines={1}
+                                  >
+                                    {item.className}
+                                  </Text>
+                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
+                                      {item.timeLabel}
+                                    </Text>
+                                    {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
+                                  </View>
+                                </View>
+                                <LocationBadge
+                                  location={item.unit ?? ""}
+                                  palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
+                                  size="sm"
+                                  showIcon={true}
+                                />
+                              </View>
+                            ))}
+                            {day.items.length > 3 ? (
+                              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                +{day.items.length - 3} turma(s) neste dia
+                              </Text>
+                            ) : null}
                           </View>
                         </View>
                         </View>
@@ -2711,3 +2769,4 @@ export function HomeProfessorScreen({
 export default function HomeProfessor() {
   return <HomeProfessorScreen />;
 }
+
