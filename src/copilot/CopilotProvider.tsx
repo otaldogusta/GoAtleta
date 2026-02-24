@@ -1,5 +1,6 @@
 import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Animated,
   Linking,
@@ -826,6 +827,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   );
   const sheetMinHeight = Math.min(sheetMaxHeight, Math.max(360, viewportHeight * 0.6));
   const sheetMaxWidth = Platform.OS === "web" ? Math.max(420, Math.min(viewportWidth - 28, 1100)) : undefined;
+  const isWebModal = Platform.OS === "web";
 
   useEffect(() => {
     if (!(showFab && state.hasUnreadUpdates)) {
@@ -945,80 +947,77 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       <ModalSheet
         visible={state.open}
         onClose={close}
-        backdropOpacity={0.62}
+        backdropOpacity={0.5}
+        position={isWebModal ? "center" : "bottom"}
+        slideOffset={isWebModal ? 10 : 24}
         cardStyle={{
-          width: Platform.OS === "web" ? "96%" : "100%",
-          maxWidth: sheetMaxWidth,
+          width: isWebModal ? "94%" : "100%",
+          maxWidth: isWebModal ? Math.max(420, Math.min(viewportWidth - 42, 860)) : sheetMaxWidth,
           alignSelf: "center",
-          maxHeight: sheetMaxHeight,
-          minHeight: sheetMinHeight,
-          marginBottom: Platform.OS === "web" ? 16 : 0,
-          borderBottomLeftRadius: Platform.OS === "web" ? 18 : 0,
-          borderBottomRightRadius: Platform.OS === "web" ? 18 : 0,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          maxHeight: isWebModal ? Math.min(viewportHeight - 36, 820) : sheetMaxHeight,
+          minHeight: isWebModal ? Math.min(Math.max(560, viewportHeight * 0.75), viewportHeight - 48) : sheetMinHeight,
+          marginBottom: isWebModal ? 0 : 0,
+          borderBottomLeftRadius: isWebModal ? 28 : 0,
+          borderBottomRightRadius: isWebModal ? 28 : 0,
+          borderTopLeftRadius: isWebModal ? 28 : 20,
+          borderTopRightRadius: isWebModal ? 28 : 20,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.background,
           overflow: "hidden",
-          padding: 14,
+          paddingTop: 12,
+          paddingHorizontal: 14,
           paddingBottom: sheetContentBottomPadding,
-          gap: 12,
+          gap: 10,
         }}
       >
         <View
           style={{
             flexDirection: "row",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             alignItems: "center",
-            gap: 10,
+            gap: 8,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Assistente</Text>
-            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12, flexShrink: 1 }}>
-              {operationalContext.panel.headerTitle}
-            </Text>
-          </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Pressable
-              onPress={() => {
-                close();
-                router.push("/assistant");
-              }}
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 10,
-                paddingVertical: 7,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Central</Text>
-            </Pressable>
-            <Pressable
-              onPress={close}
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                width: 32,
-                height: 32,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "800" }}>x</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => {
+              close();
+              router.push("/assistant");
+            }}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              width: 36,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="time-outline" size={18} color={colors.text} />
+          </Pressable>
+          <Pressable
+            onPress={close}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              width: 36,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="close" size={18} color={colors.text} />
+          </Pressable>
         </View>
 
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator
-          contentContainerStyle={{ gap: 12, paddingBottom: 4 }}
+          contentContainerStyle={{ gap: 10, paddingBottom: 6, paddingHorizontal: 2 }}
         >
           {insightsView.mode !== "root" ? (
             <Pressable
@@ -1045,6 +1044,21 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
           {insightsView.mode === "root" ? (
             <View style={{ gap: 12 }}>
+              <View style={{ alignItems: "center", gap: 4, paddingVertical: 4 }}>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: isWebModal ? 28 : 22,
+                    fontWeight: "800",
+                    textAlign: "center",
+                  }}
+                >
+                  Como posso ajudar?
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center" }}>
+                  {operationalContext.panel.headerTitle}
+                </Text>
+              </View>
               {operationalContext.panel.attentionSignals.length ? (
                 <View style={{ gap: 8 }}>
                   <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
@@ -1457,54 +1471,63 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
         <View
           style={{
-            borderRadius: 12,
+            borderRadius: 999,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
             paddingHorizontal: 10,
-            paddingVertical: 8,
-            gap: 8,
+            paddingVertical: 10,
           }}
         >
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>
-            Perguntar algo...
-          </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                close();
+                router.push("/assistant");
+              }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 999,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Ionicons name="add" size={20} color={colors.text} />
+            </Pressable>
             <TextInput
               value={composerValue}
               onChangeText={setComposerValue}
-              placeholder="Digite sua pergunta contextual"
+              placeholder="Pergunte sobre este contexto..."
               placeholderTextColor={colors.muted}
               returnKeyType="send"
               onSubmitEditing={submitComposer}
               multiline={false}
               style={{
                 flex: 1,
-                height: 38,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
+                height: 40,
                 color: colors.text,
-                paddingHorizontal: 10,
-                paddingVertical: 9,
-                fontSize: 13,
+                paddingHorizontal: 2,
+                fontSize: 16,
               }}
             />
             <Pressable
               onPress={submitComposer}
+              disabled={!composerValue.trim()}
               style={{
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: colors.primaryBg,
+                width: 44,
+                height: 44,
+                borderRadius: 999,
                 backgroundColor: colors.primaryBg,
-                paddingHorizontal: 12,
-                paddingVertical: 9,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: composerValue.trim() ? 1 : 0.55,
               }}
             >
-              <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                Perguntar
-              </Text>
+              <Ionicons name="arrow-up" size={20} color={colors.primaryText} />
             </Pressable>
           </View>
         </View>
