@@ -86,7 +86,10 @@ export default function ClassDetails() {
     setCoachNameForClass,
     groupInviteLinks,
   } = useWhatsAppSettings();
-  const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "82%", maxWidth: 520 });
+  const whatsappModalCardStyle = useModalCardStyle({
+    maxHeight: "82%",
+    maxWidth: 520,
+  });
   const rosterModalCardStyle = useModalCardStyle({ maxHeight: "60%", maxWidth: 440 });
   const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
@@ -96,9 +99,13 @@ export default function ClassDetails() {
   const [availableContacts, setAvailableContacts] = useState<Array<{ studentName: string; phone: string; source: "guardian" | "student" }>>([]);
   const [selectedContactIndex, setSelectedContactIndex] = useState(-1);
   const [contactSearch, setContactSearch] = useState("");
-  const whatsappSelectedBg = mode === "dark" ? toRgba(colors.successBg, 0.28) : toRgba(colors.successBg, 0.16);
-  const whatsappSelectedBorder = mode === "dark" ? toRgba(colors.successBg, 0.7) : toRgba(colors.successBg, 0.45);
+  const whatsappSelectedBg = mode === "dark" ? toRgba(colors.successBg, 0.28) : toRgba(colors.successBg, 0.18);
+  const whatsappSelectedBorder = mode === "dark" ? toRgba(colors.successBg, 0.7) : toRgba(colors.successBg, 0.55);
   const whatsappSelectedText = mode === "dark" ? colors.text : colors.successText;
+  const whatsappModalSurface = mode === "light" ? "rgba(255,255,255,0.86)" : colors.card;
+  const whatsappModalSubtleSurface = mode === "light" ? "#F7F9FC" : colors.inputBg;
+  const whatsappModalBorder = mode === "light" ? toRgba(colors.text, 0.14) : colors.border;
+  const whatsappModalMuted = mode === "light" ? toRgba(colors.text, 0.72) : colors.muted;
   const [rosterMonthValue, setRosterMonthValue] = useState(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -1980,11 +1987,18 @@ export default function ClassDetails() {
       <ModalSheet
         visible={showWhatsAppSettingsModal}
         onClose={() => setShowWhatsAppSettingsModal(false)}
-        cardStyle={[whatsappModalCardStyle, { overflow: "hidden" }]}
+        cardStyle={[
+          whatsappModalCardStyle,
+          {
+            overflow: "hidden",
+            backgroundColor: whatsappModalSurface,
+            borderColor: whatsappModalBorder,
+          },
+        ]}
         position="center"
       >
         <ScrollView
-          style={{ maxHeight: "100%" }}
+          style={{ maxHeight: "100%", backgroundColor: whatsappModalSurface }}
           contentContainerStyle={{ gap: 12, paddingBottom: 6 }}
           showsVerticalScrollIndicator
         >
@@ -1994,24 +2008,25 @@ export default function ClassDetails() {
 
           {/* Template Selector */}
           <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
+            <Text style={{ fontSize: 11, fontWeight: "600", color: whatsappModalMuted }}>
               Modelo de mensagem:
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Pressable
                 onPress={() => {
+                  if (Platform.OS !== "web" || typeof document === "undefined") return;
                   const scrollView = document.querySelector('[data-template-scroll-class]');
                   if (scrollView) scrollView.scrollBy({ left: -200, behavior: 'smooth' });
                 }}
                 style={{
                   padding: 6,
                   borderRadius: 8,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: whatsappModalSubtleSurface,
                   borderWidth: 1,
-                  borderColor: colors.border,
+                  borderColor: whatsappModalBorder,
                 }}
               >
-                <Text style={{ fontSize: 16, color: colors.text }}>‹</Text>
+                <MaterialCommunityIcons name="chevron-left" size={18} color={colors.text} />
               </Pressable>
               <ScrollView
                 horizontal
@@ -2073,9 +2088,9 @@ export default function ClassDetails() {
                       paddingVertical: 8,
                       paddingHorizontal: 12,
                       borderRadius: 8,
-                      backgroundColor: isSelected ? whatsappSelectedBg : colors.inputBg,
+                      backgroundColor: isSelected ? whatsappSelectedBg : whatsappModalSubtleSurface,
                       borderWidth: 1,
-                      borderColor: isSelected ? whatsappSelectedBorder : colors.border,
+                      borderColor: isSelected ? whatsappSelectedBorder : whatsappModalBorder,
                       marginRight: 6,
                       opacity: canUse ? 1 : 0.4,
                     }}
@@ -2089,7 +2104,7 @@ export default function ClassDetails() {
                     </Text>
                     {!canUse && (
                       <Text style={{ fontSize: 9, color: colors.dangerText, marginTop: 2 }}>
-                        ⚠️ {missingRequirement}
+                        Aviso: {missingRequirement}
                       </Text>
                     )}
                   </Pressable>
@@ -2098,18 +2113,19 @@ export default function ClassDetails() {
               </ScrollView>
               <Pressable
                 onPress={() => {
+                  if (Platform.OS !== "web" || typeof document === "undefined") return;
                   const scrollView = document.querySelector('[data-template-scroll-class]');
                   if (scrollView) scrollView.scrollBy({ left: 200, behavior: 'smooth' });
                 }}
                 style={{
                   padding: 6,
                   borderRadius: 8,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: whatsappModalSubtleSurface,
                   borderWidth: 1,
-                  borderColor: colors.border,
+                  borderColor: whatsappModalBorder,
                 }}
               >
-                <Text style={{ fontSize: 16, color: colors.text }}>›</Text>
+                <MaterialCommunityIcons name="chevron-right" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>
@@ -2127,12 +2143,12 @@ export default function ClassDetails() {
                 
                 return (
                   <View key={field}>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: whatsappModalMuted, marginBottom: 4 }}>
                       {labels[field] || field}
                     </Text>
                     <TextInput
                       placeholder={field === "highlightNote" ? "Ex.: evolução na técnica" : "Digite sua mensagem..."}
-                      placeholderTextColor={colors.muted}
+                      placeholderTextColor={whatsappModalMuted}
                       value={customFields[field] || ""}
                       onChangeText={(text) => {
                         const updated = { ...customFields, [field]: text };
@@ -2156,9 +2172,9 @@ export default function ClassDetails() {
                       style={{
                         padding: 8,
                         borderRadius: 8,
-                        backgroundColor: colors.inputBg,
+                        backgroundColor: whatsappModalSubtleSurface,
                         borderWidth: 1,
-                        borderColor: colors.border,
+                        borderColor: whatsappModalBorder,
                         color: colors.text,
                         fontSize: 12,
                       }}
@@ -2176,21 +2192,21 @@ export default function ClassDetails() {
                 <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
                   Lista da turma
                 </Text>
-                <Text style={{ fontSize: 11, color: colors.muted }}>
+                <Text style={{ fontSize: 11, color: whatsappModalMuted }}>
                   Selecione quem vai receber a mensagem.
                 </Text>
               </View>
               <TextInput
                 placeholder="Buscar por nome ou telefone"
-                placeholderTextColor={colors.placeholder}
+                placeholderTextColor={whatsappModalMuted}
                 value={contactSearch}
                 onChangeText={setContactSearch}
                 style={{
                   padding: 8,
                   borderRadius: 8,
-                  backgroundColor: colors.inputBg,
+                  backgroundColor: whatsappModalSubtleSurface,
                   borderWidth: 1,
-                  borderColor: colors.border,
+                  borderColor: whatsappModalBorder,
                   color: colors.text,
                   fontSize: 12,
                 }}
@@ -2200,8 +2216,8 @@ export default function ClassDetails() {
                   maxHeight: 260,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.background,
+                  borderColor: whatsappModalBorder,
+                  backgroundColor: whatsappModalSubtleSurface,
                   overflow: "hidden",
                 }}
               >
@@ -2220,9 +2236,9 @@ export default function ClassDetails() {
                           style={{
                             padding: 10,
                             borderRadius: 10,
-                            backgroundColor: isSelected ? colors.primaryBg : colors.inputBg,
+                            backgroundColor: isSelected ? colors.primaryBg : whatsappModalSubtleSurface,
                             borderWidth: 1,
-                            borderColor: isSelected ? colors.primaryBg : colors.border,
+                            borderColor: isSelected ? colors.primaryBg : whatsappModalBorder,
                             flexDirection: "row",
                             alignItems: "center",
                             justifyContent: "space-between",
@@ -2242,7 +2258,7 @@ export default function ClassDetails() {
                             <Text
                               style={{
                                 fontSize: 11,
-                                color: isSelected ? colors.primaryText : colors.muted,
+                                color: isSelected ? colors.primaryText : whatsappModalMuted,
                                 marginTop: 2,
                               }}
                             >
@@ -2253,14 +2269,14 @@ export default function ClassDetails() {
                           <MaterialCommunityIcons
                             name={isSelected ? "check-circle" : "circle-outline"}
                             size={18}
-                            color={isSelected ? colors.primaryText : colors.muted}
+                            color={isSelected ? colors.primaryText : whatsappModalMuted}
                           />
                         </Pressable>
                       );
                     })
                   ) : (
                     <View style={{ padding: 12 }}>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      <Text style={{ color: whatsappModalMuted, fontSize: 12 }}>
                         Nenhum contato encontrado.
                       </Text>
                     </View>
@@ -2276,7 +2292,7 @@ export default function ClassDetails() {
               <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>
                 Mensagem padrão
               </Text>
-              <Text style={{ fontSize: 12, color: colors.muted }}>
+              <Text style={{ fontSize: 12, color: whatsappModalMuted }}>
                 {defaultMessageEnabled ? "Ativada" : "Desativada"}
               </Text>
             </View>
@@ -2286,7 +2302,7 @@ export default function ClassDetails() {
                 width: 50,
                 height: 28,
                 borderRadius: 14,
-                backgroundColor: defaultMessageEnabled ? colors.successBg : colors.secondaryBg,
+                backgroundColor: defaultMessageEnabled ? colors.successBg : whatsappModalBorder,
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -2296,7 +2312,7 @@ export default function ClassDetails() {
                   width: 24,
                   height: 24,
                   borderRadius: 12,
-                  backgroundColor: colors.card,
+                  backgroundColor: mode === "light" ? "#FFFFFF" : colors.card,
                   marginLeft: defaultMessageEnabled ? 22 : 2,
                   position: "absolute",
                 }}
@@ -2306,12 +2322,12 @@ export default function ClassDetails() {
 
           {/* Message Input */}
           <View style={{ gap: 6, marginTop: 4 }}>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
+            <Text style={{ fontSize: 11, fontWeight: "600", color: whatsappModalMuted }}>
               {defaultMessageEnabled ? "Mensagem (deixe em branco para usar padrão):" : "Mensagem personalizada:"}
             </Text>
             <TextInput
               placeholder={defaultMessageEnabled ? `Exemplo: Olá! Sou o professor Gustavo da turma ${className} (${unitLabel}).` : "Digite sua mensagem..."}
-              placeholderTextColor={colors.muted}
+              placeholderTextColor={whatsappModalMuted}
               value={customWhatsAppMessage}
               onChangeText={setCustomWhatsAppMessage}
               multiline
@@ -2319,16 +2335,16 @@ export default function ClassDetails() {
               style={{
                 padding: 10,
                 borderRadius: 8,
-                backgroundColor: colors.inputBg,
+                backgroundColor: whatsappModalSubtleSurface,
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: whatsappModalBorder,
                 color: colors.text,
                 fontSize: 12,
                 textAlignVertical: "top",
               }}
             />
             {defaultMessageEnabled && !customWhatsAppMessage.trim() && (
-              <Text style={{ fontSize: 10, color: colors.muted, fontStyle: "italic" }}>
+              <Text style={{ fontSize: 10, color: whatsappModalMuted, fontStyle: "italic" }}>
                 {`Mensagem padrão: "Olá! Sou o professor Gustavo da turma ${className} (${unitLabel})."`}
               </Text>
             )}
@@ -2348,7 +2364,7 @@ export default function ClassDetails() {
               opacity: selectedContactIndex >= 0 ? 1 : 0.6,
             }}
           >
-            <Text style={{ color: selectedContactIndex >= 0 ? colors.primaryText : colors.muted, fontWeight: "700", fontSize: 14 }}>
+            <Text style={{ color: selectedContactIndex >= 0 ? colors.primaryText : whatsappModalMuted, fontWeight: "700", fontSize: 14 }}>
               Enviar via WhatsApp
             </Text>
           </Pressable>
