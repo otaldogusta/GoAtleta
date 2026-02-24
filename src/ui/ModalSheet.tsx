@@ -3,10 +3,6 @@ import type { StyleProp, ViewStyle } from "react-native";
 import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
-import {
-  decrementModalSheetOpenCount,
-  incrementModalSheetOpenCount,
-} from "./modal-sheet-visibility";
 
 type ModalSheetProps = {
   visible: boolean;
@@ -74,14 +70,6 @@ export function ModalSheet({
       if (finished) setIsMounted(false);
     });
   }, [anim, isMounted, visible]);
-
-  useEffect(() => {
-    if (!isMounted) return;
-    incrementModalSheetOpenCount();
-    return () => {
-      decrementModalSheetOpenCount();
-    };
-  }, [isMounted]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;

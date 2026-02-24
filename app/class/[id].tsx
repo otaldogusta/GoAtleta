@@ -53,7 +53,7 @@ import { useAppTheme } from "../../src/ui/app-theme";
 import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
-import { getUnitPalette } from "../../src/ui/unit-colors";
+import { getUnitPalette, toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -76,7 +76,7 @@ import {
 export default function ClassDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const { confirm } = useConfirmUndo();
   const {
     defaultMessageEnabled,
@@ -86,7 +86,7 @@ export default function ClassDetails() {
     setCoachNameForClass,
     groupInviteLinks,
   } = useWhatsAppSettings();
-  const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "75%", maxWidth: 440 });
+  const whatsappModalCardStyle = useModalCardStyle({ maxHeight: "82%", maxWidth: 520 });
   const rosterModalCardStyle = useModalCardStyle({ maxHeight: "60%", maxWidth: 440 });
   const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
@@ -96,6 +96,9 @@ export default function ClassDetails() {
   const [availableContacts, setAvailableContacts] = useState<Array<{ studentName: string; phone: string; source: "guardian" | "student" }>>([]);
   const [selectedContactIndex, setSelectedContactIndex] = useState(-1);
   const [contactSearch, setContactSearch] = useState("");
+  const whatsappSelectedBg = mode === "dark" ? toRgba(colors.successBg, 0.28) : toRgba(colors.successBg, 0.16);
+  const whatsappSelectedBorder = mode === "dark" ? toRgba(colors.successBg, 0.7) : toRgba(colors.successBg, 0.45);
+  const whatsappSelectedText = mode === "dark" ? colors.text : colors.successText;
   const [rosterMonthValue, setRosterMonthValue] = useState(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -1977,10 +1980,14 @@ export default function ClassDetails() {
       <ModalSheet
         visible={showWhatsAppSettingsModal}
         onClose={() => setShowWhatsAppSettingsModal(false)}
-        cardStyle={whatsappModalCardStyle}
+        cardStyle={[whatsappModalCardStyle, { overflow: "hidden" }]}
         position="center"
       >
-        <View style={{ gap: 12 }}>
+        <ScrollView
+          style={{ maxHeight: "100%" }}
+          contentContainerStyle={{ gap: 12, paddingBottom: 6 }}
+          showsVerticalScrollIndicator
+        >
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Configurar WhatsApp
           </Text>
@@ -2006,9 +2013,11 @@ export default function ClassDetails() {
               >
                 <Text style={{ fontSize: 16, color: colors.text }}>‹</Text>
               </Pressable>
-              <FadeHorizontalScroll
-                fadeColor={colors.card}
-                scrollStyle={{ flex: 1 }}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingRight: 8 }}
                 {...(Platform.OS === "web" ? { "data-template-scroll-class": true } : {})}
               >
               {Object.values(WHATSAPP_TEMPLATES)
@@ -2064,9 +2073,9 @@ export default function ClassDetails() {
                       paddingVertical: 8,
                       paddingHorizontal: 12,
                       borderRadius: 8,
-                      backgroundColor: isSelected ? "#E8F5E9" : colors.inputBg,
+                      backgroundColor: isSelected ? whatsappSelectedBg : colors.inputBg,
                       borderWidth: 1,
-                      borderColor: isSelected ? "#25D366" : colors.border,
+                      borderColor: isSelected ? whatsappSelectedBorder : colors.border,
                       marginRight: 6,
                       opacity: canUse ? 1 : 0.4,
                     }}
@@ -2074,7 +2083,7 @@ export default function ClassDetails() {
                     <Text style={{ 
                       fontSize: 12, 
                       fontWeight: "600", 
-                      color: isSelected ? "#1a7a3d" : colors.text 
+                      color: isSelected ? whatsappSelectedText : colors.text 
                     }}>
                       {template.title}
                     </Text>
@@ -2086,7 +2095,7 @@ export default function ClassDetails() {
                   </Pressable>
                 );
               })}
-              </FadeHorizontalScroll>
+              </ScrollView>
               <Pressable
                 onPress={() => {
                   const scrollView = document.querySelector('[data-template-scroll-class]');
@@ -2277,7 +2286,7 @@ export default function ClassDetails() {
                 width: 50,
                 height: 28,
                 borderRadius: 14,
-                backgroundColor: defaultMessageEnabled ? "#25D366" : colors.secondaryBg,
+                backgroundColor: defaultMessageEnabled ? colors.successBg : colors.secondaryBg,
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -2287,7 +2296,7 @@ export default function ClassDetails() {
                   width: 24,
                   height: 24,
                   borderRadius: 12,
-                  backgroundColor: "white",
+                  backgroundColor: colors.card,
                   marginLeft: defaultMessageEnabled ? 22 : 2,
                   position: "absolute",
                 }}
@@ -2333,13 +2342,13 @@ export default function ClassDetails() {
               paddingVertical: 11,
               paddingHorizontal: 14,
               borderRadius: 12,
-              backgroundColor: selectedContactIndex >= 0 ? "#25D366" : "#ccc",
+              backgroundColor: selectedContactIndex >= 0 ? colors.successBg : colors.primaryDisabledBg,
               alignItems: "center",
               marginTop: 8,
               opacity: selectedContactIndex >= 0 ? 1 : 0.6,
             }}
           >
-            <Text style={{ color: selectedContactIndex >= 0 ? "white" : "#666", fontWeight: "700", fontSize: 14 }}>
+            <Text style={{ color: selectedContactIndex >= 0 ? colors.primaryText : colors.muted, fontWeight: "700", fontSize: 14 }}>
               Enviar via WhatsApp
             </Text>
           </Pressable>
@@ -2358,7 +2367,7 @@ export default function ClassDetails() {
               Fechar
             </Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </ModalSheet>
       <DatePickerModal
         visible={showRosterMonthPicker}
@@ -2373,4 +2382,3 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
-
