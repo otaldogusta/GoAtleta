@@ -987,7 +987,12 @@ export default function AssistantScreen() {
     const logs = await getSessionLogsByRange(start.toISOString(), now.toISOString(), {
       organizationId: activeOrganization?.id,
     });
-    return logs.filter((log) => log.classId === classId);
+    return logs.filter(
+      (log): log is SessionLog =>
+        Boolean(log) &&
+        typeof (log as SessionLog).classId === "string" &&
+        (log as SessionLog).classId === classId
+    );
   }, [activeOrganization?.id, classId]);
 
   const handleGenerateProgression = useCallback(async () => {
@@ -1063,7 +1068,12 @@ export default function AssistantScreen() {
         buildSyncHealthReport({ organizationId: activeOrganization?.id }),
       ]);
 
-      const classPlans = trainingPlans.filter((plan) => plan.classId === classId);
+      const classPlans = trainingPlans.filter(
+        (plan) =>
+          Boolean(plan) &&
+          typeof (plan as { classId?: unknown }).classId === "string" &&
+          (plan as { classId: string }).classId === classId
+      );
       const summary = buildExecutiveSummary({
         className: selectedClass.name,
         trainingPlans: classPlans,
