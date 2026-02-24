@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 
 
 import * as Clipboard from "expo-clipboard";
@@ -558,44 +558,6 @@ export function HomeProfessorScreen({
 
   };
 
-  type AgendaClassItem = {
-    classId: string;
-    className: string;
-    unit: string;
-    gender: ClassGroup["gender"] | null;
-    dateKey: string;
-    dateLabel: string;
-    startTime: number;
-    endTime: number;
-    timeLabel: string;
-  };
-
-  type AgendaDayBucket = {
-    dateKey: string;
-    dateLabel: string;
-    weekKey: string;
-    weekLabel: string;
-    items: AgendaClassItem[];
-    isWeekStart: boolean;
-  };
-
-  const getWeekStartKey = (dateKey: string) => {
-    const parsed = new Date(dateKey + "T00:00:00");
-    if (Number.isNaN(parsed.getTime())) return dateKey;
-    const day = parsed.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    parsed.setDate(parsed.getDate() + diff);
-    return formatIsoDate(parsed);
-  };
-
-  const buildWeekLabel = (weekKey: string) => {
-    const weekStart = new Date(weekKey + "T00:00:00");
-    if (Number.isNaN(weekStart.getTime())) return weekKey;
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    return `${weekStart.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} - ${weekEnd.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
-  };
-
 
 
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
@@ -640,9 +602,29 @@ export function HomeProfessorScreen({
 
     if (!classes.length) return [];
 
-    const items: AgendaClassItem[] = [];
+    const items: {
 
-    for (let offset = -7; offset <= 7; offset += 1) {
+      classId: string;
+
+      className: string;
+
+      unit: string;
+
+      gender: ClassGroup["gender"] | null;
+
+      dateKey: string;
+
+      dateLabel: string;
+
+      startTime: number;
+
+      endTime: number;
+
+      timeLabel: string;
+
+    }[] = [];
+
+    for (let offset = 0; offset <= 7; offset += 1) {
 
       const dayDate = new Date(scheduleBaseDate);
 
@@ -700,109 +682,71 @@ export function HomeProfessorScreen({
 
 
 
-  const agendaDayBuckets = useMemo<AgendaDayBucket[]>(() => {
-    if (!scheduleWindow.length) return [];
-    const todayWeekKey = getWeekStartKey(todayDateKey);
-    const grouped = new Map<string, AgendaClassItem[]>();
-    scheduleWindow.forEach((item) => {
-      const key = item.dateKey;
-      const list = grouped.get(key) ?? [];
-      list.push(item);
-      grouped.set(key, list);
-    });
-
-    const orderedDateKeys = Array.from(grouped.keys()).sort((a, b) => a.localeCompare(b));
-    let previousWeekKey = "";
-    return orderedDateKeys.map((dateKey) => {
-      const items = (grouped.get(dateKey) ?? []).sort((a, b) => a.startTime - b.startTime);
-      const weekKey = getWeekStartKey(dateKey);
-      const weekStartDate = new Date(weekKey + "T00:00:00");
-      const todayWeekDate = new Date(todayWeekKey + "T00:00:00");
-      const weekDiffDays = Math.round((weekStartDate.getTime() - todayWeekDate.getTime()) / 86400000);
-
-      const weekLabel =
-        weekDiffDays === 0
-          ? "Esta semana"
-          : weekDiffDays === 7
-            ? "Próxima semana"
-            : weekDiffDays === -7
-              ? "Semana passada"
-              : `Semana ${buildWeekLabel(weekKey)}`;
-
-      const bucket: AgendaDayBucket = {
-        dateKey,
-        dateLabel: items[0]?.dateLabel ?? formatShortDate(dateKey),
-        weekKey,
-        weekLabel,
-        items,
-        isWeekStart: weekKey !== previousWeekKey,
-      };
-      previousWeekKey = weekKey;
-      return bucket;
-    });
-  }, [scheduleWindow, todayDateKey]);
-
   const autoIndex = useMemo(() => {
-    if (!agendaDayBuckets.length) return null;
 
-    let nextIndex = -1;
-    for (let index = 0; index < agendaDayBuckets.length; index += 1) {
-      const day = agendaDayBuckets[index];
-      if (day.dateKey === todayDateKey) {
-        const hasOngoing = day.items.some((item) => nowTime >= item.startTime && nowTime < item.endTime);
-        if (hasOngoing) return index;
-        const nextTodayStart = day.items.find((item) => item.startTime > nowTime);
-        if (nextTodayStart) return index;
-      }
-      if (nextIndex === -1 && day.dateKey > todayDateKey) {
-        nextIndex = index;
-      }
-    }
+    if (!scheduleWindow.length) return null;
+
+    const firstTodayIndex = scheduleWindow.findIndex((item) => item.dateKey === todayDateKey);
+    if (firstTodayIndex !== -1) return firstTodayIndex;
+
+    const nextIndex = scheduleWindow.findIndex((item) => item.startTime > nowTime);
     if (nextIndex !== -1) return nextIndex;
-    return agendaDayBuckets.length ? agendaDayBuckets.length - 1 : null;
-  }, [agendaDayBuckets, nowTime, todayDateKey]);
+
+    return scheduleWindow.length ? scheduleWindow.length - 1 : null;
+
+  }, [scheduleWindow, nowTime, todayDateKey]);
 
   const [manualIndex, setManualIndex] = useState<number | null>(null);
 
 
 
   useEffect(() => {
-    if (!agendaDayBuckets.length || autoIndex === null) {
+
+    if (!scheduleWindow.length || autoIndex === null) {
+
       setManualIndex(null);
+
       return;
+
     }
+
     if (manualIndex == null) {
+
       setManualIndex(autoIndex);
+
     }
-  }, [agendaDayBuckets.length, autoIndex, manualIndex]);
+
+  }, [autoIndex, manualIndex, scheduleWindow.length]);
 
 
 
   useEffect(() => {
+
     if (manualIndex == null) return;
-    if (!agendaDayBuckets.length) {
+
+    if (!scheduleWindow.length) {
+
       setManualIndex(null);
+
       return;
+
     }
-    if (manualIndex >= agendaDayBuckets.length) {
+
+    if (manualIndex >= scheduleWindow.length) {
+
       setManualIndex(null);
+
       return;
+
     }
-  }, [agendaDayBuckets.length, manualIndex]);
+
+  }, [manualIndex, scheduleWindow.length]);
 
 
 
   const activeIndex = manualIndex ?? autoIndex;
 
-  const activeDay = activeIndex !== null ? agendaDayBuckets[activeIndex] : null;
-  const todayScheduleWindow = useMemo(
-    () => scheduleWindow.filter((item) => item.dateKey === todayDateKey),
-    [scheduleWindow, todayDateKey]
-  );
-  const isDayConcluded = useMemo(() => {
-    if (!todayScheduleWindow.length) return false;
-    return todayScheduleWindow.every((item) => nowTime >= item.endTime + 60 * 60 * 1000);
-  }, [nowTime, todayScheduleWindow]);
+  const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
 
   const agendaCardGap = 10;
 
@@ -826,31 +770,33 @@ export function HomeProfessorScreen({
 
   const agendaSnapOffsets = useMemo(() => {
 
-    if (!agendaWidth || !agendaDayBuckets.length) return undefined;
+    if (!agendaWidth || !scheduleWindow.length) return undefined;
 
     const size = agendaCardWidth + agendaCardGap;
 
-    return agendaDayBuckets.map((_, index) => index * size);
+    return scheduleWindow.map((_, index) => index * size);
 
-  }, [agendaCardGap, agendaCardWidth, agendaDayBuckets, agendaWidth]);
+  }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow]);
 
-  const getStatusLabelForDay = useCallback(
+  const getStatusLabelForItem = useCallback(
 
-    (day: AgendaDayBucket) => {
+    (item: (typeof scheduleWindow)[number]) => {
 
-      if (day.dateKey === todayDateKey) {
+      if (item.dateKey === todayDateKey) {
 
-        const hasOngoing = day.items.some((item) => nowTime >= item.startTime && nowTime < item.endTime);
-        if (hasOngoing) return "Aulas de hoje";
+        if (nowTime >= item.startTime && nowTime < item.endTime) {
 
-        const hasUpcoming = day.items.some((item) => item.startTime > nowTime);
-        if (hasUpcoming) return "Próximas de hoje";
+          return "Aula de hoje";
 
-        return "Dia finalizado";
+        }
+
+        if (item.endTime <= nowTime) return "Concluída";
+
+        return "Próxima de hoje";
 
       }
 
-      return day.dateKey < todayDateKey ? "Dias anteriores" : "Próximos dias";
+      return "Próximos dias";
 
     },
 
@@ -858,13 +804,35 @@ export function HomeProfessorScreen({
 
   );
 
+  const agendaDivider = useMemo(() => {
+    if (!scheduleWindow.length) return null as null | { index: number; label: string };
+    const hasPastToday = scheduleWindow.some(
+      (item) => item.dateKey === todayDateKey && item.endTime <= nowTime
+    );
+    if (!hasPastToday) return null;
+
+    const firstUpcomingTodayIndex = scheduleWindow.findIndex(
+      (item) => item.dateKey === todayDateKey && item.endTime > nowTime
+    );
+    if (firstUpcomingTodayIndex !== -1) {
+      return { index: firstUpcomingTodayIndex, label: "Próximas aulas" };
+    }
+
+    const firstAfterTodayIndex = scheduleWindow.findIndex((item) => item.dateKey > todayDateKey);
+    if (firstAfterTodayIndex !== -1) {
+      return { index: firstAfterTodayIndex, label: "Dia concluído" };
+    }
+
+    return null;
+  }, [scheduleWindow, todayDateKey, nowTime]);
+
 
 
   const handleAgendaScrollEnd = useCallback(
 
     (event: any) => {
 
-      if (!agendaDayBuckets.length) return;
+      if (!scheduleWindow.length) return;
 
       const offset = event.nativeEvent.contentOffset.x;
 
@@ -872,13 +840,13 @@ export function HomeProfessorScreen({
 
       if (!size) return;
 
-      const index = Math.max(0, Math.min(agendaDayBuckets.length - 1, Math.round(offset / size)));
+      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
 
       setManualIndex(index);
 
     },
 
-    [agendaCardGap, agendaCardWidth, agendaDayBuckets.length]
+    [agendaCardGap, agendaCardWidth, scheduleWindow.length]
 
   );
 
@@ -904,7 +872,7 @@ export function HomeProfessorScreen({
 
     (event: any) => {
 
-      if (Platform.OS !== "web" || !agendaDayBuckets.length) return;
+      if (Platform.OS !== "web" || !scheduleWindow.length) return;
 
       const offset = event.nativeEvent.contentOffset.x;
 
@@ -912,7 +880,7 @@ export function HomeProfessorScreen({
 
       if (!size) return;
 
-      const index = Math.max(0, Math.min(agendaDayBuckets.length - 1, Math.round(offset / size)));
+      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
 
       if (agendaScrollEndTimer.current) {
 
@@ -928,7 +896,7 @@ export function HomeProfessorScreen({
 
     },
 
-    [agendaCardGap, agendaCardWidth, agendaDayBuckets.length, manualIndex]
+    [agendaCardGap, agendaCardWidth, manualIndex, scheduleWindow.length]
 
   );
 
@@ -960,7 +928,7 @@ export function HomeProfessorScreen({
 
     didInitialAgendaScroll.current = false;
 
-  }, [activeOrganization?.id, agendaDayBuckets.length, todayDateKey]);
+  }, [activeOrganization?.id, scheduleWindow.length, todayDateKey]);
 
   useEffect(() => {
     setManualIndex(null);
@@ -990,18 +958,17 @@ export function HomeProfessorScreen({
 
   const activeAttendanceTarget = useMemo(() => {
 
-    if (!activeDay || !activeDay.items.length) return null;
-    const firstUpcoming = activeDay.items.find((item) => item.endTime >= nowTime) ?? activeDay.items[0];
+    if (!activeItem) return null;
 
     return {
 
-      classId: firstUpcoming.classId,
+      classId: activeItem.classId,
 
-      date: activeDay.dateKey,
+      date: activeItem.dateKey,
 
     };
 
-  }, [activeDay, nowTime]);
+  }, [activeItem]);
   const showToast = (message: string, type: "info" | "success" | "error") => {
 
     showSaveToast({ message, variant: type });
@@ -1531,7 +1498,7 @@ export function HomeProfessorScreen({
             <FadeHorizontalScroll
               key={`agenda-${activeOrganization?.id ?? "none"}-${todayDateKey}`}
               ref={agendaScrollRef}
-              scrollEnabled={agendaDayBuckets.length > 1}
+              scrollEnabled={scheduleWindow.length > 1}
               scrollStyle={agendaScrollStyle}
               onMomentumScrollEnd={handleAgendaScrollEnd}
               onScroll={handleAgendaScroll}
@@ -1543,7 +1510,7 @@ export function HomeProfessorScreen({
               fadeWidth={8}
               contentContainerStyle={{ paddingRight: agendaCardGap }}
             >
-              { loadingClasses && agendaDayBuckets.length === 0 ? (
+              { loadingClasses && scheduleWindow.length === 0 ? (
                 <View style={{ flexDirection: "row", gap: agendaCardGap, paddingVertical: 2 }}>
                   <ShimmerBlock
                     style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
@@ -1552,17 +1519,17 @@ export function HomeProfessorScreen({
                     style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
                   />
                 </View>
-              ) : agendaDayBuckets.length === 0 ? (
+              ) : scheduleWindow.length === 0 ? (
                 <View style={{ paddingVertical: 6 }}>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     Nenhuma aula programada no período.
                   </Text>
                 </View>
               ) : (
-                agendaDayBuckets.map((day, idx) => {
-                  if (!day) return null;
-                  const label = getStatusLabelForDay(day);
-                  const isPast = day.items.every((item) => item.endTime <= nowTime);
+                scheduleWindow.map((item, idx) => {
+                  if (!item) return null;
+                  const label = getStatusLabelForItem(item);
+                  const isPast = item.endTime <= nowTime;
                   const isActive = activeIndex === idx;
                   const activeBorderColor =
                     isAndroidLight
@@ -1571,143 +1538,125 @@ export function HomeProfessorScreen({
                         ? colors.border
                         : colors.primaryBg;
                   return (
-                    <Pressable
-                      key={`agenda-day-${day.dateKey}`}
-                      onPress={() => handleAgendaCardPress(idx)}
+                    <View
+                      key={`${item.classId}-${item.dateKey}-${idx}`}
                       style={{
                         width: agendaCardWidth,
-                        marginRight: idx === agendaDayBuckets.length - 1 ? 0 : agendaCardGap,
+                        marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
                         ...(Platform.OS === "web"
                            ? ({ scrollSnapAlign: "start" } as const)
                           : null),
                       }}
                     >
-                      <View
-                        style={{
-                          borderRadius: 14,
-                          backgroundColor: "transparent",
-                          ...(isActive
-                            && Platform.OS !== "android"
-                            ? {
-                                shadowColor: mode === "dark" ? colors.primaryBg : "#000",
-                                shadowOpacity: mode === "dark" ? 0.42 : 0.12,
-                                shadowRadius: mode === "dark" ? 12 : 6,
-                                shadowOffset: { width: 0, height: 4 },
-                                elevation: mode === "dark" ? 8 : 3,
-                              }
-                            : null),
-                        }}
-                      >
+                      {agendaDivider?.index === idx ? (
                         <View
                           style={{
-                            padding: 10,
-                            borderRadius: 14,
-                            backgroundColor: colors.card,
-                            overflow: "hidden",
+                            marginBottom: 8,
+                            paddingVertical: 6,
+                            paddingHorizontal: 10,
+                            borderRadius: 10,
                             borderWidth: 1,
-                            borderColor: isActive ? activeBorderColor : colors.border,
-                            opacity: isPast ? 0.6 : 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.secondaryBg,
                           }}
                         >
-                        <View style={{ gap: 6 }}>
-                          {day.isWeekStart ? (
-                            <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800" }}>
-                              {day.weekLabel}
-                            </Text>
-                          ) : null}
+                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                            {agendaDivider.label}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Pressable onPress={() => handleAgendaCardPress(idx)}>
+                        <View
+                          style={{
+                            borderRadius: 14,
+                            backgroundColor: "transparent",
+                            ...(isActive
+                              && Platform.OS !== "android"
+                              ? {
+                                  shadowColor: mode === "dark" ? colors.primaryBg : "#000",
+                                  shadowOpacity: mode === "dark" ? 0.42 : 0.12,
+                                  shadowRadius: mode === "dark" ? 12 : 6,
+                                  shadowOffset: { width: 0, height: 4 },
+                                  elevation: mode === "dark" ? 8 : 3,
+                                }
+                              : null),
+                          }}
+                        >
                           <View
                             style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 6,
+                              padding: 10,
+                              borderRadius: 14,
+                              backgroundColor: colors.card,
+                              overflow: "hidden",
+                              borderWidth: 1,
+                              borderColor: isActive ? activeBorderColor : colors.border,
+                              opacity: isPast ? 0.6 : 1,
                             }}
                           >
+                          <View style={{ gap: 6 }}>
                             <View
                               style={{
-                                paddingVertical: 2,
-                                paddingHorizontal: 8,
-                                borderRadius: 999,
-                                backgroundColor: colors.secondaryBg,
-                                borderWidth: 1,
-                                borderColor: colors.border,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 6,
                               }}
                             >
-                              <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
-                                {label}
-                              </Text>
-                            </View>
-                            <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                              {day.dateLabel}
-                            </Text>
-                          </View>
-                          <View style={{ gap: 4 }}>
-                            {day.items.slice(0, 3).map((item) => (
                               <View
-                                key={`${item.classId}-${item.startTime}`}
                                 style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
-                                  gap: 8,
+                                  paddingVertical: 2,
+                                  paddingHorizontal: 8,
+                                  borderRadius: 999,
+                                  backgroundColor: colors.secondaryBg,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
                                 }}
                               >
-                                <View style={{ flex: 1, gap: 2 }}>
-                                  <Text
-                                    style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}
-                                    numberOfLines={1}
-                                  >
-                                    {item.className}
-                                  </Text>
-                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
-                                      {item.timeLabel}
-                                    </Text>
-                                    {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
-                                  </View>
-                                </View>
-                                <LocationBadge
-                                  location={item.unit ?? ""}
-                                  palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
-                                  size="sm"
-                                  showIcon={true}
-                                />
+                                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                                  {label}
+                                </Text>
                               </View>
-                            ))}
-                            {day.items.length > 3 ? (
-                              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                +{day.items.length - 3} turma(s) neste dia
+                              <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                                {item.dateLabel}
                               </Text>
-                            ) : null}
+                            </View>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 8,
+                              }}
+                            >
+                              <Text
+                                style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
+                                numberOfLines={1}
+                              >
+                                {item.className}
+                              </Text>
+                              <LocationBadge
+                                location={item.unit ?? ""}
+                                palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
+                                size="sm"
+                                showIcon={true}
+                              />
+                            </View>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                              {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
+                              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
+                                {item.timeLabel}
+                              </Text>
+                            </View>
+                          </View>
                           </View>
                         </View>
-                        </View>
-                      </View>
-                    </Pressable>
+                      </Pressable>
+                    </View>
                   );
                 })
               )}
             </FadeHorizontalScroll>
           </View>
-          {isDayConcluded ? (
-            <View
-              style={{
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Por hoje é isso.
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>
-                Todas as turmas de hoje já concluíram a janela de aula.
-              </Text>
-            </View>
-          ) : null}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               onPress={() => {
@@ -2769,4 +2718,5 @@ export function HomeProfessorScreen({
 export default function HomeProfessor() {
   return <HomeProfessorScreen />;
 }
+
 
