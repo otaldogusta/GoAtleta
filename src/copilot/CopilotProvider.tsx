@@ -46,6 +46,7 @@ import {
 import { getClasses } from "../db/seed";
 import { Pressable } from "../ui/Pressable";
 import { ModalSheet } from "../ui/ModalSheet";
+import { useModalSheetOpen } from "../ui/modal-sheet-visibility";
 import { useAppTheme } from "../ui/app-theme";
 
 type CopilotContextData = {
@@ -220,6 +221,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session } = useAuth();
   const { activeOrganizationId } = useOrganization();
+  const hasAnyModalSheetOpen = useModalSheetOpen();
   const insets = useSafeAreaInsets();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
 
@@ -876,7 +878,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   return (
     <CopilotContext.Provider value={value}>
       {children}
-      {showFab && !state.open ? (
+      {showFab && !state.open && !hasAnyModalSheetOpen ? (
         <View pointerEvents="box-none" style={styles.fabWrapper}>
           {state.hasUnreadUpdates ? (
             <Animated.View
