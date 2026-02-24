@@ -275,6 +275,7 @@ export default function AssistantScreen() {
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
@@ -340,6 +341,13 @@ export default function AssistantScreen() {
       showSub.remove();
       hideSub.remove();
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -662,6 +670,32 @@ export default function AssistantScreen() {
     return `Boa noite, ${userDisplayName}.`;
   }, [userDisplayName]);
 
+  const dayScheduleStatus = useMemo<"no_classes" | "in_progress" | "concluded">(() => {
+    const now = new Date(nowMs);
+    const weekday = now.getDay();
+    const todayClasses = classes.filter((item) => (item.daysOfWeek ?? []).includes(weekday));
+    if (!todayClasses.length) return "no_classes";
+
+    const hasPendingWindow = todayClasses.some((item) => {
+      const match = String(item.startTime ?? "").match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) return false;
+      const hour = Number(match[1]);
+      const minute = Number(match[2]);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false;
+      if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return false;
+
+      const startAt = new Date(now);
+      startAt.setHours(hour, minute, 0, 0);
+      const durationMinutes = Number.isFinite(item.durationMinutes)
+        ? Math.max(15, Number(item.durationMinutes))
+        : 60;
+      const endWithGraceMs = startAt.getTime() + durationMinutes * 60_000 + 60 * 60_000;
+      return nowMs < endWithGraceMs;
+    });
+
+    return hasPendingWindow ? "in_progress" : "concluded";
+  }, [classes, nowMs]);
+
   const strategicBullets = useMemo(() => {
     const bullets: string[] = [];
     const snapshot = optionalCopilot?.appSnapshot;
@@ -684,15 +718,25 @@ export default function AssistantScreen() {
       bullets.push(`Ação recente: ${snapshot?.recentActions[0]?.actionTitle}.`);
     }
 
+    if (dayScheduleStatus === "concluded" && bullets.length < MAX_STRATEGIC_BULLETS) {
+      bullets.push("Dia concluído: não há mais turmas pendentes hoje.");
+    }
+
     if (bullets.length === 0) {
-      bullets.push("Nenhum alerta urgente no momento.");
+      if (dayScheduleStatus === "no_classes") {
+        bullets.push("Sem turmas agendadas para hoje.");
+      } else if (dayScheduleStatus === "concluded") {
+        bullets.push("Dia concluído: não há mais turmas pendentes hoje.");
+      } else {
+        bullets.push("Nenhum alerta urgente no momento.");
+      }
     }
 
     return bullets
       .map(clampBulletLine)
       .filter(Boolean)
       .slice(0, MAX_STRATEGIC_BULLETS);
-  }, [optionalCopilot?.appSnapshot]);
+  }, [dayScheduleStatus, optionalCopilot?.appSnapshot]);
 
   const pushAssistantMessage = useCallback((content: string) => {
     setMessages((prev) => [...prev, { role: "assistant", content }]);
