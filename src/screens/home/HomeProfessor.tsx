@@ -624,7 +624,7 @@ export function HomeProfessorScreen({
 
     }[] = [];
 
-    for (let offset = 0; offset <= 7; offset += 1) {
+    for (let offset = -1; offset <= 7; offset += 1) {
 
       const dayDate = new Date(scheduleBaseDate);
 
@@ -796,7 +796,7 @@ export function HomeProfessorScreen({
 
       }
 
-      return "Próximos dias";
+      return item.dateKey < todayDateKey ? "Aula anterior" : "Próximos dias";
 
     },
 
