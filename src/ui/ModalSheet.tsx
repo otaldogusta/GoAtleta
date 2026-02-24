@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Animated, Modal, Platform, Pressable as RawPressable, View } from "react-native";
+import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
@@ -55,7 +55,8 @@ export function ModalSheet({
     anim.setValue(0);
     Animated.timing(anim, {
       toValue: 1,
-      duration: 200,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [anim, visible]);
@@ -205,6 +206,12 @@ export function ModalSheet({
                   translateY: anim.interpolate({
                     inputRange: [0, 1],
                     outputRange: [slideOffset, 0],
+                  }),
+                },
+                {
+                  scale: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: isCenter ? [0.975, 1] : [0.985, 1],
                   }),
                 },
               ],
