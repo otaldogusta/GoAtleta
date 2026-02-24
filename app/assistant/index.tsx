@@ -1308,9 +1308,6 @@ export default function AssistantScreen() {
                   <Text style={{ color: colors.muted, fontSize: 16, textAlign: "center", maxWidth: 580 }}>
                     Hoje, o que você quer resolver?
                   </Text>
-                  <Text style={{ color: colors.placeholder, fontSize: 12 }}>
-                    Contexto ativo: {assistantScopeLabel}
-                  </Text>
                   {classes.length > 1 ? (
                     <ScrollView
                       horizontal
