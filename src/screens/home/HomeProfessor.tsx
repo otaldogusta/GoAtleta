@@ -85,10 +85,6 @@ import { useOrganization } from "../../providers/OrganizationProvider";
 
 import { Card } from "../../ui/Card";
 
-import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
-
-import { LocationBadge } from "../../ui/LocationBadge";
-
 import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 
 import { FadeHorizontalScroll } from "../../ui/FadeHorizontalScroll";
@@ -97,9 +93,9 @@ import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
 
-import { getUnitPalette } from "../../ui/unit-colors";
-
 import { useSaveToast } from "../../ui/save-toast";
+import { markRender, measureAsync } from "../../observability/perf";
+import { AgendaCard } from "./components/AgendaCard";
 
 
 
@@ -108,6 +104,7 @@ export function HomeProfessorScreen({
 }: {
   adminHeader?: import("react").ReactNode;
 } = {}) {
+  markRender("screen.home.render.root");
 
   const router = useRouter();
 
@@ -287,28 +284,36 @@ export function HomeProfessorScreen({
       }
 
       try {
+        await measureAsync(
+          "screen.home.load.schedule",
+          async () => {
+            await seedIfEmpty();
 
-        await seedIfEmpty();
+            const organizationId = activeOrganization?.id ?? null;
 
-        const organizationId = activeOrganization?.id ?? null;
+            const [classListResult, eventsListResult] = await Promise.allSettled([
+              getClasses({ organizationId }),
+              organizationId
+                ? listUpcomingEvents({
+                    organizationId,
+                    userId: session.user.id,
+                    days: 7,
+                  })
+                : Promise.resolve([] as EventListItem[]),
+            ]);
 
-        const [classListResult, eventsListResult] = await Promise.allSettled([
-          getClasses({ organizationId }),
-          organizationId
-            ? listUpcomingEvents({
-                organizationId,
-                userId: session.user.id,
-                days: 7,
-              })
-            : Promise.resolve([] as EventListItem[]),
-        ]);
-
-        if (alive) {
-          setClasses(classListResult.status === "fulfilled" ? classListResult.value : []);
-          setUpcomingEvents(eventsListResult.status === "fulfilled" ? eventsListResult.value : []);
-          setAgendaRefreshToken((value) => value + 1);
-        }
-
+            if (alive) {
+              setClasses(classListResult.status === "fulfilled" ? classListResult.value : []);
+              setUpcomingEvents(eventsListResult.status === "fulfilled" ? eventsListResult.value : []);
+              setAgendaRefreshToken((value) => value + 1);
+            }
+          },
+          {
+            screen: "home",
+            role,
+            hasOrganization: Boolean(activeOrganization?.id),
+          }
+        );
       } finally {
 
         if (alive) setLoadingClasses(false);
@@ -1051,7 +1056,11 @@ export function HomeProfessorScreen({
       setLoadingEvents(false);
     }
 
-    await Promise.allSettled(tasks);
+    await measureAsync("screen.home.load.refresh", () => Promise.allSettled(tasks), {
+      screen: "home",
+      hasSession: Boolean(session),
+      hasOrganization: Boolean(activeOrganization?.id),
+    });
 
     setNow(new Date());
 
@@ -1534,118 +1543,21 @@ export function HomeProfessorScreen({
                         ? colors.border
                         : colors.primaryBg;
                   return (
-                    <View
+                    <AgendaCard
                       key={`${item.classId}-${item.dateKey}-${idx}`}
-                      style={{
-                        width: agendaCardWidth,
-                        marginRight: idx === scheduleWindow.length - 1 ? 0 : agendaCardGap,
-                        ...(Platform.OS === "web"
-                           ? ({ scrollSnapAlign: "start" } as const)
-                          : null),
-                      }}
-                    >
-                      {agendaDivider?.index === idx ? (
-                        <View
-                          pointerEvents="none"
-                          style={{
-                            position: "absolute",
-                            left: -Math.max(4, Math.round(agendaCardGap / 2)),
-                            top: 10,
-                            bottom: 10,
-                            width: 1,
-                            borderRadius: 999,
-                            backgroundColor: colors.border,
-                            opacity: 0.9,
-                          }}
-                        />
-                      ) : null}
-                      <Pressable onPress={() => handleAgendaCardPress(idx)}>
-                        <View
-                          style={{
-                            borderRadius: 14,
-                            backgroundColor: "transparent",
-                            ...(isActive
-                              && Platform.OS !== "android"
-                              ? {
-                                  shadowColor: mode === "dark" ? colors.primaryBg : "#000",
-                                  shadowOpacity: mode === "dark" ? 0.42 : 0.12,
-                                  shadowRadius: mode === "dark" ? 12 : 6,
-                                  shadowOffset: { width: 0, height: 4 },
-                                  elevation: mode === "dark" ? 8 : 3,
-                                }
-                              : null),
-                          }}
-                        >
-                          <View
-                            style={{
-                              padding: 10,
-                              borderRadius: 14,
-                              backgroundColor: colors.card,
-                              overflow: "hidden",
-                              borderWidth: 1,
-                              borderColor: isActive ? activeBorderColor : colors.border,
-                              opacity: isPast ? 0.6 : 1,
-                            }}
-                          >
-                          <View style={{ gap: 6 }}>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 6,
-                              }}
-                            >
-                              <View
-                                style={{
-                                  paddingVertical: 2,
-                                  paddingHorizontal: 8,
-                                  borderRadius: 999,
-                                  backgroundColor: colors.secondaryBg,
-                                  borderWidth: 1,
-                                  borderColor: colors.border,
-                                }}
-                              >
-                                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
-                                  {label}
-                                </Text>
-                              </View>
-                              <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                                {item.dateLabel}
-                              </Text>
-                            </View>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 8,
-                              }}
-                            >
-                              <Text
-                                style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
-                                numberOfLines={1}
-                              >
-                                {item.className}
-                              </Text>
-                              <LocationBadge
-                                location={item.unit ?? ""}
-                                palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
-                                size="sm"
-                                showIcon={true}
-                              />
-                            </View>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                              {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
-                              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
-                                {item.timeLabel}
-                              </Text>
-                            </View>
-                          </View>
-                          </View>
-                        </View>
-                      </Pressable>
-                    </View>
+                      item={item}
+                      label={label}
+                      isPast={isPast}
+                      isActive={isActive}
+                      isLast={idx === scheduleWindow.length - 1}
+                      showDivider={agendaDivider?.index === idx}
+                      agendaCardWidth={agendaCardWidth}
+                      agendaCardGap={agendaCardGap}
+                      activeBorderColor={activeBorderColor}
+                      colors={colors}
+                      mode={mode}
+                      onPress={() => handleAgendaCardPress(idx)}
+                    />
                   );
                 })
               )}

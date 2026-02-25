@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "../auth/auth";
+import { markRender, measureAsync } from "../observability/perf";
 import type { Signal as CopilotSignal } from "../ai/signal-engine";
 import {
   listRegulationUpdates,
@@ -251,6 +252,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [showAllRootActions, setShowAllRootActions] = useState(false);
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  markRender("screen.copilot.render.provider", { open: state.open ? 1 : 0 });
 
   const setContext = useCallback((ownerId: string, context: CopilotContextData | null) => {
     contextRegistryRef.current.set(ownerId, context);
@@ -375,18 +377,23 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const [updatesResult, ruleSets] = await Promise.all([
-        listRegulationUpdates({
-          organizationId,
-          unreadOnly: false,
-          limit: 25,
-        }),
-        listRegulationRuleSets({
-          organizationId,
-          sport: "volleyball",
-          limit: 30,
-        }),
-      ]);
+      const [updatesResult, ruleSets] = await measureAsync(
+        "screen.copilot.load.regulation",
+        () =>
+          Promise.all([
+            listRegulationUpdates({
+              organizationId,
+              unreadOnly: false,
+              limit: 25,
+            }),
+            listRegulationRuleSets({
+              organizationId,
+              sport: "volleyball",
+              limit: 30,
+            }),
+          ]),
+        { screen: "copilot", organizationId }
+      );
       const updates = updatesResult.items;
       setState((prev) => ({
         ...prev,
@@ -434,7 +441,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       try {
-        const classes = await getClasses({ organizationId });
+        const classes = await measureAsync(
+          "screen.copilot.load.scheduleWindows",
+          () => getClasses({ organizationId }),
+          { screen: "copilot", organizationId }
+        );
         if (cancelled) return;
         setScheduleWindows(
           classes.map((item) => ({

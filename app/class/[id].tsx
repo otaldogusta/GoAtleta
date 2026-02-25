@@ -36,7 +36,7 @@ import {
     updateClassColor,
 } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
-import { measure } from "../../src/observability/perf";
+import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
@@ -74,6 +74,8 @@ import {
 } from "../../src/utils/whatsapp-templates";
 
 export default function ClassDetails() {
+  markRender("screen.classDetails.render.root");
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, mode } = useAppTheme();
@@ -196,6 +198,10 @@ export default function ClassDetails() {
     animatedStyle: detailsAnimStyle,
     isVisible: showDetailsContent,
   } = useCollapsibleAnimation(showDetails);
+
+  if (showWhatsAppSettingsModal) {
+    markRender("screen.classDetails.render.whatsappModal");
+  }
   const {
     animatedStyle: editDurationPickerAnimStyle,
     isVisible: showEditDurationPickerContent,
@@ -254,17 +260,42 @@ export default function ClassDetails() {
   const durationOptions = ["60", "75", "90"];
   const formatDays = (days: number[]) =>
     days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
-  const getChipStyle = (active: boolean, palette?: { bg: string; text: string }) => ({
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: active ? palette?.bg ?? colors.primaryBg : colors.secondaryBg,
-  });
-  const getChipTextStyle = (active: boolean, palette?: { bg: string; text: string }) => ({
-    color: active ? palette?.text ?? colors.primaryText : colors.text,
-    fontWeight: "600" as const,
-    fontSize: 12,
-  });
+  const chipBaseStyle = useMemo(
+    () => ({
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+    }),
+    []
+  );
+  const chipTextBaseStyle = useMemo(
+    () => ({
+      fontWeight: "600" as const,
+      fontSize: 12,
+    }),
+    []
+  );
+  const chipInactiveStyle = useMemo(
+    () => ({ backgroundColor: colors.secondaryBg }),
+    [colors.secondaryBg]
+  );
+  const chipInactiveTextStyle = useMemo(() => ({ color: colors.text }), [colors.text]);
+  const getChipStyle = useCallback(
+    (active: boolean, palette?: { bg: string; text: string }) => [
+      chipBaseStyle,
+      active
+        ? { backgroundColor: palette?.bg ?? colors.primaryBg }
+        : chipInactiveStyle,
+    ],
+    [chipBaseStyle, chipInactiveStyle, colors.primaryBg]
+  );
+  const getChipTextStyle = useCallback(
+    (active: boolean, palette?: { bg: string; text: string }) => [
+      chipTextBaseStyle,
+      active ? { color: palette?.text ?? colors.primaryText } : chipInactiveTextStyle,
+    ],
+    [chipInactiveTextStyle, chipTextBaseStyle, colors.primaryText]
+  );
   const selectFieldStyle = {
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -457,9 +488,16 @@ export default function ClassDetails() {
     (async () => {
       setLoading(true);
       try {
-        const data = await getClassById(id);
-        const list = await getClasses();
-        const scouting = data ? await getLatestScoutingLog(data.id) : null;
+        const { data, list, scouting } = await measureAsync(
+          "screen.classDetails.load.initial",
+          async () => {
+            const data = await getClassById(id);
+            const list = await getClasses();
+            const scouting = data ? await getLatestScoutingLog(data.id) : null;
+            return { data, list, scouting };
+          },
+          { screen: "classDetails", classId: id }
+        );
         if (alive) {
           setCls(data);
           setAllClasses(list);
@@ -2226,6 +2264,7 @@ export default function ClassDetails() {
                 >
                   {filteredContacts.length ? (
                     filteredContacts.map(({ contact, index }) => {
+                      markRender("screen.classDetails.render.contactRow", { idx: index });
                       const isSelected = selectedContactIndex === index;
                       return (
                         <Pressable

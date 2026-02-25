@@ -52,6 +52,7 @@ import {
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
+import { markRender } from "../src/observability/perf";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
@@ -307,6 +308,8 @@ const IndicatorCard = memo(function IndicatorCard({
 });
 
 export default function CoordinationScreen() {
+  markRender("screen.coordination.render.root");
+
   const router = useRouter();
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();

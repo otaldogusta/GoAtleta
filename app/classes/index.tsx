@@ -22,13 +22,12 @@ import type { ClassGroup } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
-import { measure } from "../../src/observability/perf";
+import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
-import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { getClassColorOptions } from "../../src/ui/class-colors";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
@@ -41,8 +40,11 @@ import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { ClassCard } from "./components/ClassCard";
 
 export default function ClassesScreen() {
+  markRender("screen.classes.render.root");
+
   const router = useRouter();
   const { edit } = useLocalSearchParams<{ edit?: string | string[] }>();
   const editParam = Array.isArray(edit) ? edit[0] : edit;
@@ -183,7 +185,6 @@ export default function ClassesScreen() {
   const editModalCardStyle = useModalCardStyle({
     maxHeight: "92%",
   });
-  const [suppressNextPress, setSuppressNextPress] = useState(false);
   const [showCustomDuration, setShowCustomDuration] = usePersistedState<boolean>(
     "classes_show_custom_duration_v1",
     false
@@ -379,23 +380,40 @@ export default function ClassesScreen() {
     return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [classes, unitKey, unitLabel]);
   const [unitFilter, setUnitFilter] = useState("Todas");
+  const chipBaseStyle = useMemo(
+    () => ({
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+    }),
+    []
+  );
+  const chipTextBaseStyle = useMemo(
+    () => ({
+      fontWeight: "600" as const,
+      fontSize: 12,
+    }),
+    []
+  );
+  const chipInactiveStyle = useMemo(
+    () => ({ backgroundColor: colors.secondaryBg }),
+    [colors.secondaryBg]
+  );
+  const chipInactiveTextStyle = useMemo(() => ({ color: colors.text }), [colors.text]);
   const getChipStyle = (
     active: boolean,
     palette?: { bg: string; text: string }
-  ) => ({
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    backgroundColor: active ? palette?.bg ?? colors.primaryBg : colors.secondaryBg,
-  });
+  ) => [
+    chipBaseStyle,
+    active ? { backgroundColor: palette?.bg ?? colors.primaryBg } : chipInactiveStyle,
+  ];
   const getChipTextStyle = (
     active: boolean,
     palette?: { bg: string; text: string }
-  ) => ({
-    color: active ? palette?.text ?? colors.primaryText : colors.text,
-    fontWeight: "600" as const,
-    fontSize: 12,
-  });
+  ) => [
+    chipTextBaseStyle,
+    active ? { color: palette?.text ?? colors.primaryText } : chipInactiveTextStyle,
+  ];
   const selectFieldStyle = {
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -552,7 +570,11 @@ export default function ClassesScreen() {
     const isAlive = () => !alive || alive.current;
     setLoading(true);
     try {
-      const data = await getClasses();
+      const data = await measureAsync(
+        "screen.classes.load.list",
+        () => getClasses(),
+        { screen: "classes" }
+      );
       if (isAlive()) setClasses(data);
     } finally {
       if (isAlive()) setLoading(false);
@@ -1299,31 +1321,9 @@ export default function ClassesScreen() {
 
   const handleOpenClass = useCallback(
     (item: ClassGroup) => {
-      if (suppressNextPress) {
-        setSuppressNextPress(false);
-        return;
-      }
       router.push({
         pathname: "/class/[id]",
         params: { id: item.id },
-      });
-    },
-    [router, suppressNextPress]
-  );
-
-  const handleEditClass = useCallback(
-    (item: ClassGroup) => {
-      setSuppressNextPress(true);
-      openEditModal(item);
-    },
-    [openEditModal]
-  );
-
-  const handleOpenAttendance = useCallback(
-    (item: ClassGroup) => {
-      router.push({
-        pathname: "/class/[id]/attendance",
-        params: { id: item.id, date: formatIsoDate(new Date()) },
       });
     },
     [router]
@@ -1454,92 +1454,6 @@ export default function ClassesScreen() {
                 borderColor: active ? colors.text : colors.border,
               }}
             />
-          </Pressable>
-        );
-      }),
-    [colors]
-  );
-
-  const ClassCard = useMemo(
-    () =>
-      memo(function ClassCardItem({
-        item,
-        conflicts,
-        onOpen,
-        onEdit,
-        onAttendance,
-      }: {
-        item: ClassGroup;
-        conflicts: { name: string; day: number }[] | null | undefined;
-        onOpen: (value: ClassGroup) => void;
-        onEdit: (value: ClassGroup) => void;
-        onAttendance: (value: ClassGroup) => void;
-      }) {
-        const palette = getClassPalette(item.colorKey, colors, item.unit);
-        const parsed = parseTime(item.startTime || "");
-        const duration = item.durationMinutes || 60;
-        const safeConflicts = conflicts ?? [];
-        const timeLabel = parsed
-           ? `${formatTimeRange(parsed.hour, parsed.minute, duration)} - ${item.name}`
-          : item.name;
-        const hasConflicts = safeConflicts.length > 0;
-        return (
-          <Pressable
-            onPress={() => onOpen(item)}
-            style={{
-              padding: 14,
-              borderRadius: 18,
-              backgroundColor: colors.background,
-              borderWidth: 1,
-              borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOpacity: 0.08,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 3,
-            }}
-          >
-            { hasConflicts ? (
-              <View
-                style={{
-                  alignSelf: "flex-start",
-                  paddingVertical: 2,
-                  paddingHorizontal: 8,
-                  borderRadius: 999,
-                  backgroundColor: colors.dangerBg,
-                  marginBottom: 6,
-                }}
-              >
-                <Text
-                  style={{
-                    color: colors.dangerText,
-                    fontWeight: "700",
-                    fontSize: 11,
-                  }}
-                >
-                  Conflito de horário
-                </Text>
-              </View>
-            ) : null}
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    {timeLabel}
-                  </Text>
-                  <ClassGenderBadge gender={item.gender} />
-                </View>
-              </View>
-            { hasConflicts ? (
-              <Text style={{ color: colors.dangerText, marginTop: 6 }}>
-                {"Conflitos: " +
-                  safeConflicts
-                    .map(
-                      (conflict) =>
-                        `${conflict.name} (${dayNames[conflict.day]})`
-                    )
-                    .join(", ")}
-              </Text>
-            ) : null}
           </Pressable>
         );
       }),
@@ -1720,9 +1634,9 @@ export default function ClassesScreen() {
                       key={item.id}
                       item={item}
                       conflicts={conflictsById[item.id]}
+                      dayNames={dayNames}
+                      colors={colors}
                       onOpen={handleOpenClass}
-                      onEdit={handleEditClass}
-                      onAttendance={handleOpenAttendance}
                     />
                   ))}
                 </View>

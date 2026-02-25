@@ -65,6 +65,7 @@ import {
 } from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
+import { markRender } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -245,6 +246,8 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
 };
 
 export default function AssistantScreen() {
+  markRender("screen.assistant.render.root");
+
   const router = useRouter();
   const params = useLocalSearchParams<{ prompt?: string; source?: string }>();
   const { session } = useAuth();
