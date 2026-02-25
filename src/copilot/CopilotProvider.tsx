@@ -109,9 +109,12 @@ type CopilotState = {
   unreadCount: number;
 };
 
-type CopilotInternalContext = {
+type CopilotDataContextValue = {
   state: CopilotState;
   operationalContext: OperationalContextResult;
+};
+
+type CopilotActionsContextValue = {
   setContext: (ownerId: string, context: CopilotContextData | null) => void;
   clearContext: (ownerId: string) => void;
   setActions: (ownerId: string, actions: CopilotAction[]) => void;
@@ -124,7 +127,8 @@ type CopilotInternalContext = {
   runAction: (action: CopilotAction) => Promise<void>;
 };
 
-const CopilotContext = createContext<CopilotInternalContext | null>(null);
+const CopilotDataContext = createContext<CopilotDataContextValue | null>(null);
+const CopilotActionsContext = createContext<CopilotActionsContextValue | null>(null);
 
 const MAX_HISTORY_ITEMS = 12;
 const REGULATION_POLL_INTERVAL_MS = 90_000;
@@ -209,6 +213,35 @@ const buildHistoryItem = (params: {
   confidence: params.result.confidence,
 });
 
+const buildContextSignature = (input: CopilotContextData | null) => {
+  if (!input) return "__none__";
+  const signal = input.activeSignal;
+  return JSON.stringify({
+    screen: input.screen ?? "",
+    title: input.title ?? "",
+    subtitle: input.subtitle ?? "",
+    activeSignal: signal
+      ? {
+          id: signal.id,
+          type: signal.type,
+          severity: signal.severity,
+          classId: signal.classId ?? null,
+          studentId: signal.studentId ?? null,
+          detectedAt: signal.detectedAt,
+          title: signal.title,
+          summary: signal.summary,
+        }
+      : null,
+  });
+};
+
+const buildSignalsSignature = (signals: CopilotSignal[]) =>
+  [...(signals ?? [])]
+    .filter(isValidCopilotSignal)
+    .map((signal) => `${signal.id}:${signal.severity}:${signal.detectedAt}`)
+    .sort((left, right) => left.localeCompare(right))
+    .join("|");
+
 type ScheduleWindow = {
   daysOfWeek: number[];
   startTime: string | null;
@@ -231,6 +264,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
   const lastComputedSnapshotRef = useRef<CentralSnapshot | null>(null);
+  const currentSnapshotRef = useRef<CentralSnapshot | null>(null);
   const notifiedUpdatesCacheKeyRef = useRef<string | null>(null);
   const notifiedUpdateIdsRef = useRef<Set<string>>(new Set());
 
@@ -252,7 +286,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [showAllRootActions, setShowAllRootActions] = useState(false);
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const stateRef = useRef(state);
   markRender("screen.copilot.render.provider", { open: state.open ? 1 : 0 });
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const setContext = useCallback((ownerId: string, context: CopilotContextData | null) => {
     contextRegistryRef.current.set(ownerId, context);
@@ -524,9 +563,17 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     state.signals,
   ]);
 
+  useEffect(() => {
+    currentSnapshotRef.current = currentSnapshot;
+  }, [currentSnapshot]);
+
   const open = useCallback(() => {
-    const latestSnapshot = lastComputedSnapshotRef.current ?? currentSnapshot;
-    lastSeenSnapshotRef.current = latestSnapshot;
+    const latestSnapshot =
+      lastComputedSnapshotRef.current ??
+      currentSnapshotRef.current;
+    if (latestSnapshot) {
+      lastSeenSnapshotRef.current = latestSnapshot;
+    }
     setInsightsView({ mode: "root" });
     setShowAllRootActions(false);
     setState((prev) => ({
@@ -535,7 +582,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       hasUnreadUpdates: false,
       unreadCount: 0,
     }));
-  }, [currentSnapshot]);
+  }, []);
 
   const close = useCallback(() => {
     setState((prev) => ({ ...prev, open: false }));
@@ -587,14 +634,15 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, [loadRegulationUpdates, state.open]);
 
   const runAction = useCallback(async (action: CopilotAction) => {
+    const currentState = stateRef.current;
     const selectedSignal =
-      state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
+      currentState.signals.find((item) => item.id === currentState.selectedSignalId) ?? null;
     const actionContext: CopilotContextData | null = selectedSignal
       ? {
-          ...(state.context ?? { screen: "assistant" }),
+          ...(currentState.context ?? { screen: "assistant" }),
           activeSignal: selectedSignal,
         }
-      : state.context ?? null;
+      : currentState.context ?? null;
 
     const requirementError = action.requires?.(actionContext);
     if (requirementError) {
@@ -634,12 +682,18 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         ),
       }));
     }
-  }, [state.context, state.selectedSignalId, state.signals]);
+  }, []);
 
-  const value = useMemo<CopilotInternalContext>(
+  const dataValue = useMemo<CopilotDataContextValue>(
     () => ({
       state,
       operationalContext,
+    }),
+    [operationalContext, state]
+  );
+
+  const actionsValue = useMemo<CopilotActionsContextValue>(
+    () => ({
       setContext,
       clearContext,
       setActions,
@@ -652,18 +706,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       runAction,
     }),
     [
-      state,
-      operationalContext,
-      setContext,
-      clearContext,
-      setActions,
       clearActions,
-      setSignals,
+      clearContext,
       clearSignals,
-      setActiveSignal,
-      open,
       close,
+      open,
       runAction,
+      setActions,
+      setActiveSignal,
+      setContext,
+      setSignals,
     ]
   );
 
@@ -885,7 +937,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, [close, composerValue, router, state.context?.screen]);
 
   return (
-    <CopilotContext.Provider value={value}>
+    <CopilotActionsContext.Provider value={actionsValue}>
+      <CopilotDataContext.Provider value={dataValue}>
       {children}
       {showFab && !state.open ? (
         <View pointerEvents="box-none" style={styles.fabWrapper}>
@@ -1536,82 +1589,100 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           </View>
         </View>
       </ModalSheet>
-    </CopilotContext.Provider>
+      </CopilotDataContext.Provider>
+    </CopilotActionsContext.Provider>
   );
 }
 
 export function useCopilot() {
-  const context = useContext(CopilotContext);
-  if (!context) {
+  const dataContext = useContext(CopilotDataContext);
+  const actionsContext = useContext(CopilotActionsContext);
+  if (!dataContext || !actionsContext) {
     throw new Error("useCopilot must be used within CopilotProvider");
   }
+  const { state, operationalContext } = dataContext;
   return {
-    open: context.open,
-    close: context.close,
-    runAction: context.runAction,
-    isOpen: context.state.open,
-    actionCount: context.state.actions.length,
-    signalCount: context.state.signals.length,
-    hasUnreadUpdates: context.state.hasUnreadUpdates,
-    unreadCount: context.state.unreadCount,
-    signals: context.state.signals,
-    regulationUpdates: context.state.regulationUpdates,
-    regulationRuleSets: context.state.regulationRuleSets,
+    open: actionsContext.open,
+    close: actionsContext.close,
+    runAction: actionsContext.runAction,
+    isOpen: state.open,
+    actionCount: state.actions.length,
+    signalCount: state.signals.length,
+    hasUnreadUpdates: state.hasUnreadUpdates,
+    unreadCount: state.unreadCount,
+    signals: state.signals,
+    regulationUpdates: state.regulationUpdates,
+    regulationRuleSets: state.regulationRuleSets,
     activeSignal:
-      context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
-    setActiveSignal: context.setActiveSignal,
-    context: context.state.context,
-    history: context.state.history,
-    operationalContext: context.operationalContext,
-    appSnapshot: context.operationalContext.snapshot,
+      state.signals.find((item) => item.id === state.selectedSignalId) ?? null,
+    setActiveSignal: actionsContext.setActiveSignal,
+    context: state.context,
+    history: state.history,
+    operationalContext,
+    appSnapshot: operationalContext.snapshot,
   };
 }
 
 export function useOptionalCopilot() {
-  const context = useContext(CopilotContext);
-  if (!context) return null;
+  const dataContext = useContext(CopilotDataContext);
+  const actionsContext = useContext(CopilotActionsContext);
+  if (!dataContext || !actionsContext) return null;
+  const { state, operationalContext } = dataContext;
   return {
-    open: context.open,
-    close: context.close,
-    runAction: context.runAction,
-    isOpen: context.state.open,
-    actionCount: context.state.actions.length,
-    signalCount: context.state.signals.length,
-    hasUnreadUpdates: context.state.hasUnreadUpdates,
-    unreadCount: context.state.unreadCount,
-    signals: context.state.signals,
-    regulationUpdates: context.state.regulationUpdates,
-    regulationRuleSets: context.state.regulationRuleSets,
+    open: actionsContext.open,
+    close: actionsContext.close,
+    runAction: actionsContext.runAction,
+    isOpen: state.open,
+    actionCount: state.actions.length,
+    signalCount: state.signals.length,
+    hasUnreadUpdates: state.hasUnreadUpdates,
+    unreadCount: state.unreadCount,
+    signals: state.signals,
+    regulationUpdates: state.regulationUpdates,
+    regulationRuleSets: state.regulationRuleSets,
     activeSignal:
-      context.state.signals.find((item) => item.id === context.state.selectedSignalId) ?? null,
-    setActiveSignal: context.setActiveSignal,
-    context: context.state.context,
-    history: context.state.history,
-    operationalContext: context.operationalContext,
-    appSnapshot: context.operationalContext.snapshot,
+      state.signals.find((item) => item.id === state.selectedSignalId) ?? null,
+    setActiveSignal: actionsContext.setActiveSignal,
+    context: state.context,
+    history: state.history,
+    operationalContext,
+    appSnapshot: operationalContext.snapshot,
   };
 }
 
 export function useCopilotContext(input: CopilotContextData | null) {
-  const context = useContext(CopilotContext);
+  const context = useContext(CopilotActionsContext);
   if (!context) {
     throw new Error("useCopilotContext must be used within CopilotProvider");
   }
 
   const ownerIdRef = useRef(`copilot_ctx_${Math.random().toString(36).slice(2, 10)}`);
-  const payload = useMemo(() => input, [input]);
+  const contextSignature = useMemo(() => buildContextSignature(input), [input]);
+  const payload = useMemo<CopilotContextData | null>(() => {
+    if (!input) return null;
+    return {
+      screen: input.screen,
+      title: input.title,
+      subtitle: input.subtitle,
+      activeSignal: input.activeSignal ?? undefined,
+    };
+  }, [contextSignature]);
 
   useEffect(() => {
     const ownerId = ownerIdRef.current;
     context.setContext(ownerId, payload);
-    return () => {
-      context.clearContext(ownerId);
-    };
   }, [context, payload]);
+
+  useEffect(
+    () => () => {
+      context.clearContext(ownerIdRef.current);
+    },
+    [context]
+  );
 }
 
 export function useCopilotActions(actions: CopilotAction[]) {
-  const context = useContext(CopilotContext);
+  const context = useContext(CopilotActionsContext);
   if (!context) {
     throw new Error("useCopilotActions must be used within CopilotProvider");
   }
@@ -1629,15 +1700,16 @@ export function useCopilotActions(actions: CopilotAction[]) {
 }
 
 export function useCopilotSignals(signals: CopilotSignal[]) {
-  const context = useContext(CopilotContext);
+  const context = useContext(CopilotActionsContext);
   if (!context) {
     throw new Error("useCopilotSignals must be used within CopilotProvider");
   }
 
   const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
+  const signalsSignature = useMemo(() => buildSignalsSignature(signals), [signals]);
   const stableSignals = useMemo(
     () => sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal)),
-    [signals]
+    [signalsSignature]
   );
 
   useEffect(() => {

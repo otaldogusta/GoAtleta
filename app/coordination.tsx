@@ -52,7 +52,7 @@ import {
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
-import { markRender } from "../src/observability/perf";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
@@ -465,15 +465,21 @@ export default function CoordinationScreen() {
       const now = new Date();
       const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      const [attendanceRows, reportRows, activityRows, classes, sessionLogs] = await Promise.all([
-        listAdminPendingAttendance({ organizationId }),
-        listAdminPendingSessionLogs({ organizationId }),
-        listAdminRecentActivity({ organizationId, limit: 12 }),
-        getClasses({ organizationId }),
-        getSessionLogsByRange(start.toISOString(), now.toISOString(), { organizationId }),
-      ]);
-      const queueDiagnostics = await getPendingWritesDiagnostics(10);
-      const failed = await listPendingWriteFailures(12);
+      const [attendanceRows, reportRows, activityRows, classes, sessionLogs, queueDiagnostics, failed] =
+        await measureAsync(
+          "screen.coordination.load.dashboard",
+          () =>
+            Promise.all([
+              listAdminPendingAttendance({ organizationId }),
+              listAdminPendingSessionLogs({ organizationId }),
+              listAdminRecentActivity({ organizationId, limit: 12 }),
+              getClasses({ organizationId }),
+              getSessionLogsByRange(start.toISOString(), now.toISOString(), { organizationId }),
+              getPendingWritesDiagnostics(10),
+              listPendingWriteFailures(12),
+            ]),
+          { screen: "coordination", organizationId }
+        );
       const classesById = new Map(classes.map((item) => [item.id, item]));
       const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
         now.getDate()

@@ -65,7 +65,7 @@ import {
 } from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
-import { markRender } from "../../src/observability/perf";
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -125,6 +125,105 @@ type QuickPromptCard = {
   tint: string;
   contextLabel: string;
 };
+
+type QuickPromptGridProps = {
+  items: QuickPromptCard[];
+  onSelectPrompt: (prompt: string) => void;
+  isDesktopLayout: boolean;
+  isCompactMobile: boolean;
+  mode: string;
+  borderColor: string;
+  inputBg: string;
+  cardBg: string;
+  secondaryBg: string;
+  mutedText: string;
+  primaryText: string;
+};
+
+const QuickPromptGrid = (function QuickPromptGridComponent() {
+  const Component = ({
+    items,
+    onSelectPrompt,
+    isDesktopLayout,
+    isCompactMobile,
+    mode,
+    borderColor,
+    inputBg,
+    cardBg,
+    secondaryBg,
+    mutedText,
+    primaryText,
+  }: QuickPromptGridProps) => {
+    markRender("screen.assistant.render.quickPromptGrid", { size: items.length });
+    return (
+      <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        {items.map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={() => onSelectPrompt(item.prompt)}
+            style={{
+              flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48.5%",
+              flexGrow: 1,
+              minHeight: 102,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor,
+              backgroundColor: inputBg,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              gap: 8,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: cardBg,
+                  borderWidth: 1,
+                  borderColor,
+                }}
+              >
+                <Ionicons
+                  name={item.icon}
+                  size={16}
+                  color={mode === "dark" ? "#FFFFFF" : item.tint}
+                />
+              </View>
+              <View
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor,
+                  backgroundColor: secondaryBg,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  maxWidth: "75%",
+                }}
+              >
+                <Text numberOfLines={1} style={{ color: mutedText, fontSize: 11, fontWeight: "700" }}>
+                  {item.contextLabel}
+                </Text>
+              </View>
+            </View>
+            <Text numberOfLines={1} style={{ color: primaryText, fontWeight: "700", fontSize: 15 }}>
+              {item.title}
+            </Text>
+            <Text numberOfLines={2} style={{ color: mutedText, fontSize: 12, lineHeight: 16 }}>
+              {item.description}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  };
+  return Component;
+})();
+
+const MemoQuickPromptGrid = memo(QuickPromptGrid);
 
 const sanitizeList = (value: unknown) =>
   Array.isArray(value) ? value.map(String).filter(Boolean) : [];
@@ -298,11 +397,20 @@ export default function AssistantScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const data = await getClasses();
-      if (!alive) return;
-      setClasses(data);
-      if (!classId && data.length > 0) {
-        setClassId(data[0].id);
+      try {
+        const data = await measureAsync(
+          "screen.assistant.load.classes",
+          () => getClasses(),
+          { screen: "assistant" }
+        );
+        if (!alive) return;
+        setClasses(data);
+        if (!classId && data.length > 0) {
+          setClassId(data[0].id);
+        }
+      } catch {
+        if (!alive) return;
+        setClasses([]);
       }
     })();
     return () => {
@@ -1438,68 +1546,19 @@ export default function AssistantScreen() {
                   ))}
                 </View>
 
-                <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                  {quickPrompts.map((item) => (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => handleSelectQuickPrompt(item.prompt)}
-                      style={{
-                        flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48.5%",
-                        flexGrow: 1,
-                        minHeight: 102,
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.inputBg,
-                        paddingHorizontal: 12,
-                        paddingVertical: 10,
-                        gap: 8,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                        <View
-                          style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 10,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: colors.card,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Ionicons
-                            name={item.icon}
-                            size={16}
-                            color={mode === "dark" ? "#FFFFFF" : item.tint}
-                          />
-                        </View>
-                        <View
-                          style={{
-                            borderRadius: 999,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.secondaryBg,
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                            maxWidth: "75%",
-                          }}
-                        >
-                          <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                            {item.contextLabel}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                        {item.title}
-                      </Text>
-                      <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
-                        {item.description}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                <MemoQuickPromptGrid
+                  items={quickPrompts}
+                  onSelectPrompt={handleSelectQuickPrompt}
+                  isDesktopLayout={isDesktopLayout}
+                  isCompactMobile={isCompactMobile}
+                  mode={mode}
+                  borderColor={colors.border}
+                  inputBg={colors.inputBg}
+                  cardBg={colors.card}
+                  secondaryBg={colors.secondaryBg}
+                  mutedText={colors.muted}
+                  primaryText={colors.text}
+                />
               </View>
             ) : null}
 
