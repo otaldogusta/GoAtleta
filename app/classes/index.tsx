@@ -40,7 +40,7 @@ import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
-import { ClassCard } from "./components/ClassCard";
+import { ClassesListSection } from "./components/ClassesListSection";
 
 export default function ClassesScreen() {
   markRender("screen.classes.render.root");
@@ -1602,47 +1602,15 @@ export default function ClassesScreen() {
             selectedUnit={unitFilter}
             onSelectUnit={handleSelectUnit}
           />
-          {grouped.map(([unit, items]) => {
-            return (
-              <View
-                key={unit}
-                style={{
-                  gap: 10,
-                  paddingLeft: 10,
-                }}
-              >
-                <View
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 8,
-                    borderRadius: 10,
-                    backgroundColor: colors.background,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                    {unit}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
-                    {"Turmas: " + items.length}
-                  </Text>
-                </View>
-                <View style={{ gap: 12 }}>
-                  {items.map((item) => (
-                    <ClassCard
-                      key={item.id}
-                      item={item}
-                      conflicts={conflictsById[item.id]}
-                      dayNames={dayNames}
-                      colors={colors}
-                      onOpen={handleOpenClass}
-                    />
-                  ))}
-                </View>
-              </View>
-            );
-          })}
+          <View style={{ paddingLeft: 10 }}>
+            <ClassesListSection
+              grouped={grouped}
+              conflictsById={conflictsById}
+              dayNames={dayNames}
+              colors={colors}
+              onOpenClass={handleOpenClass}
+            />
+          </View>
         </View>
         )}
 
