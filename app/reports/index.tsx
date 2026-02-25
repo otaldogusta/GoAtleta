@@ -11,6 +11,7 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../../src/api/reports";
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Pressable } from "../../src/ui/Pressable";
@@ -64,6 +65,8 @@ const tabItems: { id: DashboardTab; label: string }[] = [
 ];
 
 export default function ReportsScreen() {
+  markRender("screen.reportsAdmin.render.root");
+
   const router = useRouter();
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
@@ -90,11 +93,16 @@ export default function ReportsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [attendanceRows, sessionRows, activityRows] = await Promise.all([
-        listAdminPendingAttendance({ organizationId }),
-        listAdminPendingSessionLogs({ organizationId }),
-        listAdminRecentActivity({ organizationId, limit: 50 }),
-      ]);
+      const [attendanceRows, sessionRows, activityRows] = await measureAsync(
+        "screen.reportsAdmin.load.dashboard",
+        () =>
+          Promise.all([
+            listAdminPendingAttendance({ organizationId }),
+            listAdminPendingSessionLogs({ organizationId }),
+            listAdminRecentActivity({ organizationId, limit: 50 }),
+          ]),
+        { screen: "reportsAdmin", organizationId }
+      );
       setPendingAttendance(attendanceRows);
       setPendingSessions(sessionRows);
       setRecentActivity(activityRows);
@@ -172,6 +180,7 @@ export default function ReportsScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: DashboardListItem }) => {
+      markRender("screen.reportsAdmin.render.row", { kind: item.kind });
       if (item.kind === "attendance") {
         const attendance = item.value;
         return (

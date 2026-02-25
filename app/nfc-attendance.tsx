@@ -44,6 +44,7 @@ import { isNfcSupported } from "../src/nfc/nfc";
 import { useNfcContinuousScan } from "../src/nfc/nfc-hooks";
 import { logNfcError, logNfcEvent } from "../src/nfc/telemetry";
 import { useOrganization } from "../src/providers/OrganizationProvider";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
@@ -91,6 +92,8 @@ const getSyncLabel = (status: LiveCheckin["syncStatus"]) => {
 };
 
 export default function NfcAttendanceScreen() {
+  markRender("screen.nfc.render.root");
+
   const { colors } = useAppTheme();
   const router = useRouter();
   const { activeOrganization } = useOrganization();
@@ -492,11 +495,16 @@ export default function NfcAttendanceScreen() {
     }
     (async () => {
       try {
-        const [classRows, studentRows, bindingRows] = await Promise.all([
-          getClasses({ organizationId: orgId }),
-          getStudents({ organizationId: orgId }),
-          listBindings(orgId),
-        ]);
+        const [classRows, studentRows, bindingRows] = await measureAsync(
+          "screen.nfc.load.initial",
+          () =>
+            Promise.all([
+              getClasses({ organizationId: orgId }),
+              getStudents({ organizationId: orgId }),
+              listBindings(orgId),
+            ]),
+          { screen: "nfc", organizationId: orgId }
+        );
         if (!alive) return;
         setClasses(classRows);
         setStudents(studentRows);
@@ -574,7 +582,11 @@ export default function NfcAttendanceScreen() {
       return;
     }
     (async () => {
-      const stored = await getNfcMetrics(orgId);
+      const stored = await measureAsync(
+        "screen.nfc.load.metrics",
+        () => getNfcMetrics(orgId),
+        { screen: "nfc", organizationId: orgId }
+      );
       if (!alive) return;
       setMetrics(stored);
     })();

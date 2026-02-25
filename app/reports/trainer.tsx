@@ -35,6 +35,7 @@ import {
     getStudentScoutingByRange,
     getStudents,
 } from "../../src/db/seed";
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
@@ -96,6 +97,8 @@ const formatDateLabel = (iso: string) => {
 };
 
 export default function ReportsScreen() {
+  markRender("screen.reportsTrainer.render.root");
+
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
   const router = useRouter();
@@ -160,11 +163,16 @@ export default function ReportsScreen() {
     let alive = true;
     (async () => {
       try {
-        const [cls, st, att] = await Promise.all([
-          getClasses({ organizationId: activeOrganization?.id }),
-          getStudents({ organizationId: activeOrganization?.id }),
-          getAttendanceAll(),
-        ]);
+        const [cls, st, att] = await measureAsync(
+          "screen.reportsTrainer.load.base",
+          () =>
+            Promise.all([
+              getClasses({ organizationId: activeOrganization?.id }),
+              getStudents({ organizationId: activeOrganization?.id }),
+              getAttendanceAll(),
+            ]),
+          { screen: "reportsTrainer", organizationId: activeOrganization?.id ?? "" }
+        );
         if (!alive) return;
         setClasses(cls);
         setStudents(st);
@@ -183,9 +191,14 @@ export default function ReportsScreen() {
     const start = new Date(month.getFullYear(), month.getMonth(), 1);
     const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
     (async () => {
-      const logs = await getSessionLogsByRange(
-        start.toISOString(),
-        end.toISOString()
+      const logs = await measureAsync(
+        "screen.reportsTrainer.load.sessionLogs",
+        () =>
+          getSessionLogsByRange(
+            start.toISOString(),
+            end.toISOString()
+          ),
+        { screen: "reportsTrainer", month: monthKey }
       );
       if (!alive) return;
       setSessionLogs(logs);
@@ -227,7 +240,11 @@ export default function ReportsScreen() {
     const startKey = formatIsoDate(rangeBounds.start);
     const endKey = formatIsoDate(rangeBounds.end);
     (async () => {
-      const logs = await getStudentScoutingByRange(classId, startKey, endKey);
+      const logs = await measureAsync(
+        "screen.reportsTrainer.load.studentScouting",
+        () => getStudentScoutingByRange(classId, startKey, endKey),
+        { screen: "reportsTrainer", classId, startKey, endKey }
+      );
       if (!alive) return;
       setStudentScoutingLogs(logs);
     })();

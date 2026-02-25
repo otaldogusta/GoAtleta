@@ -41,7 +41,7 @@ import { useOrganization } from "../../src/providers/OrganizationProvider";
 
 import { logAction } from "../../src/observability/breadcrumbs";
 
-import { measure } from "../../src/observability/perf";
+import { markRender, measure, measureAsync } from "../../src/observability/perf";
 
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 
@@ -760,6 +760,7 @@ const toClassPlans = (options: {
 
 
 export default function PeriodizationScreen() {
+  markRender("screen.periodization.render.root");
 
   const router = useRouter();
   const { classId: initialClassId, unit: initialUnit } = useLocalSearchParams<{
@@ -1209,7 +1210,11 @@ export default function PeriodizationScreen() {
 
     (async () => {
 
-      const data = await getClasses();
+      const data = await measureAsync(
+        "screen.periodization.load.classes",
+        () => getClasses(),
+        { screen: "periodization" }
+      );
 
       if (!alive) return;
 
@@ -1351,11 +1356,20 @@ export default function PeriodizationScreen() {
     const loadProposal = async () => {
       try {
         setIsLoadingAutopilotProposal(true);
-        const proposals = await listWeeklyAutopilotProposals({
-          organizationId: activeOrganization.id,
-          classId: selectedClassId,
-          limit: 1,
-        });
+        const proposals = await measureAsync(
+          "screen.periodization.load.autopilotProposal",
+          () =>
+            listWeeklyAutopilotProposals({
+              organizationId: activeOrganization.id,
+              classId: selectedClassId,
+              limit: 1,
+            }),
+          {
+            screen: "periodization",
+            organizationId: activeOrganization.id,
+            classId: selectedClassId,
+          }
+        );
         if (!cancelled) {
           setLatestAutopilotProposal(proposals[0] ?? null);
         }
@@ -1679,7 +1693,11 @@ export default function PeriodizationScreen() {
 
     (async () => {
 
-      const plans = await getClassPlansByClass(selectedClassId);
+      const plans = await measureAsync(
+        "screen.periodization.load.classPlans",
+        () => getClassPlansByClass(selectedClassId),
+        { screen: "periodization", classId: selectedClassId }
+      );
 
       if (!alive) return;
 
@@ -1729,7 +1747,11 @@ export default function PeriodizationScreen() {
 
       start.setDate(end.getDate() - 28);
 
-      const logs = await getSessionLogsByRange(start.toISOString(), end.toISOString());
+      const logs = await measureAsync(
+        "screen.periodization.load.sessionLogs",
+        () => getSessionLogsByRange(start.toISOString(), end.toISOString()),
+        { screen: "periodization", classId: selectedClassId }
+      );
 
       if (!alive) return;
 

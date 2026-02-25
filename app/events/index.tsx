@@ -25,6 +25,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
@@ -114,6 +115,8 @@ const reminderOptions = ["15m antes", "1h antes", "1 dia antes"];
 type DropdownLayout = { x: number; y: number; width: number; height: number };
 
 export default function EventsScreen() {
+  markRender("screen.events.render.root");
+
   const router = useRouter();
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -279,17 +282,22 @@ export default function EventsScreen() {
     const from = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1, 0, 0, 0, 0);
     const to = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59, 999);
     try {
-      const [rows, classRows] = await Promise.all([
-        listEvents({
-          organizationId: activeOrganization.id,
-          fromIso: from.toISOString(),
-          toIso: to.toISOString(),
-          sport: undefined,
-          eventType: undefined,
-          userId: session?.user?.id,
-        }),
-        getClasses({ organizationId: activeOrganization.id }),
-      ]);
+      const [rows, classRows] = await measureAsync(
+        "screen.events.load.list",
+        () =>
+          Promise.all([
+            listEvents({
+              organizationId: activeOrganization.id,
+              fromIso: from.toISOString(),
+              toIso: to.toISOString(),
+              sport: undefined,
+              eventType: undefined,
+              userId: session?.user?.id,
+            }),
+            getClasses({ organizationId: activeOrganization.id }),
+          ]),
+        { screen: "events", organizationId: activeOrganization.id }
+      );
       setEvents(rows);
       setClasses(classRows.map((item) => ({ id: item.id, name: item.name, unitId: item.unitId })));
     } catch (err) {
@@ -548,6 +556,7 @@ export default function EventsScreen() {
             <Text style={{ color: colors.muted }}>Sem eventos no período.</Text>
           ) : null}
           {visibleEvents.map((event) => {
+            markRender("screen.events.render.eventRow", { eventId: event.id });
             const start = new Date(event.startsAt);
             const end = new Date(event.endsAt);
             return (

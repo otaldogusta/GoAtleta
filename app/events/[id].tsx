@@ -23,6 +23,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
@@ -106,6 +107,7 @@ export default function EventDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const eventId = params.id ?? "";
+  markRender("screen.eventsDetail.render.root", { hasEventId: eventId ? 1 : 0 });
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -200,10 +202,15 @@ export default function EventDetailsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [event, classRows] = await Promise.all([
-        getEventById({ id: eventId, organizationId: activeOrganization.id, userId: session?.user?.id }),
-        getClasses({ organizationId: activeOrganization.id }),
-      ]);
+      const [event, classRows] = await measureAsync(
+        "screen.eventsDetail.load.initial",
+        () =>
+          Promise.all([
+            getEventById({ id: eventId, organizationId: activeOrganization.id, userId: session?.user?.id }),
+            getClasses({ organizationId: activeOrganization.id }),
+          ]),
+        { screen: "eventsDetail", organizationId: activeOrganization.id, eventId }
+      );
       if (!event) {
         setError("Evento não encontrado.");
         router.replace("/events");
