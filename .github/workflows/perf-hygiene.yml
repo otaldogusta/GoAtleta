@@ -5,9 +5,12 @@ on:
     paths:
       - "app/**"
       - "src/screens/**"
+      - "src/api/regulation/**"
+      - "supabase/functions/_shared/**"
       - "src/observability/perf.ts"
       - "scripts/check-perf-hygiene.js"
       - "package.json"
+      - "docs/perf-hygiene.md"
       - ".github/workflows/perf-hygiene.yml"
       - ".github/PULL_REQUEST_TEMPLATE.md"
   push:
@@ -17,9 +20,12 @@ on:
     paths:
       - "app/**"
       - "src/screens/**"
+      - "src/api/regulation/**"
+      - "supabase/functions/_shared/**"
       - "src/observability/perf.ts"
       - "scripts/check-perf-hygiene.js"
       - "package.json"
+      - "docs/perf-hygiene.md"
       - ".github/workflows/perf-hygiene.yml"
       - ".github/PULL_REQUEST_TEMPLATE.md"
   workflow_dispatch:
@@ -47,3 +53,6 @@ jobs:
 
       - name: Validate perf markers
         run: npm run check:perf-hygiene
+
+      - name: Validate perf markers (strict)
+        run: npm run check:perf-hygiene:strict

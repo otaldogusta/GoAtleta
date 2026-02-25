@@ -33,6 +33,7 @@
 - [ ] Derivações pesadas (`filter/map/sort/groupBy`) estão em `useMemo`
 - [ ] Handlers que cruzam componentes/listas estão em `useCallback`
 - [ ] Lista volumosa usa `FlatList` + `keyExtractor` estável + row memoizada
+- [ ] Não adiciona `style={{...}}` inline em contexto de row/lista (`renderItem`/`.map(`)
 
 ## Rollback plan
 - [ ] Revert PR
