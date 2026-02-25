@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
@@ -19,6 +19,7 @@ type AgendaCardItem = {
 };
 
 type AgendaCardProps = {
+  index: number;
   item: AgendaCardItem;
   label: string;
   isPast: boolean;
@@ -30,10 +31,11 @@ type AgendaCardProps = {
   activeBorderColor: string;
   colors: Record<string, string>;
   mode: "light" | "dark";
-  onPress: () => void;
+  onCardPress: (index: number) => void;
 };
 
 export const AgendaCard = memo(function AgendaCard({
+  index,
   item,
   label,
   isPast,
@@ -45,9 +47,11 @@ export const AgendaCard = memo(function AgendaCard({
   activeBorderColor,
   colors,
   mode,
-  onPress,
+  onCardPress,
 }: AgendaCardProps) {
-  markRender("screen.home.render.agendaCard", { classId: item.classId });
+  markRender("screen.home.render.agendaCard", { classId: item.classId, index });
+
+  const handlePress = useCallback(() => onCardPress(index), [index, onCardPress]);
 
   const containerStyle = useMemo(
     () => [
@@ -75,7 +79,7 @@ export const AgendaCard = memo(function AgendaCard({
           ]}
         />
       ) : null}
-      <Pressable onPress={onPress}>
+      <Pressable onPress={handlePress}>
         <View
           style={[
             styles.outerCard,

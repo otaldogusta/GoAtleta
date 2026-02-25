@@ -752,6 +752,7 @@ export function HomeProfessorScreen({
   const activeIndex = manualIndex ?? autoIndex;
 
   const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
+  const isAndroidLight = Platform.OS === "android" && mode === "light";
 
   const agendaCardGap = 10;
 
@@ -782,6 +783,21 @@ export function HomeProfessorScreen({
     return scheduleWindow.map((_, index) => index * size);
 
   }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow]);
+
+  const agendaContentContainerStyle = useMemo(
+    () => ({ paddingRight: agendaCardGap }),
+    [agendaCardGap]
+  );
+
+  const agendaLoadingRowStyle = useMemo(
+    () => ({ flexDirection: "row", gap: agendaCardGap, paddingVertical: 2 }),
+    [agendaCardGap]
+  );
+
+  const agendaShimmerCardStyle = useMemo(
+    () => ({ width: agendaCardWidth, height: 92, borderRadius: 14 }),
+    [agendaCardWidth]
+  );
 
   const getStatusLabelForItem = useCallback(
 
@@ -961,6 +977,53 @@ export function HomeProfessorScreen({
 
   }, [agendaCardGap, agendaCardWidth, agendaRefreshToken, autoIndex, agendaWidth]);
 
+  const agendaActiveBorderColor = useMemo(() => {
+    if (isAndroidLight) return "rgba(15,23,42,0.16)";
+    if (mode === "light") return colors.border;
+    return colors.primaryBg;
+  }, [colors.border, colors.primaryBg, isAndroidLight, mode]);
+
+  const agendaCards = useMemo(
+    () =>
+      scheduleWindow.map((item, idx) => {
+        if (!item?.classId || !item?.dateKey) return null;
+        const label = getStatusLabelForItem(item);
+        const isPast = item.endTime <= nowTime;
+        const isActive = activeIndex === idx;
+        return (
+          <AgendaCard
+            key={`${item.classId}-${item.dateKey}-${idx}`}
+            index={idx}
+            item={item}
+            label={label}
+            isPast={isPast}
+            isActive={isActive}
+            isLast={idx === scheduleWindow.length - 1}
+            showDivider={agendaDivider?.index === idx}
+            agendaCardWidth={agendaCardWidth}
+            agendaCardGap={agendaCardGap}
+            activeBorderColor={agendaActiveBorderColor}
+            colors={colors}
+            mode={mode}
+            onCardPress={handleAgendaCardPress}
+          />
+        );
+      }),
+    [
+      scheduleWindow,
+      getStatusLabelForItem,
+      nowTime,
+      activeIndex,
+      agendaDivider?.index,
+      agendaCardWidth,
+      agendaCardGap,
+      agendaActiveBorderColor,
+      colors,
+      mode,
+      handleAgendaCardPress,
+    ]
+  );
+
   const activeAttendanceTarget = useMemo(() => {
     const classId = activeItem?.classId;
     const date = activeItem?.dateKey;
@@ -1128,7 +1191,6 @@ export function HomeProfessorScreen({
 
   };
 
-  const isAndroidLight = Platform.OS === "android" && mode === "light";
   const shortcutCardSurfaceStyle = isAndroidLight
     ? {
         backgroundColor: "#ffffff",
@@ -1513,16 +1575,12 @@ export function HomeProfessorScreen({
               decelerationRate="fast"
               fadeColor={colors.secondaryBg}
               fadeWidth={8}
-              contentContainerStyle={{ paddingRight: agendaCardGap }}
+              contentContainerStyle={agendaContentContainerStyle}
             >
               { loadingClasses && scheduleWindow.length === 0 ? (
-                <View style={{ flexDirection: "row", gap: agendaCardGap, paddingVertical: 2 }}>
-                  <ShimmerBlock
-                    style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
-                  />
-                  <ShimmerBlock
-                    style={{ width: agendaCardWidth, height: 92, borderRadius: 14 }}
-                  />
+                <View style={agendaLoadingRowStyle}>
+                  <ShimmerBlock style={agendaShimmerCardStyle} />
+                  <ShimmerBlock style={agendaShimmerCardStyle} />
                 </View>
               ) : scheduleWindow.length === 0 ? (
                 <View style={{ paddingVertical: 6 }}>
@@ -1531,35 +1589,7 @@ export function HomeProfessorScreen({
                   </Text>
                 </View>
               ) : (
-                scheduleWindow.map((item, idx) => {
-                  if (!item?.classId || !item?.dateKey) return null;
-                  const label = getStatusLabelForItem(item);
-                  const isPast = item.endTime <= nowTime;
-                  const isActive = activeIndex === idx;
-                  const activeBorderColor =
-                    isAndroidLight
-                      ? "rgba(15,23,42,0.16)"
-                      : mode === "light"
-                        ? colors.border
-                        : colors.primaryBg;
-                  return (
-                    <AgendaCard
-                      key={`${item.classId}-${item.dateKey}-${idx}`}
-                      item={item}
-                      label={label}
-                      isPast={isPast}
-                      isActive={isActive}
-                      isLast={idx === scheduleWindow.length - 1}
-                      showDivider={agendaDivider?.index === idx}
-                      agendaCardWidth={agendaCardWidth}
-                      agendaCardGap={agendaCardGap}
-                      activeBorderColor={activeBorderColor}
-                      colors={colors}
-                      mode={mode}
-                      onPress={() => handleAgendaCardPress(idx)}
-                    />
-                  );
-                })
+                agendaCards
               )}
             </FadeHorizontalScroll>
           </View>
