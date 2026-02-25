@@ -27,6 +27,13 @@
 - Steps:
 - Devices tested:
 
+## Perf Hygiene (required when changing screens)
+- [ ] `markRender("screen.<feature>.render.<target>")` adicionado/ajustado
+- [ ] `measureAsync("screen.<feature>.load.<target>", ...)` no(s) load(s) principal(is)
+- [ ] Derivações pesadas (`filter/map/sort/groupBy`) estão em `useMemo`
+- [ ] Handlers que cruzam componentes/listas estão em `useCallback`
+- [ ] Lista volumosa usa `FlatList` + `keyExtractor` estável + row memoizada
+
 ## Rollback plan
 - [ ] Revert PR
 - [ ] Revert EAS Update to previous commit

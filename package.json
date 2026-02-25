@@ -13,6 +13,7 @@
     "test:core": "jest src/copilot/__tests__ src/api/__tests__ supabase/functions/assistant/__tests__ --passWithNoTests",
     "lint": "expo lint",
     "typecheck:core": "tsc -p tsconfig.check.json --noEmit",
+    "check:perf-hygiene": "node scripts/check-perf-hygiene.js",
     "check:org-scope": "node scripts/check-org-scope.js",
     "release:check": "npm run lint && npm run check:org-scope",
     "update:preview": "npm run release:check && eas update --channel preview --auto",
