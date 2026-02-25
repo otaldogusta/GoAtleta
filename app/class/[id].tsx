@@ -73,6 +73,76 @@ import {
     renderTemplate
 } from "../../src/utils/whatsapp-templates";
 
+type AvailableContact = {
+  studentName: string;
+  phone: string;
+  source: "guardian" | "student";
+};
+
+const WhatsAppContactRow = memo(function WhatsAppContactRow({
+  contact,
+  index,
+  isSelected,
+  onSelect,
+  colors,
+  subtleSurface,
+  borderColor,
+  mutedColor,
+}: {
+  contact: AvailableContact;
+  index: number;
+  isSelected: boolean;
+  onSelect: (index: number) => void;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+  subtleSurface: string;
+  borderColor: string;
+  mutedColor: string;
+}) {
+  return (
+    <Pressable
+      onPress={() => onSelect(index)}
+      style={{
+        padding: 10,
+        borderRadius: 10,
+        backgroundColor: isSelected ? colors.primaryBg : subtleSurface,
+        borderWidth: 1,
+        borderColor: isSelected ? colors.primaryBg : borderColor,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: "700",
+            color: isSelected ? colors.primaryText : colors.text,
+          }}
+        >
+          {contact.studentName}
+        </Text>
+        <Text
+          style={{
+            fontSize: 11,
+            color: isSelected ? colors.primaryText : mutedColor,
+            marginTop: 2,
+          }}
+        >
+          {contact.source === "guardian" ? "Responsável" : "Aluno"} •{" "}
+          {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
+        </Text>
+      </View>
+      <MaterialCommunityIcons
+        name={isSelected ? "check-circle" : "circle-outline"}
+        size={18}
+        color={isSelected ? colors.primaryText : mutedColor}
+      />
+    </Pressable>
+  );
+});
+
 export default function ClassDetails() {
   markRender("screen.classDetails.render.root");
 
@@ -98,7 +168,7 @@ export default function ClassDetails() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
   const [customWhatsAppMessage, setCustomWhatsAppMessage] = useState("");
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
-  const [availableContacts, setAvailableContacts] = useState<Array<{ studentName: string; phone: string; source: "guardian" | "student" }>>([]);
+  const [availableContacts, setAvailableContacts] = useState<AvailableContact[]>([]);
   const [selectedContactIndex, setSelectedContactIndex] = useState(-1);
   const [contactSearch, setContactSearch] = useState("");
   const whatsappSelectedBg = mode === "dark" ? toRgba(colors.successBg, 0.28) : toRgba(colors.successBg, 0.18);
@@ -177,6 +247,9 @@ export default function ClassDetails() {
         return name.includes(term) || phone.includes(term);
       });
   }, [availableContacts, contactSearch]);
+  const handleSelectContact = useCallback((index: number) => {
+    setSelectedContactIndex(index);
+  }, []);
   const [name, setName] = useState("");
   const [coachNameOverride, setCoachNameOverride] = useState("");
   const [unit, setUnit] = useState("");
@@ -296,18 +369,21 @@ export default function ClassDetails() {
     ],
     [chipInactiveTextStyle, chipTextBaseStyle, colors.primaryText]
   );
-  const selectFieldStyle = {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: colors.inputBg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    justifyContent: "space-between" as const,
-    gap: 8,
-  };
+  const selectFieldStyle = useMemo(
+    () => ({
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      backgroundColor: colors.inputBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      justifyContent: "space-between" as const,
+      gap: 8,
+    }),
+    [colors.border, colors.inputBg]
+  );
   const normalizeTimeInput = (value: string) => {
     const digits = value.replace(/[^\d]/g, "").slice(0, 4);
     if (digits.length <= 2) return digits;
@@ -2263,54 +2339,20 @@ export default function ClassDetails() {
                   showsVerticalScrollIndicator
                 >
                   {filteredContacts.length ? (
-                    filteredContacts.map(({ contact, index }) => {
-                      markRender("screen.classDetails.render.contactRow", { idx: index });
-                      const isSelected = selectedContactIndex === index;
-                      return (
-                        <Pressable
-                          key={`${contact.studentName}-${contact.phone}-${contact.source}`}
-                          onPress={() => setSelectedContactIndex(index)}
-                          style={{
-                            padding: 10,
-                            borderRadius: 10,
-                            backgroundColor: isSelected ? colors.primaryBg : whatsappModalSubtleSurface,
-                            borderWidth: 1,
-                            borderColor: isSelected ? colors.primaryBg : whatsappModalBorder,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: 8,
-                          }}
-                        >
-                          <View style={{ flex: 1 }}>
-                            <Text
-                              style={{
-                                fontSize: 13,
-                                fontWeight: "700",
-                                color: isSelected ? colors.primaryText : colors.text,
-                              }}
-                            >
-                              {contact.studentName}
-                            </Text>
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: isSelected ? colors.primaryText : whatsappModalMuted,
-                                marginTop: 2,
-                              }}
-                            >
-                              {contact.source === "guardian" ? "Responsável" : "Aluno"} •{" "}
-                              {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
-                            </Text>
-                          </View>
-                          <MaterialCommunityIcons
-                            name={isSelected ? "check-circle" : "circle-outline"}
-                            size={18}
-                            color={isSelected ? colors.primaryText : whatsappModalMuted}
-                          />
-                        </Pressable>
-                      );
-                    })
+                    filteredContacts.map(({ contact, index }) => (
+                      <View key={`${contact.studentName}-${contact.phone}-${contact.source}`} style={{ marginBottom: 6 }}>
+                        <WhatsAppContactRow
+                          contact={contact}
+                          index={index}
+                          isSelected={selectedContactIndex === index}
+                          onSelect={handleSelectContact}
+                          colors={colors}
+                          subtleSurface={whatsappModalSubtleSurface}
+                          borderColor={whatsappModalBorder}
+                          mutedColor={whatsappModalMuted}
+                        />
+                      </View>
+                    ))
                   ) : (
                     <View style={{ padding: 12 }}>
                       <Text style={{ color: whatsappModalMuted, fontSize: 12 }}>
@@ -2435,3 +2477,4 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
+
