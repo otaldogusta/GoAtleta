@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+    memo,
     useCallback,
     useEffect,
     useMemo,
@@ -14,6 +15,7 @@ import {
     Linking,
     Platform,
     ScrollView,
+    StyleSheet,
     Text,
     TextInput,
     View,
@@ -140,90 +142,110 @@ type QuickPromptGridProps = {
   primaryText: string;
 };
 
-const QuickPromptGrid = (function QuickPromptGridComponent() {
-  const Component = ({
-    items,
-    onSelectPrompt,
-    isDesktopLayout,
-    isCompactMobile,
-    mode,
-    borderColor,
-    inputBg,
-    cardBg,
-    secondaryBg,
-    mutedText,
-    primaryText,
-  }: QuickPromptGridProps) => {
-    markRender("screen.assistant.render.quickPromptGrid", { size: items.length });
-    return (
-      <View style={{ width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-        {items.map((item) => (
-          <Pressable
-            key={item.id}
-            onPress={() => onSelectPrompt(item.prompt)}
-            style={{
+const quickPromptGridStyles = StyleSheet.create({
+  grid: { width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  card: {
+    flexGrow: 1,
+    minHeight: 102,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  iconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  contextChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    maxWidth: "75%",
+  },
+  contextText: { fontSize: 11, fontWeight: "700" },
+  title: { fontWeight: "700", fontSize: 15 },
+  description: { fontSize: 12, lineHeight: 16 },
+});
+
+// perf-check: ignore-inline-row-style -- quick prompt grid uses dynamic palette and responsive basis.
+const MemoQuickPromptGrid = memo(function QuickPromptGrid({
+  items,
+  onSelectPrompt,
+  isDesktopLayout,
+  isCompactMobile,
+  mode,
+  borderColor,
+  inputBg,
+  cardBg,
+  secondaryBg,
+  mutedText,
+  primaryText,
+}: QuickPromptGridProps) {
+  markRender("screen.assistant.render.quickPromptGrid", { size: items.length });
+  return (
+    <View style={quickPromptGridStyles.grid}>
+      {items.map((item) => (
+        <Pressable
+          key={item.id}
+          onPress={() => onSelectPrompt(item.prompt)}
+          style={[
+            quickPromptGridStyles.card,
+            {
               flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48.5%",
-              flexGrow: 1,
-              minHeight: 102,
-              borderRadius: 12,
-              borderWidth: 1,
               borderColor,
               backgroundColor: inputBg,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              gap: 8,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <View
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
+            },
+          ]}
+        >
+          <View style={quickPromptGridStyles.cardHeader}>
+            <View
+              style={[
+                quickPromptGridStyles.iconWrap,
+                {
                   backgroundColor: cardBg,
-                  borderWidth: 1,
                   borderColor,
-                }}
-              >
-                <Ionicons
-                  name={item.icon}
-                  size={16}
-                  color={mode === "dark" ? "#FFFFFF" : item.tint}
-                />
-              </View>
-              <View
-                style={{
-                  borderRadius: 999,
-                  borderWidth: 1,
+                },
+              ]}
+            >
+              <Ionicons name={item.icon} size={16} color={mode === "dark" ? "#FFFFFF" : item.tint} />
+            </View>
+            <View
+              style={[
+                quickPromptGridStyles.contextChip,
+                {
                   borderColor,
                   backgroundColor: secondaryBg,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  maxWidth: "75%",
-                }}
-              >
-                <Text numberOfLines={1} style={{ color: mutedText, fontSize: 11, fontWeight: "700" }}>
-                  {item.contextLabel}
-                </Text>
-              </View>
+                },
+              ]}
+            >
+              <Text numberOfLines={1} style={[quickPromptGridStyles.contextText, { color: mutedText }]}>
+                {item.contextLabel}
+              </Text>
             </View>
-            <Text numberOfLines={1} style={{ color: primaryText, fontWeight: "700", fontSize: 15 }}>
-              {item.title}
-            </Text>
-            <Text numberOfLines={2} style={{ color: mutedText, fontSize: 12, lineHeight: 16 }}>
-              {item.description}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    );
-  };
-  return Component;
-})();
-
-const MemoQuickPromptGrid = memo(QuickPromptGrid);
+          </View>
+          <Text numberOfLines={1} style={[quickPromptGridStyles.title, { color: primaryText }]}>
+            {item.title}
+          </Text>
+          <Text numberOfLines={2} style={[quickPromptGridStyles.description, { color: mutedText }]}>
+            {item.description}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+});
 
 const sanitizeList = (value: unknown) =>
   Array.isArray(value) ? value.map(String).filter(Boolean) : [];

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Pressable,
@@ -113,6 +113,98 @@ const sportTypeLabel: Record<EventSport, string> = {
 
 const reminderOptions = ["15m antes", "1h antes", "1 dia antes"];
 type DropdownLayout = { x: number; y: number; width: number; height: number };
+type EventRowPalette = {
+  border: string;
+  card: string;
+  text: string;
+  primaryBg: string;
+  primaryText: string;
+  secondaryBg: string;
+  muted: string;
+  dangerText: string;
+};
+
+type EventsListItemCardProps = {
+  event: EventListItem;
+  palette: EventRowPalette;
+  isAdmin: boolean;
+  onOpen: (eventId: string) => void;
+  onDelete: (eventId: string) => void;
+};
+
+const EventsListItemCard = memo(function EventsListItemCard({
+  event,
+  palette,
+  isAdmin,
+  onOpen,
+  onDelete,
+}: EventsListItemCardProps) {
+  const start = useMemo(() => new Date(event.startsAt), [event.startsAt]);
+  const end = useMemo(() => new Date(event.endsAt), [event.endsAt]);
+  return (
+    <Pressable
+      onPress={() => onOpen(event.id)}
+      style={{
+        padding: 14,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: palette.border,
+        backgroundColor: palette.card,
+        gap: 8,
+      }}
+    >
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <Text style={{ color: palette.text, fontSize: 15, fontWeight: "800", flex: 1 }}>
+          {event.title}
+        </Text>
+        {event.hasMyClass ? (
+          <View style={{ borderRadius: 999, backgroundColor: palette.primaryBg, paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Text style={{ color: palette.primaryText, fontWeight: "700", fontSize: 11 }}>Minhas turmas</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={{ color: palette.muted, fontSize: 12 }}>
+        {start.toLocaleDateString("pt-BR")} -{" "}
+        {start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} -{" "}
+        {end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+      </Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+        <View
+          style={{
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: palette.border,
+            backgroundColor: palette.secondaryBg,
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+          }}
+        >
+          <Text style={{ color: palette.text, fontWeight: "700", fontSize: 11 }}>{eventTypeLabel[event.eventType]}</Text>
+        </View>
+        <View
+          style={{
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: palette.border,
+            backgroundColor: palette.secondaryBg,
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+          }}
+        >
+          <Text style={{ color: palette.text, fontWeight: "700", fontSize: 11 }}>{sportTypeLabel[event.sport]}</Text>
+        </View>
+      </View>
+      {event.locationLabel ? (
+        <Text style={{ color: palette.muted, fontSize: 12 }}>Local: {event.locationLabel}</Text>
+      ) : null}
+      {isAdmin ? (
+        <Pressable onPress={() => onDelete(event.id)} style={{ marginTop: 4 }}>
+          <Text style={{ color: palette.dangerText, fontWeight: "700", fontSize: 12 }}>Excluir</Text>
+        </Pressable>
+      ) : null}
+    </Pressable>
+  );
+});
 
 export default function EventsScreen() {
   markRender("screen.events.render.root");
@@ -270,6 +362,34 @@ export default function EventsScreen() {
   const visibleEvents = useMemo(() => {
     return [...events].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   }, [events]);
+  const eventRowPalette = useMemo<EventRowPalette>(
+    () => ({
+      border: colors.border,
+      card: colors.card,
+      text: colors.text,
+      primaryBg: colors.primaryBg,
+      primaryText: colors.primaryText,
+      secondaryBg: colors.secondaryBg,
+      muted: colors.muted,
+      dangerText: colors.dangerText,
+    }),
+    [
+      colors.border,
+      colors.card,
+      colors.dangerText,
+      colors.muted,
+      colors.primaryBg,
+      colors.primaryText,
+      colors.secondaryBg,
+      colors.text,
+    ]
+  );
+  const handleOpenEvent = useCallback(
+    (eventId: string) => {
+      router.push({ pathname: "/events/[id]", params: { id: eventId } });
+    },
+    [router]
+  );
 
   const loadData = useCallback(async () => {
     if (!activeOrganization?.id) {
@@ -555,75 +675,16 @@ export default function EventsScreen() {
           {!loading && !error && visibleEvents.length === 0 ? (
             <Text style={{ color: colors.muted }}>Sem eventos no período.</Text>
           ) : null}
-          {visibleEvents.map((event) => {
-            markRender("screen.events.render.eventRow", { eventId: event.id });
-            const start = new Date(event.startsAt);
-            const end = new Date(event.endsAt);
-            return (
-              <Pressable
-                key={event.id}
-                onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  gap: 8,
-                }}
-              >
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800", flex: 1 }}>
-                    {event.title}
-                  </Text>
-                  {event.hasMyClass ? (
-                    <View style={{ borderRadius: 999, backgroundColor: colors.primaryBg, paddingHorizontal: 8, paddingVertical: 4 }}>
-                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 11 }}>Minhas turmas</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {start.toLocaleDateString("pt-BR")} •{" "}
-                  {start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} -{" "}
-                  {end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  <View
-                    style={{
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>{eventTypeLabel[event.eventType]}</Text>
-                  </View>
-                  <View
-                    style={{
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>{sportTypeLabel[event.sport]}</Text>
-                  </View>
-                </View>
-                {event.locationLabel ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Local: {event.locationLabel}</Text>
-                ) : null}
-                {isAdmin ? (
-                  <Pressable onPress={() => handleDelete(event.id)} style={{ marginTop: 4 }}>
-                    <Text style={{ color: colors.dangerText, fontWeight: "700", fontSize: 12 }}>Excluir</Text>
-                  </Pressable>
-                ) : null}
-              </Pressable>
-            );
-          })}
+          {visibleEvents.map((event) => (
+            <EventsListItemCard
+              key={event.id}
+              event={event}
+              palette={eventRowPalette}
+              isAdmin={isAdmin}
+              onOpen={handleOpenEvent}
+              onDelete={handleDelete}
+            />
+          ))}
         </View>
         ) : null}
 

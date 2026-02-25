@@ -180,7 +180,6 @@ export default function ReportsScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: DashboardListItem }) => {
-      markRender("screen.reportsAdmin.render.row", { kind: item.kind });
       if (item.kind === "attendance") {
         const attendance = item.value;
         return (
