@@ -1173,7 +1173,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
     if (contextualReply) {
       enqueueContextReply(
-        "Resposta do contexto",
+        "",
         { message: contextualReply },
         "success"
       );
@@ -1835,9 +1835,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               gap: 4,
             }}
           >
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-              {state.history[0].actionTitle}
-            </Text>
+            {state.history[0].actionTitle ? (
+              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                {state.history[0].actionTitle}
+              </Text>
+            ) : null}
             <Text style={{ color: colors.text, fontSize: 13 }}>{state.history[0].message}</Text>
           </View>
         ) : null}
