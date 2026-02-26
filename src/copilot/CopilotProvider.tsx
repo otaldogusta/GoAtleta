@@ -1548,13 +1548,13 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           borderRadius: 999,
                           borderWidth: 1,
                           borderColor: colors.border,
-                          backgroundColor: colors.inputBg,
-                          paddingHorizontal: 11,
-                          paddingVertical: 7,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
                           opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
                         }}
                       >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
                           {state.runningActionId === action.id ? "Executando..." : action.title}
                         </Text>
                       </Pressable>
@@ -1566,12 +1566,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           borderRadius: 999,
                           borderWidth: 1,
                           borderColor: colors.border,
-                          backgroundColor: colors.inputBg,
-                          paddingHorizontal: 11,
-                          paddingVertical: 7,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
                         }}
                       >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>+ Mais</Text>
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>+ Mais</Text>
                       </Pressable>
                     ) : null}
                   </View>
