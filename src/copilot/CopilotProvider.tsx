@@ -213,6 +213,110 @@ const buildHistoryItem = (params: {
   confidence: params.result.confidence,
 });
 
+const normalizeComposerText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+const hasAnyKeyword = (input: string, keywords: string[]) =>
+  keywords.some((keyword) => input.includes(keyword));
+
+const buildContextualComposerReply = (params: {
+  prompt: string;
+  screen: string | null | undefined;
+  panel: OperationalContextResult["panel"];
+  actions: CopilotAction[];
+}) => {
+  const normalizedPrompt = normalizeComposerText(params.prompt);
+  if (!normalizedPrompt) return null;
+
+  const globalIntentKeywords = [
+    "todas as turmas",
+    "organizacao inteira",
+    "organizacao geral",
+    "fora dessa tela",
+    "fora desta tela",
+    "assistente geral",
+    "chat geral",
+    "pesquisa cientifica",
+    "artigo cientifico",
+    "benchmark",
+  ];
+  if (hasAnyKeyword(normalizedPrompt, globalIntentKeywords)) return null;
+
+  const screen = String(params.screen ?? "").toLowerCase();
+  const screenKeywordsByPrefix: Record<string, string[]> = {
+    nfc: ["nfc", "tag", "duplicad", "presenca", "checkin", "sincron"],
+    class: ["turma", "aluno", "falta", "engajamento", "presenca", "relatorio"],
+    classes: ["turma", "aluno", "falta", "engajamento", "presenca", "relatorio"],
+    coordination: ["coordenacao", "relatorio", "pendencia", "engajamento", "organizacao"],
+    events: ["torneio", "regulamento", "chaveamento", "evento", "regras"],
+    periodization: ["periodizacao", "microciclo", "treino", "carga"],
+  };
+  const matchingScreenKey =
+    Object.keys(screenKeywordsByPrefix).find((key) => screen.startsWith(key)) ?? null;
+  const screenKeywords = matchingScreenKey ? screenKeywordsByPrefix[matchingScreenKey] : [];
+  const genericContextKeywords = ["aqui", "dessa tela", "desta tela", "neste contexto", "agora", "pendencia", "alerta"];
+
+  const hasContextHint =
+    hasAnyKeyword(normalizedPrompt, screenKeywords) ||
+    hasAnyKeyword(normalizedPrompt, genericContextKeywords);
+
+  if (!hasContextHint && normalizedPrompt.split(/\s+/).length >= 6) return null;
+
+  const attentionSignals = params.panel.attentionSignals.slice(0, 2);
+  const lines: string[] = [];
+  if (attentionSignals.length) {
+    lines.push(`No contexto atual, foco em: ${attentionSignals.map((item) => item.title).join(" | ")}.`);
+  } else {
+    lines.push("No contexto atual, nao ha alerta urgente.");
+  }
+
+  if (params.panel.unreadRegulationCount > 0) {
+    lines.push(`Regulamento: ${params.panel.unreadRegulationCount} atualizacao(oes) pendente(s).`);
+  }
+
+  const quickActions = params.actions.slice(0, 3).map((item) => item.title);
+  if (quickActions.length) {
+    lines.push(`Acoes sugeridas agora: ${quickActions.join(", ")}.`);
+  }
+
+  return lines.join(" ");
+};
+
+const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
+  const screen = String(state.context?.screen ?? "").toLowerCase();
+  if (!screen.startsWith("nfc")) return null;
+
+  const nfcSignals = state.signals.filter((item) => item.type === "unusual_presence_pattern");
+  const repeatedAbsenceSignals = state.signals.filter((item) => item.type === "repeated_absence");
+
+  if (actionId === "nfc_summary") {
+    if (!nfcSignals.length && !repeatedAbsenceSignals.length) {
+      return "No contexto NFC atual, nao ha alerta urgente.";
+    }
+    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presenca incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausencia recorrente.`;
+  }
+
+  if (actionId === "nfc_actions") {
+    if (nfcSignals.length > 0) {
+      return "Proximas acoes: revisar tags com leitura duplicada, validar vinculo da turma ativa e sincronizar pendencias.";
+    }
+    return "Proximas acoes: manter leitura ativa, revisar vinculos de tag e confirmar sincronizacao ao final da sessao.";
+  }
+
+  if (actionId === "nfc_duplicates") {
+    if (nfcSignals.length > 0) {
+      return `Duplicidades em foco: ${nfcSignals[0].summary}`;
+    }
+    return "Sem padrao forte de duplicidade no contexto NFC atual.";
+  }
+
+  return null;
+};
+
 const buildContextSignature = (input: CopilotContextData | null) => {
   if (!input) return "__none__";
   const signal = input.activeSignal;
@@ -657,6 +761,19 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const nfcQuickReply = buildNfcQuickActionReply(action.id, currentState);
+    if (nfcQuickReply) {
+      const result: CopilotActionResult = { message: nfcQuickReply };
+      setState((prev) => ({
+        ...prev,
+        history: [buildHistoryItem({ actionTitle: action.title, result, status: "success" }), ...prev.history].slice(
+          0,
+          MAX_HISTORY_ITEMS
+        ),
+      }));
+      return;
+    }
+
     setState((prev) => ({ ...prev, runningActionId: action.id }));
     try {
       const output = await action.run(actionContext);
@@ -925,7 +1042,31 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const submitComposer = useCallback(() => {
     const prompt = composerValue.trim();
     if (!prompt) return;
+
+    const contextualReply = buildContextualComposerReply({
+      prompt,
+      screen: state.context?.screen ?? null,
+      panel: operationalContext.panel,
+      actions: state.actions,
+    });
+
     setComposerValue("");
+
+    if (contextualReply) {
+      setState((prev) => ({
+        ...prev,
+        history: [
+          buildHistoryItem({
+            actionTitle: "Pergunta contextual",
+            result: { message: contextualReply },
+            status: "success",
+          }),
+          ...prev.history,
+        ].slice(0, MAX_HISTORY_ITEMS),
+      }));
+      return;
+    }
+
     close();
     router.push({
       pathname: "/assistant",
@@ -934,7 +1075,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         source: state.context?.screen ?? "insights",
       },
     });
-  }, [close, composerValue, router, state.context?.screen]);
+  }, [close, composerValue, operationalContext.panel, router, state.actions, state.context?.screen]);
 
   return (
     <CopilotActionsContext.Provider value={actionsValue}>
@@ -1525,6 +1666,26 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             </>
           ) : null}
         </ScrollView>
+
+        {state.history.length ? (
+          <View
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              marginBottom: 8,
+              gap: 4,
+            }}
+          >
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+              {state.history[0].actionTitle}
+            </Text>
+            <Text style={{ color: colors.text, fontSize: 13 }}>{state.history[0].message}</Text>
+          </View>
+        ) : null}
 
         <View
           style={{
