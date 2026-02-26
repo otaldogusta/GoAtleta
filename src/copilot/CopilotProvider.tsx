@@ -1560,7 +1560,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         disabled={Boolean(state.runningActionId)}
                         style={{
                           flexGrow: 1,
-                          flexBasis: isWebModal ? "31.9%" : "48.5%",
+                          flexBasis: "48.5%",
                           minHeight: 98,
                           borderRadius: 12,
                           borderWidth: 1,
@@ -1586,10 +1586,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         >
                           <Ionicons name={resolveContextActionIcon(action)} size={16} color={colors.text} />
                         </View>
-                        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14, flexShrink: 1 }}>
                           {state.runningActionId === action.id ? "Executando..." : action.title}
                         </Text>
-                        <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
+                        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>
                           {action.description ?? "Ação contextual para este momento."}
                         </Text>
                       </Pressable>
@@ -1599,7 +1599,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         onPress={() => setShowAllRootActions(true)}
                         style={{
                           flexGrow: 1,
-                          flexBasis: isWebModal ? "31.9%" : "48.5%",
+                          flexBasis: "48.5%",
                           minHeight: 98,
                           borderRadius: 12,
                           borderWidth: 1,
