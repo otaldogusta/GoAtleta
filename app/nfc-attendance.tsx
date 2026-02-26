@@ -256,8 +256,8 @@ export default function NfcAttendanceScreen() {
           studentId: params.studentId,
           tagUid: params.tagUid,
         });
-        setFeedback("Aluno nao encontrado para esta tag.");
-        showSaveToast({ variant: "error", message: "Aluno da tag nao encontrado." });
+        setFeedback("Aluno não encontrado para esta tag.");
+        showSaveToast({ variant: "error", message: "Aluno da tag não encontrado." });
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
@@ -292,10 +292,10 @@ export default function NfcAttendanceScreen() {
           tagUid: params.tagUid,
         });
         void recordMetric("checkinsPending");
-        setFeedback(`Presenca salva offline: ${student.name}`);
+        setFeedback(`Presença salva offline: ${student.name}`);
         showSaveToast({
           variant: "warning",
-          message: `Sem internet. Presenca pendente para ${student.name}.`,
+          message: `Sem internet. Presença pendente para ${student.name}.`,
         });
       } else {
         logNfcEvent("checkin_synced", {
@@ -305,10 +305,10 @@ export default function NfcAttendanceScreen() {
           tagUid: params.tagUid,
         });
         void recordMetric("checkinsSynced");
-        setFeedback(`Presenca registrada: ${student.name}`);
+        setFeedback(`Presença registrada: ${student.name}`);
         showSaveToast({
           variant: "success",
-          message: `Presenca registrada: ${student.name}`,
+          message: `Presença registrada: ${student.name}`,
         });
       }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -443,13 +443,13 @@ export default function NfcAttendanceScreen() {
 
   const refreshNfcSupport = useCallback(async () => {
     if (Platform.OS === "web") {
-      const reason = "NFC nao e suportado no web.";
+      const reason = "NFC não é suportado no web.";
       setSupportMessage(reason);
       return { ok: false as const, reason };
     }
     const support = await isNfcSupported();
     if (!support.available || !support.enabled) {
-      const reason = support.reason ?? "NFC indisponivel neste aparelho.";
+      const reason = support.reason ?? "NFC indisponível neste aparelho.";
       setSupportMessage(reason);
       return { ok: false as const, reason };
     }
@@ -806,12 +806,60 @@ export default function NfcAttendanceScreen() {
       : scanState === "paused"
       ? colors.warningText
       : colors.muted;
-  const scanGuideText = supportMessage
-    ? "Ative o NFC no aparelho para iniciar."
+  const selectedClassName =
+    classesById.get(selectedClassId)?.name ?? "turma ativa";
+  const hasPendingSync = metrics.checkinsPending > 0;
+  const isWebUnsupported = Platform.OS === "web";
+  const organizationLabel =
+    activeOrganization?.name ?? "Selecione uma organização no perfil para usar o NFC.";
+  const effectiveSupportMessage =
+    supportMessage || (Platform.OS === "web" ? "NFC não é suportado no web." : "");
+  const scanGuideText = effectiveSupportMessage
+    ? Platform.OS === "web"
+      ? "O navegador não oferece leitura NFC nativa. Use o app no celular."
+      : "Ative o NFC no aparelho para iniciar."
     : scanState === "scanning"
     ? "Aproxime a tag da traseira do celular."
-    : "Toque em Iniciar leitura para entrar no modo continuo.";
-  const isScanLive = scanState === "scanning" && !supportMessage && !showBindModal;
+    : "Toque em Iniciar leitura para entrar no modo contínuo.";
+  const isScanLive = scanState === "scanning" && !effectiveSupportMessage && !showBindModal;
+  const openAssistantFromNfc = useCallback(
+    (prompt: string) => {
+      router.push({
+        pathname: "/assistant",
+        params: {
+          prompt,
+          source: "nfc_attendance",
+        },
+      });
+    },
+    [router]
+  );
+  const assistantPromptChips = useMemo(
+    () => [
+      {
+        id: "nfc_summary",
+        label: "Resumo NFC",
+        prompt: `Gere um resumo operacional do NFC para ${selectedClassName} com base nos indicadores: scans ${metrics.totalScans}, duplicados ${metrics.duplicateScans}, pendentes ${metrics.checkinsPending}, erros de sync ${metrics.syncErrors}.`,
+      },
+      {
+        id: "nfc_actions",
+        label: "Próximas ações",
+        prompt: `Quais ações rápidas devo executar agora no fluxo NFC da ${selectedClassName}? Considere pendências ${metrics.checkinsPending} e duplicados ${metrics.duplicateScans}.`,
+      },
+      {
+        id: "nfc_duplicates",
+        label: "Analisar duplicados",
+        prompt: `Analise o risco de leituras duplicadas no NFC da ${selectedClassName} e recomende ajustes práticos de operação.`,
+      },
+    ],
+    [
+      metrics.checkinsPending,
+      metrics.duplicateScans,
+      metrics.syncErrors,
+      metrics.totalScans,
+      selectedClassName,
+    ]
+  );
 
   useEffect(() => {
     if (!isScanLive) {
@@ -927,28 +975,29 @@ export default function NfcAttendanceScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 30 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ color: colors.text, fontSize: 30, fontWeight: "900" }}>Presença NFC</Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              {activeOrganization?.name ?? "Organização não selecionada"}
-            </Text>
+            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "900" }}>Presença NFC</Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>{organizationLabel}</Text>
           </View>
-          <Pressable
-            onPress={() => {
-              void stopScanning().finally(() => router.back());
-            }}
-            style={{
-              paddingHorizontal: 14,
-              paddingVertical: 9,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
-          </Pressable>
+          {Platform.OS !== "web" ? (
+            <Pressable
+              onPress={() => {
+                void stopScanning().finally(() => router.back());
+              }}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 9,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+            </Pressable>
+          ) : null}
         </View>
 
+        {!isWebUnsupported ? (
         <LinearGradient
           colors={
             scanState === "scanning"
@@ -1006,8 +1055,8 @@ export default function NfcAttendanceScreen() {
           >
             <View
               style={{
-                width: 238,
-                height: 238,
+                width: 188,
+                height: 188,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -1045,9 +1094,9 @@ export default function NfcAttendanceScreen() {
                 style={[
                   {
                     position: "absolute",
-                    width: 196,
-                    height: 196,
-                    borderRadius: 98,
+                    width: 164,
+                    height: 164,
+                    borderRadius: 82,
                     borderWidth: 3,
                     borderTopColor: colors.primaryBg,
                     borderRightColor: "transparent",
@@ -1082,7 +1131,7 @@ export default function NfcAttendanceScreen() {
               </View>
             </View>
 
-            <Text style={{ color: colors.text, fontSize: 24, fontWeight: "900", textAlign: "center" }}>
+            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900", textAlign: "center" }}>
               {scanState === "scanning" ? "Escaneando tags NFC" : "Leitor NFC"}
             </Text>
             <Text style={{ color: colors.muted, textAlign: "center", fontSize: 13, maxWidth: 360 }}>
@@ -1131,46 +1180,51 @@ export default function NfcAttendanceScreen() {
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              onPress={() => {
-                void handleSyncNow("manual");
-              }}
-              style={{
-                flex: 1,
-                borderRadius: 12,
-                paddingVertical: 10,
-                alignItems: "center",
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Sincronizar agora</Text>
-            </Pressable>
+          {Platform.OS !== "web" ? (
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {hasPendingSync ? (
+                <Pressable
+                  onPress={() => {
+                    void handleSyncNow("manual");
+                  }}
+                  style={{
+                    flex: 1,
+                    borderRadius: 12,
+                    paddingVertical: 10,
+                    alignItems: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Sincronizar pendências</Text>
+                </Pressable>
+              ) : null}
 
-            {Platform.OS === "android" ? (
-              <Pressable
-                onPress={() => {
-                  void openNfcSettings();
-                }}
-                style={{
-                  borderRadius: 12,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  alignItems: "center",
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Config NFC</Text>
-              </Pressable>
-            ) : null}
-          </View>
+              {Platform.OS === "android" ? (
+                <Pressable
+                  onPress={() => {
+                    void openNfcSettings();
+                  }}
+                  style={{
+                    borderRadius: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    alignItems: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Config NFC</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </LinearGradient>
+        ) : null}
 
-        {supportMessage ? (
+        {effectiveSupportMessage ? (
           <View
             style={{
               borderRadius: 12,
@@ -1181,12 +1235,12 @@ export default function NfcAttendanceScreen() {
               gap: 6,
             }}
           >
-            <Text style={{ color: colors.warningText, fontWeight: "800" }}>NFC indisponivel</Text>
-            <Text style={{ color: colors.warningText }}>{supportMessage}</Text>
+            <Text style={{ color: colors.warningText, fontWeight: "800" }}>NFC indisponível</Text>
+            <Text style={{ color: colors.warningText }}>{effectiveSupportMessage}</Text>
           </View>
         ) : null}
 
-        {feedback ? (
+        {feedback && feedback !== effectiveSupportMessage ? (
           <View
             style={{
               borderRadius: 12,
@@ -1215,14 +1269,14 @@ export default function NfcAttendanceScreen() {
               Somente admin pode vincular tags
             </Text>
             <Text style={{ color: colors.warningText }}>
-              UID {adminRequiredUid} ainda nao vinculado. Solicite um admin para concluir o bind.
+              UID {adminRequiredUid} ainda não vinculado. Solicite um admin para concluir o bind.
             </Text>
           </View>
         ) : null}
 
         <View
           style={{
-            borderRadius: 18,
+            borderRadius: 16,
             padding: 12,
             backgroundColor: colors.card,
             borderWidth: 1,
@@ -1230,32 +1284,29 @@ export default function NfcAttendanceScreen() {
             gap: 10,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "800" }}>Indicadores NFC</Text>
+          <Text style={{ color: colors.text, fontWeight: "800" }}>Assistente NFC</Text>
+          <Text style={{ color: colors.muted, fontSize: 13 }}>
+            Indicadores atuais: scans {metrics.totalScans} • duplicados {metrics.duplicateScans} • pendentes {metrics.checkinsPending}
+          </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Scans totais</Text>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.totalScans}</Text>
-            </View>
-            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Duplicados</Text>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.duplicateScans}</Text>
-            </View>
-            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Sincronizados</Text>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.checkinsSynced}</Text>
-            </View>
-            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Pendentes</Text>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.checkinsPending}</Text>
-            </View>
-            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Flush sync</Text>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.syncFlushed}</Text>
-            </View>
-            <View style={{ width: "48%", borderRadius: 10, padding: 10, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Erros sync</Text>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{metrics.syncErrors}</Text>
-            </View>
+            {assistantPromptChips.map((chip) => (
+              <Pressable
+                key={chip.id}
+                onPress={() => openAssistantFromNfc(chip.prompt)}
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                  {chip.label}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </View>
 
@@ -1337,7 +1388,7 @@ export default function NfcAttendanceScreen() {
 
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
-            Presencas desta sessao
+            Presenças desta sessão
           </Text>
           {liveCheckins.length ? (
             liveCheckins.map((item) => (
@@ -1545,7 +1596,7 @@ export default function NfcAttendanceScreen() {
                 disabled={!bindingStudentId || savingBinding || Boolean(removingBindingId)}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {savingBinding ? "Salvando..." : "Vincular e registrar presenca"}
+                  {savingBinding ? "Salvando..." : "Vincular e registrar presença"}
                 </Text>
               </Pressable>
             </View>
