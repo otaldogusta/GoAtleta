@@ -1289,7 +1289,6 @@ export default function NfcAttendanceScreen() {
         ) : null}
 
         <View
-          {/* perf-check: ignore-inline-row-style - bloco legado oculto em transicao para tags no chat */}
           style={{
             borderRadius: 16,
             padding: 12,
