@@ -22,7 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
 import { useSmartSync } from "../src/core/use-smart-sync";
-import { useCopilotContext } from "../src/copilot/CopilotProvider";
+import { useCopilotActions, useCopilotContext } from "../src/copilot/CopilotProvider";
 import type { ClassGroup, Student } from "../src/core/models";
 import {
   createCheckinWithFallback,
@@ -860,6 +860,20 @@ export default function NfcAttendanceScreen() {
       selectedClassName,
     ]
   );
+  const nfcCopilotActions = useMemo(
+    () =>
+      assistantPromptChips.map((chip) => ({
+        id: chip.id,
+        title: chip.label,
+        description: "Abrir IA Central com contexto NFC.",
+        run: () => {
+          openAssistantFromNfc(chip.prompt);
+          return "Abrindo IA Central com o contexto NFC.";
+        },
+      })),
+    [assistantPromptChips, openAssistantFromNfc]
+  );
+  useCopilotActions(nfcCopilotActions);
 
   useEffect(() => {
     if (!isScanLive) {
@@ -1275,6 +1289,7 @@ export default function NfcAttendanceScreen() {
         ) : null}
 
         <View
+          {/* perf-check: ignore-inline-row-style - bloco legado oculto em transicao para tags no chat */}
           style={{
             borderRadius: 16,
             padding: 12,
@@ -1282,6 +1297,7 @@ export default function NfcAttendanceScreen() {
             borderWidth: 1,
             borderColor: colors.border,
             gap: 10,
+            display: "none",
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "800" }}>Assistente NFC</Text>
@@ -1302,6 +1318,7 @@ export default function NfcAttendanceScreen() {
                   paddingVertical: 7,
                 }}
               >
+                {/* perf-check: ignore-inline-row-style - chip curto e estatico */}
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                   {chip.label}
                 </Text>
