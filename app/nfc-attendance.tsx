@@ -839,16 +839,19 @@ export default function NfcAttendanceScreen() {
       {
         id: "nfc_summary",
         label: "Resumo NFC",
+        description: "Visão rápida da operação atual com foco no que já aconteceu.",
         prompt: `Gere um resumo operacional do NFC para ${selectedClassName} com base nos indicadores: scans ${metrics.totalScans}, duplicados ${metrics.duplicateScans}, pendentes ${metrics.checkinsPending}, erros de sync ${metrics.syncErrors}.`,
       },
       {
         id: "nfc_actions",
         label: "Próximas ações",
+        description: "Próximos passos recomendados para destravar o fluxo agora.",
         prompt: `Quais ações rápidas devo executar agora no fluxo NFC da ${selectedClassName}? Considere pendências ${metrics.checkinsPending} e duplicados ${metrics.duplicateScans}.`,
       },
       {
         id: "nfc_duplicates",
         label: "Analisar duplicados",
+        description: "Análise de risco de leituras repetidas e como reduzir retrabalho.",
         prompt: `Analise o risco de leituras duplicadas no NFC da ${selectedClassName} e recomende ajustes práticos de operação.`,
       },
     ],
@@ -865,7 +868,7 @@ export default function NfcAttendanceScreen() {
       assistantPromptChips.map((chip) => ({
         id: chip.id,
         title: chip.label,
-        description: "Abrir assistente completo para aprofundar este ponto.",
+        description: chip.description,
         run: () => {
           openAssistantFromNfc(chip.prompt);
           return "Abrindo assistente completo.";
