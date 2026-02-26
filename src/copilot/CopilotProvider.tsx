@@ -360,6 +360,44 @@ const buildContextualComposerReply = (params: {
   return message;
 };
 
+const buildDefaultContextReply = (params: {
+  screen: string | null | undefined;
+  panel: OperationalContextResult["panel"];
+  actions: CopilotAction[];
+}) => {
+  const screen = String(params.screen ?? "").toLowerCase();
+  const contextNameByScreen: Record<string, string> = {
+    nfc: "NFC",
+    class: "turma atual",
+    classes: "lista de turmas",
+    coordination: "coordenacao",
+    events: "eventos e torneios",
+    periodization: "periodizacao",
+  };
+  const matchingScreenKey =
+    Object.keys(contextNameByScreen).find((key) => screen.startsWith(key)) ?? null;
+  const contextName = matchingScreenKey ? contextNameByScreen[matchingScreenKey] : "tela atual";
+  const quickActions = params.actions.slice(0, 3).map((item) => item.title);
+  const attentionSignals = params.panel.attentionSignals.slice(0, 2);
+
+  if (attentionSignals.length) {
+    let message = `Atencao em ${contextName}: ${attentionSignals.map((item) => item.title).join(" | ")}.`;
+    if (quickActions.length) {
+      message += ` Posso seguir com: ${quickActions.join(", ")}.`;
+    }
+    return message;
+  }
+
+  let message = `Tudo em ordem em ${contextName}.`;
+  if (params.panel.unreadRegulationCount > 0) {
+    message += ` Ha ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
+  }
+  if (quickActions.length) {
+    message += ` Se quiser, posso te ajudar com: ${quickActions.join(", ")}.`;
+  }
+  return message;
+};
+
 const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
   const screen = String(state.context?.screen ?? "").toLowerCase();
   if (!screen.startsWith("nfc")) return null;
@@ -465,6 +503,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [assistantTyping, setAssistantTyping] = useState(false);
+  const [contextPreview, setContextPreview] = useState<{ actionTitle: string; message: string } | null>(null);
   const stateRef = useRef(state);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
   const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -737,6 +776,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       setAssistantTyping(true);
       pendingReplyTimerRef.current = setTimeout(() => {
         pendingReplyTimerRef.current = null;
+        setContextPreview({
+          actionTitle,
+          message: result.message,
+        });
         setState((prev) => ({
           ...prev,
           history: [buildHistoryItem({ actionTitle, result, status }), ...prev.history].slice(
@@ -820,6 +863,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     if (latestSnapshot) {
       lastSeenSnapshotRef.current = latestSnapshot;
     }
+    clearPendingReplyTimer();
+    setAssistantTyping(false);
+    setContextPreview({
+      actionTitle: "",
+      message: buildDefaultContextReply({
+        screen: state.context?.screen ?? null,
+        panel: operationalContext.panel,
+        actions: state.actions,
+      }),
+    });
     setInsightsView({ mode: "root" });
     setShowAllRootActions(false);
     setState((prev) => ({
@@ -828,7 +881,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       hasUnreadUpdates: false,
       unreadCount: 0,
     }));
-  }, []);
+  }, [clearPendingReplyTimer, operationalContext.panel, state.actions, state.context?.screen]);
 
   const close = useCallback(() => {
     clearPendingReplyTimer();
@@ -1822,7 +1875,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           </View>
         ) : null}
 
-        {!assistantTyping && state.history.length ? (
+        {!assistantTyping && contextPreview ? (
           <View
             style={{
               borderRadius: 12,
@@ -1835,12 +1888,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               gap: 4,
             }}
           >
-            {state.history[0].actionTitle ? (
+            {contextPreview.actionTitle ? (
               <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                {state.history[0].actionTitle}
+                {contextPreview.actionTitle}
               </Text>
             ) : null}
-            <Text style={{ color: colors.text, fontSize: 13 }}>{state.history[0].message}</Text>
+            <Text style={{ color: colors.text, fontSize: 13 }}>{contextPreview.message}</Text>
           </View>
         ) : null}
 
