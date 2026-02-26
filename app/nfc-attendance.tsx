@@ -865,10 +865,10 @@ export default function NfcAttendanceScreen() {
       assistantPromptChips.map((chip) => ({
         id: chip.id,
         title: chip.label,
-        description: "Abrir IA Central com contexto NFC.",
+        description: "Abrir assistente completo para aprofundar este ponto.",
         run: () => {
           openAssistantFromNfc(chip.prompt);
-          return "Abrindo IA Central com o contexto NFC.";
+          return "Abrindo assistente completo.";
         },
       })),
     [assistantPromptChips, openAssistantFromNfc]
