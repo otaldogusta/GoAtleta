@@ -264,7 +264,7 @@ const buildContextualComposerReply = (params: {
     hasAnyKeyword(normalizedPrompt, screenKeywords) ||
     hasAnyKeyword(normalizedPrompt, genericContextKeywords);
 
-  if (!hasContextHint && normalizedPrompt.split(/\s+/).length >= 6) return null;
+  if (!hasContextHint) return null;
 
   const attentionSignals = params.panel.attentionSignals.slice(0, 2);
   const lines: string[] = [];
