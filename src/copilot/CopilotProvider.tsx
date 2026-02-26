@@ -271,16 +271,16 @@ const buildContextualComposerReply = (params: {
   if (attentionSignals.length) {
     lines.push(`No contexto atual, foco em: ${attentionSignals.map((item) => item.title).join(" | ")}.`);
   } else {
-    lines.push("No contexto atual, nao ha alerta urgente.");
+    lines.push("No contexto atual, não há alerta urgente.");
   }
 
   if (params.panel.unreadRegulationCount > 0) {
-    lines.push(`Regulamento: ${params.panel.unreadRegulationCount} atualizacao(oes) pendente(s).`);
+    lines.push(`Regulamento: ${params.panel.unreadRegulationCount} atualização(ões) pendente(s).`);
   }
 
   const quickActions = params.actions.slice(0, 3).map((item) => item.title);
   if (quickActions.length) {
-    lines.push(`Acoes sugeridas agora: ${quickActions.join(", ")}.`);
+    lines.push(`Sugestões deste contexto: ${quickActions.join(", ")}.`);
   }
 
   return lines.join(" ");
@@ -295,23 +295,23 @@ const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
 
   if (actionId === "nfc_summary") {
     if (!nfcSignals.length && !repeatedAbsenceSignals.length) {
-      return "No contexto NFC atual, nao ha alerta urgente.";
+      return "No contexto NFC atual, não há alerta urgente.";
     }
-    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presenca incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausencia recorrente.`;
+    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presença incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausência recorrente.`;
   }
 
   if (actionId === "nfc_actions") {
     if (nfcSignals.length > 0) {
-      return "Proximas acoes: revisar tags com leitura duplicada, validar vinculo da turma ativa e sincronizar pendencias.";
+      return "Próximos passos: revisar tags com leitura duplicada, validar vínculo da turma ativa e sincronizar pendências.";
     }
-    return "Proximas acoes: manter leitura ativa, revisar vinculos de tag e confirmar sincronizacao ao final da sessao.";
+    return "Próximos passos: manter leitura ativa, revisar vínculos de tag e confirmar sincronização ao final da sessão.";
   }
 
   if (actionId === "nfc_duplicates") {
     if (nfcSignals.length > 0) {
       return `Duplicidades em foco: ${nfcSignals[0].summary}`;
     }
-    return "Sem padrao forte de duplicidade no contexto NFC atual.";
+    return "Sem padrão forte de duplicidade no contexto NFC atual.";
   }
 
   return null;
@@ -390,7 +390,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [showAllRootActions, setShowAllRootActions] = useState(false);
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [assistantTyping, setAssistantTyping] = useState(false);
   const stateRef = useRef(state);
+  const thinkingPulse = useRef(new Animated.Value(0)).current;
+  const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   markRender("screen.copilot.render.provider", { open: state.open ? 1 : 0 });
 
   useEffect(() => {
@@ -608,6 +611,71 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [activeOrganizationId]);
 
+  useEffect(() => {
+    if (!assistantTyping) {
+      thinkingPulse.stopAnimation();
+      thinkingPulse.setValue(0);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(thinkingPulse, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(thinkingPulse, {
+          toValue: 0,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+      thinkingPulse.stopAnimation();
+      thinkingPulse.setValue(0);
+    };
+  }, [assistantTyping, thinkingPulse]);
+
+  const clearPendingReplyTimer = useCallback(() => {
+    if (!pendingReplyTimerRef.current) return;
+    clearTimeout(pendingReplyTimerRef.current);
+    pendingReplyTimerRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearPendingReplyTimer();
+    };
+  }, [clearPendingReplyTimer]);
+
+  const enqueueContextReply = useCallback(
+    (
+      actionTitle: string,
+      result: CopilotActionResult,
+      status: "success" | "error"
+    ) => {
+      clearPendingReplyTimer();
+      setAssistantTyping(true);
+      pendingReplyTimerRef.current = setTimeout(() => {
+        pendingReplyTimerRef.current = null;
+        setState((prev) => ({
+          ...prev,
+          history: [buildHistoryItem({ actionTitle, result, status }), ...prev.history].slice(
+            0,
+            MAX_HISTORY_ITEMS
+          ),
+        }));
+        setAssistantTyping(false);
+      }, 620);
+    },
+    [clearPendingReplyTimer]
+  );
+
   const selectedSignal =
     state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
   const operationalContext = useMemo(
@@ -689,8 +757,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const close = useCallback(() => {
+    clearPendingReplyTimer();
+    setAssistantTyping(false);
     setState((prev) => ({ ...prev, open: false }));
-  }, []);
+  }, [clearPendingReplyTimer]);
 
   useEffect(() => {
     const previousSnapshot = lastComputedSnapshotRef.current;
@@ -750,56 +820,31 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
     const requirementError = action.requires?.(actionContext);
     if (requirementError) {
-      const result = { message: requirementError };
-      setState((prev) => ({
-        ...prev,
-        history: [buildHistoryItem({ actionTitle: action.title, result, status: "error" }), ...prev.history].slice(
-          0,
-          MAX_HISTORY_ITEMS
-        ),
-      }));
+      enqueueContextReply(action.title, { message: requirementError }, "error");
       return;
     }
 
     const nfcQuickReply = buildNfcQuickActionReply(action.id, currentState);
     if (nfcQuickReply) {
-      const result: CopilotActionResult = { message: nfcQuickReply };
-      setState((prev) => ({
-        ...prev,
-        history: [buildHistoryItem({ actionTitle: action.title, result, status: "success" }), ...prev.history].slice(
-          0,
-          MAX_HISTORY_ITEMS
-        ),
-      }));
+      enqueueContextReply(action.title, { message: nfcQuickReply }, "success");
       return;
     }
 
+    setAssistantTyping(true);
     setState((prev) => ({ ...prev, runningActionId: action.id }));
     try {
       const output = await action.run(actionContext);
       const normalized = toActionResult(output);
-      setState((prev) => ({
-        ...prev,
-        runningActionId: null,
-        history: [buildHistoryItem({ actionTitle: action.title, result: normalized, status: "success" }), ...prev.history].slice(
-          0,
-          MAX_HISTORY_ITEMS
-        ),
-      }));
+      setState((prev) => ({ ...prev, runningActionId: null }));
+      enqueueContextReply(action.title, normalized, "success");
     } catch (error) {
       const result: CopilotActionResult = {
         message: error instanceof Error ? error.message : "Falha ao executar ação.",
       };
-      setState((prev) => ({
-        ...prev,
-        runningActionId: null,
-        history: [buildHistoryItem({ actionTitle: action.title, result, status: "error" }), ...prev.history].slice(
-          0,
-          MAX_HISTORY_ITEMS
-        ),
-      }));
+      setState((prev) => ({ ...prev, runningActionId: null }));
+      enqueueContextReply(action.title, result, "error");
     }
-  }, []);
+  }, [enqueueContextReply]);
 
   const dataValue = useMemo<CopilotDataContextValue>(
     () => ({
@@ -1053,17 +1098,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     setComposerValue("");
 
     if (contextualReply) {
-      setState((prev) => ({
-        ...prev,
-        history: [
-          buildHistoryItem({
-            actionTitle: "Pergunta contextual",
-            result: { message: contextualReply },
-            status: "success",
-          }),
-          ...prev.history,
-        ].slice(0, MAX_HISTORY_ITEMS),
-      }));
+      enqueueContextReply(
+        "Pergunta contextual",
+        { message: contextualReply },
+        "success"
+      );
       return;
     }
 
@@ -1075,7 +1114,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         source: state.context?.screen ?? "insights",
       },
     });
-  }, [close, composerValue, operationalContext.panel, router, state.actions, state.context?.screen]);
+  }, [close, composerValue, enqueueContextReply, operationalContext.panel, router, state.actions, state.context?.screen]);
 
   return (
     <CopilotActionsContext.Provider value={actionsValue}>
@@ -1370,9 +1409,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                   {hasRegulationDetails || operationalContext.panel.attentionSignals.length ? (
                     <View style={{ height: 1, backgroundColor: colors.border }} />
                   ) : null}
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
-                    AÇÕES RÁPIDAS
-                  </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                     {rootQuickActions.map((action) => (
                       <Pressable
@@ -1385,9 +1421,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           borderRadius: 999,
                           borderWidth: 1,
                           borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
+                          backgroundColor: colors.inputBg,
+                          paddingHorizontal: 11,
+                          paddingVertical: 7,
                           opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
                         }}
                       >
@@ -1403,9 +1439,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           borderRadius: 999,
                           borderWidth: 1,
                           borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
+                          backgroundColor: colors.inputBg,
+                          paddingHorizontal: 11,
+                          paddingVertical: 7,
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>+ Mais</Text>
@@ -1667,7 +1703,52 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           ) : null}
         </ScrollView>
 
-        {state.history.length ? (
+        {assistantTyping ? (
+          <View
+            style={{
+              alignSelf: "flex-start",
+              maxWidth: "58%",
+              paddingHorizontal: 12,
+              paddingVertical: 11,
+              borderRadius: 16,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              marginBottom: 8,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {[0, 1, 2].map((index) => {
+                const phase = index * 0.2;
+                const opacity = thinkingPulse.interpolate({
+                  inputRange: [0, phase, phase + 0.2, 1],
+                  outputRange: [0.3, 0.45, 1, 0.35],
+                  extrapolate: "clamp",
+                });
+                const translateY = thinkingPulse.interpolate({
+                  inputRange: [0, phase, phase + 0.2, 1],
+                  outputRange: [0, 0, -3, 0],
+                  extrapolate: "clamp",
+                });
+                return (
+                  <Animated.View
+                    key={`context-thinking-dot-${index}`}
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: colors.muted,
+                      opacity,
+                      transform: [{ translateY }],
+                    }}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        {!assistantTyping && state.history.length ? (
           <View
             style={{
               borderRadius: 12,
