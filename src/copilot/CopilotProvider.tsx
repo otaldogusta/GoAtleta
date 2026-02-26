@@ -267,23 +267,27 @@ const buildContextualComposerReply = (params: {
   if (!hasContextHint) return null;
 
   const attentionSignals = params.panel.attentionSignals.slice(0, 2);
-  const lines: string[] = [];
-  if (attentionSignals.length) {
-    lines.push(`No contexto atual, foco em: ${attentionSignals.map((item) => item.title).join(" | ")}.`);
-  } else {
-    lines.push("No contexto atual, não há alerta urgente.");
-  }
-
-  if (params.panel.unreadRegulationCount > 0) {
-    lines.push(`Regulamento: ${params.panel.unreadRegulationCount} atualização(ões) pendente(s).`);
-  }
-
   const quickActions = params.actions.slice(0, 3).map((item) => item.title);
-  if (quickActions.length) {
-    lines.push(`Sugestões deste contexto: ${quickActions.join(", ")}.`);
+
+  if (!attentionSignals.length) {
+    let message = "Tudo em ordem neste contexto.";
+    if (params.panel.unreadRegulationCount > 0) {
+      message += ` Existe(m) ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
+    }
+    if (quickActions.length) {
+      message += ` Se quiser, posso te ajudar com: ${quickActions.join(", ")}.`;
+    }
+    return message;
   }
 
-  return lines.join(" ");
+  let message = `Foco agora: ${attentionSignals.map((item) => item.title).join(" | ")}.`;
+  if (params.panel.unreadRegulationCount > 0) {
+    message += ` Existe(m) ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
+  }
+  if (quickActions.length) {
+    message += ` Posso seguir com: ${quickActions.join(", ")}.`;
+  }
+  return message;
 };
 
 const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
@@ -1099,7 +1103,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
     if (contextualReply) {
       enqueueContextReply(
-        "Pergunta contextual",
+        "Resposta do contexto",
         { message: contextualReply },
         "success"
       );
