@@ -213,6 +213,20 @@ const buildHistoryItem = (params: {
   confidence: params.result.confidence,
 });
 
+const resolveContextActionIcon = (action: CopilotAction): keyof typeof Ionicons.glyphMap => {
+  const key = normalizeComposerText(`${action.id} ${action.title}`);
+  if (key.includes("treino")) return "sparkles-outline";
+  if (key.includes("resumo")) return "document-text-outline";
+  if (key.includes("engaj") || key.includes("risco")) return "pulse-outline";
+  if (key.includes("pesquisa") || key.includes("cient")) return "search-outline";
+  if (key.includes("mensagem") || key.includes("whatsapp")) return "chatbubble-outline";
+  if (key.includes("checklist")) return "checkmark-done-outline";
+  if (key.includes("regul")) return "shield-checkmark-outline";
+  if (key.includes("duplic")) return "copy-outline";
+  if (key.includes("nfc") || key.includes("presenca")) return "radio-outline";
+  return "flash-outline";
+};
+
 const normalizeComposerText = (value: string) =>
   value
     .toLowerCase()
@@ -1545,17 +1559,38 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         }}
                         disabled={Boolean(state.runningActionId)}
                         style={{
-                          borderRadius: 999,
+                          flexGrow: 1,
+                          flexBasis: isWebModal ? "31.9%" : "48.5%",
+                          minHeight: 98,
+                          borderRadius: 12,
                           borderWidth: 1,
                           borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 8,
-                          paddingVertical: 4,
+                          backgroundColor: colors.inputBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          gap: 8,
                           opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
                         }}
                       >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                        <View
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 10,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.card,
+                          }}
+                        >
+                          <Ionicons name={resolveContextActionIcon(action)} size={16} color={colors.text} />
+                        </View>
+                        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
                           {state.runningActionId === action.id ? "Executando..." : action.title}
+                        </Text>
+                        <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
+                          {action.description ?? "Ação contextual para este momento."}
                         </Text>
                       </Pressable>
                     ))}
@@ -1563,15 +1598,38 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                       <Pressable
                         onPress={() => setShowAllRootActions(true)}
                         style={{
-                          borderRadius: 999,
+                          flexGrow: 1,
+                          flexBasis: isWebModal ? "31.9%" : "48.5%",
+                          minHeight: 98,
+                          borderRadius: 12,
                           borderWidth: 1,
                           borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 8,
-                          paddingVertical: 4,
+                          backgroundColor: colors.inputBg,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          gap: 8,
+                          alignItems: "flex-start",
+                          justifyContent: "center",
                         }}
                       >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>+ Mais</Text>
+                        <View
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 10,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.card,
+                          }}
+                        >
+                          <Ionicons name="add" size={16} color={colors.text} />
+                        </View>
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>Ver mais ações</Text>
+                        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
+                          Mostrar lista completa de ações disponíveis.
+                        </Text>
                       </Pressable>
                     ) : null}
                   </View>
