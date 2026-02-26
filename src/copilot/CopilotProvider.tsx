@@ -268,24 +268,94 @@ const buildContextualComposerReply = (params: {
 
   const attentionSignals = params.panel.attentionSignals.slice(0, 2);
   const quickActions = params.actions.slice(0, 3).map((item) => item.title);
+  const hasAlerts = attentionSignals.length > 0;
+  const topAlerts = attentionSignals.map((item) => item.title).join(" | ");
+  const contextNameByScreen: Record<string, string> = {
+    nfc: "NFC",
+    class: "turma atual",
+    classes: "lista de turmas",
+    coordination: "coordenacao",
+    events: "eventos e torneios",
+    periodization: "periodizacao",
+  };
+  const contextName = matchingScreenKey ? contextNameByScreen[matchingScreenKey] : "tela atual";
 
-  if (!attentionSignals.length) {
-    let message = "Tudo em ordem neste contexto.";
-    if (params.panel.unreadRegulationCount > 0) {
-      message += ` Existe(m) ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
+  const wantsSummary = hasAnyKeyword(normalizedPrompt, [
+    "resumo",
+    "status",
+    "situacao",
+    "como ta",
+    "como esta",
+  ]);
+  const wantsActions = hasAnyKeyword(normalizedPrompt, [
+    "proxima",
+    "proximas",
+    "passos",
+    "acao",
+    "acoes",
+    "o que fazer",
+  ]);
+  const wantsDuplicates = hasAnyKeyword(normalizedPrompt, [
+    "duplicad",
+    "duplo",
+    "repetid",
+  ]);
+  const wantsRegulation = hasAnyKeyword(normalizedPrompt, [
+    "regra",
+    "regras",
+    "regulamento",
+    "vigencia",
+    "vigencia",
+    "pendente",
+    "pending",
+  ]);
+
+  if (matchingScreenKey === "nfc" && wantsDuplicates) {
+    const duplicateSignal = attentionSignals.find((item) =>
+      normalizeComposerText(`${item.title} ${item.summary}`).includes("duplicad")
+    );
+    if (!duplicateSignal) {
+      return "No NFC atual, nao encontrei padrao forte de duplicidade.";
     }
-    if (quickActions.length) {
-      message += ` Se quiser, posso te ajudar com: ${quickActions.join(", ")}.`;
+    return `No NFC atual, duplicidades em foco: ${duplicateSignal.summary}`;
+  }
+
+  if (matchingScreenKey === "events" && wantsRegulation) {
+    let message = `Regulamento ativo: ${params.panel.activeRuleSetLabel}.`;
+    if (params.panel.pendingRuleSetLabel) {
+      message += ` Proximo ciclo: ${params.panel.pendingRuleSetLabel}.`;
+    }
+    if (params.panel.unreadRegulationCount > 0) {
+      message += ` Ha ${params.panel.unreadRegulationCount} atualizacao(oes) pendente(s).`;
     }
     return message;
   }
 
-  let message = `Foco agora: ${attentionSignals.map((item) => item.title).join(" | ")}.`;
-  if (params.panel.unreadRegulationCount > 0) {
-    message += ` Existe(m) ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
+  if (wantsActions) {
+    if (!quickActions.length) {
+      return `Neste contexto (${contextName}), nao ha acoes recomendadas agora.`;
+    }
+    return `Proximos passos para ${contextName}: ${quickActions.join(", ")}.`;
   }
+
+  if (!hasAlerts) {
+    let message = `Tudo em ordem em ${contextName}.`;
+    if (params.panel.unreadRegulationCount > 0) {
+      message += ` Ha ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
+    }
+    if (quickActions.length) {
+      message += ` Se quiser, sigo com: ${quickActions.join(", ")}.`;
+    }
+    return message;
+  }
+
+  if (wantsSummary || hasAnyKeyword(normalizedPrompt, ["alerta", "pendencia", "pendencias"])) {
+    return `Resumo de ${contextName}: ${topAlerts}.`;
+  }
+
+  let message = `Ponto principal em ${contextName}: ${topAlerts}.`;
   if (quickActions.length) {
-    message += ` Posso seguir com: ${quickActions.join(", ")}.`;
+    message += ` Posso executar: ${quickActions.join(", ")}.`;
   }
   return message;
 };
