@@ -1,4 +1,4 @@
-import { memo } from "react";
+﻿import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../src/core/models";
@@ -64,9 +64,7 @@ export const ClassCard = memo(function ClassCard({
     >
       {hasConflicts ? (
         <View style={[styles.conflictPill, { backgroundColor: colors.dangerBg }]}>
-          <Text style={[styles.conflictPillText, { color: colors.dangerText }]}>
-            Conflito de hor�rio
-          </Text>
+          <Text style={[styles.conflictPillText, { color: colors.dangerText }]}>Conflito de horário</Text>
         </View>
       ) : null}
 

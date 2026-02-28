@@ -2,9 +2,10 @@ import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 
 import { addNotification } from "./notificationsInbox";
-
-let handlerSet = false;
-let channelSet = false;
+import {
+  ensureAndroidNotificationChannel,
+  ensureNotificationHandlerConfigured,
+} from "./push/notificationRuntime";
 
 export const requestNotificationPermission = async () => {
   if (Platform.OS === "web") return false;
@@ -16,34 +17,13 @@ export const requestNotificationPermission = async () => {
   return requested.granted;
 };
 
-const ensureNotificationHandler = () => {
-  if (handlerSet) return;
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-  handlerSet = true;
-};
-
-const ensureAndroidChannel = async () => {
-  if (Platform.OS !== "android" || channelSet) return;
-  await Notifications.setNotificationChannelAsync("default", {
-    name: "Default",
-    importance: Notifications.AndroidImportance.DEFAULT,
-  });
-  channelSet = true;
-};
-
 const ensurePermissions = async () => {
   return await requestNotificationPermission();
 };
 
 const sendLocalNotification = async (title: string, body: string) => {
-  ensureNotificationHandler();
-  await ensureAndroidChannel();
+  ensureNotificationHandlerConfigured();
+  await ensureAndroidNotificationChannel();
   const granted = await ensurePermissions();
   if (!granted) return;
   await Notifications.scheduleNotificationAsync({

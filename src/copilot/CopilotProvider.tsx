@@ -133,14 +133,17 @@ const CopilotActionsContext = createContext<CopilotActionsContextValue | null>(n
 const MAX_HISTORY_ITEMS = 12;
 const REGULATION_POLL_INTERVAL_MS = 90_000;
 const REGULATION_NOTIFIED_STORAGE_PREFIX = "reg_updates_notified_v1";
+const CONTEXT_COMPOSER_MIN_HEIGHT = 40;
+const CONTEXT_COMPOSER_MAX_HEIGHT = 120;
+const CONTEXT_COMPOSER_MAX_HEIGHT_WEB = 84;
 
 const publicRoutes = new Set(["/welcome", "/login", "/signup", "/reset-password"]);
 
 const categoryLabelById: Record<InsightsCategory, string> = {
-  reports: "Relatórios",
+  reports: "RelatÃ³rios",
   absences: "Faltas consecutivas",
-  nfc: "Presença NFC",
-  attendance: "Queda de presença",
+  nfc: "PresenÃ§a NFC",
+  attendance: "Queda de presenÃ§a",
   engagement: "Risco de engajamento",
   regulation: "Regulamento atualizado",
 };
@@ -186,17 +189,51 @@ const regulationRelativeLabel = (value: string | null | undefined, nowMs: number
   if (!Number.isFinite(parsed)) return "sem data";
   const diffHours = Math.max(0, (nowMs - parsed) / 36e5);
   if (diffHours < 1) return "agora";
-  if (diffHours < 24) return `há ${Math.floor(diffHours)}h`;
+  if (diffHours < 24) return `hÃ¡ ${Math.floor(diffHours)}h`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1) return "ontem";
-  if (diffDays < 7) return `há ${diffDays}d`;
+  if (diffDays < 7) return `hÃ¡ ${diffDays}d`;
   return regulationDateLabel(value);
 };
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
-  if (!value) return { message: "Ação concluída." };
+  if (!value) return { message: "AÃ§Ã£o concluÃ­da." };
   if (typeof value === "string") return { message: value };
   return value;
+};
+
+const extractEmbeddedErrorMessage = (value: string) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized.startsWith("{") || !normalized.endsWith("}")) return "";
+  try {
+    const payload = JSON.parse(normalized) as { error?: string; message?: string };
+    const message =
+      (typeof payload.error === "string" && payload.error.trim()) ||
+      (typeof payload.message === "string" && payload.message.trim()) ||
+      "";
+    return message;
+  } catch {
+    return "";
+  }
+};
+
+const toFriendlyContextError = (value: string | null | undefined) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Falha ao executar aÃ§Ã£o.";
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("entrada invalida") || normalized.includes("invalid input")) {
+    return "NÃ£o consegui interpretar essa solicitaÃ§Ã£o no contexto atual.";
+  }
+  if (normalized.includes("timeout")) {
+    return "A resposta demorou mais que o esperado. Tente novamente.";
+  }
+  if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
+    return "Falha de conexÃ£o. Verifique sua internet e tente novamente.";
+  }
+  if (normalized.includes("token") || normalized.includes("auth")) {
+    return "SessÃ£o expirada. FaÃ§a login novamente.";
+  }
+  return "Falha ao executar aÃ§Ã£o.";
 };
 
 const buildHistoryItem = (params: {
@@ -421,23 +458,23 @@ const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
 
   if (actionId === "nfc_summary") {
     if (!nfcSignals.length && !repeatedAbsenceSignals.length) {
-      return "No contexto NFC atual, não há alerta urgente.";
+      return "No contexto NFC atual, nÃ£o hÃ¡ alerta urgente.";
     }
-    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presença incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausência recorrente.`;
+    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presenÃ§a incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausÃªncia recorrente.`;
   }
 
   if (actionId === "nfc_actions") {
     if (nfcSignals.length > 0) {
-      return "Próximos passos: revisar tags com leitura duplicada, validar vínculo da turma ativa e sincronizar pendências.";
+      return "PrÃ³ximos passos: revisar tags com leitura duplicada, validar vÃ­nculo da turma ativa e sincronizar pendÃªncias.";
     }
-    return "Próximos passos: manter leitura ativa, revisar vínculos de tag e confirmar sincronização ao final da sessão.";
+    return "PrÃ³ximos passos: manter leitura ativa, revisar vÃ­nculos de tag e confirmar sincronizaÃ§Ã£o ao final da sessÃ£o.";
   }
 
   if (actionId === "nfc_duplicates") {
     if (nfcSignals.length > 0) {
       return `Duplicidades em foco: ${nfcSignals[0].summary}`;
     }
-    return "Sem padrão forte de duplicidade no contexto NFC atual.";
+    return "Sem padrÃ£o forte de duplicidade no contexto NFC atual.";
   }
 
   return null;
@@ -513,6 +550,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   });
   const [insightsView, setInsightsView] = useState<InsightsView>({ mode: "root" });
   const [composerValue, setComposerValue] = useState("");
+  const [composerInputHeight, setComposerInputHeight] = useState(CONTEXT_COMPOSER_MIN_HEIGHT);
   const [showAllRootActions, setShowAllRootActions] = useState(false);
   const [scheduleWindows, setScheduleWindows] = useState<ScheduleWindow[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -685,7 +723,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         const topicsPreview = update.changedTopics.slice(0, 2).join(", ");
         const impactPreview = update.impactAreas.slice(0, 2).join(", ");
         const body = topicsPreview
-          ? `Mudanças em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
+          ? `MudanÃ§as em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
           : update.diffSummary;
         await addNotification("Regulamento atualizado", body);
       }
@@ -979,8 +1017,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       setState((prev) => ({ ...prev, runningActionId: null }));
       enqueueContextReply(action.title, normalized, "success");
     } catch (error) {
+      const rawMessage = error instanceof Error ? error.message : "";
+      const embeddedMessage = extractEmbeddedErrorMessage(rawMessage);
       const result: CopilotActionResult = {
-        message: error instanceof Error ? error.message : "Falha ao executar ação.",
+        message: toFriendlyContextError(embeddedMessage || rawMessage || "Falha ao executar aÃ§Ã£o."),
       };
       setState((prev) => ({ ...prev, runningActionId: null }));
       enqueueContextReply(action.title, result, "error");
@@ -1165,11 +1205,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           : colors.muted;
   const selectedSeverityLabel =
     activeDrawerSignal?.severity === "critical"
-      ? "Crítico"
+      ? "CrÃ­tico"
       : activeDrawerSignal?.severity === "high"
         ? "Alto"
         : activeDrawerSignal?.severity === "medium"
-          ? "Médio"
+          ? "MÃ©dio"
           : "Baixo";
   const activeCategoryLabel = activeCategoryForActions
     ? categoryLabelById[activeCategoryForActions]
@@ -1237,6 +1277,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     });
 
     setComposerValue("");
+    setComposerInputHeight(CONTEXT_COMPOSER_MIN_HEIGHT);
 
     if (contextualReply) {
       enqueueContextReply(
@@ -1256,6 +1297,19 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       },
     });
   }, [close, composerValue, enqueueContextReply, operationalContext.panel, router, state.actions, state.context?.screen]);
+
+  const handleComposerKeyPress = useCallback(
+    (event: any) => {
+      if (Platform.OS !== "web") return;
+      const key = event?.nativeEvent?.key;
+      const shiftKey = Boolean(event?.nativeEvent?.shiftKey);
+      if (key !== "Enter" || shiftKey) return;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      submitComposer();
+    },
+    [submitComposer]
+  );
 
   return (
     <CopilotActionsContext.Provider value={actionsValue}>
@@ -1485,7 +1539,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                   </Text>
                   {operationalContext.panel.pendingRuleSetLabel ? (
                     <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-                      Próximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
+                      PrÃ³ximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
                     </Text>
                   ) : null}
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -1502,7 +1556,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          Ver mudanças
+                          Ver mudanÃ§as
                         </Text>
                       </Pressable>
                     ) : null}
@@ -1590,7 +1644,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           {state.runningActionId === action.id ? "Executando..." : action.title}
                         </Text>
                         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>
-                          {action.description ?? "Ação contextual para este momento."}
+                          {action.description ?? "AÃ§Ã£o contextual para este momento."}
                         </Text>
                       </Pressable>
                     ))}
@@ -1626,9 +1680,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         >
                           <Ionicons name="add" size={16} color={colors.text} />
                         </View>
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>Ver mais ações</Text>
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>Ver mais aÃ§Ãµes</Text>
                         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
-                          Mostrar lista completa de ações disponíveis.
+                          Mostrar lista completa de aÃ§Ãµes disponÃ­veis.
                         </Text>
                       </Pressable>
                     ) : null}
@@ -1645,8 +1699,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {insightsView.category === "regulation"
-                  ? "Toque em uma atualização para ver detalhes e fonte oficial."
-                  : "Toque em um insight para ver detalhes e ações relacionadas."}
+                  ? "Toque em uma atualizaÃ§Ã£o para ver detalhes e fonte oficial."
+                  : "Toque em um insight para ver detalhes e aÃ§Ãµes relacionadas."}
               </Text>
               {insightsView.category === "regulation"
                 ? state.regulationUpdates.filter((item) => !item.isRead).map((item) => (
@@ -1675,7 +1729,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                       <Text style={{ color: colors.muted, fontSize: 12 }}>{item.diffSummary}</Text>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>
                         Publicado em {regulationDateLabel(item.publishedAt ?? item.createdAt)}
-                        {item.isRead ? " - lido" : " - não lido"}
+                        {item.isRead ? " - lido" : " - nÃ£o lido"}
                       </Text>
                     </Pressable>
                   ))
@@ -1841,10 +1895,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               </View>
 
               <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>Ações gerais</Text>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>AÃ§Ãµes gerais</Text>
                 {recommendedActions.length ? (
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    As ações recomendadas para este insight aparecem primeiro.
+                    As aÃ§Ãµes recomendadas para este insight aparecem primeiro.
                   </Text>
                 ) : null}
                 {orderedActions.length ? (
@@ -1881,7 +1935,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                     );
                   })
                 ) : (
-                  <Text style={{ color: colors.muted }}>Sem ações disponíveis neste contexto.</Text>
+                  <Text style={{ color: colors.muted }}>Sem aÃ§Ãµes disponÃ­veis neste contexto.</Text>
                 )}
               </View>
             </>
@@ -1957,7 +2011,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
         <View
           style={{
-            borderRadius: 999,
+            borderRadius: 28,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.card,
@@ -1965,7 +2019,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             paddingVertical: 10,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
             <Pressable
               onPress={() => {
                 close();
@@ -1986,18 +2040,56 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             </Pressable>
             <TextInput
               value={composerValue}
-              onChangeText={setComposerValue}
+              onChangeText={(value) => {
+                setComposerValue(value);
+                if (!value.trim() && composerInputHeight !== CONTEXT_COMPOSER_MIN_HEIGHT) {
+                  setComposerInputHeight(CONTEXT_COMPOSER_MIN_HEIGHT);
+                }
+              }}
               placeholder="Pergunte sobre este contexto..."
               placeholderTextColor={colors.muted}
               returnKeyType="send"
               onSubmitEditing={submitComposer}
-              multiline={false}
+              onKeyPress={handleComposerKeyPress}
+              onContentSizeChange={(event) => {
+                if (!composerValue.trim()) {
+                  if (composerInputHeight !== CONTEXT_COMPOSER_MIN_HEIGHT) {
+                    setComposerInputHeight(CONTEXT_COMPOSER_MIN_HEIGHT);
+                  }
+                  return;
+                }
+                const maxHeight =
+                  Platform.OS === "web" ? CONTEXT_COMPOSER_MAX_HEIGHT_WEB : CONTEXT_COMPOSER_MAX_HEIGHT;
+                const next = Math.max(
+                  CONTEXT_COMPOSER_MIN_HEIGHT,
+                  Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))
+                );
+                if (next !== composerInputHeight) {
+                  setComposerInputHeight(next);
+                }
+              }}
+              multiline
+              scrollEnabled={
+                composerInputHeight >=
+                (Platform.OS === "web" ? CONTEXT_COMPOSER_MAX_HEIGHT_WEB : CONTEXT_COMPOSER_MAX_HEIGHT)
+              }
               style={{
                 flex: 1,
-                height: 40,
+                minHeight: CONTEXT_COMPOSER_MIN_HEIGHT,
+                height: composerInputHeight,
                 color: colors.text,
                 paddingHorizontal: 2,
+                paddingTop: 8,
+                paddingBottom: 8,
                 fontSize: 16,
+                textAlignVertical: "top",
+                ...(Platform.OS === "web"
+                  ? ({
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      overflowWrap: "anywhere",
+                    } as const)
+                  : null),
               }}
             />
             <Pressable
@@ -2169,3 +2261,4 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
+

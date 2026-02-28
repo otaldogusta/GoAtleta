@@ -867,19 +867,6 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
               gap: 6,
             }}
           >
-            <View
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                width: 170,
-                height: 170,
-                borderRadius: 85,
-                top: -96,
-                right: -48,
-                backgroundColor: colors.primaryBg,
-                opacity: 0.16,
-              }}
-            />
             {showInitialShimmer ? (
               <View style={{ gap: 8 }}>
                 <ShimmerBlock style={{ height: isCompact ? 36 : 40, width: "70%", borderRadius: 10 }} />
@@ -992,7 +979,11 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                             backgroundColor: item.tint,
                           }}
                         >
-                          <Ionicons name={item.icon as any} size={13} color={colors.text} />
+                          <Ionicons
+                            name={item.icon as any}
+                            size={13}
+                            color={item.key === "admin" ? colors.primaryText : colors.text}
+                          />
                         </View>
                       </View>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>{item.label}</Text>

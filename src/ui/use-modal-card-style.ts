@@ -15,7 +15,7 @@ type ModalCardOptions = {
 };
 
 export function useModalCardStyle(options: ModalCardOptions = {}) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
   const padding = options.padding ?? 12;
   const gap = options.gap ?? 10;
@@ -28,12 +28,25 @@ export function useModalCardStyle(options: ModalCardOptions = {}) {
   const resolvedMaxWidth =
     options.maxWidth ?? (Platform.OS === "web" ? 720 : undefined);
 
+  const lightWeb = Platform.OS === "web" && mode === "light";
+  const webGlassStyle =
+    Platform.OS === "web"
+      ? ({
+          backdropFilter: "blur(20px) saturate(170%)",
+          WebkitBackdropFilter: "blur(20px) saturate(170%)",
+          backgroundImage:
+            mode === "light"
+              ? "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246,250,255,0.9) 100%)"
+              : "linear-gradient(180deg, rgba(22,32,54,0.72) 0%, rgba(16,25,46,0.62) 100%)",
+        } as ViewStyle)
+      : null;
+
   return {
     maxHeight,
     width: "100%",
-    backgroundColor: colors.card,
+    backgroundColor: lightWeb ? "rgba(255,255,255,0.9)" : colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: lightWeb ? "rgba(15,23,42,0.16)" : colors.border,
     padding,
     paddingBottom: padding + insets.bottom + webBottomSpacing,
     borderTopLeftRadius: radius,
@@ -44,12 +57,7 @@ export function useModalCardStyle(options: ModalCardOptions = {}) {
     alignSelf: fullWidth ? "stretch" : "center",
     maxWidth: fullWidth ? undefined : resolvedMaxWidth,
     marginBottom: flushBottom ? 0 : webBottomSpacing,
-    ...(Platform.OS === "web"
-      ? ({
-          backdropFilter: "blur(18px)",
-          WebkitBackdropFilter: "blur(18px)",
-        } as ViewStyle)
-      : null),
+    ...webGlassStyle,
     shadowColor: "#000",
     shadowOpacity: 0.24,
     shadowRadius: 26,

@@ -1,5 +1,4 @@
 import { LinearGradient } from "expo-linear-gradient";
-import * as Notifications from "expo-notifications";
 import {
     Stack,
     usePathname,
@@ -13,6 +12,7 @@ import {
 } from "react";
 import {
     ActivityIndicator,
+    AppState,
     Image,
     LogBox,
     Platform, StyleSheet, Text,
@@ -28,6 +28,11 @@ import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvi
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
+import { ensurePushTokenRegistered, attachPushListeners } from "../src/push/pushClient";
+import {
+  ensureAndroidNotificationChannel,
+  ensureNotificationHandlerConfigured,
+} from "../src/push/notificationRuntime";
 import { OrganizationProvider, useOrganization } from "../src/providers/OrganizationProvider";
 import { BiometricLockProvider, useBiometricLock } from "../src/security/biometric-lock";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
@@ -113,7 +118,7 @@ function RootLayoutContent() {
   const rootState = useRootNavigationState();
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
-  const { memberPermissions, permissionsLoading } = useOrganization();
+  const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
   const { isEnabled: biometricsEnabled, isUnlocked, hasCredentialLoginBypass } = useBiometricLock();
   const hadSessionRef = useRef(false);
   const navReady = Boolean(rootState.key);
@@ -156,6 +161,28 @@ function RootLayoutContent() {
     lastPathRef.current = pathname;
     logNavigation(pathname);
   }, [pathname]);
+
+  useEffect(() => {
+    const detach = attachPushListeners(router);
+    return () => detach();
+  }, [router]);
+
+  useEffect(() => {
+    const organizationId = activeOrganization?.id ?? "";
+    if (!session || !organizationId) return;
+    void ensurePushTokenRegistered({ organizationId });
+  }, [activeOrganization?.id, session]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      const organizationId = activeOrganization?.id ?? "";
+      if (!session || !organizationId) return;
+      void ensurePushTokenRegistered({ organizationId });
+    });
+    return () => subscription.remove();
+  }, [activeOrganization?.id, session]);
 
   useEffect(() => {
     const hadSession = hadSessionRef.current;
@@ -623,13 +650,8 @@ function RootLayout() {
       });
     }
 
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      }),
-    });
+    ensureNotificationHandlerConfigured();
+    void ensureAndroidNotificationChannel();
   }, []);
 
   return (

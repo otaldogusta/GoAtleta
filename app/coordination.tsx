@@ -1,4 +1,5 @@
 import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import {
     cacheDirectory,
@@ -8,8 +9,8 @@ import {
 } from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { memo, useCallback, useMemo, useState } from "react";
-import { Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -22,6 +23,8 @@ import {
     type SyncErrorClassificationResult,
 } from "../src/api/ai";
 import { getSignals, type Signal } from "../src/ai/signal-engine";
+import { listClassHeadsByClassIds, type ClassResponsible } from "../src/api/class-responsibles";
+import { sendPushToUser } from "../src/api/push";
 import {
     AdminPendingAttendance,
     AdminPendingSessionLogs,
@@ -76,6 +79,16 @@ const formatDateBr = (value: string | null | undefined) => {
 };
 
 const toDateKey = (value: string) => (value.includes("T") ? value.split("T")[0] : value);
+const COOLDOWN_MS = 60 * 60 * 1000;
+const getCooldownKey = (organizationId: string, classId: string, targetDate: string) =>
+  `push_pending_attendance_cooldown_v1:${organizationId}:${classId}:${targetDate}`;
+const getFirstName = (value: string) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+  const [first] = normalized.split(/\s+/);
+  return first || normalized;
+};
+
 const parseTimeToMinutes = (value: string | null | undefined) => {
   if (!value) return null;
   const match = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -344,6 +357,9 @@ export default function CoordinationScreen() {
   const [, setAiExportLoading] = useState(false);
   const [classRadarItems, setClassRadarItems] = useState<ClassRadarItem[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [notifyHead, setNotifyHead] = useState<ClassResponsible | null>(null);
+  const [notifyHeadLoading, setNotifyHeadLoading] = useState(false);
+  const [notifySending, setNotifySending] = useState(false);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1180;
   const isWideLayout = width >= 860;
@@ -434,11 +450,128 @@ export default function CoordinationScreen() {
     return issues;
   }, [failedWrites, pendingReports]);
 
+  const notifyAttendanceTarget = useMemo(() => {
+    if (!pendingAttendance.length) return null;
+    const sorted = [...pendingAttendance].sort((a, b) => {
+      const aKey = toDateKey(a.targetDate || "");
+      const bKey = toDateKey(b.targetDate || "");
+      if (aKey === bKey) return (a.className || "").localeCompare(b.className || "");
+      return aKey < bKey ? -1 : 1;
+    });
+    const target = sorted.find(
+      (item) =>
+        item &&
+        typeof item.classId === "string" &&
+        item.classId.trim() &&
+        typeof item.targetDate === "string" &&
+        item.targetDate.trim()
+    );
+    return target ?? null;
+  }, [pendingAttendance]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!organizationId || !notifyAttendanceTarget) {
+      setNotifyHead(null);
+      setNotifyHeadLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    setNotifyHeadLoading(true);
+    void listClassHeadsByClassIds({
+      organizationId,
+      classIds: [notifyAttendanceTarget.classId],
+    })
+      .then((heads) => {
+        if (!alive) return;
+        setNotifyHead(heads[0] ?? null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setNotifyHead(null);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setNotifyHeadLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [organizationId, notifyAttendanceTarget]);
+
+  const handleNotifyResponsibleTeacher = useCallback(async () => {
+    if (!organizationId || !notifyAttendanceTarget || !notifyHead || notifySending) return;
+    setNotifySending(true);
+    try {
+      await measureAsync(
+        "screen.coordination.action.notifyTeacher",
+        async () => {
+          const cooldownKey = getCooldownKey(
+            organizationId,
+            notifyAttendanceTarget.classId,
+            notifyAttendanceTarget.targetDate
+          );
+          const lastSentAtRaw = await AsyncStorage.getItem(cooldownKey);
+          const lastSentAt = Number(lastSentAtRaw ?? "0");
+          if (Number.isFinite(lastSentAt) && lastSentAt > 0) {
+            const elapsed = Date.now() - lastSentAt;
+            if (elapsed < COOLDOWN_MS) {
+              throw new Error("Aviso já enviado recentemente para esta turma/data.");
+            }
+          }
+
+          const result = await sendPushToUser({
+            organizationId,
+            targetUserId: notifyHead.userId,
+            title: "Chamada pendente",
+            body: `Turma ${notifyAttendanceTarget.className} (${notifyAttendanceTarget.unit}) - ${formatDateBr(
+              notifyAttendanceTarget.targetDate
+            )}. Toque para abrir.`,
+            data: {
+              type: "pending_attendance_reminder",
+              route: "/class/[id]/attendance",
+              params: {
+                id: notifyAttendanceTarget.classId,
+                date: notifyAttendanceTarget.targetDate,
+              },
+            },
+          });
+
+          if (result.sent <= 0) {
+            throw new Error("Não foi possível entregar o push para o responsável desta turma.");
+          }
+
+          await AsyncStorage.setItem(cooldownKey, String(Date.now()));
+        },
+        {
+          screen: "coordination",
+          organizationId,
+          classId: notifyAttendanceTarget.classId,
+          targetDate: notifyAttendanceTarget.targetDate,
+          targetUserId: notifyHead.userId,
+        }
+      );
+
+      Alert.alert("Aviso enviado", `Responsável ${notifyHead.displayName} notificado com sucesso.`);
+    } catch (sendError) {
+      const message = sendError instanceof Error ? sendError.message : "Falha ao enviar aviso.";
+      Alert.alert("Não foi possível avisar", message);
+    } finally {
+      setNotifySending(false);
+    }
+  }, [notifyAttendanceTarget, notifyHead, notifySending, organizationId]);
+
   const loadDashboard = useCallback(async () => {
     if (!organizationId || !isAdmin) {
       setPendingAttendance([]);
       setPendingReports([]);
       setRecentActivity([]);
+      setNotifyHead(null);
+      setNotifyHeadLoading(false);
+      setNotifySending(false);
       setPendingWritesDiagnostics({
         total: 0,
         highRetry: 0,
@@ -539,6 +672,8 @@ export default function CoordinationScreen() {
       setPendingAttendance([]);
       setPendingReports([]);
       setRecentActivity([]);
+      setNotifyHead(null);
+      setNotifyHeadLoading(false);
       setPendingWritesDiagnostics({
         total: 0,
         highRetry: 0,
@@ -1394,6 +1529,90 @@ export default function CoordinationScreen() {
                 }}
               />
             </View>
+          </View>
+
+          <View
+            style={{
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: isWideLayout ? 14 : isCompactLayout ? 12 : 13,
+              gap: 8,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Coordenação</Text>
+              <Pressable
+                onPress={() => {
+                  if (!notifyAttendanceTarget) return;
+                  router.push({
+                    pathname: "/class/[id]/attendance",
+                    params: { id: notifyAttendanceTarget.classId, date: notifyAttendanceTarget.targetDate },
+                  });
+                }}
+                disabled={!notifyAttendanceTarget}
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  opacity: notifyAttendanceTarget ? 1 : 0.55,
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Abrir</Text>
+              </Pressable>
+            </View>
+
+            {notifyAttendanceTarget ? (
+              <>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
+                  Turma pendente: {notifyAttendanceTarget.className}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Chamada pendente em {formatDateBr(notifyAttendanceTarget.targetDate)} • {notifyAttendanceTarget.unit}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Responsável:{" "}
+                  {notifyHeadLoading
+                    ? "carregando..."
+                    : notifyHead
+                    ? notifyHead.displayName
+                    : "não definido"}
+                </Text>
+
+                <Pressable
+                  onPress={() => void handleNotifyResponsibleTeacher()}
+                  disabled={notifySending || notifyHeadLoading || !notifyHead}
+                  style={{
+                    marginTop: 4,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor:
+                      notifySending || !notifyHead ? colors.primaryDisabledBg : colors.primaryBg,
+                    paddingVertical: 11,
+                    paddingHorizontal: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
+                    {notifySending
+                      ? "Enviando aviso..."
+                      : notifyHead
+                      ? `Avisar ${getFirstName(notifyHead.displayName)}`
+                      : "Responsável não definido"}
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Sem chamadas pendentes para aviso no momento.
+              </Text>
+            )}
           </View>
 
           <ClassRadarPanel

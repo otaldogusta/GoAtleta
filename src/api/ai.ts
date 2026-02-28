@@ -20,6 +20,11 @@ type AssistantEnvelope = {
   draftTraining: unknown | null;
 };
 
+type AssistantErrorPayload = {
+  error?: string;
+  message?: string;
+};
+
 type AiCacheContext = {
   organizationId?: string | null;
   periodLabel?: string | null;
@@ -136,7 +141,7 @@ const normalizeForCacheKey = (value: unknown, depth = 0): unknown => {
   if (valueType === "string") {
     const text = value as string;
     return text.length > MAX_CACHE_KEY_STRING_LENGTH
-      ? `${text.slice(0, MAX_CACHE_KEY_STRING_LENGTH)}…[${text.length}]`
+      ? `${text.slice(0, MAX_CACHE_KEY_STRING_LENGTH)}â€¦[${text.length}]`
       : text;
   }
   if (valueType === "number" || valueType === "boolean") return value;
@@ -304,6 +309,40 @@ const tryParseJson = (value: string) => {
   }
 };
 
+const extractAssistantApiError = (value: string) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw) as AssistantErrorPayload;
+    const message =
+      (typeof parsed.error === "string" && parsed.error.trim()) ||
+      (typeof parsed.message === "string" && parsed.message.trim()) ||
+      "";
+    return message || raw;
+  } catch {
+    return raw;
+  }
+};
+
+const toFriendlyAssistantApiError = (value: string) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Nao foi possivel processar esta solicitacao agora.";
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("entrada invalida") || normalized.includes("invalid input")) {
+    return "Nao foi possivel interpretar a solicitacao. Revise os dados e tente novamente.";
+  }
+  if (normalized.includes("timeout")) {
+    return "A resposta demorou mais que o esperado. Tente novamente em alguns instantes.";
+  }
+  if (normalized.includes("token") || normalized.includes("auth")) {
+    return "Sessao expirada. Faça login novamente.";
+  }
+  if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
+    return "Falha de conexao com o assistente. Verifique sua internet e tente novamente.";
+  }
+  return "Nao foi possivel processar esta solicitacao agora.";
+};
+
 const toStringArray = (value: unknown) =>
   Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : [];
 
@@ -342,7 +381,8 @@ const postAssistant = async (messages: AssistantMessage[], classId?: string) => 
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(text || "Assistant request failed");
+    const parsedError = extractAssistantApiError(text || "");
+    throw new Error(toFriendlyAssistantApiError(parsedError || "Assistant request failed"));
   }
 
   try {
@@ -350,9 +390,14 @@ const postAssistant = async (messages: AssistantMessage[], classId?: string) => 
     if (!parsed || typeof parsed.reply !== "string") {
       throw new Error("Invalid assistant envelope");
     }
+    const embeddedError = extractAssistantApiError(parsed.reply);
+    if (embeddedError && embeddedError !== parsed.reply) {
+      throw new Error(toFriendlyAssistantApiError(embeddedError));
+    }
     return parsed;
   } catch {
-    throw new Error("Invalid assistant response payload");
+    const parsedError = extractAssistantApiError(text);
+    throw new Error(toFriendlyAssistantApiError(parsedError || "Invalid assistant response payload"));
   }
 };
 

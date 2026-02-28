@@ -23,6 +23,54 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate rules sync config
+        env:
+          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL || secrets.EXPO_PUBLIC_SUPABASE_URL || vars.SUPABASE_PROJECT_URL || vars.EXPO_PUBLIC_SUPABASE_URL }}
+          RULES_SYNC_SECRET: ${{ secrets.RULES_SYNC_SECRET || vars.RULES_SYNC_SECRET }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY || vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+
+          if [ -z "${SUPABASE_PROJECT_URL:-}" ]; then
+            missing+=("SUPABASE_PROJECT_URL or EXPO_PUBLIC_SUPABASE_URL")
+          fi
+
+          if [ -z "${RULES_SYNC_SECRET:-}" ]; then
+            missing+=("RULES_SYNC_SECRET")
+          fi
+
+          {
+            echo "## Rules Sync config check"
+            echo ""
+            echo "| Config | Status |"
+            echo "|---|---|"
+            if [ -n "${SUPABASE_PROJECT_URL:-}" ]; then
+              echo "| SUPABASE_PROJECT_URL / EXPO_PUBLIC_SUPABASE_URL | OK (present) |"
+            else
+              echo "| SUPABASE_PROJECT_URL / EXPO_PUBLIC_SUPABASE_URL | MISSING |"
+            fi
+            if [ -n "${RULES_SYNC_SECRET:-}" ]; then
+              echo "| RULES_SYNC_SECRET | OK (present) |"
+            else
+              echo "| RULES_SYNC_SECRET | MISSING |"
+            fi
+            if [ -n "${SUPABASE_ANON_KEY:-}" ]; then
+              echo "| SUPABASE_ANON_KEY (optional) | OK (present) |"
+            else
+              echo "| SUPABASE_ANON_KEY (optional) | OPTIONAL (missing) |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing required config for rules sync:"
+            for key in "${missing[@]}"; do
+              echo "- $key"
+            done
+            exit 1
+          fi
+
       - name: Trigger rules sync function
         env:
           SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL || secrets.EXPO_PUBLIC_SUPABASE_URL || vars.SUPABASE_PROJECT_URL || vars.EXPO_PUBLIC_SUPABASE_URL }}
@@ -33,13 +81,6 @@ jobs:
           INPUT_FORCE: ${{ github.event.inputs.force }}
         run: |
           set -euo pipefail
-
-          if [ -z "${SUPABASE_PROJECT_URL:-}" ] || [ -z "${RULES_SYNC_SECRET:-}" ]; then
-            echo "Missing required config for rules sync."
-            echo "Provide one of: SUPABASE_PROJECT_URL or EXPO_PUBLIC_SUPABASE_URL"
-            echo "And provide: RULES_SYNC_SECRET"
-            exit 1
-          fi
 
           BODY="$(jq -n \
             --arg org "${INPUT_ORG_ID:-}" \

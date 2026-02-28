@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -131,6 +130,7 @@ export default function NfcAttendanceScreen() {
   const [metrics, setMetrics] = useState<NfcMetrics>(emptyMetrics());
   const [bindings, setBindings] = useState<NfcTagBinding[]>([]);
   const [removingBindingId, setRemovingBindingId] = useState("");
+  const [webPreviewScanning, setWebPreviewScanning] = useState(false);
 
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const recentScanByUidRef = useRef<Map<string, number>>(new Map());
@@ -141,7 +141,7 @@ export default function NfcAttendanceScreen() {
   const searchSignalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scanPulseA = useRef(new Animated.Value(0)).current;
   const scanPulseB = useRef(new Animated.Value(0)).current;
-  const scanRotate = useRef(new Animated.Value(0)).current;
+  const scanVisualTransition = useRef(new Animated.Value(0)).current;
 
   const studentsById = useMemo(
     () => new Map(students.map((item) => [item.id, item] as const)),
@@ -421,7 +421,7 @@ export default function NfcAttendanceScreen() {
             });
           }
         } else if (origin === "manual") {
-          showSaveToast({ variant: "info", message: "Nao ha pendencias para sincronizar." });
+          showSaveToast({ variant: "info", message: "Não há pendências para sincronizar." });
         }
       } catch (error) {
         void recordMetric("syncErrors");
@@ -431,7 +431,7 @@ export default function NfcAttendanceScreen() {
           screen: "nfc-attendance",
         });
         if (origin === "manual") {
-          const friendly = getFriendlyErrorMessage(error, "Falha ao sincronizar pendencias.");
+          const friendly = getFriendlyErrorMessage(error, "Falha ao sincronizar pendências.");
           showSaveToast({ variant: "error", message: friendly });
         }
       } finally {
@@ -443,8 +443,9 @@ export default function NfcAttendanceScreen() {
 
   const refreshNfcSupport = useCallback(async () => {
     if (Platform.OS === "web") {
-      const reason = "NFC não é suportado no web.";
+      const reason = "NFC não é suportado no navegador.";
       setSupportMessage(reason);
+      setFeedback("");
       return { ok: false as const, reason };
     }
     const support = await isNfcSupported();
@@ -459,13 +460,13 @@ export default function NfcAttendanceScreen() {
 
   const openNfcSettings = useCallback(async () => {
     if (Platform.OS !== "android") {
-      setFeedback("Ative o NFC nas configuracoes do aparelho.");
+      setFeedback("Ative o NFC nas configurações do aparelho.");
       return;
     }
     try {
       await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.NFC_SETTINGS);
     } catch (error) {
-      const friendly = getFriendlyErrorMessage(error, "Nao foi possivel abrir configuracoes NFC.");
+      const friendly = getFriendlyErrorMessage(error, "Não foi possível abrir configurações NFC.");
       setFeedback(friendly);
       showSaveToast({ variant: "error", message: friendly });
     } finally {
@@ -483,7 +484,7 @@ export default function NfcAttendanceScreen() {
     (async () => {
       const support = await refreshNfcSupport();
       if (!alive) return;
-      if (!support.ok) setFeedback(support.reason);
+      if (!support.ok && Platform.OS !== "web") setFeedback(support.reason);
     })();
     return () => {
       alive = false;
@@ -767,6 +768,22 @@ export default function NfcAttendanceScreen() {
   ]);
 
   const toggleScanning = useCallback(async () => {
+    if (Platform.OS === "web") {
+      setWebPreviewScanning((prev) => {
+        const next = !prev;
+        return next;
+      });
+      return;
+    }
+
+    if (scanState === "scanning" || scanState === "paused") {
+      await stopScan();
+      shouldResumeAfterBindRef.current = false;
+      setShowBindModal(false);
+      setFeedback("Leitor NFC desligado.");
+      return;
+    }
+
     if (scanState === "idle") {
       const support = await refreshNfcSupport();
       if (!support.ok) {
@@ -774,54 +791,35 @@ export default function NfcAttendanceScreen() {
         return;
       }
       startScan();
-      setFeedback("Leitura continua iniciada.");
-      return;
+      setFeedback("Leitor NFC ligado.");
     }
-    if (scanState === "scanning") {
-      void pauseScan();
-      setFeedback("Leitura pausada.");
-      return;
-    }
-    const support = await refreshNfcSupport();
-    if (!support.ok) {
-      setFeedback(support.reason);
-      return;
-    }
-    resumeScan();
-    setFeedback("Leitura retomada.");
-  }, [pauseScan, refreshNfcSupport, resumeScan, scanState, startScan]);
+  }, [refreshNfcSupport, scanState, startScan, stopScan]);
 
   const stopScanning = useCallback(async () => {
+    if (Platform.OS === "web") {
+      setWebPreviewScanning(false);
+      shouldResumeAfterBindRef.current = false;
+      setShowBindModal(false);
+      return;
+    }
     await stopScan();
     shouldResumeAfterBindRef.current = false;
     setShowBindModal(false);
     setFeedback("Leitura parada.");
   }, [stopScan]);
 
-  const scanStateLabel =
-    scanState === "idle" ? "Pronto" : scanState === "scanning" ? "Lendo" : "Pausado";
-  const scanStateTone =
-    scanState === "scanning"
-      ? colors.successText
-      : scanState === "paused"
-      ? colors.warningText
-      : colors.muted;
+  const uiScanState = Platform.OS === "web" ? (webPreviewScanning ? "scanning" : "idle") : scanState;
   const selectedClassName =
     classesById.get(selectedClassId)?.name ?? "turma ativa";
   const hasPendingSync = metrics.checkinsPending > 0;
-  const isWebUnsupported = Platform.OS === "web";
   const organizationLabel =
-    activeOrganization?.name ?? "Selecione uma organização no perfil para usar o NFC.";
-  const effectiveSupportMessage =
-    supportMessage || (Platform.OS === "web" ? "NFC não é suportado no web." : "");
-  const scanGuideText = effectiveSupportMessage
-    ? Platform.OS === "web"
-      ? "O navegador não oferece leitura NFC nativa. Use o app no celular."
-      : "Ative o NFC no aparelho para iniciar."
-    : scanState === "scanning"
-    ? "Aproxime a tag da traseira do celular."
-    : "Toque em Iniciar leitura para entrar no modo contínuo.";
-  const isScanLive = scanState === "scanning" && !effectiveSupportMessage && !showBindModal;
+    activeOrganization?.name ?? "Sem organização ativa";
+  const effectiveSupportMessage = Platform.OS === "web" ? "" : supportMessage;
+  const isScanLive =
+    Platform.OS === "web"
+      ? webPreviewScanning
+      : uiScanState === "scanning" && !effectiveSupportMessage && !showBindModal;
+  const isScannerOn = uiScanState === "scanning";
   const openAssistantFromNfc = useCallback(
     (prompt: string) => {
       router.push({
@@ -879,13 +877,20 @@ export default function NfcAttendanceScreen() {
   useCopilotActions(nfcCopilotActions);
 
   useEffect(() => {
+    Animated.timing(scanVisualTransition, {
+      toValue: isScannerOn ? 1 : 0,
+      duration: isScannerOn ? 420 : 280,
+      easing: isScannerOn ? Easing.out(Easing.cubic) : Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [isScannerOn, scanVisualTransition]);
+
+  useEffect(() => {
     if (!isScanLive) {
       scanPulseA.stopAnimation();
       scanPulseB.stopAnimation();
-      scanRotate.stopAnimation();
       scanPulseA.setValue(0);
       scanPulseB.setValue(0);
-      scanRotate.setValue(0);
       return;
     }
 
@@ -893,8 +898,8 @@ export default function NfcAttendanceScreen() {
       Animated.sequence([
         Animated.timing(scanPulseA, {
           toValue: 1,
-          duration: 1500,
-          easing: Easing.out(Easing.quad),
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(scanPulseA, {
@@ -906,11 +911,11 @@ export default function NfcAttendanceScreen() {
     );
     const pulseBLoop = Animated.loop(
       Animated.sequence([
-        Animated.delay(550),
+        Animated.delay(800),
         Animated.timing(scanPulseB, {
           toValue: 1,
-          duration: 1500,
-          easing: Easing.out(Easing.quad),
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(scanPulseB, {
@@ -920,31 +925,18 @@ export default function NfcAttendanceScreen() {
         }),
       ])
     );
-    const rotateLoop = Animated.loop(
-      Animated.timing(scanRotate, {
-        toValue: 1,
-        duration: 2200,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-
     pulseALoop.start();
     pulseBLoop.start();
-    rotateLoop.start();
 
     return () => {
       pulseALoop.stop();
       pulseBLoop.stop();
-      rotateLoop.stop();
       scanPulseA.stopAnimation();
       scanPulseB.stopAnimation();
-      scanRotate.stopAnimation();
       scanPulseA.setValue(0);
       scanPulseB.setValue(0);
-      scanRotate.setValue(0);
     };
-  }, [isScanLive, scanPulseA, scanPulseB, scanRotate]);
+  }, [isScanLive, scanPulseA, scanPulseB]);
 
   const pulseAStyle = {
     transform: [
@@ -955,10 +947,13 @@ export default function NfcAttendanceScreen() {
         }),
       },
     ],
-    opacity: scanPulseA.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.35, 0],
-    }),
+    opacity: Animated.multiply(
+      scanVisualTransition,
+      scanPulseA.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.55, 0],
+      })
+    ),
   } as const;
 
   const pulseBStyle = {
@@ -966,22 +961,29 @@ export default function NfcAttendanceScreen() {
       {
         scale: scanPulseB.interpolate({
           inputRange: [0, 1],
-          outputRange: [1, 2.3],
+          outputRange: [1, 2.8],
         }),
       },
     ],
-    opacity: scanPulseB.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.25, 0],
-    }),
+    opacity: Animated.multiply(
+      scanVisualTransition,
+      scanPulseB.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.4, 0],
+      })
+    ),
   } as const;
 
-  const scanRotateStyle = {
+  const scanIconTransitionStyle = {
+    opacity: scanVisualTransition.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.82, 1],
+    }),
     transform: [
       {
-        rotate: scanRotate.interpolate({
+        scale: scanVisualTransition.interpolate({
           inputRange: [0, 1],
-          outputRange: ["0deg", "360deg"],
+          outputRange: [0.92, 1],
         }),
       },
     ],
@@ -989,7 +991,8 @@ export default function NfcAttendanceScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 30 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 30 }}>
+        <View style={{ width: "100%", maxWidth: 980, alignSelf: "center", gap: 14 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: colors.text, fontSize: 26, fontWeight: "900" }}>Presença NFC</Text>
@@ -1014,10 +1017,9 @@ export default function NfcAttendanceScreen() {
           ) : null}
         </View>
 
-        {!isWebUnsupported ? (
         <LinearGradient
           colors={
-            scanState === "scanning"
+            uiScanState === "scanning"
               ? [colors.card, colors.secondaryBg, colors.card]
               : [colors.card, colors.card, colors.secondaryBg]
           }
@@ -1031,33 +1033,6 @@ export default function NfcAttendanceScreen() {
             gap: 14,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <View
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-              }}
-            >
-              <Text style={{ color: scanStateTone, fontWeight: "800", fontSize: 12 }}>
-                {scanState === "scanning"
-                  ? "Leitura ativa"
-                  : scanState === "paused"
-                  ? "Leitura pausada"
-                  : "Leitura pronta"}
-              </Text>
-            </View>
-            {isScanning ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <ActivityIndicator size="small" color={colors.primaryBg} />
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Escaneando</Text>
-              </View>
-            ) : null}
-          </View>
-
           <View
             style={{
               borderRadius: 20,
@@ -1078,82 +1053,52 @@ export default function NfcAttendanceScreen() {
                 justifyContent: "center",
               }}
             >
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  {
-                    position: "absolute",
-                    width: 120,
-                    height: 120,
-                    borderRadius: 60,
-                    borderWidth: 1,
-                    borderColor: colors.primaryBg,
-                  },
-                  pulseAStyle,
-                ]}
-              />
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  {
-                    position: "absolute",
-                    width: 120,
-                    height: 120,
-                    borderRadius: 60,
-                    borderWidth: 1,
-                    borderColor: colors.primaryBg,
-                  },
-                  pulseBStyle,
-                ]}
-              />
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  {
-                    position: "absolute",
-                    width: 164,
-                    height: 164,
-                    borderRadius: 82,
-                    borderWidth: 3,
-                    borderTopColor: colors.primaryBg,
-                    borderRightColor: "transparent",
-                    borderBottomColor: colors.border,
-                    borderLeftColor: "transparent",
-                    opacity: isScanLive ? 1 : 0.55,
-                  },
-                  scanRotateStyle,
-                ]}
-              />
-              <View
-                style={{
-                  width: 132,
-                  height: 132,
-                  borderRadius: 66,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                }}
-              >
+              {isScanLive ? (
+                <>
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      {
+                        position: "absolute",
+                        width: 96,
+                        height: 96,
+                        borderRadius: 48,
+                        borderWidth: 2,
+                        borderColor: colors.primaryBg,
+                      },
+                      pulseAStyle,
+                    ]}
+                  />
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      {
+                        position: "absolute",
+                        width: 96,
+                        height: 96,
+                        borderRadius: 48,
+                        borderWidth: 2,
+                        borderColor: colors.primaryBg,
+                      },
+                      pulseBStyle,
+                    ]}
+                  />
+                </>
+              ) : null}
+              <Animated.View style={[{ alignItems: "center", justifyContent: "center", gap: 8 }, scanIconTransitionStyle]}>
                 <Ionicons
-                  name="radio-outline"
-                  size={36}
-                  color={scanState === "scanning" ? colors.primaryBg : colors.muted}
+                  name={uiScanState === "scanning" ? "radio" : "radio-outline"}
+                  size={56}
+                  color={
+                    effectiveSupportMessage
+                      ? colors.warningText
+                      : uiScanState === "scanning"
+                      ? colors.primaryBg
+                      : colors.muted
+                  }
                 />
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
-                  {scanStateLabel}
-                </Text>
-              </View>
+              </Animated.View>
             </View>
-
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900", textAlign: "center" }}>
-              {scanState === "scanning" ? "Escaneando tags NFC" : "Leitor NFC"}
-            </Text>
-            <Text style={{ color: colors.muted, textAlign: "center", fontSize: 13, maxWidth: 360 }}>
-              {scanGuideText}
-            </Text>
 
             <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
               <Pressable
@@ -1169,31 +1114,15 @@ export default function NfcAttendanceScreen() {
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-                  {scanState === "idle"
-                    ? "Iniciar leitura"
-                    : scanState === "scanning"
-                    ? "Pausar leitura"
-                    : "Retomar leitura"}
+                  {!isScannerOn
+                    ? Platform.OS === "web"
+                      ? "Ativar"
+                      : "Ligar leitor"
+                    : Platform.OS === "web"
+                    ? "Desativar"
+                    : "Desligar leitor"}
                 </Text>
               </Pressable>
-              {scanState !== "idle" ? (
-                <Pressable
-                  onPress={() => {
-                    void stopScanning();
-                  }}
-                  style={{
-                    borderRadius: 14,
-                    paddingVertical: 12,
-                    paddingHorizontal: 14,
-                    alignItems: "center",
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Parar</Text>
-                </Pressable>
-              ) : null}
             </View>
           </View>
 
@@ -1239,23 +1168,6 @@ export default function NfcAttendanceScreen() {
             </View>
           ) : null}
         </LinearGradient>
-        ) : null}
-
-        {effectiveSupportMessage ? (
-          <View
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.warningBg,
-              backgroundColor: colors.warningBg,
-              padding: 12,
-              gap: 6,
-            }}
-          >
-            <Text style={{ color: colors.warningText, fontWeight: "800" }}>NFC indisponível</Text>
-            <Text style={{ color: colors.warningText }}>{effectiveSupportMessage}</Text>
-          </View>
-        ) : null}
 
         {feedback && feedback !== effectiveSupportMessage ? (
           <View
@@ -1329,7 +1241,16 @@ export default function NfcAttendanceScreen() {
           </View>
         </View>
 
-        <View style={{ gap: 8 }}>
+        <View
+          style={{
+            gap: 8,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 12,
+          }}
+        >
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turma ativa</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
             {classes.map((item) => {
@@ -1356,7 +1277,16 @@ export default function NfcAttendanceScreen() {
           </ScrollView>
         </View>
 
-        <View style={{ gap: 8 }}>
+        <View
+          style={{
+            gap: 8,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 12,
+          }}
+        >
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
             Tags vinculadas
           </Text>
@@ -1405,7 +1335,16 @@ export default function NfcAttendanceScreen() {
           )}
         </View>
 
-        <View style={{ gap: 8 }}>
+        <View
+          style={{
+            gap: 8,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 12,
+          }}
+        >
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
             Presenças desta sessão
           </Text>
@@ -1443,8 +1382,9 @@ export default function NfcAttendanceScreen() {
               </View>
             ))
           ) : (
-            <Text style={{ color: colors.muted }}>Nenhuma presenca registrada ainda.</Text>
+            <Text style={{ color: colors.muted }}>Nenhuma presença registrada ainda.</Text>
           )}
+        </View>
         </View>
       </ScrollView>
 

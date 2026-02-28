@@ -106,6 +106,11 @@ type AssistantResponse = {
   missingData?: string[];
 };
 
+type AssistantErrorPayload = {
+  error?: string;
+  message?: string;
+};
+
 type ScientificReference = {
   id: string;
   title: string;
@@ -315,12 +320,15 @@ const DEFAULT_WARMUP_TIME = "10 minutos";
 const DEFAULT_COOLDOWN_TIME = "5 minutos";
 const MAX_STRATEGIC_BULLETS = 3;
 const MAX_BULLET_LINE_LENGTH = 88;
+const COMPOSER_MIN_HEIGHT = 40;
+const COMPOSER_MAX_HEIGHT = 136;
+const COMPOSER_MAX_HEIGHT_WEB = 84;
 
 const clampBulletLine = (value: string) => {
   const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
   if (!normalized) return "";
   if (normalized.length <= MAX_BULLET_LINE_LENGTH) return normalized;
-  return `${normalized.slice(0, MAX_BULLET_LINE_LENGTH - 1).trimEnd()}…`;
+  return `${normalized.slice(0, MAX_BULLET_LINE_LENGTH - 1).trimEnd()}â€¦`;
 };
 
 const normalizeDraftTraining = (draft: DraftTraining): DraftTraining => ({
@@ -346,6 +354,46 @@ const parseDraftTrainingFromReply = (value: string): DraftTraining | null => {
   } catch {
     return null;
   }
+};
+
+const extractAssistantPayloadError = (value: unknown): string | null => {
+  if (!value || typeof value !== "object") return null;
+  const payload = value as AssistantErrorPayload;
+  const errorMessage =
+    (typeof payload.error === "string" && payload.error.trim()) ||
+    (typeof payload.message === "string" && payload.message.trim()) ||
+    "";
+  return errorMessage || null;
+};
+
+const extractEmbeddedReplyError = (reply: string): string | null => {
+  const normalized = String(reply ?? "").trim();
+  if (!normalized.startsWith("{") || !normalized.endsWith("}")) return null;
+  try {
+    const parsed = JSON.parse(normalized) as AssistantErrorPayload;
+    return extractAssistantPayloadError(parsed);
+  } catch {
+    return null;
+  }
+};
+
+const toFriendlyAssistantError = (value: string | null | undefined) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "Nao consegui processar essa pergunta agora.";
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("entrada invalida") || normalized.includes("invalid input")) {
+    return "Nao consegui interpretar essa pergunta. Tente reformular com mais contexto da turma.";
+  }
+  if (normalized.includes("timeout")) {
+    return "A resposta demorou mais que o esperado. Tente novamente em alguns instantes.";
+  }
+  if (normalized.includes("token") || normalized.includes("auth")) {
+    return "Sua sessao expirou. Faca login novamente para continuar.";
+  }
+  if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
+    return "Falha de conexao com o assistente. Verifique sua internet e tente novamente.";
+  }
+  return "Nao consegui processar essa pergunta agora. Tente novamente em instantes.";
 };
 
 const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
@@ -397,13 +445,13 @@ export default function AssistantScreen() {
   const [simulationResult, setSimulationResult] = useState<EvolutionSimulationResult | null>(null);
   const [memoryContextHints, setMemoryContextHints] = useState<string[]>([]);
   const [composerHeight, setComposerHeight] = useState(0);
+  const [composerInputHeight, setComposerInputHeight] = useState(COMPOSER_MIN_HEIGHT);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
-  const sendButtonAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const incomingPrompt = String(params.prompt ?? "").trim();
@@ -525,24 +573,6 @@ export default function AssistantScreen() {
     return entries;
   }, [classes]);
   const hasInputText = input.trim().length > 0;
-
-  useEffect(() => {
-    Animated.timing(sendButtonAnim, {
-      toValue: hasInputText ? 1 : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [hasInputText, sendButtonAnim]);
-
-  const sendButtonScale = sendButtonAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.82, 1],
-  });
-
-  const sendButtonTranslateY = sendButtonAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [6, 0],
-  });
 
   const className = selectedClass?.name ?? "Turma";
 
@@ -1010,33 +1040,45 @@ export default function AssistantScreen() {
 
       const payloadText = await response.text();
       if (!response.ok) {
-        throw new Error(payloadText || "Falha no assistente");
+        const parsedError = extractEmbeddedReplyError(payloadText);
+        throw new Error(parsedError || payloadText || "Falha no assistente");
       }
 
-      const data = JSON.parse(payloadText) as AssistantResponse;
+      const data = JSON.parse(payloadText) as AssistantResponse | AssistantErrorPayload;
+      const payloadError = extractAssistantPayloadError(data);
       const rawReply =
-        typeof data.reply === "string" && data.reply.trim()
-           ? data.reply
+        typeof (data as AssistantResponse).reply === "string" && (data as AssistantResponse).reply.trim()
+           ? (data as AssistantResponse).reply
           : "Sem resposta do assistente. Tente novamente.";
+      const embeddedReplyError = extractEmbeddedReplyError(rawReply);
+      const responseError = payloadError || embeddedReplyError;
       const draftFromReply = looksLikeJsonPayload(rawReply)
         ? parseDraftTrainingFromReply(rawReply)
         : null;
-      const nextDraft = data.draftTraining
-        ? normalizeDraftTraining(data.draftTraining)
+      const nextDraft = responseError
+        ? null
+        : (data as AssistantResponse).draftTraining
+        ? normalizeDraftTraining((data as AssistantResponse).draftTraining)
         : draftFromReply;
-      const reply = nextDraft
+      const reply = responseError
+        ? toFriendlyAssistantError(responseError)
+        : nextDraft
         ? "Montei um planejamento para você. Revise os blocos abaixo e ajuste se necessário."
         : rawReply;
 
       setLoading(false);
       await typeAssistantReply(reply);
-      setSources(Array.isArray(data.sources) ? data.sources : []);
+      setSources(responseError ? [] : Array.isArray((data as AssistantResponse).sources) ? (data as AssistantResponse).sources : []);
       setConfidence(
-        Number.isFinite(data.confidence) ? Math.max(0, Math.min(1, Number(data.confidence))) : null
+        responseError
+          ? null
+          : Number.isFinite((data as AssistantResponse).confidence)
+          ? Math.max(0, Math.min(1, Number((data as AssistantResponse).confidence)))
+          : null
       );
-      setCitations(Array.isArray(data.citations) ? data.citations : []);
-      setMissingData(Array.isArray(data.missingData) ? data.missingData : []);
-      setAssumptions(Array.isArray(data.assumptions) ? data.assumptions : []);
+      setCitations(responseError ? [] : Array.isArray((data as AssistantResponse).citations) ? (data as AssistantResponse).citations : []);
+      setMissingData(responseError ? [] : Array.isArray((data as AssistantResponse).missingData) ? (data as AssistantResponse).missingData : []);
+      setAssumptions(responseError ? [] : Array.isArray((data as AssistantResponse).assumptions) ? (data as AssistantResponse).assumptions : []);
       setDraft(nextDraft);
 
       const nowIso = new Date().toISOString();
@@ -1079,16 +1121,16 @@ export default function AssistantScreen() {
         void notifyTrainingCreated();
       }
     } catch (error) {
-      const detail =
+      const detailRaw =
         error instanceof Error
           ? error.message.replace(/\s+/g, " ").trim().slice(0, 180)
           : "Falha de rede ou deploy da Edge Function.";
+      const detail = extractEmbeddedReplyError(detailRaw) ?? detailRaw;
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content:
-            "Erro ao consultar o assistente. Confira o deploy/token e tente novamente. Detalhe: " + detail,
+          content: "Erro ao consultar o assistente. " + toFriendlyAssistantError(detail),
         },
       ]);
     } finally {
@@ -1834,7 +1876,7 @@ export default function AssistantScreen() {
               </View>
             ) : null}
 
-            {confidence !== null || citations.length > 0 || assumptions.length > 0 || missingData.length > 0 ? (
+            {(confidence !== null && confidence > 0) || citations.length > 0 || assumptions.length > 0 || missingData.length > 0 ? (
               <View
                 style={{
                   padding: 14,
@@ -1846,7 +1888,7 @@ export default function AssistantScreen() {
                 }}
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>Qualidade da resposta</Text>
-                {confidence !== null ? (
+                {confidence !== null && confidence > 0 ? (
                   <Text style={{ color: colors.muted }}>
                     Confiança: {(confidence * 100).toFixed(0)}%
                   </Text>
@@ -2084,71 +2126,116 @@ export default function AssistantScreen() {
               if (next !== composerHeight) setComposerHeight(next);
             }}
             style={{
-              gap: 8,
-              padding: 12,
-              borderRadius: 16,
-              backgroundColor: colors.card,
+              borderRadius: 28,
               borderWidth: 1,
               borderColor: colors.border,
+              backgroundColor: colors.card,
+              paddingHorizontal: 10,
+              paddingVertical: 10,
+              gap: 8,
+              marginTop: 2,
               marginBottom: keyboardHeight,
-              paddingBottom: 12 + insets.bottom,
+              paddingBottom: 10 + insets.bottom,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+              <Pressable
+                onPress={() => {
+                  composerInputRef.current?.focus();
+                }}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 999,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Ionicons name="add" size={20} color={colors.text} />
+              </Pressable>
               <TextInput
                 ref={composerInputRef}
                 placeholder="Perguntar algo..."
                 value={input}
-                onChangeText={setInput}
+                onChangeText={(value) => {
+                  setInput(value);
+                  if (!value.trim() && composerInputHeight !== COMPOSER_MIN_HEIGHT) {
+                    setComposerInputHeight(COMPOSER_MIN_HEIGHT);
+                  }
+                }}
                 onFocus={() => setComposerFocused(true)}
                 onBlur={() => setComposerFocused(false)}
                 onKeyPress={handleComposerKeyPress}
-                placeholderTextColor={colors.placeholder}
+                onContentSizeChange={(event) => {
+                  if (!input.trim()) {
+                    if (composerInputHeight !== COMPOSER_MIN_HEIGHT) {
+                      setComposerInputHeight(COMPOSER_MIN_HEIGHT);
+                    }
+                    return;
+                  }
+                  const maxHeight =
+                    Platform.OS === "web" ? COMPOSER_MAX_HEIGHT_WEB : COMPOSER_MAX_HEIGHT;
+                  const next = Math.max(
+                    COMPOSER_MIN_HEIGHT,
+                    Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))
+                  );
+                  if (next !== composerInputHeight) {
+                    setComposerInputHeight(next);
+                  }
+                }}
+                placeholderTextColor={colors.muted}
+                returnKeyType="send"
                 multiline
+                scrollEnabled={
+                  composerInputHeight >=
+                  (Platform.OS === "web" ? COMPOSER_MAX_HEIGHT_WEB : COMPOSER_MAX_HEIGHT)
+                }
                 style={{
                   flex: 1,
-                  minHeight: 48,
-                  maxHeight: 96,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.inputBg,
-                  paddingHorizontal: 12,
-                  paddingVertical: 11,
+                  minHeight: COMPOSER_MIN_HEIGHT,
+                  height: composerInputHeight,
                   color: colors.inputText,
+                  paddingHorizontal: 2,
+                  paddingTop: 8,
+                  paddingBottom: 8,
+                  fontSize: 16,
                   textAlignVertical: "top",
+                  ...(Platform.OS === "web"
+                    ? ({
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        overflowWrap: "anywhere",
+                      } as const)
+                    : null),
                 }}
               />
-              <Animated.View
-                pointerEvents={hasInputText ? "auto" : "none"}
+              <Pressable
+                onPress={sendMessage}
+                disabled={!hasInputText}
                 style={{
-                  opacity: sendButtonAnim,
-                  transform: [{ scale: sendButtonScale }, { translateY: sendButtonTranslateY }],
+                  width: 44,
+                  height: 44,
+                  borderRadius: 999,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.primaryBg,
+                  opacity: hasInputText ? 1 : 0.55,
                 }}
               >
-                <Pressable
-                  onPress={sendMessage}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 999,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: colors.primaryBg,
-                  }}
-                >
-                  <Ionicons
-                    name={loading || assistantTyping ? "hourglass-outline" : "arrow-up"}
-                    size={18}
-                    color={colors.primaryText}
-                  />
-                </Pressable>
-              </Animated.View>
+                <Ionicons
+                  name={loading || assistantTyping ? "hourglass-outline" : "arrow-up"}
+                  size={20}
+                  color={colors.primaryText}
+                />
+              </Pressable>
             </View>
-
           </View>
         </View>
       </View>
     </SafeAreaView>
   );
 }
+
