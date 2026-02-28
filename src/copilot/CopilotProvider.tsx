@@ -1,4 +1,4 @@
-import { usePathname, useRouter } from "expo-router";
+﻿import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -140,10 +140,10 @@ const CONTEXT_COMPOSER_MAX_HEIGHT_WEB = 84;
 const publicRoutes = new Set(["/welcome", "/login", "/signup", "/reset-password"]);
 
 const categoryLabelById: Record<InsightsCategory, string> = {
-  reports: "RelatÃ³rios",
+  reports: "Relatórios",
   absences: "Faltas consecutivas",
-  nfc: "PresenÃ§a NFC",
-  attendance: "Queda de presenÃ§a",
+  nfc: "Presença NFC",
+  attendance: "Queda de presença",
   engagement: "Risco de engajamento",
   regulation: "Regulamento atualizado",
 };
@@ -170,7 +170,7 @@ const normalizeNotificationIds = (value: unknown) => {
   if (!Array.isArray(value)) return [];
   const unique = new Set<string>();
   for (const item of value) {
-    const id = String(item ?? "").trim();
+    const id = String(item ? "").trim();
     if (id) unique.add(id);
   }
   return Array.from(unique);
@@ -189,21 +189,21 @@ const regulationRelativeLabel = (value: string | null | undefined, nowMs: number
   if (!Number.isFinite(parsed)) return "sem data";
   const diffHours = Math.max(0, (nowMs - parsed) / 36e5);
   if (diffHours < 1) return "agora";
-  if (diffHours < 24) return `hÃ¡ ${Math.floor(diffHours)}h`;
+  if (diffHours < 24) return `h? ${Math.floor(diffHours)}h`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1) return "ontem";
-  if (diffDays < 7) return `hÃ¡ ${diffDays}d`;
+  if (diffDays < 7) return `h? ${diffDays}d`;
   return regulationDateLabel(value);
 };
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
-  if (!value) return { message: "AÃ§Ã£o concluÃ­da." };
+  if (!value) return { message: "A??o conclu?da." };
   if (typeof value === "string") return { message: value };
   return value;
 };
 
 const extractEmbeddedErrorMessage = (value: string) => {
-  const normalized = String(value ?? "").trim();
+  const normalized = String(value ? "").trim();
   if (!normalized.startsWith("{") || !normalized.endsWith("}")) return "";
   try {
     const payload = JSON.parse(normalized) as { error?: string; message?: string };
@@ -218,22 +218,22 @@ const extractEmbeddedErrorMessage = (value: string) => {
 };
 
 const toFriendlyContextError = (value: string | null | undefined) => {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "Falha ao executar aÃ§Ã£o.";
+  const raw = String(value ? "").trim();
+  if (!raw) return "Falha ao executar a a??o.";
   const normalized = raw.toLowerCase();
   if (normalized.includes("entrada invalida") || normalized.includes("invalid input")) {
-    return "NÃ£o consegui interpretar essa solicitaÃ§Ã£o no contexto atual.";
+    return "N?o consegui interpretar essa solicita??o no contexto atual.";
   }
   if (normalized.includes("timeout")) {
     return "A resposta demorou mais que o esperado. Tente novamente.";
   }
   if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
-    return "Falha de conexÃ£o. Verifique sua internet e tente novamente.";
+    return "Falha de conex?o. Verifique sua internet e tente novamente.";
   }
   if (normalized.includes("token") || normalized.includes("auth")) {
-    return "SessÃ£o expirada. FaÃ§a login novamente.";
+    return "Sess?o expirada. Fa?a login novamente.";
   }
-  return "Falha ao executar aÃ§Ã£o.";
+  return "Falha ao executar a a??o.";
 };
 
 const buildHistoryItem = (params: {
@@ -297,7 +297,7 @@ const buildContextualComposerReply = (params: {
   ];
   if (hasAnyKeyword(normalizedPrompt, globalIntentKeywords)) return null;
 
-  const screen = String(params.screen ?? "").toLowerCase();
+  const screen = String(params.screen ? "").toLowerCase();
   const screenKeywordsByPrefix: Record<string, string[]> = {
     nfc: ["nfc", "tag", "duplicad", "presenca", "checkin", "sincron"],
     class: ["turma", "aluno", "falta", "engajamento", "presenca", "relatorio"],
@@ -307,7 +307,7 @@ const buildContextualComposerReply = (params: {
     periodization: ["periodizacao", "microciclo", "treino", "carga"],
   };
   const matchingScreenKey =
-    Object.keys(screenKeywordsByPrefix).find((key) => screen.startsWith(key)) ?? null;
+    Object.keys(screenKeywordsByPrefix).find((key) => screen.startsWith(key)) ? null;
   const screenKeywords = matchingScreenKey ? screenKeywordsByPrefix[matchingScreenKey] : [];
   const genericContextKeywords = ["aqui", "dessa tela", "desta tela", "neste contexto", "agora", "pendencia", "alerta"];
 
@@ -416,7 +416,7 @@ const buildDefaultContextReply = (params: {
   panel: OperationalContextResult["panel"];
   actions: CopilotAction[];
 }) => {
-  const screen = String(params.screen ?? "").toLowerCase();
+  const screen = String(params.screen ? "").toLowerCase();
   const contextNameByScreen: Record<string, string> = {
     nfc: "NFC",
     class: "turma atual",
@@ -426,7 +426,7 @@ const buildDefaultContextReply = (params: {
     periodization: "periodizacao",
   };
   const matchingScreenKey =
-    Object.keys(contextNameByScreen).find((key) => screen.startsWith(key)) ?? null;
+    Object.keys(contextNameByScreen).find((key) => screen.startsWith(key)) ? null;
   const contextName = matchingScreenKey ? contextNameByScreen[matchingScreenKey] : "tela atual";
   const quickActions = params.actions.slice(0, 3).map((item) => item.title);
   const attentionSignals = params.panel.attentionSignals.slice(0, 2);
@@ -450,7 +450,7 @@ const buildDefaultContextReply = (params: {
 };
 
 const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
-  const screen = String(state.context?.screen ?? "").toLowerCase();
+  const screen = String(state.context?.screen ? "").toLowerCase();
   if (!screen.startsWith("nfc")) return null;
 
   const nfcSignals = state.signals.filter((item) => item.type === "unusual_presence_pattern");
@@ -458,23 +458,23 @@ const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
 
   if (actionId === "nfc_summary") {
     if (!nfcSignals.length && !repeatedAbsenceSignals.length) {
-      return "No contexto NFC atual, nÃ£o hÃ¡ alerta urgente.";
+      return "No contexto NFC atual, n?o h? alerta urgente.";
     }
-    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presenÃ§a incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausÃªncia recorrente.`;
+    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presen?a incomum e ${repeatedAbsenceSignals.length} alerta(s) de aus?ncia recorrente.`;
   }
 
   if (actionId === "nfc_actions") {
     if (nfcSignals.length > 0) {
-      return "PrÃ³ximos passos: revisar tags com leitura duplicada, validar vÃ­nculo da turma ativa e sincronizar pendÃªncias.";
+      return "Pr?ximos passos: revisar tags com leitura duplicada, validar v?nculo da turma ativa e sincronizar pend?ncias.";
     }
-    return "PrÃ³ximos passos: manter leitura ativa, revisar vÃ­nculos de tag e confirmar sincronizaÃ§Ã£o ao final da sessÃ£o.";
+    return "Pr?ximos passos: manter leitura ativa, revisar v?nculos de tag e confirmar sincroniza??o ao final da sess?o.";
   }
 
   if (actionId === "nfc_duplicates") {
     if (nfcSignals.length > 0) {
       return `Duplicidades em foco: ${nfcSignals[0].summary}`;
     }
-    return "Sem padrÃ£o forte de duplicidade no contexto NFC atual.";
+    return "Sem padr?o forte de duplicidade no contexto NFC atual.";
   }
 
   return null;
@@ -484,16 +484,16 @@ const buildContextSignature = (input: CopilotContextData | null) => {
   if (!input) return "__none__";
   const signal = input.activeSignal;
   return JSON.stringify({
-    screen: input.screen ?? "",
-    title: input.title ?? "",
-    subtitle: input.subtitle ?? "",
+    screen: input.screen ? "",
+    title: input.title ? "",
+    subtitle: input.subtitle ? "",
     activeSignal: signal
       ? {
           id: signal.id,
           type: signal.type,
           severity: signal.severity,
-          classId: signal.classId ?? null,
-          studentId: signal.studentId ?? null,
+          classId: signal.classId ? null,
+          studentId: signal.studentId ? null,
           detectedAt: signal.detectedAt,
           title: signal.title,
           summary: signal.summary,
@@ -503,7 +503,7 @@ const buildContextSignature = (input: CopilotContextData | null) => {
 };
 
 const buildSignalsSignature = (signals: CopilotSignal[]) =>
-  [...(signals ?? [])]
+  [...(signals ? [])]
     .filter(isValidCopilotSignal)
     .map((signal) => `${signal.id}:${signal.severity}:${signal.detectedAt}`)
     .sort((left, right) => left.localeCompare(right))
@@ -576,7 +576,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     const activeOwner = activeOwnerRef.current;
     if (activeOwner === ownerId) {
       const nextContext = contextRegistryRef.current.size
-        ? Array.from(contextRegistryRef.current.values())[contextRegistryRef.current.size - 1] ?? null
+        ? Array.from(contextRegistryRef.current.values())[contextRegistryRef.current.size - 1] ? null
         : null;
       setState((prev) => ({ ...prev, context: nextContext }));
     }
@@ -593,14 +593,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     const activeOwner = activeOwnerRef.current;
     if (activeOwner === ownerId) {
       const nextActions = actionsRegistryRef.current.size
-        ? Array.from(actionsRegistryRef.current.values())[actionsRegistryRef.current.size - 1] ?? []
+        ? Array.from(actionsRegistryRef.current.values())[actionsRegistryRef.current.size - 1] ? []
         : [];
       setState((prev) => ({ ...prev, actions: nextActions }));
     }
   }, []);
 
   const setSignals = useCallback((ownerId: string, signals: CopilotSignal[]) => {
-    const sortedSignals = sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal));
+    const sortedSignals = sortCopilotSignals((signals ? []).filter(isValidCopilotSignal));
     signalsRegistryRef.current.set(ownerId, sortedSignals);
     activeOwnerRef.current = ownerId;
     setState((prev) => {
@@ -612,7 +612,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         signals: sortedSignals,
         selectedSignalId: selectedStillExists
           ? prev.selectedSignalId
-          : sortedSignals[0]?.id ?? null,
+          : sortedSignals[0]?.id ? null,
       };
     });
   }, []);
@@ -622,12 +622,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     const activeOwner = activeOwnerRef.current;
     if (activeOwner === ownerId) {
       const nextSignals = signalsRegistryRef.current.size
-        ? Array.from(signalsRegistryRef.current.values())[signalsRegistryRef.current.size - 1] ?? []
+        ? Array.from(signalsRegistryRef.current.values())[signalsRegistryRef.current.size - 1] ? []
         : [];
       setState((prev) => ({
         ...prev,
         signals: nextSignals,
-        selectedSignalId: nextSignals[0]?.id ?? null,
+        selectedSignalId: nextSignals[0]?.id ? null,
       }));
     }
   }, []);
@@ -641,8 +641,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadNotifiedRegulationIds = useCallback(async () => {
-    const userId = session?.user?.id ?? "";
-    const organizationId = activeOrganizationId ?? "";
+    const userId = session?.user?.id ? "";
+    const organizationId = activeOrganizationId ? "";
     if (!userId || !organizationId) {
       notifiedUpdatesCacheKeyRef.current = null;
       notifiedUpdateIdsRef.current = new Set();
@@ -681,7 +681,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadRegulationUpdates = useCallback(async () => {
-    const organizationId = activeOrganizationId ?? "";
+    const organizationId = activeOrganizationId ? "";
     if (!organizationId) {
       setState((prev) => ({ ...prev, regulationUpdates: [], regulationRuleSets: [] }));
       return;
@@ -723,7 +723,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         const topicsPreview = update.changedTopics.slice(0, 2).join(", ");
         const impactPreview = update.impactAreas.slice(0, 2).join(", ");
         const body = topicsPreview
-          ? `MudanÃ§as em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
+          ? `Mudan?as em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
           : update.diffSummary;
         await addNotification("Regulamento atualizado", body);
       }
@@ -746,7 +746,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const organizationId = activeOrganizationId ?? "";
+      const organizationId = activeOrganizationId ? "";
       if (!organizationId) {
         if (!cancelled) setScheduleWindows([]);
         return;
@@ -761,7 +761,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         setScheduleWindows(
           classes.map((item) => ({
             daysOfWeek: Array.isArray(item.daysOfWeek) ? item.daysOfWeek : [],
-            startTime: item.startTime ?? null,
+            startTime: item.startTime ? null,
             durationMinutes: Number.isFinite(item.durationMinutes)
               ? Number(item.durationMinutes)
               : null,
@@ -846,13 +846,13 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   );
 
   const selectedSignal =
-    state.signals.find((item) => item.id === state.selectedSignalId) ?? null;
+    state.signals.find((item) => item.id === state.selectedSignalId) ? null;
   const operationalContext = useMemo(
     () =>
       buildOperationalContext({
-        screen: state.context?.screen ?? null,
-        contextTitle: state.context?.title ?? null,
-        contextSubtitle: state.context?.subtitle ?? null,
+        screen: state.context?.screen ? null,
+        contextTitle: state.context?.title ? null,
+        contextSubtitle: state.context?.subtitle ? null,
         signals: state.signals,
         selectedSignalId: state.selectedSignalId,
         regulationUpdates: state.regulationUpdates,
@@ -881,12 +881,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
   const currentSnapshot = useMemo(() => {
     return buildCentralSnapshot({
-      screenKey: state.context?.screen ?? "__none__",
+      screenKey: state.context?.screen ? "__none__",
       snapshotHash: operationalContext.snapshot.snapshotHash,
       signals: state.signals,
       ruleUpdates: state.regulationUpdates.map((item) => ({
         id: item.id,
-        publishedAt: item.publishedAt ?? null,
+        publishedAt: item.publishedAt ? null,
         createdAt: item.createdAt,
         checksum: item.checksumSha256,
       })),
@@ -910,7 +910,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
   const open = useCallback(() => {
     const latestSnapshot =
-      lastComputedSnapshotRef.current ??
+      lastComputedSnapshotRef.current ?
       currentSnapshotRef.current;
     if (latestSnapshot) {
       lastSeenSnapshotRef.current = latestSnapshot;
@@ -920,7 +920,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     setContextPreview({
       actionTitle: "",
       message: buildDefaultContextReply({
-        screen: state.context?.screen ?? null,
+        screen: state.context?.screen ? null,
         panel: operationalContext.panel,
         actions: state.actions,
       }),
@@ -989,13 +989,13 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const runAction = useCallback(async (action: CopilotAction) => {
     const currentState = stateRef.current;
     const selectedSignal =
-      currentState.signals.find((item) => item.id === currentState.selectedSignalId) ?? null;
+      currentState.signals.find((item) => item.id === currentState.selectedSignalId) ? null;
     const actionContext: CopilotContextData | null = selectedSignal
       ? {
-          ...(currentState.context ?? { screen: "assistant" }),
+          ...(currentState.context ? { screen: "assistant" }),
           activeSignal: selectedSignal,
         }
-      : currentState.context ?? null;
+      : currentState.context ? null;
 
     const requirementError = action.requires?.(actionContext);
     if (requirementError) {
@@ -1020,7 +1020,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       const rawMessage = error instanceof Error ? error.message : "";
       const embeddedMessage = extractEmbeddedErrorMessage(rawMessage);
       const result: CopilotActionResult = {
-        message: toFriendlyContextError(embeddedMessage || rawMessage || "Falha ao executar aÃ§Ã£o."),
+        message: toFriendlyContextError(embeddedMessage || rawMessage || "Falha ao executar a a??o."),
       };
       setState((prev) => ({ ...prev, runningActionId: null }));
       enqueueContextReply(action.title, result, "error");
@@ -1085,22 +1085,22 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     normalizedPath.startsWith("/events") || unreadRegulationCount > 0 || hasRuleSetContext;
   const latestRegulationUpdate = useMemo(() => {
     return [...state.regulationUpdates]
-      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))[0] ?? null;
+      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))[0] ? null;
   }, [state.regulationUpdates]);
   const detailSignal = useMemo(() => {
     if (insightsView.mode !== "detail") return null;
     if (insightsView.category === "regulation") return null;
-    return state.signals.find((item) => item.id === insightsView.itemId) ?? null;
+    return state.signals.find((item) => item.id === insightsView.itemId) ? null;
   }, [insightsView, state.signals]);
   const detailRegulationUpdate = useMemo(() => {
     if (insightsView.mode !== "detail") return null;
     if (insightsView.category !== "regulation") return null;
-    return state.regulationUpdates.find((item) => item.id === insightsView.itemId) ?? null;
+    return state.regulationUpdates.find((item) => item.id === insightsView.itemId) ? null;
   }, [insightsView, state.regulationUpdates]);
   const activeDrawerSignal =
     insightsView.mode === "detail" && insightsView.category === "regulation"
       ? null
-      : detailSignal ?? selectedSignal;
+      : detailSignal ? selectedSignal;
   const activeCategoryForActions =
     insightsView.mode === "category" || insightsView.mode === "detail"
       ? insightsView.category === "regulation"
@@ -1194,7 +1194,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     (hasRuleSetContext ||
       unreadRegulationCount > 0 ||
       operationalContext.panel.topImpactAreas.length > 0);
-  const latestRegulationSourceUrl = latestRegulationUpdate?.sourceUrl ?? "";
+  const latestRegulationSourceUrl = latestRegulationUpdate?.sourceUrl ? "";
   const selectedSeverityColor =
     activeDrawerSignal?.severity === "critical"
       ? colors.dangerText
@@ -1205,11 +1205,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           : colors.muted;
   const selectedSeverityLabel =
     activeDrawerSignal?.severity === "critical"
-      ? "CrÃ­tico"
+      ? "Cr?tico"
       : activeDrawerSignal?.severity === "high"
         ? "Alto"
         : activeDrawerSignal?.severity === "medium"
-          ? "MÃ©dio"
+          ? "M?dio"
           : "Baixo";
   const activeCategoryLabel = activeCategoryForActions
     ? categoryLabelById[activeCategoryForActions]
@@ -1271,7 +1271,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
     const contextualReply = buildContextualComposerReply({
       prompt,
-      screen: state.context?.screen ?? null,
+      screen: state.context?.screen ? null,
       panel: operationalContext.panel,
       actions: state.actions,
     });
@@ -1293,7 +1293,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       pathname: "/assistant",
       params: {
         prompt,
-        source: state.context?.screen ?? "insights",
+        source: state.context?.screen ? "insights",
       },
     });
   }, [close, composerValue, enqueueContextReply, operationalContext.panel, router, state.actions, state.context?.screen]);
@@ -1494,7 +1494,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               {operationalContext.panel.attentionSignals.length ? (
                 <View style={{ gap: 8 }}>
                   <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
-                    PONTOS DE ATENÇÃO
+                    PONTOS DE ATEN??O
                   </Text>
                   {operationalContext.panel.attentionSignals.map((signal, index) => (
                     <View key={signal.id} style={{ gap: 6 }}>
@@ -1530,7 +1530,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                     <View style={{ height: 1, backgroundColor: colors.border }} />
                   ) : null}
                   <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
-                    REGULAMENTAÇÃO
+                    REGULAMENTA??O
                   </Text>
                   <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                     {operationalContext.panel.activeRuleSetLabel === "Sem ruleset ativo"
@@ -1539,7 +1539,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                   </Text>
                   {operationalContext.panel.pendingRuleSetLabel ? (
                     <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-                      PrÃ³ximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
+                      Pr?ximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
                     </Text>
                   ) : null}
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -1556,7 +1556,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          Ver mudanÃ§as
+                          Ver mudan?as
                         </Text>
                       </Pressable>
                     ) : null}
@@ -1644,7 +1644,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                           {state.runningActionId === action.id ? "Executando..." : action.title}
                         </Text>
                         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>
-                          {action.description ?? "AÃ§Ã£o contextual para este momento."}
+                          {action.description ?? "A??o contextual para este momento."}
                         </Text>
                       </Pressable>
                     ))}
@@ -1680,9 +1680,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                         >
                           <Ionicons name="add" size={16} color={colors.text} />
                         </View>
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>Ver mais aÃ§Ãµes</Text>
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>Ver mais a??es</Text>
                         <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
-                          Mostrar lista completa de aÃ§Ãµes disponÃ­veis.
+                          Mostrar lista completa de a??es dispon?veis.
                         </Text>
                       </Pressable>
                     ) : null}
@@ -1699,8 +1699,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {insightsView.category === "regulation"
-                  ? "Toque em uma atualizaÃ§Ã£o para ver detalhes e fonte oficial."
-                  : "Toque em um insight para ver detalhes e aÃ§Ãµes relacionadas."}
+                  ? "Toque em uma atualiza??o para ver detalhes e fonte oficial."
+                  : "Toque em um insight para ver detalhes e a??es relacionadas."}
               </Text>
               {insightsView.category === "regulation"
                 ? state.regulationUpdates.filter((item) => !item.isRead).map((item) => (
@@ -1728,8 +1728,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                       <Text style={{ color: colors.text, fontWeight: "700" }}>{item.title}</Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>{item.diffSummary}</Text>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Publicado em {regulationDateLabel(item.publishedAt ?? item.createdAt)}
-                        {item.isRead ? " - lido" : " - nÃ£o lido"}
+                        Publicado em {regulationDateLabel(item.publishedAt ? item.createdAt)}
+                        {item.isRead ? " - lido" : " - n?o lido"}
                       </Text>
                     </Pressable>
                   ))
@@ -1795,7 +1795,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                   {detailRegulationUpdate.diffSummary}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>
-                  Publicado em {regulationDateLabel(detailRegulationUpdate.publishedAt ?? detailRegulationUpdate.createdAt)}
+                  Publicado em {regulationDateLabel(detailRegulationUpdate.publishedAt ? detailRegulationUpdate.createdAt)}
                 </Text>
                 {detailRegulationUpdate.changedTopics.length ? (
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
@@ -1874,7 +1874,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             <>
               <View style={{ gap: 8 }}>
                 <Text style={{ color: colors.text, fontWeight: "800" }}>
-                  {activeCategoryLabel ?? "Insight selecionado"}
+                  {activeCategoryLabel ? "Insight selecionado"}
                 </Text>
                 <View
                   style={{
@@ -1895,10 +1895,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
               </View>
 
               <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>AÃ§Ãµes gerais</Text>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>A??es gerais</Text>
                 {recommendedActions.length ? (
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    As aÃ§Ãµes recomendadas para este insight aparecem primeiro.
+                    As a??es recomendadas para este insight aparecem primeiro.
                   </Text>
                 ) : null}
                 {orderedActions.length ? (
@@ -1935,7 +1935,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
                     );
                   })
                 ) : (
-                  <Text style={{ color: colors.muted }}>Sem aÃ§Ãµes disponÃ­veis neste contexto.</Text>
+                  <Text style={{ color: colors.muted }}>Sem a??es dispon?veis neste contexto.</Text>
                 )}
               </View>
             </>
@@ -2135,7 +2135,7 @@ export function useCopilot() {
     regulationUpdates: state.regulationUpdates,
     regulationRuleSets: state.regulationRuleSets,
     activeSignal:
-      state.signals.find((item) => item.id === state.selectedSignalId) ?? null,
+      state.signals.find((item) => item.id === state.selectedSignalId) ? null,
     setActiveSignal: actionsContext.setActiveSignal,
     context: state.context,
     history: state.history,
@@ -2162,7 +2162,7 @@ export function useOptionalCopilot() {
     regulationUpdates: state.regulationUpdates,
     regulationRuleSets: state.regulationRuleSets,
     activeSignal:
-      state.signals.find((item) => item.id === state.selectedSignalId) ?? null,
+      state.signals.find((item) => item.id === state.selectedSignalId) ? null,
     setActiveSignal: actionsContext.setActiveSignal,
     context: state.context,
     history: state.history,
@@ -2185,7 +2185,7 @@ export function useCopilotContext(input: CopilotContextData | null) {
       screen: input.screen,
       title: input.title,
       subtitle: input.subtitle,
-      activeSignal: input.activeSignal ?? undefined,
+      activeSignal: input.activeSignal ? undefined,
     };
   }, [contextSignature]);
 
@@ -2229,7 +2229,7 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
   const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
   const signalsSignature = useMemo(() => buildSignalsSignature(signals), [signals]);
   const stableSignals = useMemo(
-    () => sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal)),
+    () => sortCopilotSignals((signals ? []).filter(isValidCopilotSignal)),
     [signalsSignature]
   );
 
@@ -2261,4 +2261,5 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
+
 
