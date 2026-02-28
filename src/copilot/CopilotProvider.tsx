@@ -170,7 +170,7 @@ const normalizeNotificationIds = (value: unknown) => {
   if (!Array.isArray(value)) return [];
   const unique = new Set<string>();
   for (const item of value) {
-    const id = String(item ? "").trim();
+    const id = String(item ?? "").trim();
     if (id) unique.add(id);
   }
   return Array.from(unique);
@@ -2261,5 +2261,4 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
-
 
