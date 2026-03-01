@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    Platform,
+    Alert,
     ScrollView,
     Text,
     View,
@@ -39,6 +39,8 @@ import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { REPORT_ATTENDANCE_EXPORT_HEADERS_PTBR } from "../../src/utils/export-schemas";
+import { exportWorkbookXlsx } from "../../src/utils/export-xlsx";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -398,32 +400,43 @@ export default function ReportsScreen() {
     return sum / classRows.length;
   }, [classRows]);
 
-  const exportCsv = () => {
-    const rows = [
-      ["date", "class", "student", "status", "note"],
-      ...monthAttendance.map((r) => [
-        r.date,
-        classMap[r.classId]?.name ?? "",
-        studentMap[r.studentId]?.name ?? "",
-        r.status,
-        r.note ?? "",
-      ]),
-    ];
-    const csv = rows
-      .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    if (Platform.OS !== "web" || typeof document === "undefined") {
-      console.warn("CSV export only available on web platform");
-      return;
+  const exportXlsx = async () => {
+    try {
+      await measureAsync("screen.reportsTrainer.export.xlsx", async () => {
+        const rows = [
+          [...REPORT_ATTENDANCE_EXPORT_HEADERS_PTBR],
+          ...monthAttendance.map((r) => [
+            r.date,
+            classMap[r.classId]?.name ?? "",
+            studentMap[r.studentId]?.name ?? "",
+            r.status,
+            r.note ?? "",
+          ]),
+        ];
+        await exportWorkbookXlsx({
+          fileName: `relatorio_${monthKey}.xlsx`,
+          sheets: [
+            {
+              name: "Relatorio",
+              rows,
+              options: {
+                freezeHeaderRow: true,
+                autoFilterHeaderRow: true,
+                autoSizeColumns: true,
+                columnWidths: [12, 24, 28, 14, 42],
+                minColumnWidth: 10,
+                maxColumnWidth: 48,
+              },
+            },
+          ],
+          dialogTitle: "Exportar relatorio",
+        });
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Falha ao exportar relatorio XLSX.";
+      Alert.alert("Relatorios", message);
     }
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `relatorio_${monthKey}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
   };
 
   const weeklySummary = useMemo(() => {
@@ -613,7 +626,9 @@ export default function ReportsScreen() {
             >
               <Text style={sectionTitleStyle}>Mês atual</Text>
               <Pressable
-                onPress={exportCsv}
+                onPress={() => {
+                  void exportXlsx();
+                }}
                 style={{
                   paddingVertical: 6,
                   paddingHorizontal: 12,
@@ -622,7 +637,7 @@ export default function ReportsScreen() {
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  Exportar CSV
+                  Exportar XLSX
                 </Text>
               </Pressable>
             </View>

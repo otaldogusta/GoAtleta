@@ -1305,6 +1305,9 @@ type StudentRow = {
   name: string;
   organization_id?: string | null;
   photo_url?: string | null;
+  external_id?: string | null;
+  rg_normalized?: string | null;
+  guardian_cpf_hmac?: string | null;
   classid: string;
   age: number;
   phone: string;
@@ -2962,6 +2965,8 @@ export async function getStudents(
         name: row.name,
         organizationId: resolvedOrganizationId,
         photoUrl: row.photo_url ?? undefined,
+        externalId: row.external_id ?? null,
+        rgNormalized: row.rg_normalized ?? null,
         classId: row.classid,
         age: row.age,
         phone: row.phone,
@@ -3027,6 +3032,8 @@ export async function getStudentsByClass(
         name: row.name,
         organizationId: resolvedOrganizationId,
         photoUrl: row.photo_url ?? undefined,
+        externalId: row.external_id ?? null,
+        rgNormalized: row.rg_normalized ?? null,
         classId: row.classid,
         age: row.age,
         phone: row.phone,
@@ -3083,6 +3090,8 @@ export async function getStudentById(
     name: row.name,
     organizationId: resolvedOrganizationId,
     photoUrl: row.photo_url ?? undefined,
+    externalId: row.external_id ?? null,
+    rgNormalized: row.rg_normalized ?? null,
     classId: row.classid,
     age: row.age,
     phone: row.phone,
@@ -3111,6 +3120,8 @@ export async function saveStudent(student: Student) {
   const payload: Record<string, unknown> = {
     id: student.id,
     name: student.name,
+    external_id: student.externalId?.trim() || null,
+    rg_normalized: student.rgNormalized?.trim() || null,
     classid: student.classId,
     age: student.age,
     phone: student.phone,
@@ -3142,6 +3153,8 @@ export async function updateStudent(student: Student) {
     student.organizationId || (await getActiveOrganizationId());
   const payload: Record<string, unknown> = {
     name: student.name,
+    external_id: student.externalId?.trim() || null,
+    rg_normalized: student.rgNormalized?.trim() || null,
     classid: student.classId,
     age: student.age,
     phone: student.phone,

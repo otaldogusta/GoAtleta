@@ -23,7 +23,7 @@ import {
     View,
     useWindowDimensions
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
 import { createStudentInvite, revokeStudentAccess } from "../../src/api/student-invite";
 import {
@@ -48,6 +48,9 @@ import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
+import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
+import { StudentsImportModal } from "../../src/screens/students/modals/StudentsImportModal";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -140,6 +143,7 @@ type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
 
 export default function StudentsScreen() {
   const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
@@ -182,6 +186,9 @@ export default function StudentsScreen() {
   const [studentsTab, setStudentsTab] = usePersistedState<
     "cadastro" | "aniversários" | "alunos"
   >("students_tab_v1", "alunos");
+  const [showStudentsFabMenu, setShowStudentsFabMenu] = useState(false);
+  const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
+  const [studentsExportBusy, setStudentsExportBusy] = useState(false);
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] = useState<
     "cadastro" | "aniversários" | "alunos" | null
@@ -262,6 +269,7 @@ export default function StudentsScreen() {
   const saveNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const whatsappNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveNoticeAnim = useRef(new Animated.Value(0)).current;
+  const studentsFabAnim = useRef(new Animated.Value(0)).current;
   const [editSnapshot, setEditSnapshot] = useState<{
     unit: string;
     ageBand: string;
@@ -397,6 +405,63 @@ export default function StudentsScreen() {
     const data = await getStudents({ organizationId: activeOrganization?.id });
     setStudents(data);
   };
+
+  useEffect(() => {
+    if ((studentsTab as string) === "importar") {
+      setStudentsTab("alunos");
+    }
+  }, [studentsTab, setStudentsTab]);
+
+  const handleExportStudents = useCallback(async () => {
+    const organizationId = activeOrganization?.id ?? null;
+    if (!organizationId) {
+      Alert.alert("Alunos", "Selecione uma organizacao ativa.");
+      return;
+    }
+    setStudentsExportBusy(true);
+    try {
+      const result = await exportStudentsXlsx({
+        organizationId,
+        organizationName: activeOrganization?.name ?? null,
+      });
+      Alert.alert(
+        "Exportacao concluida",
+        `Arquivo ${result.fileName} com ${result.totalStudents} aluno(s).`
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Falha ao exportar XLSX de alunos.";
+      Alert.alert("Alunos", message);
+    } finally {
+      setStudentsExportBusy(false);
+    }
+  }, [activeOrganization?.id]);
+  const studentsFabBottom = Math.max(insets.bottom + 96, 104);
+  const studentsFabRight = 16;
+  const studentsFabRotate = useMemo(
+    () =>
+      studentsFabAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "45deg"],
+      }),
+    [studentsFabAnim]
+  );
+  const studentsFabScale = useMemo(
+    () =>
+      studentsFabAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 1.06],
+      }),
+    [studentsFabAnim]
+  );
+
+  useEffect(() => {
+    Animated.timing(studentsFabAnim, {
+      toValue: showStudentsFabMenu ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [showStudentsFabMenu, studentsFabAnim]);
 
   const unitLabel = useCallback(
     (value: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
@@ -3596,7 +3661,66 @@ export default function StudentsScreen() {
             </View>
           </View>
         )}
+
       </ScrollView>
+
+      <Pressable
+        onPress={() => setShowStudentsFabMenu((current) => !current)}
+        style={{
+          position: "absolute",
+          right: studentsFabRight,
+          bottom: studentsFabBottom,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.primaryBg,
+          borderWidth: 1,
+          borderColor: colors.border,
+          zIndex: 3200,
+          shadowColor: "#000",
+          shadowOpacity: 0.2,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 12,
+        }}
+      >
+        <Animated.View
+          style={{
+            transform: [{ rotate: studentsFabRotate }, { scale: studentsFabScale }],
+          }}
+        >
+          <Ionicons name="add" size={24} color={colors.primaryText} />
+        </Animated.View>
+      </Pressable>
+
+      <StudentsFabMenu
+        visible={showStudentsFabMenu}
+        exportBusy={studentsExportBusy}
+        anchorRight={studentsFabRight}
+        anchorBottom={studentsFabBottom}
+        onClose={() => setShowStudentsFabMenu(false)}
+        onImportPress={() => {
+          setShowStudentsFabMenu(false);
+          setShowStudentsImportModal(true);
+        }}
+        onExportPress={() => {
+          void handleExportStudents().finally(() => {
+            setShowStudentsFabMenu(false);
+          });
+        }}
+      />
+
+      <StudentsImportModal
+        visible={showStudentsImportModal}
+        organizationId={activeOrganization?.id ?? null}
+        classes={classes}
+        onClose={() => setShowStudentsImportModal(false)}
+        onImportApplied={() => {
+          void reload();
+        }}
+      />
 
         <StudentsAnchoredDropdown
           visible={showUnitPickerContent}
@@ -5121,4 +5245,3 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
-

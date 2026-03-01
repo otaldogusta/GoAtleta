@@ -239,7 +239,7 @@ const refreshSession = async (): Promise<AuthSession | null> => {
 
 export const forceRefreshAccessToken = async (): Promise<string> => {
   const next = await refreshSession();
-  return next.access_token ?? "";
+  return next?.access_token ?? "";
 };
 
 export const getValidAccessToken = async (): Promise<string> => {

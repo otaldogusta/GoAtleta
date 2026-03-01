@@ -111,6 +111,8 @@ export type Student = {
   name: string;
   organizationId: string;
   photoUrl?: string;
+  externalId?: string | null;
+  rgNormalized?: string | null;
   classId: string;
   age: number;
   phone: string;

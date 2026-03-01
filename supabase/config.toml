@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.rules-sync-admin]
 verify_jwt = false
+
+[functions.students-import]
+verify_jwt = false
