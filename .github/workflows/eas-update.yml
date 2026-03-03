@@ -48,7 +48,8 @@ jobs:
           fi
 
       - name: Publish update to main
-        run: eas update --channel main --message "${{ github.event.head_commit.message }}"
+        # Expo SDK 55+ requires the --environment flag
+        run: eas update --channel main --environment production --message "${{ github.event.head_commit.message }}"
         env:
           CI: 1
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

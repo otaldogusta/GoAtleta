@@ -1,6 +1,6 @@
 import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { safeJsonParse } from "../utils/safe-json";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 
 type RestMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
