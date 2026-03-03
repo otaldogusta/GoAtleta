@@ -6,6 +6,52 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+type RateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSec: number;
+};
+
+const RATE_LIMIT_STORE =
+  (globalThis as unknown as {
+    __linkMetadataRateLimitStore?: Map<string, { count: number; resetAt: number }>;
+  }).__linkMetadataRateLimitStore ??
+  new Map<string, { count: number; resetAt: number }>();
+
+(globalThis as unknown as { __linkMetadataRateLimitStore?: typeof RATE_LIMIT_STORE }).__linkMetadataRateLimitStore =
+  RATE_LIMIT_STORE;
+
+const checkRateLimit = (
+  key: string,
+  maxRequests: number,
+  windowMs: number
+): RateLimitResult => {
+  const now = Date.now();
+  const previous = RATE_LIMIT_STORE.get(key);
+  if (!previous || now >= previous.resetAt) {
+    RATE_LIMIT_STORE.set(key, { count: 1, resetAt: now + windowMs });
+    return {
+      allowed: true,
+      remaining: Math.max(0, maxRequests - 1),
+      retryAfterSec: Math.ceil(windowMs / 1000),
+    };
+  }
+  if (previous.count >= maxRequests) {
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+    };
+  }
+  previous.count += 1;
+  RATE_LIMIT_STORE.set(key, previous);
+  return {
+    allowed: true,
+    remaining: Math.max(0, maxRequests - previous.count),
+    retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+  };
+};
+
 const isPrivateIpv4 = (host: string) => {
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
   const parts = host.split(".").map((part) => Number(part));
@@ -142,6 +188,25 @@ Deno.serve(async (req) => {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    const maxRequestsPerMinute = Math.max(
+      1,
+      Number.parseInt(String(Deno.env.get("LINK_METADATA_RATE_LIMIT_PER_MIN") ?? "60"), 10) || 60
+    );
+    const limiter = checkRateLimit(
+      `link-metadata:${user.id}`,
+      maxRequestsPerMinute,
+      60_000
+    );
+    if (!limiter.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: "Rate limit exceeded",
+          retryAfterSec: limiter.retryAfterSec,
+          maxRequestsPerMinute,
+        }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
     const { url } = await req.json();
     const normalized = normalizePublicUrl(String(url ?? ""));
