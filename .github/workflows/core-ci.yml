@@ -58,6 +58,9 @@ jobs:
       - name: Check encoding
         run: npm run check:encoding
 
+      - name: Check Edge JWT config
+        run: npm run check:edge-jwt
+
       - name: Run core tests
         run: npm run test:core
 

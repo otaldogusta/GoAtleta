@@ -1,5 +1,6 @@
 import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
+import { safeJsonParse } from "../utils/safe-json";
 
 type RestMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
@@ -18,7 +19,11 @@ const parseResponse = async <T>(res: Response): Promise<T> => {
     throw new Error(text || `REST request failed (${res.status})`);
   }
   if (!text) return null as T;
-  return JSON.parse(text) as T;
+  const parsed = safeJsonParse<unknown>(text, undefined);
+  if (parsed === undefined) {
+    throw new Error("REST response is not valid JSON");
+  }
+  return parsed as T;
 };
 
 const makeHeaders = (token: string, options: RestRequestOptions) => {
@@ -60,8 +65,9 @@ const waitForAccessToken = async (): Promise<string> => {
   if (token) return token;
 
   // Handles startup/login races where session persistence completes moments later.
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 120));
+  // Increased attempts to 5 with 200ms intervals for slower storage backends (web).
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
     token = await getValidAccessToken();
     if (token) return token;
   }

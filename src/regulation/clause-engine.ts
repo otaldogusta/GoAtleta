@@ -1,4 +1,5 @@
 import type { RegulationClause } from "../api/regulation-rule-sets";
+import { safeNumber } from "../utils/safe-number";
 
 export type RegulationContext = {
   organizationId?: string | null;
@@ -85,8 +86,7 @@ export const resolveNumberClause = (
   fallback: number
 ) => {
   if (!clausesByKey.has(key)) return fallback;
-  const value = Number(clausesByKey.get(key));
-  return Number.isFinite(value) ? value : fallback;
+  return safeNumber(clausesByKey.get(key), fallback);
 };
 
 export const resolveStringArrayClause = (

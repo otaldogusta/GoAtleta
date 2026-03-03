@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  validateArrayLength,
+  validateStringField,
+} from "../_shared/input-validation.ts";
 
 import { computeMergePatch } from "./engine/merge.ts";
 import {
@@ -29,6 +33,52 @@ const jsonHeaders = {
   "Content-Type": "application/json",
 };
 
+type RateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSec: number;
+};
+
+const RATE_LIMIT_STORE =
+  (globalThis as unknown as {
+    __studentsImportRateLimitStore?: Map<string, { count: number; resetAt: number }>;
+  }).__studentsImportRateLimitStore ??
+  new Map<string, { count: number; resetAt: number }>();
+
+(globalThis as unknown as { __studentsImportRateLimitStore?: typeof RATE_LIMIT_STORE }).__studentsImportRateLimitStore =
+  RATE_LIMIT_STORE;
+
+const checkRateLimit = (
+  key: string,
+  maxRequests: number,
+  windowMs: number
+): RateLimitResult => {
+  const now = Date.now();
+  const previous = RATE_LIMIT_STORE.get(key);
+  if (!previous || now >= previous.resetAt) {
+    RATE_LIMIT_STORE.set(key, { count: 1, resetAt: now + windowMs });
+    return {
+      allowed: true,
+      remaining: Math.max(0, maxRequests - 1),
+      retryAfterSec: Math.ceil(windowMs / 1000),
+    };
+  }
+  if (previous.count >= maxRequests) {
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+    };
+  }
+  previous.count += 1;
+  RATE_LIMIT_STORE.set(key, previous);
+  return {
+    allowed: true,
+    remaining: Math.max(0, maxRequests - previous.count),
+    retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+  };
+};
+
 type StudentsImportRequest = {
   organizationId?: string;
   mode?: ImportMode;
@@ -36,6 +86,7 @@ type StudentsImportRequest = {
   sourceFilename?: string;
   rows?: StudentImportRow[];
 };
+const MAX_IMPORT_ROWS = 500;
 
 type RunSummary = {
   totalRows: number;
@@ -213,18 +264,33 @@ Deno.serve(async (request) => {
   const payload = await parsePayload(request);
   if (!payload) return asJson(400, { error: "Invalid JSON body" });
 
-  const organizationId = String(payload.organizationId ?? "").trim();
+  const organizationValidation = validateStringField(payload.organizationId, {
+    minLength: 1,
+    maxLength: 128,
+  });
+  if (!organizationValidation.ok) {
+    return asJson(400, { error: `Invalid organizationId: ${organizationValidation.error}` });
+  }
+
+  const rowsValidation = validateArrayLength<Record<string, unknown>>(payload.rows, {
+    minLength: 1,
+    maxLength: MAX_IMPORT_ROWS,
+  });
+  if (!rowsValidation.ok) {
+    return asJson(400, { error: `Invalid rows: ${rowsValidation.error}` });
+  }
+
+  const organizationId = organizationValidation.data;
   const mode = validateMode(payload.mode);
   const policy = validatePolicy(payload.policy);
-  const sourceFilename = String(payload.sourceFilename ?? "").trim() || null;
-  const rowsInput = Array.isArray(payload.rows) ? payload.rows : [];
-
-  if (!organizationId) {
-    return asJson(400, { error: "organizationId is required" });
-  }
-  if (!rowsInput.length) {
-    return asJson(400, { error: "rows is required" });
-  }
+  const sourceFilenameValidation = validateStringField(payload.sourceFilename, {
+    maxLength: 255,
+    trim: true,
+  });
+  const sourceFilename = sourceFilenameValidation.ok && sourceFilenameValidation.data
+    ? sourceFilenameValidation.data
+    : null;
+  const rowsInput = rowsValidation.data;
 
   const secret = String(Deno.env.get("STUDENT_IMPORT_HMAC_SECRET") ?? "").trim();
   if (!secret) {
@@ -241,11 +307,29 @@ Deno.serve(async (request) => {
     .maybeSingle();
 
   if (memberError) return asJson(500, { error: memberError.message });
-  if (!memberRow || Number(memberRow.role_level ?? 0) < 50) {
+  const memberRoleLevel = Number(memberRow?.role_level ?? 0);
+  if (!memberRow || !Number.isFinite(memberRoleLevel) || memberRoleLevel < 50) {
     return asJson(403, { error: "Forbidden" });
   }
 
-  const normalizedRows = await normalizeImportRows(rowsInput as Record<string, unknown>[], secret);
+  const maxRequestsPerMinute = Math.max(
+    1,
+    Number.parseInt(String(Deno.env.get("STUDENTS_IMPORT_RATE_LIMIT_PER_MIN") ?? "8"), 10) || 8
+  );
+  const limiter = checkRateLimit(
+    `students-import:${organizationId}:${user.id}`,
+    maxRequestsPerMinute,
+    60_000
+  );
+  if (!limiter.allowed) {
+    return asJson(429, {
+      error: "Rate limit exceeded",
+      retryAfterSec: limiter.retryAfterSec,
+      maxRequestsPerMinute,
+    });
+  }
+
+  const normalizedRows = await normalizeImportRows(rowsInput, secret);
   const sourceSha256 = await hashSourceRows(normalizedRows);
 
   if (mode === "apply") {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { safeJsonParse } from "../utils/safe-json";
 
 export function usePersistedState<T>(key: string | null, initialState: T) {
   const [state, setState] = useState<T>(initialState);
@@ -18,7 +19,7 @@ export function usePersistedState<T>(key: string | null, initialState: T) {
         const raw = await AsyncStorage.getItem(key);
         if (!alive) return;
         if (raw !== null) {
-          setState(JSON.parse(raw) as T);
+          setState(safeJsonParse<T>(raw, initialState));
         }
       } catch {
         // Ignore invalid or unavailable stored state.

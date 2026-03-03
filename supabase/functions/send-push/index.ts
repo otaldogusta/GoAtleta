@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  validateObjectPayload,
+  validateStringField,
+} from "../_shared/input-validation.ts";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -106,20 +110,63 @@ Deno.serve(async (request) => {
     });
   }
 
-  const organizationId = String(payload.organizationId ?? "").trim();
-  const targetUserId = String(payload.targetUserId ?? "").trim();
-  const title = String(payload.title ?? "").trim();
-  const body = String(payload.body ?? "").trim();
-  const data = payload.data && typeof payload.data === "object" ? payload.data : null;
-
-  if (!organizationId || !targetUserId || !title || !body) {
-    return new Response(
-      JSON.stringify({
-        error: "organizationId, targetUserId, title e body são obrigatórios.",
-      }),
-      { status: 400, headers: jsonHeaders }
-    );
+  const organizationValidation = validateStringField(payload.organizationId, {
+    minLength: 1,
+    maxLength: 128,
+  });
+  if (!organizationValidation.ok) {
+    return new Response(JSON.stringify({ error: `Invalid organizationId: ${organizationValidation.error}` }), {
+      status: 400,
+      headers: jsonHeaders,
+    });
   }
+
+  const targetUserValidation = validateStringField(payload.targetUserId, {
+    minLength: 1,
+    maxLength: 128,
+  });
+  if (!targetUserValidation.ok) {
+    return new Response(JSON.stringify({ error: `Invalid targetUserId: ${targetUserValidation.error}` }), {
+      status: 400,
+      headers: jsonHeaders,
+    });
+  }
+
+  const titleValidation = validateStringField(payload.title, {
+    minLength: 1,
+    maxLength: 120,
+  });
+  if (!titleValidation.ok) {
+    return new Response(JSON.stringify({ error: `Invalid title: ${titleValidation.error}` }), {
+      status: 400,
+      headers: jsonHeaders,
+    });
+  }
+
+  const bodyValidation = validateStringField(payload.body, {
+    minLength: 1,
+    maxLength: 500,
+  });
+  if (!bodyValidation.ok) {
+    return new Response(JSON.stringify({ error: `Invalid body: ${bodyValidation.error}` }), {
+      status: 400,
+      headers: jsonHeaders,
+    });
+  }
+
+  const dataValidation = validateObjectPayload(payload.data, { maxBytes: 4096 });
+  if (!dataValidation.ok) {
+    return new Response(JSON.stringify({ error: `Invalid data payload: ${dataValidation.error}` }), {
+      status: 400,
+      headers: jsonHeaders,
+    });
+  }
+
+  const organizationId = organizationValidation.data;
+  const targetUserId = targetUserValidation.data;
+  const title = titleValidation.data;
+  const body = bodyValidation.data;
+  const data = dataValidation.data;
 
   const supabase = createServiceClient();
   if (!supabase) {
@@ -141,7 +188,8 @@ Deno.serve(async (request) => {
       headers: jsonHeaders,
     });
   }
-  if (!senderMembership || Number(senderMembership.role_level ?? 0) < 50) {
+  const senderRoleLevel = Number(senderMembership?.role_level ?? 0);
+  if (!senderMembership || !Number.isFinite(senderRoleLevel) || senderRoleLevel < 50) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: jsonHeaders,
@@ -308,3 +356,4 @@ Deno.serve(async (request) => {
     }
   );
 });
+

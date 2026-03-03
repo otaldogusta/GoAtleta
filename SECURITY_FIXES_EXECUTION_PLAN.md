@@ -1,7 +1,7 @@
 # ⚡ SECURITY FIXES - EXECUTION PLAN WITH CODE
 
-**Status:** Ready to implement  
-**Estimated Time:** 6-8 hours (2 devs working in parallel)  
+**Status:** Ready to implement
+**Estimated Time:** 6-8 hours (2 devs working in parallel)
 **Testing Required:** Before next production deployment
 
 ---
@@ -25,8 +25,8 @@
 
 ## FIX #1: JSON.parse Crash Protection [CRITICAL]
 
-**Time:** 30 min  
-**Files:** 6 locations  
+**Time:** 30 min
+**Files:** 6 locations
 **Severity:** 🔴 App crash on corrupted data
 
 ### Step 1: Create Safety Wrapper
@@ -163,8 +163,8 @@ adb shell "sqlite3 /data/com.atleta/databases/RKStorage.db UPDATE shared_prefs S
 
 ## FIX #2: Edge Function Input Validation [CRITICAL]
 
-**Time:** 1 hour  
-**Files:** 5 functions  
+**Time:** 1 hour
+**Files:** 5 functions
 **Severity:** 🔴 DoS attacks on infrastructure
 
 ### Create Validation Utility
@@ -172,7 +172,7 @@ adb shell "sqlite3 /data/com.atleta/databases/RKStorage.db UPDATE shared_prefs S
 File: `supabase/functions/_shared/input-validation.ts`
 
 ```typescript
-export type ValidationResult<T> = 
+export type ValidationResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
@@ -292,7 +292,7 @@ export async function handler(req: Request, ctx: any) {
   const rows = [];
   for (const row of rowsInput) {
     if (typeof row !== "object" || !row) continue;
-    
+
     const nameValidation = validateStringField(
       (row as any).name,
       { maxLength: 255 }
@@ -329,8 +329,8 @@ Apply same pattern to:
 
 ## FIX #3: Number Coercion Safety [CRITICAL]
 
-**Time:** 45 min  
-**Files:** 11 locations  
+**Time:** 45 min
+**Files:** 11 locations
 **Severity:** 🔴 Logic bypass / metric corruption
 
 ### Create Validation Helper
@@ -429,8 +429,8 @@ For each match:
 
 ## FIX #4: Sync Race Condition [CRITICAL]
 
-**Time:** 2 hours  
-**File:** [src/core/smart-sync.ts](src/core/smart-sync.ts)  
+**Time:** 2 hours
+**File:** [src/core/smart-sync.ts](src/core/smart-sync.ts)
 **Severity:** 🔴 Data corruption
 
 ### Root Cause
@@ -457,7 +457,7 @@ class SmartSyncService {
 
   private async processSyncQueue() {
     if (this.syncRunning || this.syncQueue.length === 0) return;
-    
+
     this.syncRunning = true;
     try {
       while (this.syncQueue.length > 0) {
@@ -508,8 +508,8 @@ smartSync.syncNow();
 
 ## FIX #5: Token Security [HIGH]
 
-**Time:** 3 hours  
-**Files:** [src/auth/session.ts](src/auth/session.ts), [src/auth/auth.tsx](src/auth/auth.tsx)  
+**Time:** 3 hours
+**Files:** [src/auth/session.ts](src/auth/session.ts), [src/auth/auth.tsx](src/auth/auth.tsx)
 **Severity:** 🟠 Token theft from device
 
 ### Step 1: Install Expo SecureStore
@@ -675,8 +675,8 @@ adb shell "sqlite3 ~/.../shared_prefs.db" # Should fail or show encrypted
 
 ## FIX #6: NFC Memory Leak [HIGH]
 
-**Time:** 30 min  
-**File:** [src/nfc/nfc-hooks.ts](src/nfc/nfc-hooks.ts#L100-115)  
+**Time:** 30 min
+**File:** [src/nfc/nfc-hooks.ts](src/nfc/nfc-hooks.ts#L100-115)
 **Severity:** 🟠 Crash after 8-12h
 
 Add yield points in loop:
@@ -696,7 +696,7 @@ const loop = useCallback(async () => {
         await wait(80);
         continue;
       }
-      
+
       // ... scan logic
 
       // ✅ YIELD periodically to allow GC
@@ -717,7 +717,7 @@ This allows the JavaScript engine to run garbage collection between iterations.
 
 ## FIX #7: useEffect Cleanup [HIGH]
 
-**Time:** 20 min  
+**Time:** 20 min
 **File:** [src/nfc/nfc-hooks.ts](src/nfc/nfc-hooks.ts#L220)
 
 ```typescript
@@ -837,7 +837,7 @@ After deploying fixes:
 
 ---
 
-**Estimated Team Effort:** 6-8 hours (2 devs)  
-**Blocking Issues:** All 5 CRITICAL + 3 HIGH must fix before scaling  
+**Estimated Team Effort:** 6-8 hours (2 devs)
+**Blocking Issues:** All 5 CRITICAL + 3 HIGH must fix before scaling
 **Safe to Deploy After:** All fixes implemented + 24h validation passing
 

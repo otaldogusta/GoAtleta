@@ -7,33 +7,33 @@
 ## TL;DR — Top 5 Fixes (Priority Order)
 
 ### 1️⃣ JSON.parse → Try-Catch [30 min] 🔴 CRITICAL
-**Files:** 6 locations (use-persisted-state, metrics, inbox, seed, profile)  
-**Risk:** App crashes on corrupted data  
-**Fix:** Wrap with try-catch + fallback to default value  
-**Status:** Not implemented  
+**Files:** 6 locations (use-persisted-state, metrics, inbox, seed, profile)
+**Risk:** App crashes on corrupted data
+**Fix:** Wrap with try-catch + fallback to default value
+**Status:** Not implemented
 
 ### 2️⃣ Edge Input Validation [1h] 🔴 CRITICAL
-**Files:** 5 functions (students-import, kb_ingest, send-push, etc.)  
-**Risk:** DoS via massive payloads (1M rows = OOM)  
-**Fix:** Add max length checks on arrays/strings  
+**Files:** 5 functions (students-import, kb_ingest, send-push, etc.)
+**Risk:** DoS via massive payloads (1M rows = OOM)
+**Fix:** Add max length checks on arrays/strings
 **Status:** Not implemented
 
 ### 3️⃣ Number() Validation [45 min] 🔴 CRITICAL
-**Files:** 11 locations (metrics, clauses, sqlite, etc.)  
-**Risk:** NaN/Infinity breaks logic + metrics  
-**Fix:** Use `Number.isFinite()` check + default value  
+**Files:** 11 locations (metrics, clauses, sqlite, etc.)
+**Risk:** NaN/Infinity breaks logic + metrics
+**Fix:** Use `Number.isFinite()` check + default value
 **Status:** Not implemented
 
 ### 4️⃣ Sync Race Condition [2h] 🔴 CRITICAL
-**File:** src/core/smart-sync.ts  
-**Risk:** Concurrent flush = data duplication  
-**Fix:** Use async queue pattern (ensure sequential)  
+**File:** src/core/smart-sync.ts
+**Risk:** Concurrent flush = data duplication
+**Fix:** Use async queue pattern (ensure sequential)
 **Status:** Not implemented
 
 ### 5️⃣ Token Security [3h] 🟠 HIGH
-**Files:** src/auth/session.ts, auth.tsx  
-**Risk:** Plaintext tokens in AsyncStorage = theft  
-**Fix:** Migrate to expo-secure-store (encrypted)  
+**Files:** src/auth/session.ts, auth.tsx
+**Risk:** Plaintext tokens in AsyncStorage = theft
+**Fix:** Migrate to expo-secure-store (encrypted)
 **Status:** Not implemented
 
 ---
@@ -76,8 +76,8 @@
 
 ## File Changes Summary
 
-**Total Files Affected:** 21  
-**Total Issues:** 16  
+**Total Files Affected:** 21
+**Total Issues:** 16
 **Critical Paths:** 5 (all in main app flow)
 
 ### By Severity
@@ -95,18 +95,18 @@
 ## Documentation Files
 
 ### 📊 Full Analysis
-**File:** [SECURITY_AUDIT_AND_PERFORMANCE.md](SECURITY_AUDIT_AND_PERFORMANCE.md)  
-**Size:** ~400 lines  
+**File:** [SECURITY_AUDIT_AND_PERFORMANCE.md](SECURITY_AUDIT_AND_PERFORMANCE.md)
+**Size:** ~400 lines
 **Content:** All 16 issues with attack vectors + code examples
 
 ### 🛠️ Implementation Guide
-**File:** [SECURITY_FIXES_EXECUTION_PLAN.md](SECURITY_FIXES_EXECUTION_PLAN.md)  
-**Size:** ~700 lines  
+**File:** [SECURITY_FIXES_EXECUTION_PLAN.md](SECURITY_FIXES_EXECUTION_PLAN.md)
+**Size:** ~700 lines
 **Content:** Code-ready fixes for all 5 critical + 4 high issues
 
 ### 📋 Executive Brief
-**File:** [SECURITY_AUDIT_EXECUTIVE_SUMMARY.md](SECURITY_AUDIT_EXECUTIVE_SUMMARY.md)  
-**Size:** ~250 lines  
+**File:** [SECURITY_AUDIT_EXECUTIVE_SUMMARY.md](SECURITY_AUDIT_EXECUTIVE_SUMMARY.md)
+**Size:** ~250 lines
 **Content:** 1-page summary for managers + team leads
 
 ---
@@ -115,7 +115,7 @@
 
 ```
 2f0828d — docs(security): comprehensive audit identifies 16 issues
-0a6bba1 — docs(cleanup): consolidate 28→6 strategic documentation  
+0a6bba1 — docs(cleanup): consolidate 28→6 strategic documentation
 6eb61ed — docs: add production deployment summary
 657e3d3 — docs: add comprehensive post-deploy monitoring guide
 8b7678c — test: add NFC state machine unit tests (18/18 passing)
@@ -275,7 +275,7 @@ git push -f origin main
 
 ---
 
-**Audit Completed:** March 3, 2026  
-**Reports:** 3 documents committed to origin/main  
+**Audit Completed:** March 3, 2026
+**Reports:** 3 documents committed to origin/main
 **Next Action:** Schedule team sync + approve Phase 1 fixes
 

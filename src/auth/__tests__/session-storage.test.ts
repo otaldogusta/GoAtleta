@@ -17,10 +17,14 @@ async function loadSessionModuleFor(os: "ios" | "android" | "web"): Promise<Sess
   jest.resetModules();
   jest.doMock("@react-native-async-storage/async-storage", () => asyncStorageMock);
   jest.doMock("expo-secure-store", () => secureStoreMock);
+  jest.doMock("../../api/config", () => ({
+    SUPABASE_URL: "https://example.supabase.co",
+    SUPABASE_ANON_KEY: "anon-key",
+  }));
   jest.doMock("react-native", () => ({
     Platform: { OS: os },
   }));
-  return import("../session");
+  return require("../session") as SessionModule;
 }
 
 describe("session storage", () => {

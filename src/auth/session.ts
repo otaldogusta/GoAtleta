@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
+import { safeJsonParse } from "../utils/safe-json";
 
 export type AuthSession = {
   access_token: string;
@@ -98,7 +99,10 @@ export const loadSession = async (): Promise<AuthSession | null> => {
   }
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as AuthSession;
+    const parsed = safeJsonParse<AuthSession | null>(raw, null);
+    if (!parsed) {
+      throw new Error("Invalid session payload");
+    }
     accessToken = parsed.access_token ?? "";
     currentSession = parsed ?? null;
     return parsed;
@@ -217,8 +221,8 @@ const refreshSession = async (): Promise<AuthSession | null> => {
       await saveSession(null, false);
       return null;
     }
-    const payload = text ? (JSON.parse(text) as AuthSession) : null;
-    if (!payload.access_token) {
+    const payload = safeJsonParse<AuthSession | null>(text, null);
+    if (!payload?.access_token) {
       await saveSession(null, false);
       return null;
     }

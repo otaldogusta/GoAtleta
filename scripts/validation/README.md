@@ -1,6 +1,21 @@
 NFC Validation Scripts
 ======================
 
+security-fixes-smoke.ps1
+------------------------
+Negative smoke tests for security hardening of edge functions (FIX #2).
+
+Usage:
+
+```powershell
+powershell -File scripts/validation/security-fixes-smoke.ps1 `
+  -SupabaseUrl "https://<project-ref>.supabase.co" `
+  -AccessToken "<jwt>"
+```
+
+See also:
+- `scripts/validation/security-fixes-checklist.md` for complete #2-#5 validation flow.
+
 simulate-nfc-scans.js
 ---------------------
 This script simulates NFC scan events by POSTing JSON payloads to a configurable HTTP endpoint.

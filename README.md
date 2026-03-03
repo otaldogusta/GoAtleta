@@ -2,12 +2,20 @@
 
 Uso o GoAtleta para planejar, registrar e acompanhar treinos com meus alunos.
 
-## Roadmap
+## 📚 Documentation
 
-- `ROADMAP.md`
-- `RELEASE_CHECKLIST.md`
-- `PR_INDEX.md` (índice central de PRs e resumos)
-- `DOCS_INDEX.md` (hub de toda documentação)
+**Strategic Docs (Production-Ready):**
+- [`ROADMAP.md`](ROADMAP.md) — Long-term vision & Sprint planning
+- [`NFC_ARCHITECTURE_AND_FIXES.md`](NFC_ARCHITECTURE_AND_FIXES.md) — All 15 NFC issues identified + 8 fixes implemented ✅
+- [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — Production sign-off criteria & risk assessment
+- [`POST_DEPLOY_MONITORING.md`](POST_DEPLOY_MONITORING.md) — Sentry/observability setup & dashboards
+- [`PRODUCTION_DEPLOYMENT_SUMMARY.md`](PRODUCTION_DEPLOYMENT_SUMMARY.md) — Live deployment quick-reference
+
+**Operations:**
+- [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) — Manual deployment checklist
+- [`SIGN_OFF_PRODUCTION.md`](SIGN_OFF_PRODUCTION.md) — Production approval gate
+
+---
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 

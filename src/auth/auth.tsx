@@ -6,6 +6,7 @@ import { Platform } from "react-native";
 import { clearAiCache } from "../api/ai";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
+import { safeJsonParse } from "../utils/safe-json";
 import type { AuthSession } from "./session";
 import { loadSession, saveSession } from "./session";
 
@@ -63,7 +64,12 @@ const authFetch = async (
   if (!res.ok) {
     throw new Error(text || "Falha na autenticação.");
   }
-  return text ? (JSON.parse(text) as Record<string, any>) : {};
+  if (!text) return {};
+  const parsed = safeJsonParse<Record<string, any> | null>(text, null);
+  if (!parsed) {
+    throw new Error("Resposta inválida do servidor de autenticação.");
+  }
+  return parsed;
 };
 
 const parseAuthSession = (url: string) => {
@@ -114,7 +120,8 @@ const fetchUser = async (accessToken: string) => {
   if (!res.ok) return null;
   const text = await res.text();
   if (!text) return null;
-  const payload = JSON.parse(text) as { id: string; email: string };
+  const payload = safeJsonParse<{ id: string; email: string } | null>(text, null);
+  if (!payload) return null;
   return payload.id ? payload : null;
 };
 
@@ -313,4 +320,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

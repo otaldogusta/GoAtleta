@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateStringField } from "../_shared/input-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,8 +73,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  const rawCode = payload.code ?? "";
-  const normalized = normalizeCode(rawCode);
+  const codeValidation = validateStringField(payload.code, {
+    minLength: 4,
+    maxLength: 128,
+    pattern: /^[a-zA-Z0-9-]+$/,
+  });
+  if (!codeValidation.ok) {
+    return new Response(JSON.stringify({ error: `Invalid code: ${codeValidation.error}` }), {
+      status: 400,
+      headers: jsonHeaders,
+    });
+  }
+  const normalized = normalizeCode(codeValidation.data);
   if (!normalized) {
     return new Response(JSON.stringify({ error: "Missing code" }), {
       status: 400,

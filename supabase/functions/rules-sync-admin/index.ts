@@ -13,6 +13,48 @@ const jsonHeaders = {
   "Content-Type": "application/json",
 };
 
+type RateLimitResult = {
+  allowed: boolean;
+  retryAfterSec: number;
+};
+
+const RATE_LIMIT_STORE =
+  (globalThis as unknown as {
+    __rulesSyncAdminRateLimitStore?: Map<string, { count: number; resetAt: number }>;
+  }).__rulesSyncAdminRateLimitStore ??
+  new Map<string, { count: number; resetAt: number }>();
+
+(globalThis as unknown as { __rulesSyncAdminRateLimitStore?: typeof RATE_LIMIT_STORE }).__rulesSyncAdminRateLimitStore =
+  RATE_LIMIT_STORE;
+
+const checkRateLimit = (
+  key: string,
+  maxRequests: number,
+  windowMs: number
+): RateLimitResult => {
+  const now = Date.now();
+  const previous = RATE_LIMIT_STORE.get(key);
+  if (!previous || now >= previous.resetAt) {
+    RATE_LIMIT_STORE.set(key, { count: 1, resetAt: now + windowMs });
+    return {
+      allowed: true,
+      retryAfterSec: Math.ceil(windowMs / 1000),
+    };
+  }
+  if (previous.count >= maxRequests) {
+    return {
+      allowed: false,
+      retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+    };
+  }
+  previous.count += 1;
+  RATE_LIMIT_STORE.set(key, previous);
+  return {
+    allowed: true,
+    retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+  };
+};
+
 type RulesSyncAdminRequest = {
   organizationId?: string;
   sourceId?: string;
@@ -140,6 +182,32 @@ Deno.serve(async (request) => {
       status: 403,
       headers: jsonHeaders,
     });
+  }
+
+  const maxRequestsPerMinute = Math.max(
+    1,
+    Number.parseInt(
+      String(Deno.env.get("RULES_SYNC_ADMIN_RATE_LIMIT_PER_MIN") ?? "10"),
+      10
+    ) || 10
+  );
+  const limiter = checkRateLimit(
+    `rules-sync-admin:${source.organization_id}:${user.id}`,
+    maxRequestsPerMinute,
+    60_000
+  );
+  if (!limiter.allowed) {
+    return new Response(
+      JSON.stringify({
+        error: "Rate limit exceeded",
+        retryAfterSec: limiter.retryAfterSec,
+        maxRequestsPerMinute,
+      }),
+      {
+        status: 429,
+        headers: jsonHeaders,
+      }
+    );
   }
 
   try {

@@ -1,9 +1,8 @@
-import { describe, it, expect } from "@jest/globals";
+import { describe, expect, it } from "@jest/globals";
 import {
-  emptyNfcLoopState,
-  nfcStateReducer,
-  shouldEmitTagRead,
-  type NfcLoopState,
+    emptyNfcLoopState,
+    nfcStateReducer,
+    shouldEmitTagRead
 } from "../nfc-state-machine";
 
 describe("nfc-state-machine", () => {

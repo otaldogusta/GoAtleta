@@ -8,5 +8,5 @@ Write-Host "Starting adb logcat capture for $DurationMinutes minutes -> $OutFile
 # Clear previous logs
 adb logcat -c
 # Capture logs, filter for relevant tags and keywords
-adb logcat *:S ReactNative:V GoAtleta:N | Select-String -Pattern "cache_gc_cleanup|cache_size_snapshot|tag_detected|scan_duplicate_blocked|checkin_pending_offline" -SimpleMatch | Tee-Object -FilePath $OutFile
+adb logcat *:S ReactNative:V GoAtleta:N | Select-String -Pattern "nfc_runtime_metrics|tag_detected|scan_duplicate_blocked|checkin_pending_offline|checkin_synced" -SimpleMatch | Tee-Object -FilePath $OutFile
 # Note: Run this from PowerShell; stop with Ctrl+C if you want to end earlier.

@@ -1,12 +1,12 @@
 NFC Stress-Test Plan for PR-A
 ===============================
 
-Goal: validate `useNfcContinuousScan` stability and `recentScanByUidRef` GC under realistic load and remount events.
+Goal: validate `useNfcContinuousScan` stability under realistic load and remount events.
 
 Overview
 --------
 - Run an 8-hour simulated workload with bursts up to 300 scans/minute.
-- Collect: memory (RSS), `recentScanByUidRef.current.size`, `getNfcLoopState()` samples, GC logs (`cache_gc_cleanup` events), and checkinsPending metric.
+- Collect: memory (RSS), `getNfcLoopState()` samples, `nfc_runtime_metrics` snapshots, and checkinsPending metric.
 
 Required tools
 --------------
@@ -40,8 +40,8 @@ done
 
 5. Monitor metrics:
 - Memory RSS via Android Studio profiler
-- `cache_gc_cleanup` presence in logs every 60s
-- `recentScanByUidRef` size should remain bounded (recommended <500 entries during normal use)
+- `nfc_runtime_metrics` presence in logs every 60s
+- `getNfcLoopState()` should report stable counters and status transitions
 - `getNfcLoopState()` should show `loopStarted` toggling false/true on remounts only once; never stuck `true` across remounts
 
 Acceptance criteria

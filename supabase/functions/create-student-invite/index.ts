@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateStringField } from "../_shared/input-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,13 +85,17 @@ Deno.serve(async (req) => {
     });
   }
 
-  const studentId = (payload.studentId ?? "").trim();
-  if (!studentId) {
-    return new Response(JSON.stringify({ error: "Missing studentId" }), {
+  const studentIdValidation = validateStringField(payload.studentId, {
+    minLength: 1,
+    maxLength: 128,
+  });
+  if (!studentIdValidation.ok) {
+    return new Response(JSON.stringify({ error: `Invalid studentId: ${studentIdValidation.error}` }), {
       status: 400,
       headers: jsonHeaders,
     });
   }
+  const studentId = studentIdValidation.data;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -143,8 +148,11 @@ Deno.serve(async (req) => {
   const token = crypto.randomUUID();
   const tokenHash = await sha256(token);
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const invitedVia = normalizeChannel(payload.invitedVia);
-  const invitedTo = payload.invitedTo.trim() || null;
+  const invitedVia = normalizeChannel(String(payload.invitedVia ?? ""));
+  const invitedToValidation = validateStringField(payload.invitedTo, { maxLength: 255 });
+  const invitedTo = invitedToValidation.ok && invitedToValidation.data
+    ? invitedToValidation.data
+    : null;
 
   const { error: insertError } = await supabase.from("student_invites").insert({
     student_id: studentId,

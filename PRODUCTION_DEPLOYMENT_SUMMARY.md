@@ -115,8 +115,8 @@ eas submit --platform ios --latest
 - [ ] Sync success rate >99.5%
 - [ ] No JWT/auth errors >0.1%
 
-**Sign-off by:** [Team Lead Name]  
-**Date:** [approval date]  
+**Sign-off by:** [Team Lead Name]
+**Date:** [approval date]
 **Next review:** 7 days post-launch
 
 ---
@@ -218,8 +218,8 @@ Questions? → See POST_DEPLOY_MONITORING.md for setup
 
 ---
 
-**Deploy Hash:** 657e3d3  
-**All Monitoring Documents:** In repo root  
+**Deploy Hash:** 657e3d3
+**All Monitoring Documents:** In repo root
 **Monitoring Status:** 🟢 **ACTIVE**
 
 **Let's monitor! 🚀**

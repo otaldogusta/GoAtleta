@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
 const supabaseUrl =
 	process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
@@ -33,6 +33,7 @@ const plugins = [
 		},
 	],
 	"expo-font",
+	"expo-image",
 	[
 		"expo-camera",
 		{
@@ -46,6 +47,9 @@ const plugins = [
 		},
 	],
 	"expo-secure-store",
+	"expo-sharing",
+	"expo-sqlite",
+	"expo-web-browser",
 	"react-native-nfc-manager",
 	"@react-native-community/datetimepicker",
 	"@sentry/react-native",

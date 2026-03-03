@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { safeJsonParse } from "./utils/safe-json";
 
 export type AppNotification = {
   id: string;
@@ -21,12 +22,8 @@ const emit = (items: AppNotification[]) => {
 const readAll = async () => {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
   if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as AppNotification[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  const parsed = safeJsonParse<AppNotification[] | null>(raw, null);
+  return Array.isArray(parsed) ? parsed : [];
 };
 
 const writeAll = async (items: AppNotification[]) => {

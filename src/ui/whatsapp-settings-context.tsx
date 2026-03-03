@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { safeJsonParse } from "../utils/safe-json";
 
 type WhatsAppSettingsContextType = {
   defaultMessageEnabled: boolean;
@@ -43,10 +44,10 @@ export function WhatsAppSettingsProvider({ children }: { children: React.ReactNo
           setCoachNameState(savedCoachName);
         }
         if (savedCoachByClass !== null) {
-          setCoachNameByClassState(JSON.parse(savedCoachByClass));
+          setCoachNameByClassState(safeJsonParse<Record<string, string>>(savedCoachByClass, {}));
         }
         if (savedGroupLinks !== null) {
-          setGroupInviteLinksState(JSON.parse(savedGroupLinks));
+          setGroupInviteLinksState(safeJsonParse<Record<string, string>>(savedGroupLinks, {}));
         }
       } catch (err) {
         console.error("Erro ao carregar configurações de WhatsApp:", err);

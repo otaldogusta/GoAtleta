@@ -42,7 +42,7 @@ Replace loop-based approach with **event-driven state accumulator**:
 
 ```typescript
 // Event-driven pattern (robust):
-type NfcLoopEvent = 
+type NfcLoopEvent =
   | { type: "start" }
   | { type: "pause" }
   | { type: "resume" }
@@ -62,7 +62,7 @@ type NfcLoopState = {
 const nfcStateReducer = (state: NfcLoopState, event: NfcLoopEvent): NfcLoopState => {
   switch (event.type) {
     case "start":
-      return state.status === "idle" 
+      return state.status === "idle"
         ? { ...state, status: "scanning", activeLoopPromise: new Promise(...) }
         : state;
     case "pause":

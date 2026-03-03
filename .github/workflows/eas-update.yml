@@ -28,6 +28,25 @@ jobs:
       - name: Install EAS CLI
         run: npm install -g eas-cli
 
+      - name: Validate deploy secrets
+        env:
+          AUTH_HOOK_SECRET: ${{ secrets.AUTH_HOOK_SECRET || secrets.SUPABASE_AUTH_HOOK_SECRET || vars.AUTH_HOOK_SECRET || vars.SUPABASE_AUTH_HOOK_SECRET }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${EXPO_TOKEN:-}" ] || missing+=("EXPO_TOKEN")
+          [ -n "${EXPO_PUBLIC_SUPABASE_URL:-}" ] || missing+=("EXPO_PUBLIC_SUPABASE_URL")
+          [ -n "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ] || missing+=("EXPO_PUBLIC_SUPABASE_ANON_KEY")
+          [ -n "${AUTH_HOOK_SECRET:-}" ] || missing+=("AUTH_HOOK_SECRET or SUPABASE_AUTH_HOOK_SECRET")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing required deploy secrets:"
+            for key in "${missing[@]}"; do echo "- $key"; done
+            exit 1
+          fi
+
       - name: Publish update to main
         run: eas update --channel main --message "${{ github.event.head_commit.message }}"
         env:

@@ -4,6 +4,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { getSessionUserId, getValidAccessToken } from "../auth/session";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
+import { safeJsonParse } from "../utils/safe-json";
 import type {
     AbsenceNotice,
     AttendanceRecord,
@@ -100,7 +101,7 @@ const supabaseRequest = async (
 
 const supabaseGet = async <T>(path: string) => {
   const text = await supabaseRequest("GET", path);
-  return (text ? JSON.parse(text) : []) as T;
+  return safeJsonParse<T>(text, [] as T);
 };
 
 const supabasePost = async <T>(
@@ -110,13 +111,13 @@ const supabasePost = async <T>(
 ) => {
   const text = await supabaseRequest("POST", path, body, extraHeaders);
   if (!text) return [] as T;
-  return JSON.parse(text) as T;
+  return safeJsonParse<T>(text, [] as T);
 };
 
 const supabasePatch = async <T>(path: string, body: unknown) => {
   const text = await supabaseRequest("PATCH", path, body);
   if (!text) return [] as T;
-  return JSON.parse(text) as T;
+  return safeJsonParse<T>(text, [] as T);
 };
 
 const supabaseDelete = async (path: string) => {
@@ -292,7 +293,7 @@ const readCache = async <T>(key: string): Promise<T | null> => {
   try {
     const stored = await AsyncStorage.getItem(key);
     if (!stored) return null;
-    return JSON.parse(stored) as T;
+    return safeJsonParse<T | null>(stored, null);
   } catch {
     return null;
   }
@@ -356,17 +357,15 @@ const readWriteQueue = async () => {
     );
     return rows
       .map((row) => {
-        try {
-          return {
-            id: row.id,
-            kind: row.kind,
-            payload: JSON.parse(row.payload),
-            createdAt: row.createdAt,
-            requeuedAt: row.requeuedAt,
-          } as PendingWrite;
-        } catch {
-          return null;
-        }
+        const payload = safeJsonParse<unknown | null>(row.payload, null);
+        if (payload === null) return null;
+        return {
+          id: row.id,
+          kind: row.kind,
+          payload,
+          createdAt: row.createdAt,
+          requeuedAt: row.requeuedAt,
+        } as PendingWrite;
       })
       .filter((item): item is PendingWrite => Boolean(item));
   } catch {
@@ -761,12 +760,7 @@ export async function listPendingWriteFailures(
       [safeLimit]
     );
     return rows.map((row) => {
-      let payload: unknown = null;
-      try {
-        payload = JSON.parse(row.payload);
-      } catch {
-        payload = null;
-      }
+      const payload = safeJsonParse<unknown | null>(row.payload, null);
       return {
         id: row.id,
         kind: row.kind,
@@ -986,17 +980,15 @@ export async function flushPendingWrites() {
     rows.forEach((row) => batchRowsById.set(row.id, row));
     batch = rows
       .map((row) => {
-        try {
-          return {
-            id: row.id,
-            kind: row.kind,
-            payload: JSON.parse(row.payload),
-            createdAt: row.createdAt,
-            requeuedAt: row.requeuedAt,
-          } as PendingWrite;
-        } catch {
-          return null;
-        }
+        const payload = safeJsonParse<unknown | null>(row.payload, null);
+        if (payload === null) return null;
+        return {
+          id: row.id,
+          kind: row.kind,
+          payload,
+          createdAt: row.createdAt,
+          requeuedAt: row.requeuedAt,
+        } as PendingWrite;
       })
       .filter((item): item is PendingWrite => Boolean(item));
     batch.sort(sortPendingWritesForFlush);
@@ -3409,20 +3401,12 @@ const mapWeeklyAutopilotProposal = (
   weekStart: row.week_start,
   summary: row.summary,
   actions: (() => {
-    try {
-      const parsed = JSON.parse(row.actions ?? "[]");
-      return Array.isArray(parsed) ? parsed.map(String) : [];
-    } catch {
-      return [];
-    }
+    const parsed = safeJsonParse<unknown>(row.actions, []);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
   })(),
   proposedPlanIds: (() => {
-    try {
-      const parsed = JSON.parse(row.proposed_plan_ids ?? "[]");
-      return Array.isArray(parsed) ? parsed.map(String) : [];
-    } catch {
-      return [];
-    }
+    const parsed = safeJsonParse<unknown>(row.proposed_plan_ids, []);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
   })(),
   status: row.status,
   createdBy: row.created_by,

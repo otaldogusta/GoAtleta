@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { safeJsonParse } from "../utils/safe-json";
+import { safeNumber } from "../utils/safe-number";
 
 export type NfcMetricKey =
   | "totalScans"
@@ -49,7 +51,7 @@ export async function getNfcMetrics(organizationId: string): Promise<NfcMetrics>
   try {
     const raw = await AsyncStorage.getItem(buildStorageKey(organizationId));
     if (!raw) return emptyMetrics();
-    const parsed = JSON.parse(raw) as Partial<NfcMetrics>;
+    const parsed = safeJsonParse<Partial<NfcMetrics>>(raw, {});
     return {
       ...emptyMetrics(),
       ...parsed,
@@ -68,7 +70,7 @@ export async function incrementNfcMetric(
   const current = await getNfcMetrics(organizationId);
   const next: NfcMetrics = {
     ...current,
-    [key]: Math.max(0, Number(current[key]) + delta),
+    [key]: Math.max(0, safeNumber(current[key], 0) + delta),
     updatedAt: new Date().toISOString(),
   };
   await AsyncStorage.setItem(buildStorageKey(organizationId), JSON.stringify(next));

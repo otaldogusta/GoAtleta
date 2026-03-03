@@ -133,7 +133,6 @@ export default function NfcAttendanceScreen() {
   const [webPreviewScanning, setWebPreviewScanning] = useState(false);
 
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-  const recentScanByUidRef = useRef<Map<string, number>>(new Map());
   const shouldResumeAfterBindRef = useRef(false);
   const scanStateRef = useRef<"idle" | "scanning" | "paused">("idle");
   const syncBusyRef = useRef(false);
@@ -142,6 +141,11 @@ export default function NfcAttendanceScreen() {
   const scanPulseA = useRef(new Animated.Value(0)).current;
   const scanPulseB = useRef(new Animated.Value(0)).current;
   const scanVisualTransition = useRef(new Animated.Value(0)).current;
+  const perfSnapshotRef = useRef<{ at: number; totalScans: number; duplicateScans: number }>({
+    at: Date.now(),
+    totalScans: 0,
+    duplicateScans: 0,
+  });
 
   const studentsById = useMemo(
     () => new Map(students.map((item) => [item.id, item] as const)),
@@ -212,40 +216,11 @@ export default function NfcAttendanceScreen() {
     [activeOrganization?.id]
   );
 
-  const markTagRead = useCallback((orgId: string, tagUid: string, checkedInAt?: string) => {
-    const key = `${orgId}:${tagUid}`;
-    const parsed = Date.parse(checkedInAt ?? "");
-    const base = Number.isFinite(parsed) ? parsed : Date.now();
-    recentScanByUidRef.current.set(key, base);
-  }, []);
-
-  const isDuplicateRead = useCallback((orgId: string, tagUid: string) => {
-    const key = `${orgId}:${tagUid}`;
-    const last = recentScanByUidRef.current.get(key);
-    if (!last) return false;
-    return Date.now() - last < DUPLICATE_WINDOW_MS;
-  }, []);
-
   const registerCheckin = useCallback(
     async (params: { studentId: string; tagUid: string }) => {
       const orgId = activeOrganization?.id ?? "";
       if (!orgId) {
         setFeedback("Selecione uma organizacao ativa.");
-        return;
-      }
-
-      if (isDuplicateRead(orgId, params.tagUid)) {
-        logNfcEvent("scan_duplicate_blocked", {
-          organizationId: orgId,
-          tagUid: params.tagUid,
-        });
-        void recordMetric("duplicateScans");
-        setFeedback("Tag ja registrada ha instantes.");
-        showSaveToast({
-          variant: "warning",
-          message: "Ja registrado ha menos de 20 segundos.",
-        });
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
 
@@ -282,7 +257,6 @@ export default function NfcAttendanceScreen() {
         },
         ...prev,
       ]);
-      markTagRead(orgId, params.tagUid, checkin.checkedInAt);
 
       if (result.status === "pending") {
         logNfcEvent("checkin_pending_offline", {
@@ -316,13 +290,30 @@ export default function NfcAttendanceScreen() {
     [
       activeOrganization?.id,
       classesById,
-      isDuplicateRead,
-      markTagRead,
       recordMetric,
       selectedClassId,
       showSaveToast,
       studentsById,
     ]
+  );
+
+  const handleDuplicateTag = useCallback(
+    (result: { uid: string }) => {
+      const orgId = activeOrganization?.id ?? "";
+      if (!orgId) return;
+      logNfcEvent("scan_duplicate_blocked", {
+        organizationId: orgId,
+        tagUid: result.uid,
+      });
+      void recordMetric("duplicateScans");
+      setFeedback("Tag ja registrada ha instantes.");
+      showSaveToast({
+        variant: "warning",
+        message: "Leitura repetida em poucos segundos.",
+      });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    },
+    [activeOrganization?.id, recordMetric, showSaveToast]
   );
 
   const handleScanError = useCallback(
@@ -392,8 +383,11 @@ export default function NfcAttendanceScreen() {
     stop: stopScan,
   } = useNfcContinuousScan({
     onTag: handleTagDetected,
+    onDuplicateTag: handleDuplicateTag,
     onError: handleScanError,
     loopDelayMs: 120,
+    duplicateWindowMs: DUPLICATE_WINDOW_MS,
+    perUidDedup: true,
   });
 
   useEffect(() => {
@@ -576,61 +570,71 @@ export default function NfcAttendanceScreen() {
     };
   }, []);
 
-  // Periodic garbage collection: clean up old entries from recent scan cache
-  // Prevents unbounded growth of recentScanByUidRef map
-  useEffect(() => {
-    const gcInterval = setInterval(() => {
-      const now = Date.now();
-      const entries = Array.from(recentScanByUidRef.current.entries());
-      let deleted = 0;
-      for (const [key, timestamp] of entries) {
-        // Keep entries for 10 minutes, delete older ones
-        if (now - timestamp > 600_000) {
-          recentScanByUidRef.current.delete(key);
-          deleted++;
-        }
-      }
-      if (deleted > 0) {
-        logNfcEvent("cache_gc_cleanup", {
-          organizationId: activeOrganization?.id ?? "unknown",
-          entriesDeleted: deleted,
-          cacheSize: recentScanByUidRef.current.size,
-        });
-      }
-    }, 60_000); // Run GC every 60 seconds
-
-    return () => clearInterval(gcInterval);
-  }, [activeOrganization?.id]);
-
-  // Runtime diagnostics: expose cache size and emit periodic cache size events
+  // Runtime diagnostics: emit loop snapshots every 60s for stress tests.
   useEffect(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - attach lightweight diagnostics for external sampling during stress tests
-      if (!globalThis.__nfcDiagnostics) globalThis.__nfcDiagnostics = {};
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      globalThis.__nfcDiagnostics.getRecentScanCacheSize = () =>
-        recentScanByUidRef.current.size;
+      (
+        globalThis as unknown as {
+          __nfcDiagnostics?: {
+            getRecentScanCacheSize?: () => number;
+          };
+        }
+      ).__nfcDiagnostics = {
+        ...(
+          (
+            globalThis as unknown as {
+              __nfcDiagnostics?: Record<string, unknown>;
+            }
+          ).__nfcDiagnostics ?? {}
+        ),
+        getRecentScanCacheSize: () => 0,
+      };
     } catch (_e) {
-      // ignore attach failures
+      // ignore
     }
 
-    const sampInterval = setInterval(() => {
+    const snapshotInterval = setInterval(() => {
       try {
         const orgId = activeOrganization?.id ?? "unknown";
-        const size = recentScanByUidRef.current.size;
-        logNfcEvent("cache_size_snapshot", {
+        const now = Date.now();
+        const elapsedMs = Math.max(1, now - perfSnapshotRef.current.at);
+        const scansDelta = Math.max(0, metrics.totalScans - perfSnapshotRef.current.totalScans);
+        const duplicatesDelta = Math.max(
+          0,
+          metrics.duplicateScans - perfSnapshotRef.current.duplicateScans
+        );
+        const scansPerMin = Math.round((scansDelta * 60_000) / elapsedMs);
+        const duplicatesPerMin = Math.round((duplicatesDelta * 60_000) / elapsedMs);
+        const diagnostics = (
+          globalThis as unknown as {
+            __nfcDiagnostics?: {
+              getNfcLoopState?: () => Record<string, unknown>;
+            };
+          }
+        ).__nfcDiagnostics;
+        const loopSnapshot = diagnostics?.getNfcLoopState?.() ?? {};
+        logNfcEvent("nfc_runtime_metrics", {
           organizationId: orgId,
-          cacheSize: size,
+          scansPerMin,
+          duplicatesPerMin,
+          checkinsPending: metrics.checkinsPending,
+          syncErrors: metrics.syncErrors,
+          cacheSize: 0,
+          gcEventsPerMin: 0,
+          ...loopSnapshot,
         });
+        perfSnapshotRef.current = {
+          at: now,
+          totalScans: metrics.totalScans,
+          duplicateScans: metrics.duplicateScans,
+        };
       } catch (_e) {
         // ignore
       }
     }, 60_000);
 
-    return () => clearInterval(sampInterval);
-  }, [activeOrganization?.id]);
+    return () => clearInterval(snapshotInterval);
+  }, [activeOrganization?.id, metrics.checkinsPending, metrics.duplicateScans, metrics.syncErrors, metrics.totalScans]);
 
   useEffect(() => {
     if (!activeOrganization?.id) return;

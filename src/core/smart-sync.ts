@@ -42,6 +42,7 @@ class SmartSyncService {
 
   private syncTimer: ReturnType<typeof setTimeout> | null = null;
   private inFlightSync: Promise<{ flushed: number; remaining: number }> | null = null;
+  private queuedSyncReason: string | null = null;
   private retryCount = 0;
   private maxRetries = 5;
   private isInitialized = false;
@@ -86,6 +87,7 @@ class SmartSyncService {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
+    this.queuedSyncReason = null;
     this.isInitialized = false;
   }
 
@@ -131,6 +133,7 @@ class SmartSyncService {
       syncPausedReason: "org_switch",
       lastError: "SYNC_PAUSED_ORG_SWITCH",
     });
+    this.queuedSyncReason = null;
   }
 
   /**
@@ -174,6 +177,8 @@ class SmartSyncService {
     }
 
     if (this.inFlightSync) {
+      // Keep one queued sync attempt so writes arriving mid-flight are flushed next.
+      this.queuedSyncReason = reason;
       return this.inFlightSync;
     }
 
@@ -271,6 +276,11 @@ class SmartSyncService {
         return { flushed: 0, remaining: await getPendingWritesCount() };
       } finally {
         this.inFlightSync = null;
+        const queuedReason = this.queuedSyncReason;
+        this.queuedSyncReason = null;
+        if (queuedReason && this.status.syncPausedReason !== "org_switch") {
+          this.scheduleSyncSoon(`queued:${queuedReason}`);
+        }
       }
     })();
 

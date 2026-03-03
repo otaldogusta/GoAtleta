@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  validateArrayLength,
+  validateNumberField,
+  validateStringField,
+} from "../_shared/input-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,15 +269,29 @@ const ensureStringArray = (value: unknown) =>
     ? value
         .map((item) => String(item ?? "").trim())
         .filter(Boolean)
+        .slice(0, 24)
+        .map((item) => item.slice(0, 64))
     : [];
 
 const handleSearch = async (payload: Record<string, unknown>) => {
-  const query = String(payload.query ?? "").trim();
-  const maxResults = Math.min(Math.max(Number(payload.maxResults ?? 8) || 8, 1), 20);
-
-  if (!query || query.length < 3) {
-    return jsonResponse({ error: "Informe uma busca com pelo menos 3 caracteres." }, 400);
+  const queryValidation = validateStringField(payload.query, {
+    minLength: 3,
+    maxLength: 240,
+  });
+  if (!queryValidation.ok) {
+    return jsonResponse({ error: `Invalid query: ${queryValidation.error}` }, 400);
   }
+
+  const maxResultsValidation = validateNumberField(payload.maxResults ?? 8, {
+    min: 1,
+    max: 20,
+    integer: true,
+  });
+  if (!maxResultsValidation.ok) {
+    return jsonResponse({ error: `Invalid maxResults: ${maxResultsValidation.error}` }, 400);
+  }
+  const query = queryValidation.data;
+  const maxResults = maxResultsValidation.data;
 
   const ids = await fetchPubMedIds(query, maxResults);
   if (!ids.length) {
@@ -293,14 +312,16 @@ const handleSearch = async (payload: Record<string, unknown>) => {
 };
 
 const handleSummarize = async (payload: Record<string, unknown>) => {
-  const studies = Array.isArray(payload.studies)
-    ? (payload.studies as PubMedStudy[])
-    : [];
-  const question = String(payload.question ?? "").trim();
-
-  if (!studies.length) {
-    return jsonResponse({ error: "Selecione ao menos um estudo para resumir." }, 400);
+  const studiesValidation = validateArrayLength<PubMedStudy>(payload.studies, {
+    minLength: 1,
+    maxLength: 20,
+  });
+  if (!studiesValidation.ok) {
+    return jsonResponse({ error: `Invalid studies: ${studiesValidation.error}` }, 400);
   }
+  const questionValidation = validateStringField(payload.question, { maxLength: 500 });
+  const studies = studiesValidation.data;
+  const question = questionValidation.ok ? questionValidation.data : "";
 
   const firstTitle = studies[0]?.title || "Conjunto de estudos";
   const confidence = inferConfidence(studies);
@@ -334,7 +355,14 @@ const handleSummarize = async (payload: Record<string, unknown>) => {
 };
 
 const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>) => {
-  const organizationId = String(payload.organizationId ?? "").trim();
+  const organizationValidation = validateStringField(payload.organizationId, {
+    minLength: 1,
+    maxLength: 128,
+  });
+  if (!organizationValidation.ok) {
+    return jsonResponse({ error: `Invalid organizationId: ${organizationValidation.error}` }, 400);
+  }
+  const organizationId = organizationValidation.data;
   if (!organizationId) {
     return jsonResponse({ error: "organizationId é obrigatório para aprovação." }, 400);
   }
@@ -344,12 +372,19 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
     return jsonResponse({ error: "Apenas admins da organização podem aprovar evidências." }, 403);
   }
 
-  const studies = Array.isArray(payload.studies)
-    ? (payload.studies as PubMedStudy[])
-    : [];
+  const studiesValidation = validateArrayLength<PubMedStudy>(payload.studies, {
+    minLength: 1,
+    maxLength: 20,
+  });
+  if (!studiesValidation.ok) {
+    return jsonResponse({ error: `Invalid studies: ${studiesValidation.error}` }, 400);
+  }
+  const studies = studiesValidation.data;
   const summary = (payload.summary ?? null) as SummaryPayload | null;
-  const sport = String(payload.sport ?? "volleyball").trim() || "volleyball";
-  const level = String(payload.level ?? "general").trim() || "general";
+  const sportValidation = validateStringField(payload.sport ?? "volleyball", { maxLength: 40 });
+  const levelValidation = validateStringField(payload.level ?? "general", { maxLength: 40 });
+  const sport = sportValidation.ok && sportValidation.data ? sportValidation.data : "volleyball";
+  const level = levelValidation.ok && levelValidation.data ? levelValidation.data : "general";
 
   if (!studies.length) {
     return jsonResponse({ error: "Nenhum estudo selecionado para aprovação." }, 400);
@@ -368,8 +403,10 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
   const nowIso = new Date().toISOString();
 
   const rows = studies.map((study) => {
-    const safeTitle = study.title?.trim() || `PubMed ${study.pmid}`;
-    const abstractText = study.abstract?.trim() || "Sem resumo textual disponível no PubMed.";
+    const safeTitle = String(study.title ?? "").trim().slice(0, 240) || `PubMed ${study.pmid}`;
+    const abstractText =
+      String(study.abstract ?? "").trim().slice(0, 8_000) ||
+      "Sem resumo textual disponivel no PubMed.";
     const summaryChunk = summary
       ? [
           `headline: ${summary.headline}`,
@@ -394,7 +431,7 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
       `authors: ${study.authors?.join(", ") || "n/a"}`,
       `abstract: ${abstractText}`,
       summaryChunk,
-      `source_url: ${study.url}`,
+      `source_url: ${String(study.url ?? "").trim().slice(0, 500)}`,
       `approved_at: ${nowIso}`,
     ]
       .filter(Boolean)
@@ -447,8 +484,16 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Payload inválido." }, 400);
     }
 
-    const action = String(payload.action ?? "").trim().toLowerCase();
-    const organizationId = String(payload.organizationId ?? "").trim();
+    const actionValidation = validateStringField(payload.action, {
+      minLength: 1,
+      maxLength: 24,
+    });
+    if (!actionValidation.ok) {
+      return jsonResponse({ error: `Invalid action: ${actionValidation.error}` }, 400);
+    }
+    const action = actionValidation.data.toLowerCase();
+    const organizationValidation = validateStringField(payload.organizationId, { maxLength: 128 });
+    const organizationId = organizationValidation.ok ? organizationValidation.data : "";
 
     if (organizationId) {
       const member = await ensureMember(ctx, organizationId);
