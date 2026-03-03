@@ -45,6 +45,7 @@ export function useNfcContinuousScan(options: UseNfcContinuousScanOptions) {
   const runningRef = useRef(false);
   const pausedRef = useRef(false);
   const busyRef = useRef(false);
+  const loopStartedRef = useRef(false); // Prevent parallel loop instances
   const onTagRef = useRef(options.onTag);
   const onErrorRef = useRef(options.onError);
   const loopDelayMs = options.loopDelayMs ?? 90;
@@ -63,31 +64,38 @@ export function useNfcContinuousScan(options: UseNfcContinuousScanOptions) {
   }, []);
 
   const loop = useCallback(async () => {
-    while (runningRef.current) {
-      if (pausedRef.current) {
-        await wait(80);
-        continue;
-      }
-      if (busyRef.current) {
-        await wait(40);
-        continue;
-      }
+    if (loopStartedRef.current) return; // Prevent parallel instance
+    loopStartedRef.current = true;
 
-      busyRef.current = true;
-      try {
-        const result = await readTagUid();
-        if (!runningRef.current || pausedRef.current) continue;
-        await onTagRef.current(result);
-      } catch (error) {
-        if (!runningRef.current) break;
-        emitError(error);
-      } finally {
-        busyRef.current = false;
-      }
+    try {
+      while (runningRef.current) {
+        if (pausedRef.current) {
+          await wait(80);
+          continue;
+        }
+        if (busyRef.current) {
+          await wait(40);
+          continue;
+        }
 
-      if (loopDelayMs > 0) {
-        await wait(loopDelayMs);
+        busyRef.current = true;
+        try {
+          const result = await readTagUid();
+          if (!runningRef.current || pausedRef.current) continue;
+          await onTagRef.current(result);
+        } catch (error) {
+          if (!runningRef.current) break;
+          emitError(error);
+        } finally {
+          busyRef.current = false;
+        }
+
+        if (loopDelayMs > 0) {
+          await wait(loopDelayMs);
+        }
       }
+    } finally {
+      loopStartedRef.current = false; // Mark loop as stopped
     }
   }, [emitError, loopDelayMs]);
 
@@ -130,6 +138,7 @@ export function useNfcContinuousScan(options: UseNfcContinuousScanOptions) {
     return () => {
       runningRef.current = false;
       pausedRef.current = false;
+      loopStartedRef.current = false;
       void stopScan();
     };
   }, []);

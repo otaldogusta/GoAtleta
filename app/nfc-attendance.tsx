@@ -76,7 +76,7 @@ const emptyMetrics = (): NfcMetrics => ({
   updatedAt: new Date().toISOString(),
 });
 
-const DUPLICATE_WINDOW_MS = 20_000;
+const DUPLICATE_WINDOW_MS = 5_000; // Reduced from 20s: faster recovery for legitimate scans
 const AUTO_SYNC_DEBOUNCE_MS = 1_500;
 const SEARCH_SIGNAL_PATTERN = [0, 70, 120, 70];
 const SEARCH_SIGNAL_INTERVAL_MS = 2_400;
@@ -575,6 +575,32 @@ export default function NfcAttendanceScreen() {
       Vibration.cancel();
     };
   }, []);
+
+  // Periodic garbage collection: clean up old entries from recent scan cache
+  // Prevents unbounded growth of recentScanByUidRef map
+  useEffect(() => {
+    const gcInterval = setInterval(() => {
+      const now = Date.now();
+      const entries = Array.from(recentScanByUidRef.current.entries());
+      let deleted = 0;
+      for (const [key, timestamp] of entries) {
+        // Keep entries for 10 minutes, delete older ones
+        if (now - timestamp > 600_000) {
+          recentScanByUidRef.current.delete(key);
+          deleted++;
+        }
+      }
+      if (deleted > 0) {
+        logNfcEvent("cache_gc_cleanup", {
+          organizationId: activeOrganization?.id ?? "unknown",
+          entriesDeleted: deleted,
+          cacheSize: recentScanByUidRef.current.size,
+        });
+      }
+    }, 60_000); // Run GC every 60 seconds
+
+    return () => clearInterval(gcInterval);
+  }, [activeOrganization?.id]);
 
   useEffect(() => {
     if (!activeOrganization?.id) return;
