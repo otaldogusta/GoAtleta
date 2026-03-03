@@ -1,9 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as IntentLauncher from "expo-intent-launcher";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Network from "expo-network";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -20,22 +20,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
-import { useSmartSync } from "../src/core/use-smart-sync";
 import { useCopilotActions, useCopilotContext } from "../src/copilot/CopilotProvider";
 import type { ClassGroup, Student } from "../src/core/models";
+import { useSmartSync } from "../src/core/use-smart-sync";
 import {
   createCheckinWithFallback,
   type CheckinDeliveryStatus,
 } from "../src/data/attendance-checkins";
 import {
-  type NfcTagBinding,
   createBinding,
   deleteBinding,
   getBinding,
   listBindings,
+  type NfcTagBinding,
 } from "../src/data/nfc-tag-bindings";
 import { getClasses, getStudents } from "../src/db/seed";
-import { NFC_ERRORS } from "../src/nfc/nfc-errors";
 import {
   getNfcMetrics,
   incrementNfcMetric,
@@ -43,10 +42,11 @@ import {
   type NfcMetrics,
 } from "../src/nfc/metrics";
 import { isNfcSupported } from "../src/nfc/nfc";
+import { NFC_ERRORS } from "../src/nfc/nfc-errors";
 import { useNfcContinuousScan } from "../src/nfc/nfc-hooks";
 import { logNfcError, logNfcEvent } from "../src/nfc/telemetry";
-import { useOrganization } from "../src/providers/OrganizationProvider";
 import { markRender, measureAsync } from "../src/observability/perf";
+import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";

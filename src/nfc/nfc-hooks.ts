@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { NFC_ERRORS } from "./nfc-errors";
 import { readTagUid, stopScan } from "./nfc";
+import { NFC_ERRORS } from "./nfc-errors";
 import type { NfcScanResult } from "./nfc-types";
 
 export type NfcContinuousState = "idle" | "scanning" | "paused";

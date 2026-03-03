@@ -1,34 +1,34 @@
 project_id = "hgmdpetpwclucvquoklv"
 
 [functions.assistant]
-verify_jwt = false
+verify_jwt = true
 
 [functions.link-metadata]
-verify_jwt = false
+verify_jwt = true
 
 [functions.auto-link-student]
 verify_jwt = false
 
 [functions.claim-trainer-invite]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-student-invite]
-verify_jwt = false
+verify_jwt = true
 
 [functions.claim-student-invite]
-verify_jwt = false
+verify_jwt = true
 
 [functions.invite-link]
 verify_jwt = false
 
 [functions.revoke-student-access]
-verify_jwt = false
+verify_jwt = true
 
 [functions.rules-sync]
-verify_jwt = false
+verify_jwt = true
 
 [functions.rules-sync-admin]
-verify_jwt = false
+verify_jwt = true
 
 [functions.students-import]
-verify_jwt = false
+verify_jwt = true

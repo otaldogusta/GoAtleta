@@ -11,10 +11,20 @@ const jsonHeaders = {
   "Content-Type": "application/json",
 };
 
-const getHookSecret = () =>
-  Deno.env.get("AUTH_HOOK_SECRET") ?
-  Deno.env.get("SUPABASE_AUTH_HOOK_SECRET") ?
-  "";
+const getHookSecret = () => {
+  const secret =
+    Deno.env.get("AUTH_HOOK_SECRET") ??
+    Deno.env.get("SUPABASE_AUTH_HOOK_SECRET") ??
+    "";
+
+  if (!secret) {
+    throw new Error(
+      "auto-link-student: AUTH_HOOK_SECRET or SUPABASE_AUTH_HOOK_SECRET must be configured to enable webhook authentication"
+    );
+  }
+
+  return secret;
+};
 
 const isAuthorized = (req: Request) => {
   const secret = getHookSecret();
@@ -54,9 +64,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (!isAuthorized(req)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
+  try {
+    if (!isAuthorized(req)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: jsonHeaders,
+      });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Configuration error";
+    console.error("auto-link-student auth check failed:", message);
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
       headers: jsonHeaders,
     });
   }
