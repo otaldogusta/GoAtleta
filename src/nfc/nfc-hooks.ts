@@ -99,6 +99,30 @@ export function useNfcContinuousScan(options: UseNfcContinuousScanOptions) {
     }
   }, [emitError, loopDelayMs]);
 
+  // Expose lightweight runtime diagnostics for stress-testing and CI
+  try {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore - attach debug helpers to globalThis for manual inspection
+    if (!globalThis.__nfcDiagnostics) {
+      // shape: { getState: () => {...}, setTag: (k,v) => void }
+      // exporters should be minimal to avoid serialization of refs
+      // and to keep runtime impact negligible.
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      globalThis.__nfcDiagnostics = {};
+    }
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    globalThis.__nfcDiagnostics.getNfcLoopState = () => ({
+      running: runningRef.current,
+      paused: pausedRef.current,
+      busy: busyRef.current,
+      loopStarted: loopStartedRef.current,
+    });
+  } catch (_e) {
+    // defensive: do not crash the hook if global attach fails
+  }
+
   const start = useCallback((_: string = "") => {
     if (runningRef.current) {
       pausedRef.current = false;

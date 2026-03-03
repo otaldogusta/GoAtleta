@@ -138,7 +138,7 @@ Deno.serve(async (req) => {
       headers: jsonHeaders,
     });
   }
-
+  
   return new Response(
     JSON.stringify({ status: "ok", linked: data.length ? 0 }),
     { headers: jsonHeaders }

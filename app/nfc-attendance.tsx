@@ -602,6 +602,36 @@ export default function NfcAttendanceScreen() {
     return () => clearInterval(gcInterval);
   }, [activeOrganization?.id]);
 
+  // Runtime diagnostics: expose cache size and emit periodic cache size events
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore - attach lightweight diagnostics for external sampling during stress tests
+      if (!globalThis.__nfcDiagnostics) globalThis.__nfcDiagnostics = {};
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      globalThis.__nfcDiagnostics.getRecentScanCacheSize = () =>
+        recentScanByUidRef.current.size;
+    } catch (_e) {
+      // ignore attach failures
+    }
+
+    const sampInterval = setInterval(() => {
+      try {
+        const orgId = activeOrganization?.id ?? "unknown";
+        const size = recentScanByUidRef.current.size;
+        logNfcEvent("cache_size_snapshot", {
+          organizationId: orgId,
+          cacheSize: size,
+        });
+      } catch (_e) {
+        // ignore
+      }
+    }, 60_000);
+
+    return () => clearInterval(sampInterval);
+  }, [activeOrganization?.id]);
+
   useEffect(() => {
     if (!activeOrganization?.id) return;
     void handleSyncNow("mount");
