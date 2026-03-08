@@ -1,8 +1,9 @@
-import React from "react";
+﻿import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
 // @ts-expect-error no types for browser bundle entry
 import {
   Document,
+  Image,
   Page,
   StyleSheet,
   Text,
@@ -52,6 +53,17 @@ const styles = StyleSheet.create({
   photos: {
     minHeight: 200,
   },
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 6,
+  },
+  photoItem: {
+    width: "31%",
+    borderWidth: 1,
+    borderColor: "#999",
+  },
 });
 
 const asText = (value: unknown) => {
@@ -60,17 +72,40 @@ const asText = (value: unknown) => {
   return String(value);
 };
 
+const parsePhotoUris = (raw: string) => {
+  const value = asText(raw).trim();
+  if (!value || value === "[]") return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => asText(item).trim()).filter(Boolean);
+    }
+  } catch {
+    // fallback to line-based parsing
+  }
+  return value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const isRenderableImageUri = (value: string) =>
+  /^(https?:|file:|content:|blob:|data:image\/)/i.test(value);
+
 export function SessionReportDocument({ data }: { data: SessionReportPdfData }) {
   const participants =
     typeof data?.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = asText(data?.deadlineLabel).trim() || "ultimo dia da escolinha do mes";
+  const deadline = asText(data?.deadlineLabel).trim() || "último dia da escolinha do mês";
+  const photoUris = parsePhotoUris(asText(data?.photos))
+    .filter(isRenderableImageUri)
+    .slice(0, 6);
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.title}>RELATORIO ESCOLINHA DE VOLEI</Text>
+        <Text style={styles.title}>RELATÓRIO ESCOLINHA DE VÔLEI</Text>
         <Text style={styles.meta}>
           Turma: {asText(data?.className) || "-"}{"\n"}
           Unidade: {asText(data?.unitLabel) || "-"}
@@ -78,7 +113,7 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
 
         <View style={styles.row}>
           <View style={styles.cell}>
-            <Text>MES: {asText(data?.monthLabel)}</Text>
+            <Text>MÊS: {asText(data?.monthLabel)}</Text>
           </View>
           <View style={styles.cell}>
             <Text>Prazo de entrega: {deadline}</Text>
@@ -101,14 +136,14 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
-            <Text style={styles.label}>Conclusao:</Text>
+            <Text style={styles.label}>Conclusão:</Text>
             <Text>{asText(data?.conclusion) || "-"}</Text>
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
-            <Text style={styles.label}>Numero de participantes:</Text>
+            <Text style={styles.label}>Número de participantes:</Text>
             <Text>{participants}</Text>
           </View>
         </View>
@@ -116,10 +151,17 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
         <View style={styles.row}>
           <View style={[styles.cellWide, styles.photos]}>
             <Text style={styles.label}>Fotos:</Text>
-            <Text>{asText(data?.photos) || "-"}</Text>
+            {photoUris.length ? (
+              <View style={styles.photoGrid}>
+                {photoUris.map((uri, index) => (
+                  <Image key={`${uri}_${index}`} src={uri} style={styles.photoItem} />
+                ))}
+              </View>
+            ) : null}
           </View>
         </View>
       </Page>
     </Document>
   );
 }
+

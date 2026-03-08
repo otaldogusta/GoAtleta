@@ -1,12 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
+import * as XLSX from "xlsx";
+import * as cptable from "xlsx/dist/cpexcel.js";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Animated, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Animated, ScrollView, Text, TextInput, View } from "react-native";
 
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Pressable } from "../../src/ui/Pressable";
 
@@ -21,6 +25,7 @@ import { normalizeUnitKey } from "../../src/core/unit-key";
 
 import {
     createClassPlan,
+    deleteTrainingPlansByClassAndDate,
 
     deleteClassPlansByClass,
 
@@ -32,6 +37,7 @@ import {
     listWeeklyAutopilotProposals,
 
     saveClassPlans,
+    saveTrainingPlan,
     updateClassAcwrLimits,
 
     updateClassPlan,
@@ -96,6 +102,25 @@ type WeekPlan = {
   source: "AUTO" | "MANUAL";
 
 };
+
+type ImportedPlanRow = {
+  date: string;
+  title: string;
+  tags: string;
+  warmup: string;
+  main: string;
+  cooldown: string;
+  warmup_time: string;
+  main_time: string;
+  cooldown_time: string;
+};
+
+const xlsxWithCodepage = XLSX as typeof XLSX & {
+  set_cptable?: (value: unknown) => void;
+};
+if (typeof xlsxWithCodepage.set_cptable === "function") {
+  xlsxWithCodepage.set_cptable(cptable);
+}
 
 
 
@@ -163,6 +188,150 @@ const volumeToRatio: Record<VolumeLevel, number> = {
   alto: 0.9,
 
 };
+
+const normalizeImportDate = (value: string) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return raw;
+};
+
+const detectImportDelimiter = (value: string) => {
+  const firstLine =
+    value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) ?? "";
+  const semicolonCount = (firstLine.match(/;/g) ?? []).length;
+  const commaCount = (firstLine.match(/,/g) ?? []).length;
+  return semicolonCount > commaCount ? ";" : ",";
+};
+
+const parseDelimitedImportRows = (value: string, delimiter: "," | ";"): string[][] => {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    if (inQuotes) {
+      if (char === '"' && value[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        field += char;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === delimiter) {
+      row.push(field);
+      field = "";
+    } else if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (char !== "\r") {
+      field += char;
+    }
+  }
+  if (field.length || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+};
+
+const normalizeImportHeader = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const IMPORT_ALIAS_MAP: Record<keyof ImportedPlanRow, string[]> = {
+  date: ["date", "data", "dia", "data inicio", "data aplicacao"],
+  title: ["title", "titulo", "titulo do planejamento", "nome", "planejamento", "atividade"],
+  tags: ["tags", "tag", "etiquetas"],
+  warmup: ["warmup", "aquecimento"],
+  main: ["main", "parte principal", "principal"],
+  cooldown: ["cooldown", "volta a calma", "volta calma"],
+  warmup_time: ["warmup time", "warmup_time", "tempo aquecimento"],
+  main_time: ["main time", "main_time", "tempo principal"],
+  cooldown_time: ["cooldown time", "cooldown_time", "tempo volta calma", "tempo volta a calma"],
+};
+
+const resolveImportKey = (value: string): keyof ImportedPlanRow | "" => {
+  const normalized = normalizeImportHeader(value);
+  for (const [key, aliases] of Object.entries(IMPORT_ALIAS_MAP)) {
+    if (aliases.includes(normalized)) return key as keyof ImportedPlanRow;
+  }
+  return "";
+};
+
+const parseImportRowsFromMatrix = (rows: string[][]): ImportedPlanRow[] => {
+  const nonEmptyRows = rows.filter((items) => items.some((value) => String(value ?? "").trim()));
+  if (!nonEmptyRows.length) return [];
+
+  const firstRow = nonEmptyRows[0] ?? [];
+  const firstResolved = firstRow.map(resolveImportKey).filter(Boolean);
+  const hasHeader = firstResolved.length >= 2;
+  const dataRows = hasHeader ? nonEmptyRows.slice(1) : nonEmptyRows;
+  const headerKeys = hasHeader ? firstRow.map(resolveImportKey) : [];
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  return dataRows
+    .map((items) => {
+      const row: ImportedPlanRow = {
+        date: "",
+        title: "",
+        tags: "",
+        warmup: "",
+        main: "",
+        cooldown: "",
+        warmup_time: "",
+        main_time: "",
+        cooldown_time: "",
+      };
+
+      if (hasHeader) {
+        headerKeys.forEach((key, index) => {
+          if (!key) return;
+          const cell = String(items[index] ?? "").trim();
+          row[key] = key === "date" ? normalizeImportDate(cell) : cell;
+        });
+      } else {
+        const cells = items.map((cell) => String(cell ?? "").trim());
+        row.date = normalizeImportDate(cells[0] ?? "");
+        row.title = cells[1] ?? "";
+        row.tags = cells[2] ?? "";
+        row.warmup = cells[3] ?? "";
+        row.main = cells[4] ?? "";
+        row.cooldown = cells[5] ?? "";
+        row.warmup_time = cells[6] ?? "";
+        row.main_time = cells[7] ?? "";
+        row.cooldown_time = cells[8] ?? "";
+      }
+
+      if (!row.date) row.date = todayIso;
+      return row;
+    })
+    .filter((row) => Boolean(row.title.trim()));
+};
+
+const splitImportList = (value: string) =>
+  String(value ?? "")
+    .split(/\r?\n|\|/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
 
 
 
@@ -770,6 +939,7 @@ export default function PeriodizationScreen() {
   const hasInitialClass =
     typeof initialClassId === "string" && initialClassId.trim().length > 0;
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { activeOrganization } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const { setGuidance } = useGuidance();
@@ -897,6 +1067,7 @@ export default function PeriodizationScreen() {
   const [showMesoPicker, setShowMesoPicker] = useState(false);
 
   const [showMicroPicker, setShowMicroPicker] = useState(false);
+  const [isImportingPlansFile, setIsImportingPlansFile] = useState(false);
 
   const isPickerOpen =
 
@@ -1335,6 +1506,8 @@ export default function PeriodizationScreen() {
     [classes, selectedClassId]
 
   );
+  const plansFabBottom = Math.max(insets.bottom + 96, 104);
+  const plansFabRight = 16;
 
   const classNameLabel = normalizeText(selectedClass?.name ?? "Turma");
   const classUnitLabel = normalizeText(
@@ -3463,6 +3636,110 @@ export default function PeriodizationScreen() {
 
   };
 
+  const handleImportPlansFile = useCallback(async () => {
+    if (!selectedClass) {
+      Alert.alert("Importacao", "Selecione uma turma antes de importar.");
+      return;
+    }
+
+    setIsImportingPlansFile(true);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        base64: false,
+        type: [
+          "text/csv",
+          "text/comma-separated-values",
+          "application/vnd.ms-excel",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/octet-stream",
+          "application/pdf",
+        ],
+      });
+      if (result.canceled) return;
+
+      const asset = result.assets?.[0];
+      if (!asset?.uri) throw new Error("Arquivo invalido.");
+      const fileName = String(asset.name ?? "").trim().toLowerCase();
+      if (fileName.endsWith(".pdf") || asset.mimeType === "application/pdf") {
+        Alert.alert("Importacao", "PDF nao e suportado para importacao direta. Use CSV/XLSX.");
+        return;
+      }
+
+      const isSpreadsheet =
+        fileName.endsWith(".xlsx") ||
+        fileName.endsWith(".xls") ||
+        asset.mimeType?.includes("spreadsheet") ||
+        asset.mimeType?.includes("excel");
+
+      let importedRows: ImportedPlanRow[] = [];
+      if (isSpreadsheet) {
+        const workbook =
+          typeof window !== "undefined"
+            ? XLSX.read(await (await fetch(asset.uri)).arrayBuffer(), { type: "array" })
+            : XLSX.read(await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 }), {
+                type: "base64",
+              });
+        const firstSheet = workbook.SheetNames[0];
+        if (!firstSheet) throw new Error("Planilha vazia.");
+        const worksheet = workbook.Sheets[firstSheet];
+        if (!worksheet) throw new Error("Nao foi possivel ler a primeira aba.");
+        const rows = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          raw: false,
+          defval: "",
+        }) as unknown[][];
+        const matrix = rows.map((row) =>
+          Array.isArray(row) ? row.map((cell) => String(cell ?? "").trim()) : []
+        );
+        importedRows = parseImportRowsFromMatrix(matrix);
+      } else {
+        const csvText =
+          typeof window !== "undefined"
+            ? await (await fetch(asset.uri)).text()
+            : await readAsStringAsync(asset.uri, { encoding: EncodingType.UTF8 });
+        const matrix = parseDelimitedImportRows(
+          csvText,
+          detectImportDelimiter(csvText)
+        );
+        importedRows = parseImportRowsFromMatrix(matrix);
+      }
+
+      if (!importedRows.length) {
+        throw new Error("Nenhuma linha valida encontrada no arquivo.");
+      }
+
+      for (const row of importedRows) {
+        await deleteTrainingPlansByClassAndDate(selectedClass.id, row.date);
+        await saveTrainingPlan({
+          id: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          classId: selectedClass.id,
+          title: row.title,
+          tags: splitImportList(row.tags).length
+            ? splitImportList(row.tags)
+            : ["importado", "planejamento"],
+          warmup: splitImportList(row.warmup),
+          main: splitImportList(row.main),
+          cooldown: splitImportList(row.cooldown),
+          warmupTime: row.warmup_time || "",
+          mainTime: row.main_time || "",
+          cooldownTime: row.cooldown_time || "",
+          applyDays: [],
+          applyDate: row.date,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      Alert.alert("Importacao", `Planejamento importado com ${importedRows.length} linha(s).`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao importar arquivo.";
+      Alert.alert("Importacao", message);
+    } finally {
+      setIsImportingPlansFile(false);
+    }
+  }, [selectedClass]);
+
 
 
   return (
@@ -3519,7 +3796,9 @@ export default function PeriodizationScreen() {
 
           style={{ zIndex: 1 }}
 
-          onScrollBeginDrag={closeAllPickers}
+          onScrollBeginDrag={() => {
+            closeAllPickers();
+          }}
           onScroll={syncPickerLayouts}
 
           scrollEventThrottle={16}
@@ -5536,6 +5815,33 @@ export default function PeriodizationScreen() {
         ) : null}
 
         </ScrollView>
+
+        <Pressable
+          onPress={() => void handleImportPlansFile()}
+          disabled={isImportingPlansFile}
+          style={{
+            position: "absolute",
+            right: plansFabRight,
+            bottom: plansFabBottom,
+            width: 56,
+            height: 56,
+            borderRadius: 999,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.primaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+            zIndex: 3200,
+            shadowColor: "#000",
+            shadowOpacity: 0.2,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 12,
+            opacity: isImportingPlansFile ? 0.7 : 1,
+          }}
+        >
+          <Ionicons name="add" size={24} color={colors.primaryText} />
+        </Pressable>
 
 
 

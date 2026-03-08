@@ -1220,8 +1220,19 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     normalizedPath !== "/index" &&
     normalizedPath !== "/assistant" &&
     !normalizedPath.startsWith("/assistant/") &&
+    normalizedPath !== "/prof/home" &&
+    normalizedPath !== "/student/home" &&
+    normalizedPath !== "/coord/dashboard" &&
     !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
+  const hasBottomRightFabConflict =
+    normalizedPath.startsWith("/training") ||
+    normalizedPath.startsWith("/periodization") ||
+    normalizedPath.startsWith("/classes") ||
+    normalizedPath.startsWith("/class/");
+  const fabBottomOffset = hasBottomRightFabConflict
+    ? Math.max(insets.bottom + 186, 202)
+    : Math.max(insets.bottom + 92, 108);
   const sheetContentBottomPadding = Math.max(
     insets.bottom + 10,
     Platform.OS === "web" ? 16 : 14
@@ -1235,6 +1246,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const isWebModal = Platform.OS === "web";
 
   useEffect(() => {
+    if (Platform.OS === "web") {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(0);
+      return;
+    }
+
     if (!(showFab && !state.open && state.hasUnreadUpdates)) {
       pulseAnim.stopAnimation();
       pulseAnim.setValue(0);
@@ -1315,7 +1332,15 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       <CopilotDataContext.Provider value={dataValue}>
       {children}
       {showFab && !state.open ? (
-        <View pointerEvents="box-none" style={styles.fabWrapper}>
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.fabWrapper,
+            {
+              bottom: fabBottomOffset,
+            },
+          ]}
+        >
           {state.hasUnreadUpdates ? (
             <Animated.View
               pointerEvents="none"
@@ -2246,7 +2271,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 16,
     bottom: 24,
-    zIndex: 90,
+    zIndex: 5200,
     alignItems: "center",
     justifyContent: "center",
   },

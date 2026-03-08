@@ -107,6 +107,10 @@ export function SaveToastProvider({
       : variant === "error"
       ? colors.dangerText
       : colors.text;
+  const hasAction = Boolean(toast?.actionLabel);
+  const toastBottom = hasAction
+    ? Math.max(96, insets.bottom + 84)
+    : Math.max(16, insets.bottom + 8);
 
   return (
     <SaveToastContext.Provider value={value}>
@@ -117,7 +121,7 @@ export function SaveToastProvider({
             position: "absolute",
             left: 16,
             right: 16,
-            bottom: Math.max(16, insets.bottom + 8),
+            bottom: toastBottom,
             opacity: anim,
             transform: [
               {

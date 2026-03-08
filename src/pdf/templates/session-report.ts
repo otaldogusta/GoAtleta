@@ -1,4 +1,4 @@
-export type SessionReportPdfData = {
+﻿export type SessionReportPdfData = {
   monthLabel: string;
   dateLabel: string;
   className: string;
@@ -25,15 +25,36 @@ const esc = (value: unknown) =>
 
 const nl2br = (value: unknown) => esc(value).replace(/\n/g, "<br/>");
 
+const parsePhotoUris = (raw: string) => {
+  const value = asText(raw).trim();
+  if (!value || value === "[]") return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => asText(item).trim()).filter(Boolean);
+    }
+  } catch {
+    // fallback to line-based parsing
+  }
+  return value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const isRenderableImageUri = (value: string) =>
+  /^(https?:|file:|content:|blob:|data:image\/)/i.test(value);
+
 export const sessionReportHtml = (data: SessionReportPdfData) => {
   const activity = asText(data?.activity).trim();
   const conclusion = asText(data?.conclusion).trim();
   const photos = asText(data?.photos).trim();
+  const photoUris = parsePhotoUris(photos).filter(isRenderableImageUri).slice(0, 6);
   const participants =
     typeof data?.participantsCount === "number" && data.participantsCount > 0
       ? String(data.participantsCount)
       : "-";
-  const deadline = asText(data?.deadlineLabel).trim() || "ultimo dia da escolinha do mes";
+  const deadline = asText(data?.deadlineLabel).trim() || "último dia da escolinha do mês";
 
   return `
   <html>
@@ -73,17 +94,30 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
         .photos {
           min-height: 260px;
         }
+        .photo-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 8px;
+        }
+        .photo-item {
+          width: 31.5%;
+          aspect-ratio: 3 / 4;
+          border: 1px solid #999;
+          border-radius: 6px;
+          object-fit: cover;
+        }
       </style>
     </head>
     <body>
-      <h1>RELATORIO ESCOLINHA DE VOLEI</h1>
+      <h1>RELATÓRIO ESCOLINHA DE VÔLEI</h1>
       <div class="meta">
         <strong>Turma:</strong> ${esc(data?.className || "-")}<br/>
         <strong>Unidade:</strong> ${esc(data?.unitLabel || "-")}
       </div>
       <table>
         <tr>
-          <td><strong>MES:</strong> ${esc(data?.monthLabel)}</td>
+          <td><strong>MÊS:</strong> ${esc(data?.monthLabel)}</td>
           <td><strong>Prazo de entrega:</strong> ${esc(deadline)}</td>
         </tr>
         <tr>
@@ -93,16 +127,29 @@ export const sessionReportHtml = (data: SessionReportPdfData) => {
           <td colspan="2"><span class="label">Atividade:</span>${nl2br(activity || "-")}</td>
         </tr>
         <tr>
-          <td colspan="2"><span class="label">Conclusao:</span>${nl2br(conclusion || "-")}</td>
+          <td colspan="2"><span class="label">Conclusão:</span>${nl2br(conclusion || "-")}</td>
         </tr>
         <tr>
-          <td colspan="2"><span class="label">Numero de participantes:</span>${esc(participants)}</td>
+          <td colspan="2"><span class="label">Número de participantes:</span>${esc(participants)}</td>
         </tr>
         <tr>
-          <td colspan="2" class="photos"><span class="label">Fotos:</span>${nl2br(photos || "-")}</td>
+          <td colspan="2" class="photos">
+            <span class="label">Fotos:</span>
+            ${
+              photoUris.length
+                ? `<div class="photo-grid">${photoUris
+                    .map(
+                      (uri) =>
+                        `<img class="photo-item" src="${esc(uri)}" alt="Foto do relatório"/>`
+                    )
+                    .join("")}</div>`
+                : ""
+            }
+          </td>
         </tr>
       </table>
     </body>
   </html>
   `;
 };
+

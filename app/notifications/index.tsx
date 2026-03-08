@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Text, View } from "react-native";
@@ -9,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/auth/auth";
 import { useRole } from "../../src/auth/role";
 import { type DevProfilePreview } from "../../src/dev/profile-preview";
+import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRuntime";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { Pressable } from "../../src/ui/Pressable";
 import { SettingsRow } from "../../src/ui/SettingsRow";
@@ -41,7 +41,9 @@ export default function NotificationsScreen() {
   }, []);
 
   const requestPermissions = async () => {
-    if (isWeb) return false;
+    if (isWeb || isExpoGo) return false;
+    const Notifications = getNotificationsModule();
+    if (!Notifications) return false;
     const { status } = await Notifications.getPermissionsAsync();
     if (status === "granted") return true;
     const result = await Notifications.requestPermissionsAsync();
@@ -49,8 +51,13 @@ export default function NotificationsScreen() {
   };
 
   const disableNotifications = async () => {
-    if (isWeb) {
+    if (isWeb || isExpoGo) {
       setStatus("Notificações não são suportadas no navegador.");
+      return;
+    }
+    const Notifications = getNotificationsModule();
+    if (!Notifications) {
+      setStatus("NotificaÃ§Ãµes indisponÃ­veis neste ambiente.");
       return;
     }
     await Notifications.cancelAllScheduledNotificationsAsync();

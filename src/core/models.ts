@@ -112,7 +112,12 @@ export type Student = {
   organizationId: string;
   photoUrl?: string;
   externalId?: string | null;
+  cpfMasked?: string | null;
+  cpfHmac?: string | null;
+  rg?: string | null;
   rgNormalized?: string | null;
+  isExperimental?: boolean;
+  sourcePreRegistrationId?: string | null;
   classId: string;
   age: number;
   phone: string;
@@ -131,6 +136,30 @@ export type Student = {
   athleteObjective: AthleteObjective;
   learningStyle: AthleteLearningStyle;
   createdAt: string;
+};
+
+export type StudentPreRegistrationStatus =
+  | "lead"
+  | "trial_scheduled"
+  | "trial_done"
+  | "converted"
+  | "lost";
+
+export type StudentPreRegistration = {
+  id: string;
+  organizationId: string;
+  childName: string;
+  guardianName: string;
+  guardianPhone: string;
+  ageOrBirth?: string | null;
+  classInterest?: string | null;
+  unitInterest?: string | null;
+  trialDate?: string | null;
+  status: StudentPreRegistrationStatus;
+  notes?: string | null;
+  convertedStudentId?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AttendanceRecord = {

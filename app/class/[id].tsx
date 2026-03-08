@@ -11,7 +11,7 @@ import {
     Vibration,
     View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -149,6 +149,7 @@ export default function ClassDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, mode } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { confirm } = useConfirmUndo();
   const {
     defaultMessageEnabled,
@@ -186,12 +187,11 @@ export default function ClassDetails() {
   });
   const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
   const [showRosterExportModal, setShowRosterExportModal] = useState(false);
+  const [showClassFabMenu, setShowClassFabMenu] = useState(false);
+  const classFabAnim = useRef(new Animated.Value(0)).current;
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [loading, setLoading] = useState(true);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
-  const [studentsLoadedFor, setStudentsLoadedFor] = useState<string | null>(null);
-  const [studentsLoading, setStudentsLoading] = useState(false);
-  const [showStudentsModal, setShowStudentsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showEditDurationPicker, setShowEditDurationPicker] = useState(false);
@@ -692,26 +692,6 @@ export default function ClassDetails() {
     syncEditPickerLayouts,
   ]);
 
-  useEffect(() => {
-    if (!cls || !showStudentsModal) return;
-    if (studentsLoadedFor === cls.id) return;
-    let alive = true;
-    setStudentsLoading(true);
-    getStudentsByClass(cls.id)
-      .then((list) => {
-        if (!alive) return;
-        const sorted = list.slice().sort((a, b) => a.name.localeCompare(b.name));
-        setClassStudents(sorted);
-        setStudentsLoadedFor(cls.id);
-      })
-      .finally(() => {
-        if (alive) setStudentsLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [cls, showStudentsModal, studentsLoadedFor]);
-
   const toggleDay = (value: number) => {
     setDaysOfWeek((prev) =>
       prev.includes(value) ? prev.filter((day) => day !== value) : [...prev, value]
@@ -778,6 +758,14 @@ export default function ClassDetails() {
       setShowEditModal(false);
     }
   }, [saveUnit]);
+
+  useEffect(() => {
+    Animated.timing(classFabAnim, {
+      toValue: showClassFabMenu ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [classFabAnim, showClassFabMenu]);
 
   if (loading) {
     return (
@@ -1046,11 +1034,11 @@ export default function ClassDetails() {
 
     setAvailableContacts(validContacts);
     setSelectedContactIndex(-1);
-    
+
     // Suggest template based on context
     const suggestedTemplate = getSuggestedTemplate({ screen: "class" });
     setSelectedTemplateId(suggestedTemplate);
-    
+
     // Generate template message if enabled
     if (defaultMessageEnabled) {
       const nextClassDate = calculateNextClassDate(daysOfWeek);
@@ -1067,7 +1055,7 @@ export default function ClassDetails() {
     } else {
       setCustomWhatsAppMessage("");
     }
-    
+
     setCustomFields({});
     setShowWhatsAppSettingsModal(true);
   };
@@ -1079,13 +1067,13 @@ export default function ClassDetails() {
     }
     const selectedContact = availableContacts[selectedContactIndex];
     if (!selectedContact) return;
-    
+
     // Usar mensagem customizada se fornecida, senão usar padrão
     let messageText = customWhatsAppMessage.trim();
     if (!messageText) {
       messageText = getDefaultMessage("global", { className, unitLabel, enabledOverride: defaultMessageEnabled });
     }
-    
+
     const url = buildWaMeLink(selectedContact.phone, messageText);
     await openWhatsApp(url);
     setShowWhatsAppSettingsModal(false);
@@ -1099,7 +1087,12 @@ export default function ClassDetails() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <ScrollView
-        contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}
+        contentContainerStyle={{
+          gap: 16,
+          paddingBottom: Math.max(insets.bottom + 220, 236),
+          paddingHorizontal: 16,
+          paddingTop: 16,
+        }}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 8 }}>
@@ -1253,13 +1246,15 @@ export default function ClassDetails() {
                 width: "100%",
                 padding: 14,
                 borderRadius: 16,
-                backgroundColor: colors.primaryBg,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 15 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
                 Ver aula do dia
               </Text>
-              <Text style={{ color: colors.primaryText, marginTop: 6, opacity: 0.85 }}>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Plano e cronômetro
               </Text>
             </Pressable>
@@ -1274,13 +1269,15 @@ export default function ClassDetails() {
                 width: "100%",
                 padding: 14,
                 borderRadius: 16,
-                backgroundColor: colors.successBg,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ color: colors.successText, fontWeight: "700", fontSize: 15 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
                 Fazer chamada
               </Text>
-              <Text style={{ color: colors.successText, marginTop: 6, opacity: 0.7 }}>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Presença rápida
               </Text>
             </Pressable>
@@ -1295,13 +1292,15 @@ export default function ClassDetails() {
                 width: "100%",
                 padding: 14,
                 borderRadius: 16,
-                backgroundColor: colors.warningBg,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ color: colors.warningText, fontWeight: "700", fontSize: 15 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
                 Periodização da turma
               </Text>
-              <Text style={{ color: colors.warningText, marginTop: 6, opacity: 0.8 }}>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Ver ciclo, semana e metas
               </Text>
             </Pressable>
@@ -1324,19 +1323,26 @@ export default function ClassDetails() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setShowStudentsModal(true)}
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/students",
+                  params: { id },
+                })
+              }
               style={{
                 width: "100%",
                 padding: 14,
                 borderRadius: 16,
-                backgroundColor: colors.infoBg,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ color: colors.infoText, fontWeight: "700", fontSize: 15 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
                 Alunos da turma
               </Text>
-              <Text style={{ color: colors.infoText, marginTop: 6, opacity: 0.8 }}>
-                Ver lista completa
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Ver, buscar e editar
               </Text>
             </Pressable>
             <Pressable
@@ -1345,13 +1351,15 @@ export default function ClassDetails() {
                 width: "100%",
                 padding: 14,
                 borderRadius: 16,
-                backgroundColor: "#25D366",
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
                 WhatsApp
               </Text>
-              <Text style={{ color: "white", marginTop: 6, opacity: 0.9 }}>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Contato responsável
               </Text>
             </Pressable>
@@ -1420,6 +1428,104 @@ export default function ClassDetails() {
       </ScrollView>
       </KeyboardAvoidingView>
 
+      {showClassFabMenu ? (
+        <Pressable
+          onPress={() => setShowClassFabMenu(false)}
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            zIndex: 5310,
+          }}
+        />
+      ) : null}
+
+      {showClassFabMenu ? (
+        <View
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: Math.max(insets.bottom + 332, 348),
+            width: 228,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 8,
+            gap: 8,
+            zIndex: 5320,
+          }}
+        >
+          <Pressable
+            onPress={() => {
+              setShowClassFabMenu(false);
+              handleExportRoster();
+            }}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+              borderRadius: 10,
+              paddingHorizontal: 10,
+              paddingVertical: 9,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <MaterialCommunityIcons name="file-export-outline" size={16} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+              Exportar lista de chamada
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <Pressable
+        onPress={() => setShowClassFabMenu((current) => !current)}
+        style={{
+          position: "absolute",
+          right: 16,
+          bottom: Math.max(insets.bottom + 258, 274),
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.primaryBg,
+          borderWidth: 1,
+          borderColor: colors.primaryBg,
+          zIndex: 5330,
+          shadowColor: "#000",
+          shadowOpacity: 0.2,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 8,
+        }}
+      >
+        <Animated.View
+          style={{
+            transform: [
+              {
+                rotate: classFabAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ["0deg", "45deg"],
+                }),
+              },
+              {
+                scale: classFabAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.05],
+                }),
+              },
+            ],
+          }}
+        >
+          <MaterialCommunityIcons name="plus" size={24} color={colors.primaryText} />
+        </Animated.View>
+      </Pressable>
 
       <ModalSheet
         visible={showEditModal}
@@ -2043,62 +2149,6 @@ export default function ClassDetails() {
       </ModalSheet>
 
       <ModalSheet
-        visible={showStudentsModal}
-        onClose={() => setShowStudentsModal(false)}
-        position="center"
-        cardStyle={rosterModalCardStyle}
-      >
-        <View style={{ gap: 12 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Alunos da turma
-          </Text>
-          {studentsLoading ? (
-            <Text style={{ color: colors.muted }}>Carregando alunos...</Text>
-          ) : classStudents.length ? (
-            <ScrollView
-              style={{ maxHeight: 320 }}
-              contentContainerStyle={{ gap: 8 }}
-              nestedScrollEnabled
-            >
-              {classStudents.map((student) => (
-                <View
-                  key={student.id}
-                  style={{
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "600" }}>
-                    {student.name}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <Text style={{ color: colors.muted }}>
-              Nenhum aluno cadastrado nesta turma.
-            </Text>
-          )}
-          <Pressable
-            onPress={() => setShowStudentsModal(false)}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
-          </Pressable>
-        </View>
-      </ModalSheet>
-
-      <ModalSheet
         visible={showWhatsAppSettingsModal}
         onClose={() => setShowWhatsAppSettingsModal(false)}
         cardStyle={[
@@ -2152,10 +2202,10 @@ export default function ClassDetails() {
                 .map((template) => {
                 const isSelected = selectedTemplateId === template.id;
                 const nextClassDate = calculateNextClassDate(daysOfWeek);
-                
+
                 let canUse = true;
                 let missingRequirement = "";
-                
+
                 if (template.requires) {
                   for (const req of template.requires) {
                     if ((req === "nextClassDate" || req === "nextClassTime") && !nextClassDate) {
@@ -2170,7 +2220,7 @@ export default function ClassDetails() {
                     }
                   }
                 }
-                
+
                 return (
                   <Pressable
                     key={template.id}
@@ -2207,10 +2257,10 @@ export default function ClassDetails() {
                       opacity: canUse ? 1 : 0.4,
                     }}
                   >
-                    <Text style={{ 
-                      fontSize: 12, 
-                      fontWeight: "600", 
-                      color: isSelected ? whatsappSelectedText : colors.text 
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: "600",
+                      color: isSelected ? whatsappSelectedText : colors.text
                     }}>
                       {template.title}
                     </Text>
@@ -2247,12 +2297,12 @@ export default function ClassDetails() {
             <View style={{ gap: 6 }}>
               {WHATSAPP_TEMPLATES[selectedTemplateId].requires?.map((field) => {
                 if (field === "nextClassDate" || field === "nextClassTime" || field === "groupInviteLink") return null;
-                
+
                 const labels: Record<string, string> = {
                   highlightNote: "Destaque (opcional):",
                   customText: "Mensagem do aviso:",
                 };
-                
+
                 return (
                   <View key={field}>
                     <Text style={{ fontSize: 11, fontWeight: "600", color: whatsappModalMuted, marginBottom: 4 }}>
@@ -2477,4 +2527,3 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
-

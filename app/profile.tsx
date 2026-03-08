@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
@@ -29,6 +28,7 @@ import { getClasses, updateStudentPhoto } from "../src/db/seed";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
+import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
@@ -266,7 +266,9 @@ export default function ProfileScreen() {
         JSON.stringify({ enabled: nextEnabled })
       );
 
-      if (nextEnabled && !isWeb) {
+      if (nextEnabled && !isWeb && !isExpoGo) {
+        const Notifications = getNotificationsModule();
+        if (!Notifications) return;
         const { status } = await Notifications.getPermissionsAsync();
         if (status !== "granted") {
           const result = await Notifications.requestPermissionsAsync();
@@ -279,7 +281,9 @@ export default function ProfileScreen() {
             );
           }
         }
-      } else if (!nextEnabled && !isWeb) {
+      } else if (!nextEnabled && !isWeb && !isExpoGo) {
+        const Notifications = getNotificationsModule();
+        if (!Notifications) return;
         await Notifications.cancelAllScheduledNotificationsAsync();
       }
     } catch (error) {

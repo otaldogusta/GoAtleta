@@ -31,7 +31,7 @@ export default function AuthCallbackScreen() {
         // Just wait for session to be loaded, then redirect
         if (session) {
           // Clear the hash and redirect
-          window.history.replaceState(null, "", window.location.pathname);
+          window.history.replaceState(window.history.state ?? null, "", window.location.pathname);
           router.replace("/");
         }
       } catch (err) {

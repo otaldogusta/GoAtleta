@@ -27,6 +27,7 @@ type AnchoredDropdownProps = {
   children: React.ReactNode;
   onRequestClose?: () => void;
   dismissOnBackdropPress?: boolean;
+  showVerticalScrollIndicator?: boolean;
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 168;
@@ -44,6 +45,7 @@ export function AnchoredDropdown({
   children,
   onRequestClose,
   dismissOnBackdropPress = !!onRequestClose,
+  showVerticalScrollIndicator = false,
 }: AnchoredDropdownProps) {
   const { colors } = useAppTheme();
   if (!visible || !layout) return null;
@@ -112,7 +114,7 @@ export function AnchoredDropdown({
             style={{ maxHeight: resolvedMaxHeight }}
             contentContainerStyle={scrollContentStyle}
             nestedScrollEnabled={nestedScrollEnabled}
-            showsVerticalScrollIndicator
+            showsVerticalScrollIndicator={showVerticalScrollIndicator}
             scrollEventThrottle={16}
             keyboardShouldPersistTaps="handled"
             overScrollMode={Platform.OS === "android" ? "always" : "auto"}

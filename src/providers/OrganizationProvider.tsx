@@ -23,6 +23,7 @@ import {
     setDevProfilePreview as persistDevProfilePreview,
     type DevProfilePreview,
 } from "../dev/profile-preview";
+import { forceRefreshAccessToken } from "../auth/session";
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
@@ -148,17 +149,30 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     fetchControllerRef.current = controller;
 
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_organizations`, {
+      const fetchOrganizationsWithToken = async (token: string) =>
+        fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_organizations`, {
         method: "POST",
         headers: {
           apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         signal: controller.signal,
       });
 
-      if (!res.ok) throw new Error("Failed to fetch organizations");
+      let res = await fetchOrganizationsWithToken(accessToken);
+      if (res.status === 401) {
+        const refreshed = await forceRefreshAccessToken();
+        if (refreshed) {
+          res = await fetchOrganizationsWithToken(refreshed);
+        }
+      }
+
+      if (!res.ok) {
+        const details = await res.text();
+        const reason = details?.trim() || `status ${res.status}`;
+        throw new Error(`Failed to fetch organizations: ${reason}`);
+      }
 
       const data = (await res.json()) as Organization[];
       setOrganizations(data);

@@ -15,6 +15,8 @@ import type {
     ScoutingLog,
     SessionLog,
     Student,
+    StudentPreRegistration,
+    StudentPreRegistrationStatus,
     StudentScoutingLog,
     TrainingPlan,
     TrainingTemplate,
@@ -22,6 +24,8 @@ import type {
 } from "../core/models";
 import { normalizeUnitKey } from "../core/unit-key";
 import { canonicalizeUnitLabel } from "../core/unit-label";
+import { normalizeCpfDigits, validateCpf } from "../utils/cpf";
+import { normalizeRg } from "../utils/document-normalization";
 import { db } from "./sqlite";
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
@@ -1298,7 +1302,13 @@ type StudentRow = {
   organization_id?: string | null;
   photo_url?: string | null;
   external_id?: string | null;
+  cpf_masked?: string | null;
+  cpf_hmac?: string | null;
+  cpf_input?: string | null;
+  rg?: string | null;
   rg_normalized?: string | null;
+  is_experimental?: boolean | null;
+  source_pre_registration_id?: string | null;
   guardian_cpf_hmac?: string | null;
   classid: string;
   age: number;
@@ -1318,6 +1328,23 @@ type StudentRow = {
   learning_style?: string | null;
   birthdate?: string | null;
   createdat: string;
+};
+
+type StudentPreRegistrationRow = {
+  id: string;
+  organization_id: string;
+  child_name: string;
+  guardian_name: string;
+  guardian_phone: string;
+  age_or_birth?: string | null;
+  class_interest?: string | null;
+  unit_interest?: string | null;
+  trial_date?: string | null;
+  status: StudentPreRegistrationStatus;
+  notes?: string | null;
+  converted_student_id?: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type AttendanceRow = {
@@ -2934,6 +2961,44 @@ export async function getLatestTrainingPlanByClass(
 const buildStudentsCacheKey = (organizationId: string | null) =>
   organizationId ? `${CACHE_KEYS.students}_${organizationId}` : CACHE_KEYS.students;
 
+const mapStudentRow = (
+  row: StudentRow,
+  activeOrganizationId?: string | null
+): Student => {
+  const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+  return {
+    id: row.id,
+    name: row.name,
+    organizationId: resolvedOrganizationId,
+    photoUrl: row.photo_url ?? undefined,
+    externalId: row.external_id ?? null,
+    cpfMasked: row.cpf_masked ?? null,
+    cpfHmac: row.cpf_hmac ?? null,
+    rg: row.rg ?? null,
+    rgNormalized: row.rg_normalized ?? null,
+    isExperimental: Boolean(row.is_experimental),
+    sourcePreRegistrationId: row.source_pre_registration_id ?? null,
+    classId: row.classid,
+    age: row.age,
+    phone: row.phone,
+    loginEmail: row.login_email ?? "",
+    guardianName: row.guardian_name ?? "",
+    guardianPhone: row.guardian_phone ?? "",
+    guardianRelation: row.guardian_relation ?? "",
+    healthIssue: row.health_issue ?? false,
+    healthIssueNotes: row.health_issue_notes ?? "",
+    medicationUse: row.medication_use ?? false,
+    medicationNotes: row.medication_notes ?? "",
+    healthObservations: row.health_observations ?? "",
+    positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
+    positionSecondary: (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
+    athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
+    learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
+    birthDate: row.birthdate ?? "",
+    createdAt: row.createdat,
+  };
+};
+
 export async function getStudents(
   options: { organizationId?: string | null } = {}
 ): Promise<Student[]> {
@@ -2950,36 +3015,7 @@ export async function getStudents(
         activeOrganizationId
       )}&order=name.asc`
     );
-    const mapped = rows.map((row) => {
-      const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
-      return {
-        id: row.id,
-        name: row.name,
-        organizationId: resolvedOrganizationId,
-        photoUrl: row.photo_url ?? undefined,
-        externalId: row.external_id ?? null,
-        rgNormalized: row.rg_normalized ?? null,
-        classId: row.classid,
-        age: row.age,
-        phone: row.phone,
-        loginEmail: row.login_email ?? "",
-        guardianName: row.guardian_name ?? "",
-        guardianPhone: row.guardian_phone ?? "",
-        guardianRelation: row.guardian_relation ?? "",
-        healthIssue: row.health_issue ?? false,
-        healthIssueNotes: row.health_issue_notes ?? "",
-        medicationUse: row.medication_use ?? false,
-        medicationNotes: row.medication_notes ?? "",
-        healthObservations: row.health_observations ?? "",
-        positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
-        positionSecondary:
-          (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
-        athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
-        learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
-        birthDate: row.birthdate ?? "",
-        createdAt: row.createdat,
-      };
-    });
+    const mapped = rows.map((row) => mapStudentRow(row, activeOrganizationId));
     await writeCache(cacheKey, mapped);
     Sentry.addBreadcrumb({
       category: "sqlite-query",
@@ -3017,36 +3053,7 @@ export async function getStudentsByClass(
             "&order=name.asc"
         : "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
     );
-    return rows.map((row) => {
-      const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
-      return {
-        id: row.id,
-        name: row.name,
-        organizationId: resolvedOrganizationId,
-        photoUrl: row.photo_url ?? undefined,
-        externalId: row.external_id ?? null,
-        rgNormalized: row.rg_normalized ?? null,
-        classId: row.classid,
-        age: row.age,
-        phone: row.phone,
-        loginEmail: row.login_email ?? "",
-        guardianName: row.guardian_name ?? "",
-        guardianPhone: row.guardian_phone ?? "",
-        guardianRelation: row.guardian_relation ?? "",
-        healthIssue: row.health_issue ?? false,
-        healthIssueNotes: row.health_issue_notes ?? "",
-        medicationUse: row.medication_use ?? false,
-        medicationNotes: row.medication_notes ?? "",
-        healthObservations: row.health_observations ?? "",
-        positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
-        positionSecondary:
-          (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
-        athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
-        learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
-        birthDate: row.birthdate ?? "",
-        createdAt: row.createdat,
-      };
-    });
+    return rows.map((row) => mapStudentRow(row, activeOrganizationId));
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
       const activeOrganizationId =
@@ -3076,44 +3083,29 @@ export async function getStudentById(
   );
   const row = rows[0];
   if (!row) return null;
-  const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
-  return {
-    id: row.id,
-    name: row.name,
-    organizationId: resolvedOrganizationId,
-    photoUrl: row.photo_url ?? undefined,
-    externalId: row.external_id ?? null,
-    rgNormalized: row.rg_normalized ?? null,
-    classId: row.classid,
-    age: row.age,
-    phone: row.phone,
-    loginEmail: row.login_email ?? "",
-    guardianName: row.guardian_name ?? "",
-    guardianPhone: row.guardian_phone ?? "",
-    guardianRelation: row.guardian_relation ?? "",
-    healthIssue: row.health_issue ?? false,
-    healthIssueNotes: row.health_issue_notes ?? "",
-    medicationUse: row.medication_use ?? false,
-    medicationNotes: row.medication_notes ?? "",
-    healthObservations: row.health_observations ?? "",
-    positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
-    positionSecondary: (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
-    athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
-    learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
-    birthDate: row.birthdate ?? "",
-    createdAt: row.createdat,
-  };
+  return mapStudentRow(row, activeOrganizationId);
 }
 
 export async function saveStudent(student: Student) {
   const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
   const activeOrganizationId =
     student.organizationId || (await getActiveOrganizationId());
+  const rgRaw = student.rg?.trim() || null;
+  const rgNormalized = rgRaw ? normalizeRg(rgRaw) : null;
+  const cpfCandidate = String(student.cpfMasked ?? "").trim();
+  const cpfDigits = normalizeCpfDigits(cpfCandidate);
+  const shouldProcessCpf = Boolean(cpfCandidate) && !cpfCandidate.includes("*");
+  if (shouldProcessCpf && cpfDigits && !validateCpf(cpfDigits)) {
+    throw new Error("CPF inválido.");
+  }
   const payload: Record<string, unknown> = {
     id: student.id,
     name: student.name,
     external_id: student.externalId?.trim() || null,
-    rg_normalized: student.rgNormalized?.trim() || null,
+    rg: rgRaw,
+    rg_normalized: rgNormalized,
+    is_experimental: Boolean(student.isExperimental),
+    source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
     age: student.age,
     phone: student.phone,
@@ -3133,20 +3125,42 @@ export async function saveStudent(student: Student) {
     birthdate: student.birthDate ? student.birthDate : null,
     createdat: student.createdAt,
   };
+  if (shouldProcessCpf && cpfDigits) {
+    payload.cpf_input = cpfDigits;
+  }
   if (activeOrganizationId) {
     payload.organization_id = activeOrganizationId;
   }
-  await supabasePost("/students", [payload]);
+  try {
+    await supabasePost("/students", [payload]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("students_org_cpf_hmac_uidx")) {
+      throw new Error("Já existe um aluno com este CPF nesta organização.");
+    }
+    throw error;
+  }
 }
 
 export async function updateStudent(student: Student) {
   const normalizedLoginEmail = student.loginEmail?.trim().toLowerCase() || null;
   const activeOrganizationId =
     student.organizationId || (await getActiveOrganizationId());
+  const rgRaw = student.rg?.trim() || null;
+  const rgNormalized = rgRaw ? normalizeRg(rgRaw) : null;
+  const cpfCandidate = String(student.cpfMasked ?? "").trim();
+  const cpfDigits = normalizeCpfDigits(cpfCandidate);
+  const shouldProcessCpf = Boolean(cpfCandidate) && !cpfCandidate.includes("*");
+  if (shouldProcessCpf && cpfDigits && !validateCpf(cpfDigits)) {
+    throw new Error("CPF inválido.");
+  }
   const payload: Record<string, unknown> = {
     name: student.name,
     external_id: student.externalId?.trim() || null,
-    rg_normalized: student.rgNormalized?.trim() || null,
+    rg: rgRaw,
+    rg_normalized: rgNormalized,
+    is_experimental: Boolean(student.isExperimental),
+    source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
     age: student.age,
     phone: student.phone,
@@ -3166,18 +3180,78 @@ export async function updateStudent(student: Student) {
     birthdate: student.birthDate ? student.birthDate : null,
     createdat: student.createdAt,
   };
+  if (cpfCandidate) {
+    if (shouldProcessCpf) {
+      payload.cpf_input = cpfDigits;
+    }
+  } else {
+    payload.cpf_input = "";
+  }
   if (activeOrganizationId) {
     payload.organization_id = activeOrganizationId;
   }
-  await supabasePatch(
-    activeOrganizationId
-      ? "/students?id=eq." +
-          encodeURIComponent(student.id) +
-          "&organization_id=eq." +
-          encodeURIComponent(activeOrganizationId)
-      : "/students?id=eq." + encodeURIComponent(student.id),
-    payload
-  );
+  try {
+    await supabasePatch(
+      activeOrganizationId
+        ? "/students?id=eq." +
+            encodeURIComponent(student.id) +
+            "&organization_id=eq." +
+            encodeURIComponent(activeOrganizationId)
+        : "/students?id=eq." + encodeURIComponent(student.id),
+      payload
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("students_org_cpf_hmac_uidx")) {
+      throw new Error("Já existe um aluno com este CPF nesta organização.");
+    }
+    throw error;
+  }
+}
+
+export async function revealStudentCpf(
+  studentId: string,
+  options: {
+    reason: string;
+    legalBasis?: string | null;
+  }
+) {
+  const reason = options.reason.trim();
+  if (!reason) {
+    throw new Error("Motivo obrigatorio para revelar CPF.");
+  }
+  let rows: { cpf?: string | null }[] = [];
+  try {
+    rows = await supabasePost<{ cpf?: string | null }[]>(
+      "/rpc/reveal_student_cpf",
+      {
+        p_student_id: studentId,
+        p_reason: reason,
+        p_legal_basis: options.legalBasis?.trim() || null,
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("CPF_NOT_AVAILABLE")) {
+      throw new Error(
+        "CPF completo indisponivel para este aluno. Salve o CPF novamente para habilitar a revelacao segura."
+      );
+    }
+    if (message.includes("FORBIDDEN")) {
+      throw new Error("Sem permissao para revelar CPF.");
+    }
+    if (message.includes("REASON_REQUIRED")) {
+      throw new Error("Motivo obrigatorio para revelar CPF.");
+    }
+    throw error;
+  }
+
+  const first = Array.isArray(rows) ? rows[0] : null;
+  const cpf = first?.cpf?.trim() || "";
+  if (!cpf) {
+    throw new Error("CPF indisponivel para este aluno.");
+  }
+  return cpf;
 }
 
 export async function updateStudentPhoto(studentId: string, photoUrl: string | null) {
@@ -3205,6 +3279,133 @@ export async function deleteStudent(id: string) {
           encodeURIComponent(activeOrganizationId)
       : "/students?id=eq." + encodeURIComponent(id)
   );
+}
+
+const mapStudentPreRegistrationRow = (
+  row: StudentPreRegistrationRow
+): StudentPreRegistration => ({
+  id: row.id,
+  organizationId: row.organization_id,
+  childName: row.child_name,
+  guardianName: row.guardian_name,
+  guardianPhone: row.guardian_phone,
+  ageOrBirth: row.age_or_birth ?? null,
+  classInterest: row.class_interest ?? null,
+  unitInterest: row.unit_interest ?? null,
+  trialDate: row.trial_date ?? null,
+  status: row.status,
+  notes: row.notes ?? null,
+  convertedStudentId: row.converted_student_id ?? null,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+export async function getStudentPreRegistrations(
+  options: {
+    organizationId?: string | null;
+    status?: StudentPreRegistrationStatus | null;
+  } = {}
+): Promise<StudentPreRegistration[]> {
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getStudentPreRegistrations"
+  );
+  if (!organizationId) return [];
+
+  const statusFilter =
+    options.status && options.status.trim()
+      ? `&status=eq.${encodeURIComponent(options.status)}`
+      : "";
+  const rows = await supabaseGet<StudentPreRegistrationRow[]>(
+    `/student_pre_registrations?select=*&organization_id=eq.${encodeURIComponent(
+      organizationId
+    )}${statusFilter}&order=created_at.desc`
+  );
+  return rows.map(mapStudentPreRegistrationRow);
+}
+
+export async function saveStudentPreRegistration(
+  item: Omit<StudentPreRegistration, "createdAt" | "updatedAt">
+) {
+  const organizationId = await getScopedOrganizationId(
+    item.organizationId,
+    "saveStudentPreRegistration"
+  );
+  if (!organizationId) throw new Error("Organização ativa não encontrada.");
+  const now = new Date().toISOString();
+  await supabasePost("/student_pre_registrations", [
+    {
+      id: item.id,
+      organization_id: organizationId,
+      child_name: item.childName.trim(),
+      guardian_name: item.guardianName.trim(),
+      guardian_phone: item.guardianPhone.trim(),
+      age_or_birth: item.ageOrBirth?.trim() || null,
+      class_interest: item.classInterest?.trim() || null,
+      unit_interest: item.unitInterest?.trim() || null,
+      trial_date: item.trialDate?.trim() || null,
+      status: item.status,
+      notes: item.notes?.trim() || null,
+      converted_student_id: item.convertedStudentId?.trim() || null,
+      created_at: now,
+      updated_at: now,
+    },
+  ]);
+}
+
+export async function updateStudentPreRegistration(
+  item: Omit<StudentPreRegistration, "createdAt" | "updatedAt">
+) {
+  const organizationId = await getScopedOrganizationId(
+    item.organizationId,
+    "updateStudentPreRegistration"
+  );
+  if (!organizationId) throw new Error("Organização ativa não encontrada.");
+  await supabasePatch(
+    `/student_pre_registrations?id=eq.${encodeURIComponent(
+      item.id
+    )}&organization_id=eq.${encodeURIComponent(organizationId)}`,
+    {
+      child_name: item.childName.trim(),
+      guardian_name: item.guardianName.trim(),
+      guardian_phone: item.guardianPhone.trim(),
+      age_or_birth: item.ageOrBirth?.trim() || null,
+      class_interest: item.classInterest?.trim() || null,
+      unit_interest: item.unitInterest?.trim() || null,
+      trial_date: item.trialDate?.trim() || null,
+      status: item.status,
+      notes: item.notes?.trim() || null,
+      converted_student_id: item.convertedStudentId?.trim() || null,
+      updated_at: new Date().toISOString(),
+    }
+  );
+}
+
+export async function deleteStudentPreRegistration(id: string) {
+  const organizationId = await getActiveOrganizationId();
+  await supabaseDelete(
+    organizationId
+      ? `/student_pre_registrations?id=eq.${encodeURIComponent(
+          id
+        )}&organization_id=eq.${encodeURIComponent(organizationId)}`
+      : `/student_pre_registrations?id=eq.${encodeURIComponent(id)}`
+  );
+}
+
+export async function convertStudentPreRegistration(
+  preRegistration: Omit<StudentPreRegistration, "createdAt" | "updatedAt">,
+  studentPayload: Student
+) {
+  await saveStudent({
+    ...studentPayload,
+    isExperimental: true,
+    sourcePreRegistrationId: preRegistration.id,
+  });
+  await updateStudentPreRegistration({
+    ...preRegistration,
+    status: "converted",
+    convertedStudentId: studentPayload.id,
+  });
 }
 
 export async function saveAttendanceRecords(

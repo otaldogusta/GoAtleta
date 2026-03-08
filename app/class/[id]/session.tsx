@@ -1,8 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -10,7 +13,7 @@ import {
     TextInput,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import type { ClassGroup, ScoutingLog, SessionLog, TrainingPlan } from "../../../src/core/models";
@@ -37,6 +40,7 @@ import {
     saveScoutingLog,
     saveSessionLog,
 } from "../../../src/db/seed";
+import { rewriteReportText, type ReportRewriteField } from "../../../src/api/ai";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
@@ -48,6 +52,7 @@ import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { Button } from "../../../src/ui/Button";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
+import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { ShimmerBlock } from "../../../src/ui/Shimmer";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
@@ -55,20 +60,117 @@ import { formatClock, formatDuration } from "../../../src/utils/format-time";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
-  { id: "relatório", label: "Fazer relatório" },
+  { id: "relatorio", label: "Fazer relatório" },
   { id: "scouting", label: "Scouting" },
 ] as const;
 
 type SessionTabId = (typeof sessionTabs)[number]["id"];
+const REPORT_REWRITE_MAX_CHARS = 1200;
+const REPORT_RELEVANT_MIN_CHARS = 24;
+const REPORT_RELEVANT_MIN_WORDS = 5;
+const REPORT_PHOTO_LIMIT = 3;
+
+const parseReportPhotoUris = (raw: string): string[] => {
+  const value = raw.trim();
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => String(item ?? "").trim())
+        .filter(Boolean)
+        .slice(0, REPORT_PHOTO_LIMIT);
+    }
+  } catch {
+    // ignore invalid JSON and fallback to line-based parsing
+  }
+  return value
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, REPORT_PHOTO_LIMIT);
+};
+
+const serializeReportPhotoUris = (uris: string[]) =>
+  JSON.stringify(
+    uris
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+      .slice(0, REPORT_PHOTO_LIMIT)
+  );
+
+const inferMimeTypeFromUri = (uri: string) => {
+  const lower = uri.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic";
+  return "image/jpeg";
+};
+
+const isLocalImageUri = (uri: string) => /^file:|^content:/i.test(uri);
+const summarizePlanItems = (items: string[] | undefined, limit = 2) =>
+  (items ?? [])
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean)
+    .slice(0, limit)
+    .join(" / ");
+
+const buildSimpleActivityFromPlan = (plan: TrainingPlan | null) => {
+  if (!plan) return "";
+  const title = String(plan.title ?? "").trim();
+  const warmup = summarizePlanItems(plan.warmup, 1);
+  const main = summarizePlanItems(plan.main, 2);
+  const cooldown = summarizePlanItems(plan.cooldown, 1);
+
+  const parts = [
+    title,
+    warmup ? `Aquecimento: ${warmup}` : "",
+    main ? `Principal: ${main}` : "",
+    cooldown ? `Volta a calma: ${cooldown}` : "",
+  ]
+    .filter(Boolean)
+    .join(". ");
+
+  return parts.trim();
+};
+
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) {
+        reject(new Error("empty_data_url"));
+        return;
+      }
+      resolve(result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("file_reader_error"));
+    reader.readAsDataURL(blob);
+  });
+
+const convertWebImageUriForPdf = async (uri: string) => {
+  const normalized = String(uri ?? "").trim();
+  if (!normalized) return normalized;
+  if (/^data:image\//i.test(normalized)) return normalized;
+  try {
+    const response = await fetch(normalized);
+    if (!response.ok) return normalized;
+    const blob = await response.blob();
+    return await blobToDataUrl(blob);
+  } catch {
+    return normalized;
+  }
+};
 
 export default function SessionScreen() {
-  const { id, date, autoReport, tab } = useLocalSearchParams<{
+  const { id, date, tab } = useLocalSearchParams<{
     id: string;
     date?: string;
-    autoReport?: string;
     tab?: string;
   }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const [cls, setCls] = useState<ClassGroup | null>(null);
@@ -80,7 +182,6 @@ export default function SessionScreen() {
   const [scoutingSaving, setScoutingSaving] = useState(false);
   const [scoutingMode, setScoutingMode] = useState<"treino" | "jogo">("treino");
   const [studentsCount, setStudentsCount] = useState(0);
-  const [didAutoReport, setDidAutoReport] = useState(false);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
   const [showAppliedPreview, setShowAppliedPreview] = useState(false);
   const [PSE, setPSE] = useState<number>(0);
@@ -90,11 +191,16 @@ export default function SessionScreen() {
   const [activity, setActivity] = useState("");
   const [autoActivity, setAutoActivity] = useState("");
   const [conclusion, setConclusion] = useState("");
+  const [isRewritingActivity, setIsRewritingActivity] = useState(false);
+  const [isRewritingConclusion, setIsRewritingConclusion] = useState(false);
   const [participantsCount, setParticipantsCount] = useState("");
   const [photos, setPhotos] = useState("");
+  const [isPickingPhoto, setIsPickingPhoto] = useState(false);
+  const [photoActionIndex, setPhotoActionIndex] = useState<number | null>(null);
   const [attendancePercent, setAttendancePercent] = useState<number | null>(null);
   const [showPsePicker, setShowPsePicker] = useState(false);
   const [showTechniquePicker, setShowTechniquePicker] = useState(false);
+  const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
   const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const [pseTriggerLayout, setPseTriggerLayout] = useState<{
     x: number;
@@ -119,6 +225,11 @@ export default function SessionScreen() {
   const containerRef = useRef<View>(null);
   const pseTriggerRef = useRef<View>(null);
   const techniqueTriggerRef = useRef<View>(null);
+  const lastRewriteAppliedRef = useRef<{
+    field: ReportRewriteField;
+    previousText: string;
+    nextText: string;
+  } | null>(null);
   const { animatedStyle: psePickerAnimStyle, isVisible: showPsePickerContent } =
     useCollapsibleAnimation(showPsePicker, { translateY: -6 });
   const { animatedStyle: techniquePickerAnimStyle, isVisible: showTechniquePickerContent } =
@@ -198,6 +309,248 @@ export default function SessionScreen() {
     });
   };
   const canApplyAutoActivity = !!autoActivity.trim() && !activity.trim();
+  const normalizeRewriteInput = (value: string) => value.trim().replace(/\s+/g, " ");
+  const isRelevantForRewrite = (value: string) => {
+    const normalized = normalizeRewriteInput(value);
+    if (!normalized) return false;
+    if (normalized.length < REPORT_RELEVANT_MIN_CHARS) return false;
+    const words = normalized.split(" ").filter(Boolean);
+    return words.length >= REPORT_RELEVANT_MIN_WORDS;
+  };
+  const canSuggestActivity = isRelevantForRewrite(activity);
+  const canSuggestConclusion = isRelevantForRewrite(conclusion);
+  const reportPhotoUris = useMemo(() => parseReportPhotoUris(photos), [photos]);
+
+  const getRewriteFieldLabel = (field: ReportRewriteField) =>
+    field === "activity" ? "Atividade" : "Conclusão";
+
+  const applyPickedPhoto = (uri: string, replaceIndex?: number) => {
+    setPhotos((previous) => {
+      const list = parseReportPhotoUris(previous);
+      if (
+        typeof replaceIndex === "number" &&
+        replaceIndex >= 0 &&
+        replaceIndex < list.length
+      ) {
+        list[replaceIndex] = uri;
+      } else if (list.length < REPORT_PHOTO_LIMIT) {
+        list.push(uri);
+      }
+      return serializeReportPhotoUris(list);
+    });
+  };
+
+  const pickReportPhoto = async (
+    source: "camera" | "library",
+    replaceIndex?: number
+  ) => {
+    if (isPickingPhoto) return;
+    if (
+      typeof replaceIndex !== "number" &&
+      reportPhotoUris.length >= REPORT_PHOTO_LIMIT
+    ) {
+      showSaveToast({
+        message: `Limite de ${REPORT_PHOTO_LIMIT} fotos por relatório.`,
+        variant: "info",
+      });
+      return;
+    }
+
+    setIsPickingPhoto(true);
+    try {
+      if (source === "camera") {
+        if (Platform.OS === "web") {
+          showSaveToast({
+            message: "Câmera indisponível no navegador. Use a galeria.",
+            variant: "info",
+          });
+          return;
+        }
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (permission.status !== "granted") {
+          showSaveToast({
+            message: "Permissão de câmera não concedida.",
+            variant: "error",
+          });
+          return;
+        }
+      } else if (Platform.OS !== "web") {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permission.status !== "granted") {
+          showSaveToast({
+            message: "Permissão da galeria não concedida.",
+            variant: "error",
+          });
+          return;
+        }
+      }
+
+      const result =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+              allowsEditing: true,
+              aspect: [4, 3],
+              base64: Platform.OS === "web",
+            })
+          : await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+              allowsEditing: true,
+              aspect: [4, 3],
+              base64: Platform.OS === "web",
+            });
+
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset?.uri) return;
+      let photoUri = asset.uri;
+      if (Platform.OS === "web" && asset.base64) {
+        const mimeType =
+          typeof asset.mimeType === "string" && asset.mimeType.trim()
+            ? asset.mimeType
+            : inferMimeTypeFromUri(asset.uri);
+        photoUri = `data:${mimeType};base64,${asset.base64}`;
+      }
+      applyPickedPhoto(photoUri, replaceIndex);
+    } catch {
+      showSaveToast({
+        message: "Não foi possível selecionar a foto.",
+        variant: "error",
+      });
+    } finally {
+      setIsPickingPhoto(false);
+    }
+  };
+
+  const removePhotoAtIndex = (index: number) => {
+    setPhotos((previous) => {
+      const list = parseReportPhotoUris(previous);
+      list.splice(index, 1);
+      return serializeReportPhotoUris(list);
+    });
+  };
+
+  const serializePhotosForPdf = async (rawPhotos: string) => {
+    const uris = parseReportPhotoUris(rawPhotos).slice(0, 6);
+    if (!uris.length) return rawPhotos;
+    const resolved = await Promise.all(
+      uris.map(async (uri) => {
+        if (Platform.OS === "web") {
+          return convertWebImageUriForPdf(uri);
+        }
+        if (!isLocalImageUri(uri)) return uri;
+        try {
+          const base64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const mime = inferMimeTypeFromUri(uri);
+          return `data:${mime};base64,${base64}`;
+        } catch {
+          return "";
+        }
+      })
+    );
+    return JSON.stringify(resolved.filter(Boolean));
+  };
+
+  const handleRewriteField = async (field: ReportRewriteField) => {
+    const rawValue = field === "activity" ? activity : conclusion;
+    const trimmed = normalizeRewriteInput(rawValue);
+    const fieldLabel = getRewriteFieldLabel(field);
+
+    if (!trimmed) {
+      showSaveToast({
+        message: `Preencha ${fieldLabel.toLowerCase()} antes de melhorar o texto.`,
+        variant: "info",
+      });
+      return;
+    }
+
+    if (trimmed.length > REPORT_REWRITE_MAX_CHARS) {
+      showSaveToast({
+        message: `Limite de ${REPORT_REWRITE_MAX_CHARS} caracteres em ${fieldLabel.toLowerCase()}.`,
+        variant: "error",
+      });
+      return;
+    }
+
+    if (field === "activity") {
+      setIsRewritingActivity(true);
+    } else {
+      setIsRewritingConclusion(true);
+    }
+
+    logAction("IA melhorar texto iniciado", {
+      classId: id,
+      field,
+      chars: trimmed.length,
+      trigger: "manual",
+    });
+
+    try {
+      const { rewrittenText } = await rewriteReportText({
+        field,
+        text: trimmed,
+        mode: "projeto_social",
+        maxChars: REPORT_REWRITE_MAX_CHARS,
+        classId: typeof id === "string" ? id : undefined,
+      });
+
+      const currentText = normalizeRewriteInput(
+        field === "activity" ? activity : conclusion
+      );
+      if (currentText !== trimmed) {
+        return;
+      }
+
+      const previousText = field === "activity" ? activity : conclusion;
+      if (field === "activity") {
+        setActivity(rewrittenText);
+      } else {
+        setConclusion(rewrittenText);
+      }
+      lastRewriteAppliedRef.current = {
+        field,
+        previousText,
+        nextText: rewrittenText,
+      };
+      showSaveToast({
+        message: "Texto melhorado e aplicado.",
+        variant: "success",
+        actionLabel: "Desfazer",
+        onAction: () => {
+          const snapshot = lastRewriteAppliedRef.current;
+          if (!snapshot) return;
+          if (snapshot.field === "activity") {
+            setActivity(snapshot.previousText);
+          } else {
+            setConclusion(snapshot.previousText);
+          }
+        },
+        durationMs: 4200,
+      });
+      logAction("IA melhorar texto sucesso", { classId: id, field, trigger: "manual" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      showSaveToast({
+        message: message || "Não foi possível melhorar o texto agora.",
+        variant: "error",
+      });
+      logAction("IA melhorar texto falha", {
+        classId: id,
+        field,
+        trigger: "manual",
+        reason: message || "unknown",
+      });
+    } finally {
+      if (field === "activity") {
+        setIsRewritingActivity(false);
+      } else {
+        setIsRewritingConclusion(false);
+      }
+    }
+  };
 
   const syncPickerLayouts = () => {
     const hasPickerOpen = showPsePicker || showTechniquePicker;
@@ -311,16 +664,7 @@ export default function SessionScreen() {
       );
       const planForActivity = byDate ?? byWeekday ?? null;
       if (!planForActivity) return;
-      const warmupText = planForActivity.warmup?.filter(Boolean).join(" / ") || "";
-      const mainText = planForActivity.main?.filter(Boolean).join(" / ") || "";
-      const cooldownText = planForActivity.cooldown?.filter(Boolean).join(" / ") || "";
-      const fallback = [
-        warmupText ? "Aquecimento: " + warmupText : "",
-        mainText ? "Parte principal: " + mainText : "",
-        cooldownText ? "Volta a calma: " + cooldownText : "",
-      ]
-        .filter(Boolean)
-        .join(" | ");
+      const fallback = buildSimpleActivityFromPlan(planForActivity);
       if (!fallback) return;
       setAutoActivity(fallback);
     })();
@@ -423,13 +767,8 @@ export default function SessionScreen() {
 
   async function handleSaveAndGenerateReport() {
     try {
-      const reportDate = await saveReport();
-      if (reportDate) {
-        router.replace({
-          pathname: "/class/[id]/session",
-          params: { id, date: reportDate, autoReport: "1" },
-        });
-      }
+      await saveReport();
+      await handleExportReportPdf();
     } catch (error) {
       showSaveToast({ message: "Não foi possível salvar o relatório.", variant: "error" });
       Alert.alert("Falha ao salvar", "Tente novamente.");
@@ -598,26 +937,36 @@ export default function SessionScreen() {
   };
 
   const handleExportReportPdf = async () => {
-    if (!cls || !sessionLog) return;
+    if (!cls) return;
     const dateLabel = sessionDate.split("-").reverse().join("/");
     const reportMonth = monthLabel(sessionDate);
+    const attendanceFromLog =
+      typeof sessionLog?.attendance === "number" ? sessionLog.attendance : 0;
     const estimatedParticipants =
       studentsCount > 0
-        ? Math.round((sessionLog.attendance / 100) * studentsCount)
+        ? Math.round((attendanceFromLog / 100) * studentsCount)
         : 0;
-    const participantsCount =
-      sessionLog.participantsCount && sessionLog.participantsCount > 0
+    const participantsRaw = participantsCount.trim();
+    const participantsValue = participantsRaw ? Number(participantsRaw) : Number.NaN;
+    const participantsForPdf =
+      Number.isFinite(participantsValue) && participantsValue >= 0
+        ? participantsValue
+        : sessionLog?.participantsCount && sessionLog.participantsCount > 0
         ? sessionLog.participantsCount
         : estimatedParticipants || undefined;
+    const photosForPdf = await serializePhotosForPdf(photos);
+    const activityValue =
+      activity.trim() || autoActivity.trim() || (sessionLog?.activity ?? "");
+    const conclusionValue = conclusion.trim() || (sessionLog?.conclusion ?? "");
     const reportData = {
       monthLabel: reportMonth,
       dateLabel,
       className: cls.name,
       unitLabel: cls.unit,
-      activity: sessionLog.activity ?? "",
-      conclusion: sessionLog.conclusion ?? "",
-      participantsCount: participantsCount ?? 0,
-      photos: sessionLog.photos ?? "",
+      activity: activityValue,
+      conclusion: conclusionValue,
+      participantsCount: participantsForPdf ?? 0,
+      photos: photosForPdf,
       deadlineLabel: "último dia da escolinha do mês",
     };
     const html = sessionReportHtml(reportData);
@@ -673,15 +1022,8 @@ export default function SessionScreen() {
   };
 
   useEffect(() => {
-    if (autoReport !== "1") return;
-    if (!cls || !sessionLog || didAutoReport) return;
-    setDidAutoReport(true);
-    void handleExportReportPdf();
-  }, [autoReport, cls, didAutoReport, sessionLog, studentsCount]);
-
-  useEffect(() => {
     if (!tab) return;
-    if (tab === "treino" || tab === "relatório" || tab === "scouting") {
+    if (tab === "treino" || tab === "relatorio" || tab === "scouting") {
       setSessionTab(tab);
     }
   }, [tab]);
@@ -704,7 +1046,7 @@ export default function SessionScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
       >
       <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
@@ -817,12 +1159,21 @@ export default function SessionScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingVertical: 12, paddingHorizontal: 16, paddingBottom: 24, gap: 12 }}
-        onScrollBeginDrag={closePickers}
+        contentContainerStyle={{
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          paddingBottom: Math.max(136, insets.bottom + 112),
+          gap: 12,
+        }}
+        onScrollBeginDrag={() => {
+          closePickers();
+          setShowPlanFabMenu(false);
+        }}
         onScroll={syncPickerLayouts}
         scrollEventThrottle={16}
         scrollEnabled={!showPsePicker && !showTechniquePicker}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
       >
         {sessionTab === "treino" && plan ? (
           [
@@ -1166,7 +1517,7 @@ export default function SessionScreen() {
           </Pressable>
         </View>
         ) : null}
-        {sessionTab === "relatório" ? (
+        {sessionTab === "relatorio" ? (
         <View
           ref={containerRef}
           onLayout={syncPickerLayouts}
@@ -1284,12 +1635,12 @@ export default function SessionScreen() {
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Número de participantes
               </Text>
-              <TextInput
-                placeholder="Ex: 12"
-                value={participantsCount}
-                onChangeText={setParticipantsCount}
-                keyboardType="numeric"
-                placeholderTextColor={colors.placeholder}
+                <TextInput
+                  placeholder="Ex: 12"
+                  value={participantsCount}
+                  onChangeText={setParticipantsCount}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.placeholder}
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
@@ -1305,23 +1656,51 @@ export default function SessionScreen() {
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Atividade
               </Text>
-              <TextInput
-                placeholder="Resumo da atividade principal"
-                value={activity}
-                onChangeText={(value) => {
-                  setActivity(value);
-                  closePickers();
-                }}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+              <View style={{ position: "relative" }}>
+                <TextInput
+                  placeholder="Resumo da atividade principal"
+                  value={activity}
+                  onChangeText={(value) => {
+                    setActivity(value);
+                    closePickers();
+                  }}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    paddingRight: 52,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+                {(canSuggestActivity || isRewritingActivity) ? (
+                  <Pressable
+                    onPress={() => void handleRewriteField("activity")}
+                    disabled={isRewritingActivity}
+                    style={{
+                      position: "absolute",
+                      right: 8,
+                      top: "50%",
+                      marginTop: -15,
+                      borderRadius: 999,
+                      width: 30,
+                      height: 30,
+                      backgroundColor: "#111111",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: isRewritingActivity ? 0.65 : 1,
+                    }}
+                  >
+                    <Ionicons
+                      name={isRewritingActivity ? "hourglass-outline" : "sparkles-outline"}
+                      size={14}
+                      color="#FFFFFF"
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
             </View>
             {autoActivity ? (
@@ -1399,52 +1778,161 @@ export default function SessionScreen() {
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Conclusão
               </Text>
-              <TextInput
-                placeholder="Observações finais da aula"
-                value={conclusion}
-                onChangeText={(value) => {
-                  setConclusion(value);
-                  closePickers();
-                }}
-                placeholderTextColor={colors.placeholder}
-                multiline
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  minHeight: 90,
-                  textAlignVertical: "top",
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
+              <View style={{ position: "relative" }}>
+                <TextInput
+                  placeholder="Observações finais da aula"
+                  value={conclusion}
+                  onChangeText={(value) => {
+                    setConclusion(value);
+                    closePickers();
+                  }}
+                  placeholderTextColor={colors.placeholder}
+                  multiline
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    paddingRight: 52,
+                    borderRadius: 12,
+                    minHeight: 90,
+                    textAlignVertical: "top",
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+                {(canSuggestConclusion || isRewritingConclusion) ? (
+                  <Pressable
+                    onPress={() => void handleRewriteField("conclusion")}
+                    disabled={isRewritingConclusion}
+                    style={{
+                      position: "absolute",
+                      right: 8,
+                      top: 8,
+                      borderRadius: 999,
+                      width: 30,
+                      height: 30,
+                      backgroundColor: "#111111",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: isRewritingConclusion ? 0.65 : 1,
+                    }}
+                  >
+                    <Ionicons
+                      name={isRewritingConclusion ? "hourglass-outline" : "sparkles-outline"}
+                      size={14}
+                      color="#FFFFFF"
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Fotos
               </Text>
-              <TextInput
-                placeholder="Cole links ou descreva as fotos"
-                value={photos}
-                onChangeText={(value) => {
-                  setPhotos(value);
-                  closePickers();
-                }}
-                placeholderTextColor={colors.placeholder}
-                multiline
+              <View
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  padding: 12,
                   borderRadius: 12,
-                  minHeight: 80,
-                  textAlignVertical: "top",
                   backgroundColor: colors.inputBg,
-                  color: colors.inputText,
+                  padding: 10,
+                  gap: 10,
                 }}
-              />
+              >
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => {
+                      void pickReportPhoto("camera");
+                    }}
+                    disabled={isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT}
+                    style={{
+                      flex: 1,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      paddingVertical: 9,
+                      alignItems: "center",
+                      opacity:
+                        isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT
+                          ? 0.6
+                          : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {isPickingPhoto ? "Abrindo..." : "Tirar foto"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      void pickReportPhoto("library");
+                    }}
+                    disabled={isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT}
+                    style={{
+                      flex: 1,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      paddingVertical: 9,
+                      alignItems: "center",
+                      opacity:
+                        isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT
+                          ? 0.6
+                          : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      Galeria
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {reportPhotoUris.length ? (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {reportPhotoUris.map((uri, index) => (
+                      <Pressable
+                        key={`${uri}_${index}`}
+                        onPress={() => setPhotoActionIndex(index)}
+                        style={{
+                          width: Platform.OS === "web" ? 112 : "31.6%",
+                          height: Platform.OS === "web" ? 112 : undefined,
+                          aspectRatio: Platform.OS === "web" ? undefined : 1,
+                          borderRadius: 10,
+                          overflow: "hidden",
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          position: "relative",
+                          backgroundColor: colors.secondaryBg,
+                        }}
+                      >
+                        <Image
+                          source={{ uri }}
+                          resizeMode="cover"
+                          style={{ width: "100%", height: "100%" }}
+                        />
+                        <View
+                          style={{
+                            position: "absolute",
+                            right: 6,
+                            bottom: 6,
+                            width: 24,
+                            height: 24,
+                            borderRadius: 999,
+                            backgroundColor: "rgba(0,0,0,0.72)",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Ionicons name="create-outline" size={12} color="#FFFFFF" />
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
             </View>
 
             <View style={{ gap: 8 }}>
@@ -1543,11 +2031,207 @@ export default function SessionScreen() {
               </Pressable>
             ))}
           </AnchoredDropdown>
+
+          <ModalSheet
+            visible={photoActionIndex !== null}
+            onClose={() => setPhotoActionIndex(null)}
+            position="center"
+            overlayZIndex={30000}
+            backdropOpacity={0.7}
+            cardStyle={{
+              width: "100%",
+              maxWidth: 420,
+              borderRadius: 18,
+              backgroundColor: colors.background,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 16,
+              gap: 10,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+              Foto do relatório
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              Escolha uma ação
+            </Text>
+            <View style={{ gap: 8, marginTop: 6 }}>
+              <Pressable
+                onPress={() => {
+                  if (photoActionIndex === null) return;
+                  setPhotoActionIndex(null);
+                  void pickReportPhoto("camera", photoActionIndex);
+                }}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Substituir (câmera)
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (photoActionIndex === null) return;
+                  setPhotoActionIndex(null);
+                  void pickReportPhoto("library", photoActionIndex);
+                }}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Substituir (galeria)
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (photoActionIndex === null) return;
+                  removePhotoAtIndex(photoActionIndex);
+                  setPhotoActionIndex(null);
+                }}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.dangerBorder,
+                  backgroundColor: colors.dangerBg,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
+                  Remover
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setPhotoActionIndex(null)}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  Cancelar
+                </Text>
+              </Pressable>
+            </View>
+          </ModalSheet>
         </View>
         ) : null}
       </ScrollView>
+
+      {sessionTab === "treino" && showPlanFabMenu ? (
+        <Pressable
+          onPress={() => setShowPlanFabMenu(false)}
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            zIndex: 3180,
+          }}
+        />
+      ) : null}
+
+      {sessionTab === "treino" && showPlanFabMenu ? (
+        <View
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: Math.max(insets.bottom + 176, 196),
+            width: 210,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 8,
+            gap: 8,
+            zIndex: 3190,
+          }}
+        >
+          <Pressable
+            onPress={() => {
+              setShowPlanFabMenu(false);
+              router.push({
+                pathname: "/training",
+                params: {
+                  targetClassId: cls?.id ?? "",
+                  openImport: "1",
+                },
+              });
+            }}
+            disabled={!cls}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+              borderRadius: 10,
+              paddingHorizontal: 10,
+              paddingVertical: 9,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              opacity: cls ? 1 : 0.65,
+            }}
+          >
+            <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+              Importar plano
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {sessionTab === "treino" ? (
+        <Pressable
+          onPress={() => setShowPlanFabMenu((current) => !current)}
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: Math.max(insets.bottom + 108, 128),
+            width: 54,
+            height: 54,
+            borderRadius: 999,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.primaryBg,
+            borderWidth: 1,
+            borderColor: colors.primaryBg,
+            zIndex: 3200,
+            shadowColor: "#000",
+            shadowOpacity: 0.2,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 8,
+          }}
+        >
+          <Ionicons
+            name={showPlanFabMenu ? "close" : "add"}
+            size={24}
+            color={colors.primaryText}
+          />
+        </Pressable>
+      ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
+
+
 

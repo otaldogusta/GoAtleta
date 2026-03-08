@@ -1,4 +1,4 @@
-﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -22,7 +22,7 @@ import {
     TextInput,
     View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
 import { normalizeAgeBand, sortAgeBandList } from "../../src/core/age-band";
@@ -71,6 +71,7 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
+import { TrainingFabMenu } from "../../src/screens/training/components/TrainingFabMenu";
 
 const toLines = (value: string) =>
   value
@@ -168,6 +169,7 @@ const extractKeywords = (value: string) => {
 
 export default function TrainingList() {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -354,11 +356,39 @@ export default function TrainingList() {
   const [showApplyCalendar, setShowApplyCalendar] = useState(false);
   const [showPlanActions, setShowPlanActions] = useState(false);
   const [actionPlan, setActionPlan] = useState<TrainingPlan | null>(null);
+  const [showTrainingFabMenu, setShowTrainingFabMenu] = useState(false);
+  const trainingFabAnim = useRef(new Animated.Value(0)).current;
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId),
     [classes, classId]
   );
+  const trainingFabBottom = Math.max(insets.bottom + 96, 104);
+  const trainingFabRight = 16;
+  const trainingFabRotate = useMemo(
+    () =>
+      trainingFabAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "45deg"],
+      }),
+    [trainingFabAnim]
+  );
+  const trainingFabScale = useMemo(
+    () =>
+      trainingFabAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 1.06],
+      }),
+    [trainingFabAnim]
+  );
+
+  useEffect(() => {
+    Animated.timing(trainingFabAnim, {
+      toValue: showTrainingFabMenu ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [showTrainingFabMenu, trainingFabAnim]);
 
   const sortedClasses = useMemo(
     () => sortClassesByAgeBand(classes),
@@ -657,17 +687,30 @@ export default function TrainingList() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [classList, plans, templatesDb, hidden] = await Promise.all([
-        getClasses(),
-        getTrainingPlans(),
-        getTrainingTemplates(),
-        getHiddenTemplates(),
-      ]);
-      if (!alive) return;
-      setClasses(classList);
-      setTemplateItems(templatesDb);
-      setHiddenTemplates(hidden);
-      setItems(plans);
+      try {
+        const [classList, plans, templatesDb, hidden] = await Promise.all([
+          getClasses(),
+          getTrainingPlans(),
+          getTrainingTemplates(),
+          getHiddenTemplates(),
+        ]);
+        if (!alive) return;
+        setClasses(classList);
+        setTemplateItems(templatesDb);
+        setHiddenTemplates(hidden);
+        setItems(plans);
+      } catch (error) {
+        if (!alive) return;
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("Missing auth token")) {
+          setClasses([]);
+          setTemplateItems([]);
+          setHiddenTemplates([]);
+          setItems([]);
+          return;
+        }
+        console.error("Training bootstrap load failed:", error);
+      }
     })();
     return () => {
       alive = false;
@@ -1918,7 +1961,10 @@ export default function TrainingList() {
         ref={scrollRef}
         contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
         keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={closeFormPickers}
+        onScrollBeginDrag={() => {
+          closeFormPickers();
+          setShowTrainingFabMenu(false);
+        }}
         onScroll={syncFormPickerLayouts}
         scrollEventThrottle={16}
       >
@@ -1973,25 +2019,6 @@ export default function TrainingList() {
 
         {planningTab === "formulario" && (
         <>
-          <Pressable
-            onPress={() => router.push({ pathname: "/training/import" })}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Importar planejamento (CSV)
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-              Cole o CSV e revise antes de salvar
-            </Text>
-          </Pressable>
-
           <View
             ref={formContainerRef}
             onLayout={(event) => {
@@ -2615,6 +2642,49 @@ export default function TrainingList() {
         </View>
         )}
       </ScrollView>
+
+      <Pressable
+        onPress={() => setShowTrainingFabMenu((current) => !current)}
+        style={{
+          position: "absolute",
+          right: trainingFabRight,
+          bottom: trainingFabBottom,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.primaryBg,
+          borderWidth: 1,
+          borderColor: colors.border,
+          zIndex: 3200,
+          shadowColor: "#000",
+          shadowOpacity: 0.2,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 12,
+        }}
+      >
+        <Animated.View
+          style={{
+            transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
+          }}
+        >
+          <Ionicons name="add" size={24} color={colors.primaryText} />
+        </Animated.View>
+      </Pressable>
+
+      <TrainingFabMenu
+        visible={showTrainingFabMenu}
+        importBusy={false}
+        anchorRight={trainingFabRight}
+        anchorBottom={trainingFabBottom}
+        onClose={() => setShowTrainingFabMenu(false)}
+        onImportPress={() => {
+          setShowTrainingFabMenu(false);
+          router.push({ pathname: "/training/import" });
+        }}
+      />
       </KeyboardAvoidingView>
       <ModalSheet
         visible={showTemplateEditor}
@@ -3547,6 +3617,8 @@ export default function TrainingList() {
     </SafeAreaView>
   );
 }
+
+
 
 
 

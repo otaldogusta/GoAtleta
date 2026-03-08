@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -35,20 +35,28 @@ import {
     compareClassesBySchedule,
     sortClassesBySchedule,
 } from "../../src/core/class-schedule-sort";
-import type { ClassGroup, Student } from "../../src/core/models";
+import type { ClassGroup, Student, StudentPreRegistration } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
+    convertStudentPreRegistration,
     deleteStudent,
+    deleteStudentPreRegistration,
     getClasses,
+    getStudentPreRegistrations,
     getStudents,
+    revealStudentCpf,
+    saveStudentPreRegistration,
     saveStudent,
+    updateStudentPreRegistration,
     updateStudent,
 } from "../../src/db/seed";
+import { useEffectiveProfile } from "../../src/core/effective-profile";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { measure } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
+import { StudentDocumentsFields } from "../../src/screens/students/components/StudentDocumentsFields";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
 import { StudentsImportModal } from "../../src/screens/students/modals/StudentsImportModal";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
@@ -90,7 +98,7 @@ import {
 const monthNames = [
   "Janeiro",
   "Fevereiro",
-  "Março",
+  "MarÃ§o",
   "Abril",
   "Maio",
   "Junho",
@@ -102,7 +110,7 @@ const monthNames = [
   "Dezembro",
 ];
 
-const weekdayShortLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const weekdayShortLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "SÃ¡b"];
 
 const athletePositionOptions = [
   "indefinido",
@@ -145,6 +153,8 @@ export default function StudentsScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
+  const effectiveProfile = useEffectiveProfile();
+  const canRevealCpf = effectiveProfile === "admin";
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
@@ -176,6 +186,7 @@ export default function StudentsScreen() {
   const photoSheetCardStyle = useModalCardStyle({ maxHeight: "55%", maxWidth: 320 });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [preRegistrations, setPreRegistrations] = useState<StudentPreRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [classId, setClassId] = useState("");
@@ -184,14 +195,14 @@ export default function StudentsScreen() {
     false
   );
   const [studentsTab, setStudentsTab] = usePersistedState<
-    "cadastro" | "aniversários" | "alunos"
+    "cadastro" | "aniversários" | "alunos" | "experimentais"
   >("students_tab_v1", "alunos");
   const [showStudentsFabMenu, setShowStudentsFabMenu] = useState(false);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
   const [studentsExportBusy, setStudentsExportBusy] = useState(false);
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] = useState<
-    "cadastro" | "aniversários" | "alunos" | null
+    "cadastro" | "aniversários" | "alunos" | "experimentais" | null
   >(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
   const [birthdaySearch, setBirthdaySearch] = useState("");
@@ -209,6 +220,8 @@ export default function StudentsScreen() {
   const [birthDate, setBirthDate] = useState("");
   const [ageNumber, setAgeNumber] = useState<number | null>(null);
   const [phone, setPhone] = useState("");
+  const [cpfDisplay, setCpfDisplay] = useState("");
+  const [rgDocument, setRgDocument] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
@@ -241,6 +254,26 @@ export default function StudentsScreen() {
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<{ uri: string | null; name: string } | null>(null);
   const [studentFormError, setStudentFormError] = useState("");
+  const [studentDocumentsError, setStudentDocumentsError] = useState<{
+    cpf?: string;
+    rg?: string;
+  }>({});
+  const [revealCpfBusy, setRevealCpfBusy] = useState(false);
+  const [cpfMaskedOriginal, setCpfMaskedOriginal] = useState("");
+  const [cpfRevealedValue, setCpfRevealedValue] = useState<string | null>(null);
+  const [isCpfVisible, setIsCpfVisible] = useState(false);
+  const [cpfRevealUnavailable, setCpfRevealUnavailable] = useState(false);
+  const [preRegistrationError, setPreRegistrationError] = useState("");
+  const [preRegistrationSearch, setPreRegistrationSearch] = useState("");
+  const [preChildName, setPreChildName] = useState("");
+  const [preGuardianName, setPreGuardianName] = useState("");
+  const [preGuardianPhone, setPreGuardianPhone] = useState("");
+  const [preClassInterest, setPreClassInterest] = useState("");
+  const [preUnitInterest, setPreUnitInterest] = useState("");
+  const [preTrialDate, setPreTrialDate] = useState("");
+  const [preNotes, setPreNotes] = useState("");
+  const [preStatus, setPreStatus] = useState<StudentPreRegistration["status"]>("lead");
+  const [editingPreId, setEditingPreId] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState("");
   const [studentInviteBusy, setStudentInviteBusy] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -279,6 +312,8 @@ export default function StudentsScreen() {
     photoUrl: string | null;
     birthDate: string;
     phone: string;
+    cpfDisplay: string;
+    rgDocument: string;
     loginEmail: string;
     guardianName: string;
     guardianPhone: string;
@@ -385,13 +420,15 @@ export default function StudentsScreen() {
     let alive = true;
     (async () => {
       try {
-        const [classList, studentList] = await Promise.all([
+        const [classList, studentList, preRegistrationList] = await Promise.all([
           getClasses({ organizationId: activeOrganization?.id }),
           getStudents({ organizationId: activeOrganization?.id }),
+          getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
         ]);
         if (!alive) return;
         setClasses(classList);
         setStudents(studentList);
+        setPreRegistrations(preRegistrationList);
       } finally {
         if (alive) setLoading(false);
       }
@@ -402,8 +439,12 @@ export default function StudentsScreen() {
   }, [activeOrganization?.id]);
 
   const reload = async () => {
-    const data = await getStudents({ organizationId: activeOrganization?.id });
-    setStudents(data);
+    const [studentList, preRegistrationList] = await Promise.all([
+      getStudents({ organizationId: activeOrganization?.id }),
+      getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
+    ]);
+    setStudents(studentList);
+    setPreRegistrations(preRegistrationList);
   };
 
   useEffect(() => {
@@ -644,7 +685,7 @@ export default function StudentsScreen() {
     });
   }, [classes]);
   const guardianRelationOptions = useMemo(
-    () => ["Pai", "Mãe", "Tia", "Avó", "Irmão", "Irmã", "Outro"],
+    () => ["Pai", "MÃ£e", "Tia", "AvÃ³", "IrmÃ£o", "IrmÃ£", "Outro"],
     []
   );
 
@@ -689,7 +730,7 @@ export default function StudentsScreen() {
       return;
     }
     if (matching.some((item) => item.id === classId)) return;
-    // Removido auto-seleção: usuário deve escolher turma manualmente
+    // Removido auto-seleÃ§Ã£o: usuÃ¡rio deve escolher turma manualmente
     // setClassId(matching[0].id);
   }, [classes, unit, unitLabel]);
 
@@ -709,13 +750,13 @@ export default function StudentsScreen() {
         return;
       }
       if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("Câmera indisponível", "Use a Galeria no navegador.");
+        Alert.alert("CÃ¢mera indisponÃ­vel", "Use a Galeria no navegador.");
         return;
       }
       if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
+          Alert.alert("PermissÃ£o necessÃ¡ria", "Ative a cÃ¢mera para tirar a foto.");
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -734,7 +775,7 @@ export default function StudentsScreen() {
       }
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
-        Alert.alert("Permissão necessária", "Ative a galeria para escolher uma foto.");
+        Alert.alert("PermissÃ£o necessÃ¡ria", "Ative a galeria para escolher uma foto.");
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -765,6 +806,7 @@ export default function StudentsScreen() {
 
   const onSave = async () => {
     const wasEditing = !!editingId;
+    setStudentDocumentsError({});
     if (!unit || !classId) {
       setStudentFormError("Selecione a unidade e a turma.");
       return false;
@@ -818,6 +860,8 @@ export default function StudentsScreen() {
         classId,
         age: resolvedAge,
         phone: phone.trim(),
+        cpfMasked: cpfDisplay.trim() || null,
+        rg: rgDocument.trim() || null,
         loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : undefined,
         guardianName: guardianName.trim(),
         guardianPhone: guardianPhone.trim(),
@@ -848,10 +892,13 @@ export default function StudentsScreen() {
 
       resetForm();
       await reload();
-      showSaveNotice(wasEditing ? "Alterações salvas." : "Aluno cadastrado.");
+      showSaveNotice(wasEditing ? "AlteraÃ§Ãµes salvas." : "Aluno cadastrado.");
       return true;
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Erro ao salvar aluno.";
+      if (detail.toLowerCase().includes("cpf")) {
+        setStudentDocumentsError({ cpf: detail });
+      }
       setStudentFormError(detail);
       return false;
     }
@@ -864,6 +911,8 @@ export default function StudentsScreen() {
     photoUrl ||
     birthDate.trim() ||
     phone.trim() ||
+    cpfDisplay.trim() ||
+    rgDocument.trim() ||
     loginEmail.trim() ||
     guardianName.trim() ||
     guardianPhone.trim() ||
@@ -897,6 +946,8 @@ export default function StudentsScreen() {
       editSnapshot.photoUrl !== photoUrl ||
       editSnapshot.birthDate !== birthDate ||
       editSnapshot.phone !== phone ||
+      editSnapshot.cpfDisplay !== cpfDisplay ||
+      editSnapshot.rgDocument !== rgDocument ||
       editSnapshot.loginEmail !== loginEmail ||
       editSnapshot.guardianName !== guardianName ||
       editSnapshot.guardianPhone !== guardianPhone ||
@@ -915,6 +966,7 @@ export default function StudentsScreen() {
     ageBand,
     birthDate,
     classId,
+    cpfDisplay,
     customAgeBand,
     athleteObjective,
     editSnapshot,
@@ -926,6 +978,7 @@ export default function StudentsScreen() {
     healthIssueNotes,
     medicationUse,
     medicationNotes,
+    rgDocument,
     learningStyle,
     healthObservations,
     loginEmail,
@@ -948,6 +1001,12 @@ export default function StudentsScreen() {
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
+    setCpfDisplay("");
+    setCpfMaskedOriginal("");
+    setCpfRevealedValue(null);
+    setIsCpfVisible(false);
+    setCpfRevealUnavailable(false);
+    setRgDocument("");
     setLoginEmail("");
     setGuardianName("");
     setGuardianPhone("");
@@ -968,6 +1027,7 @@ export default function StudentsScreen() {
     setAgeBand("");
     setClassId("");
     setStudentFormError("");
+    setStudentDocumentsError({});
     setEditSnapshot(null);
   };
 
@@ -984,6 +1044,12 @@ export default function StudentsScreen() {
     setBirthDate("");
     setAgeNumber(null);
     setPhone("");
+    setCpfDisplay("");
+    setCpfMaskedOriginal("");
+    setCpfRevealedValue(null);
+    setIsCpfVisible(false);
+    setCpfRevealUnavailable(false);
+    setRgDocument("");
     setLoginEmail("");
     setGuardianName("");
     setGuardianPhone("");
@@ -998,10 +1064,143 @@ export default function StudentsScreen() {
     setMedicationNotes("");
     setHealthObservations("");
     setShowHealthSection(false);
+    setStudentDocumentsError({});
   };
 
+  const resetPreRegistrationForm = useCallback(() => {
+    setEditingPreId(null);
+    setPreChildName("");
+    setPreGuardianName("");
+    setPreGuardianPhone("");
+    setPreClassInterest("");
+    setPreUnitInterest("");
+    setPreTrialDate("");
+    setPreNotes("");
+    setPreStatus("lead");
+    setPreRegistrationError("");
+  }, []);
+
+  const savePreRegistration = useCallback(async () => {
+    const organizationId = activeOrganization?.id ?? "";
+    if (!organizationId) {
+      setPreRegistrationError("Selecione uma organização ativa.");
+      return;
+    }
+    if (!preChildName.trim() || !preGuardianName.trim() || !preGuardianPhone.trim()) {
+      setPreRegistrationError("Preencha nome da criança, responsável e telefone.");
+      return;
+    }
+    setPreRegistrationError("");
+    const payload: Omit<StudentPreRegistration, "createdAt" | "updatedAt"> = {
+      id: editingPreId ?? `pr_${Date.now()}`,
+      organizationId,
+      childName: preChildName.trim(),
+      guardianName: preGuardianName.trim(),
+      guardianPhone: preGuardianPhone.trim(),
+      ageOrBirth: null,
+      classInterest: preClassInterest.trim() || null,
+      unitInterest: preUnitInterest.trim() || null,
+      trialDate: preTrialDate.trim() || null,
+      status: preStatus,
+      notes: preNotes.trim() || null,
+      convertedStudentId: null,
+    };
+
+    if (editingPreId) {
+      await updateStudentPreRegistration(payload);
+    } else {
+      await saveStudentPreRegistration(payload);
+    }
+    resetPreRegistrationForm();
+    await reload();
+  }, [
+    activeOrganization?.id,
+    editingPreId,
+    preChildName,
+    preClassInterest,
+    preGuardianName,
+    preGuardianPhone,
+    preNotes,
+    preStatus,
+    preTrialDate,
+    preUnitInterest,
+    reload,
+    resetPreRegistrationForm,
+  ]);
+
+  const startEditPreRegistration = useCallback((item: StudentPreRegistration) => {
+    setEditingPreId(item.id);
+    setPreChildName(item.childName);
+    setPreGuardianName(item.guardianName);
+    setPreGuardianPhone(item.guardianPhone);
+    setPreClassInterest(item.classInterest ?? "");
+    setPreUnitInterest(item.unitInterest ?? "");
+    setPreTrialDate(item.trialDate ?? "");
+    setPreNotes(item.notes ?? "");
+    setPreStatus(item.status);
+    setPreRegistrationError("");
+  }, []);
+
+  const convertPreRegistrationToStudent = useCallback(
+    async (item: StudentPreRegistration) => {
+      const organizationId = activeOrganization?.id ?? "";
+      if (!organizationId) {
+        Alert.alert("Experimentais", "Selecione uma organização ativa.");
+        return;
+      }
+      const targetClass = classes.find((cls) => cls.name === (item.classInterest ?? ""));
+      if (!targetClass) {
+        Alert.alert(
+          "Experimentais",
+          "Defina uma turma válida no pré-cadastro antes de converter."
+        );
+        return;
+      }
+      const nowIso = new Date().toISOString();
+      const studentId = `s_${Date.now()}`;
+      await convertStudentPreRegistration(item, {
+        id: studentId,
+        name: item.childName,
+        organizationId,
+        classId: targetClass.id,
+        age: 0,
+        phone: "",
+        loginEmail: "",
+        guardianName: item.guardianName,
+        guardianPhone: item.guardianPhone,
+        guardianRelation: "",
+        birthDate: "",
+        healthIssue: false,
+        healthIssueNotes: "",
+        medicationUse: false,
+        medicationNotes: "",
+        healthObservations: "",
+        positionPrimary: "indefinido",
+        positionSecondary: "indefinido",
+        athleteObjective: "base",
+        learningStyle: "misto",
+        createdAt: nowIso,
+      });
+      await reload();
+      Alert.alert("Experimentais", "Pré-cadastro convertido em aluno.");
+    },
+    [activeOrganization?.id, classes, reload]
+  );
+
+  const filteredPreRegistrations = useMemo(() => {
+    const term = preRegistrationSearch.trim().toLowerCase();
+    if (!term) return preRegistrations;
+    return preRegistrations.filter((item) => {
+      return (
+        item.childName.toLowerCase().includes(term) ||
+        item.guardianName.toLowerCase().includes(term) ||
+        item.guardianPhone.toLowerCase().includes(term)
+      );
+    });
+  }, [preRegistrationSearch, preRegistrations]);
+
   const requestSwitchStudentsTab = useCallback(
-    (nextTab: "cadastro" | "aniversários" | "alunos") => {
+    (nextTab: "cadastro" | "aniversários" | "alunos" | "experimentais") => {
       if (nextTab === studentsTab) return;
       if (studentsTab === "cadastro" && isFormDirty) {
         setPendingStudentsTab(nextTab);
@@ -1070,6 +1269,7 @@ export default function StudentsScreen() {
       // Open first so a bad field doesn't block the modal entirely.
       setShowForm(false);
       setStudentFormError("");
+      setStudentDocumentsError({});
       setShowEditModal(true);
       try {
         const safeText = (value: unknown) =>
@@ -1089,6 +1289,8 @@ export default function StudentsScreen() {
         }
         const birthDateValue = safeText(student.birthDate);
         const loginEmailValue = safeText(student.loginEmail);
+        const cpfDisplayValue = safeText(student.cpfMasked);
+        const rgDocumentValue = safeText(student.rg);
         const guardianNameValue = safeText(student.guardianName);
         const guardianPhoneValue = safeText(student.guardianPhone);
         const guardianRelationValue = safeText(student.guardianRelation);
@@ -1125,6 +1327,8 @@ export default function StudentsScreen() {
           photoUrl: student.photoUrl ?? null,
           birthDate: birthDateValue,
           phone: student.phone,
+          cpfDisplay: cpfDisplayValue,
+          rgDocument: rgDocumentValue,
           loginEmail: loginEmailValue,
           guardianName: guardianNameValue,
           guardianPhone: guardianPhoneValue,
@@ -1147,6 +1351,12 @@ export default function StudentsScreen() {
           setAgeNumber(student.age);
         }
         setPhone(student.phone);
+        setCpfDisplay(cpfDisplayValue);
+        setCpfMaskedOriginal(cpfDisplayValue);
+        setCpfRevealedValue(null);
+        setIsCpfVisible(false);
+        setCpfRevealUnavailable(false);
+        setRgDocument(rgDocumentValue);
         setLoginEmail(loginEmailValue);
         setGuardianName(guardianNameValue);
         setGuardianPhone(guardianPhoneValue);
@@ -1195,7 +1405,7 @@ export default function StudentsScreen() {
         ? `Tem certeza que deseja excluir ${student.name}?`
         : "Tem certeza que deseja excluir este aluno?",
       confirmLabel: "Excluir",
-      undoMessage: "Aluno excluído. Deseja desfazer?",
+      undoMessage: "Aluno excluÃ­do. Deseja desfazer?",
       onOptimistic: () => {
         setStudents((prev) => prev.filter((item) => item.id !== student.id));
         if (editingId === student.id) {
@@ -1227,7 +1437,7 @@ export default function StudentsScreen() {
         ? `Tem certeza que deseja excluir ${student.name}?`
         : "Tem certeza que deseja excluir este aluno?",
       confirmLabel: "Excluir",
-      undoMessage: "Aluno excluído. Deseja desfazer?",
+      undoMessage: "Aluno excluÃ­do. Deseja desfazer?",
       onOptimistic: () => {
         setStudents((prev) => prev.filter((item) => item.id !== student.id));
         closeEditModal();
@@ -1245,6 +1455,49 @@ export default function StudentsScreen() {
       },
     });
   }, [confirm, editingId, closeEditModal, logAction, reload, students]);
+
+  const handleRevealEditingCpf = useCallback(async () => {
+    if (!editingId || !canRevealCpf) return;
+    if (cpfRevealUnavailable) return;
+    setStudentDocumentsError((prev) => ({ ...prev, cpf: undefined }));
+    if (isCpfVisible) {
+      setCpfDisplay(cpfMaskedOriginal);
+      setIsCpfVisible(false);
+      return;
+    }
+    if (cpfRevealedValue) {
+      setCpfDisplay(cpfRevealedValue);
+      setIsCpfVisible(true);
+      return;
+    }
+    setRevealCpfBusy(true);
+    try {
+      const cpf = await revealStudentCpf(editingId, {
+        reason: "edicao_aluno",
+        legalBasis: "consentimento_app",
+      });
+      setCpfRevealedValue(cpf);
+      setCpfDisplay(cpf);
+      setIsCpfVisible(true);
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "Nao foi possivel revelar o CPF.";
+      if (detail.toLowerCase().includes("indisponivel")) {
+        setCpfRevealUnavailable(true);
+      }
+      setStudentDocumentsError((prev) => ({ ...prev, cpf: detail }));
+      Alert.alert("CPF", detail);
+    } finally {
+      setRevealCpfBusy(false);
+    }
+  }, [
+    canRevealCpf,
+    cpfMaskedOriginal,
+    cpfRevealUnavailable,
+    cpfRevealedValue,
+    editingId,
+    isCpfVisible,
+  ]);
 
   const getClassName = useCallback(
     (id: string) =>
@@ -1386,12 +1639,12 @@ export default function StudentsScreen() {
       if (contact.status === "missing") {
         Alert.alert(
           "Sem telefone",
-          "Adicione o telefone do aluno ou responsável para usar o WhatsApp."
+          "Adicione o telefone do aluno ou responsÃ¡vel para usar o WhatsApp."
         );
         return;
       }
       if (contact.status === "invalid") {
-        Alert.alert("Telefone inválido", "Informe um telefone com DDD.");
+        Alert.alert("Telefone invÃ¡lido", "Informe um telefone com DDD.");
         return;
       }
       const cls = classes.find((entry) => entry.id === student.classId) ?? null;
@@ -1462,7 +1715,7 @@ export default function StudentsScreen() {
           invitedTo: invitedTo.trim() ? invitedTo : undefined,
         });
         if (!response.token) {
-          throw new Error("Convite inválido.");
+          throw new Error("Convite invÃ¡lido.");
         }
         const link = buildInviteLink(response.token);
         const fields: Record<string, string> = { inviteLink: link };
@@ -1509,26 +1762,26 @@ export default function StudentsScreen() {
         const lower = detail.toLowerCase();
         const shortDetail = detail.length > 140 ? `${detail.slice(0, 140)}...` : detail;
         if (lower.includes("invalid jwt") || lower.includes("missing auth token")) {
-          Alert.alert("Sessão expirada", "Entre novamente para gerar o convite.");
+          Alert.alert("SessÃ£o expirada", "Entre novamente para gerar o convite.");
           void signOut();
         } else if (lower.includes("forbidden") || lower.includes("permission")) {
-          Alert.alert("Convite", "Sem permissão para gerar o convite.");
-          setCustomStudentMessage("Sem permissão para gerar o convite.");
+          Alert.alert("Convite", "Sem permissÃ£o para gerar o convite.");
+          setCustomStudentMessage("Sem permissÃ£o para gerar o convite.");
         } else if (lower.includes("already linked")) {
           const message = options.revokeFirst
-             ? "Não foi possível revogar o acesso. Tente novamente."
-            : "Esse aluno já está vinculado. Use Revogar e gerar novo link.";
+             ? "NÃ£o foi possÃ­vel revogar o acesso. Tente novamente."
+            : "Esse aluno jÃ¡ estÃ¡ vinculado. Use Revogar e gerar novo link.";
           Alert.alert("Convite", message);
           setCustomStudentMessage(message);
         } else if (lower.includes("student not found")) {
-          Alert.alert("Convite", "Aluno não encontrado.");
-          setCustomStudentMessage("Aluno não encontrado.");
+          Alert.alert("Convite", "Aluno nÃ£o encontrado.");
+          setCustomStudentMessage("Aluno nÃ£o encontrado.");
         } else {
-          Alert.alert("Convite", "Não foi possível gerar o convite.");
+          Alert.alert("Convite", "NÃ£o foi possÃ­vel gerar o convite.");
           setCustomStudentMessage(
             shortDetail
-              ? `Não foi possível gerar o convite. ${shortDetail}`
-              : "Não foi possível gerar o convite."
+              ? `NÃ£o foi possÃ­vel gerar o convite. ${shortDetail}`
+              : "NÃ£o foi possÃ­vel gerar o convite."
           );
         }
         return null;
@@ -1610,7 +1863,7 @@ export default function StudentsScreen() {
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted }}>Turma</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Nenhuma turma disponível para essa unidade.
+            Nenhuma turma disponÃ­vel para essa unidade.
           </Text>
         </View>
       );
@@ -1922,7 +2175,7 @@ export default function StudentsScreen() {
         const shortName = nameParts.slice(0, 2).join(" ");
         const restName = nameParts.slice(2).join(" ");
         const profileSummary = [
-          `Posição: ${item.positionPrimary || "indefinido"}`,
+          `PosiÃ§Ã£o: ${item.positionPrimary || "indefinido"}`,
           `Objetivo: ${item.athleteObjective || "base"}`,
           `Estilo: ${item.learningStyle || "misto"}`,
         ];
@@ -1988,10 +2241,10 @@ export default function StudentsScreen() {
                   </FadeHorizontalScroll>
                 </View>
                 <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-                  {className} • {unitName}
+                  {className} â€¢ {unitName}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                  {profileSummary.join(" • ")}
+                  {profileSummary.join(" â€¢ ")}
                 </Text>
               </View>
               <Pressable
@@ -2247,6 +2500,7 @@ export default function StudentsScreen() {
             { id: "alunos" as const, label: "Alunos" },
             { id: "cadastro" as const, label: "Cadastro" },
             { id: "aniversários" as const, label: "Aniversários" },
+            { id: "experimentais" as const, label: "Experimentais" },
           ].map((tab) => {
             const selected = studentsTab === tab.id;
             return (
@@ -2418,6 +2672,23 @@ export default function StudentsScreen() {
                   />
                 </View>
               </View>
+              <StudentDocumentsFields
+                cpfDisplay={cpfDisplay}
+                rg={rgDocument}
+                onChangeCpf={(value) => {
+                  setCpfDisplay(value);
+                  setIsCpfVisible(false);
+                  setCpfRevealedValue(null);
+                  setCpfRevealUnavailable(false);
+                  setStudentDocumentsError((prev) => ({ ...prev, cpf: undefined }));
+                }}
+                onChangeRg={setRgDocument}
+                showRevealCpfButton={Boolean(editingId && canRevealCpf)}
+                isCpfVisible={isCpfVisible}
+                revealCpfBusy={revealCpfBusy}
+                onRevealCpf={handleRevealEditingCpf}
+                errors={studentDocumentsError}
+              />
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
                   <Text style={{ color: colors.muted }}>Email do aluno (login)</Text>
@@ -2443,7 +2714,7 @@ export default function StudentsScreen() {
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Posição principal</Text>
+                  <Text style={{ color: colors.muted }}>PosiÃ§Ã£o principal</Text>
                   <TextInput
                     placeholder="indefinido | levantador | oposto..."
                     value={positionPrimary}
@@ -2465,7 +2736,7 @@ export default function StudentsScreen() {
                   />
                 </View>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Posição secundária</Text>
+                  <Text style={{ color: colors.muted }}>PosiÃ§Ã£o secundÃ¡ria</Text>
                   <TextInput
                     placeholder="indefinido | ponteiro | libero..."
                     value={positionSecondary}
@@ -2534,7 +2805,7 @@ export default function StudentsScreen() {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
                   <TextInput
-                    placeholder="Nome do responsável"
+                    placeholder="Nome do responsÃ¡vel"
                     value={guardianName}
                     onChangeText={setGuardianName}
                     onBlur={() => setGuardianName(formatName(guardianName))}
@@ -2552,9 +2823,9 @@ export default function StudentsScreen() {
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Telefone do responsável</Text>
+                  <Text style={{ color: colors.muted }}>Telefone do responsÃ¡vel</Text>
                   <TextInput
-                    placeholder="Telefone do responsável"
+                    placeholder="Telefone do responsÃ¡vel"
                     value={guardianPhone}
                     onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                     keyboardType="phone-pad"
@@ -2609,7 +2880,7 @@ export default function StudentsScreen() {
                     borderColor: colors.border,
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Saúde do aluno</Text>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>SaÃºde do aluno</Text>
                   <Ionicons
                     name={showHealthSection ? "chevron-up" : "chevron-down"}
                     size={16}
@@ -2621,7 +2892,7 @@ export default function StudentsScreen() {
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                       <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
                         <Text style={{ color: colors.muted }}>
-                          Observações sobre saúde do aluno
+                          ObservaÃ§Ãµes sobre saÃºde do aluno
                         </Text>
                         <View style={{ flexDirection: "row", gap: 8 }}>
                           <Pressable
@@ -2646,7 +2917,7 @@ export default function StudentsScreen() {
                                 fontWeight: "700",
                               }}
                             >
-                              Não
+                              NÃ£o
                             </Text>
                           </Pressable>
                           <Pressable
@@ -2674,7 +2945,7 @@ export default function StudentsScreen() {
                         </View>
                         { healthIssue ? (
                           <TextInput
-                            placeholder="Descreva a observação"
+                            placeholder="Descreva a observaÃ§Ã£o"
                             value={healthIssueNotes}
                             onChangeText={setHealthIssueNotes}
                             placeholderTextColor={colors.placeholder}
@@ -2693,7 +2964,7 @@ export default function StudentsScreen() {
                         ) : null}
                       </View>
                       <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
-                        <Text style={{ color: colors.muted }}>Uso contínuo de medicação</Text>
+                        <Text style={{ color: colors.muted }}>Uso contÃ­nuo de medicaÃ§Ã£o</Text>
                         <View style={{ flexDirection: "row", gap: 8 }}>
                           <Pressable
                             onPress={() => {
@@ -2717,7 +2988,7 @@ export default function StudentsScreen() {
                                 fontWeight: "700",
                               }}
                             >
-                              Não
+                              NÃ£o
                             </Text>
                           </Pressable>
                           <Pressable
@@ -2745,7 +3016,7 @@ export default function StudentsScreen() {
                         </View>
                         { medicationUse ? (
                           <TextInput
-                            placeholder="Qual medicação?"
+                            placeholder="Qual medicaÃ§Ã£o?"
                             value={medicationNotes}
                             onChangeText={setMedicationNotes}
                             placeholderTextColor={colors.placeholder}
@@ -2765,9 +3036,9 @@ export default function StudentsScreen() {
                       </View>
                     </View>
                     <View style={{ gap: 6 }}>
-                      <Text style={{ color: colors.muted }}>Observações</Text>
+                      <Text style={{ color: colors.muted }}>ObservaÃ§Ãµes</Text>
                       <TextInput
-                        placeholder="Outras observações"
+                        placeholder="Outras observaÃ§Ãµes"
                         value={healthObservations}
                         onChangeText={setHealthObservations}
                         placeholderTextColor={colors.placeholder}
@@ -2789,19 +3060,19 @@ export default function StudentsScreen() {
               </View>
 
               <Button
-                label={editingId ? "Salvar alterações" : "Adicionar aluno"}
+                label={editingId ? "Salvar alteraÃ§Ãµes" : "Adicionar aluno"}
                 onPress={onSave}
                 disabled={!canSaveStudent}
               />
               { editingId ? (
                 <Button
-                  label="Cancelar edição"
+                  label="Cancelar ediÃ§Ã£o"
                   variant="secondary"
                   onPress={() => {
                     if (isFormDirty) {
                       confirmDialog({
                         title: "Sair sem salvar?",
-                        message: "Você tem alterações não salvas.",
+                        message: "VocÃª tem alteraÃ§Ãµes nÃ£o salvas.",
                         confirmLabel: "Descartar",
                         cancelLabel: "Continuar",
                         onConfirm: () => {
@@ -2818,25 +3089,382 @@ export default function StudentsScreen() {
           </View>
         )}
 
+        {studentsTab === "experimentais" && (
+          <View
+            style={[
+              getSectionCardStyle(colors, "neutral", { padding: 16, radius: 20 }),
+              { borderLeftWidth: 1, borderLeftColor: colors.border, gap: 10 },
+            ]}
+          >
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+              Pré-cadastros experimentais
+            </Text>
+            <TextInput
+              placeholder="Buscar por criança, responsável ou telefone"
+              value={preRegistrationSearch}
+              onChangeText={setPreRegistrationSearch}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 12,
+                borderRadius: 12,
+                backgroundColor: colors.background,
+                color: colors.inputText,
+              }}
+            />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
+                <Text style={{ color: colors.muted }}>Criança</Text>
+                <TextInput
+                  placeholder="Nome da criança"
+                  value={preChildName}
+                  onChangeText={setPreChildName}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
+                <Text style={{ color: colors.muted }}>Responsável</Text>
+                <TextInput
+                  placeholder="Nome do responsável"
+                  value={preGuardianName}
+                  onChangeText={setPreGuardianName}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
+                <Text style={{ color: colors.muted }}>Telefone</Text>
+                <TextInput
+                  placeholder="Telefone do responsável"
+                  value={preGuardianPhone}
+                  onChangeText={(value) => setPreGuardianPhone(formatPhone(value))}
+                  keyboardType="phone-pad"
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
+                <Text style={{ color: colors.muted }}>Data da experimental</Text>
+                <TextInput
+                  placeholder="AAAA-MM-DD"
+                  value={preTrialDate}
+                  onChangeText={setPreTrialDate}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
+                <Text style={{ color: colors.muted }}>Turma de interesse</Text>
+                <TextInput
+                  placeholder="Ex.: Turma 8-11"
+                  value={preClassInterest}
+                  onChangeText={setPreClassInterest}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
+                <Text style={{ color: colors.muted }}>Unidade de interesse</Text>
+                <TextInput
+                  placeholder="Ex.: Rede Esperança"
+                  value={preUnitInterest}
+                  onChangeText={setPreUnitInterest}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+            </View>
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.muted }}>Status</Text>
+              <TextInput
+                placeholder="lead | trial_scheduled | trial_done | converted | lost"
+                value={preStatus}
+                onChangeText={(value) =>
+                  setPreStatus((value.trim().toLowerCase() as StudentPreRegistration["status"]) || "lead")
+                }
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.background,
+                  color: colors.inputText,
+                }}
+              />
+            </View>
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.muted }}>Observações</Text>
+              <TextInput
+                placeholder="Observações do pré-cadastro"
+                value={preNotes}
+                onChangeText={setPreNotes}
+                placeholderTextColor={colors.placeholder}
+                multiline
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.background,
+                  color: colors.inputText,
+                  minHeight: 70,
+                  textAlignVertical: "top",
+                }}
+              />
+            </View>
+            {preRegistrationError ? (
+              <Text style={{ color: colors.dangerText, fontSize: 12 }}>{preRegistrationError}</Text>
+            ) : null}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={() => void savePreRegistration()}
+                style={{
+                  flex: 1,
+                  borderRadius: 12,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  backgroundColor: colors.primaryBg,
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                  {editingPreId ? "Salvar pré-cadastro" : "Novo pré-cadastro"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={resetPreRegistrationForm}
+                style={{
+                  flex: 1,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Limpar</Text>
+              </Pressable>
+            </View>
+
+            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+
+            <View style={{ gap: 8 }}>
+              {filteredPreRegistrations.map((item) => (
+                <View
+                  key={item.id}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 14,
+                    backgroundColor: colors.card,
+                    padding: 12,
+                    gap: 6,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                    {item.childName}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Responsável: {item.guardianName} • {item.guardianPhone}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Turma: {item.classInterest || "Não informado"} • Unidade: {item.unitInterest || "Não informado"}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Status: {item.status} • Experimental: {item.trialDate || "Sem data"}
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
+                    <Pressable
+                      onPress={() => startEditPreRegistration(item)}
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Editar</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        void updateStudentPreRegistration({
+                          id: item.id,
+                          organizationId: item.organizationId,
+                          childName: item.childName,
+                          guardianName: item.guardianName,
+                          guardianPhone: item.guardianPhone,
+                          ageOrBirth: item.ageOrBirth ?? null,
+                          classInterest: item.classInterest ?? null,
+                          unitInterest: item.unitInterest ?? null,
+                          trialDate: item.trialDate ?? null,
+                          status: "trial_done",
+                          notes: item.notes ?? null,
+                          convertedStudentId: item.convertedStudentId ?? null,
+                        }).then(reload)
+                      }
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                        Marcar realizada
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void convertPreRegistrationToStudent(item)}
+                      style={{
+                        borderRadius: 999,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: colors.primaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                        Converter em aluno
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        Alert.alert("Experimentais", "Marcar como perdido?", [
+                          { text: "Cancelar", style: "cancel" },
+                          {
+                            text: "Perdido",
+                            style: "destructive",
+                            onPress: () =>
+                              void updateStudentPreRegistration({
+                                id: item.id,
+                                organizationId: item.organizationId,
+                                childName: item.childName,
+                                guardianName: item.guardianName,
+                                guardianPhone: item.guardianPhone,
+                                ageOrBirth: item.ageOrBirth ?? null,
+                                classInterest: item.classInterest ?? null,
+                                unitInterest: item.unitInterest ?? null,
+                                trialDate: item.trialDate ?? null,
+                                status: "lost",
+                                notes: item.notes ?? null,
+                                convertedStudentId: item.convertedStudentId ?? null,
+                              }).then(reload),
+                          },
+                        ])
+                      }
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Perdido</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        Alert.alert("Experimentais", "Excluir pré-cadastro?", [
+                          { text: "Cancelar", style: "cancel" },
+                          {
+                            text: "Excluir",
+                            style: "destructive",
+                            onPress: () => void deleteStudentPreRegistration(item.id).then(reload),
+                          },
+                        ])
+                      }
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.dangerText,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: colors.card,
+                      }}
+                    >
+                      <Text style={{ color: colors.dangerText, fontWeight: "700", fontSize: 12 }}>
+                        Excluir
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {studentsTab === "aniversários" && (
           <View style={{ gap: 16 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text }}>
-                  Olá!
+                  OlÃ¡!
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 13 }}>
                   {birthdayToday.length
                     ? (() => {
                         const first = birthdayToday[0]?.name ?? "";
                         if (birthdayToday.length === 1) {
-                          return `Hoje é aniversário de ${first}.`;
+                          return `Hoje Ã© aniversÃ¡rio de ${first}.`;
                         }
-                        return `Hoje é aniversário de ${first} e mais ${
+                        return `Hoje Ã© aniversÃ¡rio de ${first} e mais ${
                           birthdayToday.length - 1
                         } pessoa(s).`;
                       })()
-                    : "Sem aniversários hoje."}
+                    : "Sem aniversÃ¡rios hoje."}
                 </Text>
               </View>
               <View
@@ -2865,7 +3493,7 @@ export default function StudentsScreen() {
 
             <View style={{ gap: 8 }}>
               <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>
-                Mês
+                MÃªs
               </Text>
               <FadeHorizontalScroll
                 fadeColor={colors.background}
@@ -2967,7 +3595,7 @@ export default function StudentsScreen() {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Ionicons name="gift" size={18} color={colors.text} />
                   <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
-                    Aniversário de hoje 🎉
+                    AniversÃ¡rio de hoje ðŸŽ‰
                   </Text>
                 </View>
                 {birthdayToday.length ? (
@@ -3013,7 +3641,7 @@ export default function StudentsScreen() {
                             {student.name}
                           </Text>
                           <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
-                            {age ? `${age} anos` : "Idade não informada"} - {unitName}
+                            {age ? `${age} anos` : "Idade nÃ£o informada"} - {unitName}
                           </Text>
                         </View>
                         <Ionicons name="balloon" size={18} color={colors.primaryText} />
@@ -3038,10 +3666,10 @@ export default function StudentsScreen() {
                   }}
                 >
                   <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    Próximos aniversários
+                    PrÃ³ximos aniversÃ¡rios
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {upcomingBirthdays.length} próximos
+                    {upcomingBirthdays.length} prÃ³ximos
                   </Text>
                 </View>
                 <FadeHorizontalScroll
@@ -3157,7 +3785,7 @@ export default function StudentsScreen() {
                               textAlign: "center",
                             }}
                           >
-                            {daysLeft === 1 ? "Amanhã" : `${daysLeft} dias`}
+                            {daysLeft === 1 ? "AmanhÃ£" : `${daysLeft} dias`}
                           </Text>
                         </View>
                       </View>
@@ -3176,10 +3804,10 @@ export default function StudentsScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Sem próximos aniversários
+                  Sem prÃ³ximos aniversÃ¡rios
                 </Text>
                 <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12 }}>
-                  Ajuste o mês ou a busca para ver mais resultados.
+                  Ajuste o mÃªs ou a busca para ver mais resultados.
                 </Text>
               </View>
             )}
@@ -3201,7 +3829,7 @@ export default function StudentsScreen() {
                 }}
               >
                 <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  Todos os aniversários
+                  Todos os aniversÃ¡rios
                 </Text>
                 <Ionicons
                   name={showAllBirthdays ? "chevron-up" : "chevron-down"}
@@ -3406,7 +4034,7 @@ export default function StudentsScreen() {
                       }}
                     >
                       <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        Sem aniversários
+                        Sem aniversÃ¡rios
                       </Text>
                       <Text style={{ color: colors.muted, marginTop: 4 }}>
                         Nenhum aluno com data de nascimento.
@@ -4062,9 +4690,26 @@ export default function StudentsScreen() {
                       {studentFormError}
                     </Text>
                   ) : null}
+                  <StudentDocumentsFields
+                    cpfDisplay={cpfDisplay}
+                    rg={rgDocument}
+                    onChangeCpf={(value) => {
+                      setCpfDisplay(value);
+                      setIsCpfVisible(false);
+                      setCpfRevealedValue(null);
+                      setCpfRevealUnavailable(false);
+                      setStudentDocumentsError((prev) => ({ ...prev, cpf: undefined }));
+                    }}
+                    onChangeRg={setRgDocument}
+                    showRevealCpfButton={Boolean(editingId && canRevealCpf)}
+                    isCpfVisible={isCpfVisible}
+                    revealCpfBusy={revealCpfBusy}
+                    onRevealCpf={handleRevealEditingCpf}
+                    errors={studentDocumentsError}
+                  />
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>PosiÃ§Ã£o principal</Text>
                       <TextInput
                         placeholder="indefinido | levantador..."
                         value={positionPrimary}
@@ -4087,7 +4732,7 @@ export default function StudentsScreen() {
                       />
                     </View>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>PosiÃ§Ã£o secundÃ¡ria</Text>
                       <TextInput
                         placeholder="indefinido | ponteiro..."
                         value={positionSecondary}
@@ -4207,7 +4852,7 @@ export default function StudentsScreen() {
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                      Saúde do aluno
+                      SaÃºde do aluno
                     </Text>
                     <Ionicons
                       name={showEditHealthSection ? "chevron-up" : "chevron-down"}
@@ -4220,7 +4865,7 @@ export default function StudentsScreen() {
                       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                         <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
                           <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            Observações sobre saúde do aluno
+                            ObservaÃ§Ãµes sobre saÃºde do aluno
                           </Text>
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             <Pressable
@@ -4245,7 +4890,7 @@ export default function StudentsScreen() {
                                   fontWeight: "700",
                                 }}
                               >
-                                Não
+                                NÃ£o
                               </Text>
                             </Pressable>
                             <Pressable
@@ -4273,7 +4918,7 @@ export default function StudentsScreen() {
                           </View>
                           { healthIssue ? (
                             <TextInput
-                              placeholder="Descreva a observação"
+                              placeholder="Descreva a observaÃ§Ã£o"
                               value={healthIssueNotes}
                               onChangeText={setHealthIssueNotes}
                               placeholderTextColor={colors.placeholder}
@@ -4293,7 +4938,7 @@ export default function StudentsScreen() {
                         </View>
                         <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
                           <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            Uso contínuo de medicação
+                            Uso contÃ­nuo de medicaÃ§Ã£o
                           </Text>
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             <Pressable
@@ -4318,7 +4963,7 @@ export default function StudentsScreen() {
                                   fontWeight: "700",
                                 }}
                               >
-                                Não
+                                NÃ£o
                               </Text>
                             </Pressable>
                             <Pressable
@@ -4346,7 +4991,7 @@ export default function StudentsScreen() {
                           </View>
                           { medicationUse ? (
                             <TextInput
-                              placeholder="Qual medicação?"
+                              placeholder="Qual medicaÃ§Ã£o?"
                               value={medicationNotes}
                               onChangeText={setMedicationNotes}
                               placeholderTextColor={colors.placeholder}
@@ -4366,9 +5011,9 @@ export default function StudentsScreen() {
                         </View>
                       </View>
                       <View style={{ gap: 6 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Observações</Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>ObservaÃ§Ãµes</Text>
                         <TextInput
-                          placeholder="Outras observações"
+                          placeholder="Outras observaÃ§Ãµes"
                           value={healthObservations}
                           onChangeText={setHealthObservations}
                           placeholderTextColor={colors.placeholder}
@@ -4393,15 +5038,15 @@ export default function StudentsScreen() {
 
                 <View style={{ gap: 8 }}>
                   <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-                    Dados do responsável
+                    Dados do responsÃ¡vel
                   </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Nome do responsável
+                        Nome do responsÃ¡vel
                       </Text>
                       <TextInput
-                        placeholder="Nome do responsável"
+                        placeholder="Nome do responsÃ¡vel"
                         value={guardianName}
                         onChangeText={setGuardianName}
                         onBlur={() => setGuardianName(formatName(guardianName))}
@@ -4419,10 +5064,10 @@ export default function StudentsScreen() {
                     </View>
                     <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Telefone do responsável
+                        Telefone do responsÃ¡vel
                       </Text>
                       <TextInput
-                        placeholder="Telefone do responsável"
+                        placeholder="Telefone do responsÃ¡vel"
                         value={guardianPhone}
                         onChangeText={(value) => setGuardianPhone(formatPhone(value))}
                         keyboardType="phone-pad"
@@ -4491,7 +5136,7 @@ export default function StudentsScreen() {
                       fontWeight: "700",
                     }}
                   >
-                    Salvar alterações
+                    Salvar alteraÃ§Ãµes
                   </Text>
                 </Pressable>
                 <Pressable
@@ -4666,8 +5311,8 @@ export default function StudentsScreen() {
           const sendMessage = async () => {
             if (!finalPhone) {
               Alert.alert(
-                "Contato inválido",
-                "Atualize o telefone do aluno ou responsável."
+                "Contato invÃ¡lido",
+                "Atualize o telefone do aluno ou responsÃ¡vel."
               );
               return;
             }
@@ -4817,7 +5462,7 @@ export default function StudentsScreen() {
                   const fieldPlaceholder =
                     field === "highlightNote"
                        ? "Ex: excelente postura no saque!"
-                      : "Ex: não haverá treino na sexta";
+                      : "Ex: nÃ£o haverÃ¡ treino na sexta";
                   return (
                     <View key={field} style={{ gap: 6 }}>
                       <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
@@ -4889,7 +5534,7 @@ export default function StudentsScreen() {
                                 : colors.text,
                           }}
                         >
-                          Responsável
+                          ResponsÃ¡vel
                         </Text>
                         <Text
                           style={{
@@ -4954,7 +5599,7 @@ export default function StudentsScreen() {
                 </View>
               ) : (
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sem telefone válido cadastrado.
+                  Sem telefone vÃ¡lido cadastrado.
                 </Text>
               )}
 
@@ -5035,17 +5680,17 @@ export default function StudentsScreen() {
                     for (const req of template.requires) {
                       if (req === "nextClassDate" && !nextClassDate) {
                         canUse = false;
-                        missingRequirement = "Dias da semana não configurados";
+                        missingRequirement = "Dias da semana nÃ£o configurados";
                         break;
                       }
                       if (req === "nextClassTime" && !cls.startTime) {
                         canUse = false;
-                        missingRequirement = "Horário não configurado";
+                        missingRequirement = "HorÃ¡rio nÃ£o configurado";
                         break;
                       }
                       if (req === "groupInviteLink" && cls && !groupInviteLinks[cls.id]) {
                         canUse = false;
-                        missingRequirement = "Link do grupo não configurado";
+                        missingRequirement = "Link do grupo nÃ£o configurado";
                         break;
                       }
                     }
@@ -5056,7 +5701,7 @@ export default function StudentsScreen() {
                       disabled={!canUse}
                       onPress={() => {
                         if (!canUse) {
-                          Alert.alert("Template indisponível", missingRequirement);
+                          Alert.alert("Template indisponÃ­vel", missingRequirement);
                           return;
                         }
                         if (template.id === "student_invite") {
@@ -5245,3 +5890,5 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
+
+

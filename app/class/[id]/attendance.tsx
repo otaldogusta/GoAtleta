@@ -464,12 +464,34 @@ export default function AttendanceScreen() {
                   containerStyle={{ flex: 1, minWidth: 0 }}
                   fadeColor={colors.card}
                 >
-                  <Text
-                    style={{ fontSize: 16, fontWeight: "700", color: colors.text }}
-                    numberOfLines={1}
-                  >
-                    {item.student.name}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text
+                      style={{ fontSize: 16, fontWeight: "700", color: colors.text }}
+                      numberOfLines={1}
+                    >
+                      {item.student.name}
+                    </Text>
+                    {item.student.isExperimental ? (
+                      <View
+                        style={{
+                          borderRadius: 999,
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          backgroundColor: colors.warningBg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: colors.warningText,
+                            fontSize: 11,
+                            fontWeight: "700",
+                          }}
+                        >
+                          Experimental
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </FadeHorizontalScroll>
                 <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                   <Pressable

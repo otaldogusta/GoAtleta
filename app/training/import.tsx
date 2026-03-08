@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
+import { Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import * as DocumentPicker from "expo-document-picker";
+import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { useSaveToast } from "../../src/ui/save-toast";
+import * as XLSX from "xlsx";
+import * as cptable from "xlsx/dist/cpexcel.js";
 import {
   deleteTrainingPlansByClassAndDate,
   getClasses,
@@ -31,6 +35,13 @@ type PreviewRow = {
   errors: string[];
 };
 
+const xlsxWithCodepage = XLSX as typeof XLSX & {
+  set_cptable?: (value: unknown) => void;
+};
+if (typeof xlsxWithCodepage.set_cptable === "function") {
+  xlsxWithCodepage.set_cptable(cptable);
+}
+
 const normalizeCsvDate = (value: string) => {
   const raw = (value ?? "").trim();
   if (!raw) return "";
@@ -50,7 +61,18 @@ const formatDatePtBr = (value: string) => {
   return `${day}/${month}/${year}`;
 };
 
-const parseCsv = (text: string) => {
+const detectCsvDelimiter = (value: string) => {
+  const firstLine =
+    value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) ?? "";
+  const semicolonCount = (firstLine.match(/;/g) ?? []).length;
+  const commaCount = (firstLine.match(/,/g) ?? []).length;
+  return semicolonCount > commaCount ? ";" : ",";
+};
+
+const parseDelimitedRows = (text: string, delimiter: "," | ";") => {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -71,7 +93,7 @@ const parseCsv = (text: string) => {
     }
     if (char === "\"") {
       inQuotes = true;
-    } else if (char === ",") {
+    } else if (char === delimiter) {
       row.push(field);
       field = "";
     } else if (char === "\n") {
@@ -88,6 +110,10 @@ const parseCsv = (text: string) => {
     rows.push(row);
   }
 
+  return rows;
+};
+
+const mapRawRowsToImportRows = (rows: string[][]) => {
   const todayIso = new Date().toISOString().slice(0, 10);
   const normalizeHeaderKey = (value: string) =>
     value
@@ -178,6 +204,63 @@ const parseCsv = (text: string) => {
 
       return record;
     });
+};
+
+const parseCsv = (text: string) =>
+  mapRawRowsToImportRows(parseDelimitedRows(text, detectCsvDelimiter(text)));
+
+const parseSpreadsheetRows = (value: unknown[][]): string[][] =>
+  value.map((row) =>
+    Array.isArray(row) ? row.map((cell) => String(cell ?? "").trim()) : []
+  );
+
+const dataUriBase64ToArrayBuffer = (value: string): ArrayBuffer => {
+  const data = value.includes(",") ? value.split(",")[1] ?? "" : value;
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+};
+
+const readWebAssetArrayBuffer = async (
+  asset: DocumentPicker.DocumentPickerAsset
+): Promise<ArrayBuffer> => {
+  if (asset.file && typeof asset.file.arrayBuffer === "function") {
+    return asset.file.arrayBuffer();
+  }
+  if (asset.base64) {
+    return dataUriBase64ToArrayBuffer(asset.base64);
+  }
+  if (asset.uri.startsWith("data:")) {
+    return dataUriBase64ToArrayBuffer(asset.uri);
+  }
+  const response = await fetch(asset.uri);
+  if (!response.ok) {
+    throw new Error("Nao foi possivel ler o arquivo selecionado no navegador.");
+  }
+  return response.arrayBuffer();
+};
+
+const readWebAssetText = async (
+  asset: DocumentPicker.DocumentPickerAsset
+): Promise<string> => {
+  if (asset.file && typeof asset.file.text === "function") {
+    return asset.file.text();
+  }
+  if (asset.base64) {
+    return atob(asset.base64);
+  }
+  if (asset.uri.startsWith("data:")) {
+    const buffer = dataUriBase64ToArrayBuffer(asset.uri);
+    return new TextDecoder("utf-8").decode(new Uint8Array(buffer));
+  }
+  const response = await fetch(asset.uri);
+  if (!response.ok) {
+    throw new Error("Nao foi possivel ler o arquivo selecionado no navegador.");
+  }
+  return response.text();
 };
 
 const splitList = (value: string) =>
@@ -299,9 +382,14 @@ const matchClass = (
   classes: ClassGroup[],
   row: CsvRow,
   titleInfo: TitleInfo,
-  unitHint: string
+  unitHint: string,
+  classIdHint?: string
 ) => {
   let candidates = classes;
+  const fixedClassId = String(classIdHint ?? "").trim();
+  if (fixedClassId) {
+    candidates = candidates.filter((cls) => cls.id === fixedClassId);
+  }
 
   const resolvedUnit = titleInfo.unit || unitHint;
   if (normalizeUnitKey(resolvedUnit)) {
@@ -353,15 +441,24 @@ const buildPlanRow = (row: CsvRow, classId: string): TrainingPlan => {
 };
 
 export default function ImportTrainingCsvScreen() {
+  return <Redirect href="/training" />;
+
+  const { classId: classIdHintParam, unit: unitHintParam } = useLocalSearchParams<{
+    classId?: string;
+    unit?: string;
+  }>();
   const router = useRouter();
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const [csvText, setCsvText] = useState("");
-  const [unitHint, setUnitHint] = useState("");
+  const [loadedRows, setLoadedRows] = useState<CsvRow[] | null>(null);
+  const [unitHint, setUnitHint] = useState(String(unitHintParam ?? ""));
   const [allowPartial, setAllowPartial] = useState(false);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fileLoading, setFileLoading] = useState(false);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const classIdHint = String(classIdHintParam ?? "").trim();
 
   const hasPreview = preview.length > 0;
 
@@ -378,10 +475,89 @@ export default function ImportTrainingCsvScreen() {
     return list;
   };
 
+  const pickImportFile = async () => {
+    try {
+      setFileLoading(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        base64: false,
+        type: [
+          "text/csv",
+          "text/comma-separated-values",
+          "application/vnd.ms-excel",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/octet-stream",
+          "application/pdf",
+        ],
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri) throw new Error("Arquivo invalido.");
+
+      const sourceFilename = String(asset.name ?? "").trim().toLowerCase();
+      if (sourceFilename.endsWith(".pdf") || asset.mimeType === "application/pdf") {
+        showSaveToast({
+          message: "PDF nao e suportado para importacao direta. Use CSV/XLSX.",
+          variant: "info",
+        });
+        return;
+      }
+
+      const isSpreadsheet =
+        sourceFilename.endsWith(".xlsx") ||
+        sourceFilename.endsWith(".xls") ||
+        asset.mimeType?.includes("spreadsheet") ||
+        asset.mimeType?.includes("excel");
+
+      let rows: CsvRow[] = [];
+      if (isSpreadsheet) {
+        const workbook =
+          Platform.OS === "web"
+            ? XLSX.read(await readWebAssetArrayBuffer(asset), { type: "array" })
+            : XLSX.read(await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 }), {
+                type: "base64",
+              });
+        const firstSheet = workbook.SheetNames[0];
+        if (!firstSheet) throw new Error("Planilha vazia.");
+        const worksheet = workbook.Sheets[firstSheet];
+        if (!worksheet) throw new Error("Nao foi possivel ler a primeira aba.");
+        const matrix = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          raw: false,
+          defval: "",
+        }) as unknown[][];
+        rows = mapRawRowsToImportRows(parseSpreadsheetRows(matrix));
+      } else {
+        const text =
+          Platform.OS === "web"
+            ? await readWebAssetText(asset)
+            : await readAsStringAsync(asset.uri, { encoding: EncodingType.UTF8 });
+        rows = parseCsv(text);
+      }
+
+      if (!rows.length) {
+        throw new Error("Nenhuma linha valida encontrada no arquivo.");
+      }
+
+      setPreview([]);
+      setLoadedRows(rows);
+      showSaveToast({
+        message: `${rows.length} linhas carregadas. Clique em Pre-visualizar.`,
+        variant: "success",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao ler arquivo.";
+      showSaveToast({ message, variant: "error" });
+    } finally {
+      setFileLoading(false);
+    }
+  };
+
   const buildPreview = async () => {
-    if (!csvText.trim()) return;
+    if (!loadedRows && !csvText.trim()) return;
     const classList = await loadClasses();
-    const rows = parseCsv(csvText);
+    const rows = loadedRows ?? parseCsv(csvText);
     const results: PreviewRow[] = rows.map((row) => {
       const errors: string[] = [];
       if (row.date && !isValidIsoDate(row.date)) {
@@ -393,7 +569,7 @@ export default function ImportTrainingCsvScreen() {
       const info = extractTitleInfo(row.title || "");
       let matched: ClassGroup[] = [];
       if (!errors.length) {
-        matched = matchClass(classList, row, info, unitHint.trim());
+        matched = matchClass(classList, row, info, unitHint.trim(), classIdHint);
         if (matched.length === 0) {
           errors.push("Turma não encontrada");
         } else if (matched.length > 1) {
@@ -447,8 +623,8 @@ export default function ImportTrainingCsvScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         <ScreenHeader
-          title="Importar CSV"
-          subtitle="Cole o CSV do planejamento e revise antes de salvar."
+          title="Importar planejamento"
+          subtitle="Selecione planilha (.csv/.xls/.xlsx) ou cole CSV e revise antes de salvar."
           onBack={() => router.back()}
         />
 
@@ -473,11 +649,39 @@ export default function ImportTrainingCsvScreen() {
         </View>
 
         <View style={{ gap: 6 }}>
+          <Pressable
+            onPress={() => void pickImportFile()}
+            disabled={fileLoading}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              opacity: fileLoading ? 0.7 : 1,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              {fileLoading ? "Lendo arquivo..." : "Selecionar arquivo (.csv/.xls/.xlsx)"}
+            </Text>
+          </Pressable>
+          {loadedRows ? (
+            <Text style={{ color: colors.successText, fontSize: 12 }}>
+              Arquivo carregado com {loadedRows.length} linhas.
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>CSV</Text>
           <TextInput
             multiline
             value={csvText}
-            onChangeText={setCsvText}
+            onChangeText={(value) => {
+              setLoadedRows(null);
+              setCsvText(value);
+            }}
             placeholder="Cole o CSV completo aqui"
             placeholderTextColor={colors.placeholder}
             style={{

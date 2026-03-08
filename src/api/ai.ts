@@ -120,6 +120,20 @@ export type DataFixSuggestionsResult = {
   suggestions: DataFixSuggestion[];
 };
 
+export type ReportRewriteField = "activity" | "conclusion";
+
+export type RewriteReportTextInput = {
+  field: ReportRewriteField;
+  text: string;
+  mode: "projeto_social";
+  maxChars: number;
+  classId?: string;
+};
+
+export type RewriteReportTextResult = {
+  rewrittenText: string;
+};
+
 const assistantUrl = `${SUPABASE_URL}/functions/v1/assistant`;
 const DEFAULT_AI_CACHE_TTL_MS = 120_000;
 const MAX_AI_CACHE_ITEMS = 200;
@@ -527,5 +541,71 @@ export async function suggestDataFixes(
         };
       }),
     };
+  });
+}
+
+export async function rewriteReportText(
+  input: RewriteReportTextInput,
+  options?: AiRequestOptions
+): Promise<RewriteReportTextResult> {
+  const trimmed = String(input.text ?? "").trim();
+  const maxChars =
+    Number.isFinite(input.maxChars) && input.maxChars > 0
+      ? Math.floor(input.maxChars)
+      : 1200;
+
+  if (!trimmed) {
+    throw new Error("Digite um texto antes de usar o assistente.");
+  }
+
+  if (trimmed.length > maxChars) {
+    throw new Error(`Limite de ${maxChars} caracteres excedido.`);
+  }
+
+  const isActivityField = input.field === "activity";
+  const fieldLabel = isActivityField ? "atividade" : "conclusao";
+  const payload = {
+    field: input.field,
+    mode: input.mode,
+    maxChars,
+    text: trimmed,
+  };
+  const cacheKey = buildAiCacheKey("rewriteReportText", payload, options?.cache);
+  const ttlMs = options?.cache?.ttlMs ?? 0;
+
+  return withAiCache(cacheKey, ttlMs, async () => {
+    const prompt = buildStructuredPrompt(
+      [
+        `Reescreva o campo '${fieldLabel}' de um relatorio de aula para projeto social.`,
+        "Use portugues-BR claro e profissional.",
+        "Nao use o termo 'alunos'; prefira 'participantes' ou 'turma'.",
+        "Mantenha o sentido original e o nivel de detalhe.",
+        "Nao invente fatos, datas, metricas, nomes, acoes ou resultados.",
+        isActivityField
+          ? "Para atividade, seja objetivo em uma frase curta (ate 180 caracteres), focada no que foi aplicado."
+          : "Para conclusao, mantenha observacoes finais, convivio e evolucao de forma clara.",
+        "Retorne somente JSON valido no formato solicitado.",
+      ].join(" "),
+      payload,
+      '{ "rewrittenText": string }'
+    );
+
+    const response = await postAssistant([{ role: "user", content: prompt }], input.classId);
+    const json = extractJsonObject(response.reply) ?? {};
+    let rewrittenText = String(json.rewrittenText ?? "").trim();
+    if (!rewrittenText) {
+      const fallbackText = String(response.reply ?? "")
+        .replace(/```(?:json)?/gi, "")
+        .replace(/```/g, "")
+        .trim();
+      const looksLikeJsonObject =
+        fallbackText.startsWith("{") && fallbackText.endsWith("}");
+      rewrittenText = looksLikeJsonObject ? "" : fallbackText;
+    }
+    if (!rewrittenText) {
+      throw new Error("Nao foi possivel gerar sugestao de texto agora.");
+    }
+
+    return { rewrittenText };
   });
 }

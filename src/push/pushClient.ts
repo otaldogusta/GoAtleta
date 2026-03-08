@@ -1,10 +1,10 @@
 import * as Sentry from "@sentry/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
 import { upsertMyPushToken } from "../api/push-tokens";
+import { getNotificationsModule, isExpoGo } from "./notificationRuntime";
 
 export type PushRoutePayload = {
   route: string;
@@ -47,7 +47,9 @@ export const resolvePushRoutePayload = (input: unknown): PushRoutePayload | null
 };
 
 export const ensurePushPermissions = async (): Promise<boolean> => {
-  if (Platform.OS === "web") return false;
+  if (Platform.OS === "web" || isExpoGo) return false;
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return false;
   try {
     const current = await Notifications.getPermissionsAsync();
     if (current.granted) {
@@ -80,7 +82,9 @@ const getProjectId = () => {
 };
 
 export const getExpoPushTokenSafe = async (): Promise<string> => {
-  if (Platform.OS === "web") return "";
+  if (Platform.OS === "web" || isExpoGo) return "";
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return "";
   const allowed = await ensurePushPermissions();
   if (!allowed) return "";
   try {
@@ -103,6 +107,13 @@ export const getExpoPushTokenSafe = async (): Promise<string> => {
 };
 
 export const attachPushListeners = (router: PushRouter): (() => void) => {
+  if (Platform.OS === "web" || isExpoGo) {
+    return () => undefined;
+  }
+  const Notifications = getNotificationsModule();
+  if (!Notifications) {
+    return () => undefined;
+  }
   const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
     const payload = resolvePushRoutePayload(notification.request.content.data);
     addPushBreadcrumb("push.receive", {
@@ -136,7 +147,7 @@ export async function ensurePushTokenRegistered(params: {
   deviceId?: string | null;
 }): Promise<void> {
   const organizationId = String(params.organizationId ?? "").trim();
-  if (!organizationId || Platform.OS === "web") return;
+  if (!organizationId || Platform.OS === "web" || isExpoGo) return;
   const inFlightKey = organizationId;
   const existing = tokenRegisterInFlight.get(inFlightKey);
   if (existing) {
@@ -170,4 +181,3 @@ export async function ensurePushTokenRegistered(params: {
   tokenRegisterInFlight.set(inFlightKey, task);
   await task;
 }
-

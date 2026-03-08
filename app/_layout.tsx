@@ -44,6 +44,11 @@ import { SaveToastProvider } from "../src/ui/save-toast";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 
 const trainerPermissionByPrefix = [
+  { prefix: "/prof/classes", permissionKey: "classes" },
+  { prefix: "/prof/planning", permissionKey: "training" },
+  { prefix: "/prof/reports", permissionKey: "reports" },
+  { prefix: "/coord/reports", permissionKey: "reports" },
+  { prefix: "/coord/management", permissionKey: "org_members" },
   { prefix: "/coordination", permissionKey: "org_members" },
   { prefix: "/evidence", permissionKey: "assistant" },
   { prefix: "/reports", permissionKey: "reports" },
@@ -68,9 +73,12 @@ const studentOnlyRoutes = [
   "/communications",
   "/student-plan",
   "/student-home",
+  "/student",
 ];
 
 const trainerOnlyPrefixes = [
+  "/prof",
+  "/coord",
   "/coordination",
   "/evidence",
   "/absence-notices",
@@ -108,6 +116,18 @@ Sentry.init({
   // spotlight: __DEV__,
 });
 
+function safeReplaceHistoryUrl(url: string) {
+  if (Platform.OS !== "web") return;
+  if (typeof window === "undefined") return;
+  try {
+    // Preserve router-managed history state to avoid breaking React Navigation rehydration.
+    const currentState = window.history.state ?? null;
+    window.history.replaceState(currentState, "", url);
+  } catch {
+    // Non-blocking fallback for restrictive browser environments.
+  }
+}
+
 function RootLayoutContent() {
   const { colors, mode } = useAppTheme();
   const router = useRouter();
@@ -121,7 +141,11 @@ function RootLayoutContent() {
   const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
   const { isEnabled: biometricsEnabled, isUnlocked, hasCredentialLoginBypass } = useBiometricLock();
   const hadSessionRef = useRef(false);
-  const navReady = Boolean(rootState.key);
+  const initialRouteGuardAppliedRef = useRef(false);
+  const stuckEventsGuardRef = useRef(false);
+  const appStartedAtRef = useRef(Date.now());
+  const navReady = Boolean(rootState?.key);
+  const isAdminProfile = role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
   const isBooting =
     bootstrapLoading ||
     !navReady ||
@@ -192,6 +216,30 @@ function RootLayoutContent() {
       router.replace("/");
     }
   }, [normalizedPathname, router, session]);
+
+  useEffect(() => {
+    if (initialRouteGuardAppliedRef.current) return;
+    if (bootstrapLoading || !navReady || loading) return;
+    initialRouteGuardAppliedRef.current = true;
+
+    // Guard against stale deep-link/navigation state restoring users into /events on app boot.
+    if (session && normalizedPathname === "/events") {
+      router.replace("/");
+    }
+  }, [bootstrapLoading, loading, navReady, normalizedPathname, router, session]);
+
+  useEffect(() => {
+    if (stuckEventsGuardRef.current) return;
+    if (bootstrapLoading || !navReady || loading) return;
+    if (normalizedPathname !== "/events") return;
+
+    const routeCount = Array.isArray(rootState?.routes) ? rootState.routes.length : 0;
+    const elapsedMs = Date.now() - appStartedAtRef.current;
+    if (routeCount <= 1 && elapsedMs < 15_000) {
+      stuckEventsGuardRef.current = true;
+      router.replace("/");
+    }
+  }, [bootstrapLoading, loading, navReady, normalizedPathname, rootState?.routes, router]);
 
   useEffect(() => {
     // If web OAuth code is present, let the code-exchange effect handle navigation first
@@ -267,11 +315,16 @@ function RootLayoutContent() {
         return;
       }
     }
-    if (session && role === "trainer" && studentOnlyRoutes.includes(normalizedPathname)) {
+    if (
+      session &&
+      role === "trainer" &&
+      (studentOnlyRoutes.includes(normalizedPathname) ||
+        normalizedPathname.startsWith("/student"))
+    ) {
       router.replace("/");
       return;
     }
-    if (session && role === "trainer") {
+    if (session && role === "trainer" && !isAdminProfile) {
       const matched = trainerPermissionByPrefix.find((item) =>
         normalizedPathname.startsWith(item.prefix)
       );
@@ -296,6 +349,7 @@ function RootLayoutContent() {
     role,
     roleLoading,
     session,
+    isAdminProfile,
   ]);
 
   useEffect(() => {
@@ -315,7 +369,7 @@ function RootLayoutContent() {
           console.log("[OAuth] Session exchange successful, redirecting to home");
         // Clean up URL
         const newUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
+        safeReplaceHistoryUrl(newUrl);
         await redirectAfterAuth();
       }).catch((err) => {
         console.error("[OAuth] Failed to exchange code:", err);
@@ -343,12 +397,12 @@ function RootLayoutContent() {
       };
       consumeAuthUrl(window.location.href).then(async () => {
         const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, "", cleanUrl);
+        safeReplaceHistoryUrl(cleanUrl);
         await redirectAfterAuth();
       }).catch((err) => {
         console.error("[Auth] Failed to consume auth URL:", err);
         const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, "", cleanUrl);
+        safeReplaceHistoryUrl(cleanUrl);
         router.replace("/welcome");
       });
       return;

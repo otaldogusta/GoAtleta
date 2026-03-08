@@ -83,7 +83,6 @@ import {
 
 import { useOrganization } from "../../providers/OrganizationProvider";
 
-import { Card } from "../../ui/Card";
 
 import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 
@@ -1326,7 +1325,7 @@ export function HomeProfessorScreen({
 
       <ScrollView
 
-        contentContainerStyle={{ padding: 16, gap: 14 }}
+        contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 220 }}
 
         refreshControl={
           Platform.OS === "web"
@@ -2535,21 +2534,41 @@ export function HomeProfessorScreen({
 
             </Pressable>
 
+            <Pressable
+
+              onPress={() => router.push({ pathname: "/periodization" })}
+
+              style={{
+
+                flexBasis: "48%",
+
+                padding: 14,
+
+                borderRadius: 18,
+
+                ...shortcutCardSurfaceStyle,
+
+              }}
+
+            >
+
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+
+                Periodização
+
+              </Text>
+
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+
+                Ciclos e cargas
+
+              </Text>
+
+            </Pressable>
+
           </View>
 
         </View>
-
-
-
-        <Card
-
-          title="Periodização"
-
-          subtitle="Ciclos e cargas"
-
-          onPress={() => router.push({ pathname: "/periodization" })}
-
-        />
         </>
         ) : null}
 
@@ -2571,52 +2590,6 @@ export function HomeProfessorScreen({
           }}
         />
       )}
-
-
-
-      <Pressable
-
-        onPress={() => router.push({ pathname: "/assistant" })}
-
-        style={{
-
-          position: "absolute",
-
-          right: 16,
-
-          bottom: 24,
-
-          width: 56,
-
-          height: 56,
-
-          borderRadius: 28,
-
-          backgroundColor: colors.primaryBg,
-
-          alignItems: "center",
-
-          justifyContent: "center",
-
-          shadowColor: "#000",
-
-          shadowOpacity: 0.25,
-
-          shadowRadius: 12,
-
-          shadowOffset: { width: 0, height: 8 },
-
-          elevation: 6,
-
-        }}
-
-      >
-        <Ionicons name="sparkles" size={20} color={colors.primaryText} />
-
-      </Pressable>
-
-
-
       { showInbox ? (
 
         <View

@@ -61,6 +61,11 @@ export default function StudentHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const profilePhotoUri = student?.photoUrl ?? null;
+  const studentClassId = student?.classId ?? "";
+  const studentNameFirst = useMemo(() => {
+    const name = student?.name?.trim() ?? "";
+    return name ? name.split(" ")[0] : "";
+  }, [student?.name]);
   const [now, setNow] = useState(() => new Date());
   const agendaScrollRef = useRef<ScrollView>(null);
   const [agendaWidth, setAgendaWidth] = useState(0);
@@ -246,7 +251,7 @@ export default function StudentHome() {
 
   const openDayPlan = useCallback(() => {
     if (!canOpenDayPlan) return;
-    const classId = activeAgendaItem?.classId ?? student.classId ?? "";
+    const classId = activeAgendaItem?.classId ?? studentClassId;
     const date = activeAgendaItem?.dateKey ?? todayDateKey;
     if (!classId) {
       router.push({ pathname: "/student-plan" });
@@ -261,7 +266,7 @@ export default function StudentHome() {
     activeAgendaItem?.dateKey,
     canOpenDayPlan,
     router,
-    student.classId,
+    studentClassId,
     todayDateKey,
   ]);
 
@@ -318,7 +323,7 @@ export default function StudentHome() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View>
                 <Text style={{ fontSize: 24, fontWeight: "700", color: colors.text }}>
-                  Olá{student.name ? `, ${student.name.split(" ")[0]}` : ""}
+                  Olá{studentNameFirst ? `, ${studentNameFirst}` : ""}
                 </Text>
                 <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
                   {todayLabel}
@@ -449,13 +454,13 @@ export default function StudentHome() {
             Perfil esportivo
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Posição principal: {student.positionPrimary || "indefinido"}
+            Posição principal: {student?.positionPrimary || "indefinido"}
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Posição secundária: {student.positionSecondary || "indefinido"}
+            Posição secundária: {student?.positionSecondary || "indefinido"}
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Objetivo: {student.athleteObjective || "base"} • Estilo: {student.learningStyle || "misto"}
+            Objetivo: {student?.athleteObjective || "base"} • Estilo: {student?.learningStyle || "misto"}
           </Text>
         </View>
 
