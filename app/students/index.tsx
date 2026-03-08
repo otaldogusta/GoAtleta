@@ -53,7 +53,7 @@ import {
 import { useEffectiveProfile } from "../../src/core/effective-profile";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
-import { measure } from "../../src/observability/perf";
+import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
 import { StudentDocumentsFields } from "../../src/screens/students/components/StudentDocumentsFields";
@@ -258,6 +258,7 @@ export default function StudentsScreen() {
     cpf?: string;
     rg?: string;
   }>({});
+  markRender("screen.students.render.root");
   const [revealCpfBusy, setRevealCpfBusy] = useState(false);
   const [cpfMaskedOriginal, setCpfMaskedOriginal] = useState("");
   const [cpfRevealedValue, setCpfRevealedValue] = useState<string | null>(null);
@@ -420,11 +421,16 @@ export default function StudentsScreen() {
     let alive = true;
     (async () => {
       try {
-        const [classList, studentList, preRegistrationList] = await Promise.all([
-          getClasses({ organizationId: activeOrganization?.id }),
-          getStudents({ organizationId: activeOrganization?.id }),
-          getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
-        ]);
+        const [classList, studentList, preRegistrationList] = await measureAsync(
+          "screen.students.load.initial",
+          () =>
+            Promise.all([
+              getClasses({ organizationId: activeOrganization?.id }),
+              getStudents({ organizationId: activeOrganization?.id }),
+              getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
+            ]),
+          { hasOrganization: activeOrganization?.id ? 1 : 0 }
+        );
         if (!alive) return;
         setClasses(classList);
         setStudents(studentList);

@@ -4,6 +4,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { markRender } from "../../src/observability/perf";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
@@ -441,6 +442,8 @@ const buildPlanRow = (row: CsvRow, classId: string): TrainingPlan => {
 };
 
 export default function ImportTrainingCsvScreen() {
+  markRender("screen.trainingImport.render.root");
+  // perf-check: ignore-measure - tela atua como redirect e nao possui bootstrap proprio.
   return <Redirect href="/training" />;
 
   const { classId: classIdHintParam, unit: unitHintParam } = useLocalSearchParams<{

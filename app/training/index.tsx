@@ -49,7 +49,7 @@ import {
 } from "../../src/db/seed";
 import { notifyTrainingSaved } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
-import { measure } from "../../src/observability/perf";
+import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -258,6 +258,7 @@ export default function TrainingList() {
   const [templateWarmupTime, setTemplateWarmupTime] = useState("");
   const [templateMainTime, setTemplateMainTime] = useState("");
   const [templateCooldownTime, setTemplateCooldownTime] = useState("");
+  markRender("screen.training.render.root");
   const [lastCreatedPlanId, setLastCreatedPlanId] = useState<string | null>(null);
   const [lastCreatedClassId, setLastCreatedClassId] = useState("");
   const [templateEditorSnapshot, setTemplateEditorSnapshot] = useState<{
@@ -688,12 +689,17 @@ export default function TrainingList() {
     let alive = true;
     (async () => {
       try {
-        const [classList, plans, templatesDb, hidden] = await Promise.all([
-          getClasses(),
-          getTrainingPlans(),
-          getTrainingTemplates(),
-          getHiddenTemplates(),
-        ]);
+        const [classList, plans, templatesDb, hidden] = await measureAsync(
+          "screen.training.load.initial",
+          () =>
+            Promise.all([
+              getClasses(),
+              getTrainingPlans(),
+              getTrainingTemplates(),
+              getHiddenTemplates(),
+            ]),
+          { hasSelectedClass: classId ? 1 : 0 }
+        );
         if (!alive) return;
         setClasses(classList);
         setTemplateItems(templatesDb);
