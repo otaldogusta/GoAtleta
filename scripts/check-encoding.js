@@ -8,6 +8,8 @@ const VALID_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".json", ".md"])
 const IGNORE_DIRS = new Set([
   ".git",
   ".expo",
+  ".expo-web-build-check",
+  ".expo-web-build-check2",
   ".next",
   "android",
   "build",
