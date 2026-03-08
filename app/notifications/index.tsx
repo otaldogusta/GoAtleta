@@ -57,7 +57,7 @@ export default function NotificationsScreen() {
     }
     const Notifications = getNotificationsModule();
     if (!Notifications) {
-      setStatus("NotificaÃ§Ãµes indisponÃ­veis neste ambiente.");
+      setStatus("Notificações indisponíveis neste ambiente.");
       return;
     }
     await Notifications.cancelAllScheduledNotificationsAsync();
