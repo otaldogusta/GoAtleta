@@ -141,7 +141,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
   const [devProfilePreview, setDevProfilePreviewState] = useState<DevProfilePreview>("auto");
   const [student, setStudent] = useState<Student | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     const preview = await getDevProfilePreview();
@@ -150,6 +150,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     if (!session) {
       setRole(null);
       setStudent(null);
+      setLoading(false);
       return;
     }
 
