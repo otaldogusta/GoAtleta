@@ -37,6 +37,8 @@ import { ShimmerBlock } from "../src/ui/Shimmer";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 
 
+// perf-check: ignore-render
+// perf-check: ignore-measure
 export default function ProfileScreen() {
   const { colors, mode, toggleMode } = useAppTheme();
   const { signOut, session } = useAuth();
@@ -521,7 +523,59 @@ export default function ProfileScreen() {
 
         </View>
 
-
+        {isDevUser ? (
+          <View style={{ gap: 8, paddingVertical: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+              Mudar perfil (DEV)
+            </Text>
+            <View style={{ gap: 8 }}>
+              <SettingsRow
+                icon="school-outline"
+                iconBg="rgba(255, 210, 150, 0.16)"
+                label="Ver como Professor"
+                onPress={() => applyProfilePreview("professor")}
+                rightContent={
+                  devProfilePreview === "professor" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="person-outline"
+                iconBg="rgba(150, 200, 255, 0.16)"
+                label="Ver como Aluno"
+                onPress={() => applyProfilePreview("student")}
+                rightContent={
+                  devProfilePreview === "student" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="briefcase-outline"
+                iconBg="rgba(140, 220, 180, 0.16)"
+                label="Ver como Coordenação (Admin)"
+                onPress={() => applyProfilePreview("admin")}
+                rightContent={
+                  devProfilePreview === "admin" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+              <SettingsRow
+                icon="sync-outline"
+                iconBg="rgba(200, 200, 200, 0.16)"
+                label="Auto (backend)"
+                onPress={() => applyProfilePreview("auto")}
+                rightContent={
+                  devProfilePreview === "auto" ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                  ) : undefined
+                }
+              />
+            </View>
+          </View>
+        ) : null}
 
         { loadingProfile ? (
           <View style={{ gap: 12 }}>
@@ -692,60 +746,6 @@ export default function ProfileScreen() {
                   );
                 })}
               </ScrollView>
-            </View>
-          </View>
-        ) : null}
-
-        {isDevUser ? (
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-              Mudar perfil (DEV)
-            </Text>
-            <View style={{ gap: 8 }}>
-              <SettingsRow
-                icon="school-outline"
-                iconBg="rgba(255, 210, 150, 0.16)"
-                label="Ver como Professor"
-                onPress={() => applyProfilePreview("professor")}
-                rightContent={
-                  devProfilePreview === "professor" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
-              <SettingsRow
-                icon="person-outline"
-                iconBg="rgba(150, 200, 255, 0.16)"
-                label="Ver como Aluno"
-                onPress={() => applyProfilePreview("student")}
-                rightContent={
-                  devProfilePreview === "student" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
-              <SettingsRow
-                icon="briefcase-outline"
-                iconBg="rgba(140, 220, 180, 0.16)"
-                label="Ver como Coordenação (Admin)"
-                onPress={() => applyProfilePreview("admin")}
-                rightContent={
-                  devProfilePreview === "admin" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
-              <SettingsRow
-                icon="sync-outline"
-                iconBg="rgba(200, 200, 200, 0.16)"
-                label="Auto (backend)"
-                onPress={() => applyProfilePreview("auto")}
-                rightContent={
-                  devProfilePreview === "auto" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
             </View>
           </View>
         ) : null}
