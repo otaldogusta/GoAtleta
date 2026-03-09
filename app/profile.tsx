@@ -330,8 +330,16 @@ export default function ProfileScreen() {
   const applyProfilePreview = useCallback(async (preview: "professor" | "student" | "admin" | "auto") => {
     await setDevProfilePreview(preview);
     await refreshRole();
-    // Defer navigation so React processa os state updates antes de navegar
-    setTimeout(() => router.replace("/"), 0);
+    // Navega diretamente para a rota certa sem passar por index.tsx
+    // (evita race condition onde index.tsx ainda lê o perfil antigo)
+    if (preview === "student") {
+      router.replace("/student/home" as Parameters<typeof router.replace>[0]);
+    } else if (preview === "professor") {
+      router.replace("/prof/home" as Parameters<typeof router.replace>[0]);
+    } else {
+      // "admin" ou "auto" — deixa index.tsx decidir com delay
+      setTimeout(() => router.replace("/"), 50);
+    }
   }, [setDevProfilePreview, refreshRole, router]);
 
   const savePhoto = async (uri: string | null) => {
