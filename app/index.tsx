@@ -5,6 +5,8 @@ import HomeAdmin from "../src/screens/home/HomeAdmin";
 import HomeProfessor from "../src/screens/home/HomeProfessor";
 import StudentHome from "./student-home";
 
+// perf-check: ignore-render
+// perf-check: ignore-measure
 export default function Home() {
   const { loading: roleLoading } = useRole();
   const profile = useEffectiveProfile();

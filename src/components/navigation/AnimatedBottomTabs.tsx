@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -28,12 +28,12 @@ export function AnimatedBottomTabs({
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const iconAnim = useSharedValue(0);
 
   const tabs = ROLE_TABS[role];
   const radialActions = ROLE_RADIAL_ACTIONS[role];
-  const focusedIndex = state.index;
   const bottom = Math.max(insets.bottom + 8, 14);
 
   useEffect(() => {
@@ -57,10 +57,12 @@ export function AnimatedBottomTabs({
     ],
   }));
 
-  const tabRouteNames = useMemo(
-    () => state.routes.map((route) => route.name),
-    [state.routes]
-  );
+  // Usa pathname para determinar o tab focado — mais confiável no web
+  // onde state.routes pode não conter rotas não visitadas.
+  const focusedRouteName = useMemo(() => {
+    const segments = pathname.split("/").filter(Boolean);
+    return segments[segments.length - 1] ?? "";
+  }, [pathname]);
 
   return (
     <View
@@ -101,8 +103,7 @@ export function AnimatedBottomTabs({
         }}
       >
         {tabs.map((tab) => {
-          const routeIndex = tabRouteNames.findIndex((name) => name === tab.routeName);
-          const focused = !tab.isCenter && routeIndex === focusedIndex;
+          const focused = !tab.isCenter && focusedRouteName === tab.routeName;
           if (tab.isCenter) {
             return (
               <Pressable
@@ -132,9 +133,9 @@ export function AnimatedBottomTabs({
               key={tab.key}
               onPress={() => {
                 setMenuOpen(false);
-                if (routeIndex < 0) return;
-                const route = state.routes[routeIndex];
-                navigation.navigate(route.name, route.params);
+                // Navega via URL direta para evitar o bug onde state.routes
+                // não contém rotas não visitadas no web (routeIndex = -1).
+                router.navigate(`/${role}/${tab.routeName}` as Parameters<typeof router.navigate>[0]);
               }}
               style={{
                 flex: 1,
