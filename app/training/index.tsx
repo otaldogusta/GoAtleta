@@ -134,6 +134,30 @@ const formatWeekdays = (days: number[]) => {
   return labels.join(", ");
 };
 
+const parseTimeParts = (value: string) => {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  return { hour: Number(match[1]), minute: Number(match[2]) };
+};
+
+const getCalendarId = async () => {
+  if (Platform.OS === "web") return null;
+  const permission = await Calendar.requestCalendarPermissionsAsync();
+  if (!permission.granted) return null;
+  if (Platform.OS === "ios") {
+    const defaultCalendar = await Calendar.getDefaultCalendarAsync();
+    if (defaultCalendar.id) return defaultCalendar.id;
+  }
+  const calendars = await Calendar.getCalendarsAsync(
+    Calendar.EntityTypes.EVENT
+  );
+  const writable = calendars.find((item) => item.allowsModifications);
+  return writable?.id ?? calendars[0]?.id ?? null;
+};
+
+const unitLabelFor = (value: string) =>
+  value && value.trim() ? value.trim() : "Sem unidade";
+
 const extractKeywords = (value: string) => {
   const stopwords = new Set([
     "para",
@@ -404,8 +428,7 @@ export default function TrainingList() {
     return map;
   }, [classes]);
 
-  const unitLabel = (value: string) =>
-    value && value.trim() ? value.trim() : "Sem unidade";
+  const unitLabel = unitLabelFor;
 
   const ALL_UNITS_VALUE = "__all__";
 
@@ -415,18 +438,18 @@ export default function TrainingList() {
       units.add(unitLabel(item.unit));
     });
     return Array.from(units).sort((a, b) => a.localeCompare(b));
-  }, [classes]);
+  }, [classes, unitLabel]);
 
   const classOptionsForUnit = useMemo(() => {
     if (applyUnit === ALL_UNITS_VALUE) return sortedClasses;
     if (!applyUnit) return [];
     return sortedClasses.filter((item) => unitLabel(item.unit) === applyUnit);
-  }, [applyUnit, sortedClasses]);
+  }, [applyUnit, sortedClasses, unitLabel]);
   const classOptionsForForm = useMemo(() => {
     if (formUnit === ALL_UNITS_VALUE) return sortedClasses;
     if (!formUnit) return [];
     return sortedClasses.filter((item) => unitLabel(item.unit) === formUnit);
-  }, [formUnit, sortedClasses]);
+  }, [formUnit, sortedClasses, unitLabel]);
   const selectedApplyClass = useMemo(
     () => classOptionsForUnit.find((item) => item.id === applyClassId) ?? null,
     [applyClassId, classOptionsForUnit]
@@ -445,7 +468,7 @@ export default function TrainingList() {
     if (selectedUnit && selectedUnit !== formUnit) {
       setFormUnit(selectedUnit);
     }
-  }, [classId, classes, formUnit]);
+  }, [classId, classes, formUnit, unitLabel]);
 
   useEffect(() => {
     if (!formUnit || !classId) return;
@@ -454,7 +477,7 @@ export default function TrainingList() {
     if (unitLabel(selected.unit) !== formUnit) {
       setClassId("");
     }
-  }, [formUnit, classId, classes]);
+  }, [formUnit, classId, classes, unitLabel]);
 
   useEffect(() => {
     if (!applyPlan) return;
@@ -492,7 +515,7 @@ export default function TrainingList() {
       days: (applyPlan.applyDays ?? []).slice().sort((a, b) => a - b),
       date: resolvedDate,
     });
-  }, [applyPlan, classes, lastCreatedClassId, lastCreatedPlanId, targetClassId, targetDate]);
+  }, [applyPlan, classes, lastCreatedClassId, lastCreatedPlanId, targetClassId, targetDate, unitLabel]);
 
   useEffect(() => {
     if (!applyPlanId || applyPlanId === handledApplyPlanId) return;
@@ -513,28 +536,7 @@ export default function TrainingList() {
   }, [handledViewPlanId, items, viewPlanId]);
 
 
-  const parseTimeParts = (value: string) => {
-    const match = value.match(/^(\d{2}):(\d{2})$/);
-    if (!match) return null;
-    return { hour: Number(match[1]), minute: Number(match[2]) };
-  };
-
-  const getCalendarId = async () => {
-    if (Platform.OS === "web") return null;
-    const permission = await Calendar.requestCalendarPermissionsAsync();
-    if (!permission.granted) return null;
-    if (Platform.OS === "ios") {
-      const defaultCalendar = await Calendar.getDefaultCalendarAsync();
-      if (defaultCalendar.id) return defaultCalendar.id;
-    }
-    const calendars = await Calendar.getCalendarsAsync(
-      Calendar.EntityTypes.EVENT
-    );
-    const writable = calendars.find((item) => item.allowsModifications);
-    return writable?.id ?? calendars[0]?.id ?? null;
-  };
-
-  const createCalendarEvent = async (plan: TrainingPlan) => {
+  const createCalendarEvent = useCallback(async (plan: TrainingPlan) => {
     if (Platform.OS === "web") return;
     if (!plan.applyDate) return;
     const classItem = classes.find((item) => item.id === plan.classId);
@@ -557,7 +559,7 @@ export default function TrainingList() {
       location: classItem.unit || undefined,
       notes: `Planejamento aplicado para ${classItem.name}.`,
     });
-  };
+  }, [classes]);
 
   useEffect(() => {
     if (!applyClassId) return;
@@ -1217,10 +1219,10 @@ export default function TrainingList() {
     templateWarmup,
   ]);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     const data = await getTrainingPlans();
     setItems(data);
-  };
+  }, []);
 
   const savePlan = async () => {
     if (!classId) return;

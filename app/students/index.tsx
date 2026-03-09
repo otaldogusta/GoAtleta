@@ -145,6 +145,84 @@ const formatClassScheduleLabel = (cls: ClassGroup | null) => {
   if (daysLabel && timeLabel) return `${daysLabel} ${timeLabel}`;
   return daysLabel || timeLabel;
 };
+
+const formatShortDate = (value: string) => {
+  if (!value) return "";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return value;
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
+};
+
+const formatIsoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseIsoDate = (value: string) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const local = new Date(year, month - 1, day);
+    return Number.isNaN(local.getTime()) ? null : local;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const calculateAge = (iso: string) => {
+  const date = parseIsoDate(iso);
+  if (!date) return null;
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDiff = today.getMonth() - date.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+  return age;
+};
+
+const getDaysUntilBirthday = (birthDate: Date, today: Date) => {
+  const thisYear = today.getFullYear();
+  const nextBirthday = new Date(
+    thisYear,
+    birthDate.getMonth(),
+    birthDate.getDate()
+  );
+  if (nextBirthday < today) {
+    nextBirthday.setFullYear(thisYear + 1);
+  }
+  const diffTime = nextBirthday.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+const hasBirthdayPassed = (birthDate: Date, today: Date) => {
+  const birthMonth = birthDate.getMonth();
+  const birthDay = birthDate.getDate();
+  const todayMonth = today.getMonth();
+  const todayDay = today.getDate();
+  if (birthMonth < todayMonth) return true;
+  if (birthMonth === todayMonth && birthDay < todayDay) return true;
+  return false;
+};
+
+const formatPhone = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 7) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+};
+
 type BirthdayEntry = { student: Student; date: Date; unitName: string };
 type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
@@ -444,14 +522,14 @@ export default function StudentsScreen() {
     };
   }, [activeOrganization?.id]);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     const [studentList, preRegistrationList] = await Promise.all([
       getStudents({ organizationId: activeOrganization?.id }),
       getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
     ]);
     setStudents(studentList);
     setPreRegistrations(preRegistrationList);
-  };
+  }, [activeOrganization?.id]);
 
   useEffect(() => {
     if ((studentsTab as string) === "importar") {
@@ -1515,50 +1593,6 @@ export default function StudentsScreen() {
     [classId, classes]
   );
 
-  const formatShortDate = (value: string) => {
-    if (!value) return "";
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return value;
-    const [, year, month, day] = match;
-    return `${day}/${month}/${year}`;
-  };
-
-  const formatIsoDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const parseIsoDate = (value: string) => {
-    if (!value) return null;
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (match) {
-      const year = Number(match[1]);
-      const month = Number(match[2]);
-      const day = Number(match[3]);
-      const local = new Date(year, month - 1, day);
-      return Number.isNaN(local.getTime()) ? null : local;
-    }
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  };
-
-  const calculateAge = (iso: string) => {
-    const date = parseIsoDate(iso);
-    if (!date) return null;
-    const today = new Date();
-    let age = today.getFullYear() - date.getFullYear();
-    const monthDiff = today.getMonth() - date.getMonth();
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < date.getDate())
-    ) {
-      age -= 1;
-    }
-    return age;
-  };
-
   const normalizeSearch = useCallback(
     (value: string) =>
       value
@@ -1568,39 +1602,6 @@ export default function StudentsScreen() {
         .trim(),
     []
   );
-
-  const getDaysUntilBirthday = (birthDate: Date, today: Date) => {
-    const thisYear = today.getFullYear();
-    const nextBirthday = new Date(
-      thisYear,
-      birthDate.getMonth(),
-      birthDate.getDate()
-    );
-    if (nextBirthday < today) {
-      nextBirthday.setFullYear(thisYear + 1);
-    }
-    const diffTime = nextBirthday.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const hasBirthdayPassed = (birthDate: Date, today: Date) => {
-    const birthMonth = birthDate.getMonth();
-    const birthDay = birthDate.getDate();
-    const todayMonth = today.getMonth();
-    const todayDay = today.getDate();
-    if (birthMonth < todayMonth) return true;
-    if (birthMonth === todayMonth && birthDay < todayDay) return true;
-    return false;
-  };
-
-  const formatPhone = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 11);
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 7) {
-      return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    }
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  };
 
   const sanitizePhone = (value: string) => value.replace(/\D/g, "");
 

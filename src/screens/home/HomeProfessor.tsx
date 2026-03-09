@@ -96,6 +96,59 @@ import { useSaveToast } from "../../ui/save-toast";
 import { markRender, measureAsync } from "../../observability/perf";
 import { AgendaCard } from "./components/AgendaCard";
 
+const formatTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const truncateBody = (value: string, max = 140) => {
+  if (value.length <= max) return value;
+  return value.slice(0, max).trimEnd() + "...";
+};
+
+const formatIsoDate = (value: Date) => {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const parseTime = (value: string) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  return { hour: Number(match[1]), minute: Number(match[2]) };
+};
+
+const formatRange = (hour: number, minute: number, durationMinutes: number) => {
+  const start = String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
+  const endTotal = hour * 60 + minute + durationMinutes;
+  const endHour = Math.floor(endTotal / 60) % 24;
+  const endMinute = endTotal % 60;
+  const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
+  return start + " - " + end;
+};
+
+const formatShortDate = (iso: string) => {
+  const parsed = new Date(iso + "T00:00:00");
+  if (Number.isNaN(parsed.getTime())) return iso;
+  const weekday = parsed.toLocaleDateString("pt-BR", {
+    weekday: "short",
+  });
+  const date = parsed.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+  const weekdayCapitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  return `${weekdayCapitalized} | ${date}`;
+};
+
 
 
 export function HomeProfessorScreen({
@@ -391,11 +444,17 @@ export function HomeProfessorScreen({
 
 
 
-  const unreadCount = inbox.filter((item) => !item.read).length;
+  const unreadCount = useMemo(
+    () => inbox.filter((item) => !item.read).length,
+    [inbox]
+  );
 
 
 
-  const openInbox = async () => {
+  const panelWidthRef = useRef(panelWidth);
+  panelWidthRef.current = panelWidth;
+
+  const openInbox = useCallback(async () => {
 
     await requestNotificationPermission();
 
@@ -413,15 +472,15 @@ export function HomeProfessorScreen({
 
     await markAllRead();
 
-  };
+  }, [inboxX]);
 
 
 
-  const closeInbox = () => {
+  const closeInbox = useCallback(() => {
 
     Animated.timing(inboxX, {
 
-      toValue: panelWidth,
+      toValue: panelWidthRef.current,
 
       duration: 200,
 
@@ -433,7 +492,14 @@ export function HomeProfessorScreen({
 
     });
 
-  };
+  }, [inboxX]);
+
+  // Keep refs in sync so PanResponder callbacks (created once on mount) always
+  // call the latest openInbox/closeInbox without a stale closure.
+  const openInboxRef = useRef(openInbox);
+  const closeInboxRef = useRef(closeInbox);
+  openInboxRef.current = openInbox;
+  closeInboxRef.current = closeInbox;
 
 
 
@@ -447,7 +513,7 @@ export function HomeProfessorScreen({
 
         if (gesture.dx < -30) {
 
-          void openInbox();
+          void openInboxRef.current();
 
         }
 
@@ -469,7 +535,7 @@ export function HomeProfessorScreen({
 
         if (gesture.dx > 30) {
 
-          closeInbox();
+          closeInboxRef.current();
 
         }
 
@@ -478,112 +544,6 @@ export function HomeProfessorScreen({
     })
 
   ).current;
-
-
-
-  const formatTime = (value: string) => {
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleString("pt-BR", {
-
-      day: "2-digit",
-
-      month: "2-digit",
-
-      hour: "2-digit",
-
-      minute: "2-digit",
-
-    });
-
-  };
-
-
-
-  const truncateBody = (value: string, max = 140) => {
-
-    if (value.length <= max) return value;
-
-    return value.slice(0, max).trimEnd() + "...";
-
-  };
-
-
-
-  const formatIsoDate = (value: Date) => {
-
-    const y = value.getFullYear();
-
-    const m = String(value.getMonth() + 1).padStart(2, "0");
-
-    const d = String(value.getDate()).padStart(2, "0");
-
-    return `${y}-${m}-${d}`;
-
-  };
-
-
-
-  const parseTime = (value: string) => {
-
-    if (!value) return null;
-
-    const match = value.match(/^(\d{2}):(\d{2})$/);
-
-    if (!match) return null;
-
-    return { hour: Number(match[1]), minute: Number(match[2]) };
-
-  };
-
-
-
-  const formatRange = (hour: number, minute: number, durationMinutes: number) => {
-
-    const start = String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
-
-    const endTotal = hour * 60 + minute + durationMinutes;
-
-    const endHour = Math.floor(endTotal / 60) % 24;
-
-    const endMinute = endTotal % 60;
-
-    const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
-
-    return start + " - " + end;
-
-  };
-
-
-
-  const formatShortDate = (iso: string) => {
-
-    const parsed = new Date(iso + "T00:00:00");
-
-    if (Number.isNaN(parsed.getTime())) return iso;
-
-    const weekday = parsed.toLocaleDateString("pt-BR", {
-
-      weekday: "short",
-
-    });
-
-    const date = parsed.toLocaleDateString("pt-BR", {
-
-      day: "2-digit",
-
-      month: "2-digit",
-
-    });
-
-    const weekdayCapitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-
-    return `${weekdayCapitalized} | ${date}`;
-
-  };
 
 
 
@@ -1055,11 +1015,11 @@ export function HomeProfessorScreen({
       date,
     };
   }, [activeItem]);
-  const showToast = (message: string, type: "info" | "success" | "error") => {
+  const showToast = useCallback((message: string, type: "info" | "success" | "error") => {
 
     showSaveToast({ message, variant: type });
 
-  };
+  }, [showSaveToast]);
 
   const showErrorToast = useCallback(
     (error: unknown) => {
@@ -1070,7 +1030,7 @@ export function HomeProfessorScreen({
 
 
 
-  const handleSyncPending = async () => {
+  const handleSyncPending = useCallback(async () => {
     try {
       const result = await syncNow();
       if (result.flushed) {
@@ -1083,7 +1043,7 @@ export function HomeProfessorScreen({
     } catch (error) {
       showErrorToast(error);
     }
-  };
+  }, [showErrorToast, showToast, syncNow]);
 
 
 
