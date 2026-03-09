@@ -330,7 +330,8 @@ export default function ProfileScreen() {
   const applyProfilePreview = useCallback(async (preview: "professor" | "student" | "admin" | "auto") => {
     await setDevProfilePreview(preview);
     await refreshRole();
-    router.replace("/");
+    // Defer navigation so React processa os state updates antes de navegar
+    setTimeout(() => router.replace("/"), 0);
   }, [setDevProfilePreview, refreshRole, router]);
 
   const savePhoto = async (uri: string | null) => {
