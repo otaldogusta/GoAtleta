@@ -103,7 +103,7 @@ const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
 
 Sentry.init({
-  dsn: 'https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320',
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? '',
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -360,19 +360,16 @@ function RootLayoutContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     if (code) {
-        console.log("[OAuth] Found code in URL, exchanging for session...");
       const redirectAfterAuth = async () => {
         const pending = await getPendingInvite();
         router.replace(pending ? `/invite/${pending}` : "/");
       };
       exchangeCodeForSession(code).then(async () => {
-          console.log("[OAuth] Session exchange successful, redirecting to home");
         // Clean up URL
         const newUrl = window.location.origin + window.location.pathname;
         safeReplaceHistoryUrl(newUrl);
         await redirectAfterAuth();
-      }).catch((err) => {
-        console.error("[OAuth] Failed to exchange code:", err);
+      }).catch(() => {
         router.replace("/welcome");
       });
       return;
@@ -390,7 +387,6 @@ function RootLayoutContent() {
       return;
     }
     if (accessToken && type !== "recovery") {
-      console.log("[Auth] Found access token in URL, saving session...");
       const redirectAfterAuth = async () => {
         const pending = await getPendingInvite();
         router.replace(pending ? `/invite/${pending}` : "/");
@@ -399,8 +395,7 @@ function RootLayoutContent() {
         const cleanUrl = window.location.origin + window.location.pathname;
         safeReplaceHistoryUrl(cleanUrl);
         await redirectAfterAuth();
-      }).catch((err) => {
-        console.error("[Auth] Failed to consume auth URL:", err);
+      }).catch(() => {
         const cleanUrl = window.location.origin + window.location.pathname;
         safeReplaceHistoryUrl(cleanUrl);
         router.replace("/welcome");
