@@ -45,14 +45,12 @@ const migrateLegacyPreview = async () => {
 };
 
 export async function getDevProfilePreview(): Promise<DevProfilePreview> {
-  if (!__DEV__) return "auto";
   await migrateLegacyPreview();
   const raw = await AsyncStorage.getItem(PREVIEW_KEY);
   return toPreview(raw) ?? "auto";
 }
 
 export async function setDevProfilePreview(value: DevProfilePreview): Promise<void> {
-  if (!__DEV__) return;
   if (value === "auto") {
     await AsyncStorage.removeItem(PREVIEW_KEY);
     return;
