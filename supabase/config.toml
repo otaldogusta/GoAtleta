@@ -12,10 +12,25 @@ verify_jwt = false
 [functions.claim-trainer-invite]
 verify_jwt = true
 
+[functions.create-trainer-invite]
+verify_jwt = true
+
+[functions.list-trainer-invites]
+verify_jwt = true
+
+[functions.revoke-trainer-invite]
+verify_jwt = true
+
 [functions.create-student-invite]
 verify_jwt = true
 
 [functions.claim-student-invite]
+verify_jwt = true
+
+[functions.list-student-invites]
+verify_jwt = true
+
+[functions.revoke-student-invite]
 verify_jwt = true
 
 [functions.invite-link]

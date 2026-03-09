@@ -25,7 +25,14 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SUPABASE_URL } from "../../src/api/config";
-import { createStudentInvite, revokeStudentAccess } from "../../src/api/student-invite";
+import { getInviteErrorCode } from "../../src/api/invite-errors";
+import {
+    StudentInvitePendingItem,
+    createStudentInvite,
+    listStudentPendingInvites,
+    revokeStudentAccess,
+    revokeStudentInvite,
+} from "../../src/api/student-invite";
 import {
     removeStudentPhotoObject,
     uploadStudentPhoto,
@@ -35,6 +42,7 @@ import {
     compareClassesBySchedule,
     sortClassesBySchedule,
 } from "../../src/core/class-schedule-sort";
+import { useEffectiveProfile } from "../../src/core/effective-profile";
 import type { ClassGroup, Student, StudentPreRegistration } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
@@ -45,18 +53,17 @@ import {
     getStudentPreRegistrations,
     getStudents,
     revealStudentCpf,
-    saveStudentPreRegistration,
     saveStudent,
-    updateStudentPreRegistration,
+    saveStudentPreRegistration,
     updateStudent,
+    updateStudentPreRegistration,
 } from "../../src/db/seed";
-import { useEffectiveProfile } from "../../src/core/effective-profile";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
-import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
 import { StudentDocumentsFields } from "../../src/screens/students/components/StudentDocumentsFields";
+import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
 import { StudentsImportModal } from "../../src/screens/students/modals/StudentsImportModal";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
@@ -277,6 +284,8 @@ export default function StudentsScreen() {
   const [editingPreId, setEditingPreId] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState("");
   const [studentInviteBusy, setStudentInviteBusy] = useState(false);
+  const [pendingStudentInvites, setPendingStudentInvites] = useState<StudentInvitePendingItem[]>([]);
+  const [pendingStudentInviteBusyId, setPendingStudentInviteBusyId] = useState<string | null>(null);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [whatsappNotice, setWhatsappNotice] = useState("");
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
@@ -421,13 +430,14 @@ export default function StudentsScreen() {
     let alive = true;
     (async () => {
       try {
-        const [classList, studentList, preRegistrationList] = await measureAsync(
+        const [classList, studentList, preRegistrationList, pendingInvitesResult] = await measureAsync(
           "screen.students.load.initial",
           () =>
             Promise.all([
               getClasses({ organizationId: activeOrganization?.id }),
               getStudents({ organizationId: activeOrganization?.id }),
               getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
+              listStudentPendingInvites().catch(() => ({ invites: [] })),
             ]),
           { hasOrganization: activeOrganization?.id ? 1 : 0 }
         );
@@ -435,6 +445,7 @@ export default function StudentsScreen() {
         setClasses(classList);
         setStudents(studentList);
         setPreRegistrations(preRegistrationList);
+        setPendingStudentInvites(pendingInvitesResult.invites ?? []);
       } finally {
         if (alive) setLoading(false);
       }
@@ -445,12 +456,14 @@ export default function StudentsScreen() {
   }, [activeOrganization?.id]);
 
   const reload = async () => {
-    const [studentList, preRegistrationList] = await Promise.all([
+    const [studentList, preRegistrationList, pendingInvitesResult] = await Promise.all([
       getStudents({ organizationId: activeOrganization?.id }),
       getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
+      listStudentPendingInvites().catch(() => ({ invites: [] })),
     ]);
     setStudents(studentList);
     setPreRegistrations(preRegistrationList);
+    setPendingStudentInvites(pendingInvitesResult.invites ?? []);
   };
 
   useEffect(() => {
@@ -1702,6 +1715,23 @@ export default function StudentsScreen() {
 
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  const toInviteErrorMessage = useCallback((error: unknown) => {
+    const code = getInviteErrorCode(error);
+    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
+      return "Sessão expirada. Entre novamente para gerar o convite.";
+    }
+    if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") {
+      return "Sem permissão para gerar o convite.";
+    }
+    if (code === "STUDENT_ALREADY_LINKED") {
+      return "Esse aluno já está vinculado. Use revogar e gerar novo link.";
+    }
+    if (code === "STUDENT_NOT_FOUND") {
+      return "Aluno não encontrado.";
+    }
+    return "Não foi possível gerar o convite.";
+  }, []);
+
   const applyStudentInviteTemplate = useCallback(
     async (
       student: Student,
@@ -1750,52 +1780,23 @@ export default function StudentsScreen() {
             throw error;
           }
         }
+        await reload();
         return null;
       } catch (error) {
-        let detail = error instanceof Error ? error.message : String(error);
-        try {
-          const parsed = JSON.parse(detail) as { error: string; message: string; details: string };
-          if (parsed.error) {
-            detail = String(parsed.error);
-          } else if (parsed.message) {
-            detail = String(parsed.message);
-          } else if (parsed.details) {
-            detail = String(parsed.details);
-          }
-        } catch {
-          // ignore
-        }
-        const lower = detail.toLowerCase();
-        const shortDetail = detail.length > 140 ? `${detail.slice(0, 140)}...` : detail;
-        if (lower.includes("invalid jwt") || lower.includes("missing auth token")) {
-          Alert.alert("Sessão expirada", "Entre novamente para gerar o convite.");
+        const message = toInviteErrorMessage(error);
+        if (getInviteErrorCode(error) === "UNAUTHORIZED") {
+          Alert.alert("Sessão expirada", message);
           void signOut();
-        } else if (lower.includes("forbidden") || lower.includes("permission")) {
-          Alert.alert("Convite", "Sem permissão para gerar o convite.");
-          setCustomStudentMessage("Sem permissão para gerar o convite.");
-        } else if (lower.includes("already linked")) {
-          const message = options.revokeFirst
-             ? "Não foi possível revogar o acesso. Tente novamente."
-            : "Esse aluno já está vinculado. Use Revogar e gerar novo link.";
-          Alert.alert("Convite", message);
-          setCustomStudentMessage(message);
-        } else if (lower.includes("student not found")) {
-          Alert.alert("Convite", "Aluno não encontrado.");
-          setCustomStudentMessage("Aluno não encontrado.");
         } else {
-          Alert.alert("Convite", "Não foi possível gerar o convite.");
-          setCustomStudentMessage(
-            shortDetail
-              ? `Não foi possível gerar o convite. ${shortDetail}`
-              : "Não foi possível gerar o convite."
-          );
+          Alert.alert("Convite", message);
         }
+        setCustomStudentMessage(message);
         return null;
       } finally {
         setStudentInviteBusy(false);
       }
     },
-    [buildInviteLink, buildStudentMessage, showWhatsAppNotice, signOut, studentInviteBusy]
+    [buildInviteLink, buildStudentMessage, reload, showWhatsAppNotice, signOut, studentInviteBusy, toInviteErrorMessage]
   );
 
   const formatName = (value: string) => {
@@ -1818,6 +1819,35 @@ export default function StudentsScreen() {
       .join(" ");
     return hasTrailingSpace ? formatted + " " : formatted;
   };
+
+  const onGenerateInviteFromList = useCallback(
+    async (student: Student) => {
+      const cls = classes.find((entry) => entry.id === student.classId) ?? null;
+      const generated = await applyStudentInviteTemplate(student, cls, "", {
+        revokeFirst: false,
+        copyLink: true,
+      });
+      if (!generated) return;
+      Alert.alert("Convite pronto", "Link de convite gerado e copiado para a área de transferência.");
+    },
+    [applyStudentInviteTemplate, classes]
+  );
+
+  const onCancelPendingStudentInvite = useCallback(
+    async (inviteId: string) => {
+      if (pendingStudentInviteBusyId) return;
+      setPendingStudentInviteBusyId(inviteId);
+      try {
+        await revokeStudentInvite(inviteId);
+        await reload();
+      } catch (error) {
+        Alert.alert("Convite", toInviteErrorMessage(error));
+      } finally {
+        setPendingStudentInviteBusyId(null);
+      }
+    },
+    [pendingStudentInviteBusyId, reload, toInviteErrorMessage]
+  );
 
   const parseTime = (value: string) => {
     const match = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -2162,6 +2192,7 @@ export default function StudentsScreen() {
         item,
         onPress,
         onWhatsApp,
+        onInvite,
         onPhotoPress,
         className,
         unitName,
@@ -2170,6 +2201,7 @@ export default function StudentsScreen() {
         item: Student;
         onPress: (student: Student) => void;
         onWhatsApp: (student: Student) => void;
+        onInvite: (student: Student) => void;
         onPhotoPress: (student: Student) => void;
         className: string;
         unitName: string;
@@ -2247,12 +2279,23 @@ export default function StudentsScreen() {
                   </FadeHorizontalScroll>
                 </View>
                 <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-                  {className} â€¢ {unitName}
+                  {className} | {unitName}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                  {profileSummary.join(" â€¢ ")}
+                  {profileSummary.join(" | ")}
                 </Text>
               </View>
+              <Pressable
+                onPress={() => onInvite(item)}
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  backgroundColor: colors.primaryBg,
+                }}
+              >
+                <Ionicons name="link-outline" size={16} color={colors.primaryText} />
+              </Pressable>
               <Pressable
                 onPress={() => onWhatsApp(item)}
                 disabled={disabled}
@@ -2397,6 +2440,7 @@ export default function StudentsScreen() {
           item={item}
           onPress={onEdit}
           onWhatsApp={openStudentWhatsApp}
+          onInvite={onGenerateInviteFromList}
           onPhotoPress={openPhotoPreview}
           className={className}
           unitName={unitName}
@@ -2410,6 +2454,7 @@ export default function StudentsScreen() {
       colors,
       getClassName,
       onEdit,
+      onGenerateInviteFromList,
       openPhotoPreview,
       openStudentWhatsApp,
       unitLabel,
@@ -2536,6 +2581,72 @@ export default function StudentsScreen() {
             );
           })}
         </View>
+
+        {studentsTab === "alunos" ? (
+          <View
+            style={{
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: 12,
+              gap: 8,
+            }}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
+                Convites pendentes de aluno
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>{pendingStudentInvites.length}</Text>
+            </View>
+
+            {pendingStudentInvites.length === 0 ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Nenhum convite ativo.
+              </Text>
+            ) : (
+              pendingStudentInvites.slice(0, 6).map((invite) => (
+                <View
+                  key={invite.id}
+                  style={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    padding: 10,
+                    gap: 4,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }} numberOfLines={1}>
+                      {invite.student_name}
+                    </Text>
+                    <Pressable
+                      onPress={() => void onCancelPendingStudentInvite(invite.id)}
+                      disabled={pendingStudentInviteBusyId === invite.id}
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        opacity: pendingStudentInviteBusyId === invite.id ? 0.6 : 1,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                        {pendingStudentInviteBusyId === invite.id ? "Cancelando..." : "Cancelar"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                    Destino: {invite.invited_to || "não informado"}
+                  </Text>
+                </View>
+              ))
+            )}
+          </View>
+        ) : null}
 
         {studentsTab === "cadastro" && (
           <View

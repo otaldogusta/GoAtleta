@@ -11,6 +11,9 @@ const jsonHeaders = {
   "Content-Type": "application/json",
 };
 
+const createError = (status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+
 const toHex = (buffer: ArrayBuffer) => {
   const bytes = new Uint8Array(buffer);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -46,45 +49,30 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: jsonHeaders,
-    });
+    return createError(405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const user = await requireUser(req);
   if (!user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: jsonHeaders,
-    });
+    return createError(401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { token: string } = {};
   try {
     payload = (await req.json()) as { token: string };
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const token = (payload.token ?? "").trim();
   if (!token) {
-    return new Response(JSON.stringify({ error: "Missing token" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVALID_REQUEST", "Missing token");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: "Missing Supabase service role config" }),
-      { status: 500, headers: jsonHeaders }
-    );
+    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -101,17 +89,15 @@ Deno.serve(async (req) => {
 
   if (inviteError) {
     console.error("claim-student-invite: lookup failed", inviteError.message);
-    return new Response(JSON.stringify({ error: "Invite lookup failed" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Invite lookup failed");
   }
 
-  if (!invite || invite.revoked) {
-    return new Response(JSON.stringify({ error: "Invalid invite" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+  if (!invite) {
+    return createError(400, "INVITE_INVALID", "Invalid invite");
+  }
+
+  if (invite.revoked) {
+    return createError(400, "INVITE_REVOKED", "Invite revoked");
   }
 
   if (invite.used_at) {
@@ -120,19 +106,13 @@ Deno.serve(async (req) => {
         headers: jsonHeaders,
       });
     }
-    return new Response(JSON.stringify({ error: "Invite already used" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVITE_ALREADY_USED", "Invite already used");
   }
 
   if (invite.expires_at) {
     const expiresAt = new Date(invite.expires_at);
     if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-      return new Response(JSON.stringify({ error: "Invite expired" }), {
-        status: 400,
-        headers: jsonHeaders,
-      });
+      return createError(400, "INVITE_EXPIRED", "Invite expired");
     }
   }
 
@@ -144,24 +124,15 @@ Deno.serve(async (req) => {
 
   if (studentError) {
     console.error("claim-student-invite: student lookup failed", studentError.message);
-    return new Response(JSON.stringify({ error: "Student lookup failed" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Student lookup failed");
   }
 
   if (!student) {
-    return new Response(JSON.stringify({ error: "Student not found" }), {
-      status: 404,
-      headers: jsonHeaders,
-    });
+    return createError(404, "STUDENT_NOT_FOUND", "Student not found");
   }
 
   if (student.student_user_id && student.student_user_id !== user.id) {
-    return new Response(JSON.stringify({ error: "Student already linked" }), {
-      status: 409,
-      headers: jsonHeaders,
-    });
+    return createError(409, "STUDENT_ALREADY_LINKED", "Student already linked");
   }
 
   const normalizedEmail = (user.email ?? "").trim().toLowerCase();
@@ -179,10 +150,7 @@ Deno.serve(async (req) => {
 
   if (studentUpdateError) {
     console.error("claim-student-invite: student update failed", studentUpdateError.message);
-    return new Response(JSON.stringify({ error: "Failed to link student" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Failed to link student");
   }
 
   const nowIso = new Date().toISOString();

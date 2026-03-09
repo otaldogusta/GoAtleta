@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useEffect,
     useMemo,
@@ -25,6 +25,10 @@ import { useAppTheme } from "../src/ui/app-theme";
 export default function SignupScreen() {
   const { colors, mode } = useAppTheme();
   const { signUp } = useAuth();
+  const { role: roleParam, inviteCode: inviteCodeParam } = useLocalSearchParams<{
+    role?: string;
+    inviteCode?: string;
+  }>();
   const solidInputBg = colors.inputBg;
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -82,6 +86,15 @@ export default function SignupScreen() {
       useNativeDriver: true,
     }).start();
   }, [enterAnim]);
+
+  useEffect(() => {
+    if (roleParam === "trainer") {
+      setRole("trainer");
+    }
+    if (typeof inviteCodeParam === "string" && inviteCodeParam.trim()) {
+      setInviteCode(inviteCodeParam.trim());
+    }
+  }, [inviteCodeParam, roleParam]);
 
   const handleSignup = async () => {
     if (!email.trim()) {

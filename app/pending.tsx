@@ -1,16 +1,17 @@
+import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 
-import { useAuth } from "../src/auth/auth";
-import { useRole } from "../src/auth/role";
-import { claimTrainerInvite } from "../src/api/trainer-invite";
+import { getInviteErrorCode } from "../src/api/invite-errors";
 import { claimStudentInvite } from "../src/api/student-invite";
+import { claimTrainerInvite } from "../src/api/trainer-invite";
+import { useAuth } from "../src/auth/auth";
 import {
-  clearPendingInvite,
-  getPendingInvite,
+    clearPendingInvite,
+    getPendingInvite,
 } from "../src/auth/pending-invite";
+import { useRole } from "../src/auth/role";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -61,22 +62,13 @@ export default function PendingScreen() {
   })();
 
   const parseInviteError = (error: unknown) => {
-    let detail = error instanceof Error ? error.message : String(error);
-    try {
-      const parsed = JSON.parse(detail) as { error: string };
-      if (parsed.error) detail = String(parsed.error);
-    } catch {
-      // ignore
-    }
-    const lower = detail.toLowerCase();
-    if (lower.includes("expired")) return "Convite expirado.";
-    if (lower.includes("used")) return "Convite já utilizado. Peça um novo link.";
-    if (lower.includes("invalid")) return "Convite inválido.";
-    if (lower.includes("already linked")) return "Seu acesso já está vinculado.";
-    if (lower.includes("unauthorized") || lower.includes("invalid jwt") || lower.includes("missing auth token")) {
-      return "Sessão expirada. Entre novamente.";
-    }
-    if (lower.includes("forbidden")) return "Sem permissão para validar o convite.";
+    const code = getInviteErrorCode(error);
+    if (code === "INVITE_EXPIRED") return "Convite expirado.";
+    if (code === "INVITE_ALREADY_USED") return "Convite já utilizado. Peça um novo link.";
+    if (code === "INVITE_INVALID" || code === "INVITE_REVOKED") return "Convite inválido.";
+    if (code === "STUDENT_ALREADY_LINKED") return "Seu acesso já está vinculado.";
+    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") return "Sessão expirada. Entre novamente.";
+    if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") return "Sem permissão para validar o convite.";
     return "Não foi possível validar o convite.";
   };
 
@@ -106,14 +98,13 @@ export default function PendingScreen() {
       await refresh();
       setMessage("Convite de treinador validado com sucesso.");
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      const lower = detail.toLowerCase();
       if (type === "student") {
         setMessage(parseInviteError(error));
         return;
       }
+      const code = getInviteErrorCode(error);
       setMessage(
-        lower.includes("invite")
+        code === "INVITE_INVALID" || code === "INVITE_EXPIRED" || code === "INVITE_REVOKED"
           ? "Convite inválido ou expirado."
           : "Não foi possível validar o convite."
       );

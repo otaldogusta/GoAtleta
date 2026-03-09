@@ -1,5 +1,6 @@
-import { SUPABASE_URL } from "./config";
 import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
+import { SUPABASE_URL } from "./config";
+import { parseInviteApiResponse } from "./invite-errors";
 
 type CreateInviteOptions = {
   invitedVia: string;
@@ -16,15 +17,17 @@ type CreateInviteResponse = {
   student_id: string;
 };
 
-const baseUrl = SUPABASE_URL.replace(/\/$/, "");
-
-const parseResponse = async (res: Response) => {
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(text || "Falha ao processar convite.");
-  }
-  return text ? JSON.parse(text) : {};
+export type StudentInvitePendingItem = {
+  id: string;
+  student_id: string;
+  student_name: string;
+  created_at: string;
+  expires_at: string | null;
+  invited_via: string;
+  invited_to: string | null;
 };
+
+const baseUrl = SUPABASE_URL.replace(/\/$/, "");
 
 const requestWithAuth = async (path: string, body: Record<string, unknown>) => {
   const token = await getValidAccessToken();
@@ -59,7 +62,10 @@ export async function createStudentInvite(
     invitedVia: options.invitedVia,
     invitedTo: options.invitedTo,
   });
-  return (await parseResponse(res)) as CreateInviteResponse;
+  return await parseInviteApiResponse<CreateInviteResponse>(
+    res,
+    "Falha ao criar convite de aluno."
+  );
 }
 
 export async function revokeStudentAccess(
@@ -70,12 +76,36 @@ export async function revokeStudentAccess(
     studentId,
     clearLoginEmail: options.clearLoginEmail,
   });
-  return parseResponse(res);
+  return await parseInviteApiResponse<{ status: "ok" }>(
+    res,
+    "Falha ao revogar acesso do aluno."
+  );
 }
 
 export async function claimStudentInvite(tokenValue: string) {
   const res = await requestWithAuth("/functions/v1/claim-student-invite", {
     token: tokenValue,
   });
-  return parseResponse(res);
+  return await parseInviteApiResponse<{ status: "ok"; student_id: string }>(
+    res,
+    "Falha ao validar convite de aluno."
+  );
+}
+
+export async function listStudentPendingInvites() {
+  const res = await requestWithAuth("/functions/v1/list-student-invites", {});
+  return await parseInviteApiResponse<{ invites: StudentInvitePendingItem[] }>(
+    res,
+    "Falha ao listar convites de aluno."
+  );
+}
+
+export async function revokeStudentInvite(inviteId: string) {
+  const res = await requestWithAuth("/functions/v1/revoke-student-invite", {
+    inviteId,
+  });
+  return await parseInviteApiResponse<{ status: "ok" }>(
+    res,
+    "Falha ao cancelar convite de aluno."
+  );
 }

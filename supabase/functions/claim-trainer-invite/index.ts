@@ -12,6 +12,12 @@ const jsonHeaders = {
   "Content-Type": "application/json",
 };
 
+const createError = (status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), {
+    status,
+    headers: jsonHeaders,
+  });
+
 const normalizeCode = (value: string) => value.trim().toUpperCase();
 
 const toHex = (buffer: ArrayBuffer) => {
@@ -49,28 +55,19 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: jsonHeaders,
-    });
+    return createError(405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const user = await requireUser(req);
   if (!user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: jsonHeaders,
-    });
+    return createError(401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { code: string } = {};
   try {
     payload = (await req.json()) as { code: string };
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const codeValidation = validateStringField(payload.code, {
@@ -79,26 +76,17 @@ Deno.serve(async (req) => {
     pattern: /^[a-zA-Z0-9-]+$/,
   });
   if (!codeValidation.ok) {
-    return new Response(JSON.stringify({ error: `Invalid code: ${codeValidation.error}` }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVALID_REQUEST", `Invalid code: ${codeValidation.error}`);
   }
   const normalized = normalizeCode(codeValidation.data);
   if (!normalized) {
-    return new Response(JSON.stringify({ error: "Missing code" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVALID_REQUEST", "Missing code");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: "Missing Supabase service role config" }),
-      { status: 500, headers: jsonHeaders }
-    );
+    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -109,39 +97,31 @@ Deno.serve(async (req) => {
 
   const { data: invite, error: inviteError } = await supabase
     .from("trainer_invites")
-    .select("id, uses, max_uses, expires_at, revoked")
+    .select("id, uses, max_uses, expires_at, revoked, organization_id, target_role_level")
     .eq("code_hash", codeHash)
     .maybeSingle();
 
   if (inviteError) {
-    return new Response(JSON.stringify({ error: "Invite lookup failed" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Invite lookup failed");
   }
 
-  if (!invite || invite.revoked) {
-    return new Response(JSON.stringify({ error: "Invalid invite" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+  if (!invite) {
+    return createError(400, "INVITE_INVALID", "Invalid invite");
+  }
+
+  if (invite.revoked) {
+    return createError(400, "INVITE_REVOKED", "Invite revoked");
   }
 
   if (invite.expires_at) {
     const expiresAt = new Date(invite.expires_at);
     if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-      return new Response(JSON.stringify({ error: "Invite expired" }), {
-        status: 400,
-        headers: jsonHeaders,
-      });
+      return createError(400, "INVITE_EXPIRED", "Invite expired");
     }
   }
 
   if (invite.uses >= invite.max_uses) {
-    return new Response(JSON.stringify({ error: "Invite limit reached" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVITE_LIMIT_REACHED", "Invite limit reached");
   }
 
   const { error: trainerError } = await supabase
@@ -149,22 +129,47 @@ Deno.serve(async (req) => {
     .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
   if (trainerError) {
-    return new Response(JSON.stringify({ error: "Failed to create trainer" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Failed to create trainer");
   }
 
+  if (invite.organization_id) {
+    const targetRoleLevel = Number(invite.target_role_level ?? 10) >= 50 ? 50 : 10;
+    const { data: existingMember, error: memberLookupError } = await supabase
+      .from("organization_members")
+      .select("role_level")
+      .eq("organization_id", invite.organization_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (memberLookupError) {
+      return createError(500, "SERVER_ERROR", "Failed to lookup organization member");
+    }
+
+    const nextRoleLevel = Math.max(Number(existingMember?.role_level ?? 0), targetRoleLevel);
+    const { error: memberUpsertError } = await supabase
+      .from("organization_members")
+      .upsert(
+        {
+          organization_id: invite.organization_id,
+          user_id: user.id,
+          role_level: nextRoleLevel,
+        },
+        { onConflict: "organization_id,user_id" }
+      );
+
+    if (memberUpsertError) {
+      return createError(500, "SERVER_ERROR", "Failed to apply organization member role");
+    }
+  }
+
+  const nowIso = new Date().toISOString();
   const { error: updateError } = await supabase
     .from("trainer_invites")
-    .update({ uses: invite.uses + 1 })
+    .update({ uses: invite.uses + 1, claimed_by: user.id, claimed_at: nowIso })
     .eq("id", invite.id);
 
   if (updateError) {
-    return new Response(JSON.stringify({ error: "Failed to update invite" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Failed to update invite");
   }
 
   return new Response(JSON.stringify({ status: "ok" }), {

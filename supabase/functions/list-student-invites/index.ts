@@ -46,21 +46,6 @@ Deno.serve(async (req) => {
     return createError(401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  let payload: { studentId: string; clearLoginEmail: boolean } = {};
-  try {
-    payload = (await req.json()) as {
-      studentId: string;
-      clearLoginEmail: boolean;
-    };
-  } catch {
-    return createError(400, "INVALID_REQUEST", "Invalid JSON");
-  }
-
-  const studentId = (payload.studentId ?? "").trim();
-  if (!studentId) {
-    return createError(400, "INVALID_REQUEST", "Missing studentId");
-  }
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
@@ -71,51 +56,30 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { data: student, error: studentError } = await supabase
-    .from("students")
-    .select("id, owner_id")
-    .eq("id", studentId)
-    .maybeSingle();
-
-  if (studentError) {
-    console.error("revoke-student-access: student lookup failed", studentError.message);
-    return createError(500, "SERVER_ERROR", "Student lookup failed");
-  }
-
-  if (!student) {
-    return createError(404, "STUDENT_NOT_FOUND", "Student not found");
-  }
-
-  if (student.owner_id && student.owner_id !== user.id) {
-    return createError(403, "FORBIDDEN", "Forbidden");
-  }
-
-  const updates: Record<string, unknown> = {
-    student_user_id: null,
-  };
-  if (payload.clearLoginEmail) {
-    updates.login_email = null;
-  }
-
-  const { error: studentUpdateError } = await supabase
-    .from("students")
-    .update(updates)
-    .eq("id", studentId);
-
-  if (studentUpdateError) {
-    console.error("revoke-student-access: student update failed", studentUpdateError.message);
-    return createError(500, "SERVER_ERROR", "Failed to revoke student access");
-  }
-
-  const { error: inviteUpdateError } = await supabase
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
     .from("student_invites")
-    .update({ revoked: true })
-    .eq("student_id", studentId);
+    .select("id, student_id, created_at, expires_at, invited_via, invited_to, revoked, students(name)")
+    .eq("created_by", user.id)
+    .eq("revoked", false)
+    .is("used_at", null)
+    .gte("expires_at", nowIso)
+    .order("created_at", { ascending: false })
+    .limit(100);
 
-  if (inviteUpdateError) {
-    console.error("revoke-student-access: invite update failed", inviteUpdateError.message);
-    return createError(500, "SERVER_ERROR", "Failed to revoke student invites");
+  if (error) {
+    return createError(500, "SERVER_ERROR", "Failed to list invites");
   }
 
-  return new Response(JSON.stringify({ status: "ok" }), { headers: jsonHeaders });
+  const invites = (data ?? []).map((row) => ({
+    id: row.id,
+    student_id: row.student_id,
+    student_name: (row.students as { name?: string } | null)?.name ?? row.student_id,
+    created_at: row.created_at,
+    expires_at: row.expires_at,
+    invited_via: row.invited_via,
+    invited_to: row.invited_to,
+  }));
+
+  return new Response(JSON.stringify({ invites }), { headers: jsonHeaders });
 });

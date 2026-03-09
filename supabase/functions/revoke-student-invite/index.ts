@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateStringField } from "../_shared/input-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,19 +47,19 @@ Deno.serve(async (req) => {
     return createError(401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  let payload: { studentId: string; clearLoginEmail: boolean } = {};
+  let payload: { inviteId: string } = { inviteId: "" };
   try {
-    payload = (await req.json()) as {
-      studentId: string;
-      clearLoginEmail: boolean;
-    };
+    payload = (await req.json()) as { inviteId: string };
   } catch {
     return createError(400, "INVALID_REQUEST", "Invalid JSON");
   }
 
-  const studentId = (payload.studentId ?? "").trim();
-  if (!studentId) {
-    return createError(400, "INVALID_REQUEST", "Missing studentId");
+  const inviteValidation = validateStringField(payload.inviteId, {
+    minLength: 36,
+    maxLength: 36,
+  });
+  if (!inviteValidation.ok) {
+    return createError(400, "INVALID_REQUEST", `Invalid inviteId: ${inviteValidation.error}`);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -71,50 +72,31 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { data: student, error: studentError } = await supabase
-    .from("students")
-    .select("id, owner_id")
-    .eq("id", studentId)
+  const { data: invite, error: inviteError } = await supabase
+    .from("student_invites")
+    .select("id, created_by")
+    .eq("id", inviteValidation.data)
     .maybeSingle();
 
-  if (studentError) {
-    console.error("revoke-student-access: student lookup failed", studentError.message);
-    return createError(500, "SERVER_ERROR", "Student lookup failed");
+  if (inviteError) {
+    return createError(500, "SERVER_ERROR", "Invite lookup failed");
   }
 
-  if (!student) {
-    return createError(404, "STUDENT_NOT_FOUND", "Student not found");
+  if (!invite) {
+    return createError(404, "INVITE_INVALID", "Invite not found");
   }
 
-  if (student.owner_id && student.owner_id !== user.id) {
+  if (invite.created_by !== user.id) {
     return createError(403, "FORBIDDEN", "Forbidden");
   }
 
-  const updates: Record<string, unknown> = {
-    student_user_id: null,
-  };
-  if (payload.clearLoginEmail) {
-    updates.login_email = null;
-  }
-
-  const { error: studentUpdateError } = await supabase
-    .from("students")
-    .update(updates)
-    .eq("id", studentId);
-
-  if (studentUpdateError) {
-    console.error("revoke-student-access: student update failed", studentUpdateError.message);
-    return createError(500, "SERVER_ERROR", "Failed to revoke student access");
-  }
-
-  const { error: inviteUpdateError } = await supabase
+  const { error: updateError } = await supabase
     .from("student_invites")
     .update({ revoked: true })
-    .eq("student_id", studentId);
+    .eq("id", inviteValidation.data);
 
-  if (inviteUpdateError) {
-    console.error("revoke-student-access: invite update failed", inviteUpdateError.message);
-    return createError(500, "SERVER_ERROR", "Failed to revoke student invites");
+  if (updateError) {
+    return createError(500, "SERVER_ERROR", "Failed to revoke invite");
   }
 
   return new Response(JSON.stringify({ status: "ok" }), { headers: jsonHeaders });

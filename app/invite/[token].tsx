@@ -1,24 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-
-import { useAuth } from "../../src/auth/auth";
-import { useRole } from "../../src/auth/role";
-import { claimStudentInvite } from "../../src/api/student-invite";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  clearPendingInvite,
-  savePendingInvite,
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { getInviteErrorCode } from "../../src/api/invite-errors";
+import { claimStudentInvite } from "../../src/api/student-invite";
+import { useAuth } from "../../src/auth/auth";
+import {
+    clearPendingInvite,
+    savePendingInvite,
 } from "../../src/auth/pending-invite";
+import { useRole } from "../../src/auth/role";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 
@@ -70,22 +71,13 @@ export default function StudentInviteScreen() {
   }, [password, strengthScore]);
 
   const parseClaimError = (error: unknown) => {
-    let detail = error instanceof Error ? error.message : String(error);
-    try {
-      const parsed = JSON.parse(detail) as { error: string };
-      if (parsed.error) detail = String(parsed.error);
-    } catch {
-      // ignore
-    }
-    const lower = detail.toLowerCase();
-    if (lower.includes("expired")) return "Convite expirado.";
-    if (lower.includes("used")) return "Esse link já foi usado por outra conta. Peça um novo link.";
-    if (lower.includes("invalid")) return "Convite inválido.";
-    if (lower.includes("already linked")) return "Este aluno já está vinculado a outra conta.";
-    if (lower.includes("unauthorized") || lower.includes("invalid jwt") || lower.includes("missing auth token")) {
-      return "Sessão expirada. Entre novamente.";
-    }
-    if (lower.includes("forbidden")) return "Sem permissão para validar o convite.";
+    const code = getInviteErrorCode(error);
+    if (code === "INVITE_EXPIRED") return "Convite expirado.";
+    if (code === "INVITE_ALREADY_USED") return "Esse link já foi usado por outra conta. Peça um novo link.";
+    if (code === "INVITE_INVALID" || code === "INVITE_REVOKED") return "Convite inválido.";
+    if (code === "STUDENT_ALREADY_LINKED") return "Este aluno já está vinculado a outra conta.";
+    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") return "Sessão expirada. Entre novamente.";
+    if (code === "FORBIDDEN") return "Sem permissão para validar o convite.";
     return "Não foi possível validar o convite.";
   };
 
@@ -523,10 +515,8 @@ export default function StudentInviteScreen() {
               {session &&
               (role === "trainer" ||
                 message.toLowerCase().includes("outra conta") ||
-                message.toLowerCase().includes("ja utilizado") ||
-                message.toLowerCase().includes("já utilizado") ||
-                message.toLowerCase().includes("ja esta vinculado") ||
-                message.toLowerCase().includes("já está vinculado")) ? (
+                message.toLowerCase().includes("usado") ||
+                message.toLowerCase().includes("vinculado")) ? (
                 <Pressable
                   onPress={() => void signOut()}
                   style={{

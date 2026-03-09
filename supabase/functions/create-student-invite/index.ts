@@ -12,6 +12,9 @@ const jsonHeaders = {
   "Content-Type": "application/json",
 };
 
+const createError = (status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+
 const INVITE_TTL_DAYS = 30;
 const ALLOWED_CHANNELS = new Set(["whatsapp", "email", "link"]);
 
@@ -57,18 +60,12 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: jsonHeaders,
-    });
+    return createError(405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const user = await requireUser(req);
   if (!user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: jsonHeaders,
-    });
+    return createError(401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { studentId: string; invitedVia: string; invitedTo: string } = {};
@@ -79,10 +76,7 @@ Deno.serve(async (req) => {
       invitedTo: string;
     };
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const studentIdValidation = validateStringField(payload.studentId, {
@@ -90,20 +84,14 @@ Deno.serve(async (req) => {
     maxLength: 128,
   });
   if (!studentIdValidation.ok) {
-    return new Response(JSON.stringify({ error: `Invalid studentId: ${studentIdValidation.error}` }), {
-      status: 400,
-      headers: jsonHeaders,
-    });
+    return createError(400, "INVALID_REQUEST", `Invalid studentId: ${studentIdValidation.error}`);
   }
   const studentId = studentIdValidation.data;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: "Missing Supabase service role config" }),
-      { status: 500, headers: jsonHeaders }
-    );
+    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -118,31 +106,19 @@ Deno.serve(async (req) => {
 
   if (studentError) {
     console.error("create-student-invite: student lookup failed", studentError.message);
-    return new Response(JSON.stringify({ error: "Student lookup failed" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Student lookup failed");
   }
 
   if (!student) {
-    return new Response(JSON.stringify({ error: "Student not found" }), {
-      status: 404,
-      headers: jsonHeaders,
-    });
+    return createError(404, "STUDENT_NOT_FOUND", "Student not found");
   }
 
   if (student.owner_id && student.owner_id !== user.id) {
-    return new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403,
-      headers: jsonHeaders,
-    });
+    return createError(403, "FORBIDDEN", "Forbidden");
   }
 
   if (student.student_user_id && student.student_user_id !== user.id) {
-    return new Response(JSON.stringify({ error: "Student already linked" }), {
-      status: 409,
-      headers: jsonHeaders,
-    });
+    return createError(409, "STUDENT_ALREADY_LINKED", "Student already linked");
   }
 
   const token = crypto.randomUUID();
@@ -165,10 +141,7 @@ Deno.serve(async (req) => {
 
   if (insertError) {
     console.error("create-student-invite: insert failed", insertError.message);
-    return new Response(JSON.stringify({ error: "Failed to create invite" }), {
-      status: 500,
-      headers: jsonHeaders,
-    });
+    return createError(500, "SERVER_ERROR", "Failed to create invite");
   }
 
   return new Response(

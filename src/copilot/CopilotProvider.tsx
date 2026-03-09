@@ -1,53 +1,53 @@
-﻿import { usePathname, useRouter } from "expo-router";
+﻿import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import {
-  Animated,
-  Linking,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
+    Animated,
+    Linking,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { useAuth } from "../auth/auth";
-import { markRender, measureAsync } from "../observability/perf";
 import type { Signal as CopilotSignal } from "../ai/signal-engine";
 import {
-  listRegulationUpdates,
-  markRegulationUpdateRead,
-  type RegulationUpdate,
-} from "../api/regulation-updates";
-import {
-  listRegulationRuleSets,
-  type RegulationRuleSet,
+    listRegulationRuleSets,
+    type RegulationRuleSet,
 } from "../api/regulation-rule-sets";
-import { addNotification } from "../notificationsInbox";
-import { useOrganization } from "../providers/OrganizationProvider";
 import {
-  getRecommendedSignalActions,
-  isValidCopilotSignal,
-  sortCopilotSignals,
+    listRegulationUpdates,
+    markRegulationUpdateRead,
+    type RegulationUpdate,
+} from "../api/regulation-updates";
+import { useAuth } from "../auth/auth";
+import { getClasses } from "../db/seed";
+import { addNotification } from "../notificationsInbox";
+import { markRender, measureAsync } from "../observability/perf";
+import { useOrganization } from "../providers/OrganizationProvider";
+import { ModalSheet } from "../ui/ModalSheet";
+import { Pressable } from "../ui/Pressable";
+import { useAppTheme } from "../ui/app-theme";
+import {
+    buildOperationalContext,
+    type OperationalContextResult,
+} from "./operational-context";
+import {
+    getRecommendedSignalActions,
+    isValidCopilotSignal,
+    sortCopilotSignals,
 } from "./signal-utils";
 import {
-  buildCentralSnapshot,
-  countUnreadFromSnapshot,
-  hasSnapshotChanged,
-  type CentralSnapshot,
+    buildCentralSnapshot,
+    countUnreadFromSnapshot,
+    hasSnapshotChanged,
+    type CentralSnapshot,
 } from "./updates-utils";
-import {
-  buildOperationalContext,
-  type OperationalContextResult,
-} from "./operational-context";
-import { getClasses } from "../db/seed";
-import { Pressable } from "../ui/Pressable";
-import { ModalSheet } from "../ui/ModalSheet";
-import { useAppTheme } from "../ui/app-theme";
 
 type CopilotContextData = {
   screen: string;
@@ -2200,6 +2200,7 @@ export function useCopilotContext(input: CopilotContextData | null) {
   if (!context) {
     throw new Error("useCopilotContext must be used within CopilotProvider");
   }
+  const { setContext, clearContext } = context;
 
   const ownerIdRef = useRef(`copilot_ctx_${Math.random().toString(36).slice(2, 10)}`);
   const contextSignature = useMemo(() => buildContextSignature(input), [input]);
@@ -2215,14 +2216,14 @@ export function useCopilotContext(input: CopilotContextData | null) {
 
   useEffect(() => {
     const ownerId = ownerIdRef.current;
-    context.setContext(ownerId, payload);
-  }, [context, payload]);
+    setContext(ownerId, payload);
+  }, [payload, setContext]);
 
   useEffect(
     () => () => {
-      context.clearContext(ownerIdRef.current);
+      clearContext(ownerIdRef.current);
     },
-    [context]
+    [clearContext]
   );
 }
 
@@ -2231,17 +2232,18 @@ export function useCopilotActions(actions: CopilotAction[]) {
   if (!context) {
     throw new Error("useCopilotActions must be used within CopilotProvider");
   }
+  const { setActions, clearActions } = context;
 
   const ownerIdRef = useRef(`copilot_actions_${Math.random().toString(36).slice(2, 10)}`);
   const stableActions = useMemo(() => actions, [actions]);
 
   useEffect(() => {
     const ownerId = ownerIdRef.current;
-    context.setActions(ownerId, stableActions);
+    setActions(ownerId, stableActions);
     return () => {
-      context.clearActions(ownerId);
+      clearActions(ownerId);
     };
-  }, [context, stableActions]);
+  }, [clearActions, setActions, stableActions]);
 }
 
 export function useCopilotSignals(signals: CopilotSignal[]) {
@@ -2249,6 +2251,7 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
   if (!context) {
     throw new Error("useCopilotSignals must be used within CopilotProvider");
   }
+  const { setSignals, clearSignals } = context;
 
   const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
   const signalsSignature = useMemo(() => buildSignalsSignature(signals), [signals]);
@@ -2259,11 +2262,11 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
 
   useEffect(() => {
     const ownerId = ownerIdRef.current;
-    context.setSignals(ownerId, stableSignals);
+    setSignals(ownerId, stableSignals);
     return () => {
-      context.clearSignals(ownerId);
+      clearSignals(ownerId);
     };
-  }, [context, stableSignals]);
+  }, [clearSignals, setSignals, stableSignals]);
 }
 
 const styles = StyleSheet.create({
@@ -2285,3 +2288,4 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
+

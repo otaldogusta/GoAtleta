@@ -22,6 +22,7 @@ import {
     type TrainerMessageResult,
     type TrainerMessageTone,
 } from "../../api/ai";
+import { getInviteErrorCode } from "../../api/invite-errors";
 import {
     MEMBER_PERMISSION_OPTIONS,
     MemberClassHead,
@@ -38,6 +39,12 @@ import {
     adminSetMemberPermission,
     adminUpdateMemberRole,
 } from "../../api/members";
+import {
+    TrainerInviteItem,
+    createTrainerInvite,
+    listTrainerInvites,
+    revokeTrainerInvite
+} from "../../api/trainer-invite";
 import { useAuth } from "../../auth/auth";
 import { useEffectiveProfile } from "../../core/effective-profile";
 import { useOrganization } from "../../providers/OrganizationProvider";
@@ -213,7 +220,9 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const [memberTrainerFeedback, setMemberTrainerFeedback] = useState<string | null>(null);
   const [showInviteSheet, setShowInviteSheet] = useState(false);
   const [inviteTarget, setInviteTarget] = useState<QuickInviteTarget>("collaborator");
-  const [inviteRecipient, setInviteRecipient] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
+  const [pendingInviteBusyId, setPendingInviteBusyId] = useState<string | null>(null);
   const latestLoadRequestRef = useRef(0);
 
   const adminsCount = useMemo(
@@ -292,6 +301,20 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     setClassHeadDraftIds(nextIds);
   }, [selectedMemberClassHeadIds, selectedMember?.userId]);
 
+  const loadPendingTrainerInvites = useCallback(async () => {
+    if (!organizationId) {
+      setPendingTrainerInvites([]);
+      return;
+    }
+    try {
+      const result = await listTrainerInvites(organizationId);
+      setPendingTrainerInvites(result.invites ?? []);
+    } catch {
+      // Keep the members list usable even if invite list fails.
+      setPendingTrainerInvites([]);
+    }
+  }, [organizationId]);
+
   const loadMembers = useCallback(async (options?: { soft?: boolean }) => {
     const soft = options?.soft ?? false;
     const requestId = ++latestLoadRequestRef.current;
@@ -321,15 +344,17 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     }
     setError(null);
     try {
-      const [rows, classes, heads] = await Promise.all([
+      const [rows, classes, heads, inviteResult] = await Promise.all([
         adminListOrgMembers(organizationId),
         adminListOrgClasses(organizationId),
         adminListOrgMemberClassHeads(organizationId),
+        listTrainerInvites(organizationId).catch(() => ({ invites: [] })),
       ]);
       if (requestId !== latestLoadRequestRef.current) return;
       setMembers(rows);
       setOrgClasses(classes);
       setMemberClassHeads(heads);
+      setPendingTrainerInvites(inviteResult.invites ?? []);
       setLastUpdatedAt(
         new Date().toLocaleTimeString("pt-BR", {
           hour: "2-digit",
@@ -346,6 +371,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
         setMembers([]);
         setOrgClasses([]);
         setMemberClassHeads([]);
+        setPendingTrainerInvites([]);
       }
     } finally {
       if (requestId !== latestLoadRequestRef.current) return;
@@ -686,47 +712,85 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     },
   ];
 
-  const inviteRoleLabel: Record<QuickInviteTarget, string> = {
-    collaborator: "Colaborador",
-    student: "Aluno",
-    moderator: "Moderador",
+  const formatInviteDate = (value: string | null) => {
+    if (!value) return "Sem validade";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Sem validade";
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   };
 
-  const buildQuickInviteText = (target: QuickInviteTarget) => {
-    const recipient = inviteRecipient.trim();
-    const baseGreeting = recipient ? `Olá, ${recipient}!` : "Olá!";
+  const getInviteRoleLabel = (roleLevel: number) => {
+    if (roleLevel >= 50) return "Moderador";
+    return "Colaborador";
+  };
 
-    if (target === "student") {
-      return `${baseGreeting}\n\nVocê foi convidado para participar da organização ${organizationName} no GoAtleta como aluno(a).\n\nA coordenação vai enviar seu link de acesso individual em seguida.`;
+  const toInviteErrorMessage = (error: unknown) => {
+    const code = getInviteErrorCode(error);
+    const raw = error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
+    if (code === "ORG_FORBIDDEN" || code === "FORBIDDEN") {
+      return "Sem permissão para gerenciar convites nesta organização.";
     }
-
-    const roleHint =
-      target === "moderator" ? "Moderador (coordenação)" : "Colaborador (professor/estagiário)";
-
-    return `${baseGreeting}\n\nVocê foi convidado para a organização ${organizationName} no GoAtleta, com perfil ${roleHint}.\n\n1) Crie sua conta no app\n2) Entre com seu e-mail\n3) Avise a coordenação para liberar seu cargo na aba de membros`;
-  };
-
-  const onCopyQuickInvite = async () => {
-    try {
-      await Clipboard.setStringAsync(buildQuickInviteText(inviteTarget));
-      Alert.alert("Convite pronto", "Mensagem copiada para compartilhar.");
-    } catch {
-      Alert.alert("Erro", "Não foi possível copiar a mensagem.");
+    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
+      return "Sessão expirada. Entre novamente.";
     }
+    if (code === "INVITE_LIMIT_REACHED") {
+      return "Convite já foi utilizado no limite.";
+    }
+    if (raw.includes("create-trainer-invite") || raw.includes("not found") || raw.includes("failed to fetch")) {
+      return "Serviço de convite indisponível no momento. Tente novamente em instantes.";
+    }
+    return "Não foi possível concluir a operação de convite.";
   };
 
-  const onContinueQuickInvite = () => {
+  const onContinueQuickInvite = async () => {
     if (inviteTarget === "student") {
       setShowInviteSheet(false);
       router.push("/students");
       return;
     }
 
-    setShowInviteSheet(false);
-    Alert.alert(
-      "Próximo passo",
-      "Depois do cadastro da pessoa no app, selecione o membro nesta tela para ajustar cargo e permissões."
-    );
+    if (!organizationId) {
+      Alert.alert("Convite", "Selecione uma organização para continuar.");
+      return;
+    }
+
+    setInviteBusy(true);
+    try {
+      const role = inviteTarget === "moderator" ? "moderator" : "collaborator";
+      const created = await createTrainerInvite({
+        organizationId,
+        role,
+      });
+
+      const roleLabelText = role === "moderator" ? "Moderador (coordenação)" : "Colaborador";
+      const message = `Você recebeu um convite para entrar na organização ${organizationName} no GoAtleta como ${roleLabelText}.\n\nLink de cadastro:\n${created.signup_link}\n\nCódigo (opcional): ${created.code}`;
+      await Clipboard.setStringAsync(message);
+
+      setShowInviteSheet(false);
+      await loadPendingTrainerInvites();
+      Alert.alert("Convite criado", "Link gerado e mensagem copiada para compartilhar.");
+    } catch (error) {
+      Alert.alert("Convite", toInviteErrorMessage(error));
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const onRevokePendingInvite = async (inviteId: string) => {
+    if (!organizationId || pendingInviteBusyId) return;
+    setPendingInviteBusyId(inviteId);
+    try {
+      await revokeTrainerInvite(inviteId, organizationId);
+      await loadPendingTrainerInvites();
+    } catch (error) {
+      Alert.alert("Convite", toInviteErrorMessage(error));
+    } finally {
+      setPendingInviteBusyId(null);
+    }
   };
 
   const Container = embedded ? View : SafeAreaView;
@@ -994,6 +1058,73 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
             )}
           </View>
 
+          {!showInitialShimmer ? (
+            <View
+              style={{
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                padding: 12,
+                gap: 10,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={{ color: colors.text, fontWeight: "800" }}>Convites pendentes</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{pendingTrainerInvites.length}</Text>
+              </View>
+
+              {pendingTrainerInvites.length === 0 ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Sem convites ativos para colaborador/moderador.
+                </Text>
+              ) : (
+                pendingTrainerInvites.slice(0, 6).map((invite) => (
+                  <View
+                    key={invite.id}
+                    style={{
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      padding: 10,
+                      gap: 6,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {getInviteRoleLabel(invite.target_role_level)}
+                      </Text>
+                      <Pressable
+                        disabled={pendingInviteBusyId === invite.id}
+                        onPress={() => void onRevokePendingInvite(invite.id)}
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.card,
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          opacity: pendingInviteBusyId === invite.id ? 0.6 : 1,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                          {pendingInviteBusyId === invite.id ? "Cancelando..." : "Cancelar"}
+                        </Text>
+                      </Pressable>
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                      Destino: {invite.invited_to || "não informado"}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      Expira em {formatInviteDate(invite.expires_at)}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+          ) : null}
+
           {error && !showInitialShimmer ? (
             <View
               style={{
@@ -1105,9 +1236,6 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
             <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
               Convidar pessoas
             </Text>
-            <Text style={{ color: colors.muted }}>
-              Escolha o perfil e compartilhe uma mensagem de convite.
-            </Text>
           </View>
 
           <View style={{ gap: 8 }}>
@@ -1168,47 +1296,9 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
             })}
           </View>
 
-          <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Nome (opcional)</Text>
-            <TextInput
-              value={inviteRecipient}
-              onChangeText={setInviteRecipient}
-              placeholder="Para personalizar a mensagem"
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-              }}
-            />
-          </View>
-
-          <View
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              padding: 10,
-              gap: 4,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-              Perfil selecionado: {inviteRoleLabel[inviteTarget]}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {inviteTarget === "student"
-                ? "Use a área de alunos para gerar o convite individual."
-                : "Após o cadastro, ajuste cargo e permissões do membro nesta tela."}
-            </Text>
-          </View>
-
           <View style={{ flexDirection: isCompact ? "column" : "row", gap: 8 }}>
             <Pressable
+              disabled={inviteBusy}
               onPress={() => setShowInviteSheet(false)}
               style={{
                 flex: 1,
@@ -1218,38 +1308,30 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                 backgroundColor: colors.secondaryBg,
                 alignItems: "center",
                 paddingVertical: 11,
+                opacity: inviteBusy ? 0.6 : 1,
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
             </Pressable>
 
             <Pressable
-              onPress={() => void onCopyQuickInvite()}
-              style={{
-                flex: 1,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                alignItems: "center",
-                paddingVertical: 11,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "800" }}>Copiar mensagem</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={onContinueQuickInvite}
+              disabled={inviteBusy}
+              onPress={() => void onContinueQuickInvite()}
               style={{
                 flex: 1,
                 borderRadius: 12,
                 backgroundColor: colors.primaryBg,
                 alignItems: "center",
                 paddingVertical: 11,
+                opacity: inviteBusy ? 0.6 : 1,
               }}
             >
               <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-                {inviteTarget === "student" ? "Abrir Alunos" : "Continuar"}
+                {inviteTarget === "student"
+                  ? "Abrir Alunos"
+                  : inviteBusy
+                    ? "Gerando..."
+                    : "Gerar link"}
               </Text>
             </Pressable>
           </View>
