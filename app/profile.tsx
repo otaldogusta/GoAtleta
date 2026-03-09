@@ -687,7 +687,7 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        {!loadingProfile && isDevUser ? (
+        {isDevUser ? (
           <View style={{ gap: 8 }}>
             <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
               Mudar perfil (DEV)
