@@ -32,6 +32,7 @@ export default function SignupScreen() {
   const solidInputBg = colors.inputBg;
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -71,6 +72,9 @@ export default function SignupScreen() {
     return "Forte";
   }, [password, strengthScore]);
 
+  const hasInviteCodeFromLink =
+    typeof inviteCodeParam === "string" && inviteCodeParam.trim().length > 0;
+
   useEffect(() => {
     Animated.timing(strengthAnim, {
       toValue: strengthScore,
@@ -88,15 +92,19 @@ export default function SignupScreen() {
   }, [enterAnim]);
 
   useEffect(() => {
-    if (roleParam === "trainer") {
+    if (roleParam === "trainer" || hasInviteCodeFromLink) {
       setRole("trainer");
     }
-    if (typeof inviteCodeParam === "string" && inviteCodeParam.trim()) {
+    if (hasInviteCodeFromLink) {
       setInviteCode(inviteCodeParam.trim());
     }
-  }, [inviteCodeParam, roleParam]);
+  }, [hasInviteCodeFromLink, inviteCodeParam, roleParam]);
 
   const handleSignup = async () => {
+    if (!fullName.trim()) {
+      setMessage("Informe seu nome completo.");
+      return;
+    }
     if (!email.trim()) {
       setMessage("Informe seu email.");
       return;
@@ -120,18 +128,18 @@ export default function SignupScreen() {
     setMessage("");
     setBusy(true);
     try {
-      const session = await signUp(email.trim(), password);
+      const session = await signUp(email.trim(), password, "login", fullName.trim());
       if (role === "trainer") {
         if (session) {
           await claimTrainerInvite(inviteCode.trim());
-          setMessage("Conta criada e convite validado.");
+          setMessage("Conta criada e convite validado. Confirme o e-mail por código para liberar acesso completo.");
         } else {
           setMessage(
             "Conta criada. Confirme o email e depois valide o convite ao entrar."
           );
         }
       } else {
-        setMessage("Conta criada! Verifique o email se precisar confirmar.");
+        setMessage("Conta criada! Você já pode entrar, mas o app pedirá confirmação por código para ações sensíveis.");
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao cadastrar.";
@@ -220,6 +228,39 @@ export default function SignupScreen() {
                 elevation: 5,
               }}
             >
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: solidInputBg,
+                  overflow: "hidden",
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  minHeight: 48,
+                }}
+              >
+
+                <TextInput
+                  placeholder="Nome completo"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="words"
+                  underlineColorAndroid="transparent"
+                  selectionColor={colors.primaryBg}
+                  style={{
+                    flex: 1,
+                    padding: 0,
+                    color: colors.inputText,
+                    backgroundColor: "transparent",
+                    borderWidth: 0,
+                    outlineStyle: "none",
+                    outlineWidth: 0,
+                  }}
+                />
+              </View>
+
               <View
                 style={{
                   borderWidth: 1,
@@ -422,50 +463,52 @@ export default function SignupScreen() {
                 </View>
               ) : null}
 
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Quero acessar como
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {[
-                    { id: "student", label: "Aluno" },
-                    { id: "trainer", label: "Treinador" },
-                  ].map((option) => {
-                    const active = role === option.id;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        onPress={() => {
-                          setRole(option.id as "student" | "trainer");
-                          if (option.id === "student") {
-                            setInviteCode("");
-                          }
-                        }}
-                        style={{
-                          flex: 1,
-                          paddingVertical: 10,
-                          borderRadius: 12,
-                          alignItems: "center",
-                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text
+              {!hasInviteCodeFromLink ? (
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Quero acessar como
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {[
+                      { id: "student", label: "Aluno" },
+                      { id: "trainer", label: "Treinador" },
+                    ].map((option) => {
+                      const active = role === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          onPress={() => {
+                            setRole(option.id as "student" | "trainer");
+                            if (option.id === "student") {
+                              setInviteCode("");
+                            }
+                          }}
                           style={{
-                            color: active ? colors.primaryText : colors.text,
-                            fontWeight: "700",
+                            flex: 1,
+                            paddingVertical: 10,
+                            borderRadius: 12,
+                            alignItems: "center",
+                            backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                            borderWidth: 1,
+                            borderColor: colors.border,
                           }}
                         >
-                          {option.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
+                          <Text
+                            style={{
+                              color: active ? colors.primaryText : colors.text,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
-              </View>
+              ) : null}
 
-              { role === "trainer" ? (
+              {role === "trainer" && !hasInviteCodeFromLink ? (
                 <View
                   style={{
                     borderWidth: 1,
@@ -499,15 +542,37 @@ export default function SignupScreen() {
               ) : null}
 
               { message ? (
-                <Text
-                  style={{
-                    color: message.startsWith("!")
-                      ? colors.dangerSolidBg
-                      : colors.muted,
-                  }}
-                >
-                  {message.startsWith("!") ? message.slice(1) : message}
-                </Text>
+                <View style={{ gap: 8 }}>
+                  <Text
+                    style={{
+                      color: message.startsWith("!")
+                        ? colors.dangerSolidBg
+                        : colors.muted,
+                    }}
+                  >
+                    {message.startsWith("!") ? message.slice(1) : message}
+                  </Text>
+                  {email.trim() ? (
+                    <Pressable
+                      onPress={() =>
+                        router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`)
+                      }
+                      style={{
+                        alignSelf: "flex-start",
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                        Confirmar com codigo
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
 
               <Pressable

@@ -8,7 +8,8 @@ import {
 import { StatusBar } from "expo-status-bar";
 import {
     useEffect,
-    useRef
+    useRef,
+    useState
 } from "react";
 import {
     ActivityIndicator,
@@ -25,18 +26,18 @@ import { AuthProvider, useAuth } from "../src/auth/auth";
 import { getPendingInvite } from "../src/auth/pending-invite";
 import { RoleProvider, useRole } from "../src/auth/role";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
+import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
-import { ensurePushTokenRegistered, attachPushListeners } from "../src/push/pushClient";
-import {
-  ensureAndroidNotificationChannel,
-  ensureNotificationHandlerConfigured,
-} from "../src/push/notificationRuntime";
 import { OrganizationProvider, useOrganization } from "../src/providers/OrganizationProvider";
+import {
+    ensureAndroidNotificationChannel,
+    ensureNotificationHandlerConfigured,
+} from "../src/push/notificationRuntime";
+import { attachPushListeners, ensurePushTokenRegistered } from "../src/push/pushClient";
 import { BiometricLockProvider, useBiometricLock } from "../src/security/biometric-lock";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
-import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
@@ -99,6 +100,24 @@ const trainerOnlyPrefixes = [
   "/whatsapp-settings",
 ];
 
+const hybridVerificationRestrictedPrefixes = [
+  "/coord",
+  "/coordination",
+  "/org-members",
+  "/reports",
+  "/students",
+  "/class",
+  "/classes",
+  "/training",
+  "/periodization",
+  "/calendar",
+  "/events",
+  "/assistant",
+  "/whatsapp-settings",
+  "/regulation-history",
+  "/regulation-sources",
+];
+
 const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
 
@@ -150,10 +169,12 @@ function RootLayoutContent() {
     bootstrapLoading ||
     !navReady ||
     loading;
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const publicRoutes = [
     "/welcome",
     "/login",
     "/signup",
+    "/verify-email",
     "/reset-password",
     ...(__DEV__ ? ["/admin"] : []),
   ];
@@ -162,6 +183,28 @@ function RootLayoutContent() {
     pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const isInviteRoute =
     normalizedPathname === "/invite" || normalizedPathname.startsWith("/invite/");
+  const emailConfirmedAt =
+    session?.user?.email_confirmed_at ?? session?.user?.confirmed_at ?? null;
+  const userMetadata = session?.user?.user_metadata ?? {};
+  const hybridVerifiedAt =
+    typeof userMetadata.email_verified_hybrid_at === "string"
+      ? userMetadata.email_verified_hybrid_at
+      : null;
+  const requiresHybridVerification =
+    userMetadata.requires_email_hybrid_verification === true;
+  const providerValues = [
+    ...(session?.user?.app_metadata?.providers ?? []),
+    ...(session?.user?.identities?.map((item) => item.provider ?? "") ?? []),
+    session?.user?.app_metadata?.provider ?? "",
+  ]
+    .map((item) => String(item).toLowerCase().trim())
+    .filter(Boolean);
+  const usesGoogleAuth = providerValues.includes("google");
+  const isHybridEmailVerified = requiresHybridVerification
+    ? Boolean(hybridVerifiedAt)
+    : Boolean(emailConfirmedAt || hybridVerifiedAt);
+  const needsHybridEmailVerification =
+    Boolean(session) && !usesGoogleAuth && !isHybridEmailVerified;
   const isPublicRoute =
     publicRoutes.includes(normalizedPathname) ||
     publicPrefixes.some(
@@ -172,6 +215,16 @@ function RootLayoutContent() {
     Platform.OS === "web" &&
     normalizedPathname !== "/" &&
     !isPublicRoute;
+  const shouldShowEmailVerifyBanner =
+    Boolean(session) &&
+    !isPublicRoute &&
+    !isInviteRoute &&
+    needsHybridEmailVerification &&
+    !emailBannerDismissed;
+
+  useEffect(() => {
+    setEmailBannerDismissed(false);
+  }, [session?.user?.id, emailConfirmedAt]);
 
   useEffect(() => {
     LogBox.ignoreLogs([
@@ -333,6 +386,22 @@ function RootLayoutContent() {
         return;
       }
     }
+
+    if (
+      session &&
+      role === "trainer" &&
+      needsHybridEmailVerification &&
+      normalizedPathname !== "/verify-email"
+    ) {
+      const blockedByHybrid = hybridVerificationRestrictedPrefixes.some(
+        (prefix) => normalizedPathname === prefix || normalizedPathname.startsWith(`${prefix}/`)
+      );
+      if (blockedByHybrid) {
+        const email = encodeURIComponent(session.user?.email ?? "");
+        router.replace(`/verify-email?email=${email}`);
+        return;
+      }
+    }
   }, [
     biometricsEnabled,
     isInviteRoute,
@@ -343,6 +412,7 @@ function RootLayoutContent() {
     memberPermissions,
     navReady,
     normalizedPathname,
+    needsHybridEmailVerification,
     permissionsLoading,
     bootstrapLoading,
     router,
@@ -632,6 +702,64 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
               Voltar
             </Text>
           </Pressable>
+        </View>
+      ) : null}
+      {shouldShowEmailVerifyBanner ? (
+        <View
+          style={{
+            marginHorizontal: 12,
+            marginTop: Platform.OS === "web" ? 10 : 6,
+            marginBottom: 6,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <Text style={{ color: colors.muted, flex: 1 }}>
+            Confirme seu e-mail para manter sua conta segura e recuperar acesso com facilidade.
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              onPress={() => {
+                const email = encodeURIComponent(session?.user?.email ?? "");
+                router.push(`/verify-email?email=${email}`);
+              }}
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Confirmar
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setEmailBannerDismissed(true)}
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Depois
+              </Text>
+            </Pressable>
+          </View>
         </View>
       ) : null}
       <Stack

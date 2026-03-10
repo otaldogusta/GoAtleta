@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ENABLE_SOCIAL_LOGIN } from "../../src/api/config";
 import { getInviteErrorCode } from "../../src/api/invite-errors";
 import { claimStudentInvite } from "../../src/api/student-invite";
 import { useAuth } from "../../src/auth/auth";
@@ -554,37 +555,39 @@ export default function StudentInviteScreen() {
                 </Text>
               </Pressable>
 
-              <View style={{ marginTop: 12, gap: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Ou continue com</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+              {ENABLE_SOCIAL_LOGIN ? (
+                <View style={{ marginTop: 12, gap: 12 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Ou continue com</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "center", gap: 12 }}>
+                    {[
+                      { id: "google" as const, icon: "logo-google" as const },
+                      { id: "facebook" as const, icon: "logo-facebook" as const },
+                      { id: "apple" as const, icon: "logo-apple" as const },
+                    ].map((provider) => (
+                      <Pressable
+                        key={provider.id}
+                        onPress={() => handleOAuth(provider.id)}
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 16,
+                          backgroundColor: colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Ionicons name={provider.icon} size={20} color={colors.text} />
+                      </Pressable>
+                    ))}
+                  </View>
                 </View>
-                <View style={{ flexDirection: "row", justifyContent: "center", gap: 12 }}>
-                  {[
-                    { id: "google" as const, icon: "logo-google" as const },
-                    { id: "facebook" as const, icon: "logo-facebook" as const },
-                    { id: "apple" as const, icon: "logo-apple" as const },
-                  ].map((provider) => (
-                    <Pressable
-                      key={provider.id}
-                      onPress={() => handleOAuth(provider.id)}
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 16,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Ionicons name={provider.icon} size={20} color={colors.text} />
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
+              ) : null}
             </View>
           </Animated.View>
         </ScrollView>

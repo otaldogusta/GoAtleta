@@ -13,13 +13,13 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.create-trainer-invite]
-verify_jwt = true
+verify_jwt = false
 
 [functions.list-trainer-invites]
-verify_jwt = true
+verify_jwt = false
 
 [functions.revoke-trainer-invite]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-student-invite]
 verify_jwt = true

@@ -34,3 +34,11 @@ const requireEnv = (key: string) => {
 
 export const SUPABASE_URL = requireEnv("SUPABASE_URL");
 export const SUPABASE_ANON_KEY = requireEnv("SUPABASE_ANON_KEY");
+
+const normalizeBoolean = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+};
+
+export const ENABLE_SOCIAL_LOGIN = normalizeBoolean(getExtraString("ENABLE_SOCIAL_LOGIN"));
+export const ENABLE_MANUAL_LINKING = normalizeBoolean(getExtraString("ENABLE_MANUAL_LINKING"));

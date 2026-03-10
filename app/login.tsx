@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
 import {
-    useEffect,
     useCallback,
+    useEffect,
     useRef,
     useState
 } from "react";
@@ -22,10 +22,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
+import { ENABLE_SOCIAL_LOGIN } from "../src/api/config";
 import { useAuth } from "../src/auth/auth";
 import { hasStoredSession, setRememberPreference } from "../src/auth/session";
-import { getBiometricsEnabled } from "../src/security/biometric-settings";
 import { useBiometricLock } from "../src/security/biometric-lock";
+import { getBiometricsEnabled } from "../src/security/biometric-settings";
 import { isBiometricsSupported } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Button } from "../src/ui/Button";
@@ -569,57 +570,59 @@ export default function LoginScreen() {
                     <Text style={{ color: colors.muted, fontSize: 12 }}>{biometricHint}</Text>
                   ) : null}
 
-                  <View style={{ marginTop: 12, gap: 12 }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 12,
-                      }}
-                    >
-                      <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        Ou continue com
-                      </Text>
-                      <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                  {ENABLE_SOCIAL_LOGIN ? (
+                    <View style={{ marginTop: 12, gap: 12 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
+                        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                          Ou continue com
+                        </Text>
+                        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                      </View>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "center",
+                          gap: 12,
+                        }}
+                      >
+                        {[
+                          { label: "Google", icon: "logo-google" as const },
+                          { label: "Facebook", icon: "logo-facebook" as const },
+                          { label: "Apple", icon: "logo-apple" as const },
+                        ].map((provider) => (
+                          <Pressable
+                            key={provider.label}
+                            onPress={() =>
+                              handleOAuth(provider.label.toLowerCase() as "google" | "facebook" | "apple")
+                            }
+                            style={{
+                              width: 48,
+                              height: 48,
+                              borderRadius: 16,
+                              backgroundColor: colors.secondaryBg,
+                              borderWidth: 1,
+                              borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <Ionicons
+                              name={provider.icon}
+                              size={20}
+                              color={colors.text}
+                            />
+                          </Pressable>
+                        ))}
+                      </View>
                     </View>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "center",
-                        gap: 12,
-                      }}
-                    >
-                      {[
-                        { label: "Google", icon: "logo-google" as const },
-                        { label: "Facebook", icon: "logo-facebook" as const },
-                        { label: "Apple", icon: "logo-apple" as const },
-                      ].map((provider) => (
-                        <Pressable
-                          key={provider.label}
-                          onPress={() =>
-                            handleOAuth(provider.label.toLowerCase() as "google" | "facebook" | "apple")
-                          }
-                          style={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 16,
-                            backgroundColor: colors.secondaryBg,
-                            borderWidth: 1,
-                            borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Ionicons
-                            name={provider.icon}
-                            size={20}
-                            color={colors.text}
-                          />
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
+                  ) : null}
                 </>
               ) : (
                 <View style={{ gap: 10 }}>

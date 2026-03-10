@@ -10,6 +10,23 @@ export type AuthSession = {
   user: {
     id: string;
     email: string;
+    email_confirmed_at?: string | null;
+    confirmed_at?: string | null;
+    app_metadata?: {
+      provider?: string | null;
+      providers?: string[] | null;
+    };
+    identities?: Array<{
+      id?: string | null;
+      identity_id?: string | null;
+      provider?: string | null;
+    }> | null;
+    created_at?: string;
+    user_metadata?: {
+      full_name?: string | null;
+      name?: string | null;
+      [key: string]: unknown;
+    };
   };
 };
 

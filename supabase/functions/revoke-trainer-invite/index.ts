@@ -3,7 +3,7 @@ import { validateStringField } from "../_shared/input-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -15,23 +15,11 @@ const jsonHeaders = {
 const createError = (status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
 
-const createAnonClient = () => {
-  const url = Deno.env.get("SUPABASE_URL") ?? "";
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!url || !anonKey) return null;
-  return createClient(url, anonKey, { auth: { persistSession: false } });
-};
-
-const requireUser = async (req: Request) => {
+const getBearerToken = (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.slice("Bearer ".length).trim();
-  if (!token) return null;
-  const supabase = createAnonClient();
-  if (!supabase) return null;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user;
+  return token || null;
 };
 
 Deno.serve(async (req) => {
@@ -42,8 +30,8 @@ Deno.serve(async (req) => {
     return createError(405, "INVALID_REQUEST", "Method not allowed");
   }
 
-  const user = await requireUser(req);
-  if (!user) {
+  const token = getBearerToken(req);
+  if (!token) {
     return createError(401, "UNAUTHORIZED", "Unauthorized");
   }
 
@@ -79,11 +67,17 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
+  const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  const userId = authData?.user?.id ?? "";
+  if (authError || !userId) {
+    return createError(401, "UNAUTHORIZED", "Unauthorized");
+  }
+
   const { data: adminRow, error: adminError } = await supabase
     .from("organization_members")
     .select("role_level")
     .eq("organization_id", orgValidation.data)
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (adminError) {

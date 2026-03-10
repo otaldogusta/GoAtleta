@@ -14,10 +14,19 @@ type AuthContextValue = {
   session: AuthSession | null;
   loading: boolean;
   signIn: (email: string, password: string, remember: boolean) => Promise<void>;
-  signUp: (email: string, password: string, redirectPath: string) => Promise<AuthSession | null>;
+  signUp: (
+    email: string,
+    password: string,
+    redirectPath: string,
+    fullName?: string
+  ) => Promise<AuthSession | null>;
   signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath: string) => Promise<void>;
   exchangeCodeForSession: (code: string) => Promise<void>;
   consumeAuthUrl: (url: string) => Promise<AuthSession | null>;
+  resendSignupCode: (email: string, redirectPath?: string) => Promise<void>;
+  verifySignupCode: (email: string, code: string) => Promise<void>;
+  unlinkIdentityProvider: (provider: "google" | "facebook" | "apple") => Promise<void>;
+  refreshUser: () => Promise<void>;
   resetPassword: (email: string, redirectTo: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -120,10 +129,128 @@ const fetchUser = async (accessToken: string) => {
   if (!res.ok) return null;
   const text = await res.text();
   if (!text) return null;
-  const payload = safeJsonParse<{ id: string; email: string } | null>(text, null);
+  const payload = safeJsonParse<{
+    id: string;
+    email: string;
+    email_confirmed_at?: string | null;
+    confirmed_at?: string | null;
+    app_metadata?: {
+      provider?: string | null;
+      providers?: string[] | null;
+    };
+    identities?: Array<{
+      id?: string | null;
+      identity_id?: string | null;
+      provider?: string | null;
+    }> | null;
+    created_at?: string;
+    user_metadata?: {
+      full_name?: string | null;
+      name?: string | null;
+      [key: string]: unknown;
+    };
+  } | null>(text, null);
   if (!payload) return null;
   return payload.id ? payload : null;
 };
+
+const updateUserMetadata = async (
+  accessToken: string,
+  data: Record<string, unknown>
+) => {
+  if (!accessToken) return;
+  const res = await fetch(SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user", {
+    method: "PUT",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ data }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Falha ao atualizar dados da conta.");
+  }
+};
+
+const deleteUserIdentity = async (accessToken: string, identityId: string) => {
+  if (!accessToken || !identityId) {
+    throw new Error("Dados insuficientes para desvincular conta.");
+  }
+  const res = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, "")}/auth/v1/user/identities/${encodeURIComponent(identityId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    const parsed = safeJsonParse<{ error_code?: string; code?: string; msg?: string; message?: string } | null>(
+      text,
+      null
+    );
+    const errorCode = String(parsed?.error_code ?? parsed?.code ?? "").toLowerCase();
+    if (errorCode === "manual_linking_disabled") {
+      throw new Error(
+        "Desvinculação desativada no Supabase. Ative o account linking/manual linking nas configurações de Auth para permitir desvincular Google."
+      );
+    }
+    if (res.status === 404) {
+      throw new Error("Identidade Google não encontrada para esta conta.");
+    }
+    const detail = parsed?.msg ?? parsed?.message ?? text;
+    throw new Error(detail || "Falha ao desvincular provedor.");
+  }
+};
+
+type UserIdentity = {
+  id?: string | null;
+  identity_id?: string | null;
+  identityId?: string | null;
+  identity_id_pk?: string | null;
+  provider?: string | null;
+};
+
+const fetchUserIdentities = async (accessToken: string): Promise<UserIdentity[]> => {
+  if (!accessToken) return [];
+  const res = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/auth/v1/user/identities`, {
+    method: "GET",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) return [];
+  const text = await res.text();
+  if (!text) return [];
+  const parsed = safeJsonParse<unknown>(text, null);
+  if (Array.isArray(parsed)) {
+    return parsed as UserIdentity[];
+  }
+  if (parsed && typeof parsed === "object") {
+    const maybe = parsed as { identities?: unknown };
+    if (Array.isArray(maybe.identities)) {
+      return maybe.identities as UserIdentity[];
+    }
+  }
+  return [];
+};
+
+const resolveIdentityId = (identity: UserIdentity | undefined) =>
+  String(
+    identity?.identity_id
+      ?? identity?.identityId
+      ?? identity?.id
+      ?? identity?.identity_id_pk
+      ?? ""
+  ).trim();
 
 export function AuthProvider({
   children,
@@ -172,24 +299,45 @@ export function AuthProvider({
       email,
       password,
     });
-    const next = normalizeAuthSession(payload);
+    const normalized = normalizeAuthSession(payload);
+    const hydratedUser = await fetchUser(normalized.access_token);
+    const next: AuthSession = {
+      ...normalized,
+      user: hydratedUser ?? normalized.user,
+    };
     setSession(next);
     await saveSession(next, remember);
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, redirectPath: string) => {
+  const signUp = useCallback(async (email: string, password: string, redirectPath: string, fullName?: string) => {
     const redirectTo = redirectPath
       ? Platform.OS === "web"
         ? buildWebRedirectUrl(redirectPath)
         : buildRedirectUrl(redirectPath)
       : undefined;
+    const cleanFullName = (fullName ?? "").trim();
+    const body: Record<string, unknown> = {
+      email,
+      password,
+    };
+    body.data = {
+      full_name: cleanFullName || undefined,
+      name: cleanFullName || undefined,
+      requires_email_hybrid_verification: true,
+      email_verified_hybrid_at: null,
+    };
     const payload = await authFetch(
       "/auth/v1/signup",
-      { email, password },
+      body,
       redirectTo ? { redirectTo } : undefined
     );
     if (payload.access_token) {
-      const next = normalizeAuthSession(payload);
+      const normalized = normalizeAuthSession(payload);
+      const hydratedUser = await fetchUser(normalized.access_token);
+      const next: AuthSession = {
+        ...normalized,
+        user: hydratedUser ?? normalized.user,
+      };
       setSession(next);
       await saveSession(next, true);
       return next;
@@ -279,6 +427,130 @@ export function AuthProvider({
     });
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    if (!session?.access_token) return;
+    const user = await fetchUser(session.access_token);
+    if (!user) return;
+    const next: AuthSession = {
+      ...session,
+      user,
+    };
+    setSession(next);
+    await saveSession(next, true);
+  }, [session]);
+
+  const resendSignupCode = useCallback(async (email: string, redirectPath?: string) => {
+    const cleanEmail = (email ?? "").trim();
+    if (!cleanEmail) {
+      throw new Error("Informe o e-mail para reenviar o código.");
+    }
+    const cleanPath = (redirectPath ?? "").trim();
+    const redirectTo = cleanPath
+      ? Platform.OS === "web"
+        ? buildWebRedirectUrl(cleanPath)
+        : buildRedirectUrl(cleanPath)
+      : undefined;
+
+    await authFetch(
+      "/auth/v1/otp",
+      {
+        email: cleanEmail,
+        create_user: false,
+      },
+      redirectTo ? { redirectTo } : undefined
+    );
+  }, []);
+
+  const verifySignupCode = useCallback(async (email: string, code: string) => {
+    const cleanEmail = (email ?? "").trim();
+    const cleanCode = (code ?? "").trim();
+    if (!cleanEmail) {
+      throw new Error("Informe o e-mail da conta.");
+    }
+    if (!cleanCode) {
+      throw new Error("Informe o código recebido por e-mail.");
+    }
+
+    let payload: Record<string, unknown> | null = null;
+    let verifyToken = "";
+
+    payload = await authFetch("/auth/v1/verify", {
+      email: cleanEmail,
+      token: cleanCode,
+      type: "email",
+    });
+    verifyToken = String(payload.access_token ?? "");
+
+    const metadataToken = verifyToken || session?.access_token || "";
+    if (metadataToken) {
+      await updateUserMetadata(metadataToken, {
+        email_verified_hybrid_at: new Date().toISOString(),
+      });
+    }
+
+    if (payload?.access_token) {
+      const normalized = normalizeAuthSession(payload);
+      const hydratedUser = await fetchUser(normalized.access_token);
+      const next: AuthSession = {
+        ...normalized,
+        user: hydratedUser ?? normalized.user,
+      };
+      setSession(next);
+      await saveSession(next, true);
+      return;
+    }
+
+    if (session?.access_token) {
+      const user = await fetchUser(session.access_token);
+      if (user) {
+        const next: AuthSession = {
+          ...session,
+          user,
+        };
+        setSession(next);
+        await saveSession(next, true);
+      }
+    }
+  }, [session]);
+
+  const unlinkIdentityProvider = useCallback(
+    async (provider: "google" | "facebook" | "apple") => {
+      const token = session?.access_token ?? "";
+      if (!token) {
+        throw new Error("Sessão inválida. Faça login novamente.");
+      }
+
+      const remoteIdentities = await fetchUserIdentities(token);
+      const latestUser = await fetchUser(token);
+      const identities = [
+        ...remoteIdentities,
+        ...(latestUser?.identities ?? []),
+        ...(session?.user?.identities ?? []),
+      ];
+      const target = identities.find(
+        (item) => String(item?.provider ?? "").toLowerCase() === provider
+      );
+      const identityId = resolveIdentityId(target);
+      if (!identityId) {
+        throw new Error("Conta não vinculada ao provedor selecionado.");
+      }
+
+      await deleteUserIdentity(token, identityId);
+      const refreshedUser = await fetchUser(token);
+      if (refreshedUser && session) {
+        const next: AuthSession = {
+          ...session,
+          user: refreshedUser,
+        };
+        setSession(next);
+        await saveSession(next, true);
+        return;
+      }
+      await refreshUser();
+    },
+    [refreshUser, session]
+  );
+
   const signOut = useCallback(async () => {
     clearAiCache();
     setSession(null);
@@ -294,10 +566,28 @@ export function AuthProvider({
       signInWithOAuth,
       exchangeCodeForSession,
       consumeAuthUrl,
+      resendSignupCode,
+      verifySignupCode,
+      unlinkIdentityProvider,
+      refreshUser,
       resetPassword,
       signOut,
     }),
-    [loading, resetPassword, session, signIn, signInWithOAuth, exchangeCodeForSession, consumeAuthUrl, signOut, signUp]
+    [
+      consumeAuthUrl,
+      exchangeCodeForSession,
+      loading,
+      refreshUser,
+      resendSignupCode,
+      resetPassword,
+      session,
+      signIn,
+      signInWithOAuth,
+      signOut,
+      signUp,
+      unlinkIdentityProvider,
+      verifySignupCode,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -313,6 +603,10 @@ export const useAuth = () => {
       signUp: async () => null,
       signInWithOAuth: async () => {},
       exchangeCodeForSession: async () => {},
+      resendSignupCode: async () => {},
+      verifySignupCode: async () => {},
+      unlinkIdentityProvider: async () => {},
+      refreshUser: async () => {},
       resetPassword: async () => {},
       consumeAuthUrl: async () => null,
       signOut: async () => {},

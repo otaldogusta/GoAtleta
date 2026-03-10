@@ -137,7 +137,15 @@ const CONTEXT_COMPOSER_MIN_HEIGHT = 40;
 const CONTEXT_COMPOSER_MAX_HEIGHT = 120;
 const CONTEXT_COMPOSER_MAX_HEIGHT_WEB = 84;
 
-const publicRoutes = new Set(["/welcome", "/login", "/signup", "/reset-password"]);
+const publicRoutes = new Set([
+  "/welcome",
+  "/login",
+  "/signup",
+  "/verify-email",
+  "/reset-password",
+  "/pending",
+  "/auth-callback",
+]);
 
 const categoryLabelById: Record<InsightsCategory, string> = {
   reports: "Relatórios",
@@ -1225,6 +1233,15 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     normalizedPath !== "/coord/dashboard" &&
     !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
+
+  useEffect(() => {
+    const mustHideCopilot =
+      !session ||
+      publicRoutes.has(normalizedPath) ||
+      normalizedPath.startsWith("/invite");
+    if (!mustHideCopilot) return;
+    setState((prev) => (prev.open ? { ...prev, open: false } : prev));
+  }, [normalizedPath, session]);
   const hasBottomRightFabConflict =
     normalizedPath.startsWith("/training") ||
     normalizedPath.startsWith("/periodization") ||

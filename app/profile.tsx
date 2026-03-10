@@ -15,6 +15,7 @@ import { saveSession, setRememberPreference } from "../src/auth/session";
 
 import { useRole } from "../src/auth/role";
 
+import { ENABLE_SOCIAL_LOGIN } from "../src/api/config";
 import { getMyProfilePhoto, setMyProfilePhoto } from "../src/api/profile-photo";
 import {
     removeMyProfilePhotoObject,
@@ -26,10 +27,11 @@ import {
 } from "../src/api/student-photo-storage";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
 import { useOrganization } from "../src/providers/OrganizationProvider";
+import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
-import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
 import { SettingsRow } from "../src/ui/SettingsRow";
@@ -40,8 +42,24 @@ import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 // perf-check: ignore-render
 // perf-check: ignore-measure
 export default function ProfileScreen() {
+  const toFriendlyNameFromEmail = useCallback((email: string | null | undefined) => {
+    const raw = String(email ?? "").trim();
+    if (!raw.includes("@")) return raw;
+    const localPart = raw.split("@")[0] ?? "";
+    const normalized = localPart
+      .replace(/[._-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!normalized) return raw;
+    return normalized
+      .split(" ")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }, []);
+
   const { colors, mode, toggleMode } = useAppTheme();
-  const { signOut, session } = useAuth();
+  const { confirm } = useConfirmDialog();
+  const { signOut, session, resendSignupCode, signInWithOAuth, unlinkIdentityProvider } = useAuth();
   const { student, refresh: refreshRole } = useRole();
   const { organizations, activeOrganization, setActiveOrganizationId, devProfilePreview, setDevProfilePreview } = useOrganization();
   const {
@@ -63,6 +81,7 @@ export default function ProfileScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
+  const [unlinkingGoogle, setUnlinkingGoogle] = useState(false);
   const photoSheetStyle = useModalCardStyle({
     maxHeight: "70%",
     radius: 22,
@@ -172,7 +191,8 @@ export default function ProfileScreen() {
     const full = (
       student?.name ||
       session?.user?.user_metadata?.full_name ||
-      session?.user?.email ||
+      session?.user?.user_metadata?.name ||
+      toFriendlyNameFromEmail(session?.user?.email) ||
       ""
     ).trim();
     if (!full) return { first: "Aluno", last: "" };
@@ -180,7 +200,13 @@ export default function ProfileScreen() {
     const first = parts[0] ?? "Aluno";
     const last = parts.slice(1).join(" ");
     return { first, last };
-  }, [session?.user?.email, session?.user?.user_metadata?.full_name, student?.name]);
+  }, [
+    session?.user?.email,
+    session?.user?.user_metadata?.full_name,
+    session?.user?.user_metadata?.name,
+    student?.name,
+    toFriendlyNameFromEmail,
+  ]);
 
   const joinedLabel = useMemo(() => {
     const joinedAt = student?.createdAt ?? session?.user?.created_at;
@@ -240,6 +266,56 @@ export default function ProfileScreen() {
       subtitle: currentClass?.unit || (student ? "Sem unidade" : "Treinador"),
     };
   }, [isDevUser, devProfilePreview, currentClass, student]);
+
+  const accountSecurity = useMemo(() => {
+    const confirmedAt =
+      session?.user?.email_confirmed_at ?? session?.user?.confirmed_at ?? null;
+    const metadata = session?.user?.user_metadata ?? {};
+    const hybridVerifiedAt =
+      typeof metadata.email_verified_hybrid_at === "string"
+        ? metadata.email_verified_hybrid_at
+        : null;
+    const requiresHybridVerification =
+      metadata.requires_email_hybrid_verification === true;
+    const identityProviders = (session?.user?.identities ?? [])
+      .map((item) => item.provider ?? "")
+      .map((item) => String(item).toLowerCase().trim())
+      .filter(Boolean);
+    const metadataProviders = [
+      ...(session?.user?.app_metadata?.providers ?? []),
+      session?.user?.app_metadata?.provider ?? "",
+    ]
+      .map((item) => String(item).toLowerCase().trim())
+      .filter(Boolean);
+    const hasGoogle = identityProviders.includes("google")
+      || (identityProviders.length === 0 && metadataProviders.includes("google"));
+    const emailConfirmed = requiresHybridVerification
+      ? Boolean(hybridVerifiedAt)
+      : Boolean(confirmedAt || hybridVerifiedAt);
+    const accountEmail = String(session?.user?.email ?? "").trim();
+
+    return {
+      emailConfirmed,
+      canUseEmailCode: !hasGoogle,
+      googleConnected: hasGoogle,
+      socialLoginEnabled: ENABLE_SOCIAL_LOGIN,
+      accountEmail,
+      loginLabel: accountEmail || "Sem e-mail",
+      googleLabel: hasGoogle ? "Conectado" : "Não conectado",
+      providerDescription: requiresHybridVerification
+        ? emailConfirmed
+          ? "Conta verificada no modo híbrido."
+          : "Conta em modo híbrido: confirme o e-mail por código para liberar ações sensíveis."
+        : "Sua conta usa autenticação por e-mail e senha.",
+    };
+  }, [
+    session?.user?.app_metadata?.provider,
+    session?.user?.app_metadata?.providers,
+    session?.user?.confirmed_at,
+    session?.user?.email_confirmed_at,
+    session?.user?.identities,
+    session?.user?.user_metadata,
+  ]);
 
   const handleOrganizationChange = useCallback(
     async (orgId: string) => {
@@ -887,6 +963,197 @@ export default function ProfileScreen() {
 
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Conta</Text>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                Segurança da conta
+              </Text>
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 12,
+                  paddingVertical: 11,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>Account Email</Text>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+                    {accountSecurity.loginLabel}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                    {accountSecurity.emailConfirmed ? "Confirmado" : "Pendente"}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  gap: 7,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Pressable
+                    onPress={
+                      accountSecurity.googleConnected
+                        ? undefined
+                        : async () => {
+                            try {
+                              await signInWithOAuth("google", "profile");
+                            } catch {
+                              Alert.alert("Google", "Não foi possível iniciar o vínculo com Google agora.");
+                            }
+                          }
+                    }
+                    style={{
+                      alignSelf: "flex-start",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: accountSecurity.googleConnected ? colors.muted : colors.border,
+                      backgroundColor: accountSecurity.googleConnected
+                        ? mode === "dark"
+                          ? "rgba(0,0,0,0.28)"
+                          : "rgba(15,23,42,0.08)"
+                        : colors.card,
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      opacity: accountSecurity.googleConnected ? 0.8 : 1,
+                      flexShrink: 1,
+                    }}
+                  >
+                    <Ionicons
+                      name="logo-google"
+                      size={16}
+                      color={accountSecurity.googleConnected ? colors.muted : colors.text}
+                    />
+                    <Text
+                      style={{
+                        color: accountSecurity.googleConnected ? colors.muted : colors.text,
+                        fontSize: 13,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {accountSecurity.googleConnected
+                        ? "Google conectado"
+                        : "Google não conectado"}
+                    </Text>
+                  </Pressable>
+
+                  {accountSecurity.googleConnected ? (
+                    <Pressable
+                      onPress={async () => {
+                        confirm({
+                          title: "Desvincular Google",
+                          message: "Deseja remover o login com Google desta conta?",
+                          confirmLabel: "Desvincular",
+                          cancelLabel: "Cancelar",
+                          tone: "danger",
+                          onConfirm: async () => {
+                            try {
+                              setUnlinkingGoogle(true);
+                              await unlinkIdentityProvider("google");
+                              Alert.alert("Google", "Conta Google desvinculada com sucesso.");
+                            } catch (error) {
+                              const detail = error instanceof Error ? error.message : "Não foi possível desvincular agora.";
+                              Alert.alert("Google", detail);
+                            } finally {
+                              setUnlinkingGoogle(false);
+                            }
+                          },
+                        });
+                      }}
+                      disabled={unlinkingGoogle}
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.dangerSolidBg,
+                        backgroundColor: "transparent",
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        opacity: unlinkingGoogle ? 0.6 : 1,
+                      }}
+                    >
+                      <Text style={{ color: colors.dangerSolidBg, fontSize: 12, fontWeight: "700" }}>
+                        {unlinkingGoogle ? "Desvinculando..." : "Desvincular"}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+
+              {!accountSecurity.emailConfirmed && accountSecurity.canUseEmailCode ? (
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() =>
+                      router.push(
+                        `/verify-email?email=${encodeURIComponent(session?.user?.email ?? "")}`
+                      )
+                    }
+                    style={{
+                      flex: 1,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      paddingVertical: 10,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      Inserir código
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={async () => {
+                      const accountEmail = session?.user?.email ?? "";
+                      if (!accountEmail) return;
+                      try {
+                        await resendSignupCode(accountEmail, "verify-email");
+                        Alert.alert("Email", "Código reenviado para seu e-mail.");
+                      } catch {
+                        Alert.alert("Email", "Não foi possível reenviar o código agora.");
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      paddingVertical: 10,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      Reenviar código
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
               <SettingsRow
                 icon="log-out-outline"
                 iconBg="rgba(255, 130, 130, 0.16)"
@@ -1049,8 +1316,17 @@ export default function ProfileScreen() {
           {photoUri ? (
             <Pressable
               onPress={() => {
-                void savePhoto(null);
-                setShowPhotoSheet(false);
+                confirm({
+                  title: "Remover foto",
+                  message: "Tem certeza que deseja remover sua foto de perfil?",
+                  confirmLabel: "Remover",
+                  cancelLabel: "Cancelar",
+                  tone: "danger",
+                  onConfirm: async () => {
+                    await savePhoto(null);
+                    setShowPhotoSheet(false);
+                  },
+                });
               }}
               style={{
                 flexDirection: "row",

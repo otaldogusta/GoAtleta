@@ -221,6 +221,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const [showInviteSheet, setShowInviteSheet] = useState(false);
   const [inviteTarget, setInviteTarget] = useState<QuickInviteTarget>("collaborator");
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  const [inviteGeneratedLink, setInviteGeneratedLink] = useState<string | null>(null);
   const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
   const [pendingInviteBusyId, setPendingInviteBusyId] = useState<string | null>(null);
   const latestLoadRequestRef = useRef(0);
@@ -731,24 +733,27 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const toInviteErrorMessage = (error: unknown) => {
     const code = getInviteErrorCode(error);
     const raw = error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
+    const withCode = (message: string) => `${message} (${code})`;
     if (code === "ORG_FORBIDDEN" || code === "FORBIDDEN") {
-      return "Sem permissão para gerenciar convites nesta organização.";
+      return withCode("Sem permissão para gerenciar convites nesta organização.");
     }
     if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
-      return "Sessão expirada. Entre novamente.";
+      return withCode("Sessão expirada. Entre novamente.");
     }
     if (code === "INVITE_LIMIT_REACHED") {
-      return "Convite já foi utilizado no limite.";
+      return withCode("Convite já foi utilizado no limite.");
     }
     if (raw.includes("create-trainer-invite") || raw.includes("not found") || raw.includes("failed to fetch")) {
-      return "Serviço de convite indisponível no momento. Tente novamente em instantes.";
+      return withCode("Serviço de convite indisponível no momento. Tente novamente em instantes.");
     }
-    return "Não foi possível concluir a operação de convite.";
+    return withCode("Não foi possível concluir a operação de convite.");
   };
 
   const onContinueQuickInvite = async () => {
     if (inviteTarget === "student") {
       setShowInviteSheet(false);
+      setInviteNotice(null);
+      setInviteGeneratedLink(null);
       router.push("/students");
       return;
     }
@@ -758,6 +763,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
       return;
     }
 
+    setInviteNotice(null);
+    setInviteGeneratedLink(null);
     setInviteBusy(true);
     try {
       const role = inviteTarget === "moderator" ? "moderator" : "collaborator";
@@ -768,13 +775,21 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
 
       const roleLabelText = role === "moderator" ? "Moderador (coordenação)" : "Colaborador";
       const message = `Você recebeu um convite para entrar na organização ${organizationName} no GoAtleta como ${roleLabelText}.\n\nLink de cadastro:\n${created.signup_link}\n\nCódigo (opcional): ${created.code}`;
-      await Clipboard.setStringAsync(message);
+      try {
+        await Clipboard.setStringAsync(message);
+      } catch {
+        // Link was generated already; clipboard failure should not block the flow.
+      }
 
-      setShowInviteSheet(false);
+      setInviteGeneratedLink(created.signup_link);
+      setInviteNotice("Link gerado com sucesso.");
       await loadPendingTrainerInvites();
-      Alert.alert("Convite criado", "Link gerado e mensagem copiada para compartilhar.");
+      setError(null);
     } catch (error) {
-      Alert.alert("Convite", toInviteErrorMessage(error));
+      const message = toInviteErrorMessage(error);
+      setInviteGeneratedLink(null);
+      setInviteNotice(message);
+      Alert.alert("Convite", message);
     } finally {
       setInviteBusy(false);
     }
@@ -1187,7 +1202,11 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
         }}
       >
         <Pressable
-          onPress={() => setShowInviteSheet(true)}
+          onPress={() => {
+            setInviteNotice(null);
+            setInviteGeneratedLink(null);
+            setShowInviteSheet(true);
+          }}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -1299,7 +1318,11 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
           <View style={{ flexDirection: isCompact ? "column" : "row", gap: 8 }}>
             <Pressable
               disabled={inviteBusy}
-              onPress={() => setShowInviteSheet(false)}
+              onPress={() => {
+                setInviteNotice(null);
+                setInviteGeneratedLink(null);
+                setShowInviteSheet(false);
+              }}
               style={{
                 flex: 1,
                 borderRadius: 12,
@@ -1335,6 +1358,53 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
               </Text>
             </Pressable>
           </View>
+
+          {inviteNotice ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{inviteNotice}</Text>
+          ) : null}
+
+          {inviteGeneratedLink ? (
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                padding: 10,
+                gap: 8,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Link gerado
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{ color: colors.muted, fontSize: 12, flex: 1 }}
+                >
+                  {inviteGeneratedLink}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    void Clipboard.setStringAsync(inviteGeneratedLink);
+                    setInviteNotice("Link copiado.");
+                  }}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="copy-outline" size={16} color={colors.text} />
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
       </ModalSheet>
 
