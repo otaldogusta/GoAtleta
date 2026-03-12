@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useCallback,
@@ -29,7 +29,6 @@ import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
-import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { ShimmerBlock } from "../src/ui/Shimmer";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
@@ -561,10 +560,21 @@ export default function CalendarScreen() {
         {loadingData ? (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}>
           <View style={{ gap: 2 }}>
-            <ScreenHeader
-              title="Calendário semanal"
-              subtitle="Dias por unidade e turmas"
-            />
+            <Pressable
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace("/");
+              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+                Calendário semanal
+              </Text>
+            </Pressable>
             <Text style={{ color: colors.muted, marginTop: 2 }}>
               {weekRangeLabel}
             </Text>
@@ -581,10 +591,21 @@ export default function CalendarScreen() {
             pointerEvents={showApplyPicker ? "none" : "auto"}
           >
           <View style={{ gap: 2 }}>
-            <ScreenHeader
-              title="Calendário semanal"
-              subtitle="Dias por unidade e turmas"
-            />
+            <Pressable
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace("/");
+              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+                Calendário semanal
+              </Text>
+            </Pressable>
             <Text style={{ color: colors.muted, marginTop: 2 }}>
               {weekRangeLabel}
             </Text>
@@ -597,8 +618,6 @@ export default function CalendarScreen() {
               padding: 6,
               borderRadius: 999,
               backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
             }}
           >
             {[
@@ -616,17 +635,16 @@ export default function CalendarScreen() {
                   }}
                   style={{
                     flex: 1,
-                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
                     borderRadius: 999,
                     backgroundColor: selected ? colors.primaryBg : colors.card,
-                    borderWidth: selected ? 0 : 1,
-                    borderColor: selected ? "transparent" : colors.border,
                     alignItems: "center",
                   }}
                 >
                   <Text
                     style={{
-                      color: selected ? colors.primaryText : colors.muted,
+                      color: selected ? colors.primaryText : colors.text,
                       fontWeight: "700",
                       fontSize: 12,
                     }}

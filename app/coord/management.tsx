@@ -1,4 +1,4 @@
-﻿import CoordinationScreen from "../coordination";
+import CoordinationScreen from "../coordination";
 
 export default function CoordinationManagementTab() {
   return <CoordinationScreen />;

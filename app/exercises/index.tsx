@@ -1,4 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import {
     useCallback,
     useEffect,
@@ -53,6 +55,7 @@ const getThumbnail = (url: string) => {
 
 export default function ExercisesScreen() {
   const { colors } = useAppTheme();
+  const router = useRouter();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const [items, setItems] = useState<Exercise[]>([]);
@@ -73,8 +76,14 @@ export default function ExercisesScreen() {
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
 
   const load = useCallback(async () => {
-    const data = await getExercises();
-    setItems(data);
+    try {
+      const data = await getExercises();
+      setItems(data);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("Missing auth token")) return;
+      throw err;
+    }
   }, []);
 
   useFocusEffect(
@@ -288,9 +297,21 @@ export default function ExercisesScreen() {
         }
       >
         <View style={{ gap: 6 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Exercícios
-          </Text>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/");
+            }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              Exercícios
+            </Text>
+          </Pressable>
           <Text style={{ color: colors.muted }}>
             Biblioteca com vídeos e links
           </Text>

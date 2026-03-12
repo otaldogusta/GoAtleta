@@ -249,17 +249,15 @@ export default function StudentInviteScreen() {
             >
               <View
                 style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
                   backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <Ionicons name="chevron-back" size={16} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar</Text>
               </View>
             </Pressable>
 

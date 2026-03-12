@@ -15,8 +15,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../../src/ui/Pressable";
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import type { ClassGroup, ScoutingLog, Student } from "../../src/core/models";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
+import type { ClassGroup, ScoutingLog, Student } from "../../src/core/models";
 import { getBlockForToday } from "../../src/core/periodization";
 import {
     countsFromLog,
@@ -275,6 +275,8 @@ export default function ClassDetails() {
   if (showWhatsAppSettingsModal) {
     markRender("screen.classDetails.render.whatsappModal");
   }
+  const classFabBottom = Math.max(insets.bottom + 166, 182);
+  const classFabMenuBottom = classFabBottom + 74;
   const {
     animatedStyle: editDurationPickerAnimStyle,
     isVisible: showEditDurationPickerContent,
@@ -824,17 +826,29 @@ export default function ClassDetails() {
 
   const onDelete = () => {
     if (!cls) return;
+    const targetClassId = cls.id;
     Vibration.vibrate([0, 80, 60, 80]);
+    setShowEditModal(false);
+    setShowEditCloseConfirm(false);
     confirm({
       title: "Excluir turma?",
       message:
         "Isso remove planejamentos, chamadas e alunos da turma. Deseja excluir?",
       confirmLabel: "Excluir",
-      undoMessage: "Turma excluída. Deseja desfazer?",
+      cancelLabel: "Cancelar",
+      undoLabel: "Desfazer",
+      undoMessage: "Sua turma será apagada em {seconds}...",
+      delayMs: 8000,
+      onOptimistic: () => {
+        // Keep state unchanged; deletion is committed only after undo window.
+      },
       onConfirm: async () => {
-        await measure("deleteClassCascade", () => deleteClassCascade(cls.id));
-        logAction("Excluir turma", { classId: cls.id });
+        await measure("deleteClassCascade", () => deleteClassCascade(targetClassId));
+        logAction("Excluir turma", { classId: targetClassId });
         router.replace("/classes");
+      },
+      onUndo: async () => {
+        // Nothing to revert locally because removal happens after the undo window.
       },
     });
   };
@@ -1096,52 +1110,50 @@ export default function ClassDetails() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
-              <View
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 999,
-                  backgroundColor: classPalette.bg,
-                }}
-              />
-              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text, flex: 1 }}>
-                {className}
-              </Text>
-            </View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
             <Pressable
               onPress={() => {
-                resetEditFields();
-                setShowEditModal(true);
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace("/classes");
               }}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: colors.secondaryBg,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}
             >
-              <MaterialCommunityIcons
-                name="pencil"
-                size={20}
-                color={colors.text}
-              />
-            </Pressable>
-          </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <View style={getChipStyle(true, unitPalette)}>
-              <Text style={getChipTextStyle(true, unitPalette)}>{unitLabel}</Text>
-            </View>
-            <View style={getChipStyle(true, { bg: colors.secondaryBg, text: colors.text })}>
-              <Text style={getChipTextStyle(true, { bg: colors.secondaryBg, text: colors.text })}>
-                {"Faixa " + classAgeBand}
+              <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
+              <Text numberOfLines={1} style={{ fontSize: 26, fontWeight: "700", color: colors.text, maxWidth: 220 }}>
+                {className}
               </Text>
+              <ClassGenderBadge gender={classGender} size="md" />
+            </Pressable>
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
+              <Pressable
+                onPress={() => {
+                  resetEditFields();
+                  setShowEditModal(true);
+                }}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="pencil"
+                  size={18}
+                  color={colors.text}
+                />
+              </Pressable>
             </View>
-            <ClassGenderBadge gender={classGender} size="md" />
           </View>
+
         </View>
 
         <View
@@ -1191,14 +1203,23 @@ export default function ClassDetails() {
                   })()}
                 </Text>
               </View>
-              <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12 }}>
-                {"Faixa: " + classAgeBand}
-              </Text>
               <View style={{ flexDirection: "row", gap: 6, marginTop: 6, alignItems: "center" }}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Gênero:</Text>
                 <ClassGenderBadge gender={classGender} />
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
+                <View style={{ minWidth: "45%" }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
+                  <Text style={{ color: colors.text, fontSize: 13 }}>
+                    {unitLabel}
+                  </Text>
+                </View>
+                <View style={{ minWidth: "45%" }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa</Text>
+                  <Text style={{ color: colors.text, fontSize: 13 }}>
+                    {classAgeBand}
+                  </Text>
+                </View>
                 <View style={{ minWidth: "45%" }}>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>Dias</Text>
                   <Text style={{ color: colors.text, fontSize: 13 }}>
@@ -1445,9 +1466,9 @@ export default function ClassDetails() {
       {showClassFabMenu ? (
         <View
           style={{
-            position: "absolute",
-            right: 16,
-            bottom: Math.max(insets.bottom + 332, 348),
+            ...(Platform.OS === "web"
+              ? ({ position: "fixed", right: 16, bottom: classFabMenuBottom } as any)
+              : { position: "absolute" as const, right: 16, bottom: classFabMenuBottom }),
             width: 228,
             borderRadius: 14,
             borderWidth: 1,
@@ -1486,9 +1507,9 @@ export default function ClassDetails() {
       <Pressable
         onPress={() => setShowClassFabMenu((current) => !current)}
         style={{
-          position: "absolute",
-          right: 16,
-          bottom: Math.max(insets.bottom + 258, 274),
+          ...(Platform.OS === "web"
+            ? ({ position: "fixed", right: 16, bottom: classFabBottom } as any)
+            : { position: "absolute" as const, right: 16, bottom: classFabBottom }),
           width: 56,
           height: 56,
           borderRadius: 28,
@@ -1837,6 +1858,12 @@ export default function ClassDetails() {
               disabled={saving || !isEditDirty}
               loading={saving}
             />
+            <Button
+              label="Excluir turma"
+              onPress={onDelete}
+              variant="danger"
+              disabled={saving}
+            />
 
             <AnchoredDropdown
               visible={showEditDurationPickerContent}
@@ -1850,11 +1877,11 @@ export default function ClassDetails() {
               panelStyle={{
                 borderWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.background,
+                backgroundColor: colors.card,
               }}
-              scrollContentStyle={{ padding: 4 }}
+              scrollContentStyle={{ padding: 8, gap: 6 }}
             >
-              {[...durationOptions, "Personalizar"].map((value, index) => {
+              {[...durationOptions, "Personalizar"].map((value) => {
                 const active = value !== "Personalizar" && duration === value;
                 return (
                   <Pressable
@@ -1872,17 +1899,17 @@ export default function ClassDetails() {
                       closeEditPickers();
                     }}
                     style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      margin: index === 0 ? 6 : 2,
-                      backgroundColor: active ? colors.primaryBg : "transparent",
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      marginVertical: 3,
+                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <Text
                       style={{
                         color: active ? colors.primaryText : colors.text,
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: active ? "700" : "500",
                       }}
                     >
@@ -1905,11 +1932,11 @@ export default function ClassDetails() {
               panelStyle={{
                 borderWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.background,
+                backgroundColor: colors.card,
               }}
-              scrollContentStyle={{ padding: 4 }}
+              scrollContentStyle={{ padding: 8, gap: 6 }}
             >
-              {ageBandOptions.map((value, index) => {
+              {ageBandOptions.map((value) => {
                 const active = ageBand === value;
                 return (
                   <Pressable
@@ -1919,17 +1946,17 @@ export default function ClassDetails() {
                       closeEditPickers();
                     }}
                     style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      margin: index === 0 ? 6 : 2,
-                      backgroundColor: active ? colors.primaryBg : "transparent",
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      marginVertical: 3,
+                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <Text
                       style={{
                         color: active ? colors.primaryText : colors.text,
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: active ? "700" : "500",
                       }}
                     >
@@ -1952,11 +1979,11 @@ export default function ClassDetails() {
               panelStyle={{
                 borderWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.background,
+                backgroundColor: colors.card,
               }}
-              scrollContentStyle={{ padding: 4 }}
+              scrollContentStyle={{ padding: 8, gap: 6 }}
             >
-              {genderOptions.map((value, index) => {
+              {genderOptions.map((value) => {
                 const active = gender === value;
                 return (
                   <Pressable
@@ -1966,17 +1993,17 @@ export default function ClassDetails() {
                       closeEditPickers();
                     }}
                     style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      margin: index === 0 ? 6 : 2,
-                      backgroundColor: active ? colors.primaryBg : "transparent",
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      marginVertical: 3,
+                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <Text
                       style={{
                         color: active ? colors.primaryText : colors.text,
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: active ? "700" : "500",
                       }}
                     >
@@ -1999,11 +2026,11 @@ export default function ClassDetails() {
               panelStyle={{
                 borderWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.background,
+                backgroundColor: colors.card,
               }}
-              scrollContentStyle={{ padding: 4 }}
+              scrollContentStyle={{ padding: 8, gap: 6 }}
             >
-              {goalOptions.map((value, index) => {
+              {goalOptions.map((value) => {
                 const active = goal === value;
                 return (
                   <Pressable
@@ -2013,17 +2040,17 @@ export default function ClassDetails() {
                       closeEditPickers();
                     }}
                     style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      margin: index === 0 ? 6 : 2,
-                      backgroundColor: active ? colors.primaryBg : "transparent",
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      marginVertical: 3,
+                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <Text
                       style={{
                         color: active ? colors.primaryText : colors.text,
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: active ? "700" : "500",
                       }}
                     >

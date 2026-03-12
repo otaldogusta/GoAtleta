@@ -1,10 +1,12 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
+    Animated,
+    Easing,
     Image,
     KeyboardAvoidingView,
     Platform,
@@ -16,6 +18,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../../src/ui/Pressable";
 
+import { rewriteReportText, type ReportRewriteField } from "../../../src/api/ai";
 import type { ClassGroup, ScoutingLog, SessionLog, TrainingPlan } from "../../../src/core/models";
 import {
     buildLogFromCounts,
@@ -40,7 +43,6 @@ import {
     saveScoutingLog,
     saveSessionLog,
 } from "../../../src/db/seed";
-import { rewriteReportText, type ReportRewriteField } from "../../../src/api/ai";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
@@ -183,6 +185,11 @@ export default function SessionScreen() {
   const [scoutingMode, setScoutingMode] = useState<"treino" | "jogo">("treino");
   const [studentsCount, setStudentsCount] = useState(0);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
+  const sessionTabAnim = useRef<Record<SessionTabId, Animated.Value>>({
+    treino: new Animated.Value(1),
+    relatorio: new Animated.Value(0),
+    scouting: new Animated.Value(0),
+  }).current;
   const [showAppliedPreview, setShowAppliedPreview] = useState(false);
   const [PSE, setPSE] = useState<number>(0);
   const [technique, setTechnique] = useState<"boa" | "ok" | "ruim" | "nenhum">(
@@ -1028,6 +1035,17 @@ export default function SessionScreen() {
     }
   }, [tab]);
 
+  useEffect(() => {
+    (Object.keys(sessionTabAnim) as SessionTabId[]).forEach((tabKey) => {
+      Animated.timing(sessionTabAnim[tabKey], {
+        toValue: sessionTab === tabKey ? 1 : 0,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [sessionTab, sessionTabAnim]);
+
   if (!cls) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1117,16 +1135,39 @@ export default function SessionScreen() {
           backgroundColor: colors.secondaryBg,
           padding: 6,
           borderRadius: 999,
-          borderWidth: 1,
-          borderColor: colors.border,
           marginBottom: 12,
         }}
       >
         {sessionTabs.map((tab) => {
-          const selected = sessionTab === tab.id;
+          const tabProgress = sessionTabAnim[tab.id];
+          const tabScale = tabProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.95, 1],
+          });
+          const tabOpacity = tabProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.68, 1],
+          });
+          const tabBackground = tabProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [colors.card, colors.primaryBg],
+          });
+          const tabTextColor = tabProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [colors.text, colors.primaryText],
+          });
           return (
-            <Pressable
+            <Animated.View
               key={tab.id}
+              style={{
+                flex: 1,
+                borderRadius: 999,
+                opacity: tabOpacity,
+                transform: [{ scale: tabScale }],
+                backgroundColor: tabBackground,
+              }}
+            >
+            <Pressable
               onPress={() => {
                 closePickers();
                 setSessionTab(tab.id);
@@ -1135,23 +1176,21 @@ export default function SessionScreen() {
                 flex: 1,
                 paddingVertical: 8,
                 borderRadius: 999,
-                backgroundColor: selected ? colors.primaryBg : colors.card,
-                borderWidth: selected ? 0 : 1,
-                borderColor: selected ? "transparent" : colors.border,
                 alignItems: "center",
               }}
             >
-              <Text
+              <Animated.Text
                 numberOfLines={1}
                 style={{
-                  color: selected ? colors.primaryText : colors.muted,
+                  color: tabTextColor,
                   fontWeight: "700",
                   fontSize: 12,
                 }}
               >
                 {tab.label}
-              </Text>
+              </Animated.Text>
             </Pressable>
+            </Animated.View>
           );
         })}
       </View>
@@ -1961,26 +2000,26 @@ export default function SessionScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
             }}
-            scrollContentStyle={{ padding: 4 }}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
           >
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n, index) => (
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <Pressable
                 key={n}
                 onPress={() => handleSelectPse(n)}
                 style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 10,
-                  borderRadius: 10,
-                  margin: index === 0 ? 6 : 2,
-                  backgroundColor: PSE === n ? colors.primaryBg : "transparent",
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  marginVertical: 3,
+                  backgroundColor: PSE === n ? colors.primaryBg : colors.card,
                 }}
               >
                 <Text
                   style={{
                     color: PSE === n ? colors.primaryText : colors.text,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: PSE === n ? "700" : "500",
                   }}
                 >
@@ -2002,26 +2041,26 @@ export default function SessionScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
             }}
-            scrollContentStyle={{ padding: 4 }}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
           >
-            {(["nenhum", "boa", "ok", "ruim"] as const).map((value, index) => (
+            {(["nenhum", "boa", "ok", "ruim"] as const).map((value) => (
               <Pressable
                 key={value}
                 onPress={() => handleSelectTechnique(value)}
                 style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 10,
-                  borderRadius: 10,
-                  margin: index === 0 ? 6 : 2,
-                  backgroundColor: technique === value ? colors.primaryBg : "transparent",
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  marginVertical: 3,
+                  backgroundColor: technique === value ? colors.primaryBg : colors.card,
                 }}
               >
                 <Text
                   style={{
                     color: technique === value ? colors.primaryText : colors.text,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: technique === value ? "700" : "500",
                     textTransform: "capitalize",
                   }}
@@ -2151,9 +2190,9 @@ export default function SessionScreen() {
       {sessionTab === "treino" && showPlanFabMenu ? (
         <View
           style={{
-            position: "absolute",
-            right: 16,
-            bottom: Math.max(insets.bottom + 176, 196),
+            ...(Platform.OS === "web"
+              ? ({ position: "fixed", right: 16, bottom: Math.max(insets.bottom + 234, 250) } as any)
+              : { position: "absolute" as const, right: 16, bottom: Math.max(insets.bottom + 234, 250) }),
             width: 210,
             borderRadius: 14,
             borderWidth: 1,
@@ -2201,9 +2240,9 @@ export default function SessionScreen() {
         <Pressable
           onPress={() => setShowPlanFabMenu((current) => !current)}
           style={{
-            position: "absolute",
-            right: 16,
-            bottom: Math.max(insets.bottom + 108, 128),
+            ...(Platform.OS === "web"
+              ? ({ position: "fixed", right: 16, bottom: Math.max(insets.bottom + 166, 182) } as any)
+              : { position: "absolute" as const, right: 16, bottom: Math.max(insets.bottom + 166, 182) }),
             width: 54,
             height: 54,
             borderRadius: 999,

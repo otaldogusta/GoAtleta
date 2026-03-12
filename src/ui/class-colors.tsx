@@ -10,11 +10,11 @@ type ClassColorOption = {
   palette: UnitPalette;
 };
 
-const COLOR_DEFS: Array<{
+const COLOR_DEFS: {
   key: ClassColorKey;
   label: string;
   palette: (colors: ThemeColors) => UnitPalette;
-}> = [
+}[] = [
   {
     key: "blue",
     label: "Azul",

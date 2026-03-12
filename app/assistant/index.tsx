@@ -27,6 +27,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
+import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
 import {
     buildAutoFixSuggestions,
     buildCommunicationDraft,
@@ -66,7 +67,6 @@ import {
     updateWeeklyAutopilotProposalStatus,
 } from "../../src/db/seed";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
-import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -1522,6 +1522,20 @@ export default function AssistantScreen() {
                 }}
               >
                 <View style={{ alignItems: "center", gap: 10 }}>
+                  <View style={{ width: "100%", alignItems: "flex-start" }}>
+                    <Pressable
+                      onPress={() => {
+                        if (router.canGoBack()) {
+                          router.back();
+                          return;
+                        }
+                        router.replace("/");
+                      }}
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <Ionicons name="chevron-back" size={20} color={colors.text} />
+                    </Pressable>
+                  </View>
                   <View
                     style={{
                       width: 70,

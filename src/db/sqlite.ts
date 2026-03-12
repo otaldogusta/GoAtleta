@@ -125,6 +125,30 @@ export function initDb() {
       updatedAt TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS class_competitive_profiles (
+      classId TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      planningMode TEXT NOT NULL DEFAULT 'adulto-competitivo',
+      cycleStartDate TEXT NOT NULL DEFAULT '',
+      targetCompetition TEXT NOT NULL DEFAULT '',
+      targetDate TEXT NOT NULL DEFAULT '',
+      tacticalSystem TEXT NOT NULL DEFAULT '',
+      currentPhase TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS class_calendar_exceptions (
+      id TEXT PRIMARY KEY NOT NULL,
+      classId TEXT NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      date TEXT NOT NULL,
+      reason TEXT NOT NULL DEFAULT '',
+      kind TEXT NOT NULL DEFAULT 'no_training',
+      createdAt TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS kb_documents (
       id TEXT PRIMARY KEY NOT NULL,
       organizationId TEXT NOT NULL DEFAULT '',
@@ -265,6 +289,12 @@ export function initDb() {
 
   try {
     db.execSync(
+      "CREATE UNIQUE INDEX IF NOT EXISTS class_calendar_exceptions_unique_day ON class_calendar_exceptions (classId, date, kind)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_units_org_name ON units (organizationId, name)"
     );
   } catch {}
@@ -272,6 +302,18 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_classes_org ON classes (organizationId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_class_competitive_profiles_org ON class_competitive_profiles (organizationId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_class_calendar_exceptions_class_date ON class_calendar_exceptions (classId, date)"
     );
   } catch {}
 

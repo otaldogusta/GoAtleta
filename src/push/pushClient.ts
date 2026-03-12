@@ -76,7 +76,7 @@ export const ensurePushPermissions = async (): Promise<boolean> => {
 
 const getProjectId = () => {
   const fromExpoConfig = Constants.expoConfig?.extra?.eas?.projectId;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const fromEasConfig = (Constants as any).easConfig?.projectId as string | undefined;
   return (fromExpoConfig || fromEasConfig || "").trim();
 };

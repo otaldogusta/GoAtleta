@@ -29,6 +29,7 @@ import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { Pressable as AppPressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
 
@@ -581,6 +582,7 @@ export default function EventsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
+        stickyHeaderIndices={[0]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -597,68 +599,80 @@ export default function EventsScreen() {
           />
         }
       >
-        <View style={{ gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>Eventos</Text>
-          <Text style={{ color: colors.muted }}>Agenda mensal da organização</Text>
-        </View>
-
-        {isAdmin ? (
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 8,
-              padding: 4,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
-          >
-            <Pressable
-              onPress={() => setActiveTab("create")}
-              style={{
-                flex: 1,
-                borderRadius: 10,
-                paddingVertical: 10,
-                alignItems: "center",
-                backgroundColor:
-                  activeTab === "create" ? colors.primaryBg : colors.secondaryBg,
-              }}
-            >
-              <Text
-                style={{
-                  color: activeTab === "create" ? colors.primaryText : colors.text,
-                  fontWeight: "800",
-                }}
-              >
-                Criar evento
-              </Text>
-            </Pressable>
+        <View style={{ backgroundColor: colors.background, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 }}>
+          <View style={{ gap: 2 }}>
             <Pressable
               onPress={() => {
-                closeCreateDropdowns();
-                setActiveTab("created");
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace("/");
               }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Eventos</Text>
+            </Pressable>
+            <Text style={{ color: colors.muted }}>Agenda mensal da organização</Text>
+          </View>
+
+          {isAdmin ? (
+            <View
               style={{
-                flex: 1,
-                borderRadius: 10,
-                paddingVertical: 10,
-                alignItems: "center",
-                backgroundColor:
-                  activeTab === "created" ? colors.primaryBg : colors.secondaryBg,
+                flexDirection: "row",
+                gap: 6,
+                padding: 6,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
               }}
             >
-              <Text
+              <Pressable
+                onPress={() => setActiveTab("create")}
                 style={{
-                  color: activeTab === "created" ? colors.primaryText : colors.text,
-                  fontWeight: "800",
+                  flex: 1,
+                  borderRadius: 999,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  backgroundColor: activeTab === "create" ? colors.primaryBg : colors.card,
                 }}
               >
-                Eventos criados
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
+                <Text
+                  style={{
+                    color: activeTab === "create" ? colors.primaryText : colors.text,
+                    fontWeight: "700",
+                  }}
+                >
+                  Criar evento
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  closeCreateDropdowns();
+                  setActiveTab("created");
+                }}
+                style={{
+                  flex: 1,
+                  borderRadius: 999,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  backgroundColor: activeTab === "created" ? colors.primaryBg : colors.card,
+                }}
+              >
+                <Text
+                  style={{
+                    color: activeTab === "created" ? colors.primaryText : colors.text,
+                    fontWeight: "700",
+                  }}
+                >
+                  Eventos criados
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
 
         {!isAdmin || activeTab === "created" ? (
         <View style={{ gap: 10 }}>
@@ -1127,29 +1141,30 @@ export default function EventsScreen() {
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-        scrollContentStyle={{ padding: 4 }}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        scrollContentStyle={{ padding: 8, gap: 6 }}
       >
-        {eventTypes.map((option, index) => {
+        {eventTypes.map((option) => {
           const active = eventType === option;
           return (
-            <Pressable
+            <AppPressable
               key={option}
               onPress={() => {
                 setEventType(option);
                 setShowEventTypeDropdown(false);
               }}
               style={{
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderRadius: 8,
-                backgroundColor: active ? colors.primaryBg : colors.background,
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                borderRadius: 14,
+                marginVertical: 3,
+                backgroundColor: active ? colors.primaryBg : colors.card,
               }}
             >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
                 {eventTypeLabel[option]}
               </Text>
-            </Pressable>
+            </AppPressable>
           );
         })}
       </AnchoredDropdown>
@@ -1163,29 +1178,30 @@ export default function EventsScreen() {
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-        scrollContentStyle={{ padding: 4 }}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        scrollContentStyle={{ padding: 8, gap: 6 }}
       >
-        {sportTypes.map((option, index) => {
+        {sportTypes.map((option) => {
           const active = sport === option;
           return (
-            <Pressable
+            <AppPressable
               key={option}
               onPress={() => {
                 setSport(option);
                 setShowSportDropdown(false);
               }}
               style={{
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderRadius: 8,
-                backgroundColor: active ? colors.primaryBg : colors.background,
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                borderRadius: 14,
+                marginVertical: 3,
+                backgroundColor: active ? colors.primaryBg : colors.card,
               }}
             >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
                 {sportTypeLabel[option]}
               </Text>
-            </Pressable>
+            </AppPressable>
           );
         })}
       </AnchoredDropdown>
@@ -1199,32 +1215,33 @@ export default function EventsScreen() {
         maxHeight={108}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-        scrollContentStyle={{ padding: 4 }}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        scrollContentStyle={{ padding: 8, gap: 6 }}
       >
         {[
           { key: "email" as const, label: "Email" },
           { key: "whatsapp" as const, label: "WhatsApp" },
-        ].map((option, index) => {
+        ].map((option) => {
           const active = notificationChannel === option.key;
           return (
-            <Pressable
+            <AppPressable
               key={option.key}
               onPress={() => {
                 setNotificationChannel(option.key);
                 setShowNotificationDropdown(false);
               }}
               style={{
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderRadius: 8,
-                backgroundColor: active ? colors.primaryBg : colors.background,
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                borderRadius: 14,
+                marginVertical: 3,
+                backgroundColor: active ? colors.primaryBg : colors.card,
               }}
             >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
                 {option.label}
               </Text>
-            </Pressable>
+            </AppPressable>
           );
         })}
       </AnchoredDropdown>
@@ -1238,29 +1255,30 @@ export default function EventsScreen() {
         maxHeight={108}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-        scrollContentStyle={{ padding: 4 }}
+        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+        scrollContentStyle={{ padding: 8, gap: 6 }}
       >
-        {reminderOptions.map((option, index) => {
+        {reminderOptions.map((option) => {
           const active = reminderValue === option;
           return (
-            <Pressable
+            <AppPressable
               key={option}
               onPress={() => {
                 setReminderValue(option);
                 setShowReminderDropdown(false);
               }}
               style={{
-                paddingHorizontal: 10,
-                paddingVertical: 10,
-                borderRadius: 8,
-                backgroundColor: active ? colors.primaryBg : colors.background,
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                borderRadius: 14,
+                marginVertical: 3,
+                backgroundColor: active ? colors.primaryBg : colors.card,
               }}
             >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
                 {option}
               </Text>
-            </Pressable>
+            </AppPressable>
           );
         })}
       </AnchoredDropdown>

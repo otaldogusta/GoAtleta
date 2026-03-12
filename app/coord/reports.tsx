@@ -1,4 +1,4 @@
-﻿import ReportsScreen from "../reports";
+import ReportsScreen from "../reports";
 
 export default function CoordinationReportsTab() {
   return <ReportsScreen />;

@@ -565,39 +565,13 @@ export default function ProfileScreen() {
         }
       >
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-
-          <Pressable
-
-            onPress={() => router.back()}
-
-            style={{
-
-              width: 34,
-
-              height: 34,
-
-              borderRadius: 17,
-
-              backgroundColor: colors.secondaryBg,
-
-              borderWidth: 1,
-
-              borderColor: colors.border,
-
-              alignItems: "center",
-
-              justifyContent: "center",
-
-            }}
-
-          >
-
-            <Ionicons name="chevron-back" size={18} color={colors.text} />
-
-          </Pressable>
-
-        </View>
+        <Pressable
+          onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Perfil</Text>
+        </Pressable>
 
         { loadingProfile ? (
           <View style={{ gap: 12 }}>

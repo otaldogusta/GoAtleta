@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -88,29 +89,35 @@ export default function StudentPlanScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-            {isDayMode ? "Planejamento do dia" : "Plano do treino"}
-          </Text>
+      <ScrollView
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 16, gap: 12 }}
+        stickyHeaderIndices={[0]}
+      >
+        <View
+          style={{
+            gap: 8,
+            backgroundColor: colors.background,
+            paddingBottom: 10,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            marginBottom: 2,
+          }}
+        >
           <Pressable
-            onPress={() => router.back()}
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
+            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text, flexShrink: 1 }}>
+              {isDayMode ? "Planejamento do dia" : "Plano do treino"}
+            </Text>
           </Pressable>
-        </View>
 
-        {targetDate ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>Data: {targetDateLabel}</Text>
-        ) : null}
+          {targetDate ? (
+            <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 46 }}>Data: {targetDateLabel}</Text>
+          ) : null}
+        </View>
 
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>

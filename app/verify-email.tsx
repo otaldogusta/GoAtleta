@@ -292,10 +292,10 @@ export default function VerifyEmailScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Pressable
                 onPress={handleBack}
-                style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 }}
+                style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
               >
-                <Ionicons name="chevron-back" size={16} color={colors.muted} />
-                <Text style={{ color: colors.muted, fontWeight: "600" }}>Voltar</Text>
+                <Ionicons name="chevron-back" size={20} color={colors.text} />
+                <Text style={{ fontSize: 15, fontWeight: "600", color: colors.text }}>Voltar</Text>
               </Pressable>
 
               <Pressable

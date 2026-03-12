@@ -1,4 +1,4 @@
-﻿import { Tabs } from "expo-router";
+import { Tabs } from "expo-router";
 import { AnimatedBottomTabs } from "../../src/components/navigation/AnimatedBottomTabs";
 
 export default function ProfessorTabsLayout() {

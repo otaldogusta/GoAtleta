@@ -1,3 +1,3 @@
-﻿export default function CoordinationActionsTab() {
+export default function CoordinationActionsTab() {
   return null;
 }

@@ -427,15 +427,19 @@ export default function StudentHome() {
             style={{
               alignSelf: "flex-start",
               paddingVertical: 6,
-              paddingHorizontal: 12,
+              paddingHorizontal: 10,
               borderRadius: 999,
               backgroundColor: colors.secondaryBg,
               borderWidth: 1,
               borderColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
             }}
           >
+            <Ionicons name="chevron-back" size={14} color={colors.text} />
             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-              Voltar como professor
+              Professor
             </Text>
           </Pressable>
         ) : null}

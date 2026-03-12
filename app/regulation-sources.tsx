@@ -3,31 +3,31 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    Switch,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useAuth } from "../src/auth/auth";
 import {
-  createRegulationSource,
-  deleteRegulationSource,
-  listRegulationSources,
-  RegulationAuthority,
-  RegulationSource,
-  syncRegulationSourceNow,
-  toggleRegulationSource,
-  updateRegulationSource,
+    createRegulationSource,
+    deleteRegulationSource,
+    listRegulationSources,
+    RegulationAuthority,
+    RegulationSource,
+    syncRegulationSourceNow,
+    toggleRegulationSource,
+    updateRegulationSource,
 } from "../src/api/regulation-sources";
+import { useAuth } from "../src/auth/auth";
 import { useOrganization } from "../src/providers/OrganizationProvider";
-import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
+import { Pressable } from "../src/ui/Pressable";
 
 type FormState = {
   label: string;
@@ -254,19 +254,11 @@ export default function RegulationSourcesScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Pressable
-            onPress={() => router.back()}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Fontes de regulamento</Text>
           </Pressable>
           {isAdmin ? (
             <Pressable

@@ -171,6 +171,7 @@ function RootLayoutContent() {
     loading;
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const publicRoutes = [
+    "/onboarding",
     "/welcome",
     "/login",
     "/signup",
@@ -211,10 +212,30 @@ function RootLayoutContent() {
       (prefix) =>
         normalizedPathname === prefix || normalizedPathname.startsWith(`${prefix}/`)
     );
-  const canGoBack =
-    Platform.OS === "web" &&
-    normalizedPathname !== "/" &&
-    !isPublicRoute;
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (typeof document === "undefined") return;
+
+    const styleId = "sentry-feedback-position-override";
+    const existing = document.getElementById(styleId);
+    if (existing) return;
+
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      #sentry-feedback {
+        --page-margin: 16px !important;
+        --inset: auto 0 calc(env(safe-area-inset-bottom, 0px) + 108px) auto !important;
+        --actor-inset: var(--inset) !important;
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      style.remove();
+    };
+  }, []);
+
   const shouldShowEmailVerifyBanner =
     Boolean(session) &&
     !isPublicRoute &&
@@ -312,7 +333,9 @@ function RootLayoutContent() {
 
     let redirectTo: string | null = null;
 
-    if (session && ["/welcome", "/login", "/signup"].includes(normalizedPathname)) {
+    if (normalizedPathname === "/onboarding") {
+      redirectTo = session ? "/" : "/welcome";
+    } else if (session && ["/onboarding", "/welcome", "/login", "/signup"].includes(normalizedPathname)) {
       redirectTo = "/";
     } else if (!session && normalizedPathname === "/") {
       redirectTo = "/welcome";
@@ -672,38 +695,6 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
         style={mode === "dark" ? "light" : "dark"}
         backgroundColor="transparent"
       />
-      { Platform.OS === "web" && canGoBack ? (
-        <View
-          style={{
-            position: "absolute",
-            bottom: 16,
-            left: 12,
-            zIndex: 10,
-          }}
-        >
-          <Pressable
-            onPress={() => {
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                window.history.back();
-                return;
-              }
-              router.replace("/");
-            }}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 999,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Voltar
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
       {shouldShowEmailVerifyBanner ? (
         <View
           style={{

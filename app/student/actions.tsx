@@ -1,3 +1,3 @@
-﻿export default function StudentActionsTab() {
+export default function StudentActionsTab() {
   return null;
 }

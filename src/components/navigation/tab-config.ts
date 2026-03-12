@@ -1,4 +1,4 @@
-﻿import type { ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import type { Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 

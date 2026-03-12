@@ -1,3 +1,3 @@
-﻿export default function ProfActionsTab() {
+export default function ProfActionsTab() {
   return null;
 }

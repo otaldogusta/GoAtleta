@@ -6,16 +6,16 @@ import * as Network from "expo-network";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated,
-  Easing,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  Vibration,
-  View,
+    Animated,
+    Easing,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    Vibration,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -24,22 +24,22 @@ import { useCopilotActions, useCopilotContext } from "../src/copilot/CopilotProv
 import type { ClassGroup, Student } from "../src/core/models";
 import { useSmartSync } from "../src/core/use-smart-sync";
 import {
-  createCheckinWithFallback,
-  type CheckinDeliveryStatus,
+    createCheckinWithFallback,
+    type CheckinDeliveryStatus,
 } from "../src/data/attendance-checkins";
 import {
-  createBinding,
-  deleteBinding,
-  getBinding,
-  listBindings,
-  type NfcTagBinding,
+    createBinding,
+    deleteBinding,
+    getBinding,
+    listBindings,
+    type NfcTagBinding,
 } from "../src/data/nfc-tag-bindings";
 import { getClasses, getStudents } from "../src/db/seed";
 import {
-  getNfcMetrics,
-  incrementNfcMetric,
-  type NfcMetricKey,
-  type NfcMetrics,
+    getNfcMetrics,
+    incrementNfcMetric,
+    type NfcMetricKey,
+    type NfcMetrics,
 } from "../src/nfc/metrics";
 import { isNfcSupported } from "../src/nfc/nfc";
 import { NFC_ERRORS } from "../src/nfc/nfc-errors";
@@ -1053,28 +1053,17 @@ export default function NfcAttendanceScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 30 }}>
         <View style={{ width: "100%", maxWidth: 980, alignSelf: "center", gap: 14 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <Pressable
+            onPress={() => {
+              void stopScanning().finally(() => router.back());
+            }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
             <Text style={{ color: colors.text, fontSize: 26, fontWeight: "900" }}>Presença NFC</Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>{organizationLabel}</Text>
-          </View>
-          {Platform.OS !== "web" ? (
-            <Pressable
-              onPress={() => {
-                void stopScanning().finally(() => router.back());
-              }}
-              style={{
-                paddingHorizontal: 14,
-                paddingVertical: 9,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
-            </Pressable>
-          ) : null}
+          </Pressable>
+          <Text style={{ color: colors.muted, fontSize: 13, marginLeft: 26 }}>{organizationLabel}</Text>
         </View>
 
         <LinearGradient

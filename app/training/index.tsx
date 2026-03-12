@@ -1,4 +1,4 @@
-﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -50,6 +50,7 @@ import {
 import { notifyTrainingSaved } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
+import { TrainingFabMenu } from "../../src/screens/training/components/TrainingFabMenu";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -63,7 +64,6 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
-import { ScreenHeader } from "../../src/ui/ScreenHeader";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
 import { TimeInput } from "../../src/ui/TimeInput";
@@ -71,7 +71,6 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
-import { TrainingFabMenu } from "../../src/screens/training/components/TrainingFabMenu";
 
 const toLines = (value: string) =>
   value
@@ -364,7 +363,7 @@ export default function TrainingList() {
     () => classes.find((item) => item.id === classId),
     [classes, classId]
   );
-  const trainingFabBottom = Math.max(insets.bottom + 96, 104);
+  const trainingFabBottom = Math.max(insets.bottom + 166, 182);
   const trainingFabRight = 16;
   const trainingFabRotate = useMemo(
     () =>
@@ -1966,6 +1965,7 @@ export default function TrainingList() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
+        stickyHeaderIndices={[0]}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={() => {
           closeFormPickers();
@@ -1974,53 +1974,73 @@ export default function TrainingList() {
         onScroll={syncFormPickerLayouts}
         scrollEventThrottle={16}
       >
-        <ScreenHeader
-          title="Planejamento"
-          subtitle="Aquecimento, parte principal e volta a calma"
-        />
         <View
           style={{
-            flexDirection: "row",
-            gap: 6,
-            padding: 6,
-            borderRadius: 999,
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
+            backgroundColor: colors.background,
+            paddingBottom: 10,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            gap: 10,
           }}
         >
-          {[
-            { id: "formulario" as const, label: "Planejar" },
-            { id: "salvos" as const, label: "Planos salvos" },
-            { id: "modelos" as const, label: "Modelos prontos" },
-          ].map((tab) => {
-            const selected = planningTab === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setPlanningTab(tab.id)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  backgroundColor: selected ? colors.primaryBg : colors.card,
-                  borderWidth: selected ? 0 : 1,
-                  borderColor: selected ? "transparent" : colors.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text
+          <View style={{ gap: 4 }}>
+            <Pressable
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace("/");
+              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+                Planejamento
+              </Text>
+            </Pressable>
+          </View>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 6,
+              padding: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            {[
+              { id: "formulario" as const, label: "Planejar" },
+              { id: "salvos" as const, label: "Planos salvos" },
+              { id: "modelos" as const, label: "Modelos prontos" },
+            ].map((tab) => {
+              const selected = planningTab === tab.id;
+              return (
+                <Pressable
+                  key={tab.id}
+                  onPress={() => setPlanningTab(tab.id)}
                   style={{
-                    color: selected ? colors.primaryText : colors.muted,
-                    fontWeight: "700",
-                    fontSize: 12,
+                    flex: 1,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderRadius: 999,
+                    backgroundColor: selected ? colors.primaryBg : colors.card,
+                    alignItems: "center",
                   }}
                 >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={{
+                      color: selected ? colors.primaryText : colors.text,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         {planningTab === "formulario" && (
@@ -2122,9 +2142,9 @@ export default function TrainingList() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
             }}
-            scrollContentStyle={{ padding: 4 }}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={closeFormPickers}
             dismissOnBackdropPress
           >
@@ -2143,17 +2163,17 @@ export default function TrainingList() {
                       closeFormPickers();
                     }}
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    borderRadius: 10,
-                    margin: index === 0 ? 6 : 2,
-                    backgroundColor: active ? colors.primaryBg : "transparent",
+                    paddingVertical: 12,
+                    paddingHorizontal: 12,
+                    borderRadius: 14,
+                    marginVertical: 3,
+                    backgroundColor: active ? colors.primaryBg : colors.card,
                   }}
                 >
                   <Text
                     style={{
                       color: active ? colors.primaryText : colors.text,
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: active ? "700" : "500",
                     }}
                   >
@@ -2174,9 +2194,9 @@ export default function TrainingList() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
             }}
-            scrollContentStyle={{ padding: 4 }}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={closeFormPickers}
             dismissOnBackdropPress
           >
@@ -2191,18 +2211,18 @@ export default function TrainingList() {
                       closeFormPickers();
                     }}
                     style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      margin: index === 0 ? 6 : 2,
-                      backgroundColor: active ? colors.primaryBg : "transparent",
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderRadius: 14,
+                      marginVertical: 3,
+                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
                       <Text
                         style={{
                           color: active ? colors.primaryText : colors.text,
-                          fontSize: 12,
+                          fontSize: 14,
                           fontWeight: active ? "700" : "500",
                         }}
                       >
@@ -2652,9 +2672,9 @@ export default function TrainingList() {
       <Pressable
         onPress={() => setShowTrainingFabMenu((current) => !current)}
         style={{
-          position: "absolute",
-          right: trainingFabRight,
-          bottom: trainingFabBottom,
+          ...(Platform.OS === "web"
+            ? ({ position: "fixed", right: trainingFabRight, bottom: trainingFabBottom } as any)
+            : { position: "absolute" as const, right: trainingFabRight, bottom: trainingFabBottom }),
           width: 56,
           height: 56,
           borderRadius: 28,

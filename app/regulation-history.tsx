@@ -6,12 +6,12 @@ import { ActivityIndicator, Alert, Linking, ScrollView, Text, View } from "react
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
-  compareRegulationRuleSets,
-  listRegulationClauses,
-  listRegulationRuleSets,
-  type RegulationClause,
-  type RegulationRuleSet,
-  type RegulationRuleSetDiff,
+    compareRegulationRuleSets,
+    listRegulationClauses,
+    listRegulationRuleSets,
+    type RegulationClause,
+    type RegulationRuleSet,
+    type RegulationRuleSetDiff,
 } from "../src/api/regulation-rule-sets";
 import { listRegulationUpdates, type RegulationUpdate } from "../src/api/regulation-updates";
 import { useOrganization } from "../src/providers/OrganizationProvider";
@@ -167,23 +167,12 @@ export default function RegulationHistoryScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <Pressable
-            onPress={() => router.back()}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Histórico de regulamentos</Text>
           </Pressable>
-          <Text style={{ color: colors.text, fontSize: 25, fontWeight: "800" }}>
-            Historico de regulamentos
-          </Text>
         </View>
 
         <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, gap: 4 }}>

@@ -24,9 +24,8 @@ import { useAppTheme } from "../src/ui/app-theme";
 
 export default function SignupScreen() {
   const { colors, mode } = useAppTheme();
-  const { signUp } = useAuth();
-  const { role: roleParam, inviteCode: inviteCodeParam } = useLocalSearchParams<{
-    role?: string;
+  const { signUp, signInWithOAuth } = useAuth();
+  const { inviteCode: inviteCodeParam } = useLocalSearchParams<{
     inviteCode?: string;
   }>();
   const solidInputBg = colors.inputBg;
@@ -39,10 +38,13 @@ export default function SignupScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [role, setRole] = useState<"student" | "trainer">("student");
   const [inviteCode, setInviteCode] = useState("");
   const strengthAnim = useRef(new Animated.Value(0)).current;
   const enterAnim = useRef(new Animated.Value(0)).current;
+  const passwordShakeAnim = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const [passwordTooShort, setPasswordTooShort] = useState(false);
+  const [confirmMismatch, setConfirmMismatch] = useState(false);
 
   const passwordChecks = useMemo(() => {
     const value = password;
@@ -92,19 +94,23 @@ export default function SignupScreen() {
   }, [enterAnim]);
 
   useEffect(() => {
-    if (roleParam === "trainer" || hasInviteCodeFromLink) {
-      setRole("trainer");
-    }
     if (hasInviteCodeFromLink) {
       setInviteCode(inviteCodeParam.trim());
     }
-  }, [hasInviteCodeFromLink, inviteCodeParam, roleParam]);
+  }, [hasInviteCodeFromLink, inviteCodeParam]);
+
+  const runShake = (anim: Animated.Value) => {
+    anim.setValue(0);
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 8, duration: 50, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: -8, duration: 50, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 6, duration: 50, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: -6, duration: 50, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
 
   const handleSignup = async () => {
-    if (!fullName.trim()) {
-      setMessage("Informe seu nome completo.");
-      return;
-    }
     if (!email.trim()) {
       setMessage("Informe seu email.");
       return;
@@ -115,21 +121,20 @@ export default function SignupScreen() {
     }
     if (password.trim().length < 6) {
       setMessage("A senha precisa ter pelo menos 6 caracteres.");
+      setPasswordTooShort(true);
+      runShake(passwordShakeAnim);
       return;
     }
     if (confirm && confirm !== password) {
-      setMessage("As senhas não conferem.");
-      return;
-    }
-    if (role === "trainer" && !inviteCode.trim()) {
-      setMessage("Informe o código de convite para treinador.");
+      setConfirmMismatch(true);
+      runShake(shakeAnim);
       return;
     }
     setMessage("");
     setBusy(true);
     try {
-      const session = await signUp(email.trim(), password, "login", fullName.trim());
-      if (role === "trainer") {
+      const session = await signUp(email.trim(), password, "login", "");
+      if (inviteCode.trim()) {
         if (session) {
           await claimTrainerInvite(inviteCode.trim());
           setMessage("Conta criada e convite validado. Confirme o e-mail por código para liberar acesso completo.");
@@ -145,7 +150,15 @@ export default function SignupScreen() {
       const detail = error instanceof Error ? error.message : "Falha ao cadastrar.";
       const normalized = detail.toLowerCase();
       if (normalized.includes("user already registered")) {
-        setMessage("Esse email já esta cadastrado.");
+        router.replace({
+          pathname: "/login",
+          params: {
+            email: email.trim(),
+            password,
+            fromSignup: "1",
+          },
+        });
+        return;
       } else if (normalized.includes("invite")) {
         setMessage("Convite inválido ou expirado.");
       } else if (normalized.includes("weak_password") || normalized.includes("at least 6")) {
@@ -153,6 +166,20 @@ export default function SignupScreen() {
       } else {
         setMessage("Não foi possível concluir. Verifique os dados e tente novamente.");
       }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    if (busy) return;
+    setMessage("");
+    setBusy(true);
+    try {
+      await signInWithOAuth("google");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message.toLowerCase() : "falha ao autenticar.";
+      setMessage(detail.includes("cancel") ? "Cadastro cancelado." : "Não foi possível criar conta com Google.");
     } finally {
       setBusy(false);
     }
@@ -190,17 +217,15 @@ export default function SignupScreen() {
             >
               <View
                 style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
                   backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <Ionicons name="chevron-back" size={16} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar</Text>
               </View>
             </Pressable>
 
@@ -242,39 +267,6 @@ export default function SignupScreen() {
               >
 
                 <TextInput
-                  placeholder="Nome completo"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="words"
-                  underlineColorAndroid="transparent"
-                  selectionColor={colors.primaryBg}
-                  style={{
-                    flex: 1,
-                    padding: 0,
-                    color: colors.inputText,
-                    backgroundColor: "transparent",
-                    borderWidth: 0,
-                    outlineStyle: "none",
-                    outlineWidth: 0,
-                  }}
-                />
-              </View>
-
-              <View
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 14,
-                  backgroundColor: solidInputBg,
-                  overflow: "hidden",
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  minHeight: 48,
-                }}
-              >
-
-                <TextInput
                   placeholder="Email"
                   value={email}
                   onChangeText={setEmail}
@@ -295,144 +287,211 @@ export default function SignupScreen() {
                 />
               </View>
 
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  borderRadius: 14,
-                  backgroundColor: solidInputBg,
-                  overflow: "hidden",
-                  minHeight: 48,
-                }}
-              >
-
-                <TextInput
-                  placeholder="Senha"
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholderTextColor={colors.placeholder}
-                  secureTextEntry={!showPassword}
-                  underlineColorAndroid="transparent"
-                  selectionColor={colors.primaryBg}
-                  style={{
-                    flex: 1,
-                    padding: 0,
-                    color: colors.inputText,
-                    backgroundColor: "transparent",
-                    outlineStyle: "none",
-                    outlineWidth: 0,
-                  }}
-                />
-                { password.length > 0 ? (
-                  <Pressable
-                    onPress={() => setShowPassword((prev) => !prev)}
-                    style={{ paddingLeft: 8, paddingVertical: 8 }}
-                  >
-                    <Ionicons
-                      name={showPassword ? "eye-off" : "eye"}
-                      size={18}
-                      color={colors.muted}
+              <Animated.View style={{ transform: [{ translateX: passwordShakeAnim }] }}>
+                {passwordTooShort ? (
+                  <View style={{ position: "relative", marginBottom: 6 }}>
+                    <View
+                      style={{
+                        backgroundColor: colors.dangerSolidBg,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                        A senha precisa ter pelo menos 6 caracteres.
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: 0,
+                        height: 0,
+                        marginLeft: 16,
+                        borderLeftWidth: 6,
+                        borderRightWidth: 6,
+                        borderTopWidth: 6,
+                        borderLeftColor: "transparent",
+                        borderRightColor: "transparent",
+                        borderTopColor: colors.dangerSolidBg,
+                      }}
                     />
-                  </Pressable>
+                  </View>
                 ) : null}
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  borderRadius: 14,
-                  backgroundColor: solidInputBg,
-                  overflow: "hidden",
-                  minHeight: 48,
-                }}
-              >
-
-                <TextInput
-                  placeholder="Confirmar senha"
-                  value={confirm}
-                  onChangeText={setConfirm}
-                  placeholderTextColor={colors.placeholder}
-                  secureTextEntry={!showConfirm}
-                  underlineColorAndroid="transparent"
-                  selectionColor={colors.primaryBg}
+                <View
                   style={{
-                    flex: 1,
-                    padding: 0,
-                    color: colors.inputText,
-                    backgroundColor: "transparent",
-                    outlineStyle: "none",
-                    outlineWidth: 0,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    borderWidth: 1,
+                    borderColor: passwordTooShort ? colors.dangerSolidBg : colors.border,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    backgroundColor: solidInputBg,
+                    overflow: "hidden",
+                    minHeight: 48,
                   }}
-                />
-                { confirm.length > 0 ? (
-                  <Pressable
-                    onPress={() => setShowConfirm((prev) => !prev)}
-                    style={{ paddingLeft: 8, paddingVertical: 8 }}
+                >
+
+                  <TextInput
+                    placeholder="Senha"
+                    value={password}
+                    onChangeText={(v) => {
+                      setPassword(v);
+                      if (passwordTooShort && v.trim().length >= 6) {
+                        setPasswordTooShort(false);
+                      }
+                    }}
+                    placeholderTextColor={colors.placeholder}
+                    secureTextEntry={!showPassword}
+                    underlineColorAndroid="transparent"
+                    selectionColor={colors.primaryBg}
+                    style={{
+                      flex: 1,
+                      padding: 0,
+                      color: colors.inputText,
+                      backgroundColor: "transparent",
+                      outlineStyle: "none",
+                      outlineWidth: 0,
+                    }}
+                  />
+                  { password.length > 0 ? (
+                    <Pressable
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      style={{ paddingLeft: 8, paddingVertical: 8 }}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off" : "eye"}
+                        size={18}
+                        color={colors.muted}
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+              </Animated.View>
+
+              { password.length > 0 ? (
+                <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+                  {confirmMismatch ? (
+                    <View style={{ position: "relative", marginBottom: 6 }}>
+                      <View
+                        style={{
+                          backgroundColor: colors.dangerSolidBg,
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          alignSelf: "flex-start",
+                        }}
+                      >
+                        <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                          As senhas não conferem
+                        </Text>
+                      </View>
+                      <View
+                        style={{
+                          width: 0,
+                          height: 0,
+                          marginLeft: 16,
+                          borderLeftWidth: 6,
+                          borderRightWidth: 6,
+                          borderTopWidth: 6,
+                          borderLeftColor: "transparent",
+                          borderRightColor: "transparent",
+                          borderTopColor: colors.dangerSolidBg,
+                        }}
+                      />
+                    </View>
+                  ) : null}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: confirmMismatch ? colors.dangerSolidBg : colors.border,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      borderRadius: 14,
+                      backgroundColor: solidInputBg,
+                      overflow: "hidden",
+                      minHeight: 48,
+                    }}
                   >
-                    <Ionicons
-                      name={showConfirm ? "eye-off" : "eye"}
-                      size={18}
-                      color={colors.muted}
+                    <TextInput
+                      placeholder="Confirmar senha"
+                      value={confirm}
+                      onChangeText={(v) => {
+                        setConfirm(v);
+                        if (confirmMismatch) setConfirmMismatch(false);
+                      }}
+                      placeholderTextColor={colors.placeholder}
+                      secureTextEntry={!showConfirm}
+                      underlineColorAndroid="transparent"
+                      selectionColor={colors.primaryBg}
+                      style={{
+                        flex: 1,
+                        padding: 0,
+                        color: colors.inputText,
+                        backgroundColor: "transparent",
+                        outlineStyle: "none",
+                        outlineWidth: 0,
+                      }}
                     />
-                  </Pressable>
-                ) : null}
-              </View>
+                    {confirm.length > 0 ? (
+                      <Pressable
+                        onPress={() => setShowConfirm((prev) => !prev)}
+                        style={{ paddingLeft: 8, paddingVertical: 8 }}
+                      >
+                        <Ionicons
+                          name={showConfirm ? "eye-off" : "eye"}
+                          size={18}
+                          color={colors.muted}
+                        />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </Animated.View>
+              ) : null}
 
               { password.length > 0 ? (
                 <View style={{ gap: 8 }}>
-                  <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                      {strengthLabel}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: 6 }}>
-                    {[0, 1, 2].map((index) => {
-                      const start = index / 3;
-                      const end = (index + 1) / 3;
-                      const fillWidth = strengthAnim.interpolate({
-                        inputRange: [start, end],
-                        outputRange: ["0%", "100%"],
-                        extrapolate: "clamp",
-                      });
-                      const segmentColor =
-                        index === 0
-                           ? colors.dangerSolidBg
-                          : index === 1
-                           ? colors.warningBg
-                          : colors.successBg;
-                      return (
-                        <View
-                          key={String(index)}
-                          style={{
-                            flex: 1,
-                            height: 6,
-                            borderRadius: 999,
-                            backgroundColor: colors.secondaryBg,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <Animated.View
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View style={{ flex: 1, flexDirection: "row", gap: 4 }}>
+                      {[0, 1, 2].map((index) => {
+                        const start = index / 3;
+                        const end = (index + 1) / 3;
+                        const fillWidth = strengthAnim.interpolate({
+                          inputRange: [start, end],
+                          outputRange: ["0%", "100%"],
+                          extrapolate: "clamp",
+                        });
+                        const segmentColor =
+                          index === 0
+                            ? colors.dangerSolidBg
+                            : index === 1
+                            ? colors.warningBg
+                            : colors.successBg;
+                        return (
+                          <View
+                            key={String(index)}
                             style={{
-                              height: "100%",
-                              width: fillWidth,
-                              backgroundColor: segmentColor,
+                              flex: 1,
+                              height: 4,
+                              borderRadius: 999,
+                              backgroundColor: colors.secondaryBg,
+                              overflow: "hidden",
                             }}
-                          />
-                        </View>
-                      );
-                    })}
+                          >
+                            <Animated.View
+                              style={{ height: "100%", width: fillWidth, backgroundColor: segmentColor }}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>{strengthLabel}</Text>
                   </View>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {[
+                    {[
                       { key: "minúscula", ok: passwordChecks.lower },
                       { key: "maiúscula", ok: passwordChecks.upper },
                       { key: "número", ok: passwordChecks.number },
@@ -464,80 +523,50 @@ export default function SignupScreen() {
               ) : null}
 
               {!hasInviteCodeFromLink ? (
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Quero acessar como
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {[
-                      { id: "student", label: "Aluno" },
-                      { id: "trainer", label: "Treinador" },
-                    ].map((option) => {
-                      const active = role === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          onPress={() => {
-                            setRole(option.id as "student" | "trainer");
-                            if (option.id === "student") {
-                              setInviteCode("");
-                            }
-                          }}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 10,
-                            borderRadius: 12,
-                            alignItems: "center",
-                            backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: active ? colors.primaryText : colors.text,
-                              fontWeight: "700",
-                            }}
-                          >
-                            {option.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                <View style={{ gap: 6 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Ionicons name="key-outline" size={13} color={colors.muted} />
+                    <Text style={{ color: colors.muted, fontSize: 11, letterSpacing: 0.4 }}>
+                      Código de convite
+                    </Text>
                   </View>
-                </View>
-              ) : null}
-
-              {role === "trainer" && !hasInviteCodeFromLink ? (
-                <View
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 14,
-                    backgroundColor: solidInputBg,
-                    overflow: "hidden",
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    minHeight: 48,
-                  }}
-                >
-
-                  <TextInput
-                    placeholder="Código de convite"
-                    value={inviteCode}
-                    onChangeText={setInviteCode}
-                    placeholderTextColor={colors.placeholder}
-                    autoCapitalize="characters"
+                  <View
                     style={{
-                      flex: 1,
-                      padding: 0,
-                      color: colors.inputText,
-                      backgroundColor: "transparent",
-                      borderWidth: 0,
-                      outlineStyle: "none",
-                      outlineWidth: 0,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 14,
+                      backgroundColor: solidInputBg,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      minHeight: 48,
+                      gap: 8,
                     }}
-                  />
+                  >
+                    <TextInput
+                      placeholder="Opcional — recebido por link ou email"
+                      value={inviteCode}
+                      onChangeText={setInviteCode}
+                      placeholderTextColor={colors.placeholder}
+                      autoCapitalize="characters"
+                      style={{
+                        flex: 1,
+                        padding: 0,
+                        color: colors.inputText,
+                        backgroundColor: "transparent",
+                        borderWidth: 0,
+                        outlineStyle: "none",
+                        outlineWidth: 0,
+                        fontSize: 13,
+                      }}
+                    />
+                    {inviteCode.length > 0 ? (
+                      <Pressable onPress={() => setInviteCode("")} style={{ paddingLeft: 4 }}>
+                        <Ionicons name="close-circle" size={16} color={colors.muted} />
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
               ) : null}
 
@@ -591,8 +620,40 @@ export default function SignupScreen() {
               </Pressable>
             </View>
 
+            <View style={{ marginTop: 12, gap: 10 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                <Text style={{ color: colors.muted, fontSize: 12 }}>ou</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+              </View>
+              <View style={{ alignItems: "center" }}>
+                <Pressable
+                  onPress={handleGoogleSignup}
+                  disabled={busy}
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="logo-google" size={20} color={colors.text} />
+                </Pressable>
+              </View>
+            </View>
+
             <View style={{ alignItems: "center", gap: 6 }}>
-              <Text style={{ color: colors.muted }}>JÁ tem conta?</Text>
+              <Text style={{ color: colors.muted }}>Já tem conta?</Text>
               <Pressable
                 onPress={() => router.replace("/login")}
                 style={{ paddingVertical: 4 }}

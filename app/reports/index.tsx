@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Platform, Text, View } from "react-native";
@@ -305,26 +306,38 @@ export default function ReportsScreen() {
   const header = (
     <View style={{ gap: 12, paddingBottom: 12 }}>
       <View style={{ gap: 4 }}>
-        <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
-          Dashboard de Coordenação
-        </Text>
+        <Pressable
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+              return;
+            }
+            router.replace("/");
+          }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>
+            Dashboard de Coordenação
+          </Text>
+        </Pressable>
         <Text style={{ color: colors.muted }}>
           Pendências e atividade recente da organização{" "}
           {activeOrganization?.name ? `• ${activeOrganization.name}` : ""}
         </Text>
       </View>
 
-      <View
-        style={{
-          borderRadius: 16,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          padding: 8,
-          gap: 8,
-        }}
-      >
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+      <View style={{ gap: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            flexWrap: "wrap",
+            borderRadius: 999,
+            backgroundColor: colors.secondaryBg,
+            padding: 6,
+          }}
+        >
           {tabItems.map((item) => {
             const selected = tab === item.id;
             return (
@@ -332,10 +345,12 @@ export default function ReportsScreen() {
                 key={item.id}
                 onPress={() => setTab(item.id)}
                 style={{
+                  flexGrow: 1,
                   paddingHorizontal: 12,
-                  paddingVertical: 8,
+                  paddingVertical: 10,
                   borderRadius: 999,
-                  backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
+                  backgroundColor: selected ? colors.primaryBg : colors.card,
+                  alignItems: "center",
                 }}
               >
                 <Text

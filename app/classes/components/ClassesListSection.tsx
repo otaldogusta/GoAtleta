@@ -5,7 +5,7 @@ import type { ClassGroup } from "../../../src/core/models";
 import { markRender } from "../../../src/observability/perf";
 import { ClassCard } from "./ClassCard";
 
-type GroupedClasses = Array<[string, ClassGroup[]]>;
+type GroupedClasses = [string, ClassGroup[]][];
 type Conflict = { name: string; day: number };
 
 type RowItem =

@@ -3,6 +3,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    Animated,
+    Easing,
     KeyboardAvoidingView,
     Platform,
     RefreshControl,
@@ -16,8 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
-import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
+import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
 import type { ClassGroup } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
@@ -115,6 +117,10 @@ export default function ClassesScreen() {
   const [mainTab, setMainTab] = useState<"lista" | "criar">("lista");
   const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
   const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
+  const mainTabAnim = useRef<Record<"lista" | "criar", Animated.Value>>({
+    lista: new Animated.Value(1),
+    criar: new Animated.Value(0),
+  }).current;
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomDuration, setEditShowCustomDuration] = useState(false);
@@ -646,7 +652,7 @@ export default function ClassesScreen() {
     setFormError("");
     setSaving(true);
     try {
-        await saveClass({
+      const createdClassId = await saveClass({
           name: newName.trim(),
           unit: newUnit.trim() || "Sem unidade",
           colorKey: newColorKey ?? null,
@@ -661,10 +667,23 @@ export default function ClassesScreen() {
         cycleStartDate: newCycleStartDate || undefined,
           cycleLengthWeeks: cycleValue,
       });
-        Vibration.vibrate(60);
-        resetCreateForm();
+      Vibration.vibrate(60);
+      resetCreateForm();
       await loadClasses();
-      router.back();
+      setMainTab("lista");
+      confirmDialog({
+        title: "Turma criada",
+        message: "A turma foi gerada com sucesso. Deseja abrir agora?",
+        confirmLabel: "Ver turma",
+        cancelLabel: "Ficar na lista",
+        tone: "default",
+        onConfirm: () => {
+          router.push({
+            pathname: "/class/[id]",
+            params: { id: createdClassId },
+          });
+        },
+      });
     } finally {
       setSaving(false);
     }
@@ -774,6 +793,17 @@ export default function ClassesScreen() {
     },
     [isCreateDirty, mainTab, resetCreateForm]
   );
+
+  useEffect(() => {
+    (["lista", "criar"] as const).forEach((tabKey) => {
+      Animated.timing(mainTabAnim[tabKey], {
+        toValue: mainTab === tabKey ? 1 : 0,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [mainTab, mainTabAnim]);
 
   const openEditModal = useCallback((item: ClassGroup) => {
     const goalValue = item.goal ?? "Fundamentos";
@@ -1354,17 +1384,17 @@ export default function ClassesScreen() {
           <Pressable
             onPress={() => onSelect(unit)}
             style={{
-              paddingVertical: 8,
-              paddingHorizontal: 10,
-              borderRadius: 10,
-              margin: isFirst ? 6 : 2,
-              backgroundColor: active ? palette.bg : "transparent",
+              paddingVertical: 12,
+              paddingHorizontal: 12,
+              borderRadius: 14,
+              marginVertical: 3,
+              backgroundColor: active ? palette.bg : colors.card,
             }}
           >
             <Text
               style={{
                 color: active ? palette.text : colors.text,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: active ? "700" : "500",
               }}
             >
@@ -1395,17 +1425,17 @@ export default function ClassesScreen() {
           <Pressable
             onPress={() => onSelect(value)}
             style={{
-              paddingVertical: 8,
-              paddingHorizontal: 10,
-              borderRadius: 10,
-              margin: isFirst ? 6 : 2,
-              backgroundColor: active ? colors.primaryBg : "transparent",
+              paddingVertical: 12,
+              paddingHorizontal: 12,
+              borderRadius: 14,
+              marginVertical: 3,
+              backgroundColor: active ? colors.primaryBg : colors.card,
             }}
           >
             <Text
               style={{
                 color: active ? colors.primaryText : colors.text,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: active ? "700" : "500",
               }}
             >
@@ -1502,39 +1532,32 @@ export default function ClassesScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
-        <ScrollView
-          contentContainerStyle={{
+      <View ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
+        <View
+          style={{
             gap: 16,
-            paddingBottom: 24,
+            backgroundColor: colors.background,
+            paddingBottom: 8,
             paddingHorizontal: 16,
             paddingTop: 16,
           }}
-          keyboardShouldPersistTaps="handled"
-          onScroll={syncPickerLayouts}
-          onScrollBeginDrag={closeAllPickers}
-          scrollEventThrottle={16}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                try {
-                  await loadClasses();
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
-              tintColor={colors.text}
-              colors={[colors.text]}
-            />
-          }
         >
         <View style={{ marginBottom: 4 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Turmas
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 4 }}>Lista completa</Text>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/");
+            }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              Turmas
+            </Text>
+          </Pressable>
         </View>
 
         <ConfirmCloseOverlay
@@ -1558,42 +1581,93 @@ export default function ClassesScreen() {
             padding: 6,
             borderRadius: 999,
             backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
           }}
         >
             {[
               { id: "lista" as const, label: "Lista" },
               { id: "criar" as const, label: "Criar turma" },
             ].map((tab) => {
-              const selected = mainTab === tab.id;
+              const tabProgress = mainTabAnim[tab.id];
+              const tabScale = tabProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.95, 1],
+              });
+              const tabOpacity = tabProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.68, 1],
+              });
+              const tabBackground = tabProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [colors.card, colors.primaryBg],
+              });
+              const tabTextColor = tabProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [colors.text, colors.primaryText],
+              });
               return (
-                <Pressable
+                <Animated.View
                   key={tab.id}
+                  style={{
+                    flex: 1,
+                    borderRadius: 999,
+                    opacity: tabOpacity,
+                    transform: [{ scale: tabScale }],
+                    backgroundColor: tabBackground,
+                  }}
+                >
+                <Pressable
                   onPress={() => requestSwitchMainTab(tab.id)}
                   style={{
                     flex: 1,
-                    paddingVertical: 8,
+                    paddingVertical: 10,
                     borderRadius: 999,
-                    backgroundColor: selected ? colors.primaryBg : colors.card,
-                    borderWidth: selected ? 0 : 1,
-                    borderColor: selected ? "transparent" : colors.border,
                     alignItems: "center",
                   }}
                 >
-                  <Text
+                  <Animated.Text
                     style={{
-                      color: selected ? colors.primaryText : colors.muted,
+                      color: tabTextColor,
                       fontWeight: "700",
                       fontSize: 12,
                     }}
                   >
                     {tab.label}
-                  </Text>
+                  </Animated.Text>
                 </Pressable>
+                </Animated.View>
               );
             })}
         </View>
+        </View>
+
+        <ScrollView
+          style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}
+          contentContainerStyle={{
+            gap: 16,
+            paddingBottom: 24,
+            paddingHorizontal: 16,
+            paddingTop: 12,
+          }}
+          keyboardShouldPersistTaps="handled"
+          onScroll={syncPickerLayouts}
+          onScrollBeginDrag={closeAllPickers}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                try {
+                  await loadClasses();
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              tintColor={colors.text}
+              colors={[colors.text]}
+            />
+          }
+        >
 
         {mainTab === "lista" && (
         <View style={{ gap: 12, marginTop: 12 }}>
@@ -1949,9 +2023,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {units.map((unit, index) => {
             const active = unitFilter === unit;
@@ -1984,9 +2058,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {durationOptions.map((value, index) => (
             <SelectOption
@@ -2018,9 +2092,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {cycleLengthOptions.map((value, index) => (
             <SelectOption
@@ -2046,9 +2120,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {mvLevelOptions.map((option, index) => (
             <SelectOption
@@ -2074,9 +2148,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {ageBandOptions.map((band, index) => (
             <SelectOption
@@ -2108,9 +2182,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {genderOptions.map((option, index) => (
             <SelectOption
@@ -2136,9 +2210,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {modalityOptions.map((option, index) => (
             <SelectOption
@@ -2164,9 +2238,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {goalOptions.map((goal, index) => (
             <SelectOption
@@ -2597,9 +2671,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {durationOptions.map((item, index) => (
             <SelectOption
@@ -2631,9 +2705,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {cycleLengthOptions.map((value, index) => (
             <SelectOption
@@ -2659,9 +2733,9 @@ export default function ClassesScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {mvLevelOptions.map((option, index) => (
             <SelectOption

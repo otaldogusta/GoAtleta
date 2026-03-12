@@ -1,4 +1,4 @@
-﻿import { memo } from "react";
+import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../src/core/models";

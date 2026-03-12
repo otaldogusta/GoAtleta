@@ -1,12 +1,12 @@
-import {
-  Animated,
-  Text,
-  View
-} from "react-native";
-import { Pressable } from "../src/ui/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
+import {
+    Animated,
+    Text,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../src/ui/Pressable";
 
 import { useAppTheme } from "../src/ui/app-theme";
 

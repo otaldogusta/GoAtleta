@@ -1,0 +1,15 @@
+{
+  "total": 30,
+  "volleyballAny": 29,
+  "volleyballOnly": 20,
+  "multiModality": 9,
+  "parqPositive": 1,
+  "cardioRisk": 1,
+  "orthoRisk": 4,
+  "currentInjury": 0,
+  "allergies": 7,
+  "smoker": 5,
+  "dizzinessOrSyncope": 1,
+  "needsMedicalClearance": 1,
+  "needsIndividualAttention": 4
+}

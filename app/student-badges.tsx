@@ -1,17 +1,18 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "expo-router";
-import { useAppTheme } from "../src/ui/app-theme";
-import { Pressable } from "../src/ui/Pressable";
 import { useRole } from "../src/auth/role";
-import { getStudentScoutingByRange, getClasses } from "../src/db/seed";
 import type { ClassGroup, StudentScoutingLog } from "../src/core/models";
 import {
-  createEmptyCounts,
-  countsFromStudentLog,
-  getTechnicalPerformanceScore,
+    countsFromStudentLog,
+    createEmptyCounts,
+    getTechnicalPerformanceScore,
 } from "../src/core/scouting";
+import { getClasses, getStudentScoutingByRange } from "../src/db/seed";
+import { useAppTheme } from "../src/ui/app-theme";
+import { Pressable } from "../src/ui/Pressable";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 const formatIsoDate = (value: Date) => {
@@ -105,7 +106,7 @@ export default function StudentBadges() {
     const counts = createEmptyCounts();
     logs.forEach((log) => {
       const next = countsFromStudentLog(log);
-      (Object.keys(counts) as Array<keyof typeof counts>).forEach((skill) => {
+      (Object.keys(counts) as (keyof typeof counts)[]).forEach((skill) => {
         counts[skill][0] += next[skill][0];
         counts[skill][1] += next[skill][1];
         counts[skill][2] += next[skill][2];
@@ -124,26 +125,13 @@ export default function StudentBadges() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Pressable
-            onPress={() => router.back()}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ color: colors.text }}>‹</Text>
-          </Pressable>
-          <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>
-            Conquistas
-          </Text>
-        </View>
+        <Pressable
+          onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Conquistas</Text>
+        </Pressable>
 
         <View
           style={{

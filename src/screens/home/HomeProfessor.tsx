@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 
 import * as Clipboard from "expo-clipboard";
@@ -92,8 +92,8 @@ import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
 
-import { useSaveToast } from "../../ui/save-toast";
 import { markRender, measureAsync } from "../../observability/perf";
+import { useSaveToast } from "../../ui/save-toast";
 import { AgendaCard } from "./components/AgendaCard";
 
 
@@ -1454,10 +1454,6 @@ export function HomeProfessorScreen({
               backgroundColor: inboxPanelSurface,
               borderWidth: 1,
               borderColor: inboxPanelBorder,
-
-              borderWidth: 1,
-
-              borderColor: colors.border,
               alignItems: "center",
 
               justifyContent: "center",

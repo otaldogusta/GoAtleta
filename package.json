@@ -23,6 +23,10 @@
     "update:promote": "eas update:promote",
     "check:encoding": "node scripts/check-encoding.js",
     "check:edge-jwt": "node scripts/check-edge-jwt.js",
+    "intake:import": "node scripts/import-athlete-intake.js",
+    "intake:upsert": "node scripts/import-athlete-intake.js --upsert",
+    "intake:auto": "node scripts/run-intake-import.js",
+    "intake:auto:upsert": "node scripts/run-intake-import.js --upsert",
     "figma:colors": "node scripts/sync-figma-colors.js",
     "postinstall": "patch-package && node scripts/check-yoga-patch.js"
   },

@@ -1,13 +1,14 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 
 import {
-  AppNotification,
-  clearNotifications,
-  getNotifications,
-  markAllRead,
+    AppNotification,
+    clearNotifications,
+    getNotifications,
+    markAllRead,
 } from "../src/notificationsInbox";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -47,23 +48,18 @@ export default function CommunicationsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-            Comunicados
-          </Text>
+      <ScrollView
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 16, gap: 12 }}
+        stickyHeaderIndices={[0]}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.background, paddingBottom: 8 }}>
           <Pressable
-            onPress={() => router.back()}
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
+            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Comunicados</Text>
           </Pressable>
         </View>
 

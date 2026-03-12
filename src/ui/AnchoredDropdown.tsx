@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
     Animated,
     Dimensions,
@@ -45,9 +45,44 @@ export function AnchoredDropdown({
   children,
   onRequestClose,
   dismissOnBackdropPress = !!onRequestClose,
-  showVerticalScrollIndicator = false,
+  showVerticalScrollIndicator = true,
 }: AnchoredDropdownProps) {
   const { colors } = useAppTheme();
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible || !layout) return;
+
+    const element = scrollRef.current as unknown as HTMLElement | null;
+    if (!element || typeof element.addEventListener !== "function") return;
+
+    const handleWheel = (event: WheelEvent) => {
+      const canScroll = element.scrollHeight > element.clientHeight + 1;
+      if (!canScroll) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      const deltaY = event.deltaY;
+      const atTop = element.scrollTop <= 0;
+      const atBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 1;
+      const scrollingUp = deltaY < 0;
+      const scrollingDown = deltaY > 0;
+
+      event.stopPropagation();
+
+      if ((atTop && scrollingUp) || (atBottom && scrollingDown)) {
+        event.preventDefault();
+      }
+    };
+
+    element.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      element.removeEventListener("wheel", handleWheel);
+    };
+  }, [layout, visible]);
+
   if (!visible || !layout) return null;
 
   const resolvedMaxHeight = Math.min(maxHeight, DEFAULT_DROPDOWN_MAX_HEIGHT);
@@ -101,20 +136,22 @@ export function AnchoredDropdown({
           style={[
             {
               maxHeight: resolvedMaxHeight,
-              borderRadius: 12,
+              borderRadius: 18,
               overflow: "hidden",
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
             },
             panelStyle,
           ]}
         >
           <ScrollView
+            ref={scrollRef}
             style={{ maxHeight: resolvedMaxHeight }}
-            contentContainerStyle={scrollContentStyle}
+            contentContainerStyle={[{ padding: 8, gap: 6 }, scrollContentStyle]}
             nestedScrollEnabled={nestedScrollEnabled}
             showsVerticalScrollIndicator={showVerticalScrollIndicator}
+            persistentScrollbar={Platform.OS === "android"}
             scrollEventThrottle={16}
             keyboardShouldPersistTaps="handled"
             overScrollMode={Platform.OS === "android" ? "always" : "auto"}

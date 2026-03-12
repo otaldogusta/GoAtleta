@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Text, View } from "react-native";
@@ -82,22 +83,24 @@ export default function AbsenceNoticesScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1, padding: 16, gap: 12 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-            Avisos de ausência
-          </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            backgroundColor: colors.background,
+            paddingBottom: 10,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+            marginBottom: 2,
+          }}
+        >
           <Pressable
-            onPress={() => router.back()}
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
+            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Avisos de ausência</Text>
           </Pressable>
         </View>
 

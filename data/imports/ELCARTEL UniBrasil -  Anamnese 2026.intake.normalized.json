@@ -1,0 +1,898 @@
+[
+  {
+    "fullName": "Eduarda Cristina Nantes Souza",
+    "ra": "2026108233",
+    "sex": "feminino",
+    "birthDate": "2004-01-06",
+    "email": "eduardanantes1@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Alexandre de Oliveira Santana",
+    "ra": "2025207391",
+    "sex": "masculino",
+    "birthDate": "2005-03-24",
+    "email": "alexandresantana2936@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": true,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente",
+      "historico-familiar-risco"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Polyana Sofia Marangoni Tanan",
+    "ra": "2026109379",
+    "sex": "feminino",
+    "birthDate": "2007-10-26",
+    "email": "polyanasofiatanan@gmail.com",
+    "modalities": [
+      "Vôlei",
+      "Basquete",
+      "Handebol",
+      "Natação",
+      "Futevôlei",
+      "Atletismo",
+      "Artes Marciais",
+      "Tênis de Mesa",
+      "Xadrez"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Maurício Wojslaw Dias dos Santos",
+    "ra": "2026108436",
+    "sex": "masculino",
+    "birthDate": "2007-05-15",
+    "email": "mauriciodias6789@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": true,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente",
+      "tabagismo"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Kaylan Gabriel Grobe dos Santos",
+    "ra": "2025207546",
+    "sex": "masculino",
+    "birthDate": "2004-07-10",
+    "email": null,
+    "modalities": [
+      "Vôlei",
+      "Basquete"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": true,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "apto-sem-restricao-aparente",
+      "alergias"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Nátaly Maria de Vicente Silva",
+    "ra": "2025104990",
+    "sex": "feminino",
+    "birthDate": "2007-12-20",
+    "email": "nátaly.s.vicente@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": true,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente",
+      "alergias"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Fernanda Cristina Pereira",
+    "ra": "2026108020",
+    "sex": "feminino",
+    "birthDate": "2007-01-08",
+    "email": "fernandacp@icloud.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": true,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": true,
+    "jumpRestriction": "avaliar",
+    "riskStatus": "atencao",
+    "tags": [
+      "atleta-volei",
+      "precisa-acompanhamento",
+      "atencao-ortopedica",
+      "monitorar-fadiga"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Luiza Partika Macedo",
+    "ra": "2025106910",
+    "sex": "feminino",
+    "birthDate": "2006-11-14",
+    "email": "Pmacedolu14@gmail.com",
+    "modalities": [
+      "Vôlei",
+      "Futevôlei",
+      "Artes Marciais"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Ana Harumi",
+    "ra": "2026108891",
+    "sex": "feminino",
+    "birthDate": "2007-10-08",
+    "email": "anaharumi3009@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Daniele Eglésio Lopes",
+    "ra": "2023100276",
+    "sex": "feminino",
+    "birthDate": "2004-12-27",
+    "email": "eglesiolopesd@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": true,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente",
+      "alergias"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Yasmin Amorim Hubie",
+    "ra": "2026109075",
+    "sex": "feminino",
+    "birthDate": "2008-09-02",
+    "email": "yasmin.amorimh@icloud.com",
+    "modalities": [
+      "Vôlei",
+      "Atletismo"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "liviabacetto7@gmail.com",
+    "ra": "2026109228",
+    "sex": "feminino",
+    "birthDate": "2007-01-07",
+    "email": "liviabacetto7@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": true,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente",
+      "alergias"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Luara Cuduh",
+    "ra": "2026108437",
+    "sex": "feminino",
+    "birthDate": "2026-11-04",
+    "email": "luunibrasil@gmail.com",
+    "modalities": [
+      "Vôlei",
+      "Vôlei de praia"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Sarah Sthefane Carvalho do Rosário",
+    "ra": "2026108346",
+    "sex": "feminino",
+    "birthDate": "2006-12-15",
+    "email": "Sthefanesarah7@gmail.com",
+    "modalities": [
+      "Futsal"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": true,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "apto-sem-restricao-aparente",
+      "alergias"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Mateus Stepniowski de Souza",
+    "ra": "2026107730",
+    "sex": "masculino",
+    "birthDate": "2008-09-15",
+    "email": "mssouza6503@gmail.com",
+    "modalities": [
+      "Vôlei",
+      "Basquete",
+      "Natação",
+      "Artes Marciais",
+      "Tênis de Mesa"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Giovana de Paula Domingues",
+    "ra": "2026108469",
+    "sex": "feminino",
+    "birthDate": "2007-02-07",
+    "email": "giovanadepauladomingues@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": true,
+    "cardioRisk": true,
+    "orthoRisk": true,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": true,
+    "majorSurgery": false,
+    "familyHistoryRisk": true,
+    "dizzinessOrSyncope": true,
+    "needsMedicalClearance": true,
+    "needsIndividualAttention": true,
+    "jumpRestriction": "avaliar",
+    "riskStatus": "revisar",
+    "tags": [
+      "atleta-volei",
+      "precisa-acompanhamento",
+      "atencao-ortopedica",
+      "triagem-cardiovascular-positiva",
+      "alergias",
+      "historico-familiar-risco",
+      "tontura-ou-sincope",
+      "monitorar-fadiga"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Luara Vieira Oliveira",
+    "ra": "2025106813",
+    "sex": "feminino",
+    "birthDate": "2006-03-09",
+    "email": "luaravieiradeoliveira@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Alexsandra Pinheiro",
+    "ra": "2025207385",
+    "sex": "feminino",
+    "birthDate": "2005-12-23",
+    "email": "Alexspinheiro321@icloud.com",
+    "modalities": [
+      "Vôlei",
+      "Natação"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Luis Otavio da Silva Magnagnagno",
+    "ra": "2025104743",
+    "sex": "masculino",
+    "birthDate": "2007-09-03",
+    "email": "luisotaviosmagno@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Yasmyn Rangel Paúra Vieira",
+    "ra": "2026108081",
+    "sex": "feminino",
+    "birthDate": "2008-04-30",
+    "email": "rangelyasmyn@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Ana Júlia Cherbiski Mariani",
+    "ra": "2026108172",
+    "sex": "feminino",
+    "birthDate": "2008-09-08",
+    "email": "cherbiskia@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Larissa Mayumi Taborda",
+    "ra": "2026109370",
+    "sex": "feminino",
+    "birthDate": "2007-10-30",
+    "email": "larissataborda37@gmail.com",
+    "modalities": [
+      "Vôlei",
+      "Natação"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": true,
+    "currentInjury": false,
+    "smoker": true,
+    "allergies": true,
+    "majorSurgery": false,
+    "familyHistoryRisk": true,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": true,
+    "jumpRestriction": "avaliar",
+    "riskStatus": "atencao",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "precisa-acompanhamento",
+      "atencao-ortopedica",
+      "alergias",
+      "tabagismo",
+      "historico-familiar-risco",
+      "monitorar-fadiga"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Emanuela Coelho Vasconcellos",
+    "ra": "2024102548",
+    "sex": "feminino",
+    "birthDate": "2004-08-06",
+    "email": "emanuzinhacoelho@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": true,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente",
+      "tabagismo"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Emanuela Coelho Vasconcellos",
+    "ra": "2024102548",
+    "sex": "feminino",
+    "birthDate": "2004-08-06",
+    "email": "emanuzinhacoelho@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": true,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente",
+      "tabagismo"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Yasmim Ramos",
+    "ra": "2026108178",
+    "sex": "feminino",
+    "birthDate": "2008-01-12",
+    "email": "morenayasmim7@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Vitória Barcik",
+    "ra": "2026108773",
+    "sex": "feminino",
+    "birthDate": "2007-10-27",
+    "email": "vitoriabarcik26@gmail.com",
+    "modalities": [
+      "Vôlei",
+      "Natação",
+      "Artes Marciais"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": true,
+    "currentInjury": false,
+    "smoker": true,
+    "allergies": false,
+    "majorSurgery": true,
+    "familyHistoryRisk": true,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": true,
+    "jumpRestriction": "avaliar",
+    "riskStatus": "atencao",
+    "tags": [
+      "atleta-volei",
+      "atleta-multi-modalidade",
+      "precisa-acompanhamento",
+      "atencao-ortopedica",
+      "tabagismo",
+      "cirurgia-previa",
+      "historico-familiar-risco",
+      "monitorar-fadiga"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Mariana Fogaça",
+    "ra": "2022101601",
+    "sex": "feminino",
+    "birthDate": "2001-07-07",
+    "email": "Mari.fog@hotmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Vinícius Henrique da Silva Czaikovski",
+    "ra": "2026109206",
+    "sex": "masculino",
+    "birthDate": "2008-09-12",
+    "email": "viniczaikovski@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "Melody Tainá Ribeiro Plinta",
+    "ra": "2023100258",
+    "sex": "feminino",
+    "birthDate": "2004-11-14",
+    "email": "melodyplinta@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  },
+  {
+    "fullName": "João Pedro Ferreira Gondim",
+    "ra": "2026109414",
+    "sex": "masculino",
+    "birthDate": "2008-10-26",
+    "email": "arleniwb@gmail.com",
+    "modalities": [
+      "Vôlei"
+    ],
+    "parqPositive": false,
+    "cardioRisk": false,
+    "orthoRisk": false,
+    "currentInjury": false,
+    "smoker": false,
+    "allergies": false,
+    "majorSurgery": false,
+    "familyHistoryRisk": false,
+    "dizzinessOrSyncope": false,
+    "needsMedicalClearance": false,
+    "needsIndividualAttention": false,
+    "jumpRestriction": "nenhuma",
+    "riskStatus": "apto",
+    "tags": [
+      "atleta-volei",
+      "apto-sem-restricao-aparente"
+    ],
+    "notes": null
+  }
+]

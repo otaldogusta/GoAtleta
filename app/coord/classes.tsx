@@ -1,4 +1,4 @@
-﻿import ClassesScreen from "../classes";
+import ClassesScreen from "../classes";
 
 export default function CoordinationClassesTab() {
   return <ClassesScreen />;

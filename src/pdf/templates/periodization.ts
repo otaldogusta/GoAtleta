@@ -1,5 +1,7 @@
 export type PeriodizationWeekRow = {
   week: number;
+  dateRange?: string;
+  sessionDates?: string;
   phase: string;
   theme: string;
   technicalFocus: string;
@@ -15,9 +17,14 @@ export type PeriodizationPdfData = {
   className: string;
   unitLabel: string;
   ageGroup: string;
-  cycleStart: string;
+  cycleStart?: string;
   cycleLength: number;
   generatedAt: string;
+  planningMode?: string;
+  targetCompetition?: string;
+  targetDate?: string;
+  tacticalSystem?: string;
+  currentPhase?: string;
   rows: PeriodizationWeekRow[];
 };
 
@@ -34,6 +41,7 @@ export const periodizationHtml = (data: PeriodizationPdfData) => {
       (row) => `
       <tr>
         <td>${row.week}</td>
+        <td>${esc(row.dateRange || row.sessionDates || "-")}</td>
         <td>${esc(row.phase)}</td>
         <td>${esc(row.theme)}</td>
         <td>${esc(row.technicalFocus)}</td>
@@ -81,11 +89,18 @@ export const periodizationHtml = (data: PeriodizationPdfData) => {
           data.ageGroup ? ` (${esc(data.ageGroup)})` : ""
         }<br/>
         ${data.unitLabel ? `<strong>Unidade:</strong> ${esc(data.unitLabel)}<br/>` : ""}
+        ${data.cycleStart ? `<strong>Inicio do ciclo:</strong> ${esc(data.cycleStart)}<br/>` : ""}
+        ${data.planningMode ? `<strong>Modo:</strong> ${esc(data.planningMode)}<br/>` : ""}
         ${
-          data.cycleStart
-            ? `<strong>Início do ciclo:</strong> ${esc(data.cycleStart)}<br/>`
+          data.targetCompetition
+            ? `<strong>Competicao-alvo:</strong> ${esc(data.targetCompetition)}<br/>`
             : ""
         }
+        ${data.targetDate ? `<strong>Data-alvo:</strong> ${esc(data.targetDate)}<br/>` : ""}
+        ${
+          data.tacticalSystem ? `<strong>Sistema tatico:</strong> ${esc(data.tacticalSystem)}<br/>` : ""
+        }
+        ${data.currentPhase ? `<strong>Fase atual:</strong> ${esc(data.currentPhase)}<br/>` : ""}
         ${
           typeof data.cycleLength === "number"
             ? `<strong>Semanas:</strong> ${data.cycleLength}<br/>`
@@ -97,6 +112,7 @@ export const periodizationHtml = (data: PeriodizationPdfData) => {
         <thead>
           <tr>
             <th>Semana</th>
+            <th>Datas</th>
             <th>Fase</th>
             <th>Tema</th>
             <th>Foco tecnico</th>
@@ -107,7 +123,7 @@ export const periodizationHtml = (data: PeriodizationPdfData) => {
           </tr>
         </thead>
         <tbody>
-          ${rowsHtml || `<tr><td colspan="8">Sem semanas geradas.</td></tr>`}
+          ${rowsHtml || `<tr><td colspan="9">Sem semanas geradas.</td></tr>`}
         </tbody>
       </table>
 

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useCallback,
     useEffect,
@@ -22,7 +22,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
-import { ENABLE_SOCIAL_LOGIN } from "../src/api/config";
 import { useAuth } from "../src/auth/auth";
 import { hasStoredSession, setRememberPreference } from "../src/auth/session";
 import { useBiometricLock } from "../src/security/biometric-lock";
@@ -40,6 +39,17 @@ export default function LoginScreen() {
   const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
   const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
   const router = useRouter();
+  const {
+    email: prefillEmail,
+    password: prefillPassword,
+    fromSignup,
+    pendingHint,
+  } = useLocalSearchParams<{
+    email?: string;
+    password?: string;
+    fromSignup?: string;
+    pendingHint?: string;
+  }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -89,6 +99,22 @@ export default function LoginScreen() {
   useEffect(() => {
     rememberMeRef.current = rememberMe;
   }, [rememberMe]);
+
+  useEffect(() => {
+    if (typeof prefillEmail === "string" && prefillEmail.trim()) {
+      setEmail(prefillEmail.trim());
+    }
+    if (typeof prefillPassword === "string" && prefillPassword) {
+      setPassword(prefillPassword);
+    }
+    if (pendingHint === "1") {
+      setMessage("Conta encontrada sem vínculo ativo. Entre para validar seu convite na tela de acesso pendente.");
+      return;
+    }
+    if (fromSignup === "1") {
+      setMessage("Este email já está cadastrado. Entrar com os dados preenchidos.");
+    }
+  }, [fromSignup, pendingHint, prefillEmail, prefillPassword]);
 
   useEffect(() => {
     Animated.timing(enterAnim, {
@@ -353,16 +379,15 @@ export default function LoginScreen() {
             >
               <View
                 style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
                   borderColor: colors.border,
                   overflow: "hidden",
+                  alignItems: "center",
+                  justifyContent: "center",
                   shadowColor: "#000",
                   shadowOpacity: 0.12,
                   shadowRadius: 8,
@@ -371,7 +396,6 @@ export default function LoginScreen() {
                 }}
               >
                 <Ionicons name="chevron-back" size={16} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar</Text>
               </View>
             </Pressable>
 
@@ -569,60 +593,6 @@ export default function LoginScreen() {
                   {!biometricAvailable && biometricHint ? (
                     <Text style={{ color: colors.muted, fontSize: 12 }}>{biometricHint}</Text>
                   ) : null}
-
-                  {ENABLE_SOCIAL_LOGIN ? (
-                    <View style={{ marginTop: 12, gap: 12 }}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 12,
-                        }}
-                      >
-                        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          Ou continue com
-                        </Text>
-                        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-                      </View>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "center",
-                          gap: 12,
-                        }}
-                      >
-                        {[
-                          { label: "Google", icon: "logo-google" as const },
-                          { label: "Facebook", icon: "logo-facebook" as const },
-                          { label: "Apple", icon: "logo-apple" as const },
-                        ].map((provider) => (
-                          <Pressable
-                            key={provider.label}
-                            onPress={() =>
-                              handleOAuth(provider.label.toLowerCase() as "google" | "facebook" | "apple")
-                            }
-                            style={{
-                              width: 48,
-                              height: 48,
-                              borderRadius: 16,
-                              backgroundColor: colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <Ionicons
-                              name={provider.icon}
-                              size={20}
-                              color={colors.text}
-                            />
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  ) : null}
                 </>
               ) : (
                 <View style={{ gap: 10 }}>
@@ -672,13 +642,56 @@ export default function LoginScreen() {
                       setShowReset(false);
                       setMessage("");
                     }}
-                    style={{ alignSelf: "center", paddingVertical: 6 }}
+                    style={{
+                      alignSelf: "center",
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
                   >
-                    <Text style={{ color: colors.muted }}>Voltar para login</Text>
+                    <Ionicons name="chevron-back" size={16} color={colors.text} />
                   </Pressable>
                 </View>
               )}
             </View>
+
+            {!showReset ? (
+              <View style={{ marginTop: 12, gap: 10 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>ou</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <Pressable
+                    onPress={() => handleOAuth("google")}
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 16,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Ionicons name="logo-google" size={20} color={colors.text} />
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
 
             <View style={{ alignItems: "center", gap: 6 }}>
               <Text style={{ color: colors.muted }}>Não tem conta?</Text>

@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -1242,14 +1242,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     if (!mustHideCopilot) return;
     setState((prev) => (prev.open ? { ...prev, open: false } : prev));
   }, [normalizedPath, session]);
-  const hasBottomRightFabConflict =
-    normalizedPath.startsWith("/training") ||
-    normalizedPath.startsWith("/periodization") ||
-    normalizedPath.startsWith("/classes") ||
-    normalizedPath.startsWith("/class/");
-  const fabBottomOffset = hasBottomRightFabConflict
-    ? Math.max(insets.bottom + 186, 202)
-    : Math.max(insets.bottom + 92, 108);
+  const fabBottomOffset = Math.max(insets.bottom + 92, 108);
   const sheetContentBottomPadding = Math.max(
     insets.bottom + 10,
     Platform.OS === "web" ? 16 : 14

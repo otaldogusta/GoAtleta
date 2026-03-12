@@ -7,8 +7,10 @@ import { maskCpf } from "../../../utils/cpf";
 import { formatRgBr } from "../../../utils/document-normalization";
 
 type Props = {
+  ra: string;
   cpfDisplay: string;
   rg: string;
+  onChangeRa: (value: string) => void;
   onChangeCpf: (value: string) => void;
   onChangeRg: (value: string) => void;
   readonly?: boolean;
@@ -16,12 +18,14 @@ type Props = {
   isCpfVisible?: boolean;
   revealCpfBusy?: boolean;
   onRevealCpf?: () => void;
-  errors?: { cpf?: string; rg?: string };
+  errors?: { ra?: string; cpf?: string; rg?: string };
 };
 
 export function StudentDocumentsFields({
+  ra,
   cpfDisplay,
   rg,
+  onChangeRa,
   onChangeCpf,
   onChangeRg,
   readonly = false,
@@ -45,6 +49,28 @@ export function StudentDocumentsFields({
 
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+      <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>RA</Text>
+        <TextInput
+          value={ra}
+          onChangeText={onChangeRa}
+          editable={!readonly}
+          placeholder={readonly ? "Nao informado" : "2022202626"}
+          placeholderTextColor={colors.placeholder}
+          keyboardType="numeric"
+          style={[
+            inputStyle,
+            errors?.ra
+              ? {
+                  borderColor: colors.dangerText,
+                }
+              : null,
+          ]}
+        />
+        {errors?.ra ? (
+          <Text style={{ color: colors.dangerText, fontSize: 11 }}>{errors.ra}</Text>
+        ) : null}
+      </View>
       <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>CPF</Text>
         <View style={{ position: "relative" }}>

@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/react-native";
 
 const extra =
   Constants.expoConfig?.extra ??
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   (Constants as any).manifest?.extra ??
   {};
 

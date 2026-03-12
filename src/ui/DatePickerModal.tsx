@@ -71,7 +71,7 @@ export function DatePickerModal({
   const getCalendarDays = (year: number, month: number) => {
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: Array<{ date: Date | null }> = [];
+    const cells: { date: Date | null }[] = [];
     for (let i = 0; i < 42; i += 1) {
       const dayNumber = i - firstDay + 1;
       if (dayNumber < 1 || dayNumber > daysInMonth) {

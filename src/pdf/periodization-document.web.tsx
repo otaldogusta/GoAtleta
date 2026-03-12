@@ -1,6 +1,5 @@
 import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
-// @ts-expect-error no types for browser bundle entry
 import {
   Document,
   Page,
@@ -43,13 +42,14 @@ const styles = StyleSheet.create({
   cell: {
     paddingRight: 6,
   },
-  colWeek: { width: "8%" },
-  colPhase: { width: "14%" },
-  colTheme: { width: "18%" },
-  colTech: { width: "22%" },
-  colPhys: { width: "18%" },
-  colPse: { width: "10%" },
-  colJump: { width: "10%" },
+  colWeek: { width: "6%" },
+  colDates: { width: "18%" },
+  colPhase: { width: "12%" },
+  colTheme: { width: "16%" },
+  colTech: { width: "18%" },
+  colPhys: { width: "16%" },
+  colPse: { width: "7%" },
+  colJump: { width: "7%" },
   footer: {
     marginTop: 12,
     fontSize: 9,
@@ -67,14 +67,18 @@ export function PeriodizationDocument({ data }: { data: PeriodizationPdfData }) 
           {data.ageGroup ? ` (${data.ageGroup})` : ""}
           {"\n"}
           {data.unitLabel ? `Unidade: ${data.unitLabel}\n` : ""}
-          {data.cycleStart ? `Início do ciclo: ${data.cycleStart}\n` : ""}
-          {typeof data.cycleLength === "number"
-            ? `Semanas: ${data.cycleLength}`
-            : ""}
+          {data.cycleStart ? `Inicio do ciclo: ${data.cycleStart}\n` : ""}
+          {data.planningMode ? `Modo: ${data.planningMode}\n` : ""}
+          {data.targetCompetition ? `Competicao-alvo: ${data.targetCompetition}\n` : ""}
+          {data.targetDate ? `Data-alvo: ${data.targetDate}\n` : ""}
+          {data.tacticalSystem ? `Sistema tatico: ${data.tacticalSystem}\n` : ""}
+          {data.currentPhase ? `Fase atual: ${data.currentPhase}\n` : ""}
+          {typeof data.cycleLength === "number" ? `Semanas: ${data.cycleLength}` : ""}
         </Text>
 
         <View style={styles.headerRow}>
           <Text style={[styles.cell, styles.colWeek]}>Sem</Text>
+          <Text style={[styles.cell, styles.colDates]}>Datas</Text>
           <Text style={[styles.cell, styles.colPhase]}>Fase</Text>
           <Text style={[styles.cell, styles.colTheme]}>Tema</Text>
           <Text style={[styles.cell, styles.colTech]}>Foco tecnico</Text>
@@ -87,6 +91,7 @@ export function PeriodizationDocument({ data }: { data: PeriodizationPdfData }) 
           data.rows.map((row) => (
             <View key={row.week} style={styles.row}>
               <Text style={[styles.cell, styles.colWeek]}>{row.week}</Text>
+              <Text style={[styles.cell, styles.colDates]}>{row.dateRange || row.sessionDates || "-"}</Text>
               <Text style={[styles.cell, styles.colPhase]}>{row.phase}</Text>
               <Text style={[styles.cell, styles.colTheme]}>{row.theme}</Text>
               <Text style={[styles.cell, styles.colTech]}>{row.technicalFocus}</Text>

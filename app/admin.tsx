@@ -1,14 +1,15 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 
 import { useAuth } from "../src/auth/auth";
 import { Button } from "../src/ui/Button";
@@ -65,15 +66,17 @@ export default function AdminLoginScreen() {
           <Pressable
             onPress={() => router.replace("/welcome")}
             style={{
-              paddingVertical: 10,
-              borderRadius: 12,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
               backgroundColor: colors.secondaryBg,
               borderWidth: 1,
               borderColor: colors.border,
               alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -157,9 +160,19 @@ export default function AdminLoginScreen() {
               />
               <Pressable
                 onPress={() => router.replace("/welcome")}
-                style={{ alignSelf: "center" }}
+                style={{
+                  alignSelf: "center",
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                <Text style={{ color: colors.muted }}>Voltar</Text>
+                <Ionicons name="chevron-back" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>

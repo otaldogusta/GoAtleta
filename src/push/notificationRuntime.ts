@@ -6,7 +6,7 @@ let androidChannelConfigured = false;
 
 const appOwnership = String(Constants.appOwnership ?? "").toLowerCase();
 const executionEnvironment = String(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   (Constants as any).executionEnvironment ?? ""
 ).toLowerCase();
 export const isExpoGo = appOwnership === "expo" || executionEnvironment === "storeclient";
@@ -18,7 +18,7 @@ export const getNotificationsModule = (): typeof import("expo-notifications") | 
   if (notificationsModule !== undefined) return notificationsModule;
   try {
     // Lazy-load to avoid Expo Go crash on module initialization.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     notificationsModule = require("expo-notifications") as typeof import("expo-notifications");
     return notificationsModule;
   } catch {

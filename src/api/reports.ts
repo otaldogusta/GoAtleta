@@ -302,8 +302,8 @@ export async function listAdminRecentActivity(params: {
 }
 
 export const buildTeamIntelligenceSnapshot = (input: {
-  classes: Array<{ id: string; name: string; unit: string }>;
-  sessionLogs: Array<{ classId: string; attendance: number; PSE: number }>;
+  classes: { id: string; name: string; unit: string }[];
+  sessionLogs: { classId: string; attendance: number; PSE: number }[];
 }): TeamIntelligenceSnapshot => {
   const byClass = new Map<string, TeamIntelligenceClassMetric>();
 

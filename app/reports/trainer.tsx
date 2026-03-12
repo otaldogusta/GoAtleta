@@ -564,9 +564,21 @@ export default function ReportsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
         <View style={{ gap: 6 }}>
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-            Relatórios
-          </Text>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/");
+            }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              Relatórios
+            </Text>
+          </Pressable>
           <Text style={{ color: colors.muted }}>
             Dashboard de presença e desempenho
           </Text>
@@ -579,8 +591,6 @@ export default function ReportsScreen() {
             backgroundColor: colors.secondaryBg,
             padding: 6,
             borderRadius: 999,
-            borderWidth: 1,
-            borderColor: colors.border,
           }}
         >
           {reportTabs.map((tab) => {
@@ -591,18 +601,17 @@ export default function ReportsScreen() {
                 onPress={() => setReportTab(tab.id)}
                 style={{
                   flex: 1,
-                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
                   borderRadius: 999,
                   backgroundColor: selected ? colors.primaryBg : colors.card,
-                  borderWidth: selected ? 0 : 1,
-                  borderColor: selected ? "transparent" : colors.border,
                   alignItems: "center",
                 }}
               >
                 <Text
                   numberOfLines={1}
                   style={{
-                    color: selected ? colors.primaryText : colors.muted,
+                    color: selected ? colors.primaryText : colors.text,
                     fontWeight: "700",
                     fontSize: 12,
                   }}

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -143,26 +144,13 @@ export default function StudentScouting() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Pressable
-            onPress={() => router.back()}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ color: colors.text }}>‹</Text>
-          </Pressable>
-          <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>
-            Meu scouting
-          </Text>
-        </View>
+        <Pressable
+          onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Meu scouting</Text>
+        </Pressable>
 
         <View style={{ padding: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 6 }}>
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turma</Text>

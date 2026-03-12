@@ -1,3 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import type { ClassGender } from "../core/models";
 import { useAppTheme } from "./app-theme";
@@ -5,6 +7,7 @@ import { getClassPalette } from "./class-colors";
 import { ClassGenderBadge } from "./ClassGenderBadge";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
 import { LocationBadge } from "./LocationBadge";
+import { Pressable } from "./Pressable";
 import { getUnitPalette } from "./unit-colors";
 
 const decodeUnicodeEscapes = (value: string) => {
@@ -73,6 +76,7 @@ type ClassContextHeaderProps = {
   timeLabel: string;
   notice: string;
   classColorKey: string | null;
+  scheduleFormat?: "split" | "combined";
 };
 
 export function ClassContextHeader({
@@ -85,7 +89,9 @@ export function ClassContextHeader({
   timeLabel,
   notice,
   classColorKey,
+  scheduleFormat = "split",
 }: ClassContextHeaderProps) {
+  const router = useRouter();
   const { colors } = useAppTheme();
   const unitLabel = unit?.trim() ?? "";
   const safeTitle = normalizeText(title);
@@ -97,28 +103,54 @@ export function ClassContextHeader({
   const safeNotice = normalizeText(notice);
   const unitPalette = unitLabel ? getUnitPalette(unitLabel, colors) : null;
   const classPalette = getClassPalette(classColorKey, colors, unitLabel);
+  const hasCombinedSchedule = scheduleFormat === "combined" && !!dateLabel && !!timeLabel;
   const hasChips =
     !!unitLabel || !!ageBand || !!gender || !!dateLabel || !!timeLabel;
 
+  const chipBaseStyle = {
+    minHeight: 36,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: colors.secondaryBg,
+    justifyContent: "center" as const,
+  };
+
   return (
     <View style={{ gap: 8, marginBottom: 12 }}>
-      {safeTitle ? (
-        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-          {safeTitle}
-        </Text>
-      ) : null}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <View
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            backgroundColor: classPalette.bg,
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <Pressable
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+              return;
+            }
+            router.replace("/");
           }}
-        />
-        <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
-          {safeClassName}
-        </Text>
+          style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          {safeTitle ? (
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              {safeTitle}
+            </Text>
+          ) : null}
+        </Pressable>
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              backgroundColor: classPalette.bg,
+            }}
+          />
+          <Text numberOfLines={1} style={{ fontSize: 18, fontWeight: "700", color: colors.text, maxWidth: 140 }}>
+            {safeClassName}
+          </Text>
+          {gender ? <ClassGenderBadge gender={gender} size="md" /> : null}
+        </View>
       </View>
       {hasChips ? (
         <FadeHorizontalScroll
@@ -135,41 +167,33 @@ export function ClassContextHeader({
           ) : null}
           {ageBand ? (
             <View
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
+              style={[chipBaseStyle, { borderRadius: 999 }]}
             >
               <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
                 {"Faixa " + safeAgeBand}
               </Text>
             </View>
           ) : null}
-          {gender ? <ClassGenderBadge gender={gender} size="md" /> : null}
-          {dateLabel ? (
+          {hasCombinedSchedule ? (
             <View
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-              }}
+              style={chipBaseStyle}
+            >
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                {"Próxima sessão: " + safeDateLabel + " às " + safeTimeLabel}
+              </Text>
+            </View>
+          ) : dateLabel ? (
+            <View
+              style={chipBaseStyle}
             >
               <Text style={{ color: colors.text, fontSize: 12 }}>
                 {"Data: " + safeDateLabel}
               </Text>
             </View>
           ) : null}
-          {timeLabel ? (
+          {!hasCombinedSchedule && timeLabel ? (
             <View
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-              }}
+              style={chipBaseStyle}
             >
               <Text style={{ color: colors.text, fontSize: 12 }}>
                 {"Horário: " + safeTimeLabel}

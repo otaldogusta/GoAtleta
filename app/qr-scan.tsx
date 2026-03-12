@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
@@ -25,22 +26,12 @@ export default function QrScanScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ padding: 20, gap: 12 }}>
           <Pressable
-            onPress={() => router.back()}
-            style={{
-              alignSelf: "flex-start",
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
+            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Escanear QR Code</Text>
           </Pressable>
-          <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-            Escanear QR Code
-          </Text>
           <Text style={{ color: colors.muted }}>
             O scanner funciona apenas no app mobile.
           </Text>
@@ -64,22 +55,12 @@ export default function QrScanScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ padding: 20, gap: 12 }}>
           <Pressable
-            onPress={() => router.back()}
-            style={{
-              alignSelf: "flex-start",
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
+            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Permitir câmera</Text>
           </Pressable>
-          <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-            Permitir câmera
-          </Text>
           <Text style={{ color: colors.muted }}>
             Precisamos da câmera para escanear QR Code.
           </Text>
@@ -105,22 +86,12 @@ export default function QrScanScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ padding: 16, gap: 10 }}>
         <Pressable
-          onPress={() => router.back()}
-          style={{
-            alignSelf: "flex-start",
-            paddingVertical: 8,
-            paddingHorizontal: 12,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
+          onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Escanear QR Code</Text>
         </Pressable>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
-          Escanear QR Code
-        </Text>
         <Text style={{ color: colors.muted }}>
           Aponte a câmera para o QR.
         </Text>

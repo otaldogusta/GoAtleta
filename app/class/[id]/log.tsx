@@ -1,24 +1,24 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 
-import {
-  getAttendanceByDate,
-  getClassById,
-  getSessionLogByDate,
-  getStudentsByClass,
-  getTrainingPlans,
-  saveSessionLog,
-} from "../../../src/db/seed";
 import type { ClassGroup, SessionLog } from "../../../src/core/models";
+import {
+    getAttendanceByDate,
+    getClassById,
+    getSessionLogByDate,
+    getStudentsByClass,
+    getTrainingPlans,
+    saveSessionLog,
+} from "../../../src/db/seed";
+import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { Button } from "../../../src/ui/Button";
+import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
-import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
-import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 
 export default function LogScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date: string }>();
@@ -479,26 +479,26 @@ export default function LogScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
             }}
-            scrollContentStyle={{ padding: 4 }}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
           >
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n, index) => (
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
               <Pressable
                 key={n}
                 onPress={() => handleSelectPse(n)}
                 style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 10,
-                  borderRadius: 10,
-                  margin: index === 0 ? 6 : 2,
-                  backgroundColor: PSE === n ? colors.primaryBg : "transparent",
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  marginVertical: 3,
+                  backgroundColor: PSE === n ? colors.primaryBg : colors.card,
                 }}
               >
                 <Text
                   style={{
                     color: PSE === n ? colors.primaryText : colors.text,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: PSE === n ? "700" : "500",
                   }}
                 >
@@ -520,26 +520,26 @@ export default function LogScreen() {
             panelStyle={{
               borderWidth: 1,
               borderColor: colors.border,
-              backgroundColor: colors.background,
+              backgroundColor: colors.card,
             }}
-            scrollContentStyle={{ padding: 4 }}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
           >
-            {(["boa", "ok", "ruim"] as const).map((option, index) => (
+            {(["boa", "ok", "ruim"] as const).map((option) => (
               <Pressable
                 key={option}
                 onPress={() => handleSelectTechnique(option)}
                 style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 10,
-                  borderRadius: 10,
-                  margin: index === 0 ? 6 : 2,
-                  backgroundColor: technique === option ? colors.primaryBg : "transparent",
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 14,
+                  marginVertical: 3,
+                  backgroundColor: technique === option ? colors.primaryBg : colors.card,
                 }}
               >
                 <Text
                   style={{
                     color: technique === option ? colors.primaryText : colors.text,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: technique === option ? "700" : "500",
                   }}
                 >

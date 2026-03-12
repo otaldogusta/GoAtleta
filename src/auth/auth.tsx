@@ -138,11 +138,11 @@ const fetchUser = async (accessToken: string) => {
       provider?: string | null;
       providers?: string[] | null;
     };
-    identities?: Array<{
+    identities?: {
       id?: string | null;
       identity_id?: string | null;
       provider?: string | null;
-    }> | null;
+    }[] | null;
     created_at?: string;
     user_metadata?: {
       full_name?: string | null;

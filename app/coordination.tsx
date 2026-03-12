@@ -1,5 +1,6 @@
-import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
     cacheDirectory,
@@ -13,6 +14,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { getSignals, type Signal } from "../src/ai/signal-engine";
 import {
     classifySyncError,
     generateExecutiveSummary,
@@ -22,7 +24,6 @@ import {
     type ExecutiveSummaryResult,
     type SyncErrorClassificationResult,
 } from "../src/api/ai";
-import { getSignals, type Signal } from "../src/ai/signal-engine";
 import { listClassHeadsByClassIds, type ClassResponsible } from "../src/api/class-responsibles";
 import { sendPushToUser } from "../src/api/push";
 import {
@@ -33,6 +34,11 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../src/api/reports";
+import {
+    useCopilotActions,
+    useCopilotContext,
+    useCopilotSignals,
+} from "../src/copilot/CopilotProvider";
 import {
     buildNextClassSuggestion,
     type NextClassSuggestion,
@@ -52,19 +58,14 @@ import {
     type PendingWriteFailureRow,
     type PendingWritesDiagnostics,
 } from "../src/db/seed";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
-import { markRender, measureAsync } from "../src/observability/perf";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
-import {
-  useCopilotActions,
-  useCopilotContext,
-  useCopilotSignals,
-} from "../src/copilot/CopilotProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -1334,15 +1335,17 @@ export default function CoordinationScreen() {
               onPress={() => router.replace("/")}
               style={{
                 alignSelf: "flex-start",
-                borderRadius: 999,
+                width: 34,
+                height: 34,
+                borderRadius: 17,
                 borderWidth: 1,
                 borderColor: colors.border,
                 backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+              <Ionicons name="chevron-back" size={18} color={colors.text} />
             </Pressable>
           </View>
         </View>
@@ -1382,12 +1385,9 @@ export default function CoordinationScreen() {
 
         <View
           style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
+            borderRadius: 999,
+            backgroundColor: colors.secondaryBg,
             padding: isCompactLayout ? 5 : 6,
-            gap: 8,
           }}
         >
           <View style={{ flexDirection: "row", gap: 6, flexWrap: isCompactLayout ? "wrap" : "nowrap" }}>
@@ -1404,9 +1404,7 @@ export default function CoordinationScreen() {
                     paddingHorizontal: 12,
                     paddingVertical: 10,
                     borderRadius: 999,
-                    borderWidth: selected ? 1 : 0,
-                    borderColor: selected ? colors.border : "transparent",
-                    backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
+                    backgroundColor: selected ? colors.primaryBg : colors.card,
                   }}
                 >
                   <Text
@@ -1432,6 +1430,7 @@ export default function CoordinationScreen() {
         </View>
       ) : (
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={{
             paddingHorizontal: isDesktopLayout ? 20 : isCompactLayout ? 12 : 16,
             paddingBottom: 28,

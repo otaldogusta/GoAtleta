@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Animated, Easing, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Easing, Platform, Text, View } from "react-native";
 
 import { useAppTheme } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
@@ -93,9 +93,9 @@ export function StudentsFabMenu({
 
       <Animated.View
         style={{
-          position: "absolute",
-          right: anchorRight,
-          bottom: anchorBottom + 64,
+          ...(Platform.OS === "web"
+            ? ({ position: "fixed", right: anchorRight, bottom: anchorBottom + 64 } as any)
+            : { position: "absolute" as const, right: anchorRight, bottom: anchorBottom + 64 }),
           width: 188,
           borderRadius: 14,
           borderWidth: 1,

@@ -1,4 +1,4 @@
-﻿export type SessionReportPdfData = {
+export type SessionReportPdfData = {
   monthLabel: string;
   dateLabel: string;
   className: string;

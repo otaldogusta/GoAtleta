@@ -28,6 +28,7 @@ import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { ModalSheet } from "../../src/ui/ModalSheet";
+import { Pressable as AppPressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -427,22 +428,15 @@ export default function EventDetailsScreen() {
         <View ref={modalBodyRef} style={{ width: "100%", gap: 10 }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <View style={{ gap: 2, flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>Detalhes do evento</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Início: {startLabel}</Text>
+            <Pressable
+              onPress={closeDetails}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Detalhes do evento</Text>
+            </Pressable>
+            <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 26 }}>Início: {startLabel}</Text>
           </View>
-          <Pressable
-            onPress={closeDetails}
-            style={{
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
-          </Pressable>
         </View>
 
         <ScrollView style={{ width: "100%" }} contentContainerStyle={{ gap: 10 }} showsVerticalScrollIndicator={false}>
@@ -635,29 +629,30 @@ export default function EventDetailsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeDetailDropdowns}
-          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-          scrollContentStyle={{ padding: 4 }}
+          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
-          {eventTypes.map((option, index) => {
+          {eventTypes.map((option) => {
             const active = eventType === option;
             return (
-              <Pressable
+              <AppPressable
                 key={option}
                 onPress={() => {
                   setEventType(option);
                   setShowEventTypeDropdown(false);
                 }}
                 style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                  backgroundColor: active ? colors.primaryBg : colors.background,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  marginVertical: 3,
+                  backgroundColor: active ? colors.primaryBg : colors.card,
                 }}
               >
-                <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
                   {eventTypeLabel[option]}
                 </Text>
-              </Pressable>
+              </AppPressable>
             );
           })}
         </AnchoredDropdown>
@@ -671,29 +666,30 @@ export default function EventDetailsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeDetailDropdowns}
-          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background }}
-          scrollContentStyle={{ padding: 4 }}
+          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
-          {sportTypes.map((option, index) => {
+          {sportTypes.map((option) => {
             const active = sport === option;
             return (
-              <Pressable
+              <AppPressable
                 key={option}
                 onPress={() => {
                   setSport(option);
                   setShowSportDropdown(false);
                 }}
                 style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                  backgroundColor: active ? colors.primaryBg : colors.background,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  marginVertical: 3,
+                  backgroundColor: active ? colors.primaryBg : colors.card,
                 }}
               >
-                <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
+                <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
                   {sportTypeLabel[option]}
                 </Text>
-              </Pressable>
+              </AppPressable>
             );
           })}
         </AnchoredDropdown>

@@ -161,7 +161,7 @@ export default function BirthdaysScreen() {
     return withDates.slice(0, 10); // Primeiros 10
   }, [filteredStudents, today]);
   const monthGroups = useMemo(() => {
-    const byMonth = new Map<number, Map<string, Array<{ student: Student; date: Date; unitName: string }>>>();
+    const byMonth = new Map<number, Map<string, { student: Student; date: Date; unitName: string }[]>>();
     filteredStudents.forEach((student) => {
       if (!student.birthDate) return;
       const date = parseIsoDate(student.birthDate);

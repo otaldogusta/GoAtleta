@@ -1,4 +1,4 @@
-﻿import {
+import {
   cacheDirectory,
   documentDirectory,
   EncodingType,
@@ -35,7 +35,7 @@ export type ExportWorkbookResult = {
   uri: string;
 };
 
-const MOJIBAKE_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
+const MOJIBAKE_REPLACEMENTS: readonly (readonly [string, string])[] = [
   ["\u00C3\u00A1", "\u00E1"],
   ["\u00C3\u00A0", "\u00E0"],
   ["\u00C3\u00A2", "\u00E2"],

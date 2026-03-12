@@ -1,4 +1,4 @@
-﻿import AgendaScreen from "../agenda";
+import AgendaScreen from "../agenda";
 
 export default function StudentAgendaTab() {
   return <AgendaScreen />;

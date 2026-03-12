@@ -22,7 +22,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
       await initDb();
       const dbMs = Date.now() - dbStart;
       if (__DEV__) {
-        // eslint-disable-next-line no-console
+         
         console.log(`[bootstrap] initDb: ${dbMs}ms`);
       }
       Sentry.addBreadcrumb({
@@ -35,7 +35,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
       const session = await loadSession();
       const sessionMs = Date.now() - sessionStart;
       if (__DEV__) {
-        // eslint-disable-next-line no-console
+         
         console.log(`[bootstrap] loadSession: ${sessionMs}ms`);
       }
       Sentry.addBreadcrumb({
@@ -59,7 +59,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
   ]);
   const totalMs = Date.now() - started;
   if (__DEV__) {
-    // eslint-disable-next-line no-console
+     
     console.log(`[bootstrap] total: ${totalMs}ms`);
   }
   Sentry.addBreadcrumb({

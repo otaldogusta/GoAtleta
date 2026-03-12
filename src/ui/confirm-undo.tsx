@@ -27,6 +27,7 @@ type ConfirmUndoOptions = {
 type PendingState = {
   options: ConfirmUndoOptions;
   timeoutId: ReturnType<typeof setTimeout>;
+  endAt: number;
 };
 
 type ConfirmUndoContextValue = {
@@ -43,6 +44,7 @@ export function ConfirmUndoProvider({
   const { colors } = useAppTheme();
   const [confirmOptions, setConfirmOptions] = useState<ConfirmUndoOptions | null>(null);
   const [pending, setPending] = useState<PendingState | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -78,6 +80,8 @@ export function ConfirmUndoProvider({
     if (!options) return;
     options.onOptimistic();
     const delay = options.delayMs ?? 4500;
+    const endAt = Date.now() + delay;
+    setRemainingSeconds(Math.max(0, Math.ceil(delay / 1000)));
     const timeoutId = setTimeout(() => {
       void (async () => {
         try {
@@ -89,14 +93,32 @@ export function ConfirmUndoProvider({
         }
       })();
     }, delay);
-    setPending({ options, timeoutId });
+    setPending({ options, timeoutId, endAt });
   }, [confirmOptions]);
 
   const handleUndo = useCallback(async () => {
     if (!pending) return;
     clearTimeout(pending.timeoutId);
     setPending(null);
+    setRemainingSeconds(0);
     await pending.options.onUndo();
+  }, [pending]);
+
+  useEffect(() => {
+    if (!pending) {
+      setRemainingSeconds(0);
+      return;
+    }
+
+    const tick = () => {
+      const leftMs = pending.endAt - Date.now();
+      const next = Math.max(0, Math.ceil(leftMs / 1000));
+      setRemainingSeconds(next);
+    };
+
+    tick();
+    const intervalId = setInterval(tick, 250);
+    return () => clearInterval(intervalId);
   }, [pending]);
 
   const modalTitle = confirmOptions?.title ?? "Confirmar";
@@ -105,8 +127,11 @@ export function ConfirmUndoProvider({
   const confirmLabel = confirmOptions?.confirmLabel ?? "Excluir";
   const cancelLabel = confirmOptions?.cancelLabel ?? "Cancelar";
   const undoLabel = pending?.options.undoLabel ?? "Desfazer";
-  const undoMessage =
+  const rawUndoMessage =
     pending?.options.undoMessage ?? "Ação concluída. Deseja desfazer?";
+  const undoMessage = rawUndoMessage.includes("{seconds}")
+    ? rawUndoMessage.replace("{seconds}", String(remainingSeconds))
+    : rawUndoMessage;
 
   const contextValue = useMemo(
     () => ({

@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
 // @ts-expect-error no types for browser bundle entry
 import {

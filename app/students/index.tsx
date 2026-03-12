@@ -1,4 +1,4 @@
-﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -88,6 +88,7 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
+import { normalizeRaDigits, validateStudentRa } from "../../src/utils/student-ra";
 import {
     buildWaMeLink,
     getContactPhone,
@@ -229,6 +230,7 @@ export default function StudentsScreen() {
   const [phone, setPhone] = useState("");
   const [cpfDisplay, setCpfDisplay] = useState("");
   const [rgDocument, setRgDocument] = useState("");
+  const [ra, setRa] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
@@ -262,6 +264,7 @@ export default function StudentsScreen() {
   const [photoPreview, setPhotoPreview] = useState<{ uri: string | null; name: string } | null>(null);
   const [studentFormError, setStudentFormError] = useState("");
   const [studentDocumentsError, setStudentDocumentsError] = useState<{
+    ra?: string;
     cpf?: string;
     rg?: string;
   }>({});
@@ -324,6 +327,7 @@ export default function StudentsScreen() {
     phone: string;
     cpfDisplay: string;
     rgDocument: string;
+    ra: string;
     loginEmail: string;
     guardianName: string;
     guardianPhone: string;
@@ -496,7 +500,7 @@ export default function StudentsScreen() {
       setStudentsExportBusy(false);
     }
   }, [activeOrganization?.id]);
-  const studentsFabBottom = Math.max(insets.bottom + 96, 104);
+  const studentsFabBottom = Math.max(insets.bottom + 166, 182);
   const studentsFabRight = 16;
   const studentsFabRotate = useMemo(
     () =>
@@ -852,6 +856,12 @@ export default function StudentsScreen() {
       "";
 
     try {
+      const raValidation = validateStudentRa(ra);
+      if (raValidation) {
+        setStudentDocumentsError((prev) => ({ ...prev, ra: raValidation }));
+        setStudentFormError(raValidation);
+        return false;
+      }
       let resolvedPhotoUrl: string | undefined = photoUrl || undefined;
       const isRemotePhoto = /^https?:\/\//i.test(photoUrl ?? "");
 
@@ -879,6 +889,7 @@ export default function StudentsScreen() {
         classId,
         age: resolvedAge,
         phone: phone.trim(),
+        ra: normalizeRaDigits(ra) || null,
         cpfMasked: cpfDisplay.trim() || null,
         rg: rgDocument.trim() || null,
         loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : undefined,
@@ -932,6 +943,7 @@ export default function StudentsScreen() {
     phone.trim() ||
     cpfDisplay.trim() ||
     rgDocument.trim() ||
+    ra.trim() ||
     loginEmail.trim() ||
     guardianName.trim() ||
     guardianPhone.trim() ||
@@ -967,6 +979,7 @@ export default function StudentsScreen() {
       editSnapshot.phone !== phone ||
       editSnapshot.cpfDisplay !== cpfDisplay ||
       editSnapshot.rgDocument !== rgDocument ||
+      editSnapshot.ra !== ra ||
       editSnapshot.loginEmail !== loginEmail ||
       editSnapshot.guardianName !== guardianName ||
       editSnapshot.guardianPhone !== guardianPhone ||
@@ -1006,6 +1019,7 @@ export default function StudentsScreen() {
     positionSecondary,
     photoUrl,
     phone,
+    ra,
     unit,
   ]);
 
@@ -1026,6 +1040,7 @@ export default function StudentsScreen() {
     setIsCpfVisible(false);
     setCpfRevealUnavailable(false);
     setRgDocument("");
+    setRa("");
     setLoginEmail("");
     setGuardianName("");
     setGuardianPhone("");
@@ -1069,6 +1084,7 @@ export default function StudentsScreen() {
     setIsCpfVisible(false);
     setCpfRevealUnavailable(false);
     setRgDocument("");
+    setRa("");
     setLoginEmail("");
     setGuardianName("");
     setGuardianPhone("");
@@ -1310,6 +1326,7 @@ export default function StudentsScreen() {
         const loginEmailValue = safeText(student.loginEmail);
         const cpfDisplayValue = safeText(student.cpfMasked);
         const rgDocumentValue = safeText(student.rg);
+        const raValue = safeText(student.ra);
         const guardianNameValue = safeText(student.guardianName);
         const guardianPhoneValue = safeText(student.guardianPhone);
         const guardianRelationValue = safeText(student.guardianRelation);
@@ -1348,6 +1365,7 @@ export default function StudentsScreen() {
           phone: student.phone,
           cpfDisplay: cpfDisplayValue,
           rgDocument: rgDocumentValue,
+          ra: raValue,
           loginEmail: loginEmailValue,
           guardianName: guardianNameValue,
           guardianPhone: guardianPhoneValue,
@@ -1376,6 +1394,7 @@ export default function StudentsScreen() {
         setIsCpfVisible(false);
         setCpfRevealUnavailable(false);
         setRgDocument(rgDocumentValue);
+        setRa(raValue);
         setLoginEmail(loginEmailValue);
         setGuardianName(guardianNameValue);
         setGuardianPhone(guardianPhoneValue);
@@ -2339,17 +2358,17 @@ export default function StudentsScreen() {
           <Pressable
             onPress={() => onSelect(value)}
             style={{
-              paddingVertical: 8,
-              paddingHorizontal: 10,
-              borderRadius: 10,
-              margin: isFirst ? 6 : 2,
-              backgroundColor: active ? colors.primaryBg : "transparent",
+              paddingVertical: 12,
+              paddingHorizontal: 12,
+              borderRadius: 14,
+              marginVertical: 3,
+              backgroundColor: active ? colors.primaryBg : colors.card,
             }}
           >
             <Text
               style={{
                 color: active ? colors.primaryText : colors.text,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: active ? "700" : "500",
               }}
             >
@@ -2378,18 +2397,18 @@ export default function StudentsScreen() {
           <Pressable
             onPress={() => onSelect(item)}
             style={{
-              paddingVertical: 8,
-              paddingHorizontal: 10,
-              borderRadius: 10,
-              margin: isFirst ? 6 : 2,
-              backgroundColor: active ? colors.primaryBg : "transparent",
+              paddingVertical: 12,
+              paddingHorizontal: 12,
+              borderRadius: 14,
+              marginVertical: 3,
+              backgroundColor: active ? colors.primaryBg : colors.card,
             }}
           >
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
               <Text
                 style={{
                   color: active ? colors.primaryText : colors.text,
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: active ? "700" : "500",
                 }}
               >
@@ -2400,7 +2419,7 @@ export default function StudentsScreen() {
             <Text
               style={{
                 color: active ? colors.primaryText : colors.muted,
-                fontSize: 11,
+                fontSize: 12,
                 marginTop: 2,
               }}
             >
@@ -2560,17 +2579,16 @@ export default function StudentsScreen() {
                 onPress={() => requestSwitchStudentsTab(tab.id)}
                 style={{
                   flex: 1,
+                  paddingHorizontal: 12,
                   paddingVertical: 8,
                   borderRadius: 999,
                   backgroundColor: selected ? colors.primaryBg : colors.card,
-                  borderWidth: selected ? 0 : 1,
-                  borderColor: selected ? "transparent" : colors.border,
                   alignItems: "center",
                 }}
               >
                 <Text
                   style={{
-                    color: selected ? colors.primaryText : colors.muted,
+                    color: selected ? colors.primaryText : colors.text,
                     fontWeight: "700",
                     fontSize: 12,
                   }}
@@ -2790,8 +2808,13 @@ export default function StudentsScreen() {
                 </View>
               </View>
               <StudentDocumentsFields
+                ra={ra}
                 cpfDisplay={cpfDisplay}
                 rg={rgDocument}
+                onChangeRa={(value) => {
+                  setRa(normalizeRaDigits(value));
+                  setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
+                }}
                 onChangeCpf={(value) => {
                   setCpfDisplay(value);
                   setIsCpfVisible(false);
@@ -4412,9 +4435,9 @@ export default function StudentsScreen() {
       <Pressable
         onPress={() => setShowStudentsFabMenu((current) => !current)}
         style={{
-          position: "absolute",
-          right: studentsFabRight,
-          bottom: studentsFabBottom,
+          ...(Platform.OS === "web"
+            ? ({ position: "fixed", right: studentsFabRight, bottom: studentsFabBottom } as any)
+            : { position: "absolute" as const, right: studentsFabRight, bottom: studentsFabBottom }),
           width: 56,
           height: 56,
           borderRadius: 28,
@@ -4479,9 +4502,9 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           { unitOptions.length ? (
             unitOptions.map((item, index) => (
@@ -4513,9 +4536,9 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           { classOptions.length ? (
             classOptions.map((item, index) => (
@@ -4545,9 +4568,9 @@ export default function StudentsScreen() {
           panelStyle={{
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: colors.background,
+            backgroundColor: colors.card,
           }}
-          scrollContentStyle={{ padding: 4 }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {guardianRelationOptions.map((item, index) => (
             <SelectOption
@@ -4808,8 +4831,13 @@ export default function StudentsScreen() {
                     </Text>
                   ) : null}
                   <StudentDocumentsFields
+                    ra={ra}
                     cpfDisplay={cpfDisplay}
                     rg={rgDocument}
+                    onChangeRa={(value) => {
+                      setRa(normalizeRaDigits(value));
+                      setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
+                    }}
                     onChangeCpf={(value) => {
                       setCpfDisplay(value);
                       setIsCpfVisible(false);

@@ -3,13 +3,17 @@ import * as Sentry from "@sentry/react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { getSessionUserId, getValidAccessToken } from "../auth/session";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
+import type { AthleteIntake } from "../core/athlete-intake";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
-import { safeJsonParse } from "../utils/safe-json";
 import type {
     AbsenceNotice,
     AttendanceRecord,
+    ClassCalendarException,
+    ClassCalendarExceptionKind,
+    ClassCompetitiveProfile,
     ClassGroup,
     ClassPlan,
+    CompetitivePlanningMode,
     Exercise,
     HiddenTemplate,
     ScoutingLog,
@@ -26,6 +30,8 @@ import { normalizeUnitKey } from "../core/unit-key";
 import { canonicalizeUnitLabel } from "../core/unit-label";
 import { normalizeCpfDigits, validateCpf } from "../utils/cpf";
 import { normalizeRg } from "../utils/document-normalization";
+import { safeJsonParse } from "../utils/safe-json";
+import { deriveRaStartYear, normalizeRaDigits } from "../utils/student-ra";
 import { db } from "./sqlite";
 
 const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
@@ -131,6 +137,8 @@ const supabaseDelete = async (path: string) => {
 const CACHE_KEYS = {
   classes: "cache_classes_v1",
   classPlans: "cache_class_plans_v1",
+  classCompetitiveProfiles: "cache_class_competitive_profiles_v1",
+  classCalendarExceptions: "cache_class_calendar_exceptions_v1",
   trainingPlans: "cache_training_plans_v1",
   trainingTemplates: "cache_training_templates_v1",
   students: "cache_students_v1",
@@ -316,6 +324,8 @@ export async function clearLocalReadCaches() {
     await AsyncStorage.multiRemove([
       CACHE_KEYS.classes,
       CACHE_KEYS.classPlans,
+      CACHE_KEYS.classCompetitiveProfiles,
+      CACHE_KEYS.classCalendarExceptions,
       CACHE_KEYS.trainingPlans,
       CACHE_KEYS.trainingTemplates,
       CACHE_KEYS.students,
@@ -1172,6 +1182,16 @@ const isMissingRelation = (error: unknown, relation: string) => {
   );
 };
 
+const isMissingColumnInSchemaCache = (error: unknown, columnName: string) => {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("schema cache") &&
+    normalized.includes("could not find") &&
+    normalized.includes(`'${columnName.toLowerCase()}'`)
+  );
+};
+
 const safeGetUnits = async (): Promise<UnitRow[]> => {
   try {
     return await supabaseGet<UnitRow[]>("/units?select=*&order=name.asc");
@@ -1301,12 +1321,15 @@ type StudentRow = {
   name: string;
   organization_id?: string | null;
   photo_url?: string | null;
+  ra?: string | null;
+  ra_start_year?: number | null;
   external_id?: string | null;
   cpf_masked?: string | null;
   cpf_hmac?: string | null;
   cpf_input?: string | null;
   rg?: string | null;
   rg_normalized?: string | null;
+  college_course?: string | null;
   is_experimental?: boolean | null;
   source_pre_registration_id?: string | null;
   guardian_cpf_hmac?: string | null;
@@ -1328,6 +1351,17 @@ type StudentRow = {
   learning_style?: string | null;
   birthdate?: string | null;
   createdat: string;
+};
+
+type StudentClassEnrollmentRow = {
+  id: string;
+  organization_id?: string | null;
+  student_id: string;
+  class_id: string;
+  modality?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type StudentPreRegistrationRow = {
@@ -1437,6 +1471,59 @@ type ClassPlanRow = {
   updated_at?: string | null;
   createdat?: string | null;
   updatedat?: string | null;
+};
+
+type ClassCompetitiveProfileRow = {
+  class_id: string;
+  organization_id: string;
+  planning_mode?: string | null;
+  cycle_start_date?: string | null;
+  target_competition?: string | null;
+  target_date?: string | null;
+  tactical_system?: string | null;
+  current_phase?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type ClassCalendarExceptionRow = {
+  id: string;
+  class_id: string;
+  organization_id: string;
+  date: string;
+  reason?: string | null;
+  kind?: string | null;
+  created_at?: string | null;
+};
+
+type AthleteIntakeRow = {
+  id: string;
+  class_id?: string | null;
+  student_id?: string | null;
+  full_name?: string | null;
+  ra?: string | null;
+  sex?: string | null;
+  birth_date?: string | null;
+  email?: string | null;
+  modalities?: string[] | string | null;
+  parq_positive?: boolean | null;
+  cardio_risk?: boolean | null;
+  ortho_risk?: boolean | null;
+  current_injury?: boolean | null;
+  smoker?: boolean | null;
+  allergies?: boolean | null;
+  major_surgery?: boolean | null;
+  family_history_risk?: boolean | null;
+  dizziness_or_syncope?: boolean | null;
+  needs_medical_clearance?: boolean | null;
+  needs_individual_attention?: boolean | null;
+  jump_restriction?: string | null;
+  risk_status?: string | null;
+  tags?: string[] | string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type SessionLogRow = {
@@ -1837,73 +1924,81 @@ export async function getClassById(
   id: string,
   options: { organizationId?: string | null } = {}
 ): Promise<ClassGroup | null> {
-  const units = await safeGetUnits();
-  const unitMap = new Map(
-    units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
-  );
   const activeOrganizationId =
     options.organizationId ?? (await getActiveOrganizationId());
-  const rows = await supabaseGet<ClassRow[]>(
-    activeOrganizationId
-      ? "/classes?select=*&id=eq." +
-          encodeURIComponent(id) +
-          "&organization_id=eq." +
-          encodeURIComponent(activeOrganizationId)
-      : "/classes?select=*&id=eq." + encodeURIComponent(id)
-  );
-  const row = rows[0];
-  if (!row) return null;
-  const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
-  return {
-    id: row.id,
-    name: row.name,
-    organizationId: resolvedOrganizationId,
-    unit:
-      (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
-      canonicalizeUnitLabel(row.unit ?? null) ??
-      "Sem unidade",
-    unitId: row.unit_id ?? "",
-    colorKey: row.color_key ?? "",
-    modality:
-      row.modality === "voleibol" || row.modality === "fitness"
-        ? row.modality
-        : "fitness",
-    ageBand: normalizeAgeBand(row.ageband),
-    gender:
-      row.gender === "masculino" || row.gender === "feminino"
-        ? row.gender
-        : "misto",
-    startTime: row.starttime ?? "14:00",
-    endTime:
-      row.end_time ??
-      row.endtime ??
-      computeEndTime(row.starttime, row.duration ?? 60) ??
-      computeEndTime(row.starttime ?? "14:00", row.duration ?? 60) ??
-      (row.starttime ?? "14:00"),
-    durationMinutes: row.duration ?? 60,
-    daysOfWeek:
-      Array.isArray(row.days) && row.days.length
-        ? row.days
-        : row.daysperweek === 3
-          ? [1, 3, 5]
-          : [2, 4],
-    daysPerWeek: row.daysperweek,
-    goal: row.goal,
-    equipment:
-      row.equipment === "quadra" ||
-      row.equipment === "funcional" ||
-      row.equipment === "academia" ||
-      row.equipment === "misto"
-        ? row.equipment
-        : "misto",
-    level: row.level === 2 || row.level === 3 ? row.level : 1,
-    mvLevel: row.mv_level ?? "",
-    cycleStartDate: row.cycle_start_date ?? "",
-    cycleLengthWeeks: row.cycle_length_weeks ?? 0,
-    acwrLow: row.acwr_low ?? 0.8,
-    acwrHigh: row.acwr_high ?? 1.3,
-    createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
-  };
+  try {
+    const units = await safeGetUnits();
+    const unitMap = new Map(
+      units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)])
+    );
+    const rows = await supabaseGet<ClassRow[]>(
+      activeOrganizationId
+        ? "/classes?select=*&id=eq." +
+            encodeURIComponent(id) +
+            "&organization_id=eq." +
+            encodeURIComponent(activeOrganizationId)
+        : "/classes?select=*&id=eq." + encodeURIComponent(id)
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+    return {
+      id: row.id,
+      name: row.name,
+      organizationId: resolvedOrganizationId,
+      unit:
+        (row.unit_id ? unitMap.get(row.unit_id) : undefined) ??
+        canonicalizeUnitLabel(row.unit ?? null) ??
+        "Sem unidade",
+      unitId: row.unit_id ?? "",
+      colorKey: row.color_key ?? "",
+      modality:
+        row.modality === "voleibol" || row.modality === "fitness"
+          ? row.modality
+          : "fitness",
+      ageBand: normalizeAgeBand(row.ageband),
+      gender:
+        row.gender === "masculino" || row.gender === "feminino"
+          ? row.gender
+          : "misto",
+      startTime: row.starttime ?? "14:00",
+      endTime:
+        row.end_time ??
+        row.endtime ??
+        computeEndTime(row.starttime, row.duration ?? 60) ??
+        computeEndTime(row.starttime ?? "14:00", row.duration ?? 60) ??
+        (row.starttime ?? "14:00"),
+      durationMinutes: row.duration ?? 60,
+      daysOfWeek:
+        Array.isArray(row.days) && row.days.length
+          ? row.days
+          : row.daysperweek === 3
+            ? [1, 3, 5]
+            : [2, 4],
+      daysPerWeek: row.daysperweek,
+      goal: row.goal,
+      equipment:
+        row.equipment === "quadra" ||
+        row.equipment === "funcional" ||
+        row.equipment === "academia" ||
+        row.equipment === "misto"
+          ? row.equipment
+          : "misto",
+      level: row.level === 2 || row.level === 3 ? row.level : 1,
+      mvLevel: row.mv_level ?? "",
+      cycleStartDate: row.cycle_start_date ?? "",
+      cycleLengthWeeks: row.cycle_length_weeks ?? 0,
+      acwrLow: row.acwr_low ?? 0.8,
+      acwrHigh: row.acwr_high ?? 1.3,
+      createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
+    };
+  } catch (error) {
+    if (isNetworkError(error) || isAuthError(error)) {
+      const classes = await getClasses({ organizationId: activeOrganizationId });
+      return classes.find((item) => item.id === id) ?? null;
+    }
+    throw error;
+  }
 }
 
 export async function updateClass(
@@ -2017,6 +2112,7 @@ export async function saveClass(data: {
   colorKey?: string | null;
   organizationId?: string | null;
 }) {
+  const classId = "c_" + Date.now();
   const resolvedUnitRow = data.unitId
     ? { id: data.unitId, name: data.unit }
     : await ensureUnit(data.unit);
@@ -2024,7 +2120,7 @@ export async function saveClass(data: {
   const activeOrganizationId =
     data.organizationId ?? (await getActiveOrganizationId());
   const payload: Record<string, unknown> = {
-    id: "c_" + Date.now(),
+    id: classId,
     name: data.name,
     unit: resolvedUnitRow?.name ?? data.unit,
     unit_id: resolvedUnit,
@@ -2051,6 +2147,7 @@ export async function saveClass(data: {
   await supabasePost("/classes", [
     payload,
   ]);
+  return classId;
 }
 
 export async function duplicateClass(base: ClassGroup) {
@@ -2183,6 +2280,7 @@ export async function getScoutingLogByDate(
     return row ? scoutingRowToLog(row) : null;
   } catch (error) {
     if (isMissingRelation(error, "scouting_logs")) return null;
+    if (isAuthError(error)) return null;
     throw error;
   }
 }
@@ -2202,6 +2300,7 @@ export async function getLatestScoutingLog(
     return row ? scoutingRowToLog(row) : null;
   } catch (error) {
     if (isMissingRelation(error, "scouting_logs")) return null;
+    if (isAuthError(error)) return null;
     throw error;
   }
 }
@@ -2772,6 +2871,223 @@ export async function deleteClassPlansByClass(
   );
 }
 
+const mapClassCompetitiveProfileRow = (
+  row: ClassCompetitiveProfileRow
+): ClassCompetitiveProfile => ({
+  classId: row.class_id,
+  organizationId: row.organization_id,
+  planningMode:
+    row.planning_mode === "adulto-competitivo"
+      ? ("adulto-competitivo" as CompetitivePlanningMode)
+      : "adulto-competitivo",
+  cycleStartDate: row.cycle_start_date ?? "",
+  targetCompetition: row.target_competition ?? "",
+  targetDate: row.target_date ?? "",
+  tacticalSystem: row.tactical_system ?? "",
+  currentPhase: row.current_phase ?? "",
+  notes: row.notes ?? "",
+  createdAt: row.created_at ?? new Date().toISOString(),
+  updatedAt: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+});
+
+const mapClassCalendarExceptionRow = (
+  row: ClassCalendarExceptionRow
+): ClassCalendarException => ({
+  id: row.id,
+  classId: row.class_id,
+  organizationId: row.organization_id,
+  date: row.date,
+  reason: row.reason ?? "",
+  kind: row.kind === "no_training" ? ("no_training" as ClassCalendarExceptionKind) : "no_training",
+  createdAt: row.created_at ?? new Date().toISOString(),
+});
+
+export async function getClassCompetitiveProfile(
+  classId: string,
+  options: { organizationId?: string | null } = {}
+): Promise<ClassCompetitiveProfile | null> {
+  try {
+    const organizationId = await getScopedOrganizationId(
+      options.organizationId,
+      "getClassCompetitiveProfile"
+    );
+    if (!organizationId) return null;
+    const rows = await supabaseGet<ClassCompetitiveProfileRow[]>(
+      `/class_competitive_profiles?select=*&class_id=eq.${encodeURIComponent(
+        classId
+      )}&organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`
+    );
+    const first = rows[0] ? mapClassCompetitiveProfileRow(rows[0]) : null;
+    const cache =
+      (await readCache<Record<string, ClassCompetitiveProfile | null>>(
+        CACHE_KEYS.classCompetitiveProfiles
+      )) ?? {};
+    cache[classId] = first;
+    await writeCache(CACHE_KEYS.classCompetitiveProfiles, cache);
+    return first;
+  } catch (error) {
+    if (isMissingRelation(error, "class_competitive_profiles")) return null;
+    if (isNetworkError(error)) {
+      const cache = await readCache<Record<string, ClassCompetitiveProfile | null>>(
+        CACHE_KEYS.classCompetitiveProfiles
+      );
+      if (cache && classId in cache) return cache[classId] ?? null;
+    }
+    throw error;
+  }
+}
+
+export async function saveClassCompetitiveProfile(
+  profile: ClassCompetitiveProfile,
+  options?: { organizationId?: string | null }
+) {
+  const organizationId = await getScopedOrganizationId(
+    options?.organizationId ?? profile.organizationId,
+    "saveClassCompetitiveProfile"
+  );
+  if (!organizationId) {
+    throw new Error("Organizacao ativa nao encontrada.");
+  }
+  const nowIso = new Date().toISOString();
+  await supabasePost(
+    "/class_competitive_profiles",
+    [
+      {
+        class_id: profile.classId,
+        organization_id: organizationId,
+        planning_mode: profile.planningMode,
+        cycle_start_date: profile.cycleStartDate || null,
+        target_competition: profile.targetCompetition.trim() || null,
+        target_date: profile.targetDate || null,
+        tactical_system: profile.tacticalSystem.trim() || null,
+        current_phase: profile.currentPhase.trim() || null,
+        notes: profile.notes.trim() || null,
+        created_at: profile.createdAt || nowIso,
+        updated_at: nowIso,
+      },
+    ],
+    {
+      Prefer: "resolution=merge-duplicates",
+    }
+  );
+  const cache =
+    (await readCache<Record<string, ClassCompetitiveProfile | null>>(
+      CACHE_KEYS.classCompetitiveProfiles
+    )) ?? {};
+  cache[profile.classId] = {
+    ...profile,
+    organizationId,
+    createdAt: profile.createdAt || nowIso,
+    updatedAt: nowIso,
+  };
+  await writeCache(CACHE_KEYS.classCompetitiveProfiles, cache);
+}
+
+export async function deleteClassCompetitiveProfile(
+  classId: string,
+  options?: { organizationId?: string | null }
+) {
+  const organizationId = await getScopedOrganizationId(
+    options?.organizationId,
+    "deleteClassCompetitiveProfile"
+  );
+  await supabaseDelete(
+    organizationId
+      ? `/class_competitive_profiles?class_id=eq.${encodeURIComponent(
+          classId
+        )}&organization_id=eq.${encodeURIComponent(organizationId)}`
+      : `/class_competitive_profiles?class_id=eq.${encodeURIComponent(classId)}`
+  );
+  const cache =
+    (await readCache<Record<string, ClassCompetitiveProfile | null>>(
+      CACHE_KEYS.classCompetitiveProfiles
+    )) ?? {};
+  delete cache[classId];
+  await writeCache(CACHE_KEYS.classCompetitiveProfiles, cache);
+}
+
+export async function getClassCalendarExceptions(
+  classId: string,
+  options: { organizationId?: string | null } = {}
+): Promise<ClassCalendarException[]> {
+  try {
+    const organizationId = await getScopedOrganizationId(
+      options.organizationId,
+      "getClassCalendarExceptions"
+    );
+    if (!organizationId) return [];
+    const rows = await supabaseGet<ClassCalendarExceptionRow[]>(
+      `/class_calendar_exceptions?select=*&class_id=eq.${encodeURIComponent(
+        classId
+      )}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.asc`
+    );
+    const mapped = rows.map(mapClassCalendarExceptionRow);
+    const cache =
+      (await readCache<Record<string, ClassCalendarException[]>>(
+        CACHE_KEYS.classCalendarExceptions
+      )) ?? {};
+    cache[classId] = mapped;
+    await writeCache(CACHE_KEYS.classCalendarExceptions, cache);
+    return mapped;
+  } catch (error) {
+    if (isMissingRelation(error, "class_calendar_exceptions")) return [];
+    if (isNetworkError(error)) {
+      const cache = await readCache<Record<string, ClassCalendarException[]>>(
+        CACHE_KEYS.classCalendarExceptions
+      );
+      if (cache && cache[classId]) return cache[classId];
+    }
+    throw error;
+  }
+}
+
+export async function saveClassCalendarException(
+  item: ClassCalendarException,
+  options?: { organizationId?: string | null }
+) {
+  const organizationId = await getScopedOrganizationId(
+    options?.organizationId ?? item.organizationId,
+    "saveClassCalendarException"
+  );
+  if (!organizationId) {
+    throw new Error("Organizacao ativa nao encontrada.");
+  }
+  await supabasePost(
+    "/class_calendar_exceptions",
+    [
+      {
+        id: item.id,
+        class_id: item.classId,
+        organization_id: organizationId,
+        date: item.date,
+        reason: item.reason.trim() || null,
+        kind: item.kind,
+        created_at: item.createdAt || new Date().toISOString(),
+      },
+    ],
+    {
+      Prefer: "resolution=merge-duplicates",
+    }
+  );
+}
+
+export async function deleteClassCalendarException(
+  id: string,
+  options?: { organizationId?: string | null }
+) {
+  const organizationId = await getScopedOrganizationId(
+    options?.organizationId,
+    "deleteClassCalendarException"
+  );
+  await supabaseDelete(
+    organizationId
+      ? `/class_calendar_exceptions?id=eq.${encodeURIComponent(
+          id
+        )}&organization_id=eq.${encodeURIComponent(organizationId)}`
+      : `/class_calendar_exceptions?id=eq.${encodeURIComponent(id)}`
+  );
+}
+
 export async function getExercises(): Promise<Exercise[]> {
   const rows = await supabaseGet<ExerciseRow[]>(
     "/exercises?select=*&order=createdat.desc"
@@ -2971,11 +3287,14 @@ const mapStudentRow = (
     name: row.name,
     organizationId: resolvedOrganizationId,
     photoUrl: row.photo_url ?? undefined,
+    ra: row.ra ?? null,
+    raStartYear: row.ra_start_year ?? null,
     externalId: row.external_id ?? null,
     cpfMasked: row.cpf_masked ?? null,
     cpfHmac: row.cpf_hmac ?? null,
     rg: row.rg ?? null,
     rgNormalized: row.rg_normalized ?? null,
+    collegeCourse: row.college_course ?? null,
     isExperimental: Boolean(row.is_experimental),
     sourcePreRegistrationId: row.source_pre_registration_id ?? null,
     classId: row.classid,
@@ -2998,6 +3317,130 @@ const mapStudentRow = (
     createdAt: row.createdat,
   };
 };
+
+export type LinkExistingStudentByIdentityResult = {
+  status: "none" | "linked" | "already-linked";
+  student: Student | null;
+  matchedBy: "ra" | "email" | null;
+};
+
+const buildStudentsInFilter = (ids: string[]) =>
+  ids
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .map((id) => encodeURIComponent(id))
+    .join(",");
+
+const isAlreadyLinkedToClass = async (
+  student: Student,
+  classId: string,
+  organizationId: string | null
+) => {
+  if (student.classId === classId) return true;
+  try {
+    const rows = await supabaseGet<StudentClassEnrollmentRow[]>(
+      organizationId
+        ? `/student_class_enrollments?select=id&student_id=eq.${encodeURIComponent(student.id)}&class_id=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`
+        : `/student_class_enrollments?select=id&student_id=eq.${encodeURIComponent(student.id)}&class_id=eq.${encodeURIComponent(classId)}&limit=1`
+    );
+    return rows.length > 0;
+  } catch (error) {
+    if (isMissingRelation(error, "student_class_enrollments")) return false;
+    throw error;
+  }
+};
+
+const createStudentClassEnrollment = async (
+  studentId: string,
+  classId: string,
+  modality: string | null,
+  organizationId: string | null
+) => {
+  const now = new Date().toISOString();
+  const payload: Record<string, unknown> = {
+    id: `sce_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    student_id: studentId,
+    class_id: classId,
+    modality: modality ?? null,
+    status: "active",
+    created_at: now,
+    updated_at: now,
+  };
+  if (organizationId) {
+    payload.organization_id = organizationId;
+  }
+
+  try {
+    await supabasePost("/student_class_enrollments", [payload]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isMissingRelation(error, "student_class_enrollments")) return;
+    if (message.toLowerCase().includes("duplicate key")) return;
+    throw error;
+  }
+};
+
+export async function linkExistingStudentByIdentity(params: {
+  classId: string;
+  organizationId?: string | null;
+  modality?: string | null;
+  ra?: string | null;
+  email?: string | null;
+}): Promise<LinkExistingStudentByIdentityResult> {
+  const organizationId =
+    params.organizationId ?? (await getActiveOrganizationId());
+  if (!organizationId) {
+    return { status: "none", student: null, matchedBy: null };
+  }
+
+  const ra = normalizeRaDigits(params.ra ?? "");
+  const email = (params.email ?? "").trim().toLowerCase();
+
+  let matchedBy: "ra" | "email" | null = null;
+  let row: StudentRow | null = null;
+
+  if (ra) {
+    const raRows = await supabaseGet<StudentRow[]>(
+      `/students?select=*&organization_id=eq.${encodeURIComponent(
+        organizationId
+      )}&ra=eq.${encodeURIComponent(ra)}&limit=1`
+    );
+    row = raRows[0] ?? null;
+    matchedBy = row ? "ra" : null;
+  }
+
+  if (!row && email) {
+    const emailRows = await supabaseGet<StudentRow[]>(
+      `/students?select=*&organization_id=eq.${encodeURIComponent(
+        organizationId
+      )}&login_email=eq.${encodeURIComponent(email)}&limit=1`
+    );
+    row = emailRows[0] ?? null;
+    matchedBy = row ? "email" : null;
+  }
+
+  if (!row) {
+    return { status: "none", student: null, matchedBy: null };
+  }
+
+  const student = mapStudentRow(row, organizationId);
+  const alreadyLinked = await isAlreadyLinkedToClass(
+    student,
+    params.classId,
+    organizationId
+  );
+  if (alreadyLinked) {
+    return { status: "already-linked", student, matchedBy };
+  }
+
+  await createStudentClassEnrollment(
+    student.id,
+    params.classId,
+    params.modality?.trim() || null,
+    organizationId
+  );
+  return { status: "linked", student, matchedBy };
+}
 
 export async function getStudents(
   options: { organizationId?: string | null } = {}
@@ -3053,7 +3496,44 @@ export async function getStudentsByClass(
             "&order=name.asc"
         : "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
     );
-    return rows.map((row) => mapStudentRow(row, activeOrganizationId));
+    const directStudents = rows.map((row) => mapStudentRow(row, activeOrganizationId));
+    const byId = new Map(directStudents.map((student) => [student.id, student]));
+
+    try {
+      const enrollmentRows = await supabaseGet<StudentClassEnrollmentRow[]>(
+        activeOrganizationId
+          ? `/student_class_enrollments?select=student_id&class_id=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&status=eq.active`
+          : `/student_class_enrollments?select=student_id&class_id=eq.${encodeURIComponent(classId)}&status=eq.active`
+      );
+      const missingIds = Array.from(
+        new Set(
+          enrollmentRows
+            .map((item) => item.student_id)
+            .filter((studentId) => Boolean(studentId) && !byId.has(studentId))
+        )
+      );
+
+      if (missingIds.length > 0) {
+        const inFilter = buildStudentsInFilter(missingIds);
+        if (inFilter) {
+          const enrolledRows = await supabaseGet<StudentRow[]>(
+            activeOrganizationId
+              ? `/students?select=*&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&id=in.(${inFilter})&order=name.asc`
+              : `/students?select=*&id=in.(${inFilter})&order=name.asc`
+          );
+          for (const row of enrolledRows) {
+            const mapped = mapStudentRow(row, activeOrganizationId);
+            byId.set(mapped.id, { ...mapped, classId });
+          }
+        }
+      }
+    } catch (error) {
+      if (!isMissingRelation(error, "student_class_enrollments")) {
+        throw error;
+      }
+    }
+
+    return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
       const activeOrganizationId =
@@ -3063,6 +3543,83 @@ export async function getStudentsByClass(
       if (cached) return cached.filter((item) => item.classId === classId);
       return [];
     }
+    throw error;
+  }
+}
+
+const parseArrayField = (value: string[] | string | null | undefined) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    const parsed = safeJsonParse<unknown>(value, value);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item ?? "").trim()).filter(Boolean);
+    }
+    return value
+      .split(/,|;|\|/g)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const mapAthleteIntakeRow = (row: AthleteIntakeRow): AthleteIntake => {
+  const sex = row.sex === "masculino" || row.sex === "feminino" || row.sex === "outro" ? row.sex : null;
+  const riskStatus =
+    row.risk_status === "revisar" || row.risk_status === "atencao" || row.risk_status === "apto"
+      ? row.risk_status
+      : "apto";
+  return {
+    id: row.id,
+    classId: row.class_id ?? null,
+    studentId: row.student_id ?? null,
+    fullName: row.full_name ?? "",
+    ra: row.ra ?? null,
+    sex,
+    birthDate: row.birth_date ?? null,
+    email: row.email ?? null,
+    modalities: parseArrayField(row.modalities),
+    parqPositive: Boolean(row.parq_positive),
+    cardioRisk: Boolean(row.cardio_risk),
+    orthoRisk: Boolean(row.ortho_risk),
+    currentInjury: Boolean(row.current_injury),
+    smoker: Boolean(row.smoker),
+    allergies: Boolean(row.allergies),
+    majorSurgery: Boolean(row.major_surgery),
+    familyHistoryRisk: Boolean(row.family_history_risk),
+    dizzinessOrSyncope: Boolean(row.dizziness_or_syncope),
+    needsMedicalClearance: Boolean(row.needs_medical_clearance),
+    needsIndividualAttention: Boolean(row.needs_individual_attention),
+    jumpRestriction: row.jump_restriction === "avaliar" ? "avaliar" : "nenhuma",
+    riskStatus,
+    tags: parseArrayField(row.tags),
+    notes: row.notes ?? null,
+    createdAt: row.created_at ?? new Date().toISOString(),
+    updatedAt: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+  };
+};
+
+export async function getAthleteIntakesByClass(
+  classId: string,
+  options: { organizationId?: string | null } = {}
+): Promise<AthleteIntake[]> {
+  try {
+    const activeOrganizationId =
+      options.organizationId ?? (await getActiveOrganizationId());
+    const rows = await supabaseGet<AthleteIntakeRow[]>(
+      activeOrganizationId
+        ? "/athlete_intakes?select=*&class_id=eq." +
+            encodeURIComponent(classId) +
+            "&organization_id=eq." +
+            encodeURIComponent(activeOrganizationId) +
+            "&order=updated_at.desc"
+        : "/athlete_intakes?select=*&class_id=eq." + encodeURIComponent(classId) + "&order=updated_at.desc"
+    );
+    return rows.map(mapAthleteIntakeRow);
+  } catch (error) {
+    if (isMissingRelation(error, "athlete_intakes")) return [];
+    if (isNetworkError(error) || isAuthError(error)) return [];
     throw error;
   }
 }
@@ -3092,6 +3649,8 @@ export async function saveStudent(student: Student) {
     student.organizationId || (await getActiveOrganizationId());
   const rgRaw = student.rg?.trim() || null;
   const rgNormalized = rgRaw ? normalizeRg(rgRaw) : null;
+  const raDigits = normalizeRaDigits(student.ra);
+  const raStartYear = deriveRaStartYear(raDigits);
   const cpfCandidate = String(student.cpfMasked ?? "").trim();
   const cpfDigits = normalizeCpfDigits(cpfCandidate);
   const shouldProcessCpf = Boolean(cpfCandidate) && !cpfCandidate.includes("*");
@@ -3101,9 +3660,12 @@ export async function saveStudent(student: Student) {
   const payload: Record<string, unknown> = {
     id: student.id,
     name: student.name,
+    ra: raDigits || null,
+    ra_start_year: raStartYear,
     external_id: student.externalId?.trim() || null,
     rg: rgRaw,
     rg_normalized: rgNormalized,
+    college_course: student.collegeCourse?.trim() || null,
     is_experimental: Boolean(student.isExperimental),
     source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
@@ -3135,8 +3697,17 @@ export async function saveStudent(student: Student) {
     await supabasePost("/students", [payload]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (isMissingColumnInSchemaCache(error, "college_course")) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.college_course;
+      await supabasePost("/students", [fallbackPayload]);
+      return;
+    }
     if (message.includes("students_org_cpf_hmac_uidx")) {
       throw new Error("Já existe um aluno com este CPF nesta organização.");
+    }
+    if (message.includes("students_org_ra_uidx")) {
+      throw new Error("Já existe um aluno com este RA nesta organização.");
     }
     throw error;
   }
@@ -3148,6 +3719,8 @@ export async function updateStudent(student: Student) {
     student.organizationId || (await getActiveOrganizationId());
   const rgRaw = student.rg?.trim() || null;
   const rgNormalized = rgRaw ? normalizeRg(rgRaw) : null;
+  const raDigits = normalizeRaDigits(student.ra);
+  const raStartYear = deriveRaStartYear(raDigits);
   const cpfCandidate = String(student.cpfMasked ?? "").trim();
   const cpfDigits = normalizeCpfDigits(cpfCandidate);
   const shouldProcessCpf = Boolean(cpfCandidate) && !cpfCandidate.includes("*");
@@ -3156,9 +3729,12 @@ export async function updateStudent(student: Student) {
   }
   const payload: Record<string, unknown> = {
     name: student.name,
+    ra: raDigits || null,
+    ra_start_year: raStartYear,
     external_id: student.externalId?.trim() || null,
     rg: rgRaw,
     rg_normalized: rgNormalized,
+    college_course: student.collegeCourse?.trim() || null,
     is_experimental: Boolean(student.isExperimental),
     source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
@@ -3202,8 +3778,25 @@ export async function updateStudent(student: Student) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (isMissingColumnInSchemaCache(error, "college_course")) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.college_course;
+      await supabasePatch(
+        activeOrganizationId
+          ? "/students?id=eq." +
+              encodeURIComponent(student.id) +
+              "&organization_id=eq." +
+              encodeURIComponent(activeOrganizationId)
+          : "/students?id=eq." + encodeURIComponent(student.id),
+        fallbackPayload
+      );
+      return;
+    }
     if (message.includes("students_org_cpf_hmac_uidx")) {
       throw new Error("Já existe um aluno com este CPF nesta organização.");
+    }
+    if (message.includes("students_org_ra_uidx")) {
+      throw new Error("Já existe um aluno com este RA nesta organização.");
     }
     throw error;
   }

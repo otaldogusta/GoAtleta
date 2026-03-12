@@ -1,22 +1,23 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState } from "react";
-import {
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View
-} from "react-native";
-import { Pressable } from "../src/ui/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
+import {
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable } from "../src/ui/Pressable";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/api/config";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -394,9 +395,19 @@ export default function ResetPasswordScreen() {
 
               <Pressable
                 onPress={() => router.replace("/login")}
-                style={{ alignSelf: "center", paddingVertical: 6 }}
+                style={{
+                  alignSelf: "center",
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                <Text style={{ color: colors.muted }}>Voltar para login</Text>
+                <Ionicons name="chevron-back" size={16} color={colors.text} />
               </Pressable>
             </View>
           </View>

@@ -144,14 +144,14 @@ export function useNfcContinuousScan(options: UseNfcContinuousScanOptions) {
 
   useEffect(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+       
       // @ts-ignore - attach debug helpers to globalThis for manual inspection
       if (!globalThis.__nfcDiagnostics) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+         
         // @ts-ignore
         globalThis.__nfcDiagnostics = {};
       }
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+       
       // @ts-ignore
       globalThis.__nfcDiagnostics.getNfcLoopState = () => ({
         running: runningRef.current,
@@ -168,10 +168,10 @@ export function useNfcContinuousScan(options: UseNfcContinuousScanOptions) {
     }
     return () => {
       try {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+         
         // @ts-ignore
         if (globalThis.__nfcDiagnostics?.getNfcLoopState) {
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+           
           // @ts-ignore
           delete globalThis.__nfcDiagnostics.getNfcLoopState;
         }

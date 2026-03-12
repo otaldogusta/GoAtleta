@@ -74,7 +74,7 @@ const addMinutes = (hour: number, minute: number, delta: number) => {
 const getMonthGrid = (year: number, month: number) => {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: Array<Date | null> = [];
+  const cells: (Date | null)[] = [];
   for (let i = 0; i < 42; i += 1) {
     const dayNumber = i - firstDay + 1;
     if (dayNumber < 1 || dayNumber > daysInMonth) {

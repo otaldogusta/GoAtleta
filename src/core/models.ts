@@ -12,6 +12,8 @@ export type AthletePosition =
   | "libero";
 export type AthleteObjective = "ludico" | "base" | "rendimento";
 export type AthleteLearningStyle = "misto" | "visual" | "auditivo" | "cinestesico";
+export type CompetitivePlanningMode = "adulto-competitivo";
+export type ClassCalendarExceptionKind = "no_training";
 
 export type ClassGroup = {
   id: string;
@@ -111,11 +113,14 @@ export type Student = {
   name: string;
   organizationId: string;
   photoUrl?: string;
+  ra?: string | null;
+  raStartYear?: number | null;
   externalId?: string | null;
   cpfMasked?: string | null;
   cpfHmac?: string | null;
   rg?: string | null;
   rgNormalized?: string | null;
+  collegeCourse?: string | null;
   isExperimental?: boolean;
   sourcePreRegistrationId?: string | null;
   classId: string;
@@ -247,6 +252,30 @@ export type ClassPlan = {
   source: "AUTO" | "MANUAL";
   createdAt: string;
   updatedAt: string;
+};
+
+export type ClassCompetitiveProfile = {
+  classId: string;
+  organizationId: string;
+  planningMode: CompetitivePlanningMode;
+  cycleStartDate: string;
+  targetCompetition: string;
+  targetDate: string;
+  tacticalSystem: string;
+  currentPhase: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ClassCalendarException = {
+  id: string;
+  classId: string;
+  organizationId: string;
+  date: string;
+  reason: string;
+  kind: ClassCalendarExceptionKind;
+  createdAt: string;
 };
 
 export type Exercise = {
@@ -438,15 +467,15 @@ export type VolleyballLessonPlan = {
   secondaryFocus: { skill: string; ladderFrom: string; ladderTo: string };
   loadIntent: "low" | "moderate" | "high";
   rulesTriggered: string[];
-  blocks: Array<{
+  blocks: {
     type: "warmup_preventive" | "skill" | "game_conditioned" | "cooldown_feedback";
     minutes: number;
     drillIds: string[];
     successCriteria?: string[];
     scoring?: string;
     notes?: string;
-  }>;
-  adaptations: Array<{ if: string; change: string }>;
+  }[];
+  adaptations: { if: string; change: string }[];
   evidence: {
     lastSession: {
       rpeGroup: number;
