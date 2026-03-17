@@ -53,6 +53,7 @@ import {
     updateStudent,
     updateStudentPreRegistration
 } from "../../src/db/seed";
+import { useIsOnline } from "../../src/hooks/use-is-online";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
@@ -172,6 +173,7 @@ export default function StudentsScreen() {
   const insets = useSafeAreaInsets();
   const { session, signOut } = useAuth();
   const effectiveProfile = useEffectiveProfile();
+  const isOnline = useIsOnline();
   const canRevealCpf = effectiveProfile === "admin";
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
@@ -886,6 +888,10 @@ export default function StudentsScreen() {
     }
     if (!classId || !name.trim()) {
       setStudentFormError("Preencha o nome do aluno.");
+      return false;
+    }
+    if (!isOnline) {
+      setStudentFormError("Conecte-se à internet para salvar o aluno.");
       return false;
     }
     setStudentFormError("");

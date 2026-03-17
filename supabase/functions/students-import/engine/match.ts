@@ -1,7 +1,7 @@
 import type {
-  ExistingStudentRow,
-  MatchResult,
-  NormalizedImportRow,
+    ExistingStudentRow,
+    MatchResult,
+    NormalizedImportRow,
 } from "./types.ts";
 
 const normalizeName = (value: string) =>

@@ -33,6 +33,7 @@ import {
     updateStudent,
     updateStudentPhoto,
 } from "../../../src/db/seed";
+import { useIsOnline } from "../../../src/hooks/use-is-online";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { ConfirmCloseOverlay } from "../../../src/ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
@@ -175,6 +176,7 @@ export default function ClassStudentsScreen() {
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
   const effectiveProfile = useEffectiveProfile();
+  const isOnline = useIsOnline();
   const canRevealCpf = effectiveProfile === "admin";
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -881,6 +883,12 @@ export default function ClassStudentsScreen() {
 
     setCreatingStudent(true);
     setCreateError("");
+
+    if (!isOnline) {
+      setCreateError("Conecte-se à internet para cadastrar um aluno.");
+      setCreatingStudent(false);
+      return;
+    }
     try {
       const existingLink = await linkExistingStudentByIdentity({
         classId: id,
