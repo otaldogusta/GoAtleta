@@ -4,9 +4,19 @@ import { AnimatedBottomTabs } from "../../src/components/navigation/AnimatedBott
 export default function CoordinationTabsLayout() {
   return (
     <Tabs
-      screenOptions={{ headerShown: false }}
+      initialRouteName="dashboard"
       tabBar={(props) => <AnimatedBottomTabs {...props} role="coord" />}
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: { display: "none" },
+      }}
     >
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="events" options={{ href: null }} />
+      <Tabs.Screen name="org-members" options={{ href: null }} />
+      <Tabs.Screen name="communications" options={{ href: null }} />
+      <Tabs.Screen name="periodization" options={{ href: null }} />
+      <Tabs.Screen name="assistant" options={{ href: null }} />
       <Tabs.Screen name="dashboard" />
       <Tabs.Screen name="classes" />
       <Tabs.Screen

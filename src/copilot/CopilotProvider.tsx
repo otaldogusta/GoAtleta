@@ -1,37 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
     Animated,
-    Linking,
     Platform,
-    ScrollView,
     StyleSheet,
-    Text,
-    TextInput,
     useWindowDimensions,
-    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { Signal as CopilotSignal } from "../ai/signal-engine";
 import {
-    listRegulationRuleSets,
     type RegulationRuleSet,
 } from "../api/regulation-rule-sets";
 import {
-    listRegulationUpdates,
     markRegulationUpdateRead,
     type RegulationUpdate,
 } from "../api/regulation-updates";
 import { useAuth } from "../auth/auth";
 import { getClasses } from "../db/seed";
-import { addNotification } from "../notificationsInbox";
+import { getScopedAssistantPath, isAssistantRoutePath } from "../navigation/profile-routes";
 import { markRender, measureAsync } from "../observability/perf";
 import { useOrganization } from "../providers/OrganizationProvider";
-import { ModalSheet } from "../ui/ModalSheet";
-import { Pressable } from "../ui/Pressable";
 import { useAppTheme } from "../ui/app-theme";
 import {
     buildOperationalContext,
@@ -48,6 +38,10 @@ import {
     hasSnapshotChanged,
     type CentralSnapshot,
 } from "./updates-utils";
+import { useRegistryManager } from "./hooks/useRegistryManager";
+import { useRegulationUpdates } from "./hooks/useRegulationUpdates";
+import { CopilotFab } from "./components/CopilotFab";
+import { CopilotModal } from "./components/CopilotModal";
 
 type CopilotContextData = {
   screen: string;
@@ -131,8 +125,6 @@ const CopilotDataContext = createContext<CopilotDataContextValue | null>(null);
 const CopilotActionsContext = createContext<CopilotActionsContextValue | null>(null);
 
 const MAX_HISTORY_ITEMS = 12;
-const REGULATION_POLL_INTERVAL_MS = 90_000;
-const REGULATION_NOTIFIED_STORAGE_PREFIX = "reg_updates_notified_v1";
 const CONTEXT_COMPOSER_MIN_HEIGHT = 40;
 const CONTEXT_COMPOSER_MAX_HEIGHT = 120;
 const CONTEXT_COMPOSER_MAX_HEIGHT_WEB = 84;
@@ -169,19 +161,6 @@ const signalToCategory = (signalType: CopilotSignal["type"]): InsightsCategory =
     case "engagement_risk":
       return "engagement";
   }
-};
-
-const buildRegulationNotificationKey = (userId: string, organizationId: string) =>
-  `${REGULATION_NOTIFIED_STORAGE_PREFIX}:${userId}:${organizationId}`;
-
-const normalizeNotificationIds = (value: unknown) => {
-  if (!Array.isArray(value)) return [];
-  const unique = new Set<string>();
-  for (const item of value) {
-    const id = String(item ?? "").trim();
-    if (id) unique.add(id);
-  }
-  return Array.from(unique);
 };
 
 const regulationDateLabel = (value: string | null | undefined) => {
@@ -532,16 +511,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
 
-  const contextRegistryRef = useRef<Map<string, CopilotContextData | null>>(new Map());
-  const actionsRegistryRef = useRef<Map<string, CopilotAction[]>>(new Map());
-  const signalsRegistryRef = useRef<Map<string, CopilotSignal[]>>(new Map());
-  const activeOwnerRef = useRef<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
   const lastComputedSnapshotRef = useRef<CentralSnapshot | null>(null);
   const currentSnapshotRef = useRef<CentralSnapshot | null>(null);
-  const notifiedUpdatesCacheKeyRef = useRef<string | null>(null);
-  const notifiedUpdateIdsRef = useRef<Set<string>>(new Set());
 
   const [state, setState] = useState<CopilotState>({
     context: null,
@@ -573,183 +546,31 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     stateRef.current = state;
   }, [state]);
 
-  const setContext = useCallback((ownerId: string, context: CopilotContextData | null) => {
-    contextRegistryRef.current.set(ownerId, context);
-    activeOwnerRef.current = ownerId;
-    setState((prev) => ({ ...prev, context }));
-  }, []);
+  const {
+    contextRegistryRef,
+    actionsRegistryRef,
+    signalsRegistryRef,
+    activeOwnerRef,
+    setContext,
+    clearContext,
+    setActions,
+    clearActions,
+    setSignals,
+    clearSignals,
+    setActiveSignal,
+  } = useRegistryManager(setState);
 
-  const clearContext = useCallback((ownerId: string) => {
-    contextRegistryRef.current.delete(ownerId);
-    const activeOwner = activeOwnerRef.current;
-    if (activeOwner === ownerId) {
-      const nextContext = contextRegistryRef.current.size
-        ? Array.from(contextRegistryRef.current.values())[contextRegistryRef.current.size - 1] ?? null
-        : null;
-      setState((prev) => ({ ...prev, context: nextContext }));
-    }
-  }, []);
-
-  const setActions = useCallback((ownerId: string, actions: CopilotAction[]) => {
-    actionsRegistryRef.current.set(ownerId, actions);
-    activeOwnerRef.current = ownerId;
-    setState((prev) => ({ ...prev, actions }));
-  }, []);
-
-  const clearActions = useCallback((ownerId: string) => {
-    actionsRegistryRef.current.delete(ownerId);
-    const activeOwner = activeOwnerRef.current;
-    if (activeOwner === ownerId) {
-      const nextActions = actionsRegistryRef.current.size
-        ? Array.from(actionsRegistryRef.current.values())[actionsRegistryRef.current.size - 1] ?? []
-        : [];
-      setState((prev) => ({ ...prev, actions: nextActions }));
-    }
-  }, []);
-
-  const setSignals = useCallback((ownerId: string, signals: CopilotSignal[]) => {
-    const sortedSignals = sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal));
-    signalsRegistryRef.current.set(ownerId, sortedSignals);
-    activeOwnerRef.current = ownerId;
-    setState((prev) => {
-      const selectedStillExists = prev.selectedSignalId
-        ? sortedSignals.some((item) => item.id === prev.selectedSignalId)
-        : false;
-      return {
-        ...prev,
-        signals: sortedSignals,
-        selectedSignalId: selectedStillExists
-          ? prev.selectedSignalId
-          : sortedSignals[0]?.id ?? null,
-      };
-    });
-  }, []);
-
-  const clearSignals = useCallback((ownerId: string) => {
-    signalsRegistryRef.current.delete(ownerId);
-    const activeOwner = activeOwnerRef.current;
-    if (activeOwner === ownerId) {
-      const nextSignals = signalsRegistryRef.current.size
-        ? Array.from(signalsRegistryRef.current.values())[signalsRegistryRef.current.size - 1] ?? []
-        : [];
-      setState((prev) => ({
-        ...prev,
-        signals: nextSignals,
-        selectedSignalId: nextSignals[0]?.id ?? null,
-      }));
-    }
-  }, []);
-
-  const setActiveSignal = useCallback((signalId: string | null) => {
-    setState((prev) => {
-      if (!signalId) return { ...prev, selectedSignalId: null };
-      const exists = prev.signals.some((item) => item.id === signalId);
-      return { ...prev, selectedSignalId: exists ? signalId : prev.selectedSignalId };
-    });
-  }, []);
-
-  const loadNotifiedRegulationIds = useCallback(async () => {
-    const userId = session?.user?.id ?? "";
-    const organizationId = activeOrganizationId ?? "";
-    if (!userId || !organizationId) {
-      notifiedUpdatesCacheKeyRef.current = null;
-      notifiedUpdateIdsRef.current = new Set();
-      return new Set<string>();
-    }
-
-    const storageKey = buildRegulationNotificationKey(userId, organizationId);
-    if (notifiedUpdatesCacheKeyRef.current === storageKey) {
-      return new Set(notifiedUpdateIdsRef.current);
-    }
-
-    let loadedIds: string[] = [];
-    try {
-      const raw = await AsyncStorage.getItem(storageKey);
-      if (raw) {
-        loadedIds = normalizeNotificationIds(JSON.parse(raw));
-      }
-    } catch {
-      loadedIds = [];
-    }
-
-    notifiedUpdatesCacheKeyRef.current = storageKey;
-    notifiedUpdateIdsRef.current = new Set(loadedIds);
-    return new Set(notifiedUpdateIdsRef.current);
-  }, [activeOrganizationId, session?.user?.id]);
-
-  const persistNotifiedRegulationIds = useCallback(async (nextIds: Set<string>) => {
-    const storageKey = notifiedUpdatesCacheKeyRef.current;
-    if (!storageKey) return;
-    const serialized = Array.from(nextIds).slice(-300);
-    try {
-      await AsyncStorage.setItem(storageKey, JSON.stringify(serialized));
-    } catch {
-      // Non-blocking cache write.
-    }
-  }, []);
-
-  const loadRegulationUpdates = useCallback(async () => {
-    const organizationId = activeOrganizationId ?? "";
-    if (!organizationId) {
-      setState((prev) => ({ ...prev, regulationUpdates: [], regulationRuleSets: [] }));
-      return;
-    }
-
-    try {
-      const [updatesResult, ruleSets] = await measureAsync(
-        "screen.copilot.load.regulation",
-        () =>
-          Promise.all([
-            listRegulationUpdates({
-              organizationId,
-              unreadOnly: false,
-              limit: 25,
-            }),
-            listRegulationRuleSets({
-              organizationId,
-              sport: "volleyball",
-              limit: 30,
-            }),
-          ]),
-        { screen: "copilot", organizationId }
-      );
-      const updates = updatesResult.items;
-      setState((prev) => ({
-        ...prev,
-        regulationUpdates: updates,
-        regulationRuleSets: ruleSets,
-      }));
-
-      const unreadUpdates = updates.filter((item) => !item.isRead);
-      if (!unreadUpdates.length) return;
-
-      const knownIds = await loadNotifiedRegulationIds();
-      const freshUpdates = unreadUpdates.filter((item) => !knownIds.has(item.id));
-      if (!freshUpdates.length) return;
-
-      for (const update of freshUpdates.slice(0, 3)) {
-        const topicsPreview = update.changedTopics.slice(0, 2).join(", ");
-        const impactPreview = update.impactAreas.slice(0, 2).join(", ");
-        const body = topicsPreview
-          ? `Mudan?as em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
-          : update.diffSummary;
-        await addNotification("Regulamento atualizado", body);
-      }
-
-      const mergedIds = new Set([...knownIds, ...freshUpdates.map((item) => item.id)]);
-      notifiedUpdateIdsRef.current = mergedIds;
-      await persistNotifiedRegulationIds(mergedIds);
-    } catch {
-      setState((prev) => ({ ...prev, regulationUpdates: [], regulationRuleSets: [] }));
-    }
-  }, [activeOrganizationId, loadNotifiedRegulationIds, persistNotifiedRegulationIds]);
+  const { loadRegulationUpdates } = useRegulationUpdates(setState, activeOrganizationId, session, state.open);
 
   useEffect(() => {
+    if (!state.open) return;
+
+    setNowMs(Date.now());
     const timer = setInterval(() => {
       setNowMs(Date.now());
     }, 60_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [state.open]);
 
   useEffect(() => {
     let cancelled = false;
@@ -980,19 +801,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     });
   }, [currentSnapshot, state.hasUnreadUpdates, state.open, state.unreadCount]);
 
-  useEffect(() => {
-    void loadRegulationUpdates();
-  }, [loadRegulationUpdates]);
-
-  useEffect(() => {
-    if (!state.open) return;
-    void loadRegulationUpdates();
-    const timer = setInterval(() => {
-      void loadRegulationUpdates();
-    }, REGULATION_POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [loadRegulationUpdates, state.open]);
-
   const runAction = useCallback(async (action: CopilotAction) => {
     const currentState = stateRef.current;
     const selectedSignal =
@@ -1070,14 +878,24 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   );
 
   const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const scopedAssistantPath = useMemo(
+    () => getScopedAssistantPath(normalizedPath),
+    [normalizedPath]
+  );
   const signalsByCategory = useMemo<Record<SignalInsightsCategory, CopilotSignal[]>>(
-    () => ({
-      reports: state.signals.filter((item) => signalToCategory(item.type) === "reports"),
-      absences: state.signals.filter((item) => signalToCategory(item.type) === "absences"),
-      nfc: state.signals.filter((item) => signalToCategory(item.type) === "nfc"),
-      attendance: state.signals.filter((item) => signalToCategory(item.type) === "attendance"),
-      engagement: state.signals.filter((item) => signalToCategory(item.type) === "engagement"),
-    }),
+    () => {
+      const grouped: Record<SignalInsightsCategory, CopilotSignal[]> = {
+        reports: [],
+        absences: [],
+        nfc: [],
+        attendance: [],
+        engagement: [],
+      };
+      state.signals.forEach((item) => {
+        grouped[signalToCategory(item.type)].push(item);
+      });
+      return grouped;
+    },
     [state.signals]
   );
   const unreadRegulationCount = useMemo(
@@ -1091,8 +909,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const showRegulationSection =
     normalizedPath.startsWith("/events") || unreadRegulationCount > 0 || hasRuleSetContext;
   const latestRegulationUpdate = useMemo(() => {
-    return [...state.regulationUpdates]
-      .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))[0] ?? null;
+    let latest: RegulationUpdate | null = null;
+    let latestAt = "";
+    state.regulationUpdates.forEach((item) => {
+      const createdAt = String(item.createdAt ?? "");
+      if (!latest || createdAt.localeCompare(latestAt) > 0) {
+        latest = item;
+        latestAt = createdAt;
+      }
+    });
+    return latest;
   }, [state.regulationUpdates]);
   const detailSignal = useMemo(() => {
     if (insightsView.mode !== "detail") return null;
@@ -1226,8 +1052,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     !publicRoutes.has(normalizedPath) &&
     normalizedPath !== "/" &&
     normalizedPath !== "/index" &&
-    normalizedPath !== "/assistant" &&
-    !normalizedPath.startsWith("/assistant/") &&
+    !isAssistantRoutePath(normalizedPath) &&
     normalizedPath !== "/prof/home" &&
     normalizedPath !== "/student/home" &&
     normalizedPath !== "/coord/dashboard" &&
@@ -1316,13 +1141,13 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
     close();
     router.push({
-      pathname: "/assistant",
+      pathname: scopedAssistantPath,
       params: {
         prompt,
         source: state.context?.screen ?? "insights",
       },
     });
-  }, [close, composerValue, enqueueContextReply, operationalContext.panel, router, state.actions, state.context?.screen]);
+  }, [close, composerValue, enqueueContextReply, operationalContext.panel, router, scopedAssistantPath, state.actions, state.context?.screen]);
 
   const handleComposerKeyPress = useCallback(
     (event: any) => {
@@ -1342,808 +1167,62 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       <CopilotDataContext.Provider value={dataValue}>
       {children}
       {showFab && !state.open ? (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.fabWrapper,
-            {
-              bottom: fabBottomOffset,
-            },
-          ]}
-        >
-          {state.hasUnreadUpdates ? (
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.fabPulseRing,
-                {
-                  borderColor: colors.primaryBg,
-                  opacity: pulseAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.28, 0],
-                  }),
-                  transform: [
-                    {
-                      scale: pulseAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1, 1.14],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-          ) : null}
-          <Pressable
-            onPress={open}
-            accessibilityRole="button"
-            accessibilityLabel="Abrir chat"
-            style={{
-              borderRadius: 999,
-              width: 58,
-              height: 58,
-              backgroundColor: "#111111",
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: "#000",
-              shadowOpacity: 0.26,
-              shadowRadius: 14,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 7,
-            }}
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={24} color="#FFFFFF" />
-            {state.hasUnreadUpdates ? (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 9,
-                  right: 9,
-                  borderRadius: 999,
-                  width: 8,
-                  height: 8,
-                  backgroundColor: colors.primaryBg,
-                }}
-              />
-            ) : null}
-          </Pressable>
-        </View>
+        <CopilotFab
+          hasUnreadUpdates={state.hasUnreadUpdates}
+          pulseAnim={pulseAnim}
+          primaryBgColor={colors.primaryBg}
+          fabBottomOffset={fabBottomOffset}
+          onPress={open}
+        />
       ) : null}
 
-      <ModalSheet
+      <CopilotModal
         visible={state.open}
-        onClose={close}
-        backdropOpacity={0.5}
-        position={isWebModal ? "center" : "bottom"}
-        slideOffset={isWebModal ? 10 : 24}
-        cardStyle={{
-          width: isWebModal ? "94%" : "100%",
-          maxWidth: isWebModal ? Math.max(420, Math.min(viewportWidth - 42, 860)) : sheetMaxWidth,
-          alignSelf: "center",
-          maxHeight: isWebModal ? Math.min(viewportHeight - 36, 820) : sheetMaxHeight,
-          minHeight: isWebModal ? Math.min(Math.max(560, viewportHeight * 0.75), viewportHeight - 48) : sheetMinHeight,
-          marginBottom: isWebModal ? 0 : 0,
-          borderBottomLeftRadius: isWebModal ? 28 : 0,
-          borderBottomRightRadius: isWebModal ? 28 : 0,
-          borderTopLeftRadius: isWebModal ? 28 : 20,
-          borderTopRightRadius: isWebModal ? 28 : 20,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.background,
-          overflow: "hidden",
-          paddingTop: 12,
-          paddingHorizontal: 14,
-          paddingBottom: sheetContentBottomPadding,
-          gap: 10,
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <Pressable
-            onPress={() => {
-              close();
-              router.push("/assistant");
-            }}
-            style={{
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              width: 36,
-              height: 36,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="time-outline" size={18} color={colors.text} />
-          </Pressable>
-          <Pressable
-            onPress={close}
-            style={{
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              width: 36,
-              height: 36,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="close" size={18} color={colors.text} />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator
-          contentContainerStyle={{ gap: 10, paddingBottom: 6, paddingHorizontal: 2 }}
-        >
-          {insightsView.mode !== "root" ? (
-            <Pressable
-              onPress={() => {
-                if (insightsView.mode === "detail") {
-                  setInsightsView({ mode: "category", category: insightsView.category });
-                  return;
-                }
-                setInsightsView({ mode: "root" });
-              }}
-              style={{
-                alignSelf: "flex-start",
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Voltar</Text>
-            </Pressable>
-          ) : null}
-
-          {insightsView.mode === "root" ? (
-            <View style={{ gap: 12 }}>
-              <View style={{ alignItems: "center", gap: 4, paddingVertical: 4 }}>
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontSize: isWebModal ? 28 : 22,
-                    fontWeight: "800",
-                    textAlign: "center",
-                  }}
-                >
-                  Como posso ajudar?
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center" }}>
-                  {operationalContext.panel.headerTitle}
-                </Text>
-              </View>
-              {operationalContext.panel.attentionSignals.length ? (
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
-                    PONTOS DE ATEN??O
-                  </Text>
-                  {operationalContext.panel.attentionSignals.map((signal, index) => (
-                    <View key={signal.id} style={{ gap: 6 }}>
-                      <Pressable
-                        onPress={() => {
-                          setActiveSignal(signal.id);
-                          setInsightsView({
-                            mode: "detail",
-                            category: signalToCategory(signal.type),
-                            itemId: signal.id,
-                          });
-                        }}
-                        style={{ paddingVertical: 3, gap: 2 }}
-                      >
-                        <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
-                          {signal.title}
-                        </Text>
-                        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-                          {categoryLabelById[signalToCategory(signal.type)]} - {regulationRelativeLabel(signal.detectedAt, nowMs)}
-                        </Text>
-                      </Pressable>
-                      {index < operationalContext.panel.attentionSignals.length - 1 ? (
-                        <View style={{ height: 1, backgroundColor: colors.border }} />
-                      ) : null}
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-
-              {hasRegulationDetails ? (
-                <View style={{ gap: 8 }}>
-                  {operationalContext.panel.attentionSignals.length ? (
-                    <View style={{ height: 1, backgroundColor: colors.border }} />
-                  ) : null}
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
-                    REGULAMENTA??O
-                  </Text>
-                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                    {operationalContext.panel.activeRuleSetLabel === "Sem ruleset ativo"
-                      ? "Sem regulamento ativo definido"
-                      : operationalContext.panel.activeRuleSetLabel + " - ativo"}
-                  </Text>
-                  {operationalContext.panel.pendingRuleSetLabel ? (
-                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-                      Pr?ximo ciclo: {operationalContext.panel.pendingRuleSetLabel}
-                    </Text>
-                  ) : null}
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {operationalContext.panel.unreadRegulationCount > 0 ? (
-                      <Pressable
-                        onPress={() => setInsightsView({ mode: "category", category: "regulation" })}
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          Ver mudan?as
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                    <Pressable
-                      onPress={() => {
-                        close();
-                        router.push("/regulation-history");
-                      }}
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        Comparar
-                      </Text>
-                    </Pressable>
-                    {latestRegulationSourceUrl ? (
-                      <Pressable
-                        onPress={() => {
-                          void Linking.openURL(latestRegulationSourceUrl);
-                        }}
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Fonte</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ) : null}
-
-              {state.actions.length ? (
-                <View style={{ gap: 8 }}>
-                  {hasRegulationDetails || operationalContext.panel.attentionSignals.length ? (
-                    <View style={{ height: 1, backgroundColor: colors.border }} />
-                  ) : null}
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {rootQuickActions.map((action) => (
-                      <Pressable
-                        key={"root_action_" + action.id}
-                        onPress={() => {
-                          void runAction(action);
-                        }}
-                        disabled={Boolean(state.runningActionId)}
-                        style={{
-                          flexGrow: 1,
-                          flexBasis: "48.5%",
-                          minHeight: 98,
-                          borderRadius: 12,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.inputBg,
-                          paddingHorizontal: 12,
-                          paddingVertical: 10,
-                          gap: 8,
-                          opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
-                        }}
-                      >
-                        <View
-                          style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 10,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.card,
-                          }}
-                        >
-                          <Ionicons name={resolveContextActionIcon(action)} size={16} color={colors.text} />
-                        </View>
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14, flexShrink: 1 }}>
-                          {state.runningActionId === action.id ? "Executando..." : action.title}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16, flexShrink: 1 }}>
-                          {action.description ?? "A??o contextual para este momento."}
-                        </Text>
-                      </Pressable>
-                    ))}
-                    {canExpandRootActions ? (
-                      <Pressable
-                        onPress={() => setShowAllRootActions(true)}
-                        style={{
-                          flexGrow: 1,
-                          flexBasis: "48.5%",
-                          minHeight: 98,
-                          borderRadius: 12,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.inputBg,
-                          paddingHorizontal: 12,
-                          paddingVertical: 10,
-                          gap: 8,
-                          alignItems: "flex-start",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <View
-                          style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: 10,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.card,
-                          }}
-                        >
-                          <Ionicons name="add" size={16} color={colors.text} />
-                        </View>
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>Ver mais a??es</Text>
-                        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>
-                          Mostrar lista completa de a??es dispon?veis.
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          {insightsView.mode === "category" ? (
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>
-                {categoryLabelById[insightsView.category]}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {insightsView.category === "regulation"
-                  ? "Toque em uma atualiza??o para ver detalhes e fonte oficial."
-                  : "Toque em um insight para ver detalhes e a??es relacionadas."}
-              </Text>
-              {insightsView.category === "regulation"
-                ? state.regulationUpdates.filter((item) => !item.isRead).map((item) => (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => {
-                        setInsightsView({
-                          mode: "detail",
-                          category: "regulation",
-                          itemId: item.id,
-                        });
-                      }}
-                      style={{
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        padding: 10,
-                        gap: 4,
-                      }}
-                    >
-                      <Text style={{ color: colors.primaryBg, fontWeight: "800", fontSize: 11 }}>
-                        {item.sourceAuthority}
-                      </Text>
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{item.title}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>{item.diffSummary}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Publicado em {regulationDateLabel(item.publishedAt ?? item.createdAt)}
-                        {item.isRead ? " - lido" : " - n?o lido"}
-                      </Text>
-                    </Pressable>
-                  ))
-                : signalsByCategory[insightsView.category as SignalInsightsCategory].map((signal) => {
-                    const severityColor =
-                      signal.severity === "critical"
-                        ? colors.dangerText
-                        : signal.severity === "high"
-                          ? colors.warningText
-                          : signal.severity === "medium"
-                            ? colors.text
-                            : colors.muted;
-                    return (
-                      <Pressable
-                        key={signal.id}
-                        onPress={() => {
-                          setActiveSignal(signal.id);
-                          setInsightsView({
-                            mode: "detail",
-                            category: insightsView.category,
-                            itemId: signal.id,
-                          });
-                        }}
-                        style={{
-                          borderRadius: 12,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                          padding: 10,
-                          gap: 4,
-                        }}
-                      >
-                        <Text style={{ color: severityColor, fontWeight: "800", fontSize: 11 }}>
-                          {signal.severity.toUpperCase()}
-                        </Text>
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>{signal.title}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>{signal.summary}</Text>
-                      </Pressable>
-                    );
-                  })}
-            </View>
-          ) : null}
-
-          {insightsView.mode === "detail" && insightsView.category === "regulation" && detailRegulationUpdate ? (
-            <View style={{ gap: 10 }}>
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 12,
-                  gap: 6,
-                }}
-              >
-                <Text style={{ color: colors.primaryBg, fontWeight: "800", fontSize: 11 }}>
-                  {detailRegulationUpdate.sourceAuthority}
-                </Text>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>
-                  {detailRegulationUpdate.title}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {detailRegulationUpdate.diffSummary}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>
-                  Publicado em {regulationDateLabel(detailRegulationUpdate.publishedAt ?? detailRegulationUpdate.createdAt)}
-                </Text>
-                {detailRegulationUpdate.changedTopics.length ? (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-                    {detailRegulationUpdate.changedTopics.map((topic) => (
-                      <View
-                        key={`${detailRegulationUpdate.id}_${topic}`}
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 4,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                          {topic}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-                {detailRegulationUpdate.impactAreas.length ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Impacto: {detailRegulationUpdate.impactAreas.join(", ")}
-                  </Text>
-                ) : null}
-              </View>
-
-              <Pressable
-                onPress={() => {
-                  if (!detailRegulationUpdate.sourceUrl) return;
-                  void Linking.openURL(detailRegulationUpdate.sourceUrl);
-                }}
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.primaryBg,
-                  backgroundColor: colors.secondaryBg,
-                  paddingVertical: 11,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "800" }}>Ver fonte</Text>
-              </Pressable>
-
-              {detailRegulationUpdate.impactActions.length ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {detailRegulationUpdate.impactActions.map((action) => (
-                    <Pressable
-                      key={`${detailRegulationUpdate.id}_${action.route}`}
-                      onPress={() => {
-                        close();
-                        router.push(action.route as never);
-                      }}
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                        {action.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          {insightsView.mode === "detail" && insightsView.category !== "regulation" && activeDrawerSignal ? (
-            <>
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>
-                  {activeCategoryLabel ?? "Insight selecionado"}
-                </Text>
-                <View
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    padding: 10,
-                    gap: 4,
-                  }}
-                >
-                  <Text style={{ color: selectedSeverityColor, fontSize: 11, fontWeight: "800" }}>
-                    Prioridade - {selectedSeverityLabel}
-                  </Text>
-                  <Text style={{ color: colors.text, fontWeight: "800" }}>{activeDrawerSignal.title}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{activeDrawerSignal.summary}</Text>
-                </View>
-              </View>
-
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: colors.text, fontWeight: "800" }}>A??es gerais</Text>
-                {recommendedActions.length ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    As a??es recomendadas para este insight aparecem primeiro.
-                  </Text>
-                ) : null}
-                {orderedActions.length ? (
-                  orderedActions.map((action) => {
-                    const isRecommended = recommendedActionIds.has(action.id);
-                    return (
-                      <Pressable
-                        key={action.id}
-                        onPress={() => {
-                          void runAction(action);
-                        }}
-                        disabled={Boolean(state.runningActionId)}
-                        style={{
-                          borderRadius: 12,
-                          borderWidth: 1,
-                          borderColor: isRecommended ? colors.primaryBg : colors.border,
-                          backgroundColor: colors.card,
-                          padding: 12,
-                          opacity: state.runningActionId && state.runningActionId !== action.id ? 0.6 : 1,
-                        }}
-                      >
-                        {isRecommended ? (
-                          <Text style={{ color: colors.primaryBg, fontSize: 10, fontWeight: "800", marginBottom: 4 }}>
-                            RECOMENDADA PARA ESTE INSIGHT
-                          </Text>
-                        ) : null}
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>
-                          {state.runningActionId === action.id ? "Executando..." : action.title}
-                        </Text>
-                        {action.description ? (
-                          <Text style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>{action.description}</Text>
-                        ) : null}
-                      </Pressable>
-                    );
-                  })
-                ) : (
-                  <Text style={{ color: colors.muted }}>Sem a??es dispon?veis neste contexto.</Text>
-                )}
-              </View>
-            </>
-          ) : null}
-        </ScrollView>
-
-        {assistantTyping ? (
-          <View
-            style={{
-              alignSelf: "flex-start",
-              maxWidth: "58%",
-              paddingHorizontal: 12,
-              paddingVertical: 11,
-              borderRadius: 16,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              marginBottom: 8,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              {[0, 1, 2].map((index) => {
-                const phase = index * 0.2;
-                const opacity = thinkingPulse.interpolate({
-                  inputRange: [0, phase, phase + 0.2, 1],
-                  outputRange: [0.3, 0.45, 1, 0.35],
-                  extrapolate: "clamp",
-                });
-                const translateY = thinkingPulse.interpolate({
-                  inputRange: [0, phase, phase + 0.2, 1],
-                  outputRange: [0, 0, -3, 0],
-                  extrapolate: "clamp",
-                });
-                return (
-                  <Animated.View
-                    key={`context-thinking-dot-${index}`}
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 4,
-                      backgroundColor: colors.muted,
-                      opacity,
-                      transform: [{ translateY }],
-                    }}
-                  />
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
-
-        {!assistantTyping && contextPreview ? (
-          <View
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              marginBottom: 8,
-              gap: 4,
-            }}
-          >
-            {contextPreview.actionTitle ? (
-              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                {contextPreview.actionTitle}
-              </Text>
-            ) : null}
-            <Text style={{ color: colors.text, fontSize: 13 }}>{contextPreview.message}</Text>
-          </View>
-        ) : null}
-
-        <View
-          style={{
-            borderRadius: 28,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            paddingHorizontal: 10,
-            paddingVertical: 10,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
-            <Pressable
-              onPress={() => {
-                close();
-                router.push("/assistant");
-              }}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 999,
-                alignItems: "center",
-                justifyContent: "center",
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Ionicons name="add" size={20} color={colors.text} />
-            </Pressable>
-            <TextInput
-              value={composerValue}
-              onChangeText={(value) => {
-                setComposerValue(value);
-                if (!value.trim() && composerInputHeight !== CONTEXT_COMPOSER_MIN_HEIGHT) {
-                  setComposerInputHeight(CONTEXT_COMPOSER_MIN_HEIGHT);
-                }
-              }}
-              placeholder="Pergunte sobre este contexto..."
-              placeholderTextColor={colors.muted}
-              returnKeyType="send"
-              onSubmitEditing={submitComposer}
-              onKeyPress={handleComposerKeyPress}
-              onContentSizeChange={(event) => {
-                if (!composerValue.trim()) {
-                  if (composerInputHeight !== CONTEXT_COMPOSER_MIN_HEIGHT) {
-                    setComposerInputHeight(CONTEXT_COMPOSER_MIN_HEIGHT);
-                  }
-                  return;
-                }
-                const maxHeight =
-                  Platform.OS === "web" ? CONTEXT_COMPOSER_MAX_HEIGHT_WEB : CONTEXT_COMPOSER_MAX_HEIGHT;
-                const next = Math.max(
-                  CONTEXT_COMPOSER_MIN_HEIGHT,
-                  Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))
-                );
-                if (next !== composerInputHeight) {
-                  setComposerInputHeight(next);
-                }
-              }}
-              multiline
-              scrollEnabled={
-                composerInputHeight >=
-                (Platform.OS === "web" ? CONTEXT_COMPOSER_MAX_HEIGHT_WEB : CONTEXT_COMPOSER_MAX_HEIGHT)
-              }
-              style={{
-                flex: 1,
-                minHeight: CONTEXT_COMPOSER_MIN_HEIGHT,
-                height: composerInputHeight,
-                color: colors.text,
-                paddingHorizontal: 2,
-                paddingTop: 8,
-                paddingBottom: 8,
-                fontSize: 16,
-                textAlignVertical: "top",
-                ...(Platform.OS === "web"
-                  ? ({
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      overflowWrap: "anywhere",
-                    } as const)
-                  : null),
-              }}
-            />
-            <Pressable
-              onPress={submitComposer}
-              disabled={!composerValue.trim()}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 999,
-                backgroundColor: colors.primaryBg,
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: composerValue.trim() ? 1 : 0.55,
-              }}
-            >
-              <Ionicons name="arrow-up" size={20} color={colors.primaryText} />
-            </Pressable>
-          </View>
-        </View>
-      </ModalSheet>
+        isWebModal={isWebModal}
+        viewportWidth={viewportWidth}
+        viewportHeight={viewportHeight}
+        sheetMaxWidth={sheetMaxWidth}
+        sheetMaxHeight={sheetMaxHeight}
+        sheetMinHeight={sheetMinHeight}
+        sheetContentBottomPadding={sheetContentBottomPadding}
+        colors={colors}
+        insightsView={insightsView}
+        setInsightsView={setInsightsView}
+        operationalContext={operationalContext}
+        state={state}
+        signalsByCategory={signalsByCategory}
+        hasRegulationDetails={hasRegulationDetails}
+        latestRegulationSourceUrl={latestRegulationSourceUrl}
+        detailRegulationUpdate={detailRegulationUpdate}
+        activeDrawerSignal={activeDrawerSignal}
+        activeCategoryLabel={activeCategoryLabel}
+        selectedSeverityColor={selectedSeverityColor}
+        selectedSeverityLabel={selectedSeverityLabel}
+        recommendedActionIds={recommendedActionIds}
+        orderedActions={orderedActions}
+        recommendedActions={recommendedActions}
+        rootQuickActions={rootQuickActions}
+        canExpandRootActions={canExpandRootActions}
+        showAllRootActions={showAllRootActions}
+        setShowAllRootActions={setShowAllRootActions}
+        assistantTyping={assistantTyping}
+        thinkingPulse={thinkingPulse}
+        contextPreview={contextPreview}
+        composerValue={composerValue}
+        setComposerValue={setComposerValue}
+        composerInputHeight={composerInputHeight}
+        setComposerInputHeight={setComposerInputHeight}
+        nowMs={nowMs}
+        setActiveSignal={setActiveSignal}
+        runAction={runAction}
+        close={close}
+        onNavigateToHistory={() => { close(); router.push(scopedAssistantPath); }}
+        onNavigateToAssistant={() => { close(); router.push(scopedAssistantPath); }}
+        onNavigateToRegulationHistory={() => { close(); router.push("/regulation-history"); }}
+        onNavigateToImpactAction={(route) => { close(); router.push(route as never); }}
+        submitComposer={submitComposer}
+        handleComposerKeyPress={handleComposerKeyPress}
+      />
       </CopilotDataContext.Provider>
     </CopilotActionsContext.Provider>
   );
@@ -2297,5 +1376,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal };
-
+export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal, InsightsCategory, InsightsView };

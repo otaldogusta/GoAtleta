@@ -7,6 +7,7 @@ export type MatchConfidence = "high" | "medium" | "low";
 export type StudentImportRow = {
   externalId?: string;
   name?: string;
+  ra?: string;
   birthDate?: string;
   rg?: string;
   classId?: string;
@@ -25,6 +26,7 @@ export type NormalizedImportRow = {
   externalId: string | null;
   name: string;
   nameNormalized: string;
+  ra: string | null;
   birthDate: string | null;
   rgNormalized: string | null;
   classId: string | null;
@@ -44,6 +46,7 @@ export type ExistingStudentRow = {
   organization_id: string;
   classid: string;
   name: string;
+  ra: string | null;
   birthdate: string | null;
   age: number | null;
   phone: string | null;

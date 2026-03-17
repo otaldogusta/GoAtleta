@@ -883,7 +883,7 @@ export default function NfcAttendanceScreen() {
   const openAssistantFromNfc = useCallback(
     (prompt: string) => {
       router.push({
-        pathname: "/assistant",
+        pathname: "/prof/assistant",
         params: {
           prompt,
           source: "nfc_attendance",

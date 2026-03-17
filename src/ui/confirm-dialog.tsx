@@ -4,7 +4,7 @@ import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
 
-type ConfirmDialogOptions = {
+export type ConfirmDialogOptions = {
   title: string;
   message: string;
   confirmLabel: string;

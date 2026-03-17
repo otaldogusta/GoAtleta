@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import {
     memo,
     useCallback,
@@ -66,6 +66,7 @@ import {
     saveWeeklyAutopilotProposal,
     updateWeeklyAutopilotProposalStatus,
 } from "../../src/db/seed";
+import { getScopedPlanningPath } from "../../src/navigation/profile-routes";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
@@ -122,6 +123,8 @@ type ScientificReference = {
   sourceLabel: string;
   evidence: string;
 };
+
+const ASSISTANT_CONTEXT_MESSAGES = 24;
 
 type QuickPromptCard = {
   id: string;
@@ -418,6 +421,7 @@ export default function AssistantScreen() {
   markRender("screen.assistant.render.root");
 
   const router = useRouter();
+  const pathname = usePathname();
   const params = useLocalSearchParams<{ prompt?: string; source?: string }>();
   const { session } = useAuth();
   const optionalCopilot = useOptionalCopilot();
@@ -449,6 +453,11 @@ export default function AssistantScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const scopedPlanningPath = useMemo(() => getScopedPlanningPath(pathname), [pathname]);
+  const conversationText = useMemo(
+    () => messages.map((item) => item.content).join(" "),
+    [messages]
+  );
   const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
@@ -925,8 +934,9 @@ export default function AssistantScreen() {
     setAssistantTyping(true);
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
-    const chunkSize = Platform.OS === "web" ? 3 : 2;
-    const tickMs = 18;
+    const targetTicks = Platform.OS === "web" ? 72 : 56;
+    const chunkSize = Math.max(2, Math.ceil(content.length / targetTicks));
+    const tickMs = Platform.OS === "web" ? 18 : 22;
 
     await new Promise<void>((resolve) => {
       let index = 0;
@@ -972,6 +982,7 @@ export default function AssistantScreen() {
   const sendMessage = async () => {
     if (!input.trim() || loading || assistantTyping) return;
     const nextMessages = [...messages, { role: "user", content: input.trim() }];
+    const requestMessages = nextMessages.slice(-ASSISTANT_CONTEXT_MESSAGES);
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
@@ -1026,7 +1037,7 @@ export default function AssistantScreen() {
           apikey: SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
-          messages: nextMessages.map((m) => ({
+          messages: requestMessages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
@@ -1168,6 +1179,19 @@ export default function AssistantScreen() {
     }
   };
 
+  const applyDraftToPlanning = useCallback(() => {
+    if (!draft) return;
+    const encodedDraft = encodeURIComponent(JSON.stringify(draft));
+    router.push({
+      pathname: scopedPlanningPath,
+      params: {
+        openForm: "1",
+        targetClassId: classId,
+        aiDraft: encodedDraft,
+      },
+    });
+  }, [classId, draft, router, scopedPlanningPath]);
+
   const getRecentLogs = useCallback(async () => {
     const now = new Date();
     const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -1211,7 +1235,7 @@ export default function AssistantScreen() {
         lastAttendanceCount: Number(latestLog?.participantsCount ?? 0),
         className: selectedClass.name,
         objective: `Progressão para ${selectedClass.name}`,
-        focusSkills: inferSkillsFromText([input, ...messages.map((item) => item.content)].join(" ")),
+        focusSkills: inferSkillsFromText(`${input} ${conversationText}`.trim()),
         previousSnapshot: {
           consistencyScore: snapshot?.consistencyScore ?? fallbackConsistency,
           successRate: snapshot?.successRate ?? fallbackSuccess,
@@ -1243,7 +1267,7 @@ export default function AssistantScreen() {
     } finally {
       setLoading(false);
     }
-  }, [classId, getRecentLogs, input, messages, pushAssistantMessage, selectedClass]);
+  }, [classId, conversationText, getRecentLogs, input, pushAssistantMessage, selectedClass]);
 
   const handleExecutiveSummary = useCallback(async () => {
     if (!classId || !selectedClass) return;
@@ -1473,6 +1497,29 @@ export default function AssistantScreen() {
     };
   }, [composerFocused, sendMessage]);
 
+  const messageBubbles = useMemo(
+    () =>
+      messages.map((message, index) => (
+        <View
+          key={String(index)}
+          style={{
+            alignSelf: message.role === "user" ? "flex-end" : "flex-start",
+            maxWidth: "85%",
+            padding: 12,
+            borderRadius: 16,
+            backgroundColor: message.role === "user" ? colors.primaryBg : colors.background,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ color: message.role === "user" ? colors.primaryText : colors.text }}>
+            {message.content}
+          </Text>
+        </View>
+      )),
+    [colors.background, colors.border, colors.primaryBg, colors.primaryText, colors.text, messages]
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View
@@ -1640,24 +1687,7 @@ export default function AssistantScreen() {
               </View>
             ) : null}
 
-            {messages.map((message, index) => (
-              <View
-                key={String(index)}
-                style={{
-                  alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-                  maxWidth: "85%",
-                  padding: 12,
-                  borderRadius: 16,
-                  backgroundColor: message.role === "user" ? colors.primaryBg : colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ color: message.role === "user" ? colors.primaryText : colors.text }}>
-                  {message.content}
-                </Text>
-              </View>
-            ))}
+            {messageBubbles}
 
             {loading ? (
               <View
@@ -1797,7 +1827,14 @@ export default function AssistantScreen() {
                   </View>
                 ) : null}
                 <View style={{ marginTop: 10 }}>
-                  <Button label="Salvar planejamento" onPress={saveDraft} />
+                  <View style={{ gap: 8 }}>
+                    <Button label="Aplicar ao planejamento" onPress={applyDraftToPlanning} />
+                    <Button
+                      label="Salvar planejamento"
+                      onPress={saveDraft}
+                      variant="secondary"
+                    />
+                  </View>
                 </View>
               </View>
             ) : null}
@@ -1821,7 +1858,7 @@ export default function AssistantScreen() {
                 <View style={{ marginTop: 10 }}>
                   <Button
                     label="Ver planejamentos"
-                    onPress={() => router.push({ pathname: "/training" })}
+                    onPress={() => router.push({ pathname: scopedPlanningPath })}
                     variant="secondary"
                   />
                 </View>

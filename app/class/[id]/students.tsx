@@ -215,6 +215,7 @@ export default function ClassStudentsScreen() {
   const [primaryPos, setPrimaryPos] = useState("");
   const [secondaryPos, setSecondaryPos] = useState("");
   const [objective, setObjective] = useState("");
+  const [learningStyle, setLearningStyle] = useState<Student["learningStyle"]>("misto");
   const [healthIssue, setHealthIssue] = useState(false);
   const [healthIssueNotes, setHealthIssueNotes] = useState("");
   const [medicationUse, setMedicationUse] = useState(false);
@@ -269,6 +270,7 @@ export default function ClassStudentsScreen() {
     primaryPos: string;
     secondaryPos: string;
     objective: string;
+    learningStyle: Student["learningStyle"];
     healthIssue: boolean;
     healthIssueNotes: string;
     medicationUse: boolean;
@@ -294,66 +296,25 @@ export default function ClassStudentsScreen() {
   const { animatedStyle: dropdownAnimatedStyle, isVisible: dropdownVisible } = useCollapsibleAnimation(
     dropKey !== null
   );
-  const studentDataAnim = useCollapsibleAnimation(openSection === "studentData", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const sportAnim = useCollapsibleAnimation(openSection === "sportProfile", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const documentsAnim = useCollapsibleAnimation(openSection === "documents", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const healthAnim = useCollapsibleAnimation(openSection === "health", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const guardianAnim = useCollapsibleAnimation(openSection === "guardian", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const linksAnim = useCollapsibleAnimation(openSection === "links", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const createSportAnim = useCollapsibleAnimation(openCreateSection === "sportProfile", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const createHealthAnim = useCollapsibleAnimation(openCreateSection === "health", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const createGuardianAnim = useCollapsibleAnimation(openCreateSection === "guardian", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
-  const createLinksAnim = useCollapsibleAnimation(openCreateSection === "links", {
-    durationIn: 220,
-    durationOut: 180,
-    translateY: -4,
-  });
+  const accordionAnimOptions = useMemo(
+    () =>
+      Platform.OS === "web"
+        ? { durationIn: 1, durationOut: 1, translateY: 0 }
+        : { durationIn: 220, durationOut: 180, translateY: -4 },
+    []
+  );
+  const studentDataAnim = useCollapsibleAnimation(openSection === "studentData", accordionAnimOptions);
+  const sportAnim = useCollapsibleAnimation(openSection === "sportProfile", accordionAnimOptions);
+  const documentsAnim = useCollapsibleAnimation(openSection === "documents", accordionAnimOptions);
+  const healthAnim = useCollapsibleAnimation(openSection === "health", accordionAnimOptions);
+  const guardianAnim = useCollapsibleAnimation(openSection === "guardian", accordionAnimOptions);
+  const linksAnim = useCollapsibleAnimation(openSection === "links", accordionAnimOptions);
+  const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", accordionAnimOptions);
+  const createSportAnim = useCollapsibleAnimation(openCreateSection === "sportProfile", accordionAnimOptions);
+  const createHealthAnim = useCollapsibleAnimation(openCreateSection === "health", accordionAnimOptions);
+  const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", accordionAnimOptions);
+  const createGuardianAnim = useCollapsibleAnimation(openCreateSection === "guardian", accordionAnimOptions);
+  const createLinksAnim = useCollapsibleAnimation(openCreateSection === "links", accordionAnimOptions);
 
   const rowStyle = useMemo(
     () => ({
@@ -639,6 +600,7 @@ export default function ClassStudentsScreen() {
     setPrimaryPos(s.positionPrimary && s.positionPrimary !== "indefinido" ? s.positionPrimary : "");
     setSecondaryPos(s.positionSecondary && s.positionSecondary !== "indefinido" ? s.positionSecondary : "");
     setObjective(s.athleteObjective && s.athleteObjective !== "base" ? s.athleteObjective : "");
+    setLearningStyle(s.learningStyle ?? "misto");
     setHealthIssue(Boolean(s.healthIssue));
     setHealthIssueNotes(s.healthIssueNotes ?? "");
     setMedicationUse(Boolean(s.medicationUse));
@@ -670,6 +632,7 @@ export default function ClassStudentsScreen() {
       secondaryPos:
         s.positionSecondary && s.positionSecondary !== "indefinido" ? s.positionSecondary : "",
       objective: s.athleteObjective && s.athleteObjective !== "base" ? s.athleteObjective : "",
+      learningStyle: s.learningStyle ?? "misto",
       healthIssue: Boolean(s.healthIssue),
       healthIssueNotes: s.healthIssueNotes ?? "",
       medicationUse: Boolean(s.medicationUse),
@@ -697,6 +660,7 @@ export default function ClassStudentsScreen() {
       editSnapshot.primaryPos !== primaryPos ||
       editSnapshot.secondaryPos !== secondaryPos ||
       editSnapshot.objective !== objective ||
+      editSnapshot.learningStyle !== learningStyle ||
       editSnapshot.healthIssue !== healthIssue ||
       editSnapshot.healthIssueNotes !== healthIssueNotes ||
       editSnapshot.medicationUse !== medicationUse ||
@@ -722,6 +686,7 @@ export default function ClassStudentsScreen() {
     healthIssue,
     healthIssueNotes,
     healthObs,
+    learningStyle,
     medicationNotes,
     medicationUse,
     name,
@@ -930,11 +895,16 @@ export default function ClassStudentsScreen() {
           existingLink.status === "linked" ? "vinculado" : "já estava vinculado";
         Alert.alert(
           "Aluno existente encontrado",
-          `${existingLink.student?.name ?? "Aluno"} ${actionLabel} a esta turma.`
+          `${existingLink.student?.name ?? "Aluno"} ${actionLabel} a esta turma.`,
+          [
+            {
+              text: "OK",
+              onPress: () => setScreenTab("alunos"),
+            },
+          ]
         );
         resetCreateForm();
         await load();
-        setScreenTab("alunos");
         return;
       }
 
@@ -978,7 +948,16 @@ export default function ClassStudentsScreen() {
       }
       resetCreateForm();
       await load();
-      setScreenTab("alunos");
+      Alert.alert(
+        "Aluno cadastrado",
+        `${cleanName} foi adicionado à turma com sucesso.`,
+        [
+          {
+            text: "Ver alunos",
+            onPress: () => setScreenTab("alunos"),
+          },
+        ]
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Não foi possível cadastrar o aluno.";
       setCreateError(detail);
@@ -1049,7 +1028,7 @@ export default function ClassStudentsScreen() {
         positionPrimary: (primaryPos || "indefinido") as Student["positionPrimary"],
         positionSecondary: (secondaryPos || "indefinido") as Student["positionSecondary"],
         athleteObjective: (objective || "base") as Student["athleteObjective"],
-        learningStyle: editingStudent.learningStyle ?? "misto",
+        learningStyle,
         healthIssue,
         healthIssueNotes: healthIssue ? healthIssueNotes.trim() : "",
         medicationUse,
@@ -1801,14 +1780,10 @@ export default function ClassStudentsScreen() {
         visible={Boolean(editingStudent)}
         onClose={requestCloseEditModal}
         position="center"
-        cardStyle={[
-          editModalCardStyle,
-          {
-            height: Platform.OS === "web" ? "92%" : "96%",
-          },
-        ]}
+        cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
       >
-        <View ref={containerRef} style={{ flex: 1, position: "relative" }}>
+        <View ref={containerRef} style={{ flex: 1, position: "relative", minHeight: 0 }}>
+          <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
           <View
             style={{
               flexDirection: "row",
@@ -1905,17 +1880,6 @@ export default function ClassStudentsScreen() {
 
                     <View style={rowStyle}>
                       <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do aluno</Text>
-                        <TextInput
-                          value={phone}
-                          onChangeText={(value) => setPhone(formatPhoneBrWithCountry(value))}
-                          placeholder="+55 (DDD) 0 0000-0000"
-                          placeholderTextColor={colors.placeholder}
-                          keyboardType="phone-pad"
-                          style={inputStyle(colors)}
-                        />
-                      </View>
-                      <View style={colStyle}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Nascimento</Text>
                         <TextInput
                           value={birthText}
@@ -1932,47 +1896,18 @@ export default function ClassStudentsScreen() {
                           keyboardType="numeric"
                         />
                       </View>
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable
-                onPress={() => toggleSection("sportProfile")}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{sportSummary}</Text>
-                </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "sportProfile" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {sportAnim.isVisible ? (
-                <Animated.View style={[sportAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                  <View style={rowStyle}>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
-                      <View ref={primaryRef}>
-                        <Pressable onPress={() => setDropKey(dropKey === "primary" ? null : "primary")} style={selectFieldStyle}>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(primaryPos)}</Text>
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "primary" ? "180deg" : "0deg" }] }} />
-                        </Pressable>
+                      <View style={colStyle}>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do aluno</Text>
+                        <TextInput
+                          value={phone}
+                          onChangeText={(value) => setPhone(formatPhoneBrWithCountry(value))}
+                          placeholder="+55 (DDD) 0 0000-0000"
+                          placeholderTextColor={colors.placeholder}
+                          style={inputStyle(colors)}
+                          keyboardType="phone-pad"
+                        />
                       </View>
                     </View>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
-                      <View ref={secondaryRef}>
-                        <Pressable onPress={() => setDropKey(dropKey === "secondary" ? null : "secondary")} style={selectFieldStyle}>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(secondaryPos)}</Text>
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "secondary" ? "180deg" : "0deg" }] }} />
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
                   </View>
                 </Animated.View>
               ) : null}
@@ -2056,6 +1991,46 @@ export default function ClassStudentsScreen() {
 
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable
+                onPress={() => toggleSection("sportProfile")}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>{sportSummary}</Text>
+                </View>
+                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "sportProfile" ? "180deg" : "0deg" }] }} />
+              </Pressable>
+              {openSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
+              {sportAnim.isVisible ? (
+                <Animated.View style={[sportAnim.animatedStyle, { overflow: "hidden" }]}>
+                  <View style={{ gap: 10, padding: 12 }}>
+                  <View style={rowStyle}>
+                    <View style={colStyle}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
+                      <View ref={primaryRef}>
+                        <Pressable onPress={() => setDropKey(dropKey === "primary" ? null : "primary")} style={selectFieldStyle}>
+                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(primaryPos)}</Text>
+                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "primary" ? "180deg" : "0deg" }] }} />
+                        </Pressable>
+                      </View>
+                    </View>
+                    <View style={colStyle}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
+                      <View ref={secondaryRef}>
+                        <Pressable onPress={() => setDropKey(dropKey === "secondary" ? null : "secondary")} style={selectFieldStyle}>
+                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(secondaryPos)}</Text>
+                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "secondary" ? "180deg" : "0deg" }] }} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                  </View>
+                </Animated.View>
+              ) : null}
+            </View>
+
+            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
+              <Pressable
                 onPress={() => toggleSection("health")}
                 style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
               >
@@ -2108,8 +2083,8 @@ export default function ClassStudentsScreen() {
                           <View
                             style={{
                               borderRadius: 999,
-                            paddingHorizontal: 8,
-                            paddingVertical: 2,
+                              paddingHorizontal: 8,
+                              paddingVertical: 2,
                               backgroundColor: riskBadgePalette[editingIntake.riskStatus].bg,
                             }}
                           >
@@ -2134,7 +2109,7 @@ export default function ClassStudentsScreen() {
                           </View>
                         ))}
                       </View>
-                        {editingIntake.notes ? (
+                      {editingIntake.notes ? (
                         <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
                           {editingIntake.notes}
                         </Text>
@@ -2276,6 +2251,7 @@ export default function ClassStudentsScreen() {
                 {saving || photoSaving ? "Salvando..." : "Salvar"}
               </Text>
             </Pressable>
+          </View>
           </View>
 
           <AnchoredDropdown

@@ -1,8 +1,8 @@
 import * as Sentry from "@sentry/react-native";
 
 import {
-  forceRefreshAccessToken,
-  getValidAccessToken,
+    forceRefreshAccessToken,
+    getValidAccessToken,
 } from "../auth/session";
 import { measureAsync } from "../observability/perf";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
@@ -15,6 +15,7 @@ export type ImportAction = "create" | "update" | "conflict" | "skip" | "error";
 export type StudentImportRow = {
   externalId?: string;
   name?: string;
+  ra?: string;
   birthDate?: string;
   rg?: string;
   classId?: string;
@@ -156,11 +157,11 @@ const looksLikeJwt = (value: string) => {
 const resolveStudentsImportToken = async (
   preferredAccessToken?: string | null
 ): Promise<string> => {
-  const preferred = String(preferredAccessToken ?? "").trim();
-  if (looksLikeJwt(preferred)) return preferred;
-
   const current = await waitForAccessToken();
   if (looksLikeJwt(current)) return current;
+
+  const preferred = String(preferredAccessToken ?? "").trim();
+  if (looksLikeJwt(preferred)) return preferred;
 
   const refreshed = String((await forceRefreshAccessToken()) ?? "").trim();
   if (looksLikeJwt(refreshed)) return refreshed;
@@ -235,13 +236,17 @@ const callStudentsImport = async (
     }
   }
   if (!response.ok) {
+    const reason =
+      (typeof parsed.reason === "string" && parsed.reason.trim())
+        ? parsed.reason.trim()
+        : "";
     const message =
       (typeof parsed.error === "string" && parsed.error) ||
       (typeof parsed.message === "string" && parsed.message) ||
       raw ||
       "Falha ao executar importacao.";
-    if (message.toLowerCase().includes("invalid jwt")) {
-      throw new Error("Sessao expirada. Faca login novamente.");
+    if (reason) {
+      throw new Error(`${message} (${reason})`);
     }
     throw new Error(message);
   }

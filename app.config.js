@@ -10,6 +10,10 @@ const sentryDsn =
 	process.env.SENTRY_DSN ||
 	process.env.EXPO_PUBLIC_SENTRY_DSN ||
 	"https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320";
+const enableSocialLogin =
+	process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN || process.env.ENABLE_SOCIAL_LOGIN || "false";
+const enableManualLinking =
+	process.env.EXPO_PUBLIC_ENABLE_MANUAL_LINKING || process.env.ENABLE_MANUAL_LINKING || "false";
 
 const plugins = [
 	"expo-router",
@@ -137,6 +141,8 @@ module.exports = {
 			},
 			SUPABASE_URL: supabaseUrl,
 			SUPABASE_ANON_KEY: supabaseAnonKey,
+			ENABLE_SOCIAL_LOGIN: enableSocialLogin,
+			ENABLE_MANUAL_LINKING: enableManualLinking,
 		},
 	},
 };

@@ -1319,7 +1319,7 @@ export default function SessionScreen() {
               <Pressable
                 onPress={() =>
                   router.push({
-                    pathname: "/calendar",
+                    pathname: "/prof/calendar",
                     params: {
                       targetClassId: cls?.id ?? "",
                       targetDate: sessionDate,
@@ -1341,7 +1341,7 @@ export default function SessionScreen() {
               <Pressable
                 onPress={() =>
                   router.push({
-                    pathname: "/training",
+                    pathname: "/prof/planning",
                     params: {
                       targetClassId: cls?.id ?? "",
                       targetDate: sessionDate,
@@ -2207,7 +2207,7 @@ export default function SessionScreen() {
             onPress={() => {
               setShowPlanFabMenu(false);
               router.push({
-                pathname: "/training",
+                pathname: "/prof/planning",
                 params: {
                   targetClassId: cls?.id ?? "",
                   openImport: "1",

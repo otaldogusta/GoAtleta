@@ -180,7 +180,11 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const { session } = useAuth();
-  const { activeOrganization, isLoading: organizationLoading } = useOrganization();
+  const {
+    activeOrganization,
+    isLoading: organizationLoading,
+    refreshMemberPermissions,
+  } = useOrganization();
   const sheetCardStyle = useModalCardStyle({
     maxHeight: "88%",
     maxWidth: 760,
@@ -390,6 +394,11 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     void loadMembers();
   }, [loadMembers]);
 
+  useEffect(() => {
+    if (!organizationId) return;
+    void refreshMemberPermissions();
+  }, [organizationId, refreshMemberPermissions]);
+
   const loadMemberPermissions = useCallback(
     async (member: OrgMember) => {
       if (!organizationId) return;
@@ -558,6 +567,9 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     try {
       await adminSetMemberPermission(organizationId, selectedMember.userId, permissionKey, isAllowed);
       setPermissions((prev) => ({ ...prev, [permissionKey]: isAllowed }));
+      if (currentMemberIsSelf) {
+        await refreshMemberPermissions();
+      }
     } catch (err) {
       setError(toUiError(err));
     } finally {

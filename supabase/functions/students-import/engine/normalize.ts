@@ -3,6 +3,7 @@ import type { NormalizedImportRow, StudentImportRow } from "./types.ts";
 const headerAliases: Record<string, string[]> = {
   externalId: ["externalid", "external_id", "id_externo", "id externo", "id legado"],
   name: ["name", "nome", "nome aluno", "aluno", "atleta"],
+  ra: ["ra", "registroacademico", "matricula", "matriculaaluno"],
   birthDate: [
     "birthdate",
     "birth_date",
@@ -66,6 +67,8 @@ const normalizeRg = (value: string) =>
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .trim();
+
+const normalizeRa = (value: string) => value.replace(/\D+/g, "").trim();
 
 const normalizeCpf = (value: string) => value.replace(/\D+/g, "").trim();
 
@@ -135,6 +138,7 @@ export const hashSourceRows = async (rows: NormalizedImportRow[]): Promise<strin
     sourceRowNumber: item.sourceRowNumber,
     externalId: item.externalId ?? "",
     name: item.name,
+    ra: item.ra ?? "",
     birthDate: item.birthDate ?? "",
     rgNormalized: item.rgNormalized ?? "",
     classId: item.classId ?? "",
@@ -170,6 +174,7 @@ export const normalizeImportRows = async (
 
     const externalIdRaw = resolveRawValue(source, "externalId");
     const nameRaw = resolveRawValue(source, "name");
+    const raRaw = resolveRawValue(source, "ra");
     const birthDateRaw = resolveRawValue(source, "birthDate");
     const rgRaw = resolveRawValue(source, "rg");
     const classIdRaw = resolveRawValue(source, "classId");
@@ -186,6 +191,7 @@ export const normalizeImportRows = async (
       externalId: externalIdRaw || null,
       name: nameRaw,
       nameNormalized: normalizeName(nameRaw),
+      ra: normalizeRa(raRaw) || null,
       birthDate: normalizeIsoDate(birthDateRaw),
       rgNormalized: normalizeRg(rgRaw) || null,
       classId: classIdRaw || null,
@@ -200,6 +206,7 @@ export const normalizeImportRows = async (
         sourceRowNumber,
         externalId: externalIdRaw || null,
         name: nameRaw || null,
+        ra: normalizeRa(raRaw) || null,
         birthDate: normalizeIsoDate(birthDateRaw),
         rg: normalizeRg(rgRaw) || null,
         classId: classIdRaw || null,
@@ -217,6 +224,8 @@ export const normalizeImportRows = async (
     const birthKey = normalized.birthDate ?? "";
     if (normalized.externalId) {
       normalized.identityKey = `external:${normalized.externalId}`;
+    } else if (normalized.ra) {
+      normalized.identityKey = `ra:${normalized.ra}`;
     } else if (normalized.rgNormalized) {
       normalized.identityKey = `rg:${normalized.rgNormalized}`;
     } else if (normalized.guardianCpfHmac && normalized.nameNormalized && birthKey) {

@@ -7,6 +7,7 @@ import {
 } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
+    useCallback,
     useEffect,
     useRef,
     useState
@@ -25,6 +26,12 @@ import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
 import { getPendingInvite } from "../src/auth/pending-invite";
 import { RoleProvider, useRole } from "../src/auth/role";
+import {
+    hybridVerificationRestrictedPrefixes,
+    studentOnlyRoutes,
+    trainerOnlyPrefixes,
+    trainerPermissionByPrefix,
+} from "../src/auth/route-permissions";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { addNotification } from "../src/notificationsInbox";
@@ -43,80 +50,6 @@ import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
 import { SaveToastProvider } from "../src/ui/save-toast";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
-
-const trainerPermissionByPrefix = [
-  { prefix: "/prof/classes", permissionKey: "classes" },
-  { prefix: "/prof/planning", permissionKey: "training" },
-  { prefix: "/prof/reports", permissionKey: "reports" },
-  { prefix: "/coord/reports", permissionKey: "reports" },
-  { prefix: "/coord/management", permissionKey: "org_members" },
-  { prefix: "/coordination", permissionKey: "org_members" },
-  { prefix: "/evidence", permissionKey: "assistant" },
-  { prefix: "/reports", permissionKey: "reports" },
-  { prefix: "/events", permissionKey: "events" },
-  { prefix: "/students", permissionKey: "students" },
-  { prefix: "/class", permissionKey: "classes" },
-  { prefix: "/classes", permissionKey: "classes" },
-  { prefix: "/training", permissionKey: "training" },
-  { prefix: "/periodization", permissionKey: "periodization" },
-  { prefix: "/calendar", permissionKey: "calendar" },
-  { prefix: "/absence-notices", permissionKey: "absence_notices" },
-  { prefix: "/whatsapp-settings", permissionKey: "whatsapp_settings" },
-  { prefix: "/assistant", permissionKey: "assistant" },
-  { prefix: "/org-members", permissionKey: "org_members" },
-  { prefix: "/nfc-attendance", permissionKey: "classes" },
-  { prefix: "/regulation-sources", permissionKey: "org_members" },
-  { prefix: "/regulation-history", permissionKey: "org_members" },
-] as const;
-
-const studentOnlyRoutes = [
-  "/absence-report",
-  "/communications",
-  "/student-plan",
-  "/student-home",
-  "/student",
-];
-
-const trainerOnlyPrefixes = [
-  "/prof",
-  "/coord",
-  "/coordination",
-  "/evidence",
-  "/absence-notices",
-  "/assistant",
-  "/calendar",
-  "/class",
-  "/classes",
-  "/events",
-  "/exercises",
-  "/periodization",
-  "/reports",
-  "/org-members",
-  "/regulation-history",
-  "/regulation-sources",
-  "/nfc-attendance",
-  "/students",
-  "/training",
-  "/whatsapp-settings",
-];
-
-const hybridVerificationRestrictedPrefixes = [
-  "/coord",
-  "/coordination",
-  "/org-members",
-  "/reports",
-  "/students",
-  "/class",
-  "/classes",
-  "/training",
-  "/periodization",
-  "/calendar",
-  "/events",
-  "/assistant",
-  "/whatsapp-settings",
-  "/regulation-history",
-  "/regulation-sources",
-];
 
 const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
@@ -163,6 +96,10 @@ function RootLayoutContent() {
   const initialRouteGuardAppliedRef = useRef(false);
   const stuckEventsGuardRef = useRef(false);
   const appStartedAtRef = useRef(Date.now());
+  const pushRegistrationInFlightRef = useRef(false);
+  const lastPushRegistrationKeyRef = useRef("");
+  const oauthHandledHrefRef = useRef("");
+  const oauthInFlightRef = useRef(false);
   const navReady = Boolean(rootState?.key);
   const isAdminProfile = role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
   const isBooting =
@@ -260,27 +197,48 @@ function RootLayoutContent() {
     logNavigation(pathname);
   }, [pathname]);
 
+  const registerPushTokenIfNeeded = useCallback(() => {
+    const organizationId = activeOrganization?.id ?? "";
+    const userId = session?.user?.id ?? "";
+    if (!organizationId || !userId) {
+      lastPushRegistrationKeyRef.current = "";
+      return;
+    }
+
+    const registrationKey = `${userId}:${organizationId}`;
+    if (pushRegistrationInFlightRef.current) return;
+    if (lastPushRegistrationKeyRef.current === registrationKey) return;
+
+    pushRegistrationInFlightRef.current = true;
+    void ensurePushTokenRegistered({ organizationId })
+      .then(() => {
+        lastPushRegistrationKeyRef.current = registrationKey;
+      })
+      .catch(() => {
+        // Keep key unset on failure so app-active can retry later.
+      })
+      .finally(() => {
+        pushRegistrationInFlightRef.current = false;
+      });
+  }, [activeOrganization?.id, session?.user?.id]);
+
   useEffect(() => {
     const detach = attachPushListeners(router);
     return () => detach();
   }, [router]);
 
   useEffect(() => {
-    const organizationId = activeOrganization?.id ?? "";
-    if (!session || !organizationId) return;
-    void ensurePushTokenRegistered({ organizationId });
-  }, [activeOrganization?.id, session]);
+    registerPushTokenIfNeeded();
+  }, [registerPushTokenIfNeeded]);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
     const subscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      const organizationId = activeOrganization?.id ?? "";
-      if (!session || !organizationId) return;
-      void ensurePushTokenRegistered({ organizationId });
+      registerPushTokenIfNeeded();
     });
     return () => subscription.remove();
-  }, [activeOrganization?.id, session]);
+  }, [registerPushTokenIfNeeded]);
 
   useEffect(() => {
     const hadSession = hadSessionRef.current;
@@ -449,10 +407,15 @@ function RootLayoutContent() {
     if (Platform.OS !== "web") return;
     if (typeof window === "undefined") return;
 
+    const authHref = window.location.href;
+    if (oauthHandledHrefRef.current === authHref || oauthInFlightRef.current) return;
+
     // Process OAuth code from query params
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     if (code) {
+      oauthHandledHrefRef.current = authHref;
+      oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
         const pending = await getPendingInvite();
         router.replace(pending ? `/invite/${pending}` : "/");
@@ -464,6 +427,8 @@ function RootLayoutContent() {
         await redirectAfterAuth();
       }).catch(() => {
         router.replace("/welcome");
+      }).finally(() => {
+        oauthInFlightRef.current = false;
       });
       return;
     }
@@ -475,11 +440,14 @@ function RootLayoutContent() {
     const type = params.get("type");
     const accessToken = params.get("access_token");
     if (type === "recovery" && accessToken) {
+      oauthHandledHrefRef.current = authHref;
       const next = `/reset-password?access_token=${encodeURIComponent(accessToken)}`;
       window.location.replace(next);
       return;
     }
     if (accessToken && type !== "recovery") {
+      oauthHandledHrefRef.current = authHref;
+      oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
         const pending = await getPendingInvite();
         router.replace(pending ? `/invite/${pending}` : "/");
@@ -492,6 +460,8 @@ function RootLayoutContent() {
         const cleanUrl = window.location.origin + window.location.pathname;
         safeReplaceHistoryUrl(cleanUrl);
         router.replace("/welcome");
+      }).finally(() => {
+        oauthInFlightRef.current = false;
       });
       return;
     }
@@ -578,32 +548,54 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
       style.id = styleId;
       document.head.appendChild(style);
     }
-    style.textContent = css;
+    if (style.textContent !== css) {
+      style.textContent = css;
+    }
   }, [colors.inputBg, colors.inputText, colors.border, colors.muted]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (typeof document === "undefined") return;
     let timeout: number | null = null;
-    const handleScroll = () => {
-      document.body.classList.add("app-scrolling");
-      document.documentElement.classList.add("app-scrolling");
+    let rafId: number | null = null;
+    let scrollingActive = false;
+
+    const activateScrolling = () => {
+      if (!scrollingActive) {
+        scrollingActive = true;
+        document.body.classList.add("app-scrolling");
+        document.documentElement.classList.add("app-scrolling");
+      }
       if (timeout) window.clearTimeout(timeout);
       timeout = window.setTimeout(() => {
+        scrollingActive = false;
         document.body.classList.remove("app-scrolling");
         document.documentElement.classList.remove("app-scrolling");
-      }, 1200);
+      }, 450);
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
-    document.addEventListener("wheel", handleScroll, { passive: true });
-    document.addEventListener("touchmove", handleScroll, { passive: true });
+
+    const handleScroll = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        activateScrolling();
+      });
+    };
+
+    const passiveOpts: AddEventListenerOptions = { passive: true };
+    window.addEventListener("scroll", handleScroll, passiveOpts);
+    document.addEventListener("wheel", handleScroll, passiveOpts);
+    document.addEventListener("touchmove", handleScroll, passiveOpts);
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      document.removeEventListener("scroll", handleScroll, { capture: true } as AddEventListenerOptions);
       document.removeEventListener("wheel", handleScroll);
       document.removeEventListener("touchmove", handleScroll);
+      if (rafId) window.cancelAnimationFrame(rafId);
       if (timeout) window.clearTimeout(timeout);
+      if (scrollingActive) {
+        document.body.classList.remove("app-scrolling");
+        document.documentElement.classList.remove("app-scrolling");
+      }
     };
   }, []);
 

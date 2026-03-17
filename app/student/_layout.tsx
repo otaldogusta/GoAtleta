@@ -4,9 +4,14 @@ import { AnimatedBottomTabs } from "../../src/components/navigation/AnimatedBott
 export default function StudentTabsLayout() {
   return (
     <Tabs
-      screenOptions={{ headerShown: false }}
+      initialRouteName="home"
       tabBar={(props) => <AnimatedBottomTabs {...props} role="student" />}
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: { display: "none" },
+      }}
     >
+      <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="home" />
       <Tabs.Screen name="agenda" />
       <Tabs.Screen

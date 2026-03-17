@@ -292,7 +292,7 @@ export function AuthProvider({
     } else {
       clearSentryUser();
     }
-  }, [session]);
+  }, [session?.user?.id]);
 
   const signIn = useCallback(async (email: string, password: string, remember = true) => {
     const payload = await authFetch("/auth/v1/token?grant_type=password", {

@@ -27,6 +27,7 @@ const dateKey = (value: string | null | undefined) => {
 
 type Matcher = {
   byExternalId: Map<string, ExistingStudentRow>;
+  byRa: Map<string, ExistingStudentRow>;
   byRg: Map<string, ExistingStudentRow>;
   byCpfNameBirth: Map<string, ExistingStudentRow>;
   byPhoneNameBirth: Map<string, ExistingStudentRow>;
@@ -45,6 +46,7 @@ const buildNameBirthKey = (nameNorm: string, birthDate: string) =>
 export const buildMatcher = (students: ExistingStudentRow[]): Matcher => {
   const matcher: Matcher = {
     byExternalId: new Map(),
+    byRa: new Map(),
     byRg: new Map(),
     byCpfNameBirth: new Map(),
     byPhoneNameBirth: new Map(),
@@ -55,6 +57,11 @@ export const buildMatcher = (students: ExistingStudentRow[]): Matcher => {
     const externalId = String(student.external_id ?? "").trim();
     if (externalId && !matcher.byExternalId.has(externalId)) {
       matcher.byExternalId.set(externalId, student);
+    }
+
+    const ra = String(student.ra ?? "").replace(/\D+/g, "").trim();
+    if (ra && !matcher.byRa.has(ra)) {
+      matcher.byRa.set(ra, student);
     }
 
     const rg = String(student.rg_normalized ?? "").trim();
@@ -91,6 +98,9 @@ export const registerStudentInMatcher = (matcher: Matcher, student: ExistingStud
   const externalId = String(student.external_id ?? "").trim();
   if (externalId) matcher.byExternalId.set(externalId, student);
 
+  const ra = String(student.ra ?? "").replace(/\D+/g, "").trim();
+  if (ra) matcher.byRa.set(ra, student);
+
   const rg = String(student.rg_normalized ?? "").trim();
   if (rg) matcher.byRg.set(rg, student);
 
@@ -118,6 +128,11 @@ export const findExistingStudent = (
   if (row.externalId) {
     const student = matcher.byExternalId.get(row.externalId) ?? null;
     if (student) return { student, matchedBy: "external_id", confidence: "high" };
+  }
+
+  if (row.ra) {
+    const student = matcher.byRa.get(row.ra) ?? null;
+    if (student) return { student, matchedBy: "ra", confidence: "high" };
   }
 
   if (row.rgNormalized) {

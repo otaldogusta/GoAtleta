@@ -16,6 +16,7 @@ import {
     type MemberPermissionKey,
 } from "../api/members";
 import { useAuth } from "../auth/auth";
+import { forceRefreshAccessToken } from "../auth/session";
 import { smartSync } from "../core/smart-sync";
 import { clearLocalReadCaches } from "../db/seed";
 import {
@@ -23,7 +24,6 @@ import {
     setDevProfilePreview as persistDevProfilePreview,
     type DevProfilePreview,
 } from "../dev/profile-preview";
-import { forceRefreshAccessToken } from "../auth/session";
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
@@ -63,6 +63,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const hasLoadedOrganizationsRef = useRef(false);
   const fetchControllerRef = useRef<AbortController | null>(null);
+  const permissionsInFlightRef = useRef<Promise<void> | null>(null);
+  const permissionsRequestKeyRef = useRef("");
   const lastFetchTokenRef = useRef("");
   const lastFetchErrorAtRef = useRef(0);
 
@@ -89,27 +91,63 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const refreshMemberPermissions = useCallback(async () => {
+    const userId = session?.user?.id ?? "";
+    const organizationId = activeOrganizationId ?? "";
+    if (!userId || !organizationId) {
+      permissionsRequestKeyRef.current = "";
+      setMemberPermissions({});
+      setPermissionsLoading(false);
+      return;
+    }
+
+    const requestKey = `${userId}:${organizationId}`;
+    if (permissionsInFlightRef.current && permissionsRequestKeyRef.current === requestKey) {
+      await permissionsInFlightRef.current;
+      return;
+    }
+
+    permissionsRequestKeyRef.current = requestKey;
+
+    const requestPromise = (async () => {
+      setPermissionsLoading(true);
+      try {
+        const rows = await getMyMemberPermissions(organizationId);
+        if (permissionsRequestKeyRef.current !== requestKey) return;
+
+        const mapped: Partial<Record<MemberPermissionKey, boolean>> = {};
+        rows.forEach((row) => {
+          mapped[row.permissionKey] = row.isAllowed;
+        });
+        setMemberPermissions(mapped);
+      } catch (err) {
+        if (permissionsRequestKeyRef.current !== requestKey) return;
+        console.error("OrganizationProvider permissions error:", err);
+        setMemberPermissions({});
+      } finally {
+        if (permissionsInFlightRef.current === requestPromise) {
+          permissionsInFlightRef.current = null;
+        }
+        if (permissionsRequestKeyRef.current === requestKey) {
+          setPermissionsLoading(false);
+        }
+      }
+    })();
+
+    permissionsInFlightRef.current = requestPromise;
+    await requestPromise;
+  }, [activeOrganizationId, session]);
+
+  useEffect(() => {
     if (!session || !activeOrganizationId) {
       setMemberPermissions({});
       setPermissionsLoading(false);
       return;
     }
 
+    // Clear stale permissions from previous org/profile before fresh load.
+    setMemberPermissions({});
     setPermissionsLoading(true);
-    try {
-      const rows = await getMyMemberPermissions(activeOrganizationId);
-      const mapped: Partial<Record<MemberPermissionKey, boolean>> = {};
-      rows.forEach((row) => {
-        mapped[row.permissionKey] = row.isAllowed;
-      });
-      setMemberPermissions(mapped);
-    } catch (err) {
-      console.error("OrganizationProvider permissions error:", err);
-      setMemberPermissions({});
-    } finally {
-      setPermissionsLoading(false);
-    }
-  }, [activeOrganizationId, session]);
+  }, [activeOrganizationId, session?.user?.id]);
 
   const fetchOrganizations = useCallback(async () => {
     const accessToken = session?.access_token ?? "";

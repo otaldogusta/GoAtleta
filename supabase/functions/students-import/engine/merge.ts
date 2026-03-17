@@ -105,6 +105,7 @@ export const computeMergePatch = (params: MergeInput): MergeResult => {
 
   const setCreateDefaults = () => {
     patch.name = incoming.name;
+    patch.ra = incoming.ra;
     patch.classid = resolvedClassId;
     patch.birthdate = incoming.birthDate;
     patch.age = incoming.birthDate && !isBirthDateSuspect(incoming.birthDate)
@@ -154,6 +155,7 @@ export const computeMergePatch = (params: MergeInput): MergeResult => {
   };
 
   considerField("external_id", incoming.externalId, existing.external_id, "EXTERNAL_ID_CONFLICT");
+  considerField("ra", incoming.ra, existing.ra, "RA_CONFLICT");
   considerField("rg_normalized", incoming.rgNormalized, existing.rg_normalized, "RG_CONFLICT");
   considerField("guardian_cpf_hmac", incoming.guardianCpfHmac, existing.guardian_cpf_hmac, "GUARDIAN_CPF_CONFLICT");
   considerField("guardian_name", incoming.guardianName, existing.guardian_name, "GUARDIAN_NAME_CONFLICT");

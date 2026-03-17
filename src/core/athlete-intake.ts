@@ -76,11 +76,21 @@ const splitModalities = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const matchesHeaderToken = (normalizedHeader: string, token: string) => {
+  const normalizedToken = toKey(token);
+  if (!normalizedToken) return false;
+  if (normalizedHeader === normalizedToken) return true;
+  if (normalizedToken.length <= 2) {
+    return normalizedHeader.split(" ").includes(normalizedToken);
+  }
+  return normalizedHeader.includes(normalizedToken);
+};
+
 const findValue = (row: RawRow, includes: string[]): string => {
   const entries = Object.entries(row);
   for (const [header, value] of entries) {
     const normalizedHeader = toKey(header);
-    if (includes.some((token) => normalizedHeader.includes(token))) {
+    if (includes.some((token) => matchesHeaderToken(normalizedHeader, token))) {
       return String(value ?? "").trim();
     }
   }

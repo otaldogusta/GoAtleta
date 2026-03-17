@@ -33,7 +33,7 @@ import { ScreenHeader } from "../src/ui/ScreenHeader";
 
 export default function LoginScreen() {
   const { colors, mode } = useAppTheme();
-
+  const useNativeDriver = Platform.OS !== "web";
 
   const solidInputBg = colors.inputBg;
   const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
@@ -120,9 +120,9 @@ export default function LoginScreen() {
     Animated.timing(enterAnim, {
       toValue: 1,
       duration: 260,
-      useNativeDriver: true,
+      useNativeDriver,
     }).start();
-  }, [enterAnim]);
+  }, [enterAnim, useNativeDriver]);
 
   useEffect(() => {
     if (!showRememberToast) return;
@@ -130,17 +130,17 @@ export default function LoginScreen() {
     Animated.timing(rememberToastAnim, {
       toValue: 1,
       duration: 180,
-      useNativeDriver: true,
+      useNativeDriver,
     }).start();
     const timer = setTimeout(() => {
       Animated.timing(rememberToastAnim, {
         toValue: 0,
         duration: 180,
-        useNativeDriver: true,
+        useNativeDriver,
       }).start(() => setShowRememberToast(false));
     }, 1800);
     return () => clearTimeout(timer);
-  }, [rememberToastAnim, showRememberToast]);
+  }, [rememberToastAnim, showRememberToast, useNativeDriver]);
 
   useEffect(() => {
     if (!rememberMe) {
@@ -433,6 +433,7 @@ export default function LoginScreen() {
                 }}
               >
                 <TextInput
+                  nativeID="login-email"
                   placeholder="Email"
                   value={email}
                   onChangeText={setEmail}
@@ -445,7 +446,9 @@ export default function LoginScreen() {
                   }}
                   placeholderTextColor={colors.placeholder}
                   keyboardType="email-address"
+                  autoComplete="email"
                   autoCapitalize="none"
+                  autoCorrect={false}
                   returnKeyType={showReset ? "send" : "next"}
                   underlineColorAndroid="transparent"
                   selectionColor={colors.primaryBg}
@@ -479,6 +482,7 @@ export default function LoginScreen() {
                   >
                     <TextInput
                       ref={passwordInputRef}
+                      nativeID="login-password"
                       placeholder="Senha"
                       value={password}
                       onChangeText={setPassword}
@@ -486,6 +490,8 @@ export default function LoginScreen() {
                         void handleLogin();
                       }}
                       placeholderTextColor={colors.placeholder}
+                      autoComplete="current-password"
+                      autoCorrect={false}
                       secureTextEntry={!showPassword}
                       returnKeyType="go"
                       underlineColorAndroid="transparent"

@@ -11,6 +11,7 @@ type StudentsFabMenuProps = {
   anchorRight: number;
   anchorBottom: number;
   onClose: () => void;
+  onSyncFormsPress: () => void;
   onImportPress: () => void;
   onExportPress: () => void;
 };
@@ -21,6 +22,7 @@ export function StudentsFabMenu({
   anchorRight,
   anchorBottom,
   onClose,
+  onSyncFormsPress,
   onImportPress,
   onExportPress,
 }: StudentsFabMenuProps) {
@@ -125,6 +127,26 @@ export function StudentsFabMenu({
           ],
         }}
       >
+        <Pressable
+          onPress={onSyncFormsPress}
+          style={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.background,
+            borderRadius: 10,
+            paddingHorizontal: 9,
+            paddingVertical: 8,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Ionicons name="sync-outline" size={16} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+            Sincronizar Forms
+          </Text>
+        </Pressable>
+
         <Pressable
           onPress={onImportPress}
           style={{

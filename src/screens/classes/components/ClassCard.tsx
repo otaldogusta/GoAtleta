@@ -1,10 +1,10 @@
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
-import type { ClassGroup } from "../../../src/core/models";
-import { markRender } from "../../../src/observability/perf";
-import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
-import { Pressable } from "../../../src/ui/Pressable";
+import type { ClassGroup } from "../../../core/models";
+import { markRender } from "../../../observability/perf";
+import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
+import { Pressable } from "../../../ui/Pressable";
 
 type Conflict = {
   name: string;
@@ -92,10 +92,14 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 18,
     borderWidth: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 8px 12px rgba(0, 0, 0, 0.08)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 8 },
+        }),
     elevation: 3,
   },
   conflictPill: {

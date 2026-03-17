@@ -1,6 +1,6 @@
-import type { ComponentProps } from "react";
-import type { Href } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import type { Href } from "expo-router";
+import type { ComponentProps } from "react";
 
 export type AppRole = "prof" | "student" | "coord";
 export type IoniconName = ComponentProps<typeof Ionicons>["name"];
@@ -54,10 +54,10 @@ export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
 
 export const ROLE_RADIAL_ACTIONS: Record<AppRole, RadialAction[]> = {
   prof: [
-    { id: "attendance", label: "Chamada", icon: "checkmark-done-outline", href: "/classes" },
-    { id: "planning", label: "Criar plano", icon: "clipboard-outline", href: "/training" },
-    { id: "students", label: "Adicionar aluno", icon: "person-add-outline", href: "/students" },
-    { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/assistant" },
+    { id: "attendance", label: "Chamada", icon: "checkmark-done-outline", href: "/prof/classes" },
+    { id: "planning", label: "Criar plano", icon: "clipboard-outline", href: "/prof/planning" },
+    { id: "students", label: "Adicionar aluno", icon: "person-add-outline", href: "/prof/students" },
+    { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/prof/assistant" },
   ],
   student: [
     { id: "plan", label: "Plano", icon: "fitness-outline", href: "/student-plan" },
@@ -67,10 +67,10 @@ export const ROLE_RADIAL_ACTIONS: Record<AppRole, RadialAction[]> = {
     { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/assistant" },
   ],
   coord: [
-    { id: "event", label: "Criar evento", icon: "calendar-clear-outline", href: "/events" },
-    { id: "members", label: "Membros", icon: "people-circle-outline", href: "/org-members" },
-    { id: "communications", label: "Comunicado", icon: "megaphone-outline", href: "/communications" },
-    { id: "cycle", label: "Turma/Ciclo", icon: "layers-outline", href: "/periodization" },
-    { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/assistant" },
+    { id: "event", label: "Criar evento", icon: "calendar-clear-outline", href: "/coord/events" },
+    { id: "members", label: "Membros", icon: "people-circle-outline", href: "/coord/org-members" },
+    { id: "communications", label: "Comunicado", icon: "megaphone-outline", href: "/coord/communications" },
+    { id: "cycle", label: "Turma/Ciclo", icon: "layers-outline", href: "/coord/periodization" },
+    { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/coord/assistant" },
   ],
 };

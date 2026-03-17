@@ -123,9 +123,18 @@ export function HomeProfessorScreen({
   const {
     activeOrganization,
     isLoading: organizationLoading,
+    memberPermissions,
   } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const canSeeCoordination = isOrgAdmin || effectiveProfile === "admin";
+  const canOpenClassesShortcut =
+    role !== "trainer" ||
+    isOrgAdmin ||
+    memberPermissions.classes === true;
+  const canOpenStudentsShortcut =
+    role !== "trainer" ||
+    isOrgAdmin ||
+    memberPermissions.students === true;
   const isAdminDashboardContext = adminMode && canSeeCoordination;
   const upcomingWindowDays = isAdminDashboardContext ? 30 : 7;
 
@@ -138,6 +147,10 @@ export function HomeProfessorScreen({
   const [refreshing, setRefreshing] = useState(false);
 
   const agendaScrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profilePhotoCacheRef = useRef<{ uri: string | null; updatedAt: number }>({
+    uri: null,
+    updatedAt: 0,
+  });
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
 
@@ -150,6 +163,7 @@ export function HomeProfessorScreen({
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
 
   const didInitialAgendaScroll = useRef(false);
+  const hasSeededRef = useRef(false);
 
   // Use smart sync instead of manual pending writes management
   const { syncing, pendingCount, lastSyncAt, lastError, syncNow } = useSmartSync();
@@ -262,6 +276,31 @@ export function HomeProfessorScreen({
     }
   }, [role, session?.user?.id]);
 
+  const ensureSeedData = useCallback(async () => {
+    if (hasSeededRef.current) return;
+    await seedIfEmpty();
+    hasSeededRef.current = true;
+  }, []);
+  const loadProfilePhoto = useCallback(
+    async (force = false): Promise<string | null> => {
+      const nowTs = Date.now();
+      if (
+        !force &&
+        profilePhotoCacheRef.current.updatedAt > 0 &&
+        nowTs - profilePhotoCacheRef.current.updatedAt < 5 * 60 * 1000
+      ) {
+        return profilePhotoCacheRef.current.uri;
+      }
+      const uri = await resolveProfilePhoto();
+      profilePhotoCacheRef.current = { uri, updatedAt: nowTs };
+      return uri;
+    },
+    [resolveProfilePhoto]
+  );
+  useEffect(() => {
+    profilePhotoCacheRef.current = { uri: null, updatedAt: 0 };
+  }, [role, session?.user?.id]);
+
 
 
   useEffect(() => {
@@ -309,7 +348,7 @@ export function HomeProfessorScreen({
         await measureAsync(
           "screen.home.load.schedule",
           async () => {
-            await seedIfEmpty();
+            await ensureSeedData();
 
             const organizationId = activeOrganization?.id ?? null;
 
@@ -345,7 +384,7 @@ export function HomeProfessorScreen({
 
     })();
 
-    void resolveProfilePhoto().then((uri) => {
+    void loadProfilePhoto().then((uri) => {
       if (alive) setProfilePhotoUri(uri);
     });
 
@@ -365,7 +404,7 @@ export function HomeProfessorScreen({
 
     };
 
-  }, [session, role, activeOrganization?.id, organizationLoading, resolveProfilePhoto]);
+  }, [session, role, activeOrganization?.id, organizationLoading, loadProfilePhoto, ensureSeedData]);
 
 
 
@@ -375,7 +414,7 @@ export function HomeProfessorScreen({
 
       let active = true;
 
-      void resolveProfilePhoto().then((uri) => {
+      void loadProfilePhoto().then((uri) => {
         if (active) setProfilePhotoUri(uri);
       });
 
@@ -385,7 +424,7 @@ export function HomeProfessorScreen({
 
       };
 
-    }, [resolveProfilePhoto])
+    }, [loadProfilePhoto])
 
   );
 
@@ -911,40 +950,6 @@ export function HomeProfessorScreen({
 
   );
 
-  const handleAgendaScroll = useCallback(
-
-    (event: any) => {
-
-      if (Platform.OS !== "web" || !scheduleWindow.length) return;
-
-      const offset = event.nativeEvent.contentOffset.x;
-
-      const size = agendaCardWidth + agendaCardGap;
-
-      if (!size) return;
-
-      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
-
-      if (agendaScrollEndTimer.current) {
-
-        clearTimeout(agendaScrollEndTimer.current);
-
-      }
-
-      agendaScrollEndTimer.current = setTimeout(() => {
-
-        if (manualIndex !== index) setManualIndex(index);
-
-      }, 120);
-
-    },
-
-    [agendaCardGap, agendaCardWidth, manualIndex, scheduleWindow.length]
-
-  );
-
-
-
   useEffect(() => {
 
     if (didInitialAgendaScroll.current) return;
@@ -1094,7 +1099,7 @@ export function HomeProfessorScreen({
     ];
 
     tasks.push(
-      resolveProfilePhoto()
+      loadProfilePhoto()
         .then(setProfilePhotoUri)
         .catch(() => setProfilePhotoUri(null))
     );
@@ -1106,7 +1111,7 @@ export function HomeProfessorScreen({
 
       tasks.push(
 
-        seedIfEmpty()
+        ensureSeedData()
 
           .then(() =>
             getClasses({ organizationId: activeOrganization?.id ?? null })
@@ -1155,7 +1160,8 @@ export function HomeProfessorScreen({
     activeOrganization?.id,
     upcomingWindowDays,
     organizationLoading,
-    resolveProfilePhoto,
+    loadProfilePhoto,
+    ensureSeedData,
   ]);
 
 
@@ -1306,11 +1312,11 @@ export function HomeProfessorScreen({
   const adminRailActions = useMemo(
     () =>
       [
-        { id: "coordination", label: "Coordenação", route: "/coordination", icon: "people-outline" },
-        { id: "reports", label: "Relatórios", route: "/reports", icon: "bar-chart-outline" },
-        { id: "events", label: "Eventos", route: "/events", icon: "calendar-outline" },
-        { id: "members", label: "Membros", route: "/org-members", icon: "person-add-outline" },
-        { id: "nfc", label: "Presença NFC", route: "/nfc-attendance", icon: "radio-outline" },
+        { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "people-outline" },
+        { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "bar-chart-outline" },
+        { id: "events", label: "Eventos", route: "/coord/events", icon: "calendar-outline" },
+        { id: "members", label: "Membros", route: "/coord/org-members", icon: "person-add-outline" },
+        { id: "nfc", label: "Presença NFC", route: "/prof/nfc-attendance", icon: "radio-outline" },
       ] as const,
     []
   );
@@ -1933,7 +1939,6 @@ export function HomeProfessorScreen({
               scrollEnabled={scheduleWindow.length > 1}
               scrollStyle={agendaScrollStyle}
               onMomentumScrollEnd={handleAgendaScrollEnd}
-              onScroll={handleAgendaScroll}
               snapToOffsets={agendaSnapOffsets}
               snapToAlignment="start"
               disableIntervalMomentum
@@ -2053,7 +2058,7 @@ export function HomeProfessorScreen({
           ) : (
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
-              onPress={() => router.push({ pathname: "/coordination" })}
+              onPress={() => router.push({ pathname: "/coord/management" })}
               style={{
                 flex: 1,
                 paddingVertical: 10,
@@ -2069,7 +2074,7 @@ export function HomeProfessorScreen({
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => router.push({ pathname: "/reports" })}
+              onPress={() => router.push({ pathname: "/coord/reports" })}
               style={{
                 flex: 1,
                 paddingVertical: 10,
@@ -2085,7 +2090,7 @@ export function HomeProfessorScreen({
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => router.push({ pathname: "/events" })}
+              onPress={() => router.push({ pathname: "/coord/events" })}
               style={{
                 flex: 1,
                 paddingVertical: 10,
@@ -2123,7 +2128,7 @@ export function HomeProfessorScreen({
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
               Próximos 7 dias
             </Text>
-            <Pressable onPress={() => router.push({ pathname: "/events" })}>
+            <Pressable onPress={() => router.push({ pathname: "/coord/events" })}>
               <Text style={{ color: colors.primaryBg, fontWeight: "700", fontSize: 12 }}>
                 Ver tudo
               </Text>
@@ -2243,7 +2248,7 @@ export function HomeProfessorScreen({
 
             <Pressable
 
-              onPress={() => router.push({ pathname: "/training" })}
+              onPress={() => router.push({ pathname: "/prof/planning" })}
 
               style={{
 
@@ -2277,9 +2282,10 @@ export function HomeProfessorScreen({
 
             </Pressable>
 
+            {canOpenClassesShortcut ? (
             <Pressable
 
-              onPress={() => router.push({ pathname: "/classes" })}
+              onPress={() => router.push({ pathname: "/prof/classes" })}
 
               style={{
 
@@ -2312,10 +2318,12 @@ export function HomeProfessorScreen({
               </Text>
 
             </Pressable>
+            ) : null}
 
+            {canOpenStudentsShortcut ? (
             <Pressable
 
-              onPress={() => router.push({ pathname: "/students" })}
+              onPress={() => router.push({ pathname: "/prof/students" })}
 
               style={{
 
@@ -2348,10 +2356,11 @@ export function HomeProfessorScreen({
               </Text>
 
             </Pressable>
+            ) : null}
 
             <Pressable
 
-              onPress={() => router.push({ pathname: "/calendar" })}
+              onPress={() => router.push({ pathname: "/prof/calendar" })}
 
               style={{
 
@@ -2388,7 +2397,7 @@ export function HomeProfessorScreen({
             {canSeeCoordination ? (
             <Pressable
 
-              onPress={() => router.push({ pathname: "/coordination" })}
+              onPress={() => router.push({ pathname: "/coord/management" })}
 
               style={{
 
@@ -2424,7 +2433,7 @@ export function HomeProfessorScreen({
             ) : null}
             <Pressable
 
-              onPress={() => router.push({ pathname: "/absence-notices" })}
+              onPress={() => router.push({ pathname: "/prof/absence-notices" })}
 
               style={{
 
@@ -2460,7 +2469,7 @@ export function HomeProfessorScreen({
 
             <Pressable
 
-              onPress={() => router.push({ pathname: "/nfc-attendance" })}
+              onPress={() => router.push({ pathname: "/prof/nfc-attendance" })}
 
               style={{
 
@@ -2496,7 +2505,7 @@ export function HomeProfessorScreen({
 
             <Pressable
 
-              onPress={() => router.push({ pathname: "/exercises" })}
+              onPress={() => router.push({ pathname: "/prof/exercises" })}
 
               style={{
 
@@ -2532,7 +2541,7 @@ export function HomeProfessorScreen({
 
             <Pressable
 
-              onPress={() => router.push({ pathname: "/periodization" })}
+              onPress={() => router.push({ pathname: "/prof/periodization" })}
 
               style={{
 

@@ -1,8 +1,8 @@
 import { memo, useCallback, useMemo } from "react";
 import { FlatList, Text, View } from "react-native";
 
-import type { ClassGroup } from "../../../src/core/models";
-import { markRender } from "../../../src/observability/perf";
+import type { ClassGroup } from "../../../core/models";
+import { markRender } from "../../../observability/perf";
 import { ClassCard } from "./ClassCard";
 
 type GroupedClasses = [string, ClassGroup[]][];

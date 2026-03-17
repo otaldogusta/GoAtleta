@@ -1,25 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  validateArrayLength,
-  validateStringField,
+    validateArrayLength,
+    validateStringField,
 } from "../_shared/input-validation.ts";
 
-import { computeMergePatch } from "./engine/merge.ts";
 import {
-  buildMatcher,
-  findExistingStudent,
-  registerStudentInMatcher,
+    buildMatcher,
+    findExistingStudent,
+    registerStudentInMatcher,
 } from "./engine/match.ts";
+import { computeMergePatch } from "./engine/merge.ts";
 import { hashSourceRows, normalizeImportRows } from "./engine/normalize.ts";
 import type {
-  ExistingClassRow,
-  ExistingStudentRow,
-  ImportAction,
-  ImportMode,
-  ImportPolicy,
-  ImportRunStatus,
-  NormalizedImportRow,
-  StudentImportRow,
+    ExistingClassRow,
+    ExistingStudentRow,
+    ImportAction,
+    ImportMode,
+    ImportPolicy,
+    ImportRunStatus,
+    NormalizedImportRow,
+    StudentImportRow,
 } from "./engine/types.ts";
 
 const corsHeaders = {
@@ -137,6 +137,67 @@ const createServiceClient = () => {
   return createClient(url, serviceRoleKey, { auth: { persistSession: false } });
 };
 
+const createRequestAuthClient = (request: Request) => {
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const authHeader = request.headers.get("Authorization") ?? "";
+  if (!url || !anonKey || !authHeader) return null;
+
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  });
+};
+
+const fetchUserFromAuthApi = async (token: string) => {
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const apiKey = anonKey || serviceRoleKey;
+  if (!url || !apiKey) {
+    return { user: null, reason: "missing_auth_api_configuration" };
+  }
+
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        apikey: apiKey,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const raw = await res.text();
+    if (!res.ok) {
+      return { user: null, reason: raw || `auth_api_status_${res.status}` };
+    }
+
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+    } catch {
+      parsed = null;
+    }
+
+    const userId = typeof parsed?.id === "string" ? parsed.id.trim() : "";
+    if (!userId) {
+      return { user: null, reason: "auth_api_missing_user_id" };
+    }
+
+    return { user: { id: userId }, reason: null };
+  } catch (error) {
+    return {
+      user: null,
+      reason: error instanceof Error ? error.message : "auth_api_request_failed",
+    };
+  }
+};
+
 const requireUser = async (
   request: Request,
   supabase: ReturnType<typeof createServiceClient>
@@ -147,10 +208,36 @@ const requireUser = async (
   }
   const token = authHeader.slice("Bearer ".length).trim();
   if (!token) return { user: null, reason: "empty_bearer_token" };
-  if (!supabase) return { user: null, reason: "missing_service_role_configuration" };
+
+  const authApi = await fetchUserFromAuthApi(token);
+  if (authApi.user) {
+    return authApi;
+  }
+  const authApiReason = authApi.reason ? `auth_api:${authApi.reason}` : "auth_api:unknown";
+
+  const requestAuthClient = createRequestAuthClient(request);
+  if (requestAuthClient) {
+    const { data, error } = await requestAuthClient.auth.getUser(token);
+    if (!error && data.user) {
+      return { user: data.user, reason: null };
+    }
+    const requestReason = error?.message
+      ? `request_auth_getUser:${error.message}`
+      : "request_auth_getUser:missing_user";
+    if (!supabase) {
+      return { user: null, reason: `${authApiReason} | ${requestReason} | missing_service_role_configuration` };
+    }
+  } else if (!supabase) {
+    return { user: null, reason: `${authApiReason} | missing_request_auth_client | missing_service_role_configuration` };
+  }
+
+  if (!supabase) return { user: null, reason: `${authApiReason} | missing_service_role_configuration` };
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
-    return { user: null, reason: error?.message || "invalid_jwt" };
+    return {
+      user: null,
+      reason: `${authApiReason} | service_auth_getUser:${error?.message || "invalid_jwt"}`,
+    };
   }
   return { user: data.user, reason: null };
 };
@@ -396,7 +483,7 @@ Deno.serve(async (request) => {
   const { data: studentsRows, error: studentsError } = await supabase
     .from("students")
     .select(
-      "id, organization_id, classid, name, birthdate, age, phone, login_email, guardian_name, guardian_phone, guardian_relation, external_id, rg_normalized, guardian_cpf_hmac, createdat"
+      "id, organization_id, classid, name, ra, birthdate, age, phone, login_email, guardian_name, guardian_phone, guardian_relation, external_id, rg_normalized, guardian_cpf_hmac, createdat"
     )
     .eq("organization_id", organizationId);
   if (studentsError) {
@@ -446,7 +533,7 @@ Deno.serve(async (request) => {
             .from("students")
             .insert(insertPayload)
             .select(
-              "id, organization_id, classid, name, birthdate, age, phone, login_email, guardian_name, guardian_phone, guardian_relation, external_id, rg_normalized, guardian_cpf_hmac, createdat"
+              "id, organization_id, classid, name, ra, birthdate, age, phone, login_email, guardian_name, guardian_phone, guardian_relation, external_id, rg_normalized, guardian_cpf_hmac, createdat"
             )
             .single();
           if (createError || !created) {
@@ -463,7 +550,7 @@ Deno.serve(async (request) => {
             .eq("id", match.student.id)
             .eq("organization_id", organizationId)
             .select(
-              "id, organization_id, classid, name, birthdate, age, phone, login_email, guardian_name, guardian_phone, guardian_relation, external_id, rg_normalized, guardian_cpf_hmac, createdat"
+              "id, organization_id, classid, name, ra, birthdate, age, phone, login_email, guardian_name, guardian_phone, guardian_relation, external_id, rg_normalized, guardian_cpf_hmac, createdat"
             )
             .single();
           if (updateError || !updated) {

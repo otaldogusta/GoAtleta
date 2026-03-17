@@ -3,7 +3,7 @@ import { validateStringField } from "../_shared/input-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -15,23 +15,25 @@ const jsonHeaders = {
 const createError = (status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
 
-const createAnonClient = () => {
-  const url = Deno.env.get("SUPABASE_URL") ?? "";
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!url || !anonKey) return null;
-  return createClient(url, anonKey, { auth: { persistSession: false } });
-};
-
-const requireUser = async (req: Request) => {
+const requireUser = (req: Request): { id: string; email?: string } | null => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.slice("Bearer ".length).trim();
   if (!token) return null;
-  const supabase = createAnonClient();
-  if (!supabase) return null;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(
+      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
+    ) as Record<string, unknown>;
+    const sub = payload["sub"];
+    const exp = payload["exp"];
+    if (typeof sub !== "string" || !sub) return null;
+    if (typeof exp === "number" && exp < Date.now() / 1000) return null;
+    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined };
+  } catch {
+    return null;
+  }
 };
 
 Deno.serve(async (req) => {
@@ -42,7 +44,7 @@ Deno.serve(async (req) => {
     return createError(405, "INVALID_REQUEST", "Method not allowed");
   }
 
-  const user = await requireUser(req);
+  const user = requireUser(req);
   if (!user) {
     return createError(401, "UNAUTHORIZED", "Unauthorized");
   }

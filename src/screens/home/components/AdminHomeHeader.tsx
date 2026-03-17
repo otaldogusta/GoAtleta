@@ -1,21 +1,21 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 
 import {
-  type ClassResponsible,
-  listClassHeadsByClassIds,
+    type ClassResponsible,
+    listClassHeadsByClassIds,
 } from "../../../api/class-responsibles";
 import { sendPushToUser } from "../../../api/push";
 import {
-  type AdminPendingAttendance,
-  type AdminPendingSessionLogs,
-  type AdminRecentActivity,
-  listAdminPendingAttendance,
-  listAdminPendingSessionLogs,
-  listAdminRecentActivity,
+    type AdminPendingAttendance,
+    type AdminPendingSessionLogs,
+    type AdminRecentActivity,
+    listAdminPendingAttendance,
+    listAdminPendingSessionLogs,
+    listAdminRecentActivity,
 } from "../../../api/reports";
 import { markRender, measureAsync } from "../../../observability/perf";
 import { useOrganization } from "../../../providers/OrganizationProvider";
@@ -271,11 +271,11 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
 
   const managerActions = useMemo<ManagerAction[]>(
     () => [
-      { id: "reports", label: "Relatórios", route: "/reports", icon: "bar-chart-outline" },
-      { id: "coordination", label: "Coordenação", route: "/coordination", icon: "people-outline" },
-      { id: "events", label: "Eventos", route: "/events", icon: "calendar-outline" },
-      { id: "nfc", label: "NFC", route: "/nfc-attendance", icon: "radio-outline" },
-      { id: "members", label: "Membros", route: "/org-members", icon: "person-add-outline" },
+      { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "bar-chart-outline" },
+      { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "people-outline" },
+      { id: "events", label: "Eventos", route: "/coord/events", icon: "calendar-outline" },
+      { id: "nfc", label: "NFC", route: "/prof/nfc-attendance", icon: "radio-outline" },
+      { id: "members", label: "Membros", route: "/coord/org-members", icon: "person-add-outline" },
     ],
     []
   );
@@ -522,7 +522,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
       >
         <View style={styles.compactHeaderRow}>
           <Text style={[styles.compactTitle, { color: colors.text }]}>Coordenação</Text>
-          <Pressable onPress={() => navigateTo("/coordination")} style={styles.compactOpenLink}>
+          <Pressable onPress={() => navigateTo("/coord/management")} style={styles.compactOpenLink}>
             <Text style={[styles.compactOpenLinkText, { color: colors.muted }]}>Abrir</Text>
           </Pressable>
         </View>
@@ -631,7 +631,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
           </Pressable>
 
           {!notifyPreview.loading && !notifyPreview.head ? (
-            <Pressable onPress={() => navigateTo("/coordination")} style={styles.secondaryActionLink}>
+            <Pressable onPress={() => navigateTo("/coord/management")} style={styles.secondaryActionLink}>
               <Text style={[styles.secondaryActionText, { color: colors.muted }]}>
                 Definir responsável na coordenação
               </Text>
@@ -652,7 +652,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
             {mostCriticalSession.className} está há {mostCriticalSession.daysWithoutReport} dia(s) sem
             relatório.
           </Text>
-          <Pressable onPress={() => navigateTo("/reports")} style={styles.secondaryActionLink}>
+          <Pressable onPress={() => navigateTo("/coord/reports")} style={styles.secondaryActionLink}>
             <Text style={[styles.secondaryActionText, { color: colors.muted }]}>
               Abrir relatórios
             </Text>

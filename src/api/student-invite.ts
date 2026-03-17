@@ -30,7 +30,20 @@ export type StudentInvitePendingItem = {
 const baseUrl = SUPABASE_URL.replace(/\/$/, "");
 
 const requestWithAuth = async (path: string, body: Record<string, unknown>) => {
-  const token = await getValidAccessToken();
+  const waitForAccessToken = async (): Promise<string> => {
+    let token = await getValidAccessToken();
+    if (token) return token;
+
+    // Handles startup/login races where session persistence completes moments later.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      token = await getValidAccessToken();
+      if (token) return token;
+    }
+    return "";
+  };
+
+  const token = await waitForAccessToken();
   if (!token) {
     throw new Error("Missing auth token");
   }

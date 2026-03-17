@@ -83,6 +83,7 @@ if (typeof xlsxWithCodepage.set_cptable === "function") {
 const HEADER_ALIASES: Record<string, string[]> = {
   externalId: ["externalid", "external_id", "id externo", "id_externo", "id legado"],
   name: ["nome", "name", "aluno", "atleta", "nome aluno"],
+  ra: ["ra", "r a", "registro academico", "matricula", "matricula aluno"],
   birthDate: [
     "nascimento",
     "data nasc",
@@ -276,15 +277,16 @@ const mapRawRowsToImport = (rawRows: string[][]): StudentImportRow[] => {
         });
       } else {
         base.name = String(cells[0] ?? "").trim();
-        base.birthDate = normalizeDate(String(cells[1] ?? "").trim());
-        base.rg = String(cells[2] ?? "").trim();
-        base.className = String(cells[3] ?? "").trim();
-        base.unit = String(cells[4] ?? "").trim();
-        base.guardianName = String(cells[5] ?? "").trim();
-        base.guardianPhone = String(cells[6] ?? "").trim();
-        base.guardianCpf = String(cells[7] ?? "").trim();
-        base.phone = String(cells[8] ?? "").trim();
-        base.loginEmail = String(cells[9] ?? "").trim();
+        base.ra = String(cells[1] ?? "").trim();
+        base.birthDate = normalizeDate(String(cells[2] ?? "").trim());
+        base.rg = String(cells[3] ?? "").trim();
+        base.className = String(cells[4] ?? "").trim();
+        base.unit = String(cells[5] ?? "").trim();
+        base.guardianName = String(cells[6] ?? "").trim();
+        base.guardianPhone = String(cells[7] ?? "").trim();
+        base.guardianCpf = String(cells[8] ?? "").trim();
+        base.phone = String(cells[9] ?? "").trim();
+        base.loginEmail = String(cells[10] ?? "").trim();
       }
       if (!base.name) return null;
       return base;

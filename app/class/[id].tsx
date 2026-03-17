@@ -1305,7 +1305,7 @@ export default function ClassDetails() {
             <Pressable
               onPress={() =>
                 router.push({
-                  pathname: "/periodization",
+                  pathname: "/prof/periodization",
                   params: { classId: cls?.id ?? "", unit: cls?.unit ?? "" },
                 })
               }

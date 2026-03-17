@@ -51,6 +51,8 @@ import { notifyTrainingSaved } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { TrainingFabMenu } from "../../src/screens/training/components/TrainingFabMenu";
+import { useTemplateEditorForm } from "../../src/screens/training/hooks/useTemplateEditorForm";
+import { useTrainingPlanForm } from "../../src/screens/training/hooks/useTrainingPlanForm";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -184,6 +186,8 @@ export default function TrainingList() {
     typeof params.targetDate === "string" ? params.targetDate : "";
   const openForm =
     typeof params.openForm === "string" ? params.openForm === "1" : false;
+  const aiDraftRaw =
+    typeof params.aiDraft === "string" ? params.aiDraft : "";
   const applyPlanId =
     typeof params.applyPlanId === "string" ? params.applyPlanId : "";
   const viewPlanId =
@@ -192,21 +196,39 @@ export default function TrainingList() {
     targetDateRaw && !Number.isNaN(new Date(targetDateRaw).getTime())
       ? targetDateRaw
       : "";
-  const [title, setTitle] = useState("");
-  const [tagsText, setTagsText] = useState("");
-  const [warmup, setWarmup] = useState("");
-  const [main, setMain] = useState("");
-  const [cooldown, setCooldown] = useState("");
-  const [warmupTime, setWarmupTime] = useState("");
-  const [mainTime, setMainTime] = useState("");
-  const [cooldownTime, setCooldownTime] = useState("");
+  const {
+    planForm,
+    setTitle,
+    setTagsText,
+    setWarmup,
+    setMain,
+    setCooldown,
+    setWarmupTime,
+    setMainTime,
+    setCooldownTime,
+    setEditingId,
+    setEditingCreatedAt,
+    setFormUnit,
+    resetPlanForm,
+  } = useTrainingPlanForm();
+  const {
+    title,
+    tagsText,
+    warmup,
+    main,
+    cooldown,
+    warmupTime,
+    mainTime,
+    cooldownTime,
+    editingId,
+    editingCreatedAt,
+    formUnit,
+  } = planForm;
   const [items, setItems] = useState<TrainingPlan[]>([]);
   const [templateItems, setTemplateItems] = useState<TrainingTemplate[]>([]);
   const [hiddenTemplates, setHiddenTemplates] = useState<HiddenTemplate[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classId, setClassId] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
     "training_show_templates_v1",
     false
@@ -215,7 +237,6 @@ export default function TrainingList() {
     animatedStyle: templatesAnimStyle,
     isVisible: showTemplatesContent,
   } = useCollapsibleAnimation(showTemplates);
-  const [formUnit, setFormUnit] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
   const [showSavedPlans, setShowSavedPlans] = usePersistedState<boolean>(
     "training_show_saved_plans_v1",
@@ -238,25 +259,50 @@ export default function TrainingList() {
   const [planningTab, setPlanningTab] = useState<
     "formulario" | "salvos" | "modelos"
   >("formulario");
-  const [templateEditorSource, setTemplateEditorSource] = useState<"built" | "custom">(
-    "custom"
-  );
-  const [templateEditorTemplateId, setTemplateEditorTemplateId] = useState<string | null>(null);
-  const [renameTemplateId, setRenameTemplateId] = useState<string | null>(null);
-  const [renameTemplateText, setRenameTemplateText] = useState("");
-  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
-  const [showTemplateCloseConfirm, setShowTemplateCloseConfirm] = useState(false);
-  const [templateEditorId, setTemplateEditorId] = useState<string | null>(null);
-  const [templateEditorCreatedAt, setTemplateEditorCreatedAt] = useState<string | null>(null);
-  const [templateTitle, setTemplateTitle] = useState("");
-  const [templateAge, setTemplateAge] = useState("");
-  const [templateTags, setTemplateTags] = useState("");
-  const [templateWarmup, setTemplateWarmup] = useState("");
-  const [templateMain, setTemplateMain] = useState("");
-  const [templateCooldown, setTemplateCooldown] = useState("");
-  const [templateWarmupTime, setTemplateWarmupTime] = useState("");
-  const [templateMainTime, setTemplateMainTime] = useState("");
-  const [templateCooldownTime, setTemplateCooldownTime] = useState("");
+  const {
+    templateForm,
+    setTemplateTitle,
+    setTemplateAge,
+    setTemplateTags,
+    setTemplateWarmup,
+    setTemplateMain,
+    setTemplateCooldown,
+    setTemplateWarmupTime,
+    setTemplateMainTime,
+    setTemplateCooldownTime,
+    setTemplateEditorId,
+    setTemplateEditorCreatedAt,
+    setTemplateEditorSource,
+    setTemplateEditorTemplateId,
+    setTemplateEditorComposerHeight,
+    setTemplateEditorKeyboardHeight,
+    setRenameTemplateId,
+    setRenameTemplateText,
+    setShowTemplateEditor,
+    setShowTemplateCloseConfirm,
+    resetTemplateForm,
+  } = useTemplateEditorForm();
+  const {
+    templateTitle,
+    templateAge,
+    templateTags,
+    templateWarmup,
+    templateMain,
+    templateCooldown,
+    templateWarmupTime,
+    templateMainTime,
+    templateCooldownTime,
+    templateEditorId,
+    templateEditorCreatedAt,
+    templateEditorSource,
+    templateEditorTemplateId,
+    templateEditorComposerHeight,
+    templateEditorKeyboardHeight,
+    renameTemplateId,
+    renameTemplateText,
+    showTemplateEditor,
+    showTemplateCloseConfirm,
+  } = templateForm;
   markRender("screen.training.render.root");
   const [lastCreatedPlanId, setLastCreatedPlanId] = useState<string | null>(null);
   const [lastCreatedClassId, setLastCreatedClassId] = useState("");
@@ -275,10 +321,7 @@ export default function TrainingList() {
     classId: string;
     date: string;
   } | null>("training_pending_plan_create_v1", null);
-  const [templateEditorComposerHeight, setTemplateEditorComposerHeight] =
-    useState(0);
-  const [templateEditorKeyboardHeight, setTemplateEditorKeyboardHeight] =
-    useState(0);
+  const [handledAiDraftRaw, setHandledAiDraftRaw] = useState<string | null>(null);
   const [applyUnit, setApplyUnit] = useState("");
   const [applyClassId, setApplyClassId] = useState("");
   const [showApplyModal, setShowApplyModal] = useState(false);
@@ -322,6 +365,29 @@ export default function TrainingList() {
     width: number;
     height: number;
   } | null>(null);
+
+  const parsedAiDraft = useMemo(() => {
+    if (!aiDraftRaw.trim()) return null;
+    try {
+      const decoded = decodeURIComponent(aiDraftRaw);
+      const payload = JSON.parse(decoded) as Record<string, unknown>;
+      const toList = (value: unknown) =>
+        Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+      const toText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+      return {
+        title: toText(payload.title),
+        tags: toList(payload.tags),
+        warmup: toList(payload.warmup),
+        main: toList(payload.main),
+        cooldown: toList(payload.cooldown),
+        warmupTime: toText(payload.warmupTime),
+        mainTime: toText(payload.mainTime),
+        cooldownTime: toText(payload.cooldownTime),
+      };
+    } catch {
+      return null;
+    }
+  }, [aiDraftRaw]);
   const applyContainerRef = useRef<View>(null);
   const applyUnitTriggerRef = useRef<View>(null);
   const applyClassTriggerRef = useRef<View>(null);
@@ -1018,11 +1084,6 @@ export default function TrainingList() {
               style={{
                 flexDirection: "row",
                 gap: 6,
-                padding: 6,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
               }}
             >
               <Pressable
@@ -1859,26 +1920,49 @@ export default function TrainingList() {
 
   useEffect(() => {
     if (!openForm) return;
+    const shouldApplyAiDraft = parsedAiDraft && aiDraftRaw !== handledAiDraftRaw;
     setEditingId(null);
     setEditingCreatedAt(null);
     setEditingTemplateId(null);
     setEditingTemplateCreatedAt(null);
     setFormMode("plan");
-    setTitle("");
-    setTagsText("");
-    setWarmup("");
-    setMain("");
-    setCooldown("");
-    setWarmupTime("");
-    setMainTime("");
-    setCooldownTime("");
+    if (shouldApplyAiDraft && parsedAiDraft) {
+      setPlanningTab("formulario");
+      setTitle(parsedAiDraft.title || "Planejamento com IA");
+      setTagsText(parsedAiDraft.tags.join(", "));
+      setWarmup(parsedAiDraft.warmup.join("\n"));
+      setMain(parsedAiDraft.main.join("\n"));
+      setCooldown(parsedAiDraft.cooldown.join("\n"));
+      setWarmupTime(parsedAiDraft.warmupTime);
+      setMainTime(parsedAiDraft.mainTime);
+      setCooldownTime(parsedAiDraft.cooldownTime);
+      setHandledAiDraftRaw(aiDraftRaw);
+      showSaveToast("Planejamento da IA aplicado ao formulário.");
+    } else {
+      setTitle("");
+      setTagsText("");
+      setWarmup("");
+      setMain("");
+      setCooldown("");
+      setWarmupTime("");
+      setMainTime("");
+      setCooldownTime("");
+    }
     setScrollRequested(true);
     if (targetClassId) {
       setClassId(targetClassId);
       const targetClass = classes.find((item) => item.id === targetClassId);
       setFormUnit(unitLabel(targetClass?.unit ?? ""));
     }
-  }, [openForm, targetClassId, classes]);
+  }, [
+    openForm,
+    parsedAiDraft,
+    aiDraftRaw,
+    handledAiDraftRaw,
+    targetClassId,
+    classes,
+    showSaveToast,
+  ]);
 
   useEffect(() => {
     if (!pendingPlanCreate) return;

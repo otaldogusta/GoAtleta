@@ -14,7 +14,7 @@ import {
     Vibration,
     View
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
@@ -25,6 +25,7 @@ import { normalizeUnitKey } from "../../src/core/unit-key";
 import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
+import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -42,15 +43,16 @@ import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
-import { ClassesListSection } from "./components/ClassesListSection";
 
 export default function ClassesScreen() {
   markRender("screen.classes.render.root");
 
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { edit } = useLocalSearchParams<{ edit?: string | string[] }>();
   const editParam = Array.isArray(edit) ? edit[0] : edit;
   const { colors } = useAppTheme();
+  const bottomScrollPadding = insets.bottom + 112;
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -1507,7 +1509,14 @@ export default function ClassesScreen() {
   if (loading && !classes.length) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
+        <ScrollView
+          contentContainerStyle={{
+            gap: 16,
+            paddingBottom: bottomScrollPadding,
+            paddingHorizontal: 16,
+            paddingTop: 16,
+          }}
+        >
           <View style={{ gap: 10 }}>
             <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
             <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
@@ -1644,14 +1653,12 @@ export default function ClassesScreen() {
           style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}
           contentContainerStyle={{
             gap: 16,
-            paddingBottom: 24,
+            paddingBottom: bottomScrollPadding,
             paddingHorizontal: 16,
             paddingTop: 12,
           }}
           keyboardShouldPersistTaps="handled"
-          onScroll={syncPickerLayouts}
           onScrollBeginDrag={closeAllPickers}
-          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -2301,9 +2308,7 @@ export default function ClassesScreen() {
           contentContainerStyle={{ gap: 4, paddingHorizontal: 12, paddingBottom: 16 }}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
-          onScroll={syncEditPickerLayouts}
           onScrollBeginDrag={closeAllPickers}
-          scrollEventThrottle={16}
         >
         <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16 }}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>

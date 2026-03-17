@@ -1,15 +1,16 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import {
     memo,
     useCallback,
     useEffect,
     useMemo,
     useRef,
-    useState
+    useState,
+    type ReactElement
 } from "react";
 import {
     Alert,
@@ -24,14 +25,9 @@ import {
     useWindowDimensions
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { SUPABASE_URL } from "../../src/api/config";
-import { getInviteErrorCode } from "../../src/api/invite-errors";
 import {
     StudentInvitePendingItem,
-    createStudentInvite,
     listStudentPendingInvites,
-    revokeStudentAccess,
-    revokeStudentInvite,
 } from "../../src/api/student-invite";
 import {
     removeStudentPhotoObject,
@@ -48,7 +44,6 @@ import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     convertStudentPreRegistration,
     deleteStudent,
-    deleteStudentPreRegistration,
     getClasses,
     getStudentPreRegistrations,
     getStudents,
@@ -56,17 +51,31 @@ import {
     saveStudent,
     saveStudentPreRegistration,
     updateStudent,
-    updateStudentPreRegistration,
+    updateStudentPreRegistration
 } from "../../src/db/seed";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { BirthdaysTab } from "../../src/screens/students/BirthdaysTab";
+import { StudentRegistrationTab } from "../../src/screens/students/StudentRegistrationTab";
 import { StudentDocumentsFields } from "../../src/screens/students/components/StudentDocumentsFields";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
+import { StudentsListTab } from "../../src/screens/students/StudentsListTab";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
+import { useBuildStudentMessage } from "../../src/screens/students/hooks/useBuildStudentMessage";
+import { useOnEditStudent } from "../../src/screens/students/hooks/useOnEditStudent";
+import { usePreRegistrationForm } from "../../src/screens/students/hooks/usePreRegistrationForm";
+import { useSavePreRegistration } from "../../src/screens/students/hooks/useSavePreRegistration";
+import { useStudentForm } from "../../src/screens/students/hooks/useStudentForm";
+import { useStudentInvites } from "../../src/screens/students/hooks/useStudentInvites";
+import { useWhatsAppModal } from "../../src/screens/students/hooks/useWhatsAppModal";
+import { StudentEditModal } from "../../src/screens/students/modals/StudentEditModal";
+import { StudentsFormsSyncModal } from "../../src/screens/students/modals/StudentsFormsSyncModal";
 import { StudentsImportModal } from "../../src/screens/students/modals/StudentsImportModal";
+import { WhatsAppModal } from "../../src/screens/students/modals/WhatsAppModal";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { getClassPalette } from "../../src/ui/class-colors";
@@ -79,8 +88,6 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
-import { ScreenHeader } from "../../src/ui/ScreenHeader";
-import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
@@ -156,15 +163,19 @@ const formatClassScheduleLabel = (cls: ClassGroup | null) => {
 type BirthdayEntry = { student: Student; date: Date; unitName: string };
 type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
+type StudentsTab = "cadastro" | "aniversários" | "alunos";
 
 export default function StudentsScreen() {
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const isCompactForm = Platform.OS !== "web" && windowWidth <= 760;
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signOut } = useAuth();
+  const { session, signOut } = useAuth();
   const effectiveProfile = useEffectiveProfile();
   const canRevealCpf = effectiveProfile === "admin";
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
+  const canManageStudentInvites = (activeOrganization?.role_level ?? 0) >= 50;
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -180,7 +191,7 @@ export default function StudentsScreen() {
     justifyContent: "space-between" as const,
     gap: 8,
   };
-  const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
+  const editModalCardStyle = useModalCardStyle({ maxHeight: Platform.OS === "web" ? "92%" : "96%", maxWidth: isCompactForm ? 700 : 960, padding: 16, radius: 16 });
   const editModalStandardHeight = useMemo(() => {
     if (Platform.OS === "web") return undefined;
     const target = Math.round(windowHeight * 0.78);
@@ -197,21 +208,17 @@ export default function StudentsScreen() {
   const [preRegistrations, setPreRegistrations] = useState<StudentPreRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [classId, setClassId] = useState("");
   const [showForm, setShowForm] = usePersistedState<boolean>(
     "students_show_form_v1",
     false
   );
-  const [studentsTab, setStudentsTab] = usePersistedState<
-    "cadastro" | "aniversários" | "alunos" | "experimentais"
-  >("students_tab_v1", "alunos");
+  const [studentsTab, setStudentsTab] = usePersistedState<StudentsTab>("students_tab_v1", "alunos");
   const [showStudentsFabMenu, setShowStudentsFabMenu] = useState(false);
+  const [showStudentsFormsSyncModal, setShowStudentsFormsSyncModal] = useState(false);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
   const [studentsExportBusy, setStudentsExportBusy] = useState(false);
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
-  const [pendingStudentsTab, setPendingStudentsTab] = useState<
-    "cadastro" | "aniversários" | "alunos" | "experimentais" | null
-  >(null);
+  const [pendingStudentsTab, setPendingStudentsTab] = useState<StudentsTab | null>(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
   const [birthdaySearch, setBirthdaySearch] = useState("");
   const [birthdayMonthFilter, setBirthdayMonthFilter] = useState<"Todas" | number>(
@@ -219,129 +226,99 @@ export default function StudentsScreen() {
   );
   const [showAllBirthdays, setShowAllBirthdays] = useState(true);
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
-  const [unit, setUnit] = useState("");
-  const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("");
-  const [customAgeBand, setCustomAgeBand] = useState("");
-  const [name, setName] = useState("");
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [photoMimeType, setPhotoMimeType] = useState<string | null>(null);
-  const [birthDate, setBirthDate] = useState("");
-  const [ageNumber, setAgeNumber] = useState<number | null>(null);
-  const [phone, setPhone] = useState("");
-  const [cpfDisplay, setCpfDisplay] = useState("");
-  const [rgDocument, setRgDocument] = useState("");
-  const [ra, setRa] = useState("");
-  const [loginEmail, setLoginEmail] = useState("");
-  const [guardianName, setGuardianName] = useState("");
-  const [guardianPhone, setGuardianPhone] = useState("");
-  const [guardianRelation, setGuardianRelation] = useState("");
-  const [positionPrimary, setPositionPrimary] = useState<Student["positionPrimary"]>("indefinido");
-  const [positionSecondary, setPositionSecondary] = useState<Student["positionSecondary"]>(
-    "indefinido"
-  );
-  const [athleteObjective, setAthleteObjective] = useState<Student["athleteObjective"]>("base");
-  const [learningStyle, setLearningStyle] = useState<Student["learningStyle"]>("misto");
-  const [healthIssue, setHealthIssue] = useState(false);
-  const [healthIssueNotes, setHealthIssueNotes] = useState("");
-  const [medicationUse, setMedicationUse] = useState(false);
-  const [medicationNotes, setMedicationNotes] = useState("");
-  const [healthObservations, setHealthObservations] = useState("");
-  const [showHealthSection, setShowHealthSection] = useState(false);
-  const [showEditHealthSection, setShowEditHealthSection] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
+  const [studentsSearch, setStudentsSearch] = useState("");
+  // --- Formulário de aluno (42 campos → useReducer) ---
+  const {
+    form,
+    setUnit, setAgeBand, setCustomAgeBand, setClassId,
+    setName, setPhotoUrl, setPhotoMimeType,
+    setBirthDate, setAgeNumber, setPhone,
+    setCpfDisplay, setCpfMaskedOriginal, setCpfRevealedValue,
+    setIsCpfVisible, setCpfRevealUnavailable, setRevealCpfBusy,
+    setRgDocument, setRa, setLoginEmail,
+    setGuardianName, setGuardianPhone, setGuardianRelation,
+    setPositionPrimary, setPositionSecondary, setAthleteObjective, setLearningStyle,
+    setHealthIssue, setHealthIssueNotes, setMedicationUse,
+    setMedicationNotes, setHealthObservations, setIsExperimental,
+    setEditingId, setEditingCreatedAt,
+    setOpenCreateSection, setOpenEditSection,
+    setStudentFormError, setStudentDocumentsError, setEditSnapshot,
+    resetForm, resetCreateForm,
+  } = useStudentForm();
+
+  const {
+    unit, ageBand, customAgeBand, classId,
+    name, photoUrl, photoMimeType,
+    birthDate, ageNumber, phone,
+    cpfDisplay, cpfMaskedOriginal, cpfRevealedValue,
+    isCpfVisible, cpfRevealUnavailable, revealCpfBusy,
+    rgDocument, ra, loginEmail,
+    guardianName, guardianPhone, guardianRelation,
+    positionPrimary, positionSecondary, athleteObjective, learningStyle,
+    healthIssue, healthIssueNotes, medicationUse,
+    medicationNotes, healthObservations, isExperimental,
+    editingId, editingCreatedAt,
+    openCreateSection, openEditSection,
+    formError: studentFormError, documentsError: studentDocumentsError, editSnapshot,
+  } = form;
+
+  // --- Pré-cadastro (useReducer) ---
+  const {
+    preForm,
+    setEditingPreId, setPreChildName, setPreGuardianName, setPreGuardianPhone,
+    setPreClassInterest, setPreUnitInterest, setPreTrialDate,
+    setPreNotes, setPreStatus, setPreRegistrationError, setPreRegistrationSearch,
+    resetPreRegistrationForm,
+  } = usePreRegistrationForm();
+
+  const {
+    editingPreId, preChildName, preGuardianName, preGuardianPhone,
+    preClassInterest, preUnitInterest, preTrialDate,
+    preNotes, preStatus, preRegistrationError, preRegistrationSearch,
+  } = preForm;
+
+  // --- Modal WhatsApp (useReducer) ---
+  const {
+    waModal,
+    setShowWhatsAppModal, setWhatsappNotice, setShowRevokeConfirm,
+    setSelectedStudentId, setSelectedContactType,
+    setSelectedTemplateId, setSelectedTemplateLabel,
+    setCustomFields, setCustomStudentMessage,
+    setShowTemplateList, setWhatsappContainerWindow, setTemplateTriggerLayout,
+  } = useWhatsAppModal();
+
+  const {
+    showWhatsAppModal, whatsappNotice, showRevokeConfirm,
+    selectedStudentId, selectedContactType,
+    selectedTemplateId, selectedTemplateLabel,
+    customFields, customStudentMessage,
+    showTemplateList, whatsappContainerWindow, templateTriggerLayout,
+  } = waModal;
+
+  // --- Estados de UI que permanecem locais (não pertencem ao formulário) ---
   const [showCalendar, setShowCalendar] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
   const [showGuardianRelationPicker, setShowGuardianRelationPicker] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
   const [showEditUnitPicker, setShowEditUnitPicker] = useState(false);
   const [showEditClassPicker, setShowEditClassPicker] = useState(false);
   const [showEditGuardianRelationPicker, setShowEditGuardianRelationPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<{ uri: string | null; name: string } | null>(null);
-  const [studentFormError, setStudentFormError] = useState("");
-  const [studentDocumentsError, setStudentDocumentsError] = useState<{
-    ra?: string;
-    cpf?: string;
-    rg?: string;
-  }>({});
   markRender("screen.students.render.root");
-  const [revealCpfBusy, setRevealCpfBusy] = useState(false);
-  const [cpfMaskedOriginal, setCpfMaskedOriginal] = useState("");
-  const [cpfRevealedValue, setCpfRevealedValue] = useState<string | null>(null);
-  const [isCpfVisible, setIsCpfVisible] = useState(false);
-  const [cpfRevealUnavailable, setCpfRevealUnavailable] = useState(false);
-  const [preRegistrationError, setPreRegistrationError] = useState("");
-  const [preRegistrationSearch, setPreRegistrationSearch] = useState("");
-  const [preChildName, setPreChildName] = useState("");
-  const [preGuardianName, setPreGuardianName] = useState("");
-  const [preGuardianPhone, setPreGuardianPhone] = useState("");
-  const [preClassInterest, setPreClassInterest] = useState("");
-  const [preUnitInterest, setPreUnitInterest] = useState("");
-  const [preTrialDate, setPreTrialDate] = useState("");
-  const [preNotes, setPreNotes] = useState("");
-  const [preStatus, setPreStatus] = useState<StudentPreRegistration["status"]>("lead");
-  const [editingPreId, setEditingPreId] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState("");
   const [studentInviteBusy, setStudentInviteBusy] = useState(false);
   const [pendingStudentInvites, setPendingStudentInvites] = useState<StudentInvitePendingItem[]>([]);
   const [pendingStudentInviteBusyId, setPendingStudentInviteBusyId] = useState<string | null>(null);
-  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-  const [whatsappNotice, setWhatsappNotice] = useState("");
-  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [selectedContactType, setSelectedContactType] = useState<
-    "guardian" | "student"
-  >("guardian");
-  const [selectedTemplateId, setSelectedTemplateId] =
-    useState<WhatsAppTemplateId | null>(null);
-  const [selectedTemplateLabel, setSelectedTemplateLabel] = useState<string | null>(null);
-  const [customFields, setCustomFields] = useState<Record<string, string>>({});
-  const [customStudentMessage, setCustomStudentMessage] = useState("");
-  const [showTemplateList, setShowTemplateList] = useState(false);
-  const [whatsappContainerWindow, setWhatsappContainerWindow] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
-  const [templateTriggerLayout, setTemplateTriggerLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const saveNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const whatsappNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveNoticeAnim = useRef(new Animated.Value(0)).current;
   const studentsFabAnim = useRef(new Animated.Value(0)).current;
-  const [editSnapshot, setEditSnapshot] = useState<{
-    unit: string;
-    ageBand: string;
-    customAgeBand: string;
-    classId: string;
-    name: string;
-    photoUrl: string | null;
-    birthDate: string;
-    phone: string;
-    cpfDisplay: string;
-    rgDocument: string;
-    ra: string;
-    loginEmail: string;
-    guardianName: string;
-    guardianPhone: string;
-    guardianRelation: string;
-    positionPrimary: Student["positionPrimary"];
-    positionSecondary: Student["positionSecondary"];
-    athleteObjective: Student["athleteObjective"];
-    learningStyle: Student["learningStyle"];
-    healthIssue: boolean;
-    healthIssueNotes: string;
-    medicationUse: boolean;
-    medicationNotes: string;
-    healthObservations: string;
-  } | null>(null);
   const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
     "students_birthday_notice_v1",
     ""
@@ -373,6 +350,12 @@ export default function StudentsScreen() {
     width: number;
     height: number;
   } | null>(null);
+  const [typeTriggerLayout, setTypeTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [editContainerWindow, setEditContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const [editUnitTriggerLayout, setEditUnitTriggerLayout] = useState<{
     x: number;
@@ -396,6 +379,7 @@ export default function StudentsScreen() {
   const unitTriggerRef = useRef<View>(null);
   const classTriggerRef = useRef<View>(null);
   const guardianRelationTriggerRef = useRef<View>(null);
+  const typeTriggerRef = useRef<View>(null);
   const editModalRef = useRef<View>(null);
   const editUnitTriggerRef = useRef<View>(null);
   const editClassTriggerRef = useRef<View>(null);
@@ -410,6 +394,8 @@ export default function StudentsScreen() {
     animatedStyle: guardianRelationPickerAnimStyle,
     isVisible: showGuardianRelationPickerContent,
   } = useCollapsibleAnimation(showGuardianRelationPicker);
+  const { animatedStyle: typePickerAnimStyle, isVisible: showTypePickerContent } =
+    useCollapsibleAnimation(showTypePicker);
   const { animatedStyle: editUnitPickerAnimStyle, isVisible: showEditUnitPickerContent } =
     useCollapsibleAnimation(showEditUnitPicker);
   const { animatedStyle: editClassPickerAnimStyle, isVisible: showEditClassPickerContent } =
@@ -422,26 +408,35 @@ export default function StudentsScreen() {
     useCollapsibleAnimation(showTemplateList, { translateY: -6 });
   const { animatedStyle: allBirthdaysAnimStyle, isVisible: showAllBirthdaysContent } =
     useCollapsibleAnimation(showAllBirthdays, { translateY: -6 });
-  const {
-    animatedStyle: healthSectionAnimStyle,
-    isVisible: showHealthSectionContent,
-  } = useCollapsibleAnimation(showHealthSection, { translateY: -6 });
-  const {
-    animatedStyle: editHealthSectionAnimStyle,
-    isVisible: showEditHealthSectionContent,
-  } = useCollapsibleAnimation(showEditHealthSection, { translateY: -6 });
+  const accordionAnimOptions = useMemo(
+    () =>
+      Platform.OS === "web"
+        ? { durationIn: 1, durationOut: 1, translateY: 0 }
+        : { durationIn: 220, durationOut: 180, translateY: -4 },
+    []
+  );
+  const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", accordionAnimOptions);
+  const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", accordionAnimOptions);
+  const createSportAnim = useCollapsibleAnimation(openCreateSection === "sportProfile", accordionAnimOptions);
+  const createHealthAnim = useCollapsibleAnimation(openCreateSection === "health", accordionAnimOptions);
+  const createGuardianAnim = useCollapsibleAnimation(openCreateSection === "guardian", accordionAnimOptions);
+  const editStudentDataAnim = useCollapsibleAnimation(openEditSection === "studentData", accordionAnimOptions);
+  const editDocumentsAnim = useCollapsibleAnimation(openEditSection === "documents", accordionAnimOptions);
+  const editSportAnim = useCollapsibleAnimation(openEditSection === "sportProfile", accordionAnimOptions);
+  const editHealthAnim = useCollapsibleAnimation(openEditSection === "health", accordionAnimOptions);
+  const editGuardianAnim = useCollapsibleAnimation(openEditSection === "guardian", accordionAnimOptions);
+  const editLinksAnim = useCollapsibleAnimation(openEditSection === "links", accordionAnimOptions);
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [classList, studentList, preRegistrationList, pendingInvitesResult] = await measureAsync(
+        const [classList, studentList, preRegistrationList] = await measureAsync(
           "screen.students.load.initial",
           () =>
             Promise.all([
               getClasses({ organizationId: activeOrganization?.id }),
               getStudents({ organizationId: activeOrganization?.id }),
               getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
-              listStudentPendingInvites().catch(() => ({ invites: [] })),
             ]),
           { hasOrganization: activeOrganization?.id ? 1 : 0 }
         );
@@ -449,7 +444,26 @@ export default function StudentsScreen() {
         setClasses(classList);
         setStudents(studentList);
         setPreRegistrations(preRegistrationList);
-        setPendingStudentInvites(pendingInvitesResult.invites ?? []);
+        if (!canManageStudentInvites || !session?.access_token) {
+          setPendingStudentInvites([]);
+          return;
+        }
+        void listStudentPendingInvites()
+          .then((pendingInvitesResult) => {
+            if (!alive) return;
+            setPendingStudentInvites(pendingInvitesResult.invites ?? []);
+          })
+          .catch(() => {
+            if (!alive) return;
+            setPendingStudentInvites([]);
+          });
+      } catch (error) {
+        if (!alive) return;
+        setClasses([]);
+        setStudents([]);
+        setPreRegistrations([]);
+        setPendingStudentInvites([]);
+        console.warn("StudentsScreen initial load failed", error);
       } finally {
         if (alive) setLoading(false);
       }
@@ -457,17 +471,25 @@ export default function StudentsScreen() {
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id]);
+  }, [activeOrganization?.id, canManageStudentInvites, session?.access_token]);
 
   const reload = async () => {
-    const [studentList, preRegistrationList, pendingInvitesResult] = await Promise.all([
-      getStudents({ organizationId: activeOrganization?.id }),
-      getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
-      listStudentPendingInvites().catch(() => ({ invites: [] })),
-    ]);
-    setStudents(studentList);
-    setPreRegistrations(preRegistrationList);
-    setPendingStudentInvites(pendingInvitesResult.invites ?? []);
+    try {
+      const [studentList, preRegistrationList] = await Promise.all([
+        getStudents({ organizationId: activeOrganization?.id }),
+        getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
+      ]);
+      setStudents(studentList);
+      setPreRegistrations(preRegistrationList);
+      if (!canManageStudentInvites || !session?.access_token) {
+        setPendingStudentInvites([]);
+        return;
+      }
+      const pendingInvitesResult = await listStudentPendingInvites().catch(() => ({ invites: [] }));
+      setPendingStudentInvites(pendingInvitesResult.invites ?? []);
+    } catch (error) {
+      console.warn("StudentsScreen reload failed", error);
+    }
   };
 
   useEffect(() => {
@@ -536,6 +558,7 @@ export default function StudentsScreen() {
     setShowUnitPicker(false);
     setShowClassPicker(false);
     setShowGuardianRelationPicker(false);
+    setShowTypePicker(false);
     setShowTemplateList(false);
   }, []);
   const closeAllEditPickers = useCallback(() => {
@@ -545,10 +568,11 @@ export default function StudentsScreen() {
   }, []);
 
   const toggleFormPicker = useCallback(
-    (target: "unit" | "class" | "guardianRelation") => {
+    (target: "unit" | "class" | "guardianRelation" | "type") => {
       setShowUnitPicker((prev) => (target === "unit" ? !prev : false));
       setShowClassPicker((prev) => (target === "class" ? !prev : false));
       setShowGuardianRelationPicker((prev) => (target === "guardianRelation" ? !prev : false));
+      setShowTypePicker((prev) => (target === "type" ? !prev : false));
     },
     []
   );
@@ -557,6 +581,19 @@ export default function StudentsScreen() {
       setShowEditUnitPicker((prev) => (target === "unit" ? !prev : false));
       setShowEditClassPicker((prev) => (target === "class" ? !prev : false));
       setShowEditGuardianRelationPicker((prev) => (target === "guardianRelation" ? !prev : false));
+    },
+    []
+  );
+
+  const toggleCreateSection = useCallback(
+    (section: "studentData" | "documents" | "sportProfile" | "health" | "guardian") => {
+      setOpenCreateSection((prev) => (prev === section ? null : section));
+    },
+    []
+  );
+  const toggleEditSection = useCallback(
+    (section: "studentData" | "documents" | "sportProfile" | "health" | "guardian" | "links") => {
+      setOpenEditSection((prev) => (prev === section ? null : section));
     },
     []
   );
@@ -579,6 +616,11 @@ export default function StudentsScreen() {
     setShowGuardianRelationPicker(false);
   }, []);
 
+  const handleSelectType = useCallback((value: string) => {
+    setIsExperimental(value === "experimental");
+    setShowTypePicker(false);
+  }, []);
+
   const handleSelectEditUnit = useCallback((value: string) => {
     setUnit(value);
     setShowEditUnitPicker(false);
@@ -598,29 +640,34 @@ export default function StudentsScreen() {
   }, []);
 
   const syncPickerLayouts = useCallback(() => {
-    const hasPickerOpen = showUnitPicker || showClassPicker || showGuardianRelationPicker;
+    const hasPickerOpen = showUnitPicker || showClassPicker || showGuardianRelationPicker || showTypePicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showUnitPicker) {
-        unitTriggerRef.current.measureInWindow((x, y, width, height) => {
+        unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showClassPicker) {
-        classTriggerRef.current.measureInWindow((x, y, width, height) => {
+        classTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setClassTriggerLayout({ x, y, width, height });
         });
       }
       if (showGuardianRelationPicker) {
-        guardianRelationTriggerRef.current.measureInWindow((x, y, width, height) => {
+        guardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setGuardianRelationTriggerLayout({ x, y, width, height });
         });
       }
-      containerRef.current.measureInWindow((x, y) => {
+      if (showTypePicker) {
+        typeTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setTypeTriggerLayout({ x, y, width, height });
+        });
+      }
+      containerRef.current?.measureInWindow((x, y) => {
         setContainerWindow({ x, y });
       });
     });
-  }, [showClassPicker, showGuardianRelationPicker, showUnitPicker]);
+  }, [showClassPicker, showGuardianRelationPicker, showUnitPicker, showTypePicker]);
 
   const syncEditPickerLayouts = useCallback(() => {
     const hasPickerOpen =
@@ -628,21 +675,21 @@ export default function StudentsScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showEditUnitPicker) {
-        editUnitTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditClassPicker) {
-        editClassTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditClassTriggerLayout({ x, y, width, height });
         });
       }
       if (showEditGuardianRelationPicker) {
-        editGuardianRelationTriggerRef.current.measureInWindow((x, y, width, height) => {
+        editGuardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditGuardianRelationTriggerLayout({ x, y, width, height });
         });
       }
-      editModalRef.current.measureInWindow((x, y) => {
+      editModalRef.current?.measureInWindow((x, y) => {
         setEditContainerWindow({ x, y });
       });
     });
@@ -650,10 +697,10 @@ export default function StudentsScreen() {
 
   const syncTemplateLayout = useCallback(() => {
     requestAnimationFrame(() => {
-      templateTriggerRef.current.measureInWindow((x, y, width, height) => {
+      templateTriggerRef.current?.measureInWindow((x, y, width, height) => {
         setTemplateTriggerLayout({ x, y, width, height });
       });
-      whatsappContainerRef.current.measureInWindow((x, y) => {
+      whatsappContainerRef.current?.measureInWindow((x, y) => {
         setWhatsappContainerWindow({ x, y });
       });
     });
@@ -711,6 +758,9 @@ export default function StudentsScreen() {
     () => ["Pai", "Mãe", "Tia", "Avó", "Irmão", "Irmã", "Outro"],
     []
   );
+  const classById = useMemo(() => {
+    return new Map(classes.map((item) => [item.id, item] as const));
+  }, [classes]);
 
   useEffect(() => {
     syncPickerLayouts();
@@ -851,7 +901,7 @@ export default function StudentsScreen() {
     const nowIso = new Date().toISOString();
     const studentId = editingId ? editingId : "s_" + Date.now();
     const resolvedOrganizationId =
-      classes.find((item) => item.id === classId)?.organizationId ??
+      classById.get(classId)?.organizationId ??
       activeOrganization?.id ??
       "";
 
@@ -892,7 +942,7 @@ export default function StudentsScreen() {
         ra: normalizeRaDigits(ra) || null,
         cpfMasked: cpfDisplay.trim() || null,
         rg: rgDocument.trim() || null,
-        loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : undefined,
+        loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : "",
         guardianName: guardianName.trim(),
         guardianPhone: guardianPhone.trim(),
         guardianRelation: guardianRelation.trim(),
@@ -900,14 +950,14 @@ export default function StudentsScreen() {
         positionSecondary,
         athleteObjective,
         learningStyle,
+        isExperimental,
         healthIssue,
         healthIssueNotes: healthIssue ? healthIssueNotes.trim() : "",
         medicationUse,
         medicationNotes: medicationUse ? medicationNotes.trim() : "",
         healthObservations: healthObservations.trim(),
-        birthDate: birthDate || undefined,
+        birthDate: birthDate || "",
         createdAt: editingCreatedAt ? editingCreatedAt : nowIso,
-        updatedAt: nowIso,
       };
 
       if (editingId) {
@@ -920,9 +970,21 @@ export default function StudentsScreen() {
         classId,
       });
 
-      resetForm();
+      doResetForm();
       await reload();
       showSaveNotice(wasEditing ? "Alterações salvas." : "Aluno cadastrado.");
+      if (!wasEditing) {
+        Alert.alert(
+          "Aluno cadastrado",
+          `${name.trim()} foi cadastrado com sucesso.`,
+          [
+            {
+              text: "Ver alunos",
+              onPress: () => setStudentsTab("alunos"),
+            },
+          ]
+        );
+      }
       return true;
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Erro ao salvar aluno.";
@@ -952,6 +1014,7 @@ export default function StudentsScreen() {
     positionSecondary !== "indefinido" ||
     athleteObjective !== "base" ||
     learningStyle !== "misto" ||
+    isExperimental ||
     healthIssue ||
     medicationUse ||
     healthIssueNotes.trim() ||
@@ -988,6 +1051,7 @@ export default function StudentsScreen() {
       editSnapshot.positionSecondary !== positionSecondary ||
       editSnapshot.athleteObjective !== athleteObjective ||
       editSnapshot.learningStyle !== learningStyle ||
+      editSnapshot.isExperimental !== isExperimental ||
       editSnapshot.healthIssue !== healthIssue ||
       editSnapshot.healthIssueNotes !== healthIssueNotes ||
       editSnapshot.medicationUse !== medicationUse ||
@@ -1012,6 +1076,7 @@ export default function StudentsScreen() {
     medicationNotes,
     rgDocument,
     learningStyle,
+    isExperimental,
     healthObservations,
     loginEmail,
     name,
@@ -1023,145 +1088,33 @@ export default function StudentsScreen() {
     unit,
   ]);
 
-  const resetForm = () => {
+  // Wrappers que combinam reset do formulário (hook) com efeitos de UI locais
+  const doResetForm = useCallback(() => {
     closeAllPickers();
     setShowForm(false);
-    setEditingId(null);
-    setEditingCreatedAt(null);
-    setName("");
-    setPhotoUrl(null);
-    setPhotoMimeType(null);
-    setBirthDate("");
-    setAgeNumber(null);
-    setPhone("");
-    setCpfDisplay("");
-    setCpfMaskedOriginal("");
-    setCpfRevealedValue(null);
-    setIsCpfVisible(false);
-    setCpfRevealUnavailable(false);
-    setRgDocument("");
-    setRa("");
-    setLoginEmail("");
-    setGuardianName("");
-    setGuardianPhone("");
-    setGuardianRelation("");
-    setPositionPrimary("indefinido");
-    setPositionSecondary("indefinido");
-    setAthleteObjective("base");
-    setLearningStyle("misto");
-    setHealthIssue(false);
-    setHealthIssueNotes("");
-    setMedicationUse(false);
-    setMedicationNotes("");
-    setHealthObservations("");
-    setShowHealthSection(false);
-    setShowEditHealthSection(false);
-    setCustomAgeBand("");
-    setUnit("");
-    setAgeBand("");
-    setClassId("");
-    setStudentFormError("");
-    setStudentDocumentsError({});
-    setEditSnapshot(null);
-  };
+    resetForm();
+  }, [closeAllPickers, resetForm, setShowForm]);
 
-  const resetCreateForm = () => {
+  const doResetCreateForm = useCallback(() => {
     closeAllPickers();
-    setUnit("");
-    setAgeBand("");
-    setClassId("");
-    setCustomAgeBand("");
-    setStudentFormError("");
-    setName("");
-    setPhotoUrl(null);
-    setPhotoMimeType(null);
-    setBirthDate("");
-    setAgeNumber(null);
-    setPhone("");
-    setCpfDisplay("");
-    setCpfMaskedOriginal("");
-    setCpfRevealedValue(null);
-    setIsCpfVisible(false);
-    setCpfRevealUnavailable(false);
-    setRgDocument("");
-    setRa("");
-    setLoginEmail("");
-    setGuardianName("");
-    setGuardianPhone("");
-    setGuardianRelation("");
-    setPositionPrimary("indefinido");
-    setPositionSecondary("indefinido");
-    setAthleteObjective("base");
-    setLearningStyle("misto");
-    setHealthIssue(false);
-    setHealthIssueNotes("");
-    setMedicationUse(false);
-    setMedicationNotes("");
-    setHealthObservations("");
-    setShowHealthSection(false);
-    setStudentDocumentsError({});
-  };
+    resetCreateForm();
+  }, [closeAllPickers, resetCreateForm]);
 
-  const resetPreRegistrationForm = useCallback(() => {
-    setEditingPreId(null);
-    setPreChildName("");
-    setPreGuardianName("");
-    setPreGuardianPhone("");
-    setPreClassInterest("");
-    setPreUnitInterest("");
-    setPreTrialDate("");
-    setPreNotes("");
-    setPreStatus("lead");
-    setPreRegistrationError("");
-  }, []);
-
-  const savePreRegistration = useCallback(async () => {
-    const organizationId = activeOrganization?.id ?? "";
-    if (!organizationId) {
-      setPreRegistrationError("Selecione uma organização ativa.");
-      return;
-    }
-    if (!preChildName.trim() || !preGuardianName.trim() || !preGuardianPhone.trim()) {
-      setPreRegistrationError("Preencha nome da criança, responsável e telefone.");
-      return;
-    }
-    setPreRegistrationError("");
-    const payload: Omit<StudentPreRegistration, "createdAt" | "updatedAt"> = {
-      id: editingPreId ?? `pr_${Date.now()}`,
-      organizationId,
-      childName: preChildName.trim(),
-      guardianName: preGuardianName.trim(),
-      guardianPhone: preGuardianPhone.trim(),
-      ageOrBirth: null,
-      classInterest: preClassInterest.trim() || null,
-      unitInterest: preUnitInterest.trim() || null,
-      trialDate: preTrialDate.trim() || null,
-      status: preStatus,
-      notes: preNotes.trim() || null,
-      convertedStudentId: null,
-    };
-
-    if (editingPreId) {
-      await updateStudentPreRegistration(payload);
-    } else {
-      await saveStudentPreRegistration(payload);
-    }
-    resetPreRegistrationForm();
-    await reload();
-  }, [
-    activeOrganization?.id,
+  const { savePreRegistration } = useSavePreRegistration({
+    activeOrganizationId: activeOrganization?.id,
     editingPreId,
     preChildName,
-    preClassInterest,
     preGuardianName,
     preGuardianPhone,
-    preNotes,
-    preStatus,
-    preTrialDate,
+    preClassInterest,
     preUnitInterest,
-    reload,
+    preTrialDate,
+    preStatus,
+    preNotes,
+    setPreRegistrationError,
     resetPreRegistrationForm,
-  ]);
+    reload,
+  });
 
   const startEditPreRegistration = useCallback((item: StudentPreRegistration) => {
     setEditingPreId(item.id);
@@ -1235,7 +1188,7 @@ export default function StudentsScreen() {
   }, [preRegistrationSearch, preRegistrations]);
 
   const requestSwitchStudentsTab = useCallback(
-    (nextTab: "cadastro" | "aniversários" | "alunos" | "experimentais") => {
+    (nextTab: StudentsTab) => {
       if (nextTab === studentsTab) return;
       if (studentsTab === "cadastro" && isFormDirty) {
         setPendingStudentsTab(nextTab);
@@ -1243,11 +1196,12 @@ export default function StudentsScreen() {
         return;
       }
       if (studentsTab === "cadastro" && !isFormDirty) {
-        resetForm();
+        doResetForm();
+        resetPreRegistrationForm();
       }
       setStudentsTab(nextTab);
     },
-    [isFormDirty, resetForm, studentsTab]
+    [isFormDirty, resetForm, resetPreRegistrationForm, studentsTab]
   );
 
   const showSaveNotice = (message: string) => {
@@ -1288,7 +1242,7 @@ export default function StudentsScreen() {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
     closeAllEditPickers();
-    resetForm();
+    doResetForm();
   };
 
   const requestCloseEditModal = () => {
@@ -1298,141 +1252,6 @@ export default function StudentsScreen() {
     }
     closeEditModal();
   };
-
-  const onEdit = useCallback(
-    (student: Student) => {
-      // Open first so a bad field doesn't block the modal entirely.
-      setShowForm(false);
-      setStudentFormError("");
-      setStudentDocumentsError({});
-      setShowEditModal(true);
-      try {
-        const safeText = (value: unknown) =>
-          typeof value === "string" ? value : value == null ? "" : String(value);
-        const cls = classes.find((item) => item.id === student.classId);
-        let nextUnit = "";
-        let nextAgeBand = "";
-        let nextCustomAgeBand = "";
-        let nextClassId = "";
-        if (cls) {
-          nextUnit = unitLabel(cls.unit);
-          nextAgeBand = safeText(cls.ageBand);
-          if (!ageBandOptions.includes(nextAgeBand)) {
-            nextCustomAgeBand = nextAgeBand;
-          }
-          nextClassId = cls.id;
-        }
-        const birthDateValue = safeText(student.birthDate);
-        const loginEmailValue = safeText(student.loginEmail);
-        const cpfDisplayValue = safeText(student.cpfMasked);
-        const rgDocumentValue = safeText(student.rg);
-        const raValue = safeText(student.ra);
-        const guardianNameValue = safeText(student.guardianName);
-        const guardianPhoneValue = safeText(student.guardianPhone);
-        const guardianRelationValue = safeText(student.guardianRelation);
-        const positionPrimaryValue = athletePositionOptions.includes(student.positionPrimary)
-          ? student.positionPrimary
-          : "indefinido";
-        const positionSecondaryValue = athletePositionOptions.includes(student.positionSecondary)
-          ? student.positionSecondary
-          : "indefinido";
-        const athleteObjectiveValue = athleteObjectiveOptions.includes(student.athleteObjective)
-          ? student.athleteObjective
-          : "base";
-        const learningStyleValue = athleteLearningStyleOptions.includes(student.learningStyle)
-          ? student.learningStyle
-          : "misto";
-        const healthIssueNotesValue = safeText(student.healthIssueNotes);
-        const medicationNotesValue = safeText(student.medicationNotes);
-        const healthObservationsValue = safeText(student.healthObservations);
-        setUnit(nextUnit);
-        setAgeBand(nextAgeBand);
-        setCustomAgeBand(nextCustomAgeBand);
-        setClassId(nextClassId);
-        setEditingId(student.id);
-        setEditingCreatedAt(student.createdAt);
-        setName(safeText(student.name));
-        setPhotoUrl(student.photoUrl ?? null);
-        setPhotoMimeType(null);
-        setEditSnapshot({
-          unit: nextUnit,
-          ageBand: nextAgeBand,
-          customAgeBand: nextCustomAgeBand,
-          classId: nextClassId,
-          name: safeText(student.name),
-          photoUrl: student.photoUrl ?? null,
-          birthDate: birthDateValue,
-          phone: student.phone,
-          cpfDisplay: cpfDisplayValue,
-          rgDocument: rgDocumentValue,
-          ra: raValue,
-          loginEmail: loginEmailValue,
-          guardianName: guardianNameValue,
-          guardianPhone: guardianPhoneValue,
-          guardianRelation: guardianRelationValue,
-          positionPrimary: positionPrimaryValue,
-          positionSecondary: positionSecondaryValue,
-          athleteObjective: athleteObjectiveValue,
-          learningStyle: learningStyleValue,
-          healthIssue: student.healthIssue ?? false,
-          healthIssueNotes: healthIssueNotesValue,
-          medicationUse: student.medicationUse ?? false,
-          medicationNotes: medicationNotesValue,
-          healthObservations: healthObservationsValue,
-        });
-        if (birthDateValue) {
-          setBirthDate(birthDateValue);
-          setAgeNumber(calculateAge(birthDateValue));
-        } else {
-          setBirthDate("");
-          setAgeNumber(student.age);
-        }
-        setPhone(student.phone);
-        setCpfDisplay(cpfDisplayValue);
-        setCpfMaskedOriginal(cpfDisplayValue);
-        setCpfRevealedValue(null);
-        setIsCpfVisible(false);
-        setCpfRevealUnavailable(false);
-        setRgDocument(rgDocumentValue);
-        setRa(raValue);
-        setLoginEmail(loginEmailValue);
-        setGuardianName(guardianNameValue);
-        setGuardianPhone(guardianPhoneValue);
-        setGuardianRelation(guardianRelationValue);
-        setPositionPrimary(positionPrimaryValue);
-        setPositionSecondary(positionSecondaryValue);
-        setAthleteObjective(athleteObjectiveValue);
-        setLearningStyle(learningStyleValue);
-        setHealthIssue(student.healthIssue ?? false);
-        setHealthIssueNotes(healthIssueNotesValue);
-        setMedicationUse(student.medicationUse ?? false);
-        setMedicationNotes(medicationNotesValue);
-        setHealthObservations(healthObservationsValue);
-        setShowEditHealthSection(
-          Boolean(
-            student.healthIssue ||
-              student.medicationUse ||
-              healthIssueNotesValue.trim() ||
-              medicationNotesValue.trim() ||
-              healthObservationsValue.trim()
-          )
-        );
-        closeAllPickers();
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        Alert.alert("Erro ao abrir aluno", detail);
-      }
-    },
-    [
-      ageBandOptions,
-      athleteLearningStyleOptions,
-      athleteObjectiveOptions,
-      athletePositionOptions,
-      classes,
-      closeAllPickers,
-      unitLabel,
-    ]
-  );
 
   const onDelete = (id: string) => {
     const student = students.find((item) => item.id === id);
@@ -1539,13 +1358,42 @@ export default function StudentsScreen() {
 
   const getClassName = useCallback(
     (id: string) =>
-      classes.find((item) => item.id === id)?.name ?? "Selecione a turma",
-    [classes]
+      classById.get(id)?.name ?? "Selecione a turma",
+    [classById]
   );
   const selectedClassName = useMemo(
-    () => classes.find((item) => item.id === classId)?.name ?? "",
-    [classId, classes]
+    () => classById.get(classId)?.name ?? "",
+    [classById, classId]
   );
+  const editDocumentsSummary = useMemo(() => {
+    const parts = [
+      ra ? `RA ${ra}` : "RA não informado",
+      cpfDisplay ? "CPF cadastrado" : "CPF não informado",
+      rgDocument ? "RG cadastrado" : "RG não informado",
+    ];
+    return parts.join(" • ");
+  }, [cpfDisplay, ra, rgDocument]);
+  const editSportSummary = useMemo(() => {
+    const primaryLabel = positionPrimary.trim() || "indefinido";
+    const secondaryLabel = positionSecondary.trim() || "indefinido";
+    return `${primaryLabel} • ${secondaryLabel}`;
+  }, [positionPrimary, positionSecondary]);
+  const editHealthSummary = useMemo(() => {
+    if (!healthIssue && !medicationUse && !healthObservations.trim()) {
+      return "Sem restrições informadas";
+    }
+    return "Informações de saúde registradas";
+  }, [healthIssue, healthObservations, medicationUse]);
+  const editGuardianSummary = useMemo(() => {
+    const nameLabel = guardianName.trim() || "Responsável não informado";
+    const phoneLabel = guardianPhone.trim() || "Sem telefone";
+    return `${nameLabel} • ${phoneLabel}`;
+  }, [guardianName, guardianPhone]);
+  const editLinksSummary = useMemo(() => {
+    const classLabel = selectedClassName || "Sem turma";
+    const unitLabel = unit || "Sem unidade";
+    return `${classLabel} • ${unitLabel}`;
+  }, [selectedClassName, unit]);
 
   const formatShortDate = (value: string) => {
     if (!value) return "";
@@ -1590,6 +1438,56 @@ export default function StudentsScreen() {
     }
     return age;
   };
+
+  const { onEdit } = useOnEditStudent({
+    ageBandOptions,
+    athleteLearningStyleOptions,
+    athleteObjectiveOptions,
+    athletePositionOptions,
+    classById,
+    closeAllPickers,
+    unitLabel,
+    calculateAge,
+    setShowForm,
+    setStudentFormError,
+    setStudentDocumentsError,
+    setShowEditModal,
+    setUnit,
+    setAgeBand,
+    setCustomAgeBand,
+    setClassId,
+    setEditingId,
+    setEditingCreatedAt,
+    setName,
+    setPhotoUrl,
+    setPhotoMimeType,
+    setEditSnapshot,
+    setBirthDate,
+    setAgeNumber,
+    setPhone,
+    setCpfDisplay,
+    setCpfMaskedOriginal,
+    setCpfRevealedValue,
+    setIsCpfVisible,
+    setCpfRevealUnavailable,
+    setRgDocument,
+    setRa,
+    setLoginEmail,
+    setGuardianName,
+    setGuardianPhone,
+    setGuardianRelation,
+    setPositionPrimary,
+    setPositionSecondary,
+    setAthleteObjective,
+    setLearningStyle,
+    setIsExperimental,
+    setHealthIssue,
+    setHealthIssueNotes,
+    setMedicationUse,
+    setMedicationNotes,
+    setHealthObservations,
+    setOpenEditSection,
+  });
 
   const normalizeSearch = useCallback(
     (value: string) =>
@@ -1638,38 +1536,11 @@ export default function StudentsScreen() {
 
   const formatEmail = (value: string) => value.trim().toLowerCase();
 
-  const formatTodayLabel = () =>
-    new Date().toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-    });
-
-  const buildStudentMessage = useCallback(
-    (
-      student: Student,
-      cls: ClassGroup | null,
-      templateId: WhatsAppTemplateId,
-      fields: Record<string, string>
-    ) => {
-      const nextClassDate = cls?.daysOfWeek?.length
-        ? calculateNextClassDate(cls.daysOfWeek)
-        : null;
-      return renderTemplate(templateId, {
-        coachName,
-        studentName: student.name,
-        className: cls?.name ?? "Turma",
-        unitLabel: unitLabel(cls?.unit ?? ""),
-        dateLabel: formatTodayLabel(),
-        nextClassDate: nextClassDate ? formatNextClassDate(nextClassDate) : "",
-        nextClassTime: cls?.startTime ? formatStartTimeLabel(cls.startTime) : "",
-        groupInviteLink: cls ? groupInviteLinks?.[cls.id] ?? "" : "",
-        inviteLink: fields.inviteLink ?? "",
-        highlightNote: fields.highlightNote ?? "",
-        customText: fields.customText ?? "",
-      });
-    },
-    [coachName, groupInviteLinks]
-  );
+  const { buildStudentMessage } = useBuildStudentMessage({
+    coachName,
+    groupInviteLinks,
+    unitLabel,
+  });
 
   const openStudentWhatsApp = useCallback(
     (student: Student) => {
@@ -1685,7 +1556,7 @@ export default function StudentsScreen() {
         Alert.alert("Telefone inválido", "Informe um telefone com DDD.");
         return;
       }
-      const cls = classes.find((entry) => entry.id === student.classId) ?? null;
+      const cls = classById.get(student.classId) ?? null;
       const hasReminder =
         !!cls?.daysOfWeek?.length && Boolean((cls?.startTime ?? "").trim());
       const suggested: WhatsAppTemplateId = hasReminder
@@ -1700,7 +1571,7 @@ export default function StudentsScreen() {
       setSelectedStudentId(student.id);
       setShowWhatsAppModal(true);
     },
-    [buildStudentMessage, classes]
+    [buildStudentMessage, classById]
   );
 
   const closeWhatsAppModal = useCallback(() => {
@@ -1721,102 +1592,20 @@ export default function StudentsScreen() {
     }
   }, []);
 
-  const buildInviteLink = (token: string) => {
-    if (!SUPABASE_URL) {
-      return `goatleta://invite/${token}`;
-    }
-    const base = SUPABASE_URL.replace(/\/$/, "").replace(
-      ".supabase.co",
-      ".functions.supabase.co"
-    );
-    return `${base}/invite-link?token=${encodeURIComponent(token)}`;
-  };
-
-  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const toInviteErrorMessage = useCallback((error: unknown) => {
-    const code = getInviteErrorCode(error);
-    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
-      return "Sessão expirada. Entre novamente para gerar o convite.";
-    }
-    if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") {
-      return "Sem permissão para gerar o convite.";
-    }
-    if (code === "STUDENT_ALREADY_LINKED") {
-      return "Esse aluno já está vinculado. Use revogar e gerar novo link.";
-    }
-    if (code === "STUDENT_NOT_FOUND") {
-      return "Aluno não encontrado.";
-    }
-    return "Não foi possível gerar o convite.";
-  }, []);
-
-  const applyStudentInviteTemplate = useCallback(
-    async (
-      student: Student,
-      cls: ClassGroup | null,
-      invitedTo: string,
-      options: { revokeFirst: boolean; copyLink: boolean }
-    ): Promise<string | null> => {
-      if (studentInviteBusy) return null;
-      setStudentInviteBusy(true);
-      setSelectedTemplateId("student_invite");
-      setSelectedTemplateLabel(WHATSAPP_TEMPLATES.student_invite.title);
-      setCustomFields({});
-      setCustomStudentMessage("Gerando convite...");
-      const createInvite = async () => {
-        const response = await createStudentInvite(student.id, {
-          invitedVia: "whatsapp",
-          invitedTo: invitedTo.trim() ? invitedTo : undefined,
-        });
-        if (!response.token) {
-          throw new Error("Convite inválido.");
-        }
-        const link = buildInviteLink(response.token);
-        const fields: Record<string, string> = { inviteLink: link };
-        setCustomFields(fields);
-        const message = buildStudentMessage(student, cls, "student_invite", fields);
-        setCustomStudentMessage(message);
-        if (options.copyLink) {
-          await Clipboard.setStringAsync(link);
-          showWhatsAppNotice("Link copiado.");
-        }
-        return message;
-      };
-      try {
-        if (options.revokeFirst) {
-          await revokeStudentAccess(student.id, { clearLoginEmail: true });
-        }
-        const attempts = options.revokeFirst ? 2 : 1;
-        for (let attempt = 0; attempt < attempts; attempt += 1) {
-          try {
-            return await createInvite();
-          } catch (error) {
-            if (attempt + 1 < attempts) {
-              await wait(400);
-              continue;
-            }
-            throw error;
-          }
-        }
-        await reload();
-        return null;
-      } catch (error) {
-        const message = toInviteErrorMessage(error);
-        if (getInviteErrorCode(error) === "UNAUTHORIZED") {
-          Alert.alert("Sessão expirada", message);
-          void signOut();
-        } else {
-          Alert.alert("Convite", message);
-        }
-        setCustomStudentMessage(message);
-        return null;
-      } finally {
-        setStudentInviteBusy(false);
-      }
-    },
-    [buildInviteLink, buildStudentMessage, reload, showWhatsAppNotice, signOut, studentInviteBusy, toInviteErrorMessage]
-  );
+  const { applyStudentInviteTemplate, onGenerateInviteFromList, onCancelPendingStudentInvite } = useStudentInvites({
+    classes,
+    studentInviteBusy,
+    pendingStudentInviteBusyId,
+    buildStudentMessage,
+    showWhatsAppNotice,
+    reload,
+    setStudentInviteBusy,
+    setSelectedTemplateId,
+    setSelectedTemplateLabel,
+    setCustomFields,
+    setCustomStudentMessage,
+    setPendingStudentInviteBusyId,
+  });
 
   const formatName = (value: string) => {
     const particles = new Set([
@@ -1838,35 +1627,6 @@ export default function StudentsScreen() {
       .join(" ");
     return hasTrailingSpace ? formatted + " " : formatted;
   };
-
-  const onGenerateInviteFromList = useCallback(
-    async (student: Student) => {
-      const cls = classes.find((entry) => entry.id === student.classId) ?? null;
-      const generated = await applyStudentInviteTemplate(student, cls, "", {
-        revokeFirst: false,
-        copyLink: true,
-      });
-      if (!generated) return;
-      Alert.alert("Convite pronto", "Link de convite gerado e copiado para a área de transferência.");
-    },
-    [applyStudentInviteTemplate, classes]
-  );
-
-  const onCancelPendingStudentInvite = useCallback(
-    async (inviteId: string) => {
-      if (pendingStudentInviteBusyId) return;
-      setPendingStudentInviteBusyId(inviteId);
-      try {
-        await revokeStudentInvite(inviteId);
-        await reload();
-      } catch (error) {
-        Alert.alert("Convite", toInviteErrorMessage(error));
-      } finally {
-        setPendingStudentInviteBusyId(null);
-      }
-    },
-    [pendingStudentInviteBusyId, reload, toInviteErrorMessage]
-  );
 
   const parseTime = (value: string) => {
     const match = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -1998,10 +1758,10 @@ export default function StudentsScreen() {
   const birthdayFilteredStudents = useMemo(() => {
     if (birthdayUnitFilter === "Todas") return students;
     return students.filter((student) => {
-      const cls = classes.find((item) => item.id === student.classId) ?? null;
+      const cls = classById.get(student.classId) ?? null;
       return unitLabel(cls?.unit ?? "") === birthdayUnitFilter;
     });
-  }, [birthdayUnitFilter, classes, students, unitLabel]);
+  }, [birthdayUnitFilter, classById, students, unitLabel]);
   const birthdayVisibleStudents = useMemo(() => {
     const query = normalizeSearch(birthdaySearch);
     const hasQuery = query.length > 0;
@@ -2013,7 +1773,7 @@ export default function StudentsScreen() {
         return false;
       }
       if (!hasQuery) return true;
-      const cls = classes.find((item) => item.id === student.classId) ?? null;
+      const cls = classById.get(student.classId) ?? null;
       const unitName = unitLabel(cls?.unit ?? "");
       const className = cls?.name ?? "";
       const monthLabel = monthNames[date.getMonth()] ?? "";
@@ -2029,7 +1789,7 @@ export default function StudentsScreen() {
     birthdayFilteredStudents,
     birthdayMonthFilter,
     birthdaySearch,
-    classes,
+    classById,
     normalizeSearch,
     unitLabel,
   ]);
@@ -2038,14 +1798,31 @@ export default function StudentsScreen() {
       studentsUnitFilter === "Todas"
         ? students
         : students.filter((student) => {
-            const cls = classes.find((item) => item.id === student.classId) ?? null;
+            const cls = classById.get(student.classId) ?? null;
             return unitLabel(cls?.unit ?? "") === studentsUnitFilter;
           });
-    return filteredByUnit;
-  }, [studentsUnitFilter, classes, students, unitLabel]);
-  const classById = useMemo(() => {
-    return new Map(classes.map((item) => [item.id, item] as const));
-  }, [classes]);
+    const query = normalizeSearch(studentsSearch);
+    if (!query) return filteredByUnit;
+    return filteredByUnit.filter((student) => {
+      const cls = classById.get(student.classId) ?? null;
+      const unitName = unitLabel(cls?.unit ?? "");
+      const className = cls?.name ?? "";
+      const haystack = normalizeSearch(
+        `${student.name} ${student.guardianName ?? ""} ${student.guardianPhone ?? ""} ${unitName} ${className}`
+      );
+      return haystack.includes(query);
+    });
+  }, [studentsUnitFilter, classById, students, unitLabel, normalizeSearch, studentsSearch]);
+  const studentsByClassId = useMemo(() => {
+    const byClass = new Map<string, Student[]>();
+    studentsFiltered.forEach((student) => {
+      const key = student.classId || "";
+      const bucket = byClass.get(key) ?? [];
+      bucket.push(student);
+      byClass.set(key, bucket);
+    });
+    return byClass;
+  }, [studentsFiltered]);
   const toggleUnitExpanded = useCallback(
     (unitName: string) => {
       setExpandedUnits((prev) => ({
@@ -2065,22 +1842,49 @@ export default function StudentsScreen() {
     [setExpandedClasses]
   );
   const studentsGrouped = useMemo(() => {
-    const unitMap = new Map<string, Map<string, Student[]>>();
-    studentsFiltered.forEach((student) => {
-      const cls = classById.get(student.classId) ?? null;
-      const unitName = unitLabel(cls?.unit ?? "");
-      const classKey = cls?.id ?? `missing:${student.classId || "none"}`;
-      if (!unitMap.has(unitName)) unitMap.set(unitName, new Map());
-      const classMap = unitMap.get(unitName)!;
-      if (!classMap.has(classKey)) classMap.set(classKey, []);
-      classMap.get(classKey)!.push(student);
+    const filteredUnits = studentsUnitFilter === "Todas"
+      ? null
+      : new Set([studentsUnitFilter]);
+    const unitMap = new Map<string, {
+      classes: Map<string, {
+        cls: ClassGroup | null;
+        className: string;
+        students: Student[];
+      }>;
+    }>();
+
+    classes.forEach((cls) => {
+      const unitName = unitLabel(cls.unit);
+      if (filteredUnits && !filteredUnits.has(unitName)) return;
+      if (!unitMap.has(unitName)) {
+        unitMap.set(unitName, { classes: new Map() });
+      }
+      unitMap.get(unitName)!.classes.set(cls.id, {
+        cls,
+        className: cls.name?.trim() || "Sem turma",
+        students: [...(studentsByClassId.get(cls.id) ?? [])],
+      });
     });
+
+    studentsByClassId.forEach((items, classIdValue) => {
+      if (!classIdValue || classById.has(classIdValue)) return;
+      const fallbackUnitName = unitLabel("");
+      if (filteredUnits && !filteredUnits.has(fallbackUnitName)) return;
+      if (!unitMap.has(fallbackUnitName)) {
+        unitMap.set(fallbackUnitName, { classes: new Map() });
+      }
+      unitMap.get(fallbackUnitName)!.classes.set(`missing:${classIdValue}`, {
+        cls: null,
+        className: "Sem turma",
+        students: [...items],
+      });
+    });
+
     return Array.from(unitMap.entries())
-      .map(([unitName, classMap]) => {
-        const classesInUnit = Array.from(classMap.entries())
-          .map(([classKey, items]) => {
-            const cls = classById.get(items[0].classId) ?? null;
-            const className = cls?.name?.trim() || "Sem turma";
+      .map(([unitName, data]) => {
+        const classesInUnit = Array.from(data.classes.entries())
+          .map(([classKey, value]) => {
+            const cls = value.cls;
             const palette =
               cls
                 ? getClassPalette(cls.colorKey, colors, unitName)
@@ -2089,12 +1893,12 @@ export default function StudentsScreen() {
                     text: colors.primaryText,
                   };
             const scheduleLabel = formatClassScheduleLabel(cls);
-            const sortedStudents = [...items].sort((a, b) =>
+            const sortedStudents = [...value.students].sort((a, b) =>
               a.name.localeCompare(b.name, "pt-BR")
             );
             return {
               classId: classKey,
-              className,
+              className: value.className,
               gender: cls?.gender ?? "misto",
               scheduleLabel,
               palette,
@@ -2102,28 +1906,22 @@ export default function StudentsScreen() {
             };
           })
           .sort((a, b) => {
-            const aClass =
-              classById.get(a.classId) ??
-              ({
-                name: a.className,
-                daysOfWeek: null,
-                startTime: null,
-                organizationId: "",
-              } as ClassGroup);
-            const bClass =
-              classById.get(b.classId) ??
-              ({
-                name: b.className,
-                daysOfWeek: null,
-                startTime: null,
-                organizationId: "",
-              } as ClassGroup);
+            const aClass = classById.get(a.classId) ?? {
+              name: a.className,
+              daysOfWeek: null,
+              startTime: null,
+            };
+            const bClass = classById.get(b.classId) ?? {
+              name: b.className,
+              daysOfWeek: null,
+              startTime: null,
+            };
             return compareClassesBySchedule(aClass, bClass);
           });
         return { unitName, classes: classesInUnit };
       })
       .sort((a, b) => a.unitName.localeCompare(b.unitName, "pt-BR"));
-  }, [classById, colors, studentsFiltered, unitLabel]);
+  }, [classById, classes, colors, studentsByClassId, studentsUnitFilter, unitLabel]);
   const birthdayTodayAll = useMemo(() => {
     return students.filter((student) => {
       if (!student.birthDate) return false;
@@ -2135,6 +1933,21 @@ export default function StudentsScreen() {
       );
     });
   }, [students, today]);
+  const studentsTabMeta = useMemo(
+    () => [
+      { id: "alunos" as const, label: "Alunos", count: students.length },
+      { id: "cadastro" as const, label: "Cadastro", count: null },
+      { id: "aniversários" as const, label: "Aniversários", count: birthdayTodayAll.length },
+    ],
+    [students.length, birthdayTodayAll.length]
+  );
+
+  useEffect(() => {
+    if ((studentsTab as string) === "experimentais") {
+      setStudentsTab("cadastro");
+    }
+  }, [setStudentsTab, studentsTab]);
+
   const birthdayToday = useMemo(() => {
     return birthdayVisibleStudents.filter((student) => {
       if (!student.birthDate) return false;
@@ -2170,8 +1983,8 @@ export default function StudentsScreen() {
       const date = parseIsoDate(student.birthDate);
       if (!date) return;
       const month = date.getMonth();
-      const cls = classes.find((item) => item.id === student.classId);
-      const unitName = unitLabel(cls.unit);
+      const cls = classById.get(student.classId);
+      const unitName = unitLabel(cls?.unit ?? "");
       if (!byMonth.has(month)) byMonth.set(month, new Map());
       const monthMap = byMonth.get(month)!;
       if (!monthMap.has(unitName)) monthMap.set(unitName, []);
@@ -2186,7 +1999,7 @@ export default function StudentsScreen() {
             Array.from(unitMap.entries()).sort((a, b) => a[0].localeCompare(b[0])),
           ] as BirthdayMonthGroup
       );
-  }, [birthdayVisibleStudents, classes, unitLabel]);
+  }, [birthdayVisibleStudents, classById, unitLabel]);
 
   useEffect(() => {
     if (!birthdayTodayAll.length) return;
@@ -2222,8 +2035,6 @@ export default function StudentsScreen() {
         onWhatsApp: (student: Student) => void;
         onInvite: (student: Student) => void;
         onPhotoPress: (student: Student) => void;
-        className: string;
-        unitName: string;
         classPalette: { bg: string; text: string };
       }) {
         const contact = getContactPhone(item);
@@ -2231,11 +2042,6 @@ export default function StudentsScreen() {
         const nameParts = item.name.trim().split(/\s+/);
         const shortName = nameParts.slice(0, 2).join(" ");
         const restName = nameParts.slice(2).join(" ");
-        const profileSummary = [
-          `Posição: ${item.positionPrimary || "indefinido"}`,
-          `Objetivo: ${item.athleteObjective || "base"}`,
-          `Estilo: ${item.learningStyle || "misto"}`,
-        ];
         return (
           <Pressable
             onPress={() => onPress(item)}
@@ -2296,13 +2102,23 @@ export default function StudentsScreen() {
                       {restName ? " " + restName : ""}
                     </Text>
                   </FadeHorizontalScroll>
+                  {item.isExperimental ? (
+                    <View
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                        Experimental
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-                <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-                  {className} | {unitName}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                  {profileSummary.join(" | ")}
-                </Text>
               </View>
               <Pressable
                 onPress={() => onInvite(item)}
@@ -2453,7 +2269,6 @@ export default function StudentsScreen() {
               bg: colors.primaryBg,
               text: colors.primaryText,
             });
-      const className = classNameOverride || getClassName(item.classId);
       return (
         <StudentRow
           item={item}
@@ -2461,8 +2276,6 @@ export default function StudentsScreen() {
           onWhatsApp={openStudentWhatsApp}
           onInvite={onGenerateInviteFromList}
           onPhotoPress={openPhotoPreview}
-          className={className}
-          unitName={unitName}
           classPalette={classPalette}
         />
       );
@@ -2485,12 +2298,28 @@ export default function StudentsScreen() {
     []
   );
 
+  const goBackFromStudents = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace("/");
+  }, [router]);
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
           <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable
+                onPress={goBackFromStudents}
+                style={{ flexDirection: "row", alignItems: "center" }}
+              >
+                <Ionicons name="chevron-back" size={20} color={colors.text} />
+              </Pressable>
+              <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
+            </View>
             <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
           </View>
           <View style={{ gap: 10 }}>
@@ -2518,11 +2347,10 @@ export default function StudentsScreen() {
       >
       <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
+        contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 0 }}
         keyboardShouldPersistTaps="handled"
+        stickyHeaderIndices={[0]}
         onScrollBeginDrag={closeAllPickers}
-        onScroll={syncPickerLayouts}
-        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -2539,7 +2367,33 @@ export default function StudentsScreen() {
           />
         }
       >
-        <ScreenHeader title="Alunos" subtitle="Lista de chamada por turma" />
+        <View
+          style={{
+            gap: 16,
+            backgroundColor: colors.background,
+            paddingTop: 16,
+            paddingBottom: 10,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.background,
+            position: "relative",
+            zIndex: 20,
+          }}
+        >
+          <Pressable
+            onPress={goBackFromStudents}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              Alunos
+            </Text>
+          </Pressable>
+          <AnimatedSegmentedTabs
+            tabs={studentsTabMeta}
+            activeTab={studentsTab}
+            onChange={requestSwitchStudentsTab}
+          />
+        </View>
 
         <ConfirmCloseOverlay
           visible={showStudentsTabConfirm}
@@ -2549,7 +2403,8 @@ export default function StudentsScreen() {
           }}
           onConfirm={() => {
             setShowStudentsTabConfirm(false);
-            resetForm();
+            doResetForm();
+            resetPreRegistrationForm();
             setStudentsTab(pendingStudentsTab ?? "alunos");
             setPendingStudentsTab(null);
           }}
@@ -2557,1877 +2412,199 @@ export default function StudentsScreen() {
 
         <View
           style={{
-            flexDirection: "row",
-            gap: 6,
-            padding: 6,
-            borderRadius: 999,
-            backgroundColor: colors.secondaryBg,
+            borderRadius: 18,
             borderWidth: 1,
             borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 12,
+            gap: 10,
           }}
         >
-          {[
-            { id: "alunos" as const, label: "Alunos" },
-            { id: "cadastro" as const, label: "Cadastro" },
-            { id: "aniversários" as const, label: "Aniversários" },
-            { id: "experimentais" as const, label: "Experimentais" },
-          ].map((tab) => {
-            const selected = studentsTab === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => requestSwitchStudentsTab(tab.id)}
-                style={{
-                  flex: 1,
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  backgroundColor: selected ? colors.primaryBg : colors.card,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    color: selected ? colors.primaryText : colors.text,
-                    fontWeight: "700",
-                    fontSize: 12,
-                  }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {studentsTab === "alunos" ? (
-          <View
-            style={{
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: 12,
-              gap: 8,
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
-                Convites pendentes de aluno
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>{pendingStudentInvites.length}</Text>
-            </View>
-
-            {pendingStudentInvites.length === 0 ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Nenhum convite ativo.
-              </Text>
-            ) : (
-              pendingStudentInvites.slice(0, 6).map((invite) => (
-                <View
-                  key={invite.id}
-                  style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    padding: 10,
-                    gap: 4,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }} numberOfLines={1}>
-                      {invite.student_name}
-                    </Text>
-                    <Pressable
-                      onPress={() => void onCancelPendingStudentInvite(invite.id)}
-                      disabled={pendingStudentInviteBusyId === invite.id}
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        opacity: pendingStudentInviteBusyId === invite.id ? 0.6 : 1,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                        {pendingStudentInviteBusyId === invite.id ? "Cancelando..." : "Cancelar"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                    Destino: {invite.invited_to || "não informado"}
-                  </Text>
-                </View>
-              ))
-            )}
-          </View>
-        ) : null}
-
-        {studentsTab === "cadastro" && (
-          <View
-            style={[
-              getSectionCardStyle(colors, "success", { padding: 16, radius: 20 }),
-              { borderLeftWidth: 1, borderLeftColor: colors.border },
-            ]}
-          >
-            <View style={{ gap: 12 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <Pressable
-                  onPress={() => setShowPhotoSheet(true)}
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                  }}
-                >
-                  {photoUrl ? (
-                    <Image
-                      source={{ uri: photoUrl }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <Ionicons name="person" size={20} color={colors.text} />
-                  )}
-                </Pressable>
-                <Pressable
-                  onPress={() => setShowPhotoSheet(true)}
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                    Adicionar foto
-                  </Text>
-                </Pressable>
-              </View>
-              <TextInput
-                placeholder="Nome do aluno"
-                value={name}
-                onChangeText={setName}
-                onBlur={() => setName(formatName(name))}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.background,
-                  color: colors.inputText,
-                }}
-              />
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Unidade</Text>
-                  <View ref={unitTriggerRef}>
-                    <Pressable
-                      onPress={() => toggleFormPicker("unit")}
-                      style={selectFieldStyle}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                        {unit || "Selecione a unidade"}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={colors.muted}
-                        style={{ transform: [{ rotate: showUnitPicker ? "180deg" : "0deg" }] }}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Turma</Text>
-                  <View ref={classTriggerRef}>
-                    <Pressable
-                      onPress={() => toggleFormPicker("class")}
-                      style={selectFieldStyle}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                        {selectedClassName || "Selecione a turma"}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={colors.muted}
-                        style={{ transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }] }}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-              { studentFormError ? (
-                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                  {studentFormError}
-                </Text>
-              ) : null}
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <DateInput
-                    value={birthDate}
-                    onChange={setBirthDate}
-                    placeholder="Data de nascimento"
-                    onOpenCalendar={() => setShowCalendar(true)}
-                  />
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {ageNumber !== null
-                       ? `Idade: ${ageNumber} anos`
-                      : "Idade calculada automaticamente"}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-              <TextInput
-                placeholder="Telefone"
-                value={phone}
-                onChangeText={(value) => setPhone(formatPhone(value))}
-                keyboardType="phone-pad"
-                placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              <StudentDocumentsFields
-                ra={ra}
-                cpfDisplay={cpfDisplay}
-                rg={rgDocument}
-                onChangeRa={(value) => {
-                  setRa(normalizeRaDigits(value));
-                  setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
-                }}
-                onChangeCpf={(value) => {
-                  setCpfDisplay(value);
-                  setIsCpfVisible(false);
-                  setCpfRevealedValue(null);
-                  setCpfRevealUnavailable(false);
-                  setStudentDocumentsError((prev) => ({ ...prev, cpf: undefined }));
-                }}
-                onChangeRg={setRgDocument}
-                showRevealCpfButton={Boolean(editingId && canRevealCpf)}
-                isCpfVisible={isCpfVisible}
-                revealCpfBusy={revealCpfBusy}
-                onRevealCpf={handleRevealEditingCpf}
-                errors={studentDocumentsError}
-              />
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Email do aluno (login)</Text>
-                  <TextInput
-                    placeholder="email@exemplo.com"
-                    value={loginEmail}
-                    onChangeText={setLoginEmail}
-                    onBlur={() => setLoginEmail(formatEmail(loginEmail))}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Posição principal</Text>
-                  <TextInput
-                    placeholder="indefinido | levantador | oposto..."
-                    value={positionPrimary}
-                    onChangeText={(value) =>
-                      setPositionPrimary(
-                        (value.trim().toLowerCase() as Student["positionPrimary"]) ||
-                          "indefinido"
-                      )
-                    }
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Posição secundária</Text>
-                  <TextInput
-                    placeholder="indefinido | ponteiro | libero..."
-                    value={positionSecondary}
-                    onChangeText={(value) =>
-                      setPositionSecondary(
-                        (value.trim().toLowerCase() as Student["positionSecondary"]) ||
-                          "indefinido"
-                      )
-                    }
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Objetivo esportivo</Text>
-                  <TextInput
-                    placeholder="ludico | base | rendimento"
-                    value={athleteObjective}
-                    onChangeText={(value) =>
-                      setAthleteObjective(
-                        (value.trim().toLowerCase() as Student["athleteObjective"]) || "base"
-                      )
-                    }
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Estilo de aprendizagem</Text>
-                  <TextInput
-                    placeholder="misto | visual | auditivo | cinestesico"
-                    value={learningStyle}
-                    onChangeText={(value) =>
-                      setLearningStyle(
-                        (value.trim().toLowerCase() as Student["learningStyle"]) || "misto"
-                      )
-                    }
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <TextInput
-                    placeholder="Nome do responsável"
-                    value={guardianName}
-                    onChangeText={setGuardianName}
-                    onBlur={() => setGuardianName(formatName(guardianName))}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Telefone do responsável</Text>
-                  <TextInput
-                    placeholder="Telefone do responsável"
-                    value={guardianPhone}
-                    onChangeText={(value) => setGuardianPhone(formatPhone(value))}
-                    keyboardType="phone-pad"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-                  <Text style={{ color: colors.muted }}>Parentesco</Text>
-                  <View ref={guardianRelationTriggerRef}>
-                    <Pressable
-                      onPress={() => toggleFormPicker("guardianRelation")}
-                      style={selectFieldStyle}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                        {guardianRelation || "Selecione"}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={16}
-                        color={colors.muted}
-                        style={{
-                          transform: [
-                            { rotate: showGuardianRelationPicker ? "180deg" : "0deg" },
-                          ],
-                        }}
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-
-              <View style={{ gap: 8 }}>
-                <Pressable
-                  onPress={() => setShowHealthSection((prev) => !prev)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    paddingVertical: 8,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>Saúde do aluno</Text>
-                  <Ionicons
-                    name={showHealthSection ? "chevron-up" : "chevron-down"}
-                    size={16}
-                    color={colors.muted}
-                  />
-                </Pressable>
-                { showHealthSectionContent ? (
-                  <Animated.View style={[healthSectionAnimStyle, { gap: 8 }]}>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                      <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
-                        <Text style={{ color: colors.muted }}>
-                          Observações sobre saúde do aluno
-                        </Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Pressable
-                            onPress={() => {
-                              setHealthIssue(false);
-                              setHealthIssueNotes("");
-                            }}
-                            style={{
-                              paddingVertical: 8,
-                              paddingHorizontal: 12,
-                              borderRadius: 999,
-                              backgroundColor: !healthIssue
-                                ? colors.primaryBg
-                                : colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: !healthIssue ? colors.primaryBg : colors.border,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: !healthIssue ? colors.primaryText : colors.text,
-                                fontWeight: "700",
-                              }}
-                            >
-                              Não
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => setHealthIssue(true)}
-                            style={{
-                              paddingVertical: 8,
-                              paddingHorizontal: 12,
-                              borderRadius: 999,
-                              backgroundColor: healthIssue
-                                ? colors.primaryBg
-                                : colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: healthIssue ? colors.primaryBg : colors.border,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: healthIssue ? colors.primaryText : colors.text,
-                                fontWeight: "700",
-                              }}
-                            >
-                              Sim
-                            </Text>
-                          </Pressable>
-                        </View>
-                        { healthIssue ? (
-                          <TextInput
-                            placeholder="Descreva a observação"
-                            value={healthIssueNotes}
-                            onChangeText={setHealthIssueNotes}
-                            placeholderTextColor={colors.placeholder}
-                            multiline
-                            style={{
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              padding: 12,
-                              borderRadius: 12,
-                              backgroundColor: colors.background,
-                              color: colors.inputText,
-                              minHeight: 70,
-                              textAlignVertical: "top",
-                            }}
-                          />
-                        ) : null}
-                      </View>
-                      <View style={{ flex: 1, minWidth: 160, gap: 8 }}>
-                        <Text style={{ color: colors.muted }}>Uso contínuo de medicação</Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Pressable
-                            onPress={() => {
-                              setMedicationUse(false);
-                              setMedicationNotes("");
-                            }}
-                            style={{
-                              paddingVertical: 8,
-                              paddingHorizontal: 12,
-                              borderRadius: 999,
-                              backgroundColor: !medicationUse
-                                ? colors.primaryBg
-                                : colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: !medicationUse ? colors.primaryBg : colors.border,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: !medicationUse ? colors.primaryText : colors.text,
-                                fontWeight: "700",
-                              }}
-                            >
-                              Não
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => setMedicationUse(true)}
-                            style={{
-                              paddingVertical: 8,
-                              paddingHorizontal: 12,
-                              borderRadius: 999,
-                              backgroundColor: medicationUse
-                                ? colors.primaryBg
-                                : colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: medicationUse ? colors.primaryBg : colors.border,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: medicationUse ? colors.primaryText : colors.text,
-                                fontWeight: "700",
-                              }}
-                            >
-                              Sim
-                            </Text>
-                          </Pressable>
-                        </View>
-                        { medicationUse ? (
-                          <TextInput
-                            placeholder="Qual medicação?"
-                            value={medicationNotes}
-                            onChangeText={setMedicationNotes}
-                            placeholderTextColor={colors.placeholder}
-                            multiline
-                            style={{
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                              padding: 12,
-                              borderRadius: 12,
-                              backgroundColor: colors.background,
-                              color: colors.inputText,
-                              minHeight: 70,
-                              textAlignVertical: "top",
-                            }}
-                          />
-                        ) : null}
-                      </View>
-                    </View>
-                    <View style={{ gap: 6 }}>
-                      <Text style={{ color: colors.muted }}>Observações</Text>
-                      <TextInput
-                        placeholder="Outras observações"
-                        value={healthObservations}
-                        onChangeText={setHealthObservations}
-                        placeholderTextColor={colors.placeholder}
-                        multiline
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 12,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                          minHeight: 80,
-                          textAlignVertical: "top",
-                        }}
-                      />
-                    </View>
-                  </Animated.View>
-                ) : null}
-              </View>
-
-              <Button
-                label={editingId ? "Salvar alterações" : "Adicionar aluno"}
-                onPress={onSave}
-                disabled={!canSaveStudent}
-              />
-              { editingId ? (
-                <Button
-                  label="Cancelar edição"
-                  variant="secondary"
-                  onPress={() => {
-                    if (isFormDirty) {
-                      confirmDialog({
-                        title: "Sair sem salvar?",
-                        message: "Você tem alterações não salvas.",
-                        confirmLabel: "Descartar",
-                        cancelLabel: "Continuar",
-                        onConfirm: () => {
-                          resetForm();
-                        },
-                      });
-                      return;
-                    }
-                    resetForm();
-                  }}
-                />
-              ) : null}
-            </View>
-          </View>
-        )}
-
-        {studentsTab === "experimentais" && (
-          <View
-            style={[
-              getSectionCardStyle(colors, "neutral", { padding: 16, radius: 20 }),
-              { borderLeftWidth: 1, borderLeftColor: colors.border, gap: 10 },
-            ]}
-          >
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
-              Pré-cadastros experimentais
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+              Visão geral
             </Text>
-            <TextInput
-              placeholder="Buscar por criança, responsável ou telefone"
-              value={preRegistrationSearch}
-              onChangeText={setPreRegistrationSearch}
-              placeholderTextColor={colors.placeholder}
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {activeOrganization?.name ?? "Sem organização"}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View
               style={{
+                flex: 1,
+                borderRadius: 12,
                 borderWidth: 1,
                 borderColor: colors.border,
-                padding: 12,
-                borderRadius: 12,
-                backgroundColor: colors.background,
-                color: colors.inputText,
+                backgroundColor: colors.secondaryBg,
+                padding: 10,
+                gap: 2,
               }}
-            />
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
-                <Text style={{ color: colors.muted }}>Criança</Text>
-                <TextInput
-                  placeholder="Nome da criança"
-                  value={preChildName}
-                  onChangeText={setPreChildName}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
-                <Text style={{ color: colors.muted }}>Responsável</Text>
-                <TextInput
-                  placeholder="Nome do responsável"
-                  value={preGuardianName}
-                  onChangeText={setPreGuardianName}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                  }}
-                />
-              </View>
+            >
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Alunos ativos</Text>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{students.length}</Text>
             </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
-                <Text style={{ color: colors.muted }}>Telefone</Text>
-                <TextInput
-                  placeholder="Telefone do responsável"
-                  value={preGuardianPhone}
-                  onChangeText={(value) => setPreGuardianPhone(formatPhone(value))}
-                  keyboardType="phone-pad"
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
-                <Text style={{ color: colors.muted }}>Data da experimental</Text>
-                <TextInput
-                  placeholder="AAAA-MM-DD"
-                  value={preTrialDate}
-                  onChangeText={setPreTrialDate}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                  }}
-                />
-              </View>
+            <View
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                padding: 10,
+                gap: 2,
+              }}
+            >
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Convites pendentes</Text>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
+                {pendingStudentInvites.length}
+              </Text>
             </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
-                <Text style={{ color: colors.muted }}>Turma de interesse</Text>
-                <TextInput
-                  placeholder="Ex.: Turma 8-11"
-                  value={preClassInterest}
-                  onChangeText={setPreClassInterest}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 170, gap: 6 }}>
-                <Text style={{ color: colors.muted }}>Unidade de interesse</Text>
-                <TextInput
-                  placeholder="Ex.: Rede Esperança"
-                  value={preUnitInterest}
-                  onChangeText={setPreUnitInterest}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                  }}
-                />
-              </View>
-            </View>
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.muted }}>Status</Text>
-              <TextInput
-                placeholder="lead | trial_scheduled | trial_done | converted | lost"
-                value={preStatus}
-                onChangeText={(value) =>
-                  setPreStatus((value.trim().toLowerCase() as StudentPreRegistration["status"]) || "lead")
-                }
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.background,
-                  color: colors.inputText,
-                }}
-              />
-            </View>
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.muted }}>Observações</Text>
-              <TextInput
-                placeholder="Observações do pré-cadastro"
-                value={preNotes}
-                onChangeText={setPreNotes}
-                placeholderTextColor={colors.placeholder}
-                multiline
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.background,
-                  color: colors.inputText,
-                  minHeight: 70,
-                  textAlignVertical: "top",
-                }}
-              />
-            </View>
-            {preRegistrationError ? (
-              <Text style={{ color: colors.dangerText, fontSize: 12 }}>{preRegistrationError}</Text>
-            ) : null}
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={() => void savePreRegistration()}
-                style={{
-                  flex: 1,
-                  borderRadius: 12,
-                  paddingVertical: 10,
-                  alignItems: "center",
-                  backgroundColor: colors.primaryBg,
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {editingPreId ? "Salvar pré-cadastro" : "Novo pré-cadastro"}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={resetPreRegistrationForm}
-                style={{
-                  flex: 1,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingVertical: 10,
-                  alignItems: "center",
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Limpar</Text>
-              </Pressable>
-            </View>
-
-            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 4 }} />
-
-            <View style={{ gap: 8 }}>
-              {filteredPreRegistrations.map((item) => (
-                <View
-                  key={item.id}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 14,
-                    backgroundColor: colors.card,
-                    padding: 12,
-                    gap: 6,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                    {item.childName}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Responsável: {item.guardianName} • {item.guardianPhone}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Turma: {item.classInterest || "Não informado"} • Unidade: {item.unitInterest || "Não informado"}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Status: {item.status} • Experimental: {item.trialDate || "Sem data"}
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
-                    <Pressable
-                      onPress={() => startEditPreRegistration(item)}
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Editar</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() =>
-                        void updateStudentPreRegistration({
-                          id: item.id,
-                          organizationId: item.organizationId,
-                          childName: item.childName,
-                          guardianName: item.guardianName,
-                          guardianPhone: item.guardianPhone,
-                          ageOrBirth: item.ageOrBirth ?? null,
-                          classInterest: item.classInterest ?? null,
-                          unitInterest: item.unitInterest ?? null,
-                          trialDate: item.trialDate ?? null,
-                          status: "trial_done",
-                          notes: item.notes ?? null,
-                          convertedStudentId: item.convertedStudentId ?? null,
-                        }).then(reload)
-                      }
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        Marcar realizada
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => void convertPreRegistrationToStudent(item)}
-                      style={{
-                        borderRadius: 999,
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        backgroundColor: colors.primaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                        Converter em aluno
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() =>
-                        Alert.alert("Experimentais", "Marcar como perdido?", [
-                          { text: "Cancelar", style: "cancel" },
-                          {
-                            text: "Perdido",
-                            style: "destructive",
-                            onPress: () =>
-                              void updateStudentPreRegistration({
-                                id: item.id,
-                                organizationId: item.organizationId,
-                                childName: item.childName,
-                                guardianName: item.guardianName,
-                                guardianPhone: item.guardianPhone,
-                                ageOrBirth: item.ageOrBirth ?? null,
-                                classInterest: item.classInterest ?? null,
-                                unitInterest: item.unitInterest ?? null,
-                                trialDate: item.trialDate ?? null,
-                                status: "lost",
-                                notes: item.notes ?? null,
-                                convertedStudentId: item.convertedStudentId ?? null,
-                              }).then(reload),
-                          },
-                        ])
-                      }
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Perdido</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() =>
-                        Alert.alert("Experimentais", "Excluir pré-cadastro?", [
-                          { text: "Cancelar", style: "cancel" },
-                          {
-                            text: "Excluir",
-                            style: "destructive",
-                            onPress: () => void deleteStudentPreRegistration(item.id).then(reload),
-                          },
-                        ])
-                      }
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.dangerText,
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        backgroundColor: colors.card,
-                      }}
-                    >
-                      <Text style={{ color: colors.dangerText, fontWeight: "700", fontSize: 12 }}>
-                        Excluir
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
+            <View
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                padding: 10,
+                gap: 2,
+              }}
+            >
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Aniversários hoje</Text>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
+                {birthdayTodayAll.length}
+              </Text>
             </View>
           </View>
+        </View>
+
+        {studentsTab === "cadastro" && (
+          <StudentRegistrationTab
+            colors={colors}
+            selectFieldStyle={selectFieldStyle}
+            photoUrl={photoUrl}
+            setShowPhotoSheet={setShowPhotoSheet}
+            isExperimental={isExperimental}
+            showTypePicker={showTypePicker}
+            typeTriggerRef={typeTriggerRef}
+            toggleFormPicker={toggleFormPicker}
+            openCreateSection={openCreateSection}
+            toggleCreateSection={toggleCreateSection}
+            createStudentDataAnim={createStudentDataAnim}
+            createDocumentsAnim={createDocumentsAnim}
+            createSportAnim={createSportAnim}
+            createHealthAnim={createHealthAnim}
+            createGuardianAnim={createGuardianAnim}
+            name={name}
+            setName={setName}
+            formatName={formatName}
+            unit={unit}
+            showUnitPicker={showUnitPicker}
+            unitTriggerRef={unitTriggerRef}
+            selectedClassName={selectedClassName}
+            showClassPicker={showClassPicker}
+            classTriggerRef={classTriggerRef}
+            studentFormError={studentFormError}
+            birthDate={birthDate}
+            setBirthDate={setBirthDate}
+            setShowCalendar={setShowCalendar}
+            ageNumber={ageNumber}
+            phone={phone}
+            setPhone={setPhone}
+            formatPhone={formatPhone}
+            ra={ra}
+            setRa={setRa}
+            setStudentDocumentsError={setStudentDocumentsError}
+            cpfDisplay={cpfDisplay}
+            setCpfDisplay={setCpfDisplay}
+            setIsCpfVisible={setIsCpfVisible}
+            setCpfRevealedValue={setCpfRevealedValue}
+            setCpfRevealUnavailable={setCpfRevealUnavailable}
+            rgDocument={rgDocument}
+            setRgDocument={setRgDocument}
+            editingId={editingId}
+            canRevealCpf={canRevealCpf}
+            isCpfVisible={isCpfVisible}
+            revealCpfBusy={revealCpfBusy}
+            handleRevealEditingCpf={handleRevealEditingCpf}
+            studentDocumentsError={studentDocumentsError}
+            loginEmail={loginEmail}
+            setLoginEmail={setLoginEmail}
+            formatEmail={formatEmail}
+            positionPrimary={positionPrimary}
+            setPositionPrimary={setPositionPrimary}
+            positionSecondary={positionSecondary}
+            setPositionSecondary={setPositionSecondary}
+            athleteObjective={athleteObjective}
+            setAthleteObjective={setAthleteObjective}
+            learningStyle={learningStyle}
+            setLearningStyle={setLearningStyle}
+            healthIssue={healthIssue}
+            setHealthIssue={setHealthIssue}
+            healthIssueNotes={healthIssueNotes}
+            setHealthIssueNotes={setHealthIssueNotes}
+            medicationUse={medicationUse}
+            setMedicationUse={setMedicationUse}
+            medicationNotes={medicationNotes}
+            setMedicationNotes={setMedicationNotes}
+            healthObservations={healthObservations}
+            setHealthObservations={setHealthObservations}
+            guardianName={guardianName}
+            setGuardianName={setGuardianName}
+            guardianPhone={guardianPhone}
+            setGuardianPhone={setGuardianPhone}
+            guardianRelation={guardianRelation}
+            showGuardianRelationPicker={showGuardianRelationPicker}
+            guardianRelationTriggerRef={guardianRelationTriggerRef}
+            canSaveStudent={canSaveStudent}
+            onSave={onSave}
+            isFormDirty={isFormDirty}
+            doResetForm={doResetForm}
+            confirmDialog={confirmDialog}
+          />
         )}
 
         {studentsTab === "aniversários" && (
-          <View style={{ gap: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text }}>
-                  Olá!
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>
-                  {birthdayToday.length
-                    ? (() => {
-                        const first = birthdayToday[0]?.name ?? "";
-                        if (birthdayToday.length === 1) {
-                          return `Hoje é aniversário de ${first}.`;
-                        }
-                        return `Hoje é aniversário de ${first} e mais ${
-                          birthdayToday.length - 1
-                        } pessoa(s).`;
-                      })()
-                    : "Sem aniversários hoje."}
-                </Text>
-              </View>
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                }}
-              >
-                {birthdayToday[0]?.photoUrl ? (
-                  <Image
-                    source={{ uri: birthdayToday[0].photoUrl }}
-                    style={{ width: "100%", height: "100%" }}
-                  />
-                ) : (
-                  <Ionicons name="person" size={20} color={colors.muted} />
-                )}
-              </View>
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>
-                Mês
-              </Text>
-              <FadeHorizontalScroll
-                fadeColor={colors.background}
-                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-              >
-                {["Todas", ...monthNames].map((label, index) => {
-                  const value = label === "Todas" ? "Todas" : index - 1;
-                  const active = birthdayMonthFilter === value;
-                  return (
-                    <Pressable
-                      key={`${label}-${index}`}
-                      onPress={() => setBirthdayMonthFilter(value)}
-                      onContextMenu={(event: any) => event.preventDefault()}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 12,
-                        borderRadius: 999,
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: active ? "transparent" : colors.border,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: active ? colors.primaryText : colors.text,
-                          fontWeight: active ? "700" : "500",
-                          fontSize: 12,
-                        }}
-                      >
-                        {label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </FadeHorizontalScroll>
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                borderRadius: 14,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Ionicons name="search" size={16} color={colors.muted} />
-              <TextInput
-                placeholder="Buscar nomes, datas e meses"
-                placeholderTextColor={colors.placeholder}
-                value={birthdaySearch}
-                onChangeText={setBirthdaySearch}
-                style={{ flex: 1, color: colors.inputText, fontSize: 13 }}
-              />
-              {birthdaySearch ? (
-                <Pressable
-                  onPress={() => setBirthdaySearch("")}
-                  onContextMenu={(event: any) => event.preventDefault()}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    backgroundColor: colors.secondaryBg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="close" size={14} color={colors.muted} />
-                </Pressable>
-              ) : null}
-            </View>
-
-            <View
-              style={{
-                borderRadius: 24,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                overflow: "hidden",
-              }}
-            >
-              <LinearGradient
-                colors={[colors.secondaryBg, colors.card]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  right: 0,
-                  bottom: 0,
-                  left: 0,
-                }}
-              />
-              <View style={{ padding: 16, gap: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name="gift" size={18} color={colors.text} />
-                  <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
-                    Aniversário de hoje 🎉
-                  </Text>
-                </View>
-                {birthdayToday.length ? (
-                  birthdayToday.map((student) => {
-                    const cls = classes.find((item) => item.id === student.classId) ?? null;
-                    const unitName = unitLabel(cls?.unit ?? "");
-                    const age = calculateAge(student.birthDate);
-                    return (
-                      <View
-                        key={student.id}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 12,
-                          padding: 10,
-                          borderRadius: 14,
-                          backgroundColor: colors.background,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        {student.photoUrl ? (
-                          <Image
-                            source={{ uri: student.photoUrl }}
-                            style={{ width: 40, height: 40, borderRadius: 20 }}
-                          />
-                        ) : (
-                          <View
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 20,
-                              backgroundColor: colors.secondaryBg,
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <Ionicons name="person" size={20} color={colors.muted} />
-                          </View>
-                        )}
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-                            {student.name}
-                          </Text>
-                          <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
-                            {age ? `${age} anos` : "Idade não informada"} - {unitName}
-                          </Text>
-                        </View>
-                        <Ionicons name="balloon" size={18} color={colors.primaryText} />
-                      </View>
-                    );
-                  })
-                ) : (
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>
-                    Sem aniversariantes hoje.
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {upcomingBirthdays.length ? (
-              <View style={{ gap: 10 }}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    Próximos aniversários
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {upcomingBirthdays.length} próximos
-                  </Text>
-                </View>
-                <FadeHorizontalScroll
-                  fadeColor={colors.background}
-                  contentContainerStyle={{ flexDirection: "row", gap: 12 }}
-                >
-                  {upcomingBirthdays.map(({ student, date, daysLeft }) => {
-                    const age = calculateAge(student.birthDate);
-                    return (
-                      <View
-                        key={`upcoming-${student.id}`}
-                        style={{
-                          width: 170,
-                          padding: 14,
-                          borderRadius: 20,
-                          backgroundColor: colors.card,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          minHeight: 220,
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <View style={{ gap: 10, alignItems: "center" }}>
-                          {student.photoUrl ? (
-                            <Image
-                              source={{ uri: student.photoUrl }}
-                              style={{
-                                width: 56,
-                                height: 56,
-                                borderRadius: 28,
-                              }}
-                            />
-                          ) : (
-                            <View
-                              style={{
-                                width: 56,
-                                height: 56,
-                                borderRadius: 28,
-                                backgroundColor: colors.secondaryBg,
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <Ionicons name="person" size={26} color={colors.muted} />
-                            </View>
-                          )}
-                          <View
-                            style={{
-                              gap: 4,
-                              minHeight: 64,
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <Text
-                              numberOfLines={2}
-                              style={{
-                                color: colors.text,
-                                fontWeight: "700",
-                                fontSize: 13,
-                                textAlign: "center",
-                              }}
-                            >
-                              {student.name}
-                            </Text>
-                            <Text
-                              style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}
-                            >
-                              {monthNames[date.getMonth()]} {date.getDate()}
-                            </Text>
-                            {age ? (
-                              <View
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  gap: 4,
-                                }}
-                              >
-                                <Ionicons
-                                  name="gift-outline"
-                                  size={12}
-                                  color={colors.primaryText}
-                                />
-                                <Text
-                                  style={{
-                                    color: colors.primaryText,
-                                    fontSize: 12,
-                                    fontWeight: "600",
-                                  }}
-                                >
-                                  {age} anos
-                                </Text>
-                              </View>
-                            ) : null}
-                          </View>
-                        </View>
-                        <View
-                          style={{
-                            paddingVertical: 6,
-                            paddingHorizontal: 10,
-                            borderRadius: 12,
-                            backgroundColor: colors.primaryBg,
-                            minHeight: 32,
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: colors.primaryText,
-                              fontSize: 12,
-                              fontWeight: "700",
-                              textAlign: "center",
-                            }}
-                          >
-                            {daysLeft === 1 ? "Amanhã" : `${daysLeft} dias`}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </FadeHorizontalScroll>
-              </View>
-            ) : (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Sem próximos aniversários
-                </Text>
-                <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12 }}>
-                  Ajuste o mês ou a busca para ver mais resultados.
-                </Text>
-              </View>
-            )}
-
-            <View style={{ gap: 10 }}>
-              <Pressable
-                onPress={() => setShowAllBirthdays((prev) => !prev)}
-                onContextMenu={(event: any) => event.preventDefault()}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  borderRadius: 16,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  Todos os aniversários
-                </Text>
-                <Ionicons
-                  name={showAllBirthdays ? "chevron-up" : "chevron-down"}
-                  size={16}
-                  color={colors.muted}
-                />
-              </Pressable>
-              { showAllBirthdaysContent ? (
-                <Animated.View style={[allBirthdaysAnimStyle, { gap: 12 }] }>
-                  <View
-                    style={{
-                      padding: 12,
-                      borderRadius: 16,
-                      backgroundColor: colors.card,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      gap: 8,
-                    }}
-                  >
-                    <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                      Unidade
-                    </Text>
-                    <FadeHorizontalScroll
-                      fadeColor={colors.card}
-                      contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-                    >
-                      {birthdayUnitOptions.map((unit) => {
-                        const active = birthdayUnitFilter === unit;
-                        const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                        const chipBg = active
-                          ? palette?.bg ?? colors.primaryBg
-                          : colors.secondaryBg;
-                        const chipText = active
-                          ? palette?.text ?? colors.primaryText
-                          : colors.text;
-                        return (
-                          <Pressable
-                            key={unit}
-                            onPress={() => setBirthdayUnitFilter(unit)}
-                            onContextMenu={(event: any) => event.preventDefault()}
-                            style={{
-                              paddingVertical: 6,
-                              paddingHorizontal: 10,
-                              borderRadius: 999,
-                              backgroundColor: chipBg,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: chipText,
-                                fontWeight: active ? "700" : "500",
-                              }}
-                            >
-                              {unit}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </FadeHorizontalScroll>
-                  </View>
-
-                  {birthdayMonthGroups.length ? (
-                    birthdayMonthGroups.map(([month, unitGroups]) => {
-                      const monthKey = `m-${month}`;
-                      const totalCount = unitGroups.reduce(
-                        (sum, [, entries]) => sum + entries.length,
-                        0
-                      );
-                      return (
-                        <View
-                          key={monthKey}
-                          style={{
-                            padding: 14,
-                            borderRadius: 18,
-                            backgroundColor: colors.card,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            gap: 10,
-                          }}
-                        >
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                            }}
-                          >
-                            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
-                              {monthNames[month]}
-                            </Text>
-                            <View
-                              style={{
-                                paddingVertical: 4,
-                                paddingHorizontal: 8,
-                                borderRadius: 8,
-                                backgroundColor: colors.secondaryBg,
-                              }}
-                            >
-                              <Text
-                                style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}
-                              >
-                                {totalCount}
-                              </Text>
-                            </View>
-                          </View>
-
-                          {unitGroups.map(([unitName, entries]) => {
-                            const unitKey = `m-${month}-u-${unitName}`;
-                            const palette =
-                              getUnitPalette(unitName, colors) ?? {
-                                bg: colors.primaryBg,
-                                text: colors.primaryText,
-                              };
-                            return (
-                              <View key={unitKey} style={{ gap: 6 }}>
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                  }}
-                                >
-                                  <View
-                                    style={{
-                                      paddingVertical: 4,
-                                      paddingHorizontal: 10,
-                                      borderRadius: 999,
-                                      backgroundColor: palette.bg,
-                                    }}
-                                  >
-                                    <Text
-                                      style={{
-                                        color: palette.text,
-                                        fontWeight: "700",
-                                        fontSize: 12,
-                                      }}
-                                    >
-                                      {unitName}
-                                    </Text>
-                                  </View>
-                                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                    {entries.length === 1
-                                      ? "1 aluno"
-                                      : `${entries.length} alunos`}
-                                  </Text>
-                                </View>
-                                <View style={{ gap: 8 }}>
-                                  {entries
-                                    .sort((a, b) => a.date.getDate() - b.date.getDate())
-                                    .map(({ student, date }) => {
-                                      const cls =
-                                        classes.find((item) => item.id === student.classId) ??
-                                        null;
-                                      const className = cls?.name ?? "Turma";
-                                      return (
-                                        <View
-                                          key={student.id}
-                                          style={{
-                                            padding: 12,
-                                            borderRadius: 14,
-                                            backgroundColor: colors.background,
-                                            borderWidth: 1,
-                                            borderColor: colors.border,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              color: colors.text,
-                                              fontWeight: "700",
-                                              fontSize: 13,
-                                            }}
-                                          >
-                                            {String(date.getDate()).padStart(2, "0")} - {student.name}
-                                          </Text>
-                                          <Text
-                                            style={{
-                                              color: colors.muted,
-                                              marginTop: 4,
-                                              fontSize: 12,
-                                            }}
-                                          >
-                                            {formatShortDate(student.birthDate)} | {className}
-                                          </Text>
-                                        </View>
-                                      );
-                                    })}
-                                </View>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      );
-                    })
-                  ) : (
-                    <View
-                      style={{
-                        padding: 12,
-                        borderRadius: 16,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        Sem aniversários
-                      </Text>
-                      <Text style={{ color: colors.muted, marginTop: 4 }}>
-                        Nenhum aluno com data de nascimento.
-                      </Text>
-                    </View>
-                  )}
-                </Animated.View>
-              ) : null}
-            </View>
-          </View>
+          <BirthdaysTab
+            colors={colors}
+            birthdayMonthFilter={birthdayMonthFilter}
+            setBirthdayMonthFilter={setBirthdayMonthFilter}
+            birthdaySearch={birthdaySearch}
+            setBirthdaySearch={setBirthdaySearch}
+            birthdayToday={birthdayToday}
+            upcomingBirthdays={upcomingBirthdays}
+            showAllBirthdays={showAllBirthdays}
+            setShowAllBirthdays={setShowAllBirthdays}
+            showAllBirthdaysContent={showAllBirthdaysContent}
+            allBirthdaysAnimStyle={allBirthdaysAnimStyle}
+            birthdayUnitOptions={birthdayUnitOptions}
+            birthdayUnitFilter={birthdayUnitFilter}
+            setBirthdayUnitFilter={setBirthdayUnitFilter}
+            birthdayMonthGroups={birthdayMonthGroups}
+            classById={classById}
+            unitLabel={unitLabel}
+            calculateAge={calculateAge}
+            formatShortDate={formatShortDate}
+          />
         )}
 
 
+
         {studentsTab === "alunos" && (
-          <View style={{ gap: 12 }}>
-            <UnitFilterBar
-              units={studentsUnitOptions}
-              selectedUnit={studentsUnitFilter}
-              onSelectUnit={setStudentsUnitFilter}
-            />
-
-            <View style={{ gap: 8 }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  Alunos
-                </Text>
-              </View>
-
-              { studentsGrouped.length > 0 ? (
-                <View style={{ gap: 12 }}>
-                  {studentsGrouped.map(({ unitName, classes: unitClasses }) => (
-                    <View key={unitName} style={{ gap: 8 }}>
-                      {(() => {
-                        const unitExpanded = !!expandedUnits[unitName];
-                        return (
-                          <>
-                            <Pressable
-                              onPress={() => toggleUnitExpanded(unitName)}
-                              style={{
-                                paddingVertical: 7,
-                                paddingHorizontal: 10,
-                                borderRadius: 12,
-                                backgroundColor: colors.background,
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                              }}
-                            >
-                              <Text
-                                style={{ fontSize: 14, fontWeight: "800", color: colors.text }}
-                              >
-                                {unitName}
-                              </Text>
-                              <Ionicons
-                                name={unitExpanded ? "chevron-down" : "chevron-forward"}
-                                size={16}
-                                color={colors.muted}
-                              />
-                            </Pressable>
-                            { unitExpanded ? (
-                              <View
-                                style={{
-                                  gap: 10,
-                                  marginLeft: 4,
-                                  paddingLeft: 10,
-                                  paddingTop: 6,
-                                  borderLeftWidth: 2,
-                                  borderLeftColor: colors.border,
-                                }}
-                              >
-                                {unitClasses.map((group) => {
-                                  const classExpanded = !!expandedClasses[group.classId];
-                                  const groupPalette =
-                                    group.palette ?? {
-                                      bg: colors.primaryBg,
-                                      text: colors.primaryText,
-                                    };
-                                  return (
-                                    <View key={group.classId} style={{ gap: 6 }}>
-                                      <Pressable
-                                        onPress={() => toggleClassExpanded(group.classId)}
-                                        style={{
-                                          paddingVertical: 6,
-                                          paddingHorizontal: 8,
-                                          borderRadius: 10,
-                                          backgroundColor: colors.background,
-                                          borderWidth: 1,
-                                          borderColor: colors.border,
-                                          flexDirection: "row",
-                                          alignItems: "center",
-                                          justifyContent: "space-between",
-                                          gap: 10,
-                                        }}
-                                      >
-                                        {(() => {
-                                          const items: { key: string; node: JSX.Element }[] = [
-                                            {
-                                              key: "name",
-                                              node: (
-                                                <Text
-                                                  style={{
-                                                    fontSize: 13,
-                                                    fontWeight: "800",
-                                                    color: colors.text,
-                                                  }}
-                                                  numberOfLines={1}
-                                                >
-                                                  {group.className}
-                                                </Text>
-                                              ),
-                                            },
-                                          ];
-                                          if (group.gender) {
-                                            items.push({
-                                              key: "gender",
-                                              node: <ClassGenderBadge gender={group.gender} size="sm" />,
-                                            });
-                                          }
-                                          if (group.scheduleLabel) {
-                                            items.push({
-                                              key: "schedule",
-                                              node: (
-                                                <Text
-                                                  style={{
-                                                    fontSize: 11,
-                                                    fontWeight: "700",
-                                                    color: colors.muted,
-                                                  }}
-                                                >
-                                                  {group.scheduleLabel}
-                                                </Text>
-                                              ),
-                                            });
-                                          }
-                                          return (
-                                            <View
-                                              style={{
-                                                flexDirection: "row",
-                                                alignItems: "center",
-                                                flexWrap: "wrap",
-                                                gap: 6,
-                                                minWidth: 0,
-                                                flex: 1,
-                                              }}
-                                            >
-                                              <View
-                                                style={{
-                                                  width: 8,
-                                                  height: 8,
-                                                  borderRadius: 999,
-                                                  backgroundColor: groupPalette.bg,
-                                                  marginRight: 2,
-                                                }}
-                                              />
-                                              {items.map((entry, index) => (
-                                                <View
-                                                  key={entry.key}
-                                                  style={{
-                                                    flexDirection: "row",
-                                                    alignItems: "center",
-                                                    gap: 6,
-                                                    minWidth: 0,
-                                                  }}
-                                                >
-                                                  {index > 0 ? (
-                                                    <View
-                                                      style={{
-                                                        width: 4,
-                                                        height: 4,
-                                                        borderRadius: 999,
-                                                        backgroundColor: colors.muted,
-                                                        opacity: 0.9,
-                                                        marginHorizontal: 2,
-                                                      }}
-                                                    />
-                                                  ) : null}
-                                                  {entry.node}
-                                                </View>
-                                              ))}
-                                            </View>
-                                          );
-                                        })()}
-                                        <Ionicons
-                                          name={classExpanded ? "chevron-down" : "chevron-forward"}
-                                          size={16}
-                                          color={colors.muted}
-                                        />
-                                      </Pressable>
-                                      { classExpanded ? (
-                                        <View
-                                          style={{
-                                            gap: 8,
-                                            marginLeft: 4,
-                                            paddingLeft: 10,
-                                            borderLeftWidth: 2,
-                                            borderLeftColor: groupPalette.bg,
-                                          }}
-                                        >
-                                          {group.students.map((student) => (
-                                            <View key={student.id}>
-                                              {renderStudentItem({
-                                                item: student,
-                                                paletteOverride: groupPalette,
-                                                classNameOverride: group.className,
-                                                unitNameOverride: unitName,
-                                              })}
-                                            </View>
-                                          ))}
-                                        </View>
-                                      ) : null}
-                                    </View>
-                                  );
-                                })}
-                              </View>
-                            ) : null}
-                          </>
-                        );
-                      })()}
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <View
-                  style={{
-                    padding: 16,
-                    borderRadius: 16,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    Nenhum aluno encontrado
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {studentsUnitFilter === "Todas"
-                       ? "Comece adicionando alunos"
-                      : "Nenhum aluno nesta unidade"}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
+          <StudentsListTab
+            studentsUnitOptions={studentsUnitOptions}
+            studentsUnitFilter={studentsUnitFilter}
+            setStudentsUnitFilter={setStudentsUnitFilter}
+            studentsSearch={studentsSearch}
+            setStudentsSearch={setStudentsSearch}
+            studentsFiltered={studentsFiltered}
+            studentsGrouped={studentsGrouped}
+            expandedUnits={expandedUnits}
+            expandedClasses={expandedClasses}
+            toggleUnitExpanded={toggleUnitExpanded}
+            toggleClassExpanded={toggleClassExpanded}
+            renderStudentItem={renderStudentItem}
+          />
         )}
 
       </ScrollView>
@@ -4469,6 +2646,10 @@ export default function StudentsScreen() {
         anchorRight={studentsFabRight}
         anchorBottom={studentsFabBottom}
         onClose={() => setShowStudentsFabMenu(false)}
+        onSyncFormsPress={() => {
+          setShowStudentsFabMenu(false);
+          setShowStudentsFormsSyncModal(true);
+        }}
         onImportPress={() => {
           setShowStudentsFabMenu(false);
           setShowStudentsImportModal(true);
@@ -4477,6 +2658,16 @@ export default function StudentsScreen() {
           void handleExportStudents().finally(() => {
             setShowStudentsFabMenu(false);
           });
+        }}
+      />
+
+      <StudentsFormsSyncModal
+        visible={showStudentsFormsSyncModal}
+        organizationId={activeOrganization?.id ?? null}
+        classes={classes}
+        onClose={() => setShowStudentsFormsSyncModal(false)}
+        onImportApplied={() => {
+          void reload();
         }}
       />
 
@@ -4583,6 +2774,33 @@ export default function StudentsScreen() {
             />
           ))}
         </StudentsAnchoredDropdown>
+        <StudentsAnchoredDropdown
+          visible={showTypePickerContent}
+          layout={typeTriggerLayout}
+          container={containerWindow}
+          animationStyle={typePickerAnimStyle}
+          zIndex={320}
+          maxHeight={120}
+          nestedScrollEnabled
+          onRequestClose={closeAllPickers}
+          panelStyle={{
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+          }}
+          scrollContentStyle={{ padding: 8, gap: 6 }}
+        >
+          {([{ label: "Aluno regular", value: "regular" }, { label: "Experimental", value: "experimental" }] as const).map((item, index) => (
+            <SelectOption
+              key={item.value}
+              label={item.label}
+              value={item.value}
+              active={(item.value === "experimental") === isExperimental}
+              onSelect={handleSelectType}
+              isFirst={index === 0}
+            />
+          ))}
+        </StudentsAnchoredDropdown>
       </View>
       { saveNotice ? (
         <Animated.View
@@ -4619,1286 +2837,157 @@ export default function StudentsScreen() {
           </Text>
         </Animated.View>
       ) : null}
-      <ModalSheet
-        visible={showEditModal}
-        onClose={requestCloseEditModal}
-        cardStyle={[
-          editModalCardStyle,
-          {
-            maxHeight: "92%",
-            minHeight: editModalStandardHeight,
-            height: editModalStandardHeight,
-            paddingBottom: 12,
-            overflow: "hidden",
-          },
-        ]}
-        position="center"
-      >
-        <View
-          ref={editModalRef}
-          onLayout={() => {
-            editModalRef.current.measureInWindow((x, y) => {
-              setEditContainerWindow({ x, y });
-            });
-          }}
-          style={{ position: "relative", width: "100%", flex: 1, minHeight: 0 }}
-        >
-        <ConfirmCloseOverlay
-          visible={showEditCloseConfirm}
-          onCancel={() => setShowEditCloseConfirm(false)}
-          onConfirm={() => {
-            setShowEditCloseConfirm(false);
-            closeEditModal();
-          }}
-        />
-        <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Editar aluno
-            </Text>
-            <Pressable
-              onPress={requestCloseEditModal}
-              style={{
-                height: 32,
-                paddingHorizontal: 12,
-                borderRadius: 16,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                Fechar
-              </Text>
-            </Pressable>
-          </View>
-          <KeyboardAvoidingView
-            style={{ width: "100%", flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-          >
-            <ScrollView
-              style={{ width: "100%", flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 12, paddingTop: 16 }}
-              keyboardShouldPersistTaps="handled"
-              onScrollBeginDrag={closeAllEditPickers}
-              onScroll={syncEditPickerLayouts}
-              scrollEventThrottle={16}
-            >
-              <View style={{ gap: 4 }}>
-                <View style={{ gap: 16 }}>
-                <View style={{ gap: 8 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-                    Dados do aluno
-                  </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                    <Pressable
-                      onPress={() => setShowPhotoSheet(true)}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {photoUrl ? (
-                        <Image
-                          source={{ uri: photoUrl }}
-                          style={{ width: "100%", height: "100%" }}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <Ionicons name="person" size={20} color={colors.text} />
-                      )}
-                    </Pressable>
-                    <Pressable
-                      onPress={() => setShowPhotoSheet(true)}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 12,
-                        borderRadius: 12,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                        Alterar foto
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
-                      <TextInput
-                        placeholder="Nome do aluno"
-                        value={name}
-                        onChangeText={setName}
-                        onBlur={() => setName(formatName(name))}
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-                      <View ref={editUnitTriggerRef}>
-                        <Pressable
-                          onPress={() => toggleEditPicker("unit")}
-                          style={selectFieldStyle}
-                        >
-                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                            {unit || "Selecione a unidade"}
-                          </Text>
-                          <Ionicons
-                            name="chevron-down"
-                            size={16}
-                            color={colors.muted}
-                            style={{
-                              transform: [
-                                { rotate: showEditUnitPicker ? "180deg" : "0deg" },
-                              ],
-                            }}
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
-                      <View ref={editClassTriggerRef}>
-                        <Pressable
-                          onPress={() => toggleEditPicker("class")}
-                          style={selectFieldStyle}
-                        >
-                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                            {selectedClassName || "Selecione a turma"}
-                          </Text>
-                          <Ionicons
-                            name="chevron-down"
-                            size={16}
-                            color={colors.muted}
-                            style={{
-                              transform: [
-                                { rotate: showEditClassPicker ? "180deg" : "0deg" },
-                              ],
-                            }}
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Email do aluno (login)
-                      </Text>
-                      <TextInput
-                        placeholder="email@exemplo.com"
-                        value={loginEmail}
-                        onChangeText={setLoginEmail}
-                        onBlur={() => setLoginEmail(formatEmail(loginEmail))}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                  </View>
-                  { studentFormError ? (
-                    <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                      {studentFormError}
-                    </Text>
-                  ) : null}
-                  <StudentDocumentsFields
-                    ra={ra}
-                    cpfDisplay={cpfDisplay}
-                    rg={rgDocument}
-                    onChangeRa={(value) => {
-                      setRa(normalizeRaDigits(value));
-                      setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
-                    }}
-                    onChangeCpf={(value) => {
-                      setCpfDisplay(value);
-                      setIsCpfVisible(false);
-                      setCpfRevealedValue(null);
-                      setCpfRevealUnavailable(false);
-                      setStudentDocumentsError((prev) => ({ ...prev, cpf: undefined }));
-                    }}
-                    onChangeRg={setRgDocument}
-                    showRevealCpfButton={Boolean(editingId && canRevealCpf)}
-                    isCpfVisible={isCpfVisible}
-                    revealCpfBusy={revealCpfBusy}
-                    onRevealCpf={handleRevealEditingCpf}
-                    errors={studentDocumentsError}
-                  />
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
-                      <TextInput
-                        placeholder="indefinido | levantador..."
-                        value={positionPrimary}
-                        onChangeText={(value) =>
-                          setPositionPrimary(
-                            (value.trim().toLowerCase() as Student["positionPrimary"]) ||
-                              "indefinido"
-                          )
-                        }
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
-                      <TextInput
-                        placeholder="indefinido | ponteiro..."
-                        value={positionSecondary}
-                        onChangeText={(value) =>
-                          setPositionSecondary(
-                            (value.trim().toLowerCase() as Student["positionSecondary"]) ||
-                              "indefinido"
-                          )
-                        }
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-                      <TextInput
-                        placeholder="ludico | base | rendimento"
-                        value={athleteObjective}
-                        onChangeText={(value) =>
-                          setAthleteObjective(
-                            (value.trim().toLowerCase() as Student["athleteObjective"]) || "base"
-                          )
-                        }
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Estilo</Text>
-                      <TextInput
-                        placeholder="misto | visual | auditivo | cinestesico"
-                        value={learningStyle}
-                        onChangeText={(value) =>
-                          setLearningStyle(
-                            (value.trim().toLowerCase() as Student["learningStyle"]) || "misto"
-                          )
-                        }
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <DateInput
-                        value={birthDate}
-                        onChange={setBirthDate}
-                        placeholder="Data de nascimento"
-                        onOpenCalendar={() => setShowCalendar(true)}
-                      />
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {ageNumber !== null
-                           ? `Idade: ${ageNumber} anos`
-                          : "Idade calculada automaticamente"}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <TextInput
-                        placeholder="Telefone"
-                        value={phone}
-                        onChangeText={(value) => setPhone(formatPhone(value))}
-                        keyboardType="phone-pad"
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                  </View>
-                </View>
-
-                <View style={{ gap: 8 }}>
-                  <Pressable
-                    onPress={() => setShowEditHealthSection((prev) => !prev)}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                      Saúde do aluno
-                    </Text>
-                    <Ionicons
-                      name={showEditHealthSection ? "chevron-up" : "chevron-down"}
-                      size={16}
-                      color={colors.muted}
-                    />
-                  </Pressable>
-                  { showEditHealthSectionContent ? (
-                    <Animated.View style={[editHealthSectionAnimStyle, { gap: 8 }]}>
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                        <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
-                          <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            Observações sobre saúde do aluno
-                          </Text>
-                          <View style={{ flexDirection: "row", gap: 8 }}>
-                            <Pressable
-                              onPress={() => {
-                                setHealthIssue(false);
-                                setHealthIssueNotes("");
-                              }}
-                              style={{
-                                paddingVertical: 8,
-                                paddingHorizontal: 12,
-                                borderRadius: 999,
-                                backgroundColor: !healthIssue
-                                  ? colors.primaryBg
-                                  : colors.secondaryBg,
-                                borderWidth: 1,
-                                borderColor: !healthIssue ? colors.primaryBg : colors.border,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: !healthIssue ? colors.primaryText : colors.text,
-                                  fontWeight: "700",
-                                }}
-                              >
-                                Não
-                              </Text>
-                            </Pressable>
-                            <Pressable
-                              onPress={() => setHealthIssue(true)}
-                              style={{
-                                paddingVertical: 8,
-                                paddingHorizontal: 12,
-                                borderRadius: 999,
-                                backgroundColor: healthIssue
-                                  ? colors.primaryBg
-                                  : colors.secondaryBg,
-                                borderWidth: 1,
-                                borderColor: healthIssue ? colors.primaryBg : colors.border,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: healthIssue ? colors.primaryText : colors.text,
-                                  fontWeight: "700",
-                                }}
-                              >
-                                Sim
-                              </Text>
-                            </Pressable>
-                          </View>
-                          { healthIssue ? (
-                            <TextInput
-                              placeholder="Descreva a observação"
-                              value={healthIssueNotes}
-                              onChangeText={setHealthIssueNotes}
-                              placeholderTextColor={colors.placeholder}
-                              multiline
-                              style={{
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                                padding: 10,
-                                borderRadius: 12,
-                                backgroundColor: colors.background,
-                                color: colors.inputText,
-                                minHeight: 70,
-                                textAlignVertical: "top",
-                              }}
-                            />
-                          ) : null}
-                        </View>
-                        <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
-                          <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            Uso contínuo de medicação
-                          </Text>
-                          <View style={{ flexDirection: "row", gap: 8 }}>
-                            <Pressable
-                              onPress={() => {
-                                setMedicationUse(false);
-                                setMedicationNotes("");
-                              }}
-                              style={{
-                                paddingVertical: 8,
-                                paddingHorizontal: 12,
-                                borderRadius: 999,
-                                backgroundColor: !medicationUse
-                                  ? colors.primaryBg
-                                  : colors.secondaryBg,
-                                borderWidth: 1,
-                                borderColor: !medicationUse ? colors.primaryBg : colors.border,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: !medicationUse ? colors.primaryText : colors.text,
-                                  fontWeight: "700",
-                                }}
-                              >
-                                Não
-                              </Text>
-                            </Pressable>
-                            <Pressable
-                              onPress={() => setMedicationUse(true)}
-                              style={{
-                                paddingVertical: 8,
-                                paddingHorizontal: 12,
-                                borderRadius: 999,
-                                backgroundColor: medicationUse
-                                  ? colors.primaryBg
-                                  : colors.secondaryBg,
-                                borderWidth: 1,
-                                borderColor: medicationUse ? colors.primaryBg : colors.border,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: medicationUse ? colors.primaryText : colors.text,
-                                  fontWeight: "700",
-                                }}
-                              >
-                                Sim
-                              </Text>
-                            </Pressable>
-                          </View>
-                          { medicationUse ? (
-                            <TextInput
-                              placeholder="Qual medicação?"
-                              value={medicationNotes}
-                              onChangeText={setMedicationNotes}
-                              placeholderTextColor={colors.placeholder}
-                              multiline
-                              style={{
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                                padding: 10,
-                                borderRadius: 12,
-                                backgroundColor: colors.background,
-                                color: colors.inputText,
-                                minHeight: 70,
-                                textAlignVertical: "top",
-                              }}
-                            />
-                          ) : null}
-                        </View>
-                      </View>
-                      <View style={{ gap: 6 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Observações</Text>
-                        <TextInput
-                          placeholder="Outras observações"
-                          value={healthObservations}
-                          onChangeText={setHealthObservations}
-                          placeholderTextColor={colors.placeholder}
-                          multiline
-                          style={{
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            padding: 10,
-                            borderRadius: 12,
-                            backgroundColor: colors.background,
-                            color: colors.inputText,
-                            minHeight: 80,
-                            textAlignVertical: "top",
-                          }}
-                        />
-                      </View>
-                    </Animated.View>
-                  ) : null}
-                </View>
-
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-
-                <View style={{ gap: 8 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-                    Dados do responsável
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Nome do responsável
-                      </Text>
-                      <TextInput
-                        placeholder="Nome do responsável"
-                        value={guardianName}
-                        onChangeText={setGuardianName}
-                        onBlur={() => setGuardianName(formatName(guardianName))}
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Telefone do responsável
-                      </Text>
-                      <TextInput
-                        placeholder="Telefone do responsável"
-                        value={guardianPhone}
-                        onChangeText={(value) => setGuardianPhone(formatPhone(value))}
-                        keyboardType="phone-pad"
-                        placeholderTextColor={colors.placeholder}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          padding: 10,
-                          fontSize: 13,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
-                          color: colors.inputText,
-                        }}
-                      />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
-                      <View ref={editGuardianRelationTriggerRef}>
-                        <Pressable
-                          onPress={() => toggleEditPicker("guardianRelation")}
-                          style={selectFieldStyle}
-                        >
-                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                            {guardianRelation || "Selecione"}
-                          </Text>
-                          <Ionicons
-                            name="chevron-down"
-                            size={16}
-                            color={colors.muted}
-                            style={{
-                              transform: [
-                                { rotate: showEditGuardianRelationPicker ? "180deg" : "0deg" },
-                              ],
-                            }}
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={{ height: 1, backgroundColor: colors.border }} />
-              </View>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  onPress={async () => {
-                    const didSave = await onSave();
-                    if (didSave) {
-                      closeEditModal();
-                    }
-                  }}
-                  disabled={!isEditDirty}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    backgroundColor: isEditDirty
-                      ? colors.primaryBg
-                      : colors.primaryDisabledBg,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: isEditDirty ? colors.primaryText : colors.secondaryText,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Salvar alterações
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={requestCloseEditModal}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    Cancelar
-                  </Text>
-                </Pressable>
-              </View>
-              { editingId ? (
-                <Pressable
-                  onPress={deleteEditingStudent}
-                  style={{
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.dangerSolidBg,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
-                    Excluir aluno
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-        <StudentsAnchoredDropdown
-          visible={showEditUnitPickerContent}
-          layout={
-            editUnitTriggerLayout
-              ? editUnitTriggerLayout
-              : null
-          }
-          container={editContainerWindow}
-          animationStyle={editUnitPickerAnimStyle}
-          zIndex={420}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllEditPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-          scrollContentStyle={{ padding: 4 }}
-        >
-          { unitOptions.length ? (
-            unitOptions.map((item, index) => (
-              <SelectOption
-                key={item}
-                label={item}
-                value={item}
-                active={item === unit}
-                onSelect={handleSelectEditUnit}
-                isFirst={index === 0}
-              />
-            ))
-          ) : (
-            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-              Nenhuma unidade cadastrada.
-            </Text>
-          )}
-        </StudentsAnchoredDropdown>
-
-        <StudentsAnchoredDropdown
-          visible={showEditClassPickerContent}
-          layout={
-            editClassTriggerLayout
-              ? editClassTriggerLayout
-              : null
-          }
-          container={editContainerWindow}
-          animationStyle={editClassPickerAnimStyle}
-          zIndex={420}
-          maxHeight={240}
-          nestedScrollEnabled
-          onRequestClose={closeAllEditPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-          scrollContentStyle={{ padding: 4 }}
-        >
-          { classOptions.length ? (
-            classOptions.map((item, index) => (
-              <ClassOption
-                key={item.id}
-                item={item}
-                active={item.id === classId}
-                onSelect={handleSelectEditClass}
-                isFirst={index === 0}
-              />
-            ))
-          ) : (
-            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-              Nenhuma turma encontrada.
-            </Text>
-          )}
-        </StudentsAnchoredDropdown>
-        <StudentsAnchoredDropdown
-          visible={showEditGuardianRelationPickerContent}
-          layout={
-            editGuardianRelationTriggerLayout
-              ? editGuardianRelationTriggerLayout
-              : null
-          }
-          container={editContainerWindow}
-          animationStyle={editGuardianRelationPickerAnimStyle}
-          zIndex={420}
-          maxHeight={160}
-          nestedScrollEnabled
-          onRequestClose={closeAllEditPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-          scrollContentStyle={{ padding: 4 }}
-        >
-          {guardianRelationOptions.map((item, index) => (
-            <SelectOption
-              key={item}
-              label={item}
-              value={item}
-              active={item === guardianRelation}
-              onSelect={handleSelectEditGuardianRelation}
-              isFirst={index === 0}
-            />
-          ))}
-        </StudentsAnchoredDropdown>
-        </View>
-      </ModalSheet>
-      <ModalSheet
+      <StudentEditModal
+        showEditModal={showEditModal}
+        requestCloseEditModal={requestCloseEditModal}
+        editModalCardStyle={editModalCardStyle}
+        showEditCloseConfirm={showEditCloseConfirm}
+        setShowEditCloseConfirm={setShowEditCloseConfirm}
+        closeEditModal={closeEditModal}
+        editModalRef={editModalRef}
+        setEditContainerWindow={setEditContainerWindow}
+        photoUrl={photoUrl}
+        setShowPhotoSheet={setShowPhotoSheet}
+        pickStudentPhoto={pickStudentPhoto}
+        openEditSection={openEditSection}
+        toggleEditSection={toggleEditSection}
+        editStudentDataAnim={editStudentDataAnim}
+        editDocumentsAnim={editDocumentsAnim}
+        editSportAnim={editSportAnim}
+        editHealthAnim={editHealthAnim}
+        editGuardianAnim={editGuardianAnim}
+        editLinksAnim={editLinksAnim}
+        name={name}
+        setName={setName}
+        loginEmail={loginEmail}
+        setLoginEmail={setLoginEmail}
+        birthDate={birthDate}
+        setBirthDate={setBirthDate}
+        ageNumber={ageNumber}
+        phone={phone}
+        setPhone={setPhone}
+        studentFormError={studentFormError}
+        setShowCalendar={setShowCalendar}
+        formatName={formatName}
+        formatEmail={formatEmail}
+        formatPhone={formatPhone}
+        ra={ra}
+        setRa={setRa}
+        cpfDisplay={cpfDisplay}
+        setCpfDisplay={setCpfDisplay}
+        rgDocument={rgDocument}
+        setRgDocument={setRgDocument}
+        editingId={editingId}
+        canRevealCpf={canRevealCpf}
+        isCpfVisible={isCpfVisible}
+        revealCpfBusy={revealCpfBusy}
+        handleRevealEditingCpf={handleRevealEditingCpf}
+        studentDocumentsError={studentDocumentsError}
+        setIsCpfVisible={setIsCpfVisible}
+        setCpfRevealedValue={setCpfRevealedValue}
+        setCpfRevealUnavailable={setCpfRevealUnavailable}
+        setStudentDocumentsError={setStudentDocumentsError}
+        editDocumentsSummary={editDocumentsSummary}
+        positionPrimary={positionPrimary}
+        setPositionPrimary={setPositionPrimary}
+        positionSecondary={positionSecondary}
+        setPositionSecondary={setPositionSecondary}
+        athleteObjective={athleteObjective}
+        setAthleteObjective={setAthleteObjective}
+        learningStyle={learningStyle}
+        setLearningStyle={setLearningStyle}
+        editSportSummary={editSportSummary}
+        healthIssue={healthIssue}
+        setHealthIssue={setHealthIssue}
+        healthIssueNotes={healthIssueNotes}
+        setHealthIssueNotes={setHealthIssueNotes}
+        medicationUse={medicationUse}
+        setMedicationUse={setMedicationUse}
+        medicationNotes={medicationNotes}
+        setMedicationNotes={setMedicationNotes}
+        healthObservations={healthObservations}
+        setHealthObservations={setHealthObservations}
+        editHealthSummary={editHealthSummary}
+        guardianName={guardianName}
+        setGuardianName={setGuardianName}
+        guardianPhone={guardianPhone}
+        setGuardianPhone={setGuardianPhone}
+        guardianRelation={guardianRelation}
+        editGuardianRelationTriggerRef={editGuardianRelationTriggerRef}
+        toggleEditPicker={toggleEditPicker}
+        showEditGuardianRelationPicker={showEditGuardianRelationPicker}
+        editGuardianSummary={editGuardianSummary}
+        guardianRelationOptions={guardianRelationOptions}
+        showEditGuardianRelationPickerContent={showEditGuardianRelationPickerContent}
+        editGuardianRelationTriggerLayout={editGuardianRelationTriggerLayout}
+        editGuardianRelationPickerAnimStyle={editGuardianRelationPickerAnimStyle}
+        handleSelectEditGuardianRelation={handleSelectEditGuardianRelation}
+        unit={unit}
+        editUnitTriggerRef={editUnitTriggerRef}
+        showEditUnitPicker={showEditUnitPicker}
+        selectedClassName={selectedClassName}
+        editClassTriggerRef={editClassTriggerRef}
+        showEditClassPicker={showEditClassPicker}
+        editLinksSummary={editLinksSummary}
+        unitOptions={unitOptions}
+        showEditUnitPickerContent={showEditUnitPickerContent}
+        editUnitTriggerLayout={editUnitTriggerLayout}
+        editContainerWindow={editContainerWindow}
+        editUnitPickerAnimStyle={editUnitPickerAnimStyle}
+        handleSelectEditUnit={handleSelectEditUnit}
+        classOptions={classOptions}
+        classId={classId}
+        showEditClassPickerContent={showEditClassPickerContent}
+        editClassTriggerLayout={editClassTriggerLayout}
+        editClassPickerAnimStyle={editClassPickerAnimStyle}
+        handleSelectEditClass={handleSelectEditClass}
+        closeAllEditPickers={closeAllEditPickers}
+        deleteEditingStudent={deleteEditingStudent}
+        editSaving={editSaving}
+        setEditSaving={setEditSaving}
+        onSave={onSave}
+        isEditDirty={isEditDirty}
+        selectFieldStyle={selectFieldStyle}
+        colors={colors}
+        SelectOption={SelectOption}
+        ClassOption={ClassOption}
+      />
+      <WhatsAppModal
         visible={showWhatsAppModal}
         onClose={closeWhatsAppModal}
         cardStyle={whatsappModalCardStyle}
-        position="center"
-        backdropOpacity={0.65}
-      >
-        {(() => {
-          if (!selectedStudentId) return null;
-          const student = students.find((item) => item.id === selectedStudentId);
-          if (!student) return null;
-          const cls = classes.find((item) => item.id === student.classId) ?? null;
-          const guardianContact = normalizePhoneBR(student.guardianPhone);
-          const studentContact = normalizePhoneBR(student.phone);
-          const hasGuardian = guardianContact.isValid;
-          const hasStudent = studentContact.isValid;
-          const useGuardian = selectedContactType === "guardian" && hasGuardian;
-          const useStudent = selectedContactType === "student" && hasStudent;
-          const finalPhone = useGuardian
-             ? guardianContact.phoneDigits
-            : useStudent
-              ? studentContact.phoneDigits
-            : "";
-          const nextClassDate = cls?.daysOfWeek?.length
-            ? calculateNextClassDate(cls.daysOfWeek)
-            : null;
-          const sendMessage = async () => {
-            if (!finalPhone) {
-              Alert.alert(
-                "Contato inválido",
-                "Atualize o telefone do aluno ou responsável."
-              );
-              return;
-            }
-            let messageText = customStudentMessage.trim();
-            if (selectedTemplateId === "student_invite" && !customFields.inviteLink) {
-              const generated = await applyStudentInviteTemplate(
-                student,
-                cls,
-                finalPhone
-              );
-              if (generated) {
-                messageText = generated.trim();
-              }
-            }
-            if (!messageText) {
-              Alert.alert("Mensagem vazia", "Escreva ou escolha um template.");
-              return;
-            }
-            const url = buildWaMeLink(finalPhone, messageText);
-            await openWhatsApp(url);
-            closeWhatsAppModal();
-          };
-
-          return (
-            <View
-              ref={whatsappContainerRef}
-              style={{ gap: 12, overflow: "visible" }}
-            >
-              <ConfirmCloseOverlay
-                visible={showRevokeConfirm}
-                title="Revogar acesso do aluno?"
-                message="Isso remove o acesso atual, revoga convites antigos e gera um novo link."
-                confirmLabel="Revogar e gerar"
-                cancelLabel="Cancelar"
-                overlayZIndex={10000}
-                onCancel={() => setShowRevokeConfirm(false)}
-                onConfirm={() => {
-                  setShowRevokeConfirm(false);
-                  void applyStudentInviteTemplate(student, cls, finalPhone, {
-                    revokeFirst: true,
-                    copyLink: true,
-                  });
-                }}
-              />
-              <View>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  {student.name}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
-                  {cls?.name ?? "Turma"}
-                </Text>
-              </View>
-
-              <View style={{ gap: 6 }}>
-                <View ref={templateTriggerRef}>
-                  <Pressable
-                    onPress={() => {
-                      setShowTemplateList((prev) => {
-                        const next = !prev;
-                        if (!prev && next) {
-                          syncTemplateLayout();
-                        }
-                        return next;
-                      });
-                    }}
-                    style={{
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      {selectedTemplateId
-                        ? WHATSAPP_TEMPLATES[selectedTemplateId]?.title
-                        : selectedTemplateLabel ?? "Template"}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [{ rotate: showTemplateList ? "180deg" : "0deg" }],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-
-              { selectedTemplateId === "student_invite" ? (
-                <Pressable
-                  onPress={() => {
-                    if (studentInviteBusy) return;
-                    setShowRevokeConfirm(true);
-                  }}
-                  disabled={studentInviteBusy}
-                  style={{
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    backgroundColor: studentInviteBusy
-                      ? colors.primaryDisabledBg
-                      : colors.dangerSolidBg,
-                    alignItems: "center",
-                    opacity: studentInviteBusy ? 0.6 : 1,
-                  }}
-                >
-                  <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
-                    {studentInviteBusy ? "Processando..." : "Revogar e gerar novo link"}
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              { whatsappNotice ? (
-                <View
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    borderRadius: 10,
-                    backgroundColor: colors.successBg,
-                    borderWidth: 1,
-                    borderColor: colors.successBg,
-                  }}
-                >
-                  <Text style={{ color: colors.successText, fontWeight: "700", fontSize: 12 }}>
-                    {whatsappNotice}
-                  </Text>
-                </View>
-              ) : null}
-
-              {selectedTemplateId ? (
-                WHATSAPP_TEMPLATES[selectedTemplateId].requires.map((field) => {
-                  if (
-                    field === "nextClassDate" ||
-                    field === "nextClassTime" ||
-                    field === "groupInviteLink" ||
-                    field === "inviteLink"
-                  ) {
-                    return null;
-                  }
-                  const fieldLabel = field === "highlightNote" ? "Destaque" : "Texto";
-                  const fieldPlaceholder =
-                    field === "highlightNote"
-                       ? "Ex: excelente postura no saque!"
-                      : "Ex: não haverá treino na sexta";
-                  return (
-                    <View key={field} style={{ gap: 6 }}>
-                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
-                        {fieldLabel}:
-                      </Text>
-                      <TextInput
-                        placeholder={fieldPlaceholder}
-                        placeholderTextColor={colors.placeholder}
-                        value={customFields[field] || ""}
-                        onChangeText={(text) => {
-                          const updatedFields = { ...customFields, [field]: text };
-                          setCustomFields(updatedFields);
-                          if (selectedTemplateId) {
-                            setCustomStudentMessage(
-                              buildStudentMessage(student, cls, selectedTemplateId, updatedFields)
-                            );
-                          }
-                        }}
-                        multiline
-                        numberOfLines={2}
-                        style={{
-                          padding: 10,
-                          borderRadius: 8,
-                          backgroundColor: colors.background,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          color: colors.text,
-                          fontSize: 12,
-                          textAlignVertical: "top",
-                        }}
-                      />
-                    </View>
-                  );
-                })
-              ) : null}
-
-              { hasGuardian || hasStudent ? (
-                <View style={{ gap: 6 }}>
-                  <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
-                    Enviar para:
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    { hasGuardian ? (
-                      <Pressable
-                        onPress={() => setSelectedContactType("guardian")}
-                        style={{
-                          flex: 1,
-                          minWidth: 140,
-                          padding: 10,
-                          borderRadius: 8,
-                          backgroundColor:
-                            selectedContactType === "guardian"
-                               ? colors.primaryBg
-                              : colors.inputBg,
-                          borderWidth: 1,
-                          borderColor:
-                            selectedContactType === "guardian"
-                               ? colors.primaryBg
-                              : colors.border,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 13,
-                            fontWeight: "600",
-                            color:
-                              selectedContactType === "guardian"
-                                 ? colors.primaryText
-                                : colors.text,
-                          }}
-                        >
-                          Responsável
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 11,
-                            color:
-                              selectedContactType === "guardian"
-                                 ? colors.primaryText
-                                : colors.muted,
-                            marginTop: 2,
-                          }}
-                        >
-                          {student.guardianPhone || "Sem telefone"}
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                    { hasStudent ? (
-                      <Pressable
-                        onPress={() => setSelectedContactType("student")}
-                        style={{
-                          flex: 1,
-                          minWidth: 140,
-                          padding: 10,
-                          borderRadius: 8,
-                          backgroundColor:
-                            selectedContactType === "student"
-                               ? colors.primaryBg
-                              : colors.inputBg,
-                          borderWidth: 1,
-                          borderColor:
-                            selectedContactType === "student"
-                               ? colors.primaryBg
-                              : colors.border,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 13,
-                            fontWeight: "600",
-                            color:
-                              selectedContactType === "student"
-                                 ? colors.primaryText
-                                : colors.text,
-                          }}
-                        >
-                          Aluno
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 11,
-                            color:
-                              selectedContactType === "student"
-                                 ? colors.primaryText
-                                : colors.muted,
-                            marginTop: 2,
-                          }}
-                        >
-                          {student.phone || "Sem telefone"}
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ) : (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sem telefone válido cadastrado.
-                </Text>
-              )}
-
-              <View style={{ gap: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: colors.muted }}>
-                  Mensagem:
-                </Text>
-                <TextInput
-                  placeholder="Escreva a mensagem"
-                  placeholderTextColor={colors.muted}
-                  value={customStudentMessage}
-                  onChangeText={setCustomStudentMessage}
-                  multiline
-                  numberOfLines={4}
-                  style={{
-                    padding: 10,
-                    borderRadius: 8,
-                    backgroundColor: colors.background,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    color: colors.text,
-                    fontSize: 12,
-                    textAlignVertical: "top",
-                    minHeight: 80,
-                  }}
-                />
-              </View>
-
-              <Pressable
-                onPress={sendMessage}
-                style={{
-                  paddingVertical: 11,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  backgroundColor: "#25D366",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "white", fontWeight: "700", fontSize: 14 }}>
-                  Enviar via WhatsApp
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={closeWhatsAppModal}
-                style={{
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>
-                  Fechar
-                </Text>
-              </Pressable>
-              <StudentsAnchoredDropdown
-                visible={showTemplateListContent}
-                layout={templateTriggerLayout}
-                container={whatsappContainerWindow}
-                animationStyle={templateListAnimStyle}
-                zIndex={9999}
-                maxHeight={220}
-                nestedScrollEnabled
-                onRequestClose={closeAllPickers}
-                panelStyle={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.background,
-                }}
-                scrollContentStyle={{ padding: 8, gap: 8 }}
-              >
-                {Object.values(WHATSAPP_TEMPLATES).map((template) => {
-                  const isSelected = selectedTemplateId === template.id;
-                  let canUse = true;
-                  let missingRequirement = "";
-                  if (template.requires) {
-                    for (const req of template.requires) {
-                      if (req === "nextClassDate" && !nextClassDate) {
-                        canUse = false;
-                        missingRequirement = "Dias da semana não configurados";
-                        break;
-                      }
-                      if (req === "nextClassTime" && !cls.startTime) {
-                        canUse = false;
-                        missingRequirement = "Horário não configurado";
-                        break;
-                      }
-                      if (req === "groupInviteLink" && cls && !groupInviteLinks[cls.id]) {
-                        canUse = false;
-                        missingRequirement = "Link do grupo não configurado";
-                        break;
-                      }
-                    }
-                  }
-                  return (
-                    <Pressable
-                      key={template.id}
-                      disabled={!canUse}
-                      onPress={() => {
-                        if (!canUse) {
-                          Alert.alert("Template indisponível", missingRequirement);
-                          return;
-                        }
-                        if (template.id === "student_invite") {
-                          setShowTemplateList(false);
-                          void applyStudentInviteTemplate(
-                            student,
-                            cls,
-                            finalPhone
-                          );
-                          return;
-                        }
-                        const fields: Record<string, string> = {};
-                        setSelectedTemplateId(template.id);
-                        setSelectedTemplateLabel(template.title);
-                        setCustomFields(fields);
-                        setCustomStudentMessage(
-                          buildStudentMessage(student, cls, template.id, fields)
-                        );
-                        setShowTemplateList(false);
-                      }}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 10,
-                        backgroundColor: isSelected ? colors.primaryBg : colors.card,
-                        borderWidth: 1,
-                        borderColor: isSelected ? colors.primaryBg : colors.border,
-                        opacity: canUse ? 1 : 0.5,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "700",
-                          color: isSelected ? colors.primaryText : colors.text,
-                        }}
-                      >
-                        {template.title}
-                      </Text>
-                      { !canUse ? (
-                        <Text style={{ fontSize: 11, color: colors.dangerText, marginTop: 2 }}>
-                          {missingRequirement}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </StudentsAnchoredDropdown>
-            </View>
-          );
-        })()}
-      </ModalSheet>
+        selectedStudentId={selectedStudentId}
+        students={students}
+        classById={classById}
+        selectedContactType={selectedContactType}
+        setSelectedContactType={setSelectedContactType}
+        selectedTemplateId={selectedTemplateId}
+        selectedTemplateLabel={selectedTemplateLabel}
+        setSelectedTemplateId={setSelectedTemplateId}
+        setSelectedTemplateLabel={setSelectedTemplateLabel}
+        customFields={customFields}
+        setCustomFields={setCustomFields}
+        customStudentMessage={customStudentMessage}
+        setCustomStudentMessage={setCustomStudentMessage}
+        studentInviteBusy={studentInviteBusy}
+        showRevokeConfirm={showRevokeConfirm}
+        setShowRevokeConfirm={setShowRevokeConfirm}
+        applyStudentInviteTemplate={applyStudentInviteTemplate}
+        whatsappNotice={whatsappNotice}
+        showTemplateList={showTemplateList}
+        setShowTemplateList={setShowTemplateList}
+        showTemplateListContent={showTemplateListContent}
+        templateTriggerLayout={templateTriggerLayout}
+        whatsappContainerWindow={whatsappContainerWindow}
+        templateListAnimStyle={templateListAnimStyle}
+        syncTemplateLayout={syncTemplateLayout}
+        closeAllPickers={closeAllPickers}
+        whatsappContainerRef={whatsappContainerRef}
+        templateTriggerRef={templateTriggerRef}
+        groupInviteLinks={groupInviteLinks}
+        colors={colors}
+        buildStudentMessage={buildStudentMessage}
+      />
       <ModalSheet
         visible={showPhotoSheet}
         onClose={() => setShowPhotoSheet(false)}
@@ -6035,5 +3124,4 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
-
 

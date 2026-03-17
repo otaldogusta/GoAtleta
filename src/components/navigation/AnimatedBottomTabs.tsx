@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
-import { Text, View } from "react-native";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { usePathname, useRouter } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import { Platform, Text, View } from "react-native";
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { FabRadialMenu } from "./FabRadialMenu";
@@ -26,13 +27,47 @@ export function AnimatedBottomTabs({
   navigation,
 }: AnimatedBottomTabsProps) {
   const { colors } = useAppTheme();
+  const { activeOrganization, memberPermissions } = useOrganization();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const iconAnim = useSharedValue(0);
+  const hideNavigation =
+    /\/(assistant)(\/|$)/.test(pathname) ||
+    /^\/(prof|coord)\/students(\/|$)/.test(pathname) ||
+    /^\/students(\/|$)/.test(pathname) ||
+    /^\/(prof|coord)\/planning(\/|$)/.test(pathname) ||
+    /^\/(prof|coord)\/periodization(\/|$)/.test(pathname) ||
+    /^\/periodization(\/|$)/.test(pathname);
 
-  const tabs = ROLE_TABS[role];
+  const tabs = useMemo(() => {
+    const baseTabs = ROLE_TABS[role];
+    const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+    if (isOrgAdmin) return baseTabs;
+
+    const permissionByRoute: Partial<Record<string, keyof typeof memberPermissions>> =
+      role === "prof"
+        ? {
+            classes: "classes",
+            planning: "training",
+            reports: "reports",
+          }
+        : role === "coord"
+          ? {
+              classes: "classes",
+              reports: "reports",
+              management: "org_members",
+            }
+          : {};
+
+    return baseTabs.filter((tab) => {
+      if (tab.isCenter) return true;
+      const permissionKey = permissionByRoute[tab.routeName];
+      if (!permissionKey) return true;
+      return memberPermissions[permissionKey] !== false;
+    });
+  }, [activeOrganization?.role_level, memberPermissions, role]);
   const radialActions = ROLE_RADIAL_ACTIONS[role];
   const bottom = Math.max(insets.bottom + 8, 14);
 
@@ -64,15 +99,19 @@ export function AnimatedBottomTabs({
     return segments[segments.length - 1] ?? "";
   }, [pathname]);
 
+  if (hideNavigation) {
+    return null;
+  }
+
   return (
     <View
-      pointerEvents="box-none"
       style={{
         position: "absolute",
         left: 12,
         right: 12,
         bottom,
         zIndex: 3000,
+        pointerEvents: "box-none",
       }}
     >
       <FabRadialMenu
@@ -95,10 +134,14 @@ export function AnimatedBottomTabs({
           backgroundColor: colors.card,
           paddingVertical: 6,
           paddingHorizontal: 8,
-          shadowColor: "#000",
-          shadowOpacity: 0.16,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 8 },
+          ...(Platform.OS === "web"
+            ? { boxShadow: "0px 8px 14px rgba(0, 0, 0, 0.16)" }
+            : {
+                shadowColor: "#000",
+                shadowOpacity: 0.16,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 8 },
+              }),
           elevation: 14,
         }}
       >
