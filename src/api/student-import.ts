@@ -154,6 +154,15 @@ const looksLikeJwt = (value: string) => {
   return token.split(".").length === 3;
 };
 
+const getFriendlyImportAuthError = (status: number, message: string): string | null => {
+  const normalized = String(message ?? "").toLowerCase();
+  if (status === 401) return "Sessao expirada. Faca login novamente.";
+  if (normalized.includes("invalid jwt")) return "Sessao expirada. Faca login novamente.";
+  if (normalized.includes("unauthorized")) return "Sessao expirada. Faca login novamente.";
+  if (normalized.includes("token")) return "Sessao expirada. Faca login novamente.";
+  return null;
+};
+
 const resolveStudentsImportToken = async (
   preferredAccessToken?: string | null
 ): Promise<string> => {
@@ -245,6 +254,10 @@ const callStudentsImport = async (
       (typeof parsed.message === "string" && parsed.message) ||
       raw ||
       "Falha ao executar importacao.";
+    const friendlyAuthError = getFriendlyImportAuthError(response.status, message);
+    if (friendlyAuthError) {
+      throw new Error(friendlyAuthError);
+    }
     if (reason) {
       throw new Error(`${message} (${reason})`);
     }
