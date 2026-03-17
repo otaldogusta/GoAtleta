@@ -1,7 +1,7 @@
-import { StyleSheet, Text, View } from "react-native";
-import { Pressable } from "../../../ui/Pressable";
+import { Text, View } from "react-native";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { ModalSheet } from "../../../ui/ModalSheet";
+import { Pressable } from "../../../ui/Pressable";
 
 type Props = {
   visible: boolean;
@@ -9,11 +9,9 @@ type Props = {
   modalCardStyle: object;
   colors: ThemeColors;
   selectedClass: { id: string } | null | undefined;
-  isSavingPlans: boolean;
   isImportingPlansFile: boolean;
   hasWeekPlans: boolean;
   periodizationRowsLength: number;
-  onApplyPreset: () => void;
   onImportPlans: () => void;
   onExportWeek: () => void;
   onExportCycle: () => void;
@@ -25,11 +23,9 @@ export function PlanActionsModal({
   modalCardStyle,
   colors,
   selectedClass,
-  isSavingPlans,
   isImportingPlansFile,
   hasWeekPlans,
   periodizationRowsLength,
-  onApplyPreset,
   onImportPlans,
   onExportWeek,
   onExportCycle,
@@ -52,22 +48,6 @@ export function PlanActionsModal({
       </Text>
 
       <View style={{ gap: 10, marginTop: 12 }}>
-        <Pressable
-          onPress={onApplyPreset}
-          disabled={!selectedClass || isSavingPlans}
-          style={{
-            paddingVertical: 12,
-            borderRadius: 12,
-            alignItems: "center",
-            backgroundColor: colors.primaryBg,
-            opacity: !selectedClass || isSavingPlans ? 0.6 : 1,
-          }}
-        >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            {isSavingPlans ? "Aplicando preset..." : "Aplicar preset ElCartel (18 semanas)"}
-          </Text>
-        </Pressable>
-
         <Pressable
           onPress={onImportPlans}
           disabled={!selectedClass || isImportingPlansFile}

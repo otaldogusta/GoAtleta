@@ -132,7 +132,25 @@ export type StudentsImportRequestPayload = {
   mode: ImportMode;
   policy: ImportPolicy;
   sourceFilename?: string;
+  rows?: StudentImportRow[];
+  runId?: string;
+  resolutions?: Record<string, "KEEP_EXISTING" | "OVERWRITE" | "SKIP">;
+};
+
+export type StudentsImportPreviewPayload = {
+  organizationId: string;
+  policy: ImportPolicy;
+  sourceFilename?: string;
   rows: StudentImportRow[];
+};
+
+export type StudentsImportApplyPayload = {
+  organizationId: string;
+  policy: ImportPolicy;
+  sourceFilename?: string;
+  rows?: StudentImportRow[];
+  runId?: string;
+  resolutions?: Record<string, "KEEP_EXISTING" | "OVERWRITE" | "SKIP">;
 };
 
 const waitForAccessToken = async (): Promise<string> => {
@@ -286,7 +304,7 @@ const callStudentsImport = async (
   };
 };
 
-export const previewStudentsImport = async (payload: Omit<StudentsImportRequestPayload, "mode">) =>
+export const previewStudentsImport = async (payload: StudentsImportPreviewPayload) =>
   measureAsync("screen.studentsImport.load.preview", async () => {
     Sentry.addBreadcrumb({
       category: "students-import",
@@ -301,8 +319,9 @@ export const previewStudentsImport = async (payload: Omit<StudentsImportRequestP
     return callStudentsImport({ ...payload, mode: "preview" });
   });
 
-export const applyStudentsImport = async (payload: Omit<StudentsImportRequestPayload, "mode">) =>
+export const applyStudentsImport = async (payload: StudentsImportApplyPayload) =>
   measureAsync("screen.studentsImport.load.apply", async () => {
+    const rowsCount = Array.isArray(payload.rows) ? payload.rows.length : 0;
     Sentry.addBreadcrumb({
       category: "students-import",
       message: "apply.request",
@@ -310,14 +329,15 @@ export const applyStudentsImport = async (payload: Omit<StudentsImportRequestPay
       data: {
         organizationId: payload.organizationId,
         policy: payload.policy,
-        rows: payload.rows.length,
+        rows: rowsCount,
+        runId: payload.runId ?? null,
       },
     });
     return callStudentsImport({ ...payload, mode: "apply" });
   });
 
 export const previewStudentsImportWithToken = async (
-  payload: Omit<StudentsImportRequestPayload, "mode">,
+  payload: StudentsImportPreviewPayload,
   accessToken?: string | null
 ) =>
   measureAsync("screen.studentsImport.load.preview", async () => {
@@ -335,10 +355,11 @@ export const previewStudentsImportWithToken = async (
   });
 
 export const applyStudentsImportWithToken = async (
-  payload: Omit<StudentsImportRequestPayload, "mode">,
+  payload: StudentsImportApplyPayload,
   accessToken?: string | null
 ) =>
   measureAsync("screen.studentsImport.load.apply", async () => {
+    const rowsCount = Array.isArray(payload.rows) ? payload.rows.length : 0;
     Sentry.addBreadcrumb({
       category: "students-import",
       message: "apply.request",
@@ -346,7 +367,8 @@ export const applyStudentsImportWithToken = async (
       data: {
         organizationId: payload.organizationId,
         policy: payload.policy,
-        rows: payload.rows.length,
+        rows: rowsCount,
+        runId: payload.runId ?? null,
       },
     });
     return callStudentsImport({ ...payload, mode: "apply" }, accessToken);

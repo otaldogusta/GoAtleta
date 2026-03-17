@@ -4,19 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
 import * as XLSX from "xlsx";
 
-import {
-  applyStudentsImport,
-  getStudentImportRunLogs,
-  listStudentImportRuns,
-  previewStudentsImport,
-  type ImportPolicy,
-  type StudentImportFunctionResult,
-  type StudentImportLog,
-  type StudentImportRow,
-  type StudentImportRun,
-} from "../../api/student-import";
 import type { ClassGroup } from "../../core/models";
 import { markRender } from "../../observability/perf";
+import {
+    applyStudentsSync,
+    listStudentsSyncRunLogs,
+    listStudentsSyncRuns,
+    previewStudentsSync,
+    type ImportPolicy,
+    type StudentImportFunctionResult,
+    type StudentImportLog,
+    type StudentImportRow,
+    type StudentImportRun,
+} from "../../services/students-sync-service";
 import { useAppTheme } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
@@ -259,7 +259,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
     if (!organizationId) return;
     setHistoryLoading(true);
     try {
-      const list = await listStudentImportRuns(organizationId, 20);
+      const list = await listStudentsSyncRuns(organizationId, 20);
       setRuns(list);
       if (!selectedRun && list.length) setSelectedRun(list[0]);
     } catch (error) {
@@ -273,7 +273,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
   const loadRunLogs = useCallback(async (runId: string) => {
     setLogsLoading(true);
     try {
-      const logs = await getStudentImportRunLogs(runId, 150, 0);
+      const logs = await listStudentsSyncRunLogs(runId, 150, 0);
       setSelectedRunLogs(logs);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao carregar logs.";
@@ -370,7 +370,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
     }
     setPreviewLoading(true);
     try {
-      const result = await previewStudentsImport({
+      const result = await previewStudentsSync({
         organizationId,
         policy,
         sourceFilename: effectiveSourceFilename,
@@ -406,11 +406,11 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
         onPress: async () => {
           setApplyLoading(true);
           try {
-            const result = await applyStudentsImport({
+            const result = await applyStudentsSync({
               organizationId,
               policy,
               sourceFilename: effectiveSourceFilename,
-              rows: payloadRows,
+              runId: previewResult.runId,
             });
             setApplyResult(result);
             await loadRuns();

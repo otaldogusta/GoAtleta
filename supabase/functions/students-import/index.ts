@@ -85,8 +85,14 @@ type StudentsImportRequest = {
   policy?: ImportPolicy;
   sourceFilename?: string;
   rows?: StudentImportRow[];
+  runId?: string;
+  resolutions?: Record<string, string>;
 };
 const MAX_IMPORT_ROWS = 500;
+
+type ConflictResolution = "KEEP_EXISTING" | "OVERWRITE" | "SKIP";
+
+type ResolutionMap = Record<string, ConflictResolution>;
 
 type RunSummary = {
   totalRows: number;
@@ -323,6 +329,39 @@ const emptySummary = (): RunSummary => ({
   flags: {},
 });
 
+const normalizeResolutions = (value: unknown): ResolutionMap => {
+  if (!value || typeof value !== "object") return {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  const normalized: ResolutionMap = {};
+  for (const [key, raw] of entries) {
+    const resolution = String(raw ?? "").toUpperCase();
+    if (resolution === "KEEP_EXISTING" || resolution === "OVERWRITE" || resolution === "SKIP") {
+      normalized[String(key)] = resolution;
+    }
+  }
+  return normalized;
+};
+
+const getResolutionForRow = (
+  resolutions: ResolutionMap,
+  rowNumber: number,
+  logId: string
+): ConflictResolution | null => resolutions[String(logId)] ?? resolutions[String(rowNumber)] ?? null;
+
+type ImportLogRow = {
+  id: string;
+  row_number: number;
+  action: ImportAction;
+  matched_by: string | null;
+  confidence: "high" | "medium" | "low";
+  student_id: string | null;
+  class_id: string | null;
+  patch: Record<string, unknown> | null;
+  conflicts: Record<string, unknown> | null;
+  flags: string[] | null;
+  error_message: string | null;
+};
+
 const chunk = <T>(list: T[], size: number): T[][] => {
   const chunks: T[][] = [];
   for (let i = 0; i < list.length; i += size) {
@@ -359,17 +398,29 @@ Deno.serve(async (request) => {
     return asJson(400, { error: `Invalid organizationId: ${organizationValidation.error}` });
   }
 
-  const rowsValidation = validateArrayLength<Record<string, unknown>>(payload.rows, {
-    minLength: 1,
-    maxLength: MAX_IMPORT_ROWS,
-  });
-  if (!rowsValidation.ok) {
-    return asJson(400, { error: `Invalid rows: ${rowsValidation.error}` });
-  }
-
   const organizationId = organizationValidation.data;
   const mode = validateMode(payload.mode);
   const policy = validatePolicy(payload.policy);
+  const runIdValidation = validateStringField(payload.runId, {
+    minLength: 1,
+    maxLength: 128,
+    trim: true,
+  });
+  const applyRunId = mode === "apply" && runIdValidation.ok ? runIdValidation.data : "";
+  const requiresRows = mode === "preview" || (mode === "apply" && !applyRunId);
+
+  let rowsInput: Record<string, unknown>[] = [];
+  if (requiresRows) {
+    const rowsValidation = validateArrayLength<Record<string, unknown>>(payload.rows, {
+      minLength: 1,
+      maxLength: MAX_IMPORT_ROWS,
+    });
+    if (!rowsValidation.ok) {
+      return asJson(400, { error: `Invalid rows: ${rowsValidation.error}` });
+    }
+    rowsInput = rowsValidation.data;
+  }
+
   const sourceFilenameValidation = validateStringField(payload.sourceFilename, {
     maxLength: 255,
     trim: true,
@@ -377,14 +428,6 @@ Deno.serve(async (request) => {
   const sourceFilename = sourceFilenameValidation.ok && sourceFilenameValidation.data
     ? sourceFilenameValidation.data
     : null;
-  const rowsInput = rowsValidation.data;
-
-  const secret = String(Deno.env.get("STUDENT_IMPORT_HMAC_SECRET") ?? "").trim();
-  if (!secret) {
-    return asJson(500, {
-      error: "Missing STUDENT_IMPORT_HMAC_SECRET configuration.",
-    });
-  }
 
   const { data: memberRow, error: memberError } = await supabase
     .from("organization_members")
@@ -413,6 +456,230 @@ Deno.serve(async (request) => {
       error: "Rate limit exceeded",
       retryAfterSec: limiter.retryAfterSec,
       maxRequestsPerMinute,
+    });
+  }
+
+  if (mode === "apply" && applyRunId) {
+    const resolutions = normalizeResolutions(payload.resolutions);
+
+    const { data: runRow, error: runError } = await supabase
+      .from("student_import_runs")
+      .select("id, organization_id, source_sha256, policy, status, mode, summary")
+      .eq("id", applyRunId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (runError) return asJson(500, { error: runError.message });
+    if (!runRow) return asJson(404, { error: "Import run not found." });
+
+    if (runRow.mode === "apply" && (runRow.status === "applied" || runRow.status === "partial")) {
+      return asJson(200, {
+        status: runRow.status,
+        mode: "apply",
+        runId: runRow.id,
+        sourceSha256: runRow.source_sha256,
+        summary: runRow.summary ?? emptySummary(),
+        idempotent: true,
+      });
+    }
+
+    const { data: existingAppliedRun, error: existingAppliedRunError } = await supabase
+      .from("student_import_runs")
+      .select("id, status, summary")
+      .eq("organization_id", organizationId)
+      .eq("source_sha256", runRow.source_sha256)
+      .eq("policy", runRow.policy)
+      .eq("mode", "apply")
+      .in("status", ["applied", "partial"])
+      .neq("id", runRow.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingAppliedRunError) return asJson(500, { error: existingAppliedRunError.message });
+    if (existingAppliedRun) {
+      return asJson(200, {
+        status: existingAppliedRun.status,
+        mode: "apply",
+        runId: existingAppliedRun.id,
+        sourceSha256: runRow.source_sha256,
+        summary: existingAppliedRun.summary ?? emptySummary(),
+        idempotent: true,
+      });
+    }
+
+    const { data: logs, error: logsError } = await supabase
+      .from("student_import_logs")
+      .select("id, row_number, action, matched_by, confidence, student_id, class_id, patch, conflicts, flags, error_message")
+      .eq("run_id", runRow.id)
+      .order("row_number", { ascending: true });
+
+    if (logsError) return asJson(500, { error: logsError.message });
+    const plannedLogs = (logs ?? []) as ImportLogRow[];
+    if (!plannedLogs.length) {
+      return asJson(400, { error: "Import run has no planned rows." });
+    }
+
+    const unresolvedConflicts = plannedLogs
+      .filter((log) => log.action === "conflict")
+      .filter((log) => !getResolutionForRow(resolutions, Number(log.row_number), String(log.id)));
+
+    if (unresolvedConflicts.length > 0) {
+      return asJson(409, {
+        error: "Unresolved conflicts.",
+        runId: runRow.id,
+        unresolved: unresolvedConflicts.slice(0, 50).map((log) => ({
+          id: log.id,
+          rowNumber: log.row_number,
+          flags: log.flags ?? [],
+          conflicts: log.conflicts,
+        })),
+      });
+    }
+
+    const summary = emptySummary();
+    summary.totalRows = plannedLogs.length;
+    const plannedRows: PlannedRow[] = [];
+
+    for (const log of plannedLogs) {
+      const confidence = (log.confidence ?? "low") as "high" | "medium" | "low";
+      const flags = Array.isArray(log.flags) ? log.flags : [];
+      const rowNumber = Number(log.row_number ?? 0);
+      const resolution = log.action === "conflict"
+        ? getResolutionForRow(resolutions, rowNumber, String(log.id))
+        : null;
+
+      let action: ImportAction = log.action;
+      let errorMessage: string | null = log.error_message ?? null;
+      let studentId: string | null = log.student_id ?? null;
+      const patch = (log.patch ?? null) as Record<string, unknown> | null;
+
+      try {
+        if (log.action === "conflict") {
+          if (resolution === "KEEP_EXISTING" || resolution === "SKIP") {
+            action = "skip";
+          } else if (resolution === "OVERWRITE") {
+            if (!studentId || !patch) {
+              action = "error";
+              errorMessage = "Conflict overwrite requires student_id and patch.";
+            } else {
+              const { data: updated, error: updateError } = await supabase
+                .from("students")
+                .update(patch)
+                .eq("id", studentId)
+                .eq("organization_id", organizationId)
+                .select("id")
+                .single();
+              if (updateError || !updated) {
+                action = "error";
+                errorMessage = updateError?.message ?? "Failed to overwrite student conflict.";
+              } else {
+                action = "update";
+                studentId = String(updated.id);
+              }
+            }
+          }
+        } else if (log.action === "create") {
+          if (!patch) {
+            action = "error";
+            errorMessage = "Missing patch for create action.";
+          } else {
+            const { data: created, error: createError } = await supabase
+              .from("students")
+              .insert({ ...patch, organization_id: organizationId })
+              .select("id")
+              .single();
+            if (createError || !created) {
+              action = "error";
+              errorMessage = createError?.message ?? "Failed to create student.";
+            } else {
+              studentId = String(created.id);
+            }
+          }
+        } else if (log.action === "update") {
+          if (!studentId || !patch) {
+            action = "error";
+            errorMessage = "Missing student_id or patch for update action.";
+          } else {
+            const { data: updated, error: updateError } = await supabase
+              .from("students")
+              .update(patch)
+              .eq("id", studentId)
+              .eq("organization_id", organizationId)
+              .select("id")
+              .single();
+            if (updateError || !updated) {
+              action = "error";
+              errorMessage = updateError?.message ?? "Failed to update student.";
+            }
+          }
+        }
+      } catch (applyError) {
+        action = "error";
+        errorMessage = applyError instanceof Error ? applyError.message : "Unexpected apply error.";
+      }
+
+      if (action === "create") summary.create += 1;
+      if (action === "update") summary.update += 1;
+      if (action === "conflict") summary.conflict += 1;
+      if (action === "skip") summary.skip += 1;
+      if (action === "error") summary.error += 1;
+      if (confidence === "high") summary.confidenceHigh += 1;
+      if (confidence === "medium") summary.confidenceMedium += 1;
+      if (confidence === "low") summary.confidenceLow += 1;
+      for (const flag of flags) {
+        summary.flags[flag] = (summary.flags[flag] ?? 0) + 1;
+      }
+
+      plannedRows.push({
+        rowNumber,
+        action,
+        matchedBy: log.matched_by ?? null,
+        confidence,
+        studentId,
+        classId: log.class_id ?? null,
+        className: null,
+        flags,
+        conflicts: (log.conflicts ?? null) as Record<string, unknown> | null,
+        errorMessage,
+      });
+    }
+
+    let finalStatus: ImportRunStatus = "applied";
+    if (summary.error > 0 && summary.create + summary.update === 0) {
+      finalStatus = "failed";
+    } else if (summary.error > 0 || summary.conflict > 0) {
+      finalStatus = "partial";
+    }
+
+    const { error: runUpdateError } = await supabase
+      .from("student_import_runs")
+      .update({
+        mode: "apply",
+        status: finalStatus,
+        summary,
+        applied_at: new Date().toISOString(),
+      })
+      .eq("id", runRow.id)
+      .eq("organization_id", organizationId);
+
+    if (runUpdateError) return asJson(500, { error: runUpdateError.message });
+
+    return asJson(200, {
+      status: finalStatus,
+      mode: "apply",
+      runId: runRow.id,
+      sourceSha256: runRow.source_sha256,
+      summary,
+      rows: plannedRows,
+      idempotent: false,
+    });
+  }
+
+  const secret = String(Deno.env.get("STUDENT_IMPORT_HMAC_SECRET") ?? "").trim();
+  if (!secret) {
+    return asJson(500, {
+      error: "Missing STUDENT_IMPORT_HMAC_SECRET configuration.",
     });
   }
 
@@ -509,15 +776,47 @@ Deno.serve(async (request) => {
       const match = findExistingStudent(row, matcher);
       const classResolution = resolveClass(row, classLookup);
 
-      const merge = computeMergePatch({
-        existing: match.student,
-        incoming: row,
-        policy,
-        confidence: match.confidence,
-        resolvedClassId: classResolution.classId,
-        classFound: classResolution.classFound,
-        duplicateInput,
-      });
+      let merge;
+      if (match.ambiguousBy) {
+        merge = {
+          action: "conflict" as ImportAction,
+          patch: null,
+          conflicts: {
+            matchedBy: match.ambiguousBy,
+            candidateIds: match.candidateIds,
+            reason: "Mais de um cadastro corresponde aos mesmos identificadores.",
+          },
+          flags: ["AMBIGUOUS_MATCH"],
+        };
+      } else if (
+        match.student &&
+        match.matchedBy === "name+birthdate" &&
+        classResolution.classId &&
+        match.student.classid &&
+        match.student.classid !== classResolution.classId
+      ) {
+        merge = {
+          action: "conflict" as ImportAction,
+          patch: null,
+          conflicts: {
+            matchedBy: "name+birthdate",
+            existingClassId: match.student.classid,
+            incomingClassId: classResolution.classId,
+            reason: "Match por nome+nascimento conflita com turma existente.",
+          },
+          flags: ["LOW_CONFIDENCE_CLASS_MISMATCH"],
+        };
+      } else {
+        merge = computeMergePatch({
+          existing: match.student,
+          incoming: row,
+          policy,
+          confidence: match.confidence,
+          resolvedClassId: classResolution.classId,
+          classFound: classResolution.classFound,
+          duplicateInput,
+        });
+      }
 
       let action: ImportAction = merge.action;
       let studentId = match.student?.id ?? null;

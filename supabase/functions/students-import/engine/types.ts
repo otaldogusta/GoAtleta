@@ -71,6 +71,8 @@ export type MatchResult = {
   student: ExistingStudentRow | null;
   matchedBy: string | null;
   confidence: MatchConfidence;
+  ambiguousBy: string | null;
+  candidateIds: string[];
 };
 
 export type MergeResult = {

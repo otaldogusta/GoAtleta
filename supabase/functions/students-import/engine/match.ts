@@ -26,12 +26,12 @@ const dateKey = (value: string | null | undefined) => {
 };
 
 type Matcher = {
-  byExternalId: Map<string, ExistingStudentRow>;
-  byRa: Map<string, ExistingStudentRow>;
-  byRg: Map<string, ExistingStudentRow>;
-  byCpfNameBirth: Map<string, ExistingStudentRow>;
-  byPhoneNameBirth: Map<string, ExistingStudentRow>;
-  byNameBirth: Map<string, ExistingStudentRow>;
+  byExternalId: Map<string, ExistingStudentRow[]>;
+  byRa: Map<string, ExistingStudentRow[]>;
+  byRg: Map<string, ExistingStudentRow[]>;
+  byCpfNameBirth: Map<string, ExistingStudentRow[]>;
+  byPhoneNameBirth: Map<string, ExistingStudentRow[]>;
+  byNameBirth: Map<string, ExistingStudentRow[]>;
 };
 
 const buildCpfKey = (cpfHmac: string, nameNorm: string, birthDate: string) =>
@@ -42,6 +42,42 @@ const buildPhoneKey = (phone: string, nameNorm: string, birthDate: string) =>
 
 const buildNameBirthKey = (nameNorm: string, birthDate: string) =>
   `name:${nameNorm}:${birthDate}`;
+
+const pushToMatcher = (
+  map: Map<string, ExistingStudentRow[]>,
+  key: string,
+  student: ExistingStudentRow
+) => {
+  if (!key) return;
+  const current = map.get(key) ?? [];
+  if (current.some((item) => item.id === student.id)) return;
+  current.push(student);
+  map.set(key, current);
+};
+
+const matchFromCandidates = (
+  candidates: ExistingStudentRow[] | undefined,
+  matchedBy: string,
+  confidence: "high" | "medium" | "low"
+): MatchResult | null => {
+  if (!candidates || candidates.length === 0) return null;
+  if (candidates.length === 1) {
+    return {
+      student: candidates[0],
+      matchedBy,
+      confidence,
+      ambiguousBy: null,
+      candidateIds: [candidates[0].id],
+    };
+  }
+  return {
+    student: null,
+    matchedBy,
+    confidence: "low",
+    ambiguousBy: matchedBy,
+    candidateIds: candidates.map((item) => item.id),
+  };
+};
 
 export const buildMatcher = (students: ExistingStudentRow[]): Matcher => {
   const matcher: Matcher = {
@@ -55,19 +91,13 @@ export const buildMatcher = (students: ExistingStudentRow[]): Matcher => {
 
   for (const student of students) {
     const externalId = String(student.external_id ?? "").trim();
-    if (externalId && !matcher.byExternalId.has(externalId)) {
-      matcher.byExternalId.set(externalId, student);
-    }
+    if (externalId) pushToMatcher(matcher.byExternalId, externalId, student);
 
     const ra = String(student.ra ?? "").replace(/\D+/g, "").trim();
-    if (ra && !matcher.byRa.has(ra)) {
-      matcher.byRa.set(ra, student);
-    }
+    if (ra) pushToMatcher(matcher.byRa, ra, student);
 
     const rg = String(student.rg_normalized ?? "").trim();
-    if (rg && !matcher.byRg.has(rg)) {
-      matcher.byRg.set(rg, student);
-    }
+    if (rg) pushToMatcher(matcher.byRg, rg, student);
 
     const nameNorm = normalizeName(student.name);
     const birth = dateKey(student.birthdate);
@@ -76,19 +106,17 @@ export const buildMatcher = (students: ExistingStudentRow[]): Matcher => {
     const cpfHmac = String(student.guardian_cpf_hmac ?? "").trim();
     if (cpfHmac) {
       const key = buildCpfKey(cpfHmac, nameNorm, birth);
-      if (!matcher.byCpfNameBirth.has(key)) matcher.byCpfNameBirth.set(key, student);
+      pushToMatcher(matcher.byCpfNameBirth, key, student);
     }
 
     const phone = normalizePhone(student.guardian_phone);
     if (phone) {
       const key = buildPhoneKey(phone, nameNorm, birth);
-      if (!matcher.byPhoneNameBirth.has(key)) matcher.byPhoneNameBirth.set(key, student);
+      pushToMatcher(matcher.byPhoneNameBirth, key, student);
     }
 
     const nameBirth = buildNameBirthKey(nameNorm, birth);
-    if (!matcher.byNameBirth.has(nameBirth)) {
-      matcher.byNameBirth.set(nameBirth, student);
-    }
+    pushToMatcher(matcher.byNameBirth, nameBirth, student);
   }
 
   return matcher;
@@ -96,13 +124,13 @@ export const buildMatcher = (students: ExistingStudentRow[]): Matcher => {
 
 export const registerStudentInMatcher = (matcher: Matcher, student: ExistingStudentRow) => {
   const externalId = String(student.external_id ?? "").trim();
-  if (externalId) matcher.byExternalId.set(externalId, student);
+  if (externalId) pushToMatcher(matcher.byExternalId, externalId, student);
 
   const ra = String(student.ra ?? "").replace(/\D+/g, "").trim();
-  if (ra) matcher.byRa.set(ra, student);
+  if (ra) pushToMatcher(matcher.byRa, ra, student);
 
   const rg = String(student.rg_normalized ?? "").trim();
-  if (rg) matcher.byRg.set(rg, student);
+  if (rg) pushToMatcher(matcher.byRg, rg, student);
 
   const nameNorm = normalizeName(student.name);
   const birth = dateKey(student.birthdate);
@@ -110,15 +138,15 @@ export const registerStudentInMatcher = (matcher: Matcher, student: ExistingStud
 
   const cpfHmac = String(student.guardian_cpf_hmac ?? "").trim();
   if (cpfHmac) {
-    matcher.byCpfNameBirth.set(buildCpfKey(cpfHmac, nameNorm, birth), student);
+    pushToMatcher(matcher.byCpfNameBirth, buildCpfKey(cpfHmac, nameNorm, birth), student);
   }
 
   const phone = normalizePhone(student.guardian_phone);
   if (phone) {
-    matcher.byPhoneNameBirth.set(buildPhoneKey(phone, nameNorm, birth), student);
+    pushToMatcher(matcher.byPhoneNameBirth, buildPhoneKey(phone, nameNorm, birth), student);
   }
 
-  matcher.byNameBirth.set(buildNameBirthKey(nameNorm, birth), student);
+  pushToMatcher(matcher.byNameBirth, buildNameBirthKey(nameNorm, birth), student);
 };
 
 export const findExistingStudent = (
@@ -126,37 +154,37 @@ export const findExistingStudent = (
   matcher: Matcher
 ): MatchResult => {
   if (row.externalId) {
-    const student = matcher.byExternalId.get(row.externalId) ?? null;
-    if (student) return { student, matchedBy: "external_id", confidence: "high" };
+    const match = matchFromCandidates(matcher.byExternalId.get(row.externalId), "external_id", "high");
+    if (match) return match;
   }
 
   if (row.ra) {
-    const student = matcher.byRa.get(row.ra) ?? null;
-    if (student) return { student, matchedBy: "ra", confidence: "high" };
+    const match = matchFromCandidates(matcher.byRa.get(row.ra), "ra", "high");
+    if (match) return match;
   }
 
   if (row.rgNormalized) {
-    const student = matcher.byRg.get(row.rgNormalized) ?? null;
-    if (student) return { student, matchedBy: "rg_normalized", confidence: "high" };
+    const match = matchFromCandidates(matcher.byRg.get(row.rgNormalized), "rg_normalized", "high");
+    if (match) return match;
   }
 
   if (row.guardianCpfHmac && row.nameNormalized && row.birthDate) {
     const key = buildCpfKey(row.guardianCpfHmac, row.nameNormalized, row.birthDate);
-    const student = matcher.byCpfNameBirth.get(key) ?? null;
-    if (student) return { student, matchedBy: "guardian_cpf_hmac+name+birthdate", confidence: "high" };
+    const match = matchFromCandidates(matcher.byCpfNameBirth.get(key), "guardian_cpf_hmac+name+birthdate", "high");
+    if (match) return match;
   }
 
   if (row.guardianPhone && row.nameNormalized && row.birthDate) {
     const key = buildPhoneKey(row.guardianPhone, row.nameNormalized, row.birthDate);
-    const student = matcher.byPhoneNameBirth.get(key) ?? null;
-    if (student) return { student, matchedBy: "guardian_phone+name+birthdate", confidence: "medium" };
+    const match = matchFromCandidates(matcher.byPhoneNameBirth.get(key), "guardian_phone+name+birthdate", "medium");
+    if (match) return match;
   }
 
   if (row.nameNormalized && row.birthDate) {
     const key = buildNameBirthKey(row.nameNormalized, row.birthDate);
-    const student = matcher.byNameBirth.get(key) ?? null;
-    if (student) return { student, matchedBy: "name+birthdate", confidence: "low" };
+    const match = matchFromCandidates(matcher.byNameBirth.get(key), "name+birthdate", "low");
+    if (match) return match;
   }
 
-  return { student: null, matchedBy: null, confidence: "low" };
+  return { student: null, matchedBy: null, confidence: "low", ambiguousBy: null, candidateIds: [] };
 };

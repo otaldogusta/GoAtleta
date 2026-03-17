@@ -6,13 +6,13 @@ import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import * as XLSX from "xlsx";
 import * as cptable from "xlsx/dist/cpexcel.js";
 
-import {
-  applyStudentsImport,
-  previewStudentsImport,
-  type StudentImportFunctionResult,
-  type StudentImportRow,
-} from "../../../api/student-import";
 import type { ClassGroup } from "../../../core/models";
+import {
+    applyStudentsSync,
+    previewStudentsSync,
+    type StudentImportFunctionResult,
+    type StudentImportRow,
+} from "../../../services/students-sync-service";
 import { useAppTheme } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
@@ -421,7 +421,7 @@ export function StudentsImportModal({
 
       setFileInfo(selected);
       setLoadingMessage("Gerando previa da planilha...");
-      const preview = await previewStudentsImport({
+      const preview = await previewStudentsSync({
         organizationId,
         policy: "misto",
         sourceFilename: selected.sourceFilename,
@@ -457,11 +457,11 @@ export function StudentsImportModal({
         onPress: async () => {
           setApplyLoading(true);
           try {
-            const result = await applyStudentsImport({
+            const result = await applyStudentsSync({
               organizationId,
               policy: "misto",
               sourceFilename: fileInfo.sourceFilename,
-              rows: fileInfo.rows,
+              runId: previewResult.runId,
             });
 
             Alert.alert(

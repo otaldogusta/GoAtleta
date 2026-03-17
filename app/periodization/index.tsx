@@ -51,7 +51,6 @@ import {
   formatPlannedLoad,
 } from "../../src/core/periodization-load";
 import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState";
-import { useApplyElCartelPreset } from "../../src/screens/periodization/hooks/useApplyElCartelPreset";
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
 import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
 import { useImportPlansFile } from "../../src/screens/periodization/hooks/useImportPlansFile";
@@ -2753,21 +2752,6 @@ export default function PeriodizationScreen() {
     setShowGenerateModal,
   });
 
-  const { handleApplyElCartelPreset } = useApplyElCartelPreset({
-    selectedClass,
-    normalizeText,
-    setClassPlans,
-    setCycleLength,
-    setSessionsPerWeek,
-    setCompetitiveProfile,
-    setCalendarExceptions,
-    setExceptionDateInput,
-    setExceptionReasonInput,
-    setShowPlanActionsModal,
-    setIsSavingPlans,
-  });
-
-
   const handleGenerateAction = useCallback(
 
     (mode: "fill" | "auto" | "all") => {
@@ -3780,11 +3764,9 @@ export default function PeriodizationScreen() {
         modalCardStyle={modalCardStyle}
         colors={colors}
         selectedClass={selectedClass}
-        isSavingPlans={isSavingPlans}
         isImportingPlansFile={isImportingPlansFile}
         hasWeekPlans={hasWeekPlans}
         periodizationRowsLength={periodizationRows.length}
-        onApplyPreset={() => { void handleApplyElCartelPreset(); }}
         onImportPlans={() => { setShowPlanActionsModal(false); void handleImportPlansFile(); }}
         onExportWeek={() => { setShowPlanActionsModal(false); void handleExportWeek(); }}
         onExportCycle={() => { setShowPlanActionsModal(false); void handleExportCycle(); }}

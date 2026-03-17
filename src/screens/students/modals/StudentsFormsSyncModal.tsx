@@ -2,15 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 
-import {
-    applyStudentsImportWithToken,
-    previewStudentsImportWithToken,
-    type StudentImportFunctionResult,
-} from "../../../api/student-import";
 import { useAuth } from "../../../auth/auth";
 import { buildAthleteIntakeSummary, mapGoogleFormsRowToAthleteIntake } from "../../../core/athlete-intake";
 import type { ClassGroup } from "../../../core/models";
 import { syncGoogleFormsAthleteIntakes } from "../../../db/seed";
+import {
+    applyStudentsSync,
+    previewStudentsSync,
+    type StudentImportFunctionResult,
+} from "../../../services/students-sync-service";
 import { useAppTheme } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
@@ -51,6 +51,10 @@ export function StudentsFormsSyncModal({
 
   const summary = previewResult?.summary ?? null;
   const canApply = Boolean(summary && summary.create + summary.update > 0 && loadedSheet);
+  const conflictRows = useMemo(
+    () => (previewResult?.rows ?? []).filter((row) => row.action === "conflict" || row.action === "error"),
+    [previewResult]
+  );
 
   const summaryCards = useMemo(
     () =>
@@ -124,12 +128,13 @@ export function StudentsFormsSyncModal({
       const loaded = await loadGoogleFormsSheetImport(sheetUrl);
       setLoadedSheet(loaded);
       setLoadingMessage("Gerando previa da sincronizacao...");
-      const preview = await previewStudentsImportWithToken({
+      const preview = await previewStudentsSync({
         organizationId,
         policy: "misto",
         sourceFilename: loaded.sourceFilename,
         rows: loaded.rows,
-      }, session?.access_token ?? null);
+        accessToken: session?.access_token ?? null,
+      });
       setPreviewResult(preview);
       setLoadingMessage(null);
     } catch (error) {
@@ -154,12 +159,13 @@ export function StudentsFormsSyncModal({
           onPress: async () => {
             setApplyLoading(true);
             try {
-              const result = await applyStudentsImportWithToken({
+              const result = await applyStudentsSync({
                 organizationId,
                 policy: "misto",
                 sourceFilename: loadedSheet.sourceFilename,
-                rows: loadedSheet.rows,
-              }, session?.access_token ?? null);
+                runId: previewResult.runId,
+                accessToken: session?.access_token ?? null,
+              });
               const intakeResult = await syncGoogleFormsAthleteIntakes({
                 organizationId,
                 rawRows: loadedSheet.rawRows,
@@ -358,6 +364,49 @@ export function StudentsFormsSyncModal({
                 loading={applyLoading}
                 disabled={!canApply}
               />
+            </View>
+          ) : null}
+
+          {conflictRows.length ? (
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 14,
+                backgroundColor: colors.background,
+                padding: 12,
+                gap: 10,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
+                Conflitos para revisar ({conflictRows.length})
+              </Text>
+              {conflictRows.slice(0, 15).map((row) => (
+                <View
+                  key={`${row.rowNumber}-${row.action}-${row.flags?.join("-") ?? "none"}`}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    backgroundColor: colors.card,
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    gap: 2,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Linha {row.rowNumber} - {row.action === "error" ? "erro" : "conflito"}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    {row.errorMessage || (row.flags?.length ? row.flags.join(", ") : "Revisao manual recomendada")}
+                  </Text>
+                </View>
+              ))}
+              {conflictRows.length > 15 ? (
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  Mostrando 15 de {conflictRows.length} conflitos.
+                </Text>
+              ) : null}
             </View>
           ) : null}
 
