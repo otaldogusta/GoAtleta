@@ -46,4 +46,4 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.students-import]
-verify_jwt = false
+verify_jwt = true
