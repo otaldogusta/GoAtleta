@@ -1,4 +1,4 @@
-import * as DocumentPicker from "expo-document-picker";
+﻿import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
@@ -20,6 +20,7 @@ import {
 import { useAppTheme } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
+import { useConfirmDialog } from "../../ui/confirm-dialog";
 
 type Props = {
   organizationId: string | null;
@@ -157,7 +158,7 @@ const mapRawRowsToImport = (rawRows: string[][]): StudentImportRow[] => {
 
   return dataRows
     .map((cells, rowIndex) => {
-      const base: StudentImportRow = {
+      const base: Partial<StudentImportRow> = {
         sourceRowNumber: rowIndex + 1,
       };
       if (usesHeader) {
@@ -169,7 +170,7 @@ const mapRawRowsToImport = (rawRows: string[][]): StudentImportRow[] => {
             base.birthDate = normalizeDate(raw);
             return;
           }
-          base[key] = raw;
+          (base as Record<string, string | number | undefined>)[key] = raw;
         });
       } else {
         base.name = String(cells[0] ?? "").trim();
@@ -185,7 +186,7 @@ const mapRawRowsToImport = (rawRows: string[][]): StudentImportRow[] => {
         base.loginEmail = String(cells[10] ?? "").trim();
       }
       if (!base.name) return null;
-      return base;
+      return base as StudentImportRow;
     })
     .filter((item): item is StudentImportRow => Boolean(item));
 };
@@ -209,6 +210,7 @@ const summarizeRun = (run: StudentImportRun) => {
 
 export function StudentsImportTab({ organizationId, classes, onImportApplied }: Props) {
   const { colors } = useAppTheme();
+  const { confirm: confirmDialog } = useConfirmDialog();
   markRender("screen.studentsImport.render.root", {
     hasOrganization: Boolean(organizationId),
     classes: classes.length,
@@ -263,8 +265,8 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
       setRuns(list);
       if (!selectedRun && list.length) setSelectedRun(list[0]);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao carregar historico.";
-      Alert.alert("Importacao", message);
+      const message = error instanceof Error ? error.message : "Falha ao carregar histórico.";
+      Alert.alert("Importação", message);
     } finally {
       setHistoryLoading(false);
     }
@@ -277,7 +279,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
       setSelectedRunLogs(logs);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao carregar logs.";
-      Alert.alert("Importacao", message);
+      Alert.alert("Importação", message);
     } finally {
       setLogsLoading(false);
     }
@@ -309,7 +311,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
 
       const asset = result.assets?.[0];
       if (!asset?.uri) {
-        throw new Error("Arquivo invalido.");
+        throw new Error("Arquivo inválido.");
       }
 
       const fileName = String(asset.name ?? "").trim() || "students-import.xlsx";
@@ -330,7 +332,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
         }
         const worksheet = workbook.Sheets[firstSheetName];
         if (!worksheet) {
-          throw new Error("Nao foi possivel ler a primeira aba da planilha.");
+          throw new Error("Não foi possível ler a primeira aba da planilha.");
         }
         const rows = XLSX.utils.sheet_to_json(worksheet, {
           header: 1,
@@ -345,15 +347,15 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
 
       const mappedRows = mapRawRowsToImport(rowsMatrix);
       if (!mappedRows.length) {
-        throw new Error("Nenhuma linha valida encontrada no arquivo.");
+        throw new Error("Nenhuma linha válida encontrada no arquivo.");
       }
 
       setSelectedFileName(fileName);
       setImportRows(mappedRows);
-      Alert.alert("Importacao", `Arquivo carregado: ${fileName} (${mappedRows.length} linhas).`);
+      Alert.alert("Importação", `Arquivo carregado: ${fileName} (${mappedRows.length} linhas).`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao ler arquivo.";
-      Alert.alert("Importacao", message);
+      Alert.alert("Importação", message);
     } finally {
       setFileLoading(false);
     }
@@ -361,11 +363,11 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
 
   const runPreview = useCallback(async () => {
     if (!organizationId) {
-      Alert.alert("Importacao", "Selecione uma organizacao ativa.");
+      Alert.alert("Importação", "Selecione uma organização ativa.");
       return;
     }
     if (!importRows.length) {
-      Alert.alert("Importacao", "Selecione um arquivo .csv, .xls ou .xlsx com pelo menos 1 linha.");
+      Alert.alert("Importação", "Selecione um arquivo .csv, .xls ou .xlsx com pelo menos 1 linha.");
       return;
     }
     setPreviewLoading(true);
@@ -380,8 +382,8 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
       setApplyResult(null);
       await loadRuns();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha ao gerar preview.";
-      Alert.alert("Importacao", message);
+      const message = error instanceof Error ? error.message : "Falha ao gerar prévia.";
+      Alert.alert("Importação", message);
     } finally {
       setPreviewLoading(false);
     }
@@ -390,43 +392,44 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
   const runApply = useCallback(async () => {
     if (!organizationId) return;
     if (!previewResult) {
-      Alert.alert("Importacao", "Gere o preview antes de aplicar.");
+      Alert.alert("Importação", "Gere a prévia antes de aplicar.");
       return;
     }
     const payloadRows = importRows;
     if (!payloadRows.length) {
-      Alert.alert("Importacao", "Selecione um arquivo antes de aplicar.");
+      Alert.alert("Importação", "Selecione um arquivo antes de aplicar.");
       return;
     }
-    Alert.alert("Aplicar importacao", "Confirmar aplicacao das alteracoes?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Aplicar",
-        style: "default",
-        onPress: async () => {
-          setApplyLoading(true);
-          try {
-            const result = await applyStudentsSync({
-              organizationId,
-              policy,
-              sourceFilename: effectiveSourceFilename,
-              runId: previewResult.runId,
-            });
-            setApplyResult(result);
-            await loadRuns();
-            if ((result.summary.create ?? 0) + (result.summary.update ?? 0) > 0) {
-              onImportApplied?.();
-            }
-          } catch (error) {
-            const message = error instanceof Error ? error.message : "Falha ao aplicar importacao.";
-            Alert.alert("Importacao", message);
-          } finally {
-            setApplyLoading(false);
+    const shouldApply = await confirmDialog({
+      title: "Aplicar importação?",
+      message: "Confirmar aplicação das alterações?",
+      confirmLabel: "Aplicar",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        setApplyLoading(true);
+        try {
+          const result = await applyStudentsSync({
+            organizationId,
+            policy,
+            sourceFilename: effectiveSourceFilename,
+            runId: previewResult.runId,
+          });
+          setApplyResult(result);
+          await loadRuns();
+          if ((result.summary.create ?? 0) + (result.summary.update ?? 0) > 0) {
+            onImportApplied?.();
           }
-        },
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Falha ao aplicar importação.";
+          Alert.alert("Importação", message);
+        } finally {
+          setApplyLoading(false);
+        }
       },
-    ]);
-  }, [effectiveSourceFilename, importRows, loadRuns, onImportApplied, organizationId, policy, previewResult]);
+    });
+    if (!shouldApply) return;
+  }, [confirmDialog, effectiveSourceFilename, importRows, loadRuns, onImportApplied, organizationId, policy, previewResult]);
 
   const currentSummary = applyResult?.summary ?? previewResult?.summary ?? null;
 
@@ -444,9 +447,9 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>Importar alunos</Text>
         <Text style={{ color: colors.muted }}>
-          Preview obrigatorio antes do apply. O merge e auditavel por execucao.
+          Prévia obrigatória antes da aplicação. O merge é auditável por execução.
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Turmas na organizacao: {classes.length}</Text>
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Turmas na organização: {classes.length}</Text>
       </View>
 
       <View
@@ -469,12 +472,12 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
           Arquivo: {selectedFileName || "Nenhum arquivo selecionado"}
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>
-          Linhas validas para importacao: {importRows.length}
+          Linhas válidas para importação: {importRows.length}
         </Text>
       </View>
 
       <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.text, fontWeight: "700" }}>Politica</Text>
+        <Text style={{ color: colors.text, fontWeight: "700" }}>Política</Text>
         <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
           {POLICY_OPTIONS.map((item) => {
             const selected = policy === item.id;
@@ -504,11 +507,11 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
 
       <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
         <View style={{ minWidth: 160, flex: 1 }}>
-          <Button label="Gerar preview" onPress={() => void runPreview()} loading={previewLoading} />
+            <Button label="Gerar prévia" onPress={() => void runPreview()} loading={previewLoading} />
         </View>
         <View style={{ minWidth: 160, flex: 1 }}>
           <Button
-            label="Aplicar importacao"
+            label="Aplicar importação"
             variant="success"
             onPress={() => void runApply()}
             disabled={!previewResult}
@@ -529,7 +532,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Resumo {applyResult ? "(apply)" : "(preview)"} - run {applyResult?.runId ?? previewResult?.runId}
+            Resumo {applyResult ? "(aplicação)" : "(prévia)"} - run {applyResult?.runId ?? previewResult?.runId}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {[
@@ -557,7 +560,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
             ))}
           </View>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Confianca high/medium/low: {currentSummary.confidenceHigh}/{currentSummary.confidenceMedium}/
+            Confiança high/medium/low: {currentSummary.confidenceHigh}/{currentSummary.confidenceMedium}/
             {currentSummary.confidenceLow}
           </Text>
         </View>
@@ -565,7 +568,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
 
       {conflictRows.length ? (
         <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Conflitos do preview</Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>Conflitos da prévia</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {availableFlags.map((flag) => {
@@ -608,7 +611,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
                   Linha {row.rowNumber} - {row.action}
                 </Text>
                 <Text style={{ color: colors.muted }}>
-                  Match: {row.matchedBy ?? "-"} | Confianca: {row.confidence}
+                  Match: {row.matchedBy ?? "-"} | Confiança: {row.confidence}
                 </Text>
                 {row.flags?.length ? (
                   <Text style={{ color: colors.muted }}>Flags: {row.flags.join(", ")}</Text>
@@ -631,11 +634,11 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
         }}
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Historico</Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>Histórico</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Button label="Atualizar" variant="outline" onPress={() => void loadRuns()} loading={historyLoading} />
             <Button
-              label="Ver ultimo resultado"
+              label="Ver último resultado"
               variant="secondary"
               onPress={() => {
                 if (!latestRun) return;
@@ -648,10 +651,10 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
         </View>
         {latestRun ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Ultimo run: {latestRun.id} | {latestRun.status} | {formatDateTime(latestRun.createdAt)}
+            Último run: {latestRun.id} | {latestRun.status} | {formatDateTime(latestRun.createdAt)}
           </Text>
         ) : (
-          <Text style={{ color: colors.muted }}>Sem execucoes ainda.</Text>
+          <Text style={{ color: colors.muted }}>Sem execuções ainda.</Text>
         )}
         {runs.slice(0, 5).map((run) => (
           <Pressable
@@ -664,7 +667,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
               borderWidth: 1,
               borderColor: selectedRun?.id === run.id ? colors.primaryBg : colors.border,
               borderRadius: 10,
-              backgroundColor: selectedRun?.id === run.id ? colors.primaryBgSoft : colors.card,
+              backgroundColor: selectedRun?.id === run.id ? colors.secondaryBg : colors.card,
               paddingHorizontal: 10,
               paddingVertical: 8,
             }}

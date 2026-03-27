@@ -1,5 +1,8 @@
-import ClassesScreen from "../classes";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function ProfClassesTab() {
-  return <ClassesScreen />;
-}
+const ProfClassesTab = createLazyRoute(
+  () => import("../classes"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando turmas..." />
+);
+
+export default ProfClassesTab;

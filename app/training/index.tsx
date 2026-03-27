@@ -1,7 +1,9 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+    Suspense,
+    lazy,
     memo,
     useCallback,
     useEffect,
@@ -24,6 +26,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
+import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
 
 import { normalizeAgeBand, sortAgeBandList } from "../../src/core/age-band";
 import { translateMethodology } from "../../src/core/methodology/methodology-translator";
@@ -46,6 +49,7 @@ import {
     saveTrainingTemplate,
     updateTrainingPlan,
     updateTrainingTemplate,
+    upsertTrainingSession,
 } from "../../src/db/seed";
 import { notifyTrainingSaved } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
@@ -62,7 +66,6 @@ import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
-import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
@@ -72,7 +75,45 @@ import { TimeInput } from "../../src/ui/TimeInput";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { TrainingAnchoredDropdownOption } from "../../src/screens/training/components/TrainingAnchoredDropdownOption";
+import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
+
+const TemplateEditorModalContent = lazy(() =>
+  import("../../src/screens/training/components/TemplateEditorModalContent").then((module) => ({
+    default: module.TemplateEditorModalContent,
+  }))
+);
+
+const TrainingApplyModalContent = lazy(() =>
+  import("../../src/screens/training/components/TrainingApplyModalContent").then((module) => ({
+    default: module.TrainingApplyModalContent,
+  }))
+);
+
+const TrainingPlanDetailsModalContent = lazy(() =>
+  import("../../src/screens/training/components/TrainingPlanDetailsModalContent").then(
+    (module) => ({
+      default: module.TrainingPlanDetailsModalContent,
+    })
+  )
+);
+
+const TrainingPlanActionsModalContent = lazy(() =>
+  import("../../src/screens/training/components/TrainingPlanActionsModalContent").then(
+    (module) => ({
+      default: module.TrainingPlanActionsModalContent,
+    })
+  )
+);
+
+const TrainingSessionCreateModalContent = lazy(() =>
+  import("../../src/screens/training/components/TrainingSessionCreateModalContent").then(
+    (module) => ({
+      default: module.TrainingSessionCreateModalContent,
+    })
+  )
+);
 
 const toLines = (value: string) =>
   value
@@ -192,6 +233,14 @@ export default function TrainingList() {
     typeof params.applyPlanId === "string" ? params.applyPlanId : "";
   const viewPlanId =
     typeof params.viewPlanId === "string" ? params.viewPlanId : "";
+  const createSessionClassIdsRaw =
+    typeof params.createSessionClassIds === "string" ? params.createSessionClassIds : "";
+  const createSessionDateRaw =
+    typeof params.createSessionDate === "string" ? params.createSessionDate : "";
+  const createSessionStartTimeRaw =
+    typeof params.createSessionStartTime === "string"
+      ? params.createSessionStartTime
+      : "";
   const targetDate =
     targetDateRaw && !Number.isNaN(new Date(targetDateRaw).getTime())
       ? targetDateRaw
@@ -423,11 +472,39 @@ export default function TrainingList() {
   const [showPlanActions, setShowPlanActions] = useState(false);
   const [actionPlan, setActionPlan] = useState<TrainingPlan | null>(null);
   const [showTrainingFabMenu, setShowTrainingFabMenu] = useState(false);
+  const [showTrainingSessionCreate, setShowTrainingSessionCreate] = useState(false);
+  const [handledCreateSessionRequestRaw, setHandledCreateSessionRequestRaw] = useState<string | null>(null);
   const trainingFabAnim = useRef(new Animated.Value(0)).current;
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId),
     [classes, classId]
+  );
+  const trainingSessionDefaultClassIds = useMemo(
+    () =>
+      createSessionClassIdsRaw
+        ? createSessionClassIdsRaw
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+        : selectedClass?.id
+          ? [selectedClass.id]
+          : [],
+    [createSessionClassIdsRaw, selectedClass?.id]
+  );
+  const createSessionRequestKey = useMemo(
+    () => createSessionClassIdsRaw.split(",").map((item) => item.trim()).filter(Boolean).join(","),
+    [createSessionClassIdsRaw]
+  );
+  const trainingSessionDefaultDate = useMemo(
+    () =>
+      /^\d{4}-\d{2}-\d{2}$/.test(createSessionDateRaw) ? createSessionDateRaw : "",
+    [createSessionDateRaw]
+  );
+  const trainingSessionDefaultStartTime = useMemo(
+    () =>
+      /^\d{2}:\d{2}$/.test(createSessionStartTimeRaw) ? createSessionStartTimeRaw : "",
+    [createSessionStartTimeRaw]
   );
   const trainingFabBottom = Math.max(insets.bottom + 166, 182);
   const trainingFabRight = 16;
@@ -455,6 +532,13 @@ export default function TrainingList() {
       useNativeDriver: true,
     }).start();
   }, [showTrainingFabMenu, trainingFabAnim]);
+
+  useEffect(() => {
+    if (!createSessionRequestKey) return;
+    if (createSessionRequestKey === handledCreateSessionRequestRaw) return;
+    setHandledCreateSessionRequestRaw(createSessionRequestKey);
+    setShowTrainingSessionCreate(true);
+  }, [createSessionRequestKey, handledCreateSessionRequestRaw]);
 
   const sortedClasses = useMemo(
     () => sortClassesByAgeBand(classes),
@@ -720,6 +804,7 @@ export default function TrainingList() {
         ageBands: template.ageBands
           .map((band) => normalizeAgeBand(band))
           .filter(Boolean),
+        createdAt: "",
         source: "built" as const,
       })),
       ...templateItems.map((template) => ({
@@ -750,26 +835,44 @@ export default function TrainingList() {
     );
   }, [templateAgeBand, templateItems, hiddenTemplates]);
 
+  const refreshTemplateCatalog = useCallback(async () => {
+    const [templatesDb, hidden] = await Promise.all([
+      getTrainingTemplates(),
+      getHiddenTemplates(),
+    ]);
+    setTemplateItems(templatesDb);
+    setHiddenTemplates(hidden);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [classList, plans, templatesDb, hidden] = await measureAsync(
+        const [classList, plans] = await measureAsync(
           "screen.training.load.initial",
           () =>
             Promise.all([
               getClasses(),
               getTrainingPlans(),
-              getTrainingTemplates(),
-              getHiddenTemplates(),
             ]),
           { hasSelectedClass: classId ? 1 : 0 }
         );
         if (!alive) return;
         setClasses(classList);
-        setTemplateItems(templatesDb);
-        setHiddenTemplates(hidden);
         setItems(plans);
+        void measureAsync(
+          "screen.training.load.templates",
+          async () => {
+            const [templatesDb, hidden] = await Promise.all([
+              getTrainingTemplates(),
+              getHiddenTemplates(),
+            ]);
+            if (!alive) return;
+            setTemplateItems(templatesDb);
+            setHiddenTemplates(hidden);
+          },
+          { hasSelectedClass: classId ? 1 : 0 }
+        );
       } catch (error) {
         if (!alive) return;
         const message = error instanceof Error ? error.message : String(error);
@@ -786,7 +889,7 @@ export default function TrainingList() {
     return () => {
       alive = false;
     };
-  }, [classId]);
+  }, []);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -981,7 +1084,7 @@ export default function TrainingList() {
                         await updateTrainingTemplate({
                           id: template.id,
                           title: renameTemplateText.trim(),
-                          ageBand: template.ageBands[0],
+                          ageBand: template.ageBands[0] ?? templateAgeBand ?? "08-09",
                           tags: template.tags ?? [],
                           warmup: template.warmup ?? [],
                           main: template.main ?? [],
@@ -989,9 +1092,15 @@ export default function TrainingList() {
                           warmupTime: template.warmupTime ?? "",
                           mainTime: template.mainTime ?? "",
                           cooldownTime: template.cooldownTime ?? "",
+                          createdAt: template.createdAt,
                         });
-                        const templatesDb = await getTrainingTemplates();
-                        setTemplateItems(templatesDb);
+                        setTemplateItems((current) =>
+                          current.map((item) =>
+                            item.id === template.id
+                              ? { ...item, title: renameTemplateText.trim() }
+                              : item
+                          )
+                        );
                         setRenameTemplateId(null);
                         setRenameTemplateText("");
                       }}
@@ -1071,11 +1180,11 @@ export default function TrainingList() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 Criado em {formatDate(plan.createdAt)}
               </Text>
-              { plan.applyDays.length || plan.applyDate ? (
+              { plan.applyDays?.length || plan.applyDate ? (
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   Aplicado:{" "}
-                  {plan.applyDays.length ? formatWeekdays(plan.applyDays) : ""}
-                  {plan.applyDays.length && plan.applyDate ? " | " : ""}
+                  {plan.applyDays?.length ? formatWeekdays(plan.applyDays) : ""}
+                  {plan.applyDays?.length && plan.applyDate ? " | " : ""}
                   {plan.applyDate ? formatShortDate(plan.applyDate) : ""}
                 </Text>
               ) : null}
@@ -1378,8 +1487,28 @@ export default function TrainingList() {
       templateId: template.id,
       ageBand: template.ageBand,
     });
-    const templatesDb = await getTrainingTemplates();
-    setTemplateItems(templatesDb);
+    if (editingTemplateId) {
+      setTemplateItems((current) =>
+        current.map((item) =>
+          item.id === template.id
+            ? {
+                ...item,
+                title: template.title,
+                ageBand: template.ageBand,
+                tags: template.tags,
+                warmup: template.warmup,
+                main: template.main,
+                cooldown: template.cooldown,
+                warmupTime: template.warmupTime,
+                mainTime: template.mainTime,
+                cooldownTime: template.cooldownTime,
+              }
+            : item
+        )
+      );
+    } else {
+      setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
+    }
     setEditingTemplateId(null);
     setEditingTemplateCreatedAt(null);
     setFormMode("plan");
@@ -1399,7 +1528,7 @@ export default function TrainingList() {
     setMainTime(plan.mainTime);
     setCooldownTime(plan.cooldownTime);
     setClassId(plan.classId);
-    setFormUnit(unitLabel(classes.find((item) => item.id === plan.classId)?.unit));
+    setFormUnit(unitLabel(classes.find((item) => item.id === plan.classId)?.unit ?? ""));
     setFormMode("plan");
     setScrollRequested(true);
   };
@@ -1504,6 +1633,113 @@ export default function TrainingList() {
       createdAt: new Date().toISOString(),
     });
   };
+
+  const handleCreateTrainingSession = useCallback(
+    async (payload: {
+      classIds: string[];
+      title: string;
+      description: string;
+      startAt: string;
+      endAt: string;
+    }) => {
+      try {
+        const session = await measure("saveTrainingSession", () =>
+          upsertTrainingSession({
+            classIds: payload.classIds,
+            title: payload.title,
+            description: payload.description,
+            startAt: payload.startAt,
+            endAt: payload.endAt,
+            type: payload.classIds.length > 1 ? "integration" : "training",
+            source: "manual",
+            status: "scheduled",
+          })
+        );
+        if (!session) return;
+        setShowTrainingSessionCreate(false);
+        setShowTrainingFabMenu(false);
+        logAction("Criar treino", {
+          sessionId: session.id,
+          classIds: session.classIds,
+          startAt: session.startAt,
+          endAt: session.endAt,
+          type: session.type,
+        });
+        showSaveToast({
+          message:
+            session.classIds.length > 1
+              ? "Treino integrado criado com sucesso."
+              : "Treino criado com sucesso.",
+          variant: "success",
+        });
+      } catch {
+        showSaveToast({
+          message: "Não foi possível criar o treino.",
+          variant: "warning",
+        });
+      }
+    },
+    [showSaveToast]
+  );
+
+  const handleConfirmApply = async () => {
+    if (!applyPlan || !applyClassId) return;
+    if (!applyDays.length) {
+      Alert.alert("Selecione os dias", "Escolha pelo menos um dia da semana.");
+      return;
+    }
+    if (!applyDate) {
+      Alert.alert("Informe a data", "Digite a data específica do planejamento.");
+      return;
+    }
+    if (Number.isNaN(new Date(applyDate).getTime())) {
+      Alert.alert("Data inválida", "Escolha uma data válida.");
+      return;
+    }
+    if (isSameApply) {
+      closeApplyModal();
+      showSaveToast({
+        message: "Planejamento já adicionado.",
+        actionLabel: "Ver aula do dia",
+        variant: "warning",
+        onAction: () => {
+          router.push({
+            pathname: "/class/[id]/session",
+            params: { id: applyClassId, date: applyDate },
+          });
+        },
+      });
+      return;
+    }
+    const updated: TrainingPlan = {
+      ...applyPlan,
+      classId: applyClassId,
+      applyDays,
+      applyDate,
+    };
+    await measure("applyTrainingPlan", () => updateTrainingPlan(updated));
+    await createCalendarEvent(updated);
+    await reload();
+    closeApplyModal();
+    logAction("Aplicar planejamento", {
+      planId: updated.id,
+      classId: applyClassId,
+      applyDate,
+      daysCount: applyDays.length,
+    });
+    showSaveToast({
+      message: "Planejamento aplicado com sucesso.",
+      actionLabel: "Ver aula do dia",
+      variant: "success",
+      onAction: () => {
+        router.push({
+          pathname: "/class/[id]/session",
+          params: { id: applyClassId, date: applyDate },
+        });
+      },
+    });
+  };
+
   const openTemplateForEdit = useCallback((template: {
     id: string;
     title: string;
@@ -1550,23 +1786,19 @@ export default function TrainingList() {
       onConfirm: async () => {
         if (source === "custom") {
           await measure("deleteTrainingTemplate", () => deleteTrainingTemplate(id));
-          const templatesDb = await getTrainingTemplates();
-          setTemplateItems(templatesDb);
+          setTemplateItems((current) => current.filter((item) => item.id !== id));
           logAction("Excluir modelo", { templateId: id, source });
         } else {
           await measure("hideTrainingTemplate", () => hideTrainingTemplate(id));
-          const hidden = await getHiddenTemplates();
-          setHiddenTemplates(hidden);
+          setHiddenTemplates((current) => [
+            ...current,
+            { id: "hide_" + Date.now(), templateId: id, createdAt: new Date().toISOString() },
+          ]);
           logAction("Ocultar modelo", { templateId: id, source });
         }
       },
       onUndo: async () => {
-        const [templatesDb, hidden] = await Promise.all([
-          getTrainingTemplates(),
-          getHiddenTemplates(),
-        ]);
-        setTemplateItems(templatesDb);
-        setHiddenTemplates(hidden);
+        await refreshTemplateCatalog();
       },
     });
   };
@@ -1594,10 +1826,9 @@ export default function TrainingList() {
       createdAt: new Date().toISOString(),
     };
     await measure("saveTrainingTemplate", () => saveTrainingTemplate(copy));
-    const templatesDb = await getTrainingTemplates();
-    setTemplateItems(templatesDb);
+    setTemplateItems((current) => [copy, ...current.filter((item) => item.id !== copy.id)]);
     logAction("Duplicar modelo", { templateId: copy.id, ageBand: copy.ageBand });
-    Alert.alert("Modelo duplicado", "Aparece em Modelos prontos.");
+    showSaveToast({ message: "Modelo duplicado com sucesso.", variant: "success" });
   };
 
   const openTemplateEditor = useCallback((template: {
@@ -1682,16 +1913,16 @@ export default function TrainingList() {
     if (!showApplyUnitPicker && !showApplyClassPicker) return;
     requestAnimationFrame(() => {
       if (showApplyUnitPicker) {
-        applyUnitTriggerRef.current.measureInWindow((x, y, width, height) => {
+        applyUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setApplyUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showApplyClassPicker) {
-        applyClassTriggerRef.current.measureInWindow((x, y, width, height) => {
+        applyClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setApplyClassTriggerLayout({ x, y, width, height });
         });
       }
-      applyContainerRef.current.measureInWindow((x, y) => {
+      applyContainerRef.current?.measureInWindow((x, y) => {
         setApplyContainerWindow({ x, y });
       });
     });
@@ -1701,16 +1932,16 @@ export default function TrainingList() {
     if (!showFormUnitPicker && !showFormClassPicker) return;
     requestAnimationFrame(() => {
       if (showFormUnitPicker) {
-        formUnitTriggerRef.current.measureInWindow((x, y, width, height) => {
+        formUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setFormUnitTriggerLayout({ x, y, width, height });
         });
       }
       if (showFormClassPicker) {
-        formClassTriggerRef.current.measureInWindow((x, y, width, height) => {
+        formClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setFormClassTriggerLayout({ x, y, width, height });
         });
       }
-      formContainerRef.current.measureInWindow((x, y) => {
+      formContainerRef.current?.measureInWindow((x, y) => {
         setFormContainerWindow({ x, y });
       });
     });
@@ -1771,8 +2002,28 @@ export default function TrainingList() {
     } else {
       await measure("saveTrainingTemplate", () => saveTrainingTemplate(template));
     }
-    const templatesDb = await getTrainingTemplates();
-    setTemplateItems(templatesDb);
+    if (templateEditorId) {
+      setTemplateItems((current) =>
+        current.map((item) =>
+          item.id === template.id
+            ? {
+                ...item,
+                title: template.title,
+                ageBand: template.ageBand,
+                tags: template.tags,
+                warmup: template.warmup,
+                main: template.main,
+                cooldown: template.cooldown,
+                warmupTime: template.warmupTime,
+                mainTime: template.mainTime,
+                cooldownTime: template.cooldownTime,
+              }
+            : item
+        )
+      );
+    } else {
+      setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
+    }
     logAction(templateEditorId ? "Editar modelo" : "Salvar modelo", {
       templateId: template.id,
       ageBand: template.ageBand,
@@ -1837,8 +2088,7 @@ export default function TrainingList() {
       createdAt: nowIso,
     };
     await saveTrainingTemplate(template);
-    const templatesDb = await getTrainingTemplates();
-    setTemplateItems(templatesDb);
+    setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
     Alert.alert("Modelo salvo", "Agora ele aparece em Modelos prontos.");
   };
 
@@ -1865,8 +2115,7 @@ export default function TrainingList() {
       createdAt: new Date().toISOString(),
     };
     await saveTrainingTemplate(template);
-    const templatesDb = await getTrainingTemplates();
-    setTemplateItems(templatesDb);
+    setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
     Alert.alert("Modelo salvo", "Agora ele aparece em Modelos prontos.");
   };
 
@@ -1905,7 +2154,7 @@ export default function TrainingList() {
 
   const scrollToForm = () => {
     setTimeout(() => {
-      scrollRef.current.scrollTo({
+      scrollRef.current?.scrollTo({
         y: Math.max(formY - 8, 0),
         animated: true,
       });
@@ -2041,33 +2290,23 @@ export default function TrainingList() {
   }, []);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 16 }}
-        stickyHeaderIndices={[0]}
-        keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={() => {
-          closeFormPickers();
-          setShowTrainingFabMenu(false);
-        }}
-        onScroll={syncFormPickerLayouts}
-        scrollEventThrottle={16}
-      >
         <View
           style={{
+            gap: 16,
             backgroundColor: colors.background,
-            paddingBottom: 10,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
-            gap: 10,
+            paddingBottom: 8,
+            paddingHorizontal: 16,
+            paddingTop: 16,
           }}
         >
-          <View style={{ gap: 4 }}>
+          <View style={{ marginBottom: 4 }}>
             <Pressable
               onPress={() => {
                 if (router.canGoBack()) {
@@ -2084,6 +2323,7 @@ export default function TrainingList() {
               </Text>
             </Pressable>
           </View>
+
           <View
             style={{
               flexDirection: "row",
@@ -2127,6 +2367,18 @@ export default function TrainingList() {
           </View>
         </View>
 
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 12 }}
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => {
+            closeFormPickers();
+            setShowTrainingFabMenu(false);
+          }}
+          onScroll={syncFormPickerLayouts}
+          scrollEventThrottle={16}
+        >
         {planningTab === "formulario" && (
         <>
           <View
@@ -2157,9 +2409,9 @@ export default function TrainingList() {
                     justifyContent: "space-between",
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {formUnit === ALL_UNITS_VALUE
-                       ? "Todas unidades"
+                       ? "Todas as unidades"
                       : formUnit || "Selecione uma unidade"}
                   </Text>
                   <MaterialCommunityIcons
@@ -2234,24 +2486,18 @@ export default function TrainingList() {
           >
             {[
               { label: "Selecione uma unidade", value: "" },
-              { label: "Todas unidades", value: ALL_UNITS_VALUE },
+              { label: "Todas as unidades", value: ALL_UNITS_VALUE },
               ...unitOptions.map((unit) => ({ label: unit, value: unit })),
-            ].map((option, index) => {
+            ].map((option) => {
               const active = formUnit === option.value;
               return (
-                  <Pressable
-                    key={option.value || "unit-empty"}
-                    onPress={() => {
-                      setClassId("");
-                      setFormUnit(option.value);
-                      closeFormPickers();
-                    }}
-                  style={{
-                    paddingVertical: 12,
-                    paddingHorizontal: 12,
-                    borderRadius: 14,
-                    marginVertical: 3,
-                    backgroundColor: active ? colors.primaryBg : colors.card,
+                <TrainingAnchoredDropdownOption
+                  key={option.value || "unit-empty"}
+                  active={active}
+                  onPress={() => {
+                    setClassId("");
+                    setFormUnit(option.value);
+                    closeFormPickers();
                   }}
                 >
                   <Text
@@ -2263,7 +2509,7 @@ export default function TrainingList() {
                   >
                     {option.label}
                   </Text>
-                </Pressable>
+                </TrainingAnchoredDropdownOption>
               );
             })}
           </AnchoredDropdown>
@@ -2285,21 +2531,15 @@ export default function TrainingList() {
             dismissOnBackdropPress
           >
             { classOptionsForForm.length ? (
-              classOptionsForForm.map((item, index) => {
+              classOptionsForForm.map((item) => {
                 const active = classId === item.id;
                 return (
-                  <Pressable
+                  <TrainingAnchoredDropdownOption
                     key={item.id}
+                    active={active}
                     onPress={() => {
                       setClassId(item.id);
                       closeFormPickers();
-                    }}
-                    style={{
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderRadius: 14,
-                      marginVertical: 3,
-                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
@@ -2314,7 +2554,7 @@ export default function TrainingList() {
                       </Text>
                       <ClassGenderBadge gender={item.gender} />
                     </View>
-                  </Pressable>
+                  </TrainingAnchoredDropdownOption>
                 );
               })
             ) : (
@@ -2365,9 +2605,9 @@ export default function TrainingList() {
                   <Pressable
                     key={tag}
                     onPress={() =>
-                      setTagsText((prev) =>
-                        prev.trim()
-                          ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
+                      setTagsText(
+                        tagsText.trim()
+                          ? tagsText.trim().replace(/\s*,\s*$/, "") + ", " + tag
                           : tag
                       )
                     }
@@ -2644,8 +2884,8 @@ export default function TrainingList() {
                       showsVerticalScrollIndicator
                       initialNumToRender={12}
                       windowSize={7}
-                        maxToRenderBatch={12}
-                      removeClippedSubviews
+                      maxToRenderPerBatch={12}
+                      removeClippedSubviews={true}
                     />
                   </>
                 ) : (
@@ -2790,12 +3030,29 @@ export default function TrainingList() {
         anchorRight={trainingFabRight}
         anchorBottom={trainingFabBottom}
         onClose={() => setShowTrainingFabMenu(false)}
+        onCreatePress={() => {
+          setShowTrainingFabMenu(false);
+          setShowTrainingSessionCreate(true);
+        }}
         onImportPress={() => {
           setShowTrainingFabMenu(false);
           router.push({ pathname: "/training/import" });
         }}
       />
       </KeyboardAvoidingView>
+      {showTrainingSessionCreate ? (
+        <Suspense fallback={null}>
+          <TrainingSessionCreateModalContent
+            visible={showTrainingSessionCreate}
+            classes={classes}
+            defaultClassIds={trainingSessionDefaultClassIds}
+            defaultDate={trainingSessionDefaultDate}
+            defaultStartTime={trainingSessionDefaultStartTime}
+            onClose={() => setShowTrainingSessionCreate(false)}
+            onCreate={handleCreateTrainingSession}
+          />
+        </Suspense>
+      ) : null}
       <ModalSheet
         visible={showTemplateEditor}
         onClose={requestCloseTemplateEditor}
@@ -2832,280 +3089,50 @@ export default function TrainingList() {
             </Text>
           </Pressable>
         </View>
-        <ScrollView
-          contentContainerStyle={{
-            gap: 10,
-            paddingVertical: 10,
-            paddingBottom:
-              templateEditorComposerHeight +
-              templateEditorKeyboardHeight +
-              12,
-            paddingHorizontal: 12,
-          }}
-          style={{ maxHeight: "92%", marginTop: 16 }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
+        <Suspense
+          fallback={<SectionLoadingState />}
         >
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Título do modelo</Text>
-                  <TextInput
-                    placeholder="Título do modelo"
-                    value={templateTitle}
-                    onChangeText={setTemplateTitle}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 160, gap: 4 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
-                  <TextInput
-                    placeholder="Faixa etária (ex: 10-12)"
-                    value={templateAge}
-                    onChangeText={setTemplateAge}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                </View>
-              </View>
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Tags (opcional)</Text>
-                <TextInput
-                  placeholder="Tags (opcional, separe por virgula)"
-                  value={templateTags}
-                  onChangeText={setTemplateTags}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 10,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
-              {templateSuggestions.length > 0 && hasTemplateContent ? (
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
-                  <FadeHorizontalScroll
-                    fadeColor={colors.card}
-                    contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-                  >
-                    {templateSuggestions.map((tag) => (
-                      <Pressable
-                        key={tag}
-                        onPress={() =>
-                          setTemplateTags((prev) =>
-                            prev.trim()
-                              ? prev.trim().replace(/\s*,\s*$/, "") + ", " + tag
-                              : tag
-                          )
-                        }
-                        style={{
-                          paddingVertical: 4,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: colors.secondaryBg,
-                        }}
-                      >
-                        <Text style={{ color: colors.text }}>{tag}</Text>
-                      </Pressable>
-                    ))}
-                  </FadeHorizontalScroll>
-                </View>
-              ) : null}
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Aquecimento</Text>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput
-                    placeholder="Aquecimento (1 por linha)"
-                    value={templateWarmup}
-                    onChangeText={setTemplateWarmup}
-                    multiline
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingHorizontal: 8,
-                      paddingVertical: 14,
-                      borderRadius: 10,
-                      minHeight: 60,
-                      backgroundColor: colors.inputBg,
-                      textAlignVertical: "center",
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                  <TimeInput
-                    placeholder="10:00 (min:seg)"
-                    value={templateWarmupTime}
-                    onChangeText={setTemplateWarmupTime}
-                    format="duration"
-                    style={{ width: 110 }}
-                  />
-                </View>
-              </View>
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Parte principal</Text>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput
-                    placeholder="Parte principal (1 por linha)"
-                    value={templateMain}
-                    onChangeText={setTemplateMain}
-                    multiline
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingHorizontal: 8,
-                      paddingVertical: 20,
-                      borderRadius: 10,
-                      minHeight: 80,
-                      backgroundColor: colors.inputBg,
-                      textAlignVertical: "center",
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                  <TimeInput
-                    placeholder="01:30 (h:min)"
-                    value={templateMainTime}
-                    onChangeText={setTemplateMainTime}
-                    format="clock"
-                    style={{ width: 110 }}
-                  />
-                </View>
-              </View>
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Volta a calma</Text>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput
-                    placeholder="Volta a calma (1 por linha)"
-                    value={templateCooldown}
-                    onChangeText={setTemplateCooldown}
-                    multiline
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingHorizontal: 8,
-                      paddingVertical: 14,
-                      borderRadius: 10,
-                      minHeight: 60,
-                      backgroundColor: colors.inputBg,
-                      textAlignVertical: "center",
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                  <TimeInput
-                    placeholder="05:00 (min:seg)"
-                    value={templateCooldownTime}
-                    onChangeText={setTemplateCooldownTime}
-                    format="duration"
-                    style={{ width: 110 }}
-                  />
-                </View>
-              </View>
-              <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-              <View
-                onLayout={(event) => {
-                  const next = Math.round(event.nativeEvent.layout.height);
-                  if (next !== templateEditorComposerHeight) {
-                    setTemplateEditorComposerHeight(next);
-                  }
-                }}
-              >
-                <Pressable
-                  onPress={saveTemplateEditor}
-                  disabled={!isTemplateEditorDirty}
-                  style={{
-                    paddingVertical: 10,
-                    borderRadius: 14,
-                    backgroundColor: isTemplateEditorDirty
-                      ? colors.primaryBg
-                      : colors.primaryDisabledBg,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: isTemplateEditorDirty
-                        ? colors.primaryText
-                        : colors.secondaryText,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Salvar modelo
-                  </Text>
-                </Pressable>
-              </View>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  onPress={duplicateTemplateFromEditor}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    Duplicar modelo
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    if (!templateEditorTemplateId) return;
-                    const targetId = templateEditorTemplateId;
-                    const targetSource = templateEditorSource;
-                    closeTemplateEditor();
-                    setTemplateEditorTemplateId(null);
-                    setTemplateEditorSource("custom");
-                    setTimeout(() => {
-                      void deleteTemplateItem(targetId, targetSource);
-                    }, 10);
-                  }}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.dangerBg,
-                    borderWidth: 1,
-                    borderColor: colors.dangerBorder,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
-                    Excluir modelo
-                  </Text>
-                </Pressable>
-              </View>
-        </ScrollView>
+          <TemplateEditorModalContent
+            templateTitle={templateTitle}
+            setTemplateTitle={setTemplateTitle}
+            templateAge={templateAge}
+            setTemplateAge={setTemplateAge}
+            templateTags={templateTags}
+            setTemplateTags={setTemplateTags}
+            templateWarmup={templateWarmup}
+            setTemplateWarmup={setTemplateWarmup}
+            templateMain={templateMain}
+            setTemplateMain={setTemplateMain}
+            templateCooldown={templateCooldown}
+            setTemplateCooldown={setTemplateCooldown}
+            templateWarmupTime={templateWarmupTime}
+            setTemplateWarmupTime={setTemplateWarmupTime}
+            templateMainTime={templateMainTime}
+            setTemplateMainTime={setTemplateMainTime}
+            templateCooldownTime={templateCooldownTime}
+            setTemplateCooldownTime={setTemplateCooldownTime}
+            templateSuggestions={templateSuggestions}
+            hasTemplateContent={hasTemplateContent}
+            templateEditorComposerHeight={templateEditorComposerHeight}
+            templateEditorKeyboardHeight={templateEditorKeyboardHeight}
+            setTemplateEditorComposerHeight={setTemplateEditorComposerHeight}
+            isTemplateEditorDirty={isTemplateEditorDirty}
+            canDeleteTemplate={Boolean(templateEditorTemplateId)}
+            onSave={saveTemplateEditor}
+            onDuplicate={duplicateTemplateFromEditor}
+            onDelete={() => {
+              if (!templateEditorTemplateId) return;
+              const targetId = templateEditorTemplateId;
+              const targetSource = templateEditorSource;
+              closeTemplateEditor();
+              setTemplateEditorTemplateId(null);
+              setTemplateEditorSource("custom");
+              setTimeout(() => {
+                void deleteTemplateItem(targetId, targetSource);
+              }, 10);
+            }}
+          />
+        </Suspense>
       </ModalSheet>
       {selectedPlan ? (
         <ModalSheet
@@ -3143,93 +3170,14 @@ export default function TrainingList() {
               </Text>
             </Pressable>
           </View>
-          <ScrollView
-            contentContainerStyle={{ gap: 8, paddingVertical: 10 }}
-            style={{ maxHeight: "94%" }}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-          >
-            <View
-              style={{
-                padding: 10,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 6,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Aquecimento{" "}
-                {selectedPlan.warmupTime ? "(" + formatDuration(selectedPlan.warmupTime) + ")" : ""}
-              </Text>
-              <Text style={{ color: colors.text }}>
-                {selectedPlan.warmup.length
-                  ? selectedPlan.warmup.join(" - ")
-                  : "Sem itens"}
-              </Text>
-            </View>
-            <View
-              style={{
-                padding: 10,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 6,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Parte principal{" "}
-                {selectedPlan.mainTime ? "(" + formatClock(selectedPlan.mainTime) + ")" : ""}
-              </Text>
-              <Text style={{ color: colors.text }}>
-                {selectedPlan.main.length
-                  ? selectedPlan.main.join(" - ")
-                  : "Sem itens"}
-              </Text>
-            </View>
-            <View
-              style={{
-                padding: 10,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 6,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Volta a calma{" "}
-                {selectedPlan.cooldownTime
-                  ? "(" + formatDuration(selectedPlan.cooldownTime) + ")"
-                  : ""}
-              </Text>
-              <Text style={{ color: colors.text }}>
-                {selectedPlan.cooldown.length
-                  ? selectedPlan.cooldown.join(" - ")
-                  : "Sem itens"}
-              </Text>
-            </View>
-            {selectedPlan.tags.length ? (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {selectedPlan.tags.map((tag) => (
-                  <View
-                    key={tag}
-                    style={{
-                      paddingVertical: 3,
-                      paddingHorizontal: 8,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 12 }}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </ScrollView>
+        <Suspense
+          fallback={<SectionLoadingState />}
+        >
+            <TrainingPlanDetailsModalContent
+              plan={selectedPlan}
+              getClassName={getClassName}
+            />
+          </Suspense>
         </ModalSheet>
       ) : null}
       <ModalSheet
@@ -3261,340 +3209,61 @@ export default function TrainingList() {
               backgroundColor: colors.secondaryBg,
             }}
           >
-            <Text
-              style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
-            >
+            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
               Fechar
             </Text>
           </Pressable>
         </View>
-        <ScrollView
-          contentContainerStyle={{ gap: 10 }}
-          style={{ maxHeight: "94%" }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-          scrollEventThrottle={16}
-          onScrollBeginDrag={() => closeApplyPickers()}
-          onScroll={() => syncApplyPickerLayouts()}
+        <Suspense
+          fallback={<SectionLoadingState />}
         >
-          <View
-            ref={applyContainerRef}
-            onLayout={syncApplyPickerLayouts}
-            style={{ gap: 10, position: "relative" }}
-          >
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
-                <View ref={applyUnitTriggerRef}>
-                  <Pressable
-                    onPress={() => toggleApplyPicker("unit")}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                      {applyUnit === ALL_UNITS_VALUE
-                         ? "Todas unidades"
-                        : applyUnit || "Selecione uma unidade"}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={18}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showApplyUnitPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
-                <View ref={applyClassTriggerRef}>
-                  <Pressable
-                    onPress={() => toggleApplyPicker("class")}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                    }}
-                  >
-                    <View style={{ flex: 1, flexDirection: "row", gap: 8, alignItems: "center" }}>
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                        {selectedApplyClass?.name ?? "Selecione uma turma"}
-                      </Text>
-                      {selectedApplyClass ? (
-                        <ClassGenderBadge gender={selectedApplyClass.gender} />
-                      ) : null}
-                    </View>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={18}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showApplyClassPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Dias da semana</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {weekdays.map((day) => {
-                const active = applyDays.includes(day.id);
-                return (
-                  <Pressable
-                    key={day.id}
-                    onPress={() =>
-                      setApplyDays((prev) =>
-                        prev.includes(day.id)
-                          ? prev.filter((value) => value !== day.id)
-                          : [...prev, day.id].sort((a, b) => a - b)
-                      )
-                    }
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                      {day.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Data específica</Text>
-            <DateInput
-              value={applyDate}
-              onChange={(value) => {
-                setApplyDate(value);
-                closeApplyPickers();
-              }}
-              placeholder="Selecione a data"
-              onOpenCalendar={() => setShowApplyCalendar(true)}
-            />
-            <AnchoredDropdown
-              visible={showApplyUnitPickerContent}
-              layout={applyUnitTriggerLayout}
-              container={applyContainerWindow}
-              animationStyle={applyUnitPickerAnimStyle}
-              zIndex={420}
-              maxHeight={220}
-              nestedScrollEnabled
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.background,
+          <TrainingApplyModalContent
+            refs={{
+              applyContainerRef,
+              applyUnitTriggerRef,
+              applyClassTriggerRef,
             }}
-              scrollContentStyle={{ padding: 4 }}
-              onRequestClose={closeApplyPickers}
-              dismissOnBackdropPress
-            >
-              {[
-                { label: "Selecione uma unidade", value: "" },
-                { label: "Todas unidades", value: ALL_UNITS_VALUE },
-                ...unitOptions.map((unit) => ({ label: unit, value: unit })),
-              ].map((option, index) => {
-                const active = applyUnit === option.value;
-                return (
-                  <Pressable
-                    key={option.value || "unit-empty"}
-                    onPress={() => {
-                      setApplyClassId("");
-                      setApplyUnit(option.value);
-                      closeApplyPickers();
-                    }}
-                    style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      margin: index === 0 ? 6 : 2,
-                      backgroundColor: active ? colors.primaryBg : "transparent",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: active ? colors.primaryText : colors.text,
-                        fontSize: 12,
-                        fontWeight: active ? "700" : "500",
-                      }}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </AnchoredDropdown>
-            <AnchoredDropdown
-              visible={showApplyClassPickerContent}
-              layout={applyClassTriggerLayout}
-              container={applyContainerWindow}
-              animationStyle={applyClassPickerAnimStyle}
-              zIndex={420}
-              maxHeight={240}
-              nestedScrollEnabled
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.background,
+            layouts={{
+              applyContainerWindow,
+              applyUnitTriggerLayout,
+              applyClassTriggerLayout,
             }}
-              scrollContentStyle={{ padding: 4 }}
-              onRequestClose={closeApplyPickers}
-              dismissOnBackdropPress
-            >
-              { classOptionsForUnit.length ? (
-                classOptionsForUnit.map((item, index) => {
-                  const active = applyClassId === item.id;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => {
-                        setApplyClassId(item.id);
-                        closeApplyPickers();
-                      }}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        margin: index === 0 ? 6 : 2,
-                        backgroundColor: active ? colors.primaryBg : "transparent",
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-                        <Text
-                          style={{
-                            color: active ? colors.primaryText : colors.text,
-                            fontSize: 12,
-                            fontWeight: active ? "700" : "500",
-                          }}
-                        >
-                          {item.name}
-                        </Text>
-                        <ClassGenderBadge gender={item.gender} />
-                      </View>
-                    </Pressable>
-                  );
-                })
-              ) : (
-                <View style={{ padding: 10 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {applyUnit ? "Nenhuma turma cadastrada." : "Selecione uma unidade."}
-                  </Text>
-                </View>
-              )}
-            </AnchoredDropdown>
-          </View>
-        </ScrollView>
-        <Pressable
-          onPress={async () => {
-            if (!applyPlan || !applyClassId) return;
-            if (!applyDays.length) {
-              Alert.alert(
-                "Selecione os dias",
-                "Escolha pelo menos um dia da semana."
-              );
-              return;
-            }
-            if (!applyDate) {
-              Alert.alert(
-                "Informe a data",
-                "Digite a data específica do planejamento."
-              );
-              return;
-            }
-            if (Number.isNaN(new Date(applyDate).getTime())) {
-              Alert.alert(
-                "Data inválida",
-                "Escolha uma data valida."
-              );
-              return;
-            }
-            if (isSameApply) {
-              closeApplyModal();
-              showSaveToast({
-                message: "Planejamento já adicionado.",
-                actionLabel: "Ver aula do dia",
-                variant: "warning",
-                onAction: () => {
-                  router.push({
-                    pathname: "/class/[id]/session",
-                    params: { id: applyClassId, date: applyDate },
-                  });
-                },
-              });
-              return;
-            }
-            const updated: TrainingPlan = {
-              ...applyPlan,
-              classId: applyClassId,
+            pickers={{
+              showApplyUnitPicker,
+              showApplyClassPicker,
+              showApplyUnitPickerContent,
+              showApplyClassPickerContent,
+              applyUnitPickerAnimStyle,
+              applyClassPickerAnimStyle,
+              showApplyCalendar,
+            }}
+            state={{
+              applyUnit,
+              applyClassId,
               applyDays,
               applyDate,
-            };
-            await measure("applyTrainingPlan", () => updateTrainingPlan(updated));
-            await createCalendarEvent(updated);
-            await reload();
-            closeApplyModal();
-            logAction("Aplicar planejamento", {
-              planId: updated.id,
-              classId: applyClassId,
-              applyDate,
-              daysCount: applyDays.length,
-            });
-            showSaveToast({
-              message: "Planejamento aplicado com sucesso.",
-              actionLabel: "Ver aula do dia",
-              variant: "success",
-              onAction: () => {
-                router.push({
-                  pathname: "/class/[id]/session",
-                  params: { id: applyClassId, date: applyDate },
-                });
-              },
-            });
-          }}
-          disabled={!canApply}
-          style={{
-            paddingVertical: 10,
-            borderRadius: 12,
-            backgroundColor: canApply
-              ? colors.primaryBg
-              : colors.primaryDisabledBg,
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              color: canApply ? colors.primaryText : colors.secondaryText,
-              fontWeight: "700",
+              selectedApplyClass,
             }}
-          >
-            Aplicar nessa turma
-          </Text>
-        </Pressable>
+            data={{
+              allUnitsValue: ALL_UNITS_VALUE,
+              weekdays,
+              unitOptions,
+              classOptionsForUnit,
+            }}
+            actions={{
+              closeApplyPickers,
+              syncApplyPickerLayouts,
+              toggleApplyPicker,
+              setApplyUnit,
+              setApplyClassId,
+              setApplyDays,
+              setApplyDate,
+              setShowApplyCalendar,
+              onApply: handleConfirmApply,
+            }}
+            canApply={canApply}
+          />
+        </Suspense>
       </ModalSheet>
       <ModalSheet
         visible={showPlanActions}
@@ -3605,130 +3274,32 @@ export default function TrainingList() {
         cardStyle={[planActionsCardStyle, { paddingBottom: 12 }]}
         position="center"
       >
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <View style={{ gap: 4, paddingRight: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-              {actionPlan?.title ?? "Planejamento"}
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              {actionPlan ? getClassName(actionPlan.classId) : ""}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => {
-              setShowPlanActions(false);
-              setActionPlan(null);
-            }}
-            style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-              Fechar
-            </Text>
-          </Pressable>
-        </View>
-        <View style={{ gap: 8 }}>
-          <Pressable
-            onPress={() => {
-              if (!actionPlan) return;
-              onEdit(actionPlan);
-              setShowPlanActions(false);
-              setActionPlan(null);
-            }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.primaryBg,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              Editar planejamento
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={async () => {
-              if (!actionPlan) return;
-              await savePlanAsTemplate(actionPlan);
-              setShowPlanActions(false);
-              setActionPlan(null);
-            }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Salvar como modelo
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              if (!actionPlan) return;
-              duplicatePlan(actionPlan);
-              setShowPlanActions(false);
-              setActionPlan(null);
-            }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Duplicar
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              if (!actionPlan) return;
-              const target = actionPlan;
-              setShowPlanActions(false);
-              setActionPlan(null);
-              setTimeout(() => {
-                onDelete(target);
-              }, 10);
-            }}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.dangerBg,
-              borderWidth: 1,
-              borderColor: colors.dangerBorder,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
-              Excluir planejamento
-            </Text>
-          </Pressable>
-        </View>
+        {actionPlan ? (
+        <Suspense
+          fallback={<SectionLoadingState />}
+        >
+            <TrainingPlanActionsModalContent
+              plan={actionPlan}
+              getClassName={getClassName}
+              onClose={() => {
+                setShowPlanActions(false);
+                setActionPlan(null);
+              }}
+              onEdit={(plan) => {
+                onEdit(plan);
+              }}
+              onSaveAsTemplate={savePlanAsTemplate}
+              onDuplicate={(plan) => {
+                duplicatePlan(plan);
+              }}
+              onDelete={(plan) => {
+                onDelete(plan);
+              }}
+            />
+          </Suspense>
+        ) : null}
       </ModalSheet>
-      <DatePickerModal
-        visible={showApplyCalendar}
-        value={applyDate}
-        onChange={setApplyDate}
-        onClose={() => setShowApplyCalendar(false)}
-        closeOnSelect
-      />
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
-
-
-
-
-

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Animated, Text, TextInput, View } from "react-native";
+import { Animated, FlatList, Text, TextInput, View } from "react-native";
 
 import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
@@ -697,215 +697,136 @@ export function CycleTab({
 
           ) : filteredWeekPlans.length ? (
 
-            filteredWeekPlans.map((week, index) => (
+            <FlatList
+              data={filteredWeekPlans}
+              keyExtractor={(week, index) => `${week.week}-${index}`}
+              scrollEnabled={false}
+              contentContainerStyle={{ gap: 10 }}
+              renderItem={({ item: week }) => {
+                const palette = getVolumePalette(week.volume, colors);
+                return (
+                  <Pressable
+                    onPress={() => openWeekEditor(week.week)}
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      gap: 10,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {normalizeText("Semana " + week.week + " - " + week.title)}
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                        <View
+                          style={{
+                            paddingVertical: 6,
+                            paddingHorizontal: 10,
+                            borderRadius: 999,
+                            backgroundColor: palette.bg,
+                          }}
+                        >
+                          <Text style={{ color: palette.text, fontSize: 11, fontWeight: "700" }}>
+                            {normalizeText(week.volume)}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            paddingVertical: 6,
+                            paddingHorizontal: 10,
+                            borderRadius: 10,
+                            backgroundColor: colors.background,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                            Abrir editor
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
 
-            <Pressable
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {normalizeText("Foco: " + week.focus)}
+                    </Text>
 
-              key={`${week.week}-${index}`}
-
-              onPress={() => openWeekEditor(week.week)}
-
-              style={{
-
-                padding: 12,
-
-                borderRadius: 14,
-
-                backgroundColor: colors.secondaryBg,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-
-                gap: 10,
-
-              }}
-
-            >
-
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-
-                  {normalizeText("Semana " + week.week + " - " + week.title)}
-
-                </Text>
-
-                {(() => {
-                  const palette = getVolumePalette(week.volume, colors);
-                  return (
-                    <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                       <View
                         style={{
                           paddingVertical: 6,
                           paddingHorizontal: 10,
                           borderRadius: 999,
-                          backgroundColor: palette.bg,
-                        }}
-                      >
-                        <Text style={{ color: palette.text, fontSize: 11, fontWeight: "700" }}>
-                          {normalizeText(week.volume)}
-                        </Text>
-                      </View>
-                      <View
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
                           backgroundColor: colors.background,
                           borderWidth: 1,
                           borderColor: colors.border,
                         }}
                       >
-                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                          Abrir editor
+                        <Text style={{ color: colors.text, fontSize: 11 }}>
+                          {sessionsPerWeek + " dias"}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: colors.background,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 11 }}>
+                          {normalizeText(volumeToPSE[week.volume])}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: colors.background,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 11 }}>
+                          {normalizeText(`PSE alvo: ${week.PSETarget}`)}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor: colors.background,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 11 }}>
+                          {normalizeText("Saltos: " + week.jumpTarget)}
                         </Text>
                       </View>
                     </View>
-                  );
-                })()}
 
-              </View>
-
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-                {normalizeText("Foco: " + week.focus)}
-
-              </Text>
-
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-
-                <View
-
-                  style={{
-
-                    paddingVertical: 6,
-
-                    paddingHorizontal: 10,
-
-                    borderRadius: 999,
-
-                    backgroundColor: colors.background,
-
-                    borderWidth: 1,
-
-                    borderColor: colors.border,
-
-                  }}
-
-                >
-
-                  <Text style={{ color: colors.text, fontSize: 11 }}>
-
-                    {sessionsPerWeek + " dias"}
-
-                  </Text>
-
-                </View>
-
-                <View
-
-                  style={{
-
-                    paddingVertical: 6,
-
-                    paddingHorizontal: 10,
-
-                    borderRadius: 999,
-
-                    backgroundColor: colors.background,
-
-                    borderWidth: 1,
-
-                    borderColor: colors.border,
-
-                  }}
-
-                >
-
-                  <Text style={{ color: colors.text, fontSize: 11 }}>
-
-                    {normalizeText(volumeToPSE[week.volume])}
-
-                  </Text>
-
-                </View>
-
-                <View
-
-                  style={{
-
-                    paddingVertical: 6,
-
-                    paddingHorizontal: 10,
-
-                    borderRadius: 999,
-
-                    backgroundColor: colors.background,
-
-                    borderWidth: 1,
-
-                    borderColor: colors.border,
-
-                  }}
-
-                >
-
-                  <Text style={{ color: colors.text, fontSize: 11 }}>
-
-                    {normalizeText(`PSE alvo: ${week.PSETarget}`)}
-
-                  </Text>
-
-                </View>
-
-                <View
-
-                  style={{
-
-                    paddingVertical: 6,
-
-                    paddingHorizontal: 10,
-
-                    borderRadius: 999,
-
-                    backgroundColor: colors.background,
-
-                    borderWidth: 1,
-
-                    borderColor: colors.border,
-
-                  }}
-
-                >
-
-                  <Text style={{ color: colors.text, fontSize: 11 }}>
-
-                    {normalizeText("Saltos: " + week.jumpTarget)}
-
-                  </Text>
-
-                </View>
-
-              </View>
-
-              <View style={{ gap: 4 }}>
-
-                {week.notes.map((note) => (
-
-                  <Text key={note} style={{ color: colors.muted, fontSize: 12 }}>
-
-                    {normalizeText("- " + note)}
-
-                  </Text>
-
-                ))}
-
-              </View>
-
-            </Pressable>
-
-          ))
+                    <View style={{ gap: 4 }}>
+                      {week.notes.map((note) => (
+                        <Text key={note} style={{ color: colors.muted, fontSize: 12 }}>
+                          {normalizeText("- " + note)}
+                        </Text>
+                      ))}
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
 
           ) : (
 

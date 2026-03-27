@@ -1,4 +1,3 @@
-import { LinearGradient } from "expo-linear-gradient";
 import {
     Stack,
     usePathname,
@@ -15,9 +14,8 @@ import {
 import {
     ActivityIndicator,
     AppState,
-    Image,
     LogBox,
-    Platform, StyleSheet, Text,
+    Platform, Text,
     View
 } from "react-native";
 import { Pressable } from "../src/ui/Pressable";
@@ -37,13 +35,14 @@ import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
-import { OrganizationProvider, useOrganization } from "../src/providers/OrganizationProvider";
+import { OrganizationProvider, useOptionalOrganization } from "../src/providers/OrganizationProvider";
 import {
     ensureAndroidNotificationChannel,
     ensureNotificationHandlerConfigured,
 } from "../src/push/notificationRuntime";
 import { attachPushListeners, ensurePushTokenRegistered } from "../src/push/pushClient";
 import { BiometricLockProvider, useBiometricLock } from "../src/security/biometric-lock";
+import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
@@ -80,6 +79,61 @@ function safeReplaceHistoryUrl(url: string) {
   }
 }
 
+function RootErrorFallback({
+  error,
+  resetError,
+}: {
+  error: unknown;
+  resetError: () => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: colors.background,
+        padding: 16,
+      }}
+    >
+      <View
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          padding: 20,
+          gap: 14,
+          alignItems: "center",
+        }}
+      >
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700", marginBottom: 2 }}>
+          Algo deu errado
+        </Text>
+        <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
+          {error instanceof Error ? error.message : "Um erro inesperado ocorreu"}
+        </Text>
+        <Pressable
+          onPress={resetError}
+          style={{
+            paddingVertical: 12,
+            paddingHorizontal: 24,
+            borderRadius: 12,
+            backgroundColor: colors.primaryBg,
+          }}
+        >
+          <Text style={{ color: colors.primaryText, fontWeight: "600" }}>
+            Tentar novamente
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function RootLayoutContent() {
   const { colors, mode } = useAppTheme();
   const router = useRouter();
@@ -90,7 +144,12 @@ function RootLayoutContent() {
   const rootState = useRootNavigationState();
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
-  const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
+  const organization = useOptionalOrganization();
+  const { activeOrganization, memberPermissions, permissionsLoading } = organization ?? {
+    activeOrganization: null,
+    memberPermissions: {},
+    permissionsLoading: false,
+  };
   const { isEnabled: biometricsEnabled, isUnlocked, hasCredentialLoginBypass } = useBiometricLock();
   const hadSessionRef = useRef(false);
   const initialRouteGuardAppliedRef = useRef(false);
@@ -223,7 +282,9 @@ function RootLayoutContent() {
   }, [activeOrganization?.id, session?.user?.id]);
 
   useEffect(() => {
-    const detach = attachPushListeners(router);
+    const detach = attachPushListeners({
+      push: (value) => router.push(value as never),
+    });
     return () => detach();
   }, [router]);
 
@@ -303,7 +364,7 @@ function RootLayoutContent() {
 
     if (redirectTo) {
       if (redirectTo !== normalizedPathname) {
-        router.replace(redirectTo);
+        router.replace(redirectTo as Parameters<typeof router.replace>[0]);
       }
       return;
     }
@@ -599,23 +660,10 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
     };
   }, []);
 
-  const noiseUri =
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDAwAAABv0C/0sV9K8AAAAASUVORK5CYII=";
-  const gradientByRoute = () => {
-    return mode === "dark"
-       ? ["#0b1222", "#101b34", "#121a2a"]
-      : ["#f6f8fb", "#e7edf7", "#f2f5fb"];
-  };
-
-  const gradientStops = gradientByRoute();
-
   if (bootstrapError) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#0b1222" }}>
-        <LinearGradient
-          colors={["#0b1222", "#101b34", "#121a2a"]}
-          style={StyleSheet.absoluteFill}
-        />
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenBackdrop variant="boot" />
         <View
           style={{
             flex: 1,
@@ -625,10 +673,10 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
             gap: 12,
           }}
         >
-          <Text style={{ color: "#f8fafc", fontWeight: "700" }}>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
             Ocorreu um erro ao iniciar
           </Text>
-          <Text style={{ color: "#cbd5e1", textAlign: "center" }}>
+          <Text style={{ color: colors.muted, textAlign: "center" }}>
             Tente novamente. Se persistir, reinicie o app.
           </Text>
           <Pressable
@@ -637,10 +685,10 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
               paddingVertical: 10,
               paddingHorizontal: 16,
               borderRadius: 12,
-              backgroundColor: "rgba(86, 214, 154, 0.28)",
+              backgroundColor: colors.primaryBg,
             }}
           >
-            <Text style={{ color: "#eafff5", fontWeight: "700" }}>Tentar novamente</Text>
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Tentar novamente</Text>
           </Pressable>
         </View>
       </View>
@@ -649,11 +697,8 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
 
   if (isBooting) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#0b1222" }}>
-        <LinearGradient
-          colors={["#0b1222", "#101b34", "#121a2a"]}
-          style={StyleSheet.absoluteFill}
-        />
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenBackdrop variant="boot" />
         <View
           style={{
             flex: 1,
@@ -662,8 +707,8 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
             gap: 10,
           }}
         >
-          <ActivityIndicator size="large" color="#e5e7eb" />
-          <Text style={{ color: "#e5e7eb", fontWeight: "600" }}>Carregando...</Text>
+          <ActivityIndicator size="large" color={colors.text} />
+          <Text style={{ color: colors.text, fontWeight: "600" }}>Carregando...</Text>
         </View>
         <StatusBar
           style={mode === "dark" ? "light" : "dark"}
@@ -674,15 +719,8 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <LinearGradient colors={gradientStops} style={StyleSheet.absoluteFill} />
-      { Platform.OS === "web" ? (
-        <Image
-          source={{ uri: noiseUri }}
-          resizeMode="repeat"
-          style={[StyleSheet.absoluteFill, { opacity: mode === "dark" ? 0.035 : 0.05 }]}
-        />
-      ) : null}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
       <StatusBar
         style={mode === "dark" ? "light" : "dark"}
         backgroundColor="transparent"
@@ -708,9 +746,9 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
           <Text style={{ color: colors.muted, flex: 1 }}>
             Confirme seu e-mail para manter sua conta segura e recuperar acesso com facilidade.
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Pressable
-              onPress={() => {
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            onPress={() => {
                 const email = encodeURIComponent(session?.user?.email ?? "");
                 router.push(`/verify-email?email=${email}`);
               }}
@@ -777,7 +815,7 @@ body.app-scrolling *::-webkit-scrollbar-thumb:hover {
 function RootLayout() {
   useEffect(() => {
     setSentryBaseTags();
-    const globalHandler = (global as {
+    const globalHandler = (global as unknown as {
       ErrorUtils: {
         setGlobalHandler: (
           handler: (error: unknown, isFatal: boolean) => void
@@ -815,44 +853,18 @@ function RootLayout() {
   }, []);
 
   return (
-    <Sentry.ErrorBoundary
-      fallback={({ error, resetError }) => (
-        <View style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#1a1a1a',
-          padding: 16,
-        }}>
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>
-            Algo deu errado
-          </Text>
-          <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 24, textAlign: 'center' }}>
-            {error?.message || 'Um erro inesperado ocorreu'}
-          </Text>
-          <Pressable
-            onPress={resetError}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 24,
-              borderRadius: 8,
-              backgroundColor: '#2563eb',
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>
-              Tentar novamente
-            </Text>
-          </Pressable>
-        </View>
-      )}
-      showDialog
-    >
-      <AppThemeProvider>
+    <AppThemeProvider>
+      <Sentry.ErrorBoundary
+        fallback={({ error, resetError }) => (
+          <RootErrorFallback error={error} resetError={resetError} />
+        )}
+        showDialog
+      >
         <BootstrapProvider>
           <BootstrapAuthProviders />
         </BootstrapProvider>
-      </AppThemeProvider>
-    </Sentry.ErrorBoundary>
+      </Sentry.ErrorBoundary>
+    </AppThemeProvider>
   );
 }
 
@@ -861,7 +873,7 @@ export default RootLayout;
 function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
-    <AuthProvider initialSession={data?.session}>
+    <AuthProvider initialSession={data?.session ?? null}>
       <BiometricAuthBoundary />
     </AuthProvider>
   );

@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useEffect,
@@ -7,9 +7,9 @@ import {
     useState
 } from "react";
 import {
+    FlatList,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
     Text,
     TextInput,
     View
@@ -22,12 +22,14 @@ import type {
     ClassGroup,
     Student,
 } from "../../../src/core/models";
+import { useAuth } from "../../../src/auth/auth";
 import {
     getAttendanceByDate,
     getClassById,
     getStudentsByClass,
     saveAttendanceRecords,
 } from "../../../src/db/seed";
+import { isAuthError, isNetworkError } from "../../../src/db/client";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -37,7 +39,7 @@ import { DateInput } from "../../../src/ui/DateInput";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../../src/ui/FadeHorizontalScroll";
 import { useSaveToast } from "../../../src/ui/save-toast";
-import { ShimmerBlock } from "../../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
 
 const formatDate = (value: Date) => {
@@ -55,6 +57,7 @@ const formatDisplayDate = (value: string) => {
 
 export default function AttendanceScreen() {
   const { colors } = useAppTheme();
+  const { signOut } = useAuth();
   const { id, date: dateParam } = useLocalSearchParams<{
     id: string;
     date: string;
@@ -185,51 +188,77 @@ export default function AttendanceScreen() {
 
   const handleSave = async () => {
     if (!cls) return;
-    const createdAt = new Date().toISOString();
-    const records: AttendanceRecord[] = items
-      .filter((item) => item.status === "presente" || item.status === "faltou")
-      .map((item) => ({
-        id: `${cls.id}_${item.student.id}_${date}`,
+    try {
+      const createdAt = new Date().toISOString();
+      const records = items
+        .filter(
+          (item): item is (typeof item & { status: "presente" | "faltou" }) =>
+            item.status === "presente" || item.status === "faltou"
+        )
+        .map((item) => ({
+          id: `${cls.id}_${item.student.id}_${date}`,
+          classId: cls.id,
+          studentId: item.student.id,
+          date,
+          status: item.status,
+          note: item.note.trim(),
+          painScore: item.pain,
+          createdAt,
+        }));
+
+      const nextStatus: Record<string, "presente" | "faltou" | undefined> = {};
+      const nextNotes: Record<string, string> = {};
+      const nextPain: Record<string, number> = {};
+      students.forEach((student) => {
+        const status = statusById[student.id];
+        nextStatus[student.id] = status;
+        nextNotes[student.id] = status ? (noteById[student.id] ?? "").trim() : "";
+        nextPain[student.id] = status ? painById[student.id] ?? 0 : 0;
+      });
+
+      await measure("saveAttendanceRecords", () =>
+        saveAttendanceRecords(cls.id, date, records)
+      );
+      setStatusById(nextStatus);
+      setNoteById(nextNotes);
+      setPainById(nextPain);
+      setBaseline({ status: nextStatus, note: nextNotes, pain: nextPain });
+      logAction("Salvar chamada", {
         classId: cls.id,
-        studentId: item.student.id,
         date,
-        status: item.status,
-        note: item.note.trim(),
-        painScore: item.pain,
-        createdAt,
-      }));
-
-    const nextStatus: Record<string, "presente" | "faltou" | undefined> = {};
-    const nextNotes: Record<string, string> = {};
-    const nextPain: Record<string, number> = {};
-    students.forEach((student) => {
-      const status = statusById[student.id];
-      nextStatus[student.id] = status;
-      nextNotes[student.id] = status ? (noteById[student.id] ?? "").trim() : "";
-      nextPain[student.id] = status ? painById[student.id] ?? 0 : 0;
-    });
-
-    await measure("saveAttendanceRecords", () =>
-      saveAttendanceRecords(cls.id, date, records)
-    );
-    setStatusById(nextStatus);
-    setNoteById(nextNotes);
-    setPainById(nextPain);
-    setBaseline({ status: nextStatus, note: nextNotes, pain: nextPain });
-    logAction("Salvar chamada", {
-      classId: cls.id,
-      date,
-      total: records.length,
-    });
-    showSaveToast({
-      message: "Chamada salva com sucesso.",
-      variant: "success",
-    });
-    showSaveToast({
-      message: "Chamada salva - abrir relatório?",
-      variant: "info",
-    });
-    setHasSaved(records.length > 0);
+        total: records.length,
+      });
+      showSaveToast({
+        message: "Chamada salva com sucesso.",
+        variant: "success",
+      });
+      setHasSaved(records.length > 0);
+    } catch (error) {
+      if (isAuthError(error)) {
+        showSaveToast({
+          message: "Sessão expirada. Entre novamente.",
+          variant: "error",
+          actionLabel: "Login",
+          onAction: async () => {
+            await signOut();
+            router.replace("/login");
+          },
+          durationMs: 6000,
+        });
+        return;
+      }
+      if (isNetworkError(error)) {
+        showSaveToast({
+          message: "Sem conexão. Tente novamente.",
+          variant: "error",
+        });
+        return;
+      }
+      showSaveToast({
+        error,
+        variant: "error",
+      });
+    }
   };
 
   const loadDate = async (value: string) => {
@@ -259,7 +288,23 @@ export default function AttendanceScreen() {
         return;
       }
     }
-    const records = await getAttendanceByDate(cls.id, value);
+    let records: AttendanceRecord[] = [];
+    try {
+      records = await getAttendanceByDate(cls.id, value);
+    } catch (error) {
+      if (isAuthError(error)) {
+        setLoadMessage("Sessão expirada. Faça login novamente.");
+      } else if (isNetworkError(error)) {
+        setLoadMessage("Sem conexão. Mantendo os dados já carregados.");
+      } else {
+        setLoadMessage("Não foi possível carregar a data agora.");
+      }
+      loadMessageTimer.current = setTimeout(() => {
+        setLoadMessage("");
+        loadMessageTimer.current = null;
+      }, 2500);
+      return;
+    }
     if (!records.length) {
       setStatusById(baseStatus);
       setNoteById(baseNotes);
@@ -289,7 +334,7 @@ export default function AttendanceScreen() {
     setPainById(finalPain);
     setBaseline({ status: finalStatus, note: finalNotes, pain: finalPain });
     setHasSaved(true);
-    setLoadMessage("Historico carregado para essa data.");
+    setLoadMessage("Histórico carregado para essa data.");
     loadMessageTimer.current = setTimeout(() => {
       setLoadMessage("");
       loadMessageTimer.current = null;
@@ -349,17 +394,7 @@ export default function AttendanceScreen() {
 
 
   if (!cls) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ gap: 12, padding: 16 }}>
-          <ShimmerBlock style={{ height: 26, width: 160, borderRadius: 12 }} />
-          <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
-          <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
-          <ShimmerBlock style={{ height: 220, borderRadius: 18 }} />
-          <ShimmerBlock style={{ height: 220, borderRadius: 18 }} />
-        </View>
-      </SafeAreaView>
-    );
+    return <ScreenLoadingState />;
   }
   const dateLabel = formatDisplayDate(date);
   const parsedStart = parseTime(cls.startTime);
@@ -367,6 +402,38 @@ export default function AttendanceScreen() {
     parsedStart && cls.durationMinutes
       ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes)
       : "";
+  const attendanceEmptyState = !isClassDay ? (
+    <View
+      style={{
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
+    >
+      <Text style={{ color: colors.text, fontWeight: "700" }}>
+        Dia sem aula para essa turma.
+      </Text>
+      <Text style={{ color: colors.muted, marginTop: 6 }}>
+        Dias da turma: {formatDays(classDays)}.
+      </Text>
+    </View>
+  ) : items.length === 0 ? (
+    <View
+      style={{
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
+    >
+      <Text style={{ color: colors.text, fontWeight: "700" }}>
+        Nenhum aluno cadastrado nesta turma.
+      </Text>
+    </View>
+  ) : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -383,6 +450,7 @@ export default function AttendanceScreen() {
         classColorKey={cls.colorKey}
         dateLabel={dateLabel}
         timeLabel={timeLabel}
+        notice={loadMessage}
       />
 
       <View
@@ -431,234 +499,214 @@ export default function AttendanceScreen() {
         ) : null}
       </View>
 
-      { isClassDay ? (
-        <ScrollView
-          contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {items.map((item) => (
+      <FlatList
+        style={{ flex: 1, minHeight: 0 }}
+        data={isClassDay ? items : []}
+        keyExtractor={(item) => item.student.id}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
+        renderItem={({ item }) => (
+          <View
+            style={{
+              borderRadius: 18,
+              padding: 14,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              shadowColor: "#000",
+              shadowOpacity: 0.04,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 2,
+            }}
+          >
             <View
-              key={item.student.id}
               style={{
-                borderRadius: 18,
-                padding: 14,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOpacity: 0.04,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 2,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
               }}
             >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                }}
+              <FadeHorizontalScroll
+                containerStyle={{ flex: 1, minWidth: 0 }}
+                fadeColor={colors.card}
               >
-                <FadeHorizontalScroll
-                  containerStyle={{ flex: 1, minWidth: 0 }}
-                  fadeColor={colors.card}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text
-                      style={{ fontSize: 16, fontWeight: "700", color: colors.text }}
-                      numberOfLines={1}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text
+                    style={{ fontSize: 16, fontWeight: "700", color: colors.text }}
+                    numberOfLines={1}
+                  >
+                    {item.student.name}
+                  </Text>
+                  {item.student.isExperimental ? (
+                    <View
+                      style={{
+                        borderRadius: 999,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        backgroundColor: colors.warningBg,
+                      }}
                     >
-                      {item.student.name}
-                    </Text>
-                    {item.student.isExperimental ? (
-                      <View
+                      <Text
                         style={{
-                          borderRadius: 999,
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          backgroundColor: colors.warningBg,
+                          color: colors.warningText,
+                          fontSize: 11,
+                          fontWeight: "700",
                         }}
                       >
-                        <Text
-                          style={{
-                            color: colors.warningText,
-                            fontSize: 11,
-                            fontWeight: "700",
-                          }}
-                        >
-                          Experimental
-                        </Text>
-                      </View>
-                    ) : null}
+                        Experimental
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </FadeHorizontalScroll>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <Pressable
+                  onPress={() =>
+                    setStatusById((prev) => ({
+                      ...prev,
+                      [item.student.id]:
+                        prev[item.student.id] === "presente" ? undefined : "presente",
+                    }))
+                  }
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    backgroundColor:
+                      item.status === "presente" ? colors.successBg : colors.secondaryBg,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: item.status === "presente" ? colors.primaryText : colors.text,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Presente
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    setStatusById((prev) => ({
+                      ...prev,
+                      [item.student.id]:
+                        prev[item.student.id] === "faltou" ? undefined : "faltou",
+                    }))
+                  }
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    backgroundColor:
+                      item.status === "faltou" ? colors.dangerSolidBg : colors.secondaryBg,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: item.status === "faltou" ? colors.primaryText : colors.text,
+                      fontWeight: "700",
+                    }}
+                  >
+                    Faltou
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setExpandedById((prev) => ({
+                      ...prev,
+                      [item.student.id]: !prev[item.student.id],
+                    }));
+                  }}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name={expandedById[item.student.id] ? "chevron-down" : "chevron-right"}
+                    size={16}
+                    color={colors.muted}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            { expandedById[item.student.id] ? (
+              <View style={{ marginTop: 10, gap: 8 }}>
+                <Text style={{ color: colors.text }}>
+                  Idade: {item.student.age} | Tel: {item.student.phone}
+                </Text>
+                <TextInput
+                  placeholder="Observação (opcional)"
+                  value={item.note}
+                  onChangeText={(text) =>
+                    setNoteById((prev) => ({
+                      ...prev,
+                      [item.student.id]: text,
+                    }))
+                  }
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 10,
+                    borderRadius: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text }}>Dor (0-3)</Text>
+                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                    {[0, 1, 2, 3].map((value) => (
+                      <Button
+                        key={value}
+                        label={String(value)}
+                        variant={item.pain === value ? "primary" : "secondary"}
+                        onPress={() =>
+                          setPainById((prev) => ({
+                            ...prev,
+                            [item.student.id]: value,
+                          }))
+                        }
+                      />
+                    ))}
                   </View>
-                </FadeHorizontalScroll>
-                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                  <Pressable
-                    onPress={() =>
-                      setStatusById((prev) => ({
-                        ...prev,
-                        [item.student.id]:
-                          prev[item.student.id] === "presente" ? undefined : "presente",
-                      }))
-                    }
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 12,
-                      borderRadius: 999,
-                      backgroundColor:
-                        item.status === "presente" ? colors.successBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: item.status === "presente" ? colors.primaryText : colors.text,
-                        fontWeight: "700",
-                      }}
-                    >
-                      Presente
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() =>
-                      setStatusById((prev) => ({
-                        ...prev,
-                        [item.student.id]:
-                          prev[item.student.id] === "faltou" ? undefined : "faltou",
-                      }))
-                    }
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 12,
-                      borderRadius: 999,
-                      backgroundColor:
-                        item.status === "faltou" ? colors.dangerSolidBg : colors.secondaryBg,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: item.status === "faltou" ? colors.primaryText : colors.text,
-                        fontWeight: "700",
-                      }}
-                    >
-                      Faltou
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setExpandedById((prev) => ({
-                        ...prev,
-                        [item.student.id]: !prev[item.student.id],
-                      }));
-                    }}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name={
-                        expandedById[item.student.id]
-                          ? "chevron-down"
-                          : "chevron-right"
-                      }
-                      size={16}
-                      color={colors.muted}
-                    />
-                  </Pressable>
                 </View>
               </View>
-
-              { expandedById[item.student.id] ? (
-                <View style={{ marginTop: 10, gap: 8 }}>
-                  <Text style={{ color: colors.text }}>
-                    Idade: {item.student.age} | Tel: {item.student.phone}
-                  </Text>
-                  <TextInput
-                    placeholder="Observação (opcional)"
-                    value={item.note}
-                    onChangeText={(text) =>
-                      setNoteById((prev) => ({
-                        ...prev,
-                        [item.student.id]: text,
-                      }))
-                    }
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                  <View style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text }}>Dor (0-3)</Text>
-                    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                      {[0, 1, 2, 3].map((value) => (
-                        <Button
-                          key={value}
-                          label={String(value)}
-                          variant={item.pain === value ? "primary" : "secondary"}
-                          onPress={() =>
-                            setPainById((prev) => ({
-                              ...prev,
-                              [item.student.id]: value,
-                            }))
-                          }
-                        />
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              ) : null}
-            </View>
-          ))}
-        </ScrollView>
-      ) : (
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 16,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Dia sem aula para essa turma.
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 6 }}>
-            Dias da turma: {formatDays(classDays)}.
-          </Text>
-        </View>
-      )}
-
-      <View style={{ marginTop: 8, gap: 8 }}>
-        <Button
-          label="Salvar chamada"
-          onPress={handleSave}
-          disabled={!isClassDay || !hasChanges}
-        />
-        <Button
-          label="Abrir relatório"
-          variant="secondary"
-          disabled={!isClassDay || !hasSaved}
-          onPress={() => {
-            router.push({
-              pathname: "/class/[id]/session",
-              params: {
-                id: cls.id,
-                date,
-                tab: "relatório",
-              },
-            });
-          }}
-        />
-      </View>
+            ) : null}
+          </View>
+        )}
+        ListEmptyComponent={attendanceEmptyState}
+        ListFooterComponent={
+          <View style={{ marginTop: 8, gap: 8 }}>
+            <Button
+              label="Salvar chamada"
+              onPress={handleSave}
+              disabled={!isClassDay || !hasChanges}
+            />
+            <Button
+              label="Abrir relatório"
+              variant="secondary"
+              disabled={!isClassDay || !hasSaved}
+              onPress={() => {
+                router.push({
+                  pathname: "/class/[id]/session",
+                  params: {
+                    id: cls.id,
+                    date,
+                    tab: "relatorio",
+                  },
+                });
+              }}
+            />
+          </View>
+        }
+      />
 
       <DatePickerModal
         visible={showCalendar}
@@ -673,10 +721,6 @@ export default function AttendanceScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-
 
 
 

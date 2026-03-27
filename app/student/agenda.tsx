@@ -1,5 +1,8 @@
-import AgendaScreen from "../agenda";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function StudentAgendaTab() {
-  return <AgendaScreen />;
-}
+const StudentAgendaTab = createLazyRoute(
+  () => import("../agenda"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando agenda..." />
+);
+
+export default StudentAgendaTab;

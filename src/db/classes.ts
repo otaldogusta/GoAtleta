@@ -4,6 +4,7 @@
 
 import * as Sentry from "@sentry/react-native";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
+import { resolveClassModality } from "../core/class-modality";
 import type { ClassGroup } from "../core/models";
 import { canonicalizeUnitLabel } from "../core/unit-label";
 import { sortClassesBySchedule } from "../core/class-schedule-sort";
@@ -25,6 +26,10 @@ import {
   supabaseDelete,
 } from "./client";
 import type { ClassRow, UnitRow } from "./row-types";
+import {
+  deleteTrainingIntegrationRuleBySession,
+  syncTrainingIntegrationRuleFromSession,
+} from "./training-sessions";
 
 // ---------------------------------------------------------------------------
 // Cache key
@@ -221,7 +226,7 @@ export async function getClasses(options: { organizationId?: string | null } = {
       const resolvedStartTime = row.starttime ?? "14:00";
       const resolvedEndTime = row.end_time ?? row.endtime ?? computeEndTime(row.starttime, row.duration ?? 60) ?? computeEndTime(resolvedStartTime, row.duration ?? 60) ?? resolvedStartTime;
       const resolvedEquipment: ClassGroup["equipment"] = row.equipment === "quadra" || row.equipment === "funcional" || row.equipment === "academia" || row.equipment === "misto" ? row.equipment : "misto";
-      const resolvedModality: ClassGroup["modality"] = row.modality === "voleibol" || row.modality === "fitness" ? row.modality : "fitness";
+      const resolvedModality: ClassGroup["modality"] = resolveClassModality(row.modality) ?? "fitness";
       const resolvedGender: ClassGroup["gender"] = row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto";
       const resolvedLevel: ClassGroup["level"] = row.level === 2 || row.level === 3 ? row.level : 1;
       return {
@@ -264,7 +269,7 @@ export async function getClassById(id: string, options: { organizationId?: strin
       id: row.id, name: row.name, organizationId: resolvedOrganizationId,
       unit: (row.unit_id ? unitMap.get(row.unit_id) : undefined) ?? canonicalizeUnitLabel(row.unit ?? null) ?? "Sem unidade",
       unitId: row.unit_id ?? "", colorKey: row.color_key ?? "",
-      modality: row.modality === "voleibol" || row.modality === "fitness" ? row.modality : "fitness",
+      modality: resolveClassModality(row.modality) ?? "fitness",
       ageBand: normalizeAgeBand(row.ageband),
       gender: row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto",
       startTime: row.starttime ?? "14:00",
@@ -376,5 +381,105 @@ export async function deleteClassCascade(id: string) {
   await supabaseDelete("/scouting_logs?" + classFilter);
   await supabaseDelete("/students?" + classFilter);
   await supabaseDelete("/session_logs?" + classFilter);
+  try {
+    const sessionLinks = await supabaseGet<{ session_id: string }[]>(
+      "/training_session_classes?select=session_id&class_id=eq." +
+        encodeURIComponent(id) +
+        (activeOrganizationId
+          ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+          : "")
+    );
+    const sessionIds = Array.from(
+      new Set(
+        sessionLinks
+          .map((item) => String(item.session_id ?? "").trim())
+          .filter(Boolean)
+      )
+    );
+    if (sessionIds.length) {
+      const sessionFilter = sessionIds.map((item) => encodeURIComponent(item)).join(",");
+      await supabaseDelete(
+        "/training_session_attendance?class_id=eq." +
+          encodeURIComponent(id) +
+          (activeOrganizationId
+            ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+            : "")
+      );
+      await supabaseDelete(
+        "/training_session_classes?class_id=eq." +
+          encodeURIComponent(id) +
+          (activeOrganizationId
+            ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+            : "")
+      );
+      const remainingLinks = await supabaseGet<{ session_id: string; class_id: string }[]>(
+        "/training_session_classes?select=session_id,class_id&session_id=in.(" +
+          sessionFilter +
+          ")" +
+          (activeOrganizationId
+            ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+            : "")
+      );
+      const stillLinked = new Set(
+        remainingLinks
+          .map((item) => String(item.session_id ?? "").trim())
+          .filter(Boolean)
+      );
+
+      const remainingSessionRows = await supabaseGet<{ id: string; organization_id?: string | null; start_at: string; end_at: string; created_at?: string | null; updated_at?: string | null; }[]>(
+        "/training_sessions?select=id,organization_id,start_at,end_at,created_at,updated_at&id=in.(" +
+          sessionFilter +
+          ")" +
+          (activeOrganizationId
+            ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+            : "")
+      );
+      const classIdsBySession = new Map<string, string[]>();
+      for (const link of remainingLinks) {
+        const key = String(link.session_id ?? "").trim();
+        if (!key) continue;
+        const list = classIdsBySession.get(key) ?? [];
+        list.push(String(link.class_id ?? "").trim());
+        classIdsBySession.set(key, list.filter(Boolean));
+      }
+      for (const sessionRow of remainingSessionRows) {
+        const linkedClassIds = classIdsBySession.get(sessionRow.id) ?? [];
+        if (linkedClassIds.length > 1) {
+          await syncTrainingIntegrationRuleFromSession({
+            sessionId: sessionRow.id,
+            classIds: linkedClassIds,
+            startAt: sessionRow.start_at,
+            endAt: sessionRow.end_at,
+            organizationId: sessionRow.organization_id ?? activeOrganizationId,
+            createdAt: sessionRow.created_at ?? undefined,
+            updatedAt: sessionRow.updated_at ?? undefined,
+          });
+        } else {
+          await deleteTrainingIntegrationRuleBySession(sessionRow.id, {
+            organizationId: sessionRow.organization_id ?? activeOrganizationId,
+          });
+        }
+      }
+      const orphanIds = sessionIds.filter((sessionId) => !stillLinked.has(sessionId));
+      if (orphanIds.length) {
+        await supabaseDelete(
+          "/training_sessions?id=in.(" +
+            orphanIds.map((item) => encodeURIComponent(item)).join(",") +
+            ")" +
+            (activeOrganizationId
+              ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+              : "")
+        );
+      }
+    }
+  } catch (error) {
+    if (
+      !isMissingRelation(error, "training_session_classes") &&
+      !isMissingRelation(error, "training_session_attendance") &&
+      !isMissingRelation(error, "training_sessions")
+    ) {
+      throw error;
+    }
+  }
   await deleteClass(id);
 }

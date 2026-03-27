@@ -14,25 +14,11 @@ const jsonHeaders = {
 const createError = (status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
 
-const requireUser = (req: Request): { id: string; email?: string } | null => {
+const getBearerToken = (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.slice("Bearer ".length).trim();
-  if (!token) return null;
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
-    ) as Record<string, unknown>;
-    const sub = payload["sub"];
-    const exp = payload["exp"];
-    if (typeof sub !== "string" || !sub) return null;
-    if (typeof exp === "number" && exp < Date.now() / 1000) return null;
-    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined };
-  } catch {
-    return null;
-  }
+  return token || null;
 };
 
 Deno.serve(async (req) => {
@@ -43,8 +29,8 @@ Deno.serve(async (req) => {
     return createError(405, "INVALID_REQUEST", "Method not allowed");
   }
 
-  const user = requireUser(req);
-  if (!user) {
+  const token = getBearerToken(req);
+  if (!token) {
     return createError(401, "UNAUTHORIZED", "Unauthorized");
   }
 
@@ -58,11 +44,17 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
+  const { data: authData, error: authError } = await supabase.auth.getUser(token);
+  const userId = authData?.user?.id ?? "";
+  if (authError || !userId) {
+    return createError(401, "UNAUTHORIZED", "Unauthorized");
+  }
+
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from("student_invites")
     .select("id, student_id, created_at, expires_at, invited_via, invited_to, revoked, students(name)")
-    .eq("created_by", user.id)
+    .eq("created_by", userId)
     .eq("revoked", false)
     .is("used_at", null)
     .gte("expires_at", nowIso)

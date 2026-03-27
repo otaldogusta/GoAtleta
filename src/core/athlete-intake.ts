@@ -99,8 +99,8 @@ const findValue = (row: RawRow, includes: string[]): string => {
 
 const toSex = (value: string): AthleteIntake["sex"] => {
   const normalized = toKey(value);
-  if (normalized === "masculino") return "masculino";
-  if (normalized === "feminino") return "feminino";
+  if (["masculino", "masc", "m", "male", "homem", "menino"].includes(normalized)) return "masculino";
+  if (["feminino", "fem", "f", "female", "mulher", "menina"].includes(normalized)) return "feminino";
   if (normalized) return "outro";
   return null;
 };
@@ -115,6 +115,38 @@ const hasMultiModality = (modalities: string[]) =>
   new Set(modalities.map((item) => toKey(item))).size > 1;
 
 const unique = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
+
+export const normalizeAthleteModality = (value: string) => toKey(value);
+
+export const extractDetectedModalities = (rows: RawRow[]) => {
+  const counts = new Map<string, { label: string; count: number }>();
+
+  rows.forEach((row) => {
+    const modalities = splitModalities(
+      findValue(row, ["qual(ais) modalidade", "modalidade(s)", "modalidade"])
+    );
+    modalities.forEach((modality) => {
+      const normalized = normalizeAthleteModality(modality);
+      if (!normalized) return;
+      const current = counts.get(normalized);
+      if (current) {
+        current.count += 1;
+        return;
+      }
+      counts.set(normalized, { label: modality.trim(), count: 1 });
+    });
+  });
+
+  return Array.from(counts.entries())
+    .map(([normalized, item]) => ({
+      normalized,
+      label: item.label,
+      count: item.count,
+      isVolleyball:
+        normalized.includes("volei") || normalized.includes("voleibol"),
+    }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+};
 
 export function mapGoogleFormsRowToAthleteIntake(
   row: RawRow,

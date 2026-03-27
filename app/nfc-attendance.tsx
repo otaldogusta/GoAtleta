@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Animated,
     Easing,
+    FlatList,
     Image,
     Modal,
     Platform,
@@ -1398,38 +1399,43 @@ export default function NfcAttendanceScreen() {
             Presenças desta sessão
           </Text>
           {liveCheckins.length ? (
-            liveCheckins.map((item) => (
-              <View
-                key={item.id}
-                style={{
-                  borderRadius: 12,
-                  padding: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  gap: 4,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>{item.studentName}</Text>
-                <Text style={{ color: colors.muted }}>{item.className}</Text>
-                <Text style={{ color: colors.muted }}>
-                  {formatTime(item.checkedInAt)} - UID {item.tagUid}
-                </Text>
-                <Text
+            <FlatList
+              data={liveCheckins}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+              contentContainerStyle={{ gap: 8 }}
+              renderItem={({ item }) => (
+                <View
                   style={{
-                    color:
-                      item.syncStatus === "synced"
-                        ? colors.successText
-                        : item.syncStatus === "pending"
-                        ? colors.warningText
-                        : colors.dangerText,
-                    fontWeight: "700",
+                    borderRadius: 12,
+                    padding: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    gap: 4,
                   }}
                 >
-                  {getSyncLabel(item.syncStatus)}
-                </Text>
-              </View>
-            ))
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{item.studentName}</Text>
+                  <Text style={{ color: colors.muted }}>{item.className}</Text>
+                  <Text style={{ color: colors.muted }}>
+                    {formatTime(item.checkedInAt)} - UID {item.tagUid}
+                  </Text>
+                  <Text
+                    style={{
+                      color:
+                        item.syncStatus === "synced"
+                          ? colors.successText
+                          : item.syncStatus === "pending"
+                          ? colors.warningText
+                          : colors.dangerText,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {getSyncLabel(item.syncStatus)}
+                  </Text>
+                </View>
+              )}
+            />
           ) : (
             <Text style={{ color: colors.muted }}>Nenhuma presença registrada ainda.</Text>
           )}
@@ -1516,14 +1522,17 @@ export default function NfcAttendanceScreen() {
               </View>
             ) : null}
 
-            <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: 8 }}>
-              {filteredBindCandidates.map((student) => {
+            <FlatList
+              style={{ maxHeight: 300 }}
+              data={filteredBindCandidates}
+              keyExtractor={(student) => student.id}
+              contentContainerStyle={{ gap: 8 }}
+              renderItem={({ item: student }) => {
                 const selected = bindingStudentId === student.id;
                 const className = classesById.get(student.classId)?.name ?? "Sem turma";
                 const position = student.positionPrimary ?? "indefinido";
                 return (
                   <Pressable
-                    key={student.id}
                     onPress={() => setBindingStudentId(student.id)}
                     style={{
                       borderRadius: 10,
@@ -1567,11 +1576,9 @@ export default function NfcAttendanceScreen() {
                     </View>
                   </Pressable>
                 );
-              })}
-              {!filteredBindCandidates.length ? (
-                <Text style={{ color: colors.muted }}>Nenhum aluno encontrado.</Text>
-              ) : null}
-            </ScrollView>
+              }}
+              ListEmptyComponent={<Text style={{ color: colors.muted }}>Nenhum aluno encontrado.</Text>}
+            />
 
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable

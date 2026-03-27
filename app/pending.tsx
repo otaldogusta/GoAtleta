@@ -113,7 +113,7 @@ export default function PendingScreen() {
     }
   };
 
-  const handleStoredInvite = async (tokenOverride: string) => {
+  const handleStoredInvite = async (tokenOverride?: string) => {
     const tokenValue = (tokenOverride ?? storedToken).trim();
     if (!tokenValue || inviteBusy) return;
     setInviteBusy(true);

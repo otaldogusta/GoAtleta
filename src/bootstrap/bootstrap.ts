@@ -1,12 +1,10 @@
 import * as Sentry from "@sentry/react-native";
-import type { AuthSession } from "../auth/session";
-import { loadSession } from "../auth/session";
 import { smartSync } from "../core/smart-sync";
 import { flushPendingWrites } from "../db/seed";
 import { initDb } from "../db/sqlite";
 
 export type BootstrapResult = {
-  session: AuthSession | null;
+  session?: null;
 };
 
 export async function bootstrapApp(): Promise<BootstrapResult> {
@@ -31,29 +29,18 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         level: "info",
       });
 
-      const sessionStart = Date.now();
-      const session = await loadSession();
-      const sessionMs = Date.now() - sessionStart;
-      if (__DEV__) {
-         
-        console.log(`[bootstrap] loadSession: ${sessionMs}ms`);
-      }
-      Sentry.addBreadcrumb({
-        category: "bootstrap",
-        message: `loadSession: ${sessionMs}ms`,
-        level: "info",
-      });
+      void (async () => {
+        try {
+          await flushPendingWrites();
+        } catch (error) {
+          Sentry.captureException(error);
+        } finally {
+          // Initialize smart sync service after the critical bootstrap path completes.
+          smartSync.init();
+        }
+      })();
 
-      try {
-        await flushPendingWrites();
-      } catch (error) {
-        Sentry.captureException(error);
-      }
-
-      // Initialize smart sync service
-      smartSync.init();
-
-      return { session } as BootstrapResult;
+      return {};
     })(),
     timeout,
   ]);

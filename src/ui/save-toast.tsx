@@ -108,9 +108,7 @@ export function SaveToastProvider({
       ? colors.dangerText
       : colors.text;
   const hasAction = Boolean(toast?.actionLabel);
-  const toastBottom = hasAction
-    ? Math.max(96, insets.bottom + 84)
-    : Math.max(16, insets.bottom + 8);
+  const toastTop = Math.max(16, insets.top + 12);
 
   return (
     <SaveToastContext.Provider value={value}>
@@ -119,9 +117,10 @@ export function SaveToastProvider({
         <Animated.View
           style={{
             position: "absolute",
-            left: 16,
-            right: 16,
-            bottom: toastBottom,
+            left: 0,
+            right: 0,
+            top: toastTop,
+            alignItems: "center",
             opacity: anim,
             transform: [
               {
@@ -135,6 +134,8 @@ export function SaveToastProvider({
         >
           <View
             style={{
+              width: "100%",
+              maxWidth: 460,
               paddingVertical: 10,
               paddingHorizontal: 12,
               borderRadius: 12,

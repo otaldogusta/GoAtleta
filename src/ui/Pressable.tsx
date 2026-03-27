@@ -6,15 +6,15 @@ type PressableProps = RNPressableProps & {
   onContextMenu?: WebContextMenuHandler;
 };
 
-const flattenStyle = (style: StyleProp<ViewStyle>) => {
+const flattenStyle = (style: unknown): ViewStyle[] => {
   if (!style) return [];
-  if (Array.isArray(style)) return style.flatMap(flattenStyle);
-  return [style];
+  if (Array.isArray(style)) return (style as unknown[]).flatMap(flattenStyle);
+  return [style as ViewStyle];
 };
 
 const shouldSkipFeedback = (style: StyleProp<ViewStyle>) => {
   const styles = flattenStyle(style);
-  return styles.some((item) => {
+  return styles.some((item: ViewStyle) => {
     if (!item) return false;
     const background = item.backgroundColor;
     const isOverlay =

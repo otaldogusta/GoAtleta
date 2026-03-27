@@ -18,6 +18,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { Pressable } from "../src/ui/Pressable";
 import { ShimmerBlock } from "../src/ui/Shimmer";
+import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { getUnitPalette } from "../src/ui/unit-colors";
 
 const parseTime = (value: string) => {
@@ -302,22 +303,7 @@ export default function StudentHome() {
         }
       >
         {loading ? (
-          <View style={{ gap: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <View style={{ gap: 8 }}>
-                <ShimmerBlock style={{ width: 180, height: 22, borderRadius: 10 }} />
-                <ShimmerBlock style={{ width: 140, height: 14, borderRadius: 8 }} />
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <ShimmerBlock style={{ width: 44, height: 32, borderRadius: 16 }} />
-                <ShimmerBlock style={{ width: 56, height: 56, borderRadius: 28 }} />
-              </View>
-            </View>
-            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 140, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
-          </View>
+          <ScreenLoadingState />
         ) : (
           <>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -498,7 +484,7 @@ export default function StudentHome() {
             <FadeHorizontalScroll
               ref={agendaScrollRef}
               scrollEnabled={scheduleWindow.length > 1}
-              scrollStyle={agendaScrollStyle}
+              scrollStyle={agendaScrollStyle as any}
               onMomentumScrollEnd={handleAgendaScrollEnd}
               snapToOffsets={agendaSnapOffsets}
               snapToAlignment="start"

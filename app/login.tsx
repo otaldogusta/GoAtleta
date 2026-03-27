@@ -29,6 +29,7 @@ import { getBiometricsEnabled } from "../src/security/biometric-settings";
 import { isBiometricsSupported } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Button } from "../src/ui/Button";
+import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 
 export default function LoginScreen() {
@@ -290,7 +291,7 @@ export default function LoginScreen() {
     setMessage("");
     setBusy(true);
     try {
-      await signInWithOAuth(provider);
+      await signInWithOAuth(provider, "login");
     } catch (error) {
       const detail =
         error instanceof Error ? error.message.toLowerCase() : "Falha ao autenticar.";
@@ -320,31 +321,33 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, padding: 24 }}
-          keyboardShouldPersistTaps="handled"
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <Animated.View
-            style={{
-              flex: 1,
-              justifyContent: "center",
-              gap: 24,
-              opacity: enterAnim,
-              transform: [
-                {
-                  translateY: enterAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [10, 0],
-                  }),
-                },
-              ],
-            }}
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, padding: 24 }}
+            keyboardShouldPersistTaps="handled"
           >
+            <Animated.View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                gap: 24,
+                opacity: enterAnim,
+                transform: [
+                  {
+                    translateY: enterAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [10, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
             { showRememberToast && rememberTouched ? (
               <Animated.View
                 style={{
@@ -458,8 +461,6 @@ export default function LoginScreen() {
                     color: colors.inputText,
                     backgroundColor: "transparent",
                     borderWidth: 0,
-                    outlineStyle: "none",
-                    outlineWidth: 0,
                   }}
                 />
               </View>
@@ -501,9 +502,7 @@ export default function LoginScreen() {
                         padding: 0,
                         color: colors.inputText,
                         backgroundColor: "transparent",
-                        outlineStyle: "none",
-                        outlineWidth: 0,
-                    }}
+                      }}
                     />
                     { password.length > 0 ? (
                       <Pressable
@@ -710,9 +709,10 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
             </View>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
       { busy && !showReset ? (
         <View
           style={{
@@ -721,7 +721,8 @@ export default function LoginScreen() {
             right: 0,
             bottom: 0,
             left: 0,
-            backgroundColor: "rgba(11, 18, 32, 0.55)",
+            backgroundColor:
+              mode === "dark" ? "rgba(11, 18, 32, 0.48)" : "rgba(15, 23, 42, 0.16)",
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -745,6 +746,6 @@ export default function LoginScreen() {
           </View>
         </View>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }

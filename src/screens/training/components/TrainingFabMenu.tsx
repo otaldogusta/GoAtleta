@@ -11,6 +11,7 @@ type TrainingFabMenuProps = {
   anchorRight: number;
   anchorBottom: number;
   onClose: () => void;
+  onCreatePress: () => void;
   onImportPress: () => void;
 };
 
@@ -20,6 +21,7 @@ export function TrainingFabMenu({
   anchorRight,
   anchorBottom,
   onClose,
+  onCreatePress,
   onImportPress,
 }: TrainingFabMenuProps) {
   const { colors } = useAppTheme();
@@ -94,7 +96,7 @@ export function TrainingFabMenu({
           ...(Platform.OS === "web"
             ? ({ position: "fixed", right: anchorRight, bottom: anchorBottom + 64 } as any)
             : { position: "absolute" as const, right: anchorRight, bottom: anchorBottom + 64 }),
-          width: 200,
+          width: 220,
           borderRadius: 14,
           borderWidth: 1,
           borderColor: colors.border,
@@ -106,6 +108,7 @@ export function TrainingFabMenu({
           shadowOffset: { width: 0, height: 4 },
           elevation: 6,
           opacity: anim,
+          gap: 8,
           transform: [
             {
               translateY: anim.interpolate({
@@ -122,6 +125,25 @@ export function TrainingFabMenu({
           ],
         }}
       >
+        <Pressable
+          onPress={onCreatePress}
+          style={{
+            borderWidth: 1,
+            borderColor: colors.primaryBg,
+            backgroundColor: colors.primaryBg,
+            borderRadius: 10,
+            paddingHorizontal: 9,
+            paddingVertical: 8,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Ionicons name="calendar-outline" size={16} color={colors.primaryText} />
+          <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "700" }}>
+            Criar treino
+          </Text>
+        </Pressable>
         <Pressable
           disabled={importBusy}
           onPress={onImportPress}

@@ -108,7 +108,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     permissionsRequestKeyRef.current = requestKey;
 
-    const requestPromise = (async () => {
+    let requestPromise: Promise<void> = Promise.resolve();
+    requestPromise = (async () => {
       setPermissionsLoading(true);
       try {
         const rows = await getMyMemberPermissions(organizationId);
@@ -356,4 +357,8 @@ export function useOrganization() {
   const ctx = useContext(OrganizationContext);
   if (!ctx) throw new Error("useOrganization must be used within OrganizationProvider");
   return ctx;
+}
+
+export function useOptionalOrganization() {
+  return useContext(OrganizationContext);
 }

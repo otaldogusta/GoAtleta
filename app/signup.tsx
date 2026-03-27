@@ -21,6 +21,8 @@ import { Pressable } from "../src/ui/Pressable";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { useAuth } from "../src/auth/auth";
 import { useAppTheme } from "../src/ui/app-theme";
+import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
+import { ScreenHeader } from "../src/ui/ScreenHeader";
 
 export default function SignupScreen() {
   const { colors, mode } = useAppTheme();
@@ -176,7 +178,7 @@ export default function SignupScreen() {
     setMessage("");
     setBusy(true);
     try {
-      await signInWithOAuth("google");
+      await signInWithOAuth("google", "signup");
     } catch (error) {
       const detail = error instanceof Error ? error.message.toLowerCase() : "falha ao autenticar.";
       setMessage(detail.includes("cancel") ? "Cadastro cancelado." : "Não foi possível criar conta com Google.");
@@ -186,31 +188,33 @@ export default function SignupScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, padding: 24 }}
-          keyboardShouldPersistTaps="handled"
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <Animated.View
-            style={{
-              flex: 1,
-              justifyContent: "center",
-              gap: 24,
-              opacity: enterAnim,
-              transform: [
-                {
-                  translateY: enterAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [10, 0],
-                  }),
-                },
-              ],
-            }}
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, padding: 24 }}
+            keyboardShouldPersistTaps="handled"
           >
+            <Animated.View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                gap: 24,
+                opacity: enterAnim,
+                transform: [
+                  {
+                    translateY: enterAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [10, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
             <Pressable
               onPress={() => router.replace("/login")}
               style={{ alignSelf: "flex-start" }}
@@ -229,14 +233,10 @@ export default function SignupScreen() {
               </View>
             </Pressable>
 
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontSize: 26, fontWeight: "800", color: colors.text }}>
-                Comece agora
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                Monte planos, turmas e calendários no seu ritmo.
-              </Text>
-            </View>
+            <ScreenHeader
+              title="Comece agora"
+              subtitle="Monte planos, turmas e calendários no seu ritmo."
+            />
 
             <View
               style={{
@@ -281,8 +281,6 @@ export default function SignupScreen() {
                     color: colors.inputText,
                     backgroundColor: "transparent",
                     borderWidth: 0,
-                    outlineStyle: "none",
-                    outlineWidth: 0,
                   }}
                 />
               </View>
@@ -299,7 +297,7 @@ export default function SignupScreen() {
                         alignSelf: "flex-start",
                       }}
                     >
-                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                      <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
                         A senha precisa ter pelo menos 6 caracteres.
                       </Text>
                     </View>
@@ -351,8 +349,6 @@ export default function SignupScreen() {
                       padding: 0,
                       color: colors.inputText,
                       backgroundColor: "transparent",
-                      outlineStyle: "none",
-                      outlineWidth: 0,
                     }}
                   />
                   { password.length > 0 ? (
@@ -383,7 +379,7 @@ export default function SignupScreen() {
                           alignSelf: "flex-start",
                         }}
                       >
-                        <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                        <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
                           As senhas não conferem
                         </Text>
                       </View>
@@ -432,8 +428,6 @@ export default function SignupScreen() {
                         padding: 0,
                         color: colors.inputText,
                         backgroundColor: "transparent",
-                        outlineStyle: "none",
-                        outlineWidth: 0,
                       }}
                     />
                     {confirm.length > 0 ? (
@@ -556,8 +550,6 @@ export default function SignupScreen() {
                         color: colors.inputText,
                         backgroundColor: "transparent",
                         borderWidth: 0,
-                        outlineStyle: "none",
-                        outlineWidth: 0,
                         fontSize: 13,
                       }}
                     />
@@ -663,9 +655,10 @@ export default function SignupScreen() {
                 </Text>
               </Pressable>
             </View>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }

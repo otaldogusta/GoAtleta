@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     Alert,
+    FlatList,
     ScrollView,
     Text,
     View,
@@ -14,6 +15,7 @@ import { simulateClassEvolution } from "../../src/core/simulator/evolution-simul
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import type {
@@ -107,7 +109,8 @@ export default function ReportsScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingBase, setLoadingBase] = useState(true);
+  const [loadingAttendance, setLoadingAttendance] = useState(true);
   const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
   const [studentScoutingLogs, setStudentScoutingLogs] = useState<StudentScoutingLog[]>([]);
   const [month, setMonth] = useState(new Date());
@@ -128,6 +131,7 @@ export default function ReportsScreen() {
   ];
   type ReportTabId = (typeof reportTabs)[number]["id"];
   const [reportTab, setReportTab] = useState<ReportTabId>("month");
+  const loading = loadingBase || loadingAttendance;
   const cardStyle = {
     padding: 16,
     borderRadius: 22,
@@ -152,7 +156,7 @@ export default function ReportsScreen() {
   };
   const sectionTitleStyle = {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "700" as const,
     color: colors.text,
   };
   const dividerStyle = {
@@ -165,28 +169,59 @@ export default function ReportsScreen() {
     let alive = true;
     (async () => {
       try {
-        const [cls, st, att] = await measureAsync(
+        const [cls, st] = await measureAsync(
           "screen.reportsTrainer.load.base",
           () =>
             Promise.all([
               getClasses({ organizationId: activeOrganization?.id }),
               getStudents({ organizationId: activeOrganization?.id }),
-              getAttendanceAll(),
             ]),
           { screen: "reportsTrainer", organizationId: activeOrganization?.id ?? "" }
         );
         if (!alive) return;
         setClasses(cls);
         setStudents(st);
-        setAttendance(att);
       } finally {
-        if (alive) setLoading(false);
+        if (alive) setLoadingBase(false);
       }
     })();
     return () => {
       alive = false;
     };
   }, [activeOrganization?.id]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setLoadingAttendance(true);
+        const start = new Date(month.getFullYear(), month.getMonth(), 1);
+        const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+        const monthKeyLocal = formatMonthKey(month);
+        const att = await measureAsync(
+          "screen.reportsTrainer.load.attendance",
+          () =>
+            getAttendanceAll({
+              organizationId: activeOrganization?.id,
+              startIso: start.toISOString(),
+              endIso: end.toISOString(),
+            }),
+          {
+            screen: "reportsTrainer",
+            organizationId: activeOrganization?.id ?? "",
+            month: monthKeyLocal,
+          }
+        );
+        if (!alive) return;
+        setAttendance(att);
+      } finally {
+        if (alive) setLoadingAttendance(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [activeOrganization?.id, month]);
 
   useEffect(() => {
     let alive = true;
@@ -233,6 +268,12 @@ export default function ReportsScreen() {
 
   useEffect(() => {
     let alive = true;
+    if (reportTab !== "students") {
+      setStudentScoutingLogs([]);
+      return () => {
+        alive = false;
+      };
+    }
     if (!classId) {
       setStudentScoutingLogs([]);
       return () => {
@@ -253,7 +294,7 @@ export default function ReportsScreen() {
     return () => {
       alive = false;
     };
-  }, [classId, rangeBounds]);
+  }, [classId, rangeBounds, reportTab]);
 
   const monthKey = useMemo(() => formatMonthKey(month), [month]);
 
@@ -379,6 +420,7 @@ export default function ReportsScreen() {
   }, [attendanceSummaryByClass, classes]);
 
   const sessionLogRows = useMemo(() => {
+    if (reportTab !== "reports") return [];
     return uniqueSessionLogs
       .map((log) => {
         const cls = classMap[log.classId];
@@ -392,7 +434,7 @@ export default function ReportsScreen() {
           dateLabel: formatDateLabel(log.createdAt),
         };
       });
-  }, [classMap, uniqueSessionLogs]);
+  }, [classMap, reportTab, uniqueSessionLogs]);
 
   const avgPresenceByClass = useMemo(() => {
     if (!classRows.length) return null;
@@ -458,6 +500,7 @@ export default function ReportsScreen() {
   }, [monthAttendance]);
 
   const performanceRows = useMemo(() => {
+    if (reportTab !== "students") return [];
     if (!classId) return [];
     const countsByStudent: Record<string, ReturnType<typeof createEmptyCounts>> = {};
     studentScoutingLogs.forEach((log) => {
@@ -479,7 +522,7 @@ export default function ReportsScreen() {
         return { student, score, counts };
       })
       .sort((a, b) => b.score - a.score);
-  }, [classId, studentScoutingLogs, studentsForClass]);
+  }, [classId, reportTab, studentScoutingLogs, studentsForClass]);
 
   const topStudents = useMemo(() => performanceRows.slice(0, 10), [performanceRows]);
 
@@ -542,21 +585,7 @@ export default function ReportsScreen() {
   }, [classes, uniqueSessionLogs]);
 
   if (loading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 28, width: 170, borderRadius: 12 }} />
-            <ShimmerBlock style={{ height: 16, width: 240, borderRadius: 8 }} />
-          </View>
-          <View style={{ gap: 12 }}>
-            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 120, borderRadius: 20 }} />
-          </View>
-          <ShimmerBlock style={{ height: 220, borderRadius: 20 }} />
-        </ScrollView>
-      </SafeAreaView>
-    );
+    return <ScreenLoadingState />;
   }
 
 
@@ -843,10 +872,13 @@ export default function ReportsScreen() {
         <View style={cardStyle}>
           <Text style={sectionTitleStyle}>Relatórios do mês</Text>
           { sessionLogRows.length ? (
-            <View style={{ gap: 10 }}>
-              {sessionLogRows.map((row) => (
+            <FlatList
+              data={sessionLogRows}
+              keyExtractor={(row) => `${row.log.classId}_${row.log.createdAt}`}
+              scrollEnabled={false}
+              contentContainerStyle={{ gap: 10 }}
+              renderItem={({ item: row }) => (
                 <Pressable
-                  key={`${row.log.classId}_${row.log.createdAt}`}
                   onPress={() => {
                     router.push({
                       pathname: "/class/[id]/session",
@@ -860,7 +892,7 @@ export default function ReportsScreen() {
                       <Text style={{ fontWeight: "700", color: colors.text }}>
                         {row.className}
                       </Text>
-                      { row.classGender ? (
+                      {row.classGender ? (
                         <ClassGenderBadge gender={row.classGender} size="sm" />
                       ) : null}
                     </View>
@@ -871,8 +903,8 @@ export default function ReportsScreen() {
                     {Math.round(row.log.attendance)}%
                   </Text>
                 </Pressable>
-              ))}
-            </View>
+              )}
+            />
           ) : (
             <Text style={{ color: colors.muted }}>
               Nenhum relatório registrado neste mês.
@@ -885,41 +917,44 @@ export default function ReportsScreen() {
         <View style={cardStyle}>
           <Text style={sectionTitleStyle}>Turmas (mês atual)</Text>
           <View style={{ gap: 10 }}>
-            {classRows.map((row) => (
-              <View
-                key={row.cls.id}
-                style={insetCardStyle}
-              >
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Text style={{ fontWeight: "700", color: colors.text }}>
-                      {row.cls.name}
-                    </Text>
-                    <ClassGenderBadge gender={row.cls.gender} size="sm" />
+            <FlatList
+              data={classRows}
+              keyExtractor={(row) => row.cls.id}
+              scrollEnabled={false}
+              contentContainerStyle={{ gap: 10 }}
+              renderItem={({ item: row }) => (
+                <View style={insetCardStyle}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ fontWeight: "700", color: colors.text }}>
+                        {row.cls.name}
+                      </Text>
+                      <ClassGenderBadge gender={row.cls.gender} size="sm" />
+                    </View>
+                    <Text style={{ color: colors.muted }}>{row.percent}%</Text>
                   </View>
-                  <Text style={{ color: colors.muted }}>{row.percent}%</Text>
-                </View>
-                <View
-                  style={{
-                    height: 8,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                    overflow: "hidden",
-                  }}
-                >
                   <View
                     style={{
-                      height: "100%",
-                      width: `${row.percent}%`,
-                      backgroundColor: colors.primaryBg,
+                      height: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      overflow: "hidden",
                     }}
-                  />
+                  >
+                    <View
+                      style={{
+                        height: "100%",
+                        width: `${row.percent}%`,
+                        backgroundColor: colors.primaryBg,
+                      }}
+                    />
+                  </View>
+                  <Text style={{ color: colors.muted }}>
+                    Presenças: {row.present} | Total: {row.total}
+                  </Text>
                 </View>
-                <Text style={{ color: colors.muted }}>
-                  Presenças: {row.present} | Total: {row.total}
-                </Text>
-              </View>
-            ))}
+              )}
+            />
           </View>
         </View>
         ) : null}
@@ -1265,13 +1300,16 @@ export default function ReportsScreen() {
                   </View>
                 </View>
 
-                <View style={{ gap: 8 }}>
-                  {topStudents.slice(3).map((row, index) => {
+                <FlatList
+                  data={topStudents.slice(3)}
+                  keyExtractor={(row) => row.student.id}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ gap: 8 }}
+                  renderItem={({ item: row, index }) => {
                     const rank = index + 4;
                     const highlight = false;
                     return (
                       <Pressable
-                        key={row.student.id}
                         onPress={() => setSelectedHighlight({ name: row.student.name, score: row.score })}
                         style={{
                           paddingVertical: 12,
@@ -1354,8 +1392,8 @@ export default function ReportsScreen() {
                         </View>
                       </Pressable>
                     );
-                  })}
-                </View>
+                  }}
+                />
               </>
             ) : (
               <Text style={{ color: colors.muted }}>Nenhum scouting registrado.</Text>

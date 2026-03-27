@@ -1,5 +1,8 @@
-import ExercisesScreen from "../exercises";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function ProfExercisesRoute() {
-  return <ExercisesScreen />;
-}
+const ProfExercisesRoute = createLazyRoute(
+  () => import("../exercises"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando exercícios..." />
+);
+
+export default ProfExercisesRoute;

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import type { Dispatch, SetStateAction } from "react";
+import { memo, type Dispatch, type SetStateAction } from "react";
 import { Animated, Text, TextInput, View } from "react-native";
 import type { ClassGroup, Student } from "../../core/models";
 import type { ThemeColors } from "../../ui/app-theme";
@@ -52,7 +52,7 @@ type BirthdaysTabProps = {
   formatShortDate: (value: string) => string;
 };
 
-export function BirthdaysTab({
+export const BirthdaysTab = memo(function BirthdaysTab({
   colors,
   birthdayMonthFilter,
   setBirthdayMonthFilter,
@@ -628,4 +628,4 @@ export function BirthdaysTab({
       </View>
     </View>
   );
-}
+});

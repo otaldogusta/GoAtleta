@@ -70,7 +70,7 @@ export function useRevealCpf(params: Params) {
       setIsCpfVisible(true);
     } catch (error) {
       const detail =
-        error instanceof Error ? error.message : "Nao foi possivel revelar o CPF.";
+        error instanceof Error ? error.message : "Não foi possível revelar o CPF.";
       if (detail.toLowerCase().includes("indisponivel")) {
         setCpfRevealUnavailable(true);
       }

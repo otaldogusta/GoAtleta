@@ -1,5 +1,8 @@
-import AbsenceNoticesScreen from "../absence-notices";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function ProfAbsenceNoticesRoute() {
-  return <AbsenceNoticesScreen />;
-}
+const ProfAbsenceNoticesRoute = createLazyRoute(
+  () => import("../absence-notices"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando avisos..." />
+);
+
+export default ProfAbsenceNoticesRoute;

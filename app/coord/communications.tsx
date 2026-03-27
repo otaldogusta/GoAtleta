@@ -1,5 +1,8 @@
-import CommunicationsScreen from "../communications";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function CoordCommunicationsRoute() {
-  return <CommunicationsScreen />;
-}
+const CoordCommunicationsRoute = createLazyRoute(
+  () => import("../communications"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando comunicação..." />
+);
+
+export default CoordCommunicationsRoute;

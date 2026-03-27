@@ -1,10 +1,11 @@
 import { useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
-import { Pressable } from "../../../ui/Pressable";
-import type { ThemeColors } from "../../../ui/app-theme";
-import { getSectionCardStyle } from "../../../ui/section-styles";
-import { ModalSheet } from "../../../ui/ModalSheet";
+
 import type { VolumeLevel } from "../../../core/periodization-basics";
+import type { ThemeColors } from "../../../ui/app-theme";
+import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
+import { Pressable } from "../../../ui/Pressable";
+import { getSectionCardStyle } from "../../../ui/section-styles";
 
 type WeekPlan = {
   title: string;
@@ -60,38 +61,56 @@ export function DayModal({
   const router = useRouter();
 
   return (
-    <ModalSheet
+    <ModalDialogFrame
       visible={visible}
       onClose={onClose}
-      cardStyle={[modalCardStyle, { paddingBottom: 12 }]}
+      cardStyle={[modalCardStyle, { paddingBottom: 12, maxHeight: "92%", height: "92%" }]}
       position="center"
-    >
-      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-          {selectedDay
-            ? isSelectedDayRest
-              ? normalizeText(`Descanso de ${selectedDay.label}`)
-              : normalizeText(`Sessão de ${selectedDay.label}`)
-            : normalizeText("Sessão")}
-        </Text>
-
+      colors={colors}
+      title={
+        selectedDay
+          ? isSelectedDayRest
+            ? normalizeText(`Descanso de ${selectedDay.label}`)
+            : normalizeText(`Sessão de ${selectedDay.label}`)
+          : normalizeText("Sessão")
+      }
+      subtitle={selectedClass ? normalizeText(selectedClass.name) : undefined}
+      footer={
         <Pressable
-          onPress={onClose}
+          onPress={() => {
+            if (!selectedClass || !selectedDayDate || isSelectedDayRest) return;
+            router.push({
+              pathname: "/prof/planning",
+              params: {
+                targetClassId: selectedClass.id,
+                targetDate: formatIsoDate(selectedDayDate),
+                openForm: "1",
+              },
+            });
+            onClose();
+          }}
           style={{
-            height: 32,
-            paddingHorizontal: 12,
-            borderRadius: 16,
+            paddingVertical: 10,
+            borderRadius: 12,
+            backgroundColor:
+              selectedClass && !isSelectedDayRest ? colors.primaryBg : colors.primaryDisabledBg,
             alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: colors.secondaryBg,
           }}
         >
-          <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-            Fechar
+          <Text
+            style={{
+              color:
+                selectedClass && !isSelectedDayRest
+                  ? colors.primaryText
+                  : colors.secondaryText,
+              fontWeight: "700",
+            }}
+          >
+            {isSelectedDayRest ? "Dia de descanso" : "Criar plano de aula"}
           </Text>
         </Pressable>
-      </View>
-
+      }
+    >
       <ScrollView
         contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
         style={{ maxHeight: "92%" }}
@@ -117,18 +136,14 @@ export function DayModal({
         <View style={getSectionCardStyle(colors, "info", { padding: 12, radius: 16 })}>
           {isSelectedDayRest ? (
             <>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {normalizeText("Dia de descanso")}
-              </Text>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>{normalizeText("Dia de descanso")}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {normalizeText("Sem sessão planejada para este dia.")}
               </Text>
             </>
           ) : (
             <>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {normalizeText(activeWeek.title)}
-              </Text>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>{normalizeText(activeWeek.title)}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {normalizeText(`Foco: ${activeWeek.focus}`)}
               </Text>
@@ -198,43 +213,7 @@ export function DayModal({
             </>
           )}
         </View>
-
-        <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-
-        <Pressable
-          onPress={() => {
-            if (!selectedClass || !selectedDayDate || isSelectedDayRest) return;
-            router.push({
-              pathname: "/prof/planning",
-              params: {
-                targetClassId: selectedClass.id,
-                targetDate: formatIsoDate(selectedDayDate),
-                openForm: "1",
-              },
-            });
-            onClose();
-          }}
-          style={{
-            paddingVertical: 10,
-            borderRadius: 12,
-            backgroundColor:
-              selectedClass && !isSelectedDayRest ? colors.primaryBg : colors.primaryDisabledBg,
-            alignItems: "center",
-          }}
-        >
-          <Text
-            style={{
-              color:
-                selectedClass && !isSelectedDayRest
-                  ? colors.primaryText
-                  : colors.secondaryText,
-              fontWeight: "700",
-            }}
-          >
-            {isSelectedDayRest ? "Dia de descanso" : "Criar plano de aula"}
-          </Text>
-        </Pressable>
       </ScrollView>
-    </ModalSheet>
+    </ModalDialogFrame>
   );
 }

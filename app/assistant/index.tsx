@@ -11,6 +11,7 @@ import {
 import {
     Alert,
     Animated,
+    FlatList,
     Keyboard,
     Linking,
     Platform,
@@ -37,14 +38,18 @@ import {
     volleyballLessonPlanToDraft,
     type AutoFixSuggestion,
 } from "../../src/core/ai-operations";
-import { buildWeeklyAutopilotProposal } from "../../src/core/autopilot/weekly-autopilot";
+import {
+    buildWeeklyAutopilotProposal,
+    resolveWeeklyAutopilotKnowledgeDomain,
+} from "../../src/core/autopilot/weekly-autopilot";
 import { buildNextClassSuggestion, type NextClassSuggestion } from "../../src/core/intelligence/suggestion-engine";
 import type {
-    ClassGroup,
-    EvolutionSimulationResult,
-    SessionLog,
-    TrainingPlan,
-    WeeklyAutopilotProposal,
+  ClassGroup,
+  EvolutionSimulationResult,
+  SessionLog,
+  WeeklyAutopilotPlanReview,
+  TrainingPlan,
+  WeeklyAutopilotProposal,
 } from "../../src/core/models";
 import { buildNextVolleyballLessonPlan } from "../../src/core/progression-engine";
 import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
@@ -58,6 +63,7 @@ import {
     buildSyncHealthReport,
     clearPendingWritesDeadLetterCandidates,
     getClasses,
+    getKnowledgeBaseSnapshot,
     getSessionLogsByRange,
     getTrainingPlans,
     listWeeklyAutopilotProposals,
@@ -331,7 +337,7 @@ const clampBulletLine = (value: string) => {
   const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
   if (!normalized) return "";
   if (normalized.length <= MAX_BULLET_LINE_LENGTH) return normalized;
-  return `${normalized.slice(0, MAX_BULLET_LINE_LENGTH - 1).trimEnd()}â€¦`;
+  return `${normalized.slice(0, MAX_BULLET_LINE_LENGTH - 1).trimEnd()}⬦`;
 };
 
 const normalizeDraftTraining = (draft: DraftTraining): DraftTraining => ({
@@ -495,25 +501,32 @@ export default function AssistantScreen() {
     return () => {
       alive = false;
     };
-  }, [classId]);
+  }, [activeOrganization?.id]);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
-      if (!classId) {
-        if (alive) setAutopilotProposal(null);
-        return;
-      }
-      const list = await listWeeklyAutopilotProposals({
-        classId,
-        organizationId: activeOrganization?.id,
-        limit: 1,
-      });
-      if (!alive) return;
-      setAutopilotProposal(list[0] ?? null);
-    })();
+    if (!classId) {
+      setAutopilotProposal(null);
+      return () => {
+        alive = false;
+      };
+    }
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        const list = await listWeeklyAutopilotProposals({
+          classId,
+          organizationId: activeOrganization?.id,
+          limit: 1,
+        });
+        if (!alive) return;
+        setAutopilotProposal(list[0] ?? null);
+      })();
+    }, 0);
+
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [activeOrganization?.id, classId]);
 
@@ -584,6 +597,100 @@ export default function AssistantScreen() {
   const hasInputText = input.trim().length > 0;
 
   const className = selectedClass?.name ?? "Turma";
+  const knowledgeDomainLabel = (value: string | null | undefined) => {
+    if (value === "youth_training") return "Treinamento jovem";
+    if (value === "general_fitness") return "Fitness geral";
+    if (value === "clinical") return "Clinico";
+    if (value === "performance") return "Performance";
+    return "Geral";
+  };
+
+  const formatPlanReviewValue = (value: unknown): string => {
+    if (Array.isArray(value)) {
+      return value.map((item) => formatPlanReviewValue(item)).join(", ");
+    }
+    if (value === null || value === undefined || value === "") return "vazio";
+    if (typeof value === "number") return value.toFixed(2).replace(/\.00$/, "");
+    if (typeof value === "boolean") return value ? "sim" : "nao";
+    return String(value);
+  };
+
+  const planReviewFieldLabel = (field: string) => {
+    if (field === "phase") return "Fase";
+    if (field === "objective") return "Objetivo";
+    if (field === "loadTarget") return "Carga";
+    if (field === "intensityTarget") return "Intensidade";
+    if (field === "technicalFocus") return "Foco tecnico";
+    if (field === "physicalFocus") return "Foco fisico";
+    if (field === "constraints") return "Restricoes";
+    if (field === "progressionModel") return "Progressao";
+    return field;
+  };
+
+  const renderPlanReviewSummary = (review: WeeklyAutopilotPlanReview | null | undefined) => {
+    if (!review) return null;
+    const firstDiff = review.diffs[0];
+    const visibleChanges = firstDiff?.changes.slice(0, 4) ?? [];
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: colors.text, fontWeight: "700" }}>Mudancas do motor</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <View
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              {review.ok ? "Sem alertas" : `${review.issues.length} alerta(s)`}
+            </Text>
+          </View>
+          {review.versionLabel ? (
+            <View
+              style={{
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Base: {review.versionLabel}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {visibleChanges.length > 0 ? (
+          <View style={{ gap: 4 }}>
+            {visibleChanges.map((change) => (
+              <Text key={`${firstDiff?.weekStart ?? "week"}-${change.field}`} style={{ color: colors.muted }}>
+                - {planReviewFieldLabel(change.field)}: {formatPlanReviewValue(change.before)} →{" "}
+                {formatPlanReviewValue(change.after)}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text style={{ color: colors.muted }}>Sem ajustes estruturais no plano base.</Text>
+        )}
+        {review.issues.length > 0 ? (
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Alertas do motor</Text>
+            {review.issues.slice(0, 3).map((issue) => (
+              <Text key={`${issue.weekStart}-${issue.code}-${issue.ruleId ?? "rule"}`} style={{ color: colors.muted }}>
+                - {issue.message}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    );
+  };
 
   const scientificReferences = useMemo<ScientificReference[]>(() => {
     if (!sources.length) return [];
@@ -981,7 +1088,7 @@ export default function AssistantScreen() {
 
   const sendMessage = async () => {
     if (!input.trim() || loading || assistantTyping) return;
-    const nextMessages = [...messages, { role: "user", content: input.trim() }];
+    const nextMessages = [...messages, { role: "user" as const, content: input.trim() }];
     const requestMessages = nextMessages.slice(-ASSISTANT_CONTEXT_MESSAGES);
     setMessages(nextMessages);
     setInput("");
@@ -1069,7 +1176,7 @@ export default function AssistantScreen() {
       const nextDraft = responseError
         ? null
         : (data as AssistantResponse).draftTraining
-        ? normalizeDraftTraining((data as AssistantResponse).draftTraining)
+        ? normalizeDraftTraining((data as AssistantResponse).draftTraining!)
         : draftFromReply;
       const reply = responseError
         ? toFriendlyAssistantError(responseError)
@@ -1087,9 +1194,9 @@ export default function AssistantScreen() {
           ? Math.max(0, Math.min(1, Number((data as AssistantResponse).confidence)))
           : null
       );
-      setCitations(responseError ? [] : Array.isArray((data as AssistantResponse).citations) ? (data as AssistantResponse).citations : []);
-      setMissingData(responseError ? [] : Array.isArray((data as AssistantResponse).missingData) ? (data as AssistantResponse).missingData : []);
-      setAssumptions(responseError ? [] : Array.isArray((data as AssistantResponse).assumptions) ? (data as AssistantResponse).assumptions : []);
+      setCitations(responseError ? [] : Array.isArray((data as AssistantResponse).citations) ? ((data as AssistantResponse).citations ?? []) : []);
+      setMissingData(responseError ? [] : Array.isArray((data as AssistantResponse).missingData) ? ((data as AssistantResponse).missingData ?? []) : []);
+      setAssumptions(responseError ? [] : Array.isArray((data as AssistantResponse).assumptions) ? ((data as AssistantResponse).assumptions ?? []) : []);
       setDraft(nextDraft);
 
       const nowIso = new Date().toISOString();
@@ -1368,19 +1475,32 @@ export default function AssistantScreen() {
     setLoading(true);
     try {
       const logs = await getRecentLogs();
+      const knowledgeDomain = resolveWeeklyAutopilotKnowledgeDomain(selectedClass);
+      const knowledgeContext = await getKnowledgeBaseSnapshot({
+        organizationId: activeOrganization.id,
+        domain: knowledgeDomain,
+      });
       const proposal = buildWeeklyAutopilotProposal({
         classGroup: selectedClass,
         logs: logs as SessionLog[],
         organizationId: activeOrganization.id,
         createdBy: session.user.id,
+        knowledgeContext,
       });
 
       await saveWeeklyAutopilotProposal(proposal);
       setAutopilotProposal(proposal);
       setAssumptions([
+        proposal.knowledgeBaseVersionLabel
+          ? `Base cientifica aplicada: ${proposal.knowledgeBaseVersionLabel}.`
+          : `Base cientifica aplicada: ${knowledgeDomainLabel(proposal.knowledgeDomain)}.`,
         "Autopilot semanal é apenas proposta: só entra em vigor após aprovação humana explícita.",
       ]);
-      pushAssistantMessage(`Autopilot semanal proposto para ${selectedClass.name}. Revise e aprove/rejeite.`);
+      pushAssistantMessage(
+        proposal.knowledgeBaseVersionLabel
+          ? `Autopilot semanal proposto para ${selectedClass.name} com base ${proposal.knowledgeBaseVersionLabel}. Revise e aprove/rejeite.`
+          : `Autopilot semanal proposto para ${selectedClass.name}. Revise e aprove/rejeite.`
+      );
     } finally {
       setLoading(false);
     }
@@ -1519,6 +1639,9 @@ export default function AssistantScreen() {
       )),
     [colors.background, colors.border, colors.primaryBg, colors.primaryText, colors.text, messages]
   );
+  const autopilotPlanReviewSection = autopilotProposal
+    ? renderPlanReviewSummary(autopilotProposal.planReview)
+    : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1879,51 +2002,56 @@ export default function AssistantScreen() {
                 <Text style={{ fontWeight: "700", color: colors.text }}>
                   Referências científicas
                 </Text>
-                {scientificReferences.map((reference) => (
-                  <Pressable
-                    key={reference.id}
-                    onPress={() => {
-                      void openReferenceLink(reference.url);
-                    }}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.card,
-                      borderRadius: 14,
-                      padding: 10,
-                      gap: 4,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {reference.title}
-                    </Text>
-                    <Text style={{ color: colors.muted }}>
-                      {reference.author}
-                    </Text>
-                    <Text style={{ color: colors.muted }}>
-                      {reference.sourceLabel}
-                      {reference.year ? ` . ${reference.year}` : ""}
-                    </Text>
-                    {reference.doi ? (
-                      <Text style={{ color: colors.text }}>
-                        DOI: {reference.doi}
+                <FlatList
+                  data={scientificReferences}
+                  keyExtractor={(reference) => reference.id}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ gap: 8 }}
+                  renderItem={({ item: reference }) => (
+                    <Pressable
+                      onPress={() => {
+                        void openReferenceLink(reference.url);
+                      }}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        borderRadius: 14,
+                        padding: 10,
+                        gap: 4,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        {reference.title}
                       </Text>
-                    ) : null}
-                    {reference.pmid ? (
-                      <Text style={{ color: colors.text }}>
-                        PMID: {reference.pmid}
+                      <Text style={{ color: colors.muted }}>
+                        {reference.author}
                       </Text>
-                    ) : null}
-                    <Text style={{ color: colors.primaryBg, textDecorationLine: "underline" }}>
-                      Link oficial: {reference.url || "indisponível"}
-                    </Text>
-                    {reference.evidence ? (
-                      <Text style={{ color: colors.muted }} numberOfLines={2}>
-                        Evidência: {reference.evidence}
+                      <Text style={{ color: colors.muted }}>
+                        {reference.sourceLabel}
+                        {reference.year ? ` . ${reference.year}` : ""}
                       </Text>
-                    ) : null}
-                  </Pressable>
-                ))}
+                      {reference.doi ? (
+                        <Text style={{ color: colors.text }}>
+                          DOI: {reference.doi}
+                        </Text>
+                      ) : null}
+                      {reference.pmid ? (
+                        <Text style={{ color: colors.text }}>
+                          PMID: {reference.pmid}
+                        </Text>
+                      ) : null}
+                      <Text style={{ color: colors.primaryBg, textDecorationLine: "underline" }}>
+                        Link oficial: {reference.url || "indisponível"}
+                      </Text>
+                      {reference.evidence ? (
+                        <Text style={{ color: colors.muted }} numberOfLines={2}>
+                          Evidência: {reference.evidence}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  )}
+                />
               </View>
             ) : null}
 
@@ -1947,31 +2075,49 @@ export default function AssistantScreen() {
                 {citations.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Evidências</Text>
-                    {citations.map((item, index) => (
-                      <Text key={`citation-${index}`} style={{ color: colors.muted }}>
-                        - {item.sourceTitle}: {item.evidence}
-                      </Text>
-                    ))}
+                    <FlatList
+                      data={citations}
+                      keyExtractor={(_, index) => `citation-${index}`}
+                      scrollEnabled={false}
+                      contentContainerStyle={{ gap: 6 }}
+                      renderItem={({ item }) => (
+                        <Text style={{ color: colors.muted }}>
+                          - {item.sourceTitle}: {item.evidence}
+                        </Text>
+                      )}
+                    />
                   </View>
                 ) : null}
                 {assumptions.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Premissas</Text>
-                    {assumptions.map((item, index) => (
-                      <Text key={`assumption-${index}`} style={{ color: colors.muted }}>
-                        - {item}
-                      </Text>
-                    ))}
+                    <FlatList
+                      data={assumptions}
+                      keyExtractor={(_, index) => `assumption-${index}`}
+                      scrollEnabled={false}
+                      contentContainerStyle={{ gap: 6 }}
+                      renderItem={({ item }) => (
+                        <Text style={{ color: colors.muted }}>
+                          - {item}
+                        </Text>
+                      )}
+                    />
                   </View>
                 ) : null}
                 {missingData.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Dados faltantes</Text>
-                    {missingData.map((item, index) => (
-                      <Text key={`missing-${index}`} style={{ color: colors.muted }}>
-                        - {item}
-                      </Text>
-                    ))}
+                    <FlatList
+                      data={missingData}
+                      keyExtractor={(_, index) => `missing-${index}`}
+                      scrollEnabled={false}
+                      contentContainerStyle={{ gap: 6 }}
+                      renderItem={({ item }) => (
+                        <Text style={{ color: colors.muted }}>
+                          - {item}
+                        </Text>
+                      )}
+                    />
                   </View>
                 ) : null}
               </View>
@@ -1989,26 +2135,32 @@ export default function AssistantScreen() {
                 }}
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>Auto-fix sugerido</Text>
-                {autoFixSuggestions.map((suggestion) => (
-                  <View key={suggestion.id} style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{suggestion.title}</Text>
-                    <Text style={{ color: colors.muted }}>{suggestion.rationale}</Text>
-                    <Pressable
-                      onPress={() => applyAutoFixSuggestion(suggestion)}
-                      style={{
-                        alignSelf: "flex-start",
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        paddingVertical: 6,
-                        paddingHorizontal: 12,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>Aplicar</Text>
-                    </Pressable>
-                  </View>
-                ))}
+                <FlatList
+                  data={autoFixSuggestions}
+                  keyExtractor={(suggestion) => suggestion.id}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ gap: 10 }}
+                  renderItem={({ item: suggestion }) => (
+                    <View style={{ gap: 6 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{suggestion.title}</Text>
+                      <Text style={{ color: colors.muted }}>{suggestion.rationale}</Text>
+                      <Pressable
+                        onPress={() => applyAutoFixSuggestion(suggestion)}
+                        style={{
+                          alignSelf: "flex-start",
+                          borderRadius: 999,
+                          backgroundColor: colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>Aplicar</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                />
               </View>
             ) : null}
 
@@ -2031,20 +2183,32 @@ export default function AssistantScreen() {
                 {nextClassSuggestion.alerts.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Alertas</Text>
-                    {nextClassSuggestion.alerts.map((item, index) => (
-                      <Text key={`radar-alert-${index}`} style={{ color: colors.muted }}>
-                        - {item}
-                      </Text>
-                    ))}
+                    <FlatList
+                      data={nextClassSuggestion.alerts}
+                      keyExtractor={(_, index) => `radar-alert-${index}`}
+                      scrollEnabled={false}
+                      contentContainerStyle={{ gap: 6 }}
+                      renderItem={({ item }) => (
+                        <Text style={{ color: colors.muted }}>
+                          - {item}
+                        </Text>
+                      )}
+                    />
                   </View>
                 ) : null}
                 <View style={{ gap: 6 }}>
                   <Text style={{ color: colors.text, fontWeight: "700" }}>Ações sugeridas</Text>
-                  {nextClassSuggestion.actions.map((item, index) => (
-                    <Text key={`radar-action-${index}`} style={{ color: colors.muted }}>
-                      - {item}
-                    </Text>
-                  ))}
+                  <FlatList
+                    data={nextClassSuggestion.actions}
+                    keyExtractor={(_, index) => `radar-action-${index}`}
+                    scrollEnabled={false}
+                    contentContainerStyle={{ gap: 6 }}
+                    renderItem={({ item }) => (
+                      <Text style={{ color: colors.muted }}>
+                        - {item}
+                      </Text>
+                    )}
+                  />
                 </View>
                 <Pressable
                   disabled={Boolean(autopilotProposal && autopilotProposal.status !== "approved")}
@@ -2087,6 +2251,90 @@ export default function AssistantScreen() {
                   Contrato: nada aplica sem status aprovado.
                 </Text>
                 <Text style={{ color: colors.text }}>{autopilotProposal.summary}</Text>
+                {(autopilotProposal.knowledgeBaseVersionLabel || autopilotProposal.knowledgeDomain) ? (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {autopilotProposal.knowledgeBaseVersionLabel ? (
+                      <View
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          Base cientifica: {autopilotProposal.knowledgeBaseVersionLabel}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <View
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                        Dominio: {knowledgeDomainLabel(autopilotProposal.knowledgeDomain)}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+                {autopilotProposal.knowledgeRuleHighlights.length > 0 ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Diretrizes da base</Text>
+                    {autopilotProposal.knowledgeRuleHighlights.map((item, index) => (
+                      <Text key={`autopilot-rule-${index}`} style={{ color: colors.muted }}>
+                        - {item}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {autopilotProposal.knowledgeReferences.length > 0 ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Referencias da base</Text>
+                    {autopilotProposal.knowledgeReferences.map((reference) => (
+                      <Pressable
+                        key={reference.sourceId}
+                        onPress={() => {
+                          if (reference.url) void openReferenceLink(reference.url);
+                        }}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.card,
+                          borderRadius: 14,
+                          padding: 10,
+                          gap: 4,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>
+                          {reference.title}
+                        </Text>
+                        <Text style={{ color: colors.muted }}>
+                          {reference.authors || "Autor nao informado"}
+                          {reference.sourceYear ? ` . ${reference.sourceYear}` : ""}
+                        </Text>
+                        {reference.citationText ? (
+                          <Text style={{ color: colors.muted }} numberOfLines={2}>
+                            {reference.citationText}
+                          </Text>
+                        ) : null}
+                        {reference.url ? (
+                          <Text style={{ color: colors.primaryBg, textDecorationLine: "underline" }}>
+                            Abrir referencia
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                {autopilotPlanReviewSection ? <View style={{ gap: 6 }}>{autopilotPlanReviewSection}</View> : null}
                 {autopilotProposal.actions.map((item, index) => (
                   <Text key={`autopilot-action-${index}`} style={{ color: colors.muted }}>
                     - {item}
@@ -2142,11 +2390,17 @@ export default function AssistantScreen() {
                 <Text style={{ color: colors.muted }}>
                   Baseline: {(simulationResult.baselineScore * 100).toFixed(0)}% . Horizonte: {simulationResult.horizonWeeks} semanas
                 </Text>
-                {simulationResult.points.slice(0, 4).map((point) => (
-                  <Text key={`sim-point-${point.week}`} style={{ color: colors.muted }}>
-                    - Semana {point.week}: {(point.projectedScore * 100).toFixed(0)}% ({point.focus})
-                  </Text>
-                ))}
+                <FlatList
+                  data={simulationResult.points.slice(0, 4)}
+                  keyExtractor={(point) => `sim-point-${point.week}`}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ gap: 6 }}
+                  renderItem={({ item: point }) => (
+                    <Text style={{ color: colors.muted }}>
+                      - Semana {point.week}: {(point.projectedScore * 100).toFixed(0)}% ({point.focus})
+                    </Text>
+                  )}
+                />
               </View>
             ) : null}
 
@@ -2162,11 +2416,17 @@ export default function AssistantScreen() {
                 }}
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>Memória de contexto</Text>
-                {memoryContextHints.slice(0, 3).map((item, index) => (
-                  <Text key={`memory-hint-${index}`} style={{ color: colors.muted }}>
-                    - {item}
-                  </Text>
-                ))}
+                <FlatList
+                  data={memoryContextHints.slice(0, 3)}
+                  keyExtractor={(_, index) => `memory-hint-${index}`}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ gap: 6 }}
+                  renderItem={({ item }) => (
+                    <Text style={{ color: colors.muted }}>
+                      - {item}
+                    </Text>
+                  )}
+                />
               </View>
             ) : null}
           </ScrollView>
@@ -2289,4 +2549,3 @@ export default function AssistantScreen() {
     </SafeAreaView>
   );
 }
-

@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Animated,
+    FlatList,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -16,8 +17,15 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
-import type { ClassGroup, ScoutingLog, Student } from "../../src/core/models";
-import { getBlockForToday } from "../../src/core/periodization";
+import type { ClassGroup, ScoutingLog, Student, TrainingPlan } from "../../src/core/models";
+import {
+  buildRosterFundamentalsByDay,
+  buildRosterMonthEntries,
+  getBlockForToday,
+  getSuggestedFundamentalsForClass,
+  ROSTER_FUNDAMENTALS,
+  type RosterFundamental,
+} from "../../src/core/periodization";
 import {
     countsFromLog,
     getFocusSuggestion,
@@ -25,15 +33,16 @@ import {
     scoutingSkills,
 } from "../../src/core/scouting";
 import {
-    deleteClassCascade,
-    duplicateClass,
-    getAttendanceByClass,
-    getClassById,
-    getClasses,
-    getLatestScoutingLog,
-    getStudentsByClass,
-    updateClass,
-    updateClassColor,
+  deleteClassCascade,
+  duplicateClass,
+  getAttendanceByClass,
+  getClassById,
+  getClasses,
+  getLatestScoutingLog,
+  getTrainingPlans,
+  getStudentsByClass,
+  updateClass,
+  updateClassColor,
 } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
@@ -48,8 +57,11 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
+import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
@@ -78,6 +90,52 @@ type AvailableContact = {
   phone: string;
   source: "guardian" | "student";
 };
+
+type RosterExportOptions = {
+  includeAttendance: boolean;
+  includeBirthDate: boolean;
+  includeCourse: boolean;
+  includeContact: boolean;
+  includeFundamentals: boolean;
+};
+
+type RosterFundamentalOverrides = Record<number, Partial<Record<RosterFundamental, boolean>>>;
+
+const buildRosterExportOptions = (): RosterExportOptions => ({
+  includeAttendance: true,
+  includeBirthDate: true,
+  includeCourse: true,
+  includeContact: false,
+  includeFundamentals: true,
+});
+
+const ROSTER_COLUMN_OPTIONS = [
+  {
+    key: "includeAttendance" as const,
+    label: "Presenças",
+    description: "Dias e total da chamada",
+  },
+  {
+    key: "includeBirthDate" as const,
+    label: "Nascimento",
+    description: "Data de nascimento do aluno",
+  },
+  {
+    key: "includeCourse" as const,
+    label: "Curso",
+    description: "Curso do aluno",
+  },
+  {
+    key: "includeContact" as const,
+    label: "Contato",
+    description: "Telefone do aluno ou responsável",
+  },
+  {
+    key: "includeFundamentals" as const,
+    label: "Fundamentos",
+    description: "Quadro automático da periodização",
+  },
+] as const;
 
 const WhatsAppContactRow = memo(function WhatsAppContactRow({
   contact,
@@ -150,6 +208,7 @@ export default function ClassDetails() {
   const router = useRouter();
   const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm } = useConfirmUndo();
   const {
     defaultMessageEnabled,
@@ -163,7 +222,7 @@ export default function ClassDetails() {
     maxHeight: "82%",
     maxWidth: 520,
   });
-  const rosterModalCardStyle = useModalCardStyle({ maxHeight: "60%", maxWidth: 440 });
+  const rosterModalCardStyle = useModalCardStyle({ maxHeight: "86%", maxWidth: 820 });
   const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
@@ -185,12 +244,26 @@ export default function ClassDetails() {
     const month = String(now.getMonth() + 1).padStart(2, "0");
     return `${year}-${month}-01`;
   });
+  const [rosterExportOptions, setRosterExportOptions] = useState<RosterExportOptions>(() =>
+    buildRosterExportOptions()
+  );
+  const [rosterPlans, setRosterPlans] = useState<TrainingPlan[]>([]);
+  const [rosterFundamentalOverrides, setRosterFundamentalOverrides] =
+    useState<RosterFundamentalOverrides>({});
+  const [rosterFundamentalLabels, setRosterFundamentalLabels] = useState<string[]>(() => [
+    ...ROSTER_FUNDAMENTALS,
+  ]);
+  const [editingRosterFundamentalIndex, setEditingRosterFundamentalIndex] = useState<number | null>(
+    null
+  );
+  const [editingRosterFundamentalValue, setEditingRosterFundamentalValue] = useState("");
   const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
   const [showRosterExportModal, setShowRosterExportModal] = useState(false);
   const [showClassFabMenu, setShowClassFabMenu] = useState(false);
   const classFabAnim = useRef(new Animated.Value(0)).current;
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scoutingLoading, setScoutingLoading] = useState(true);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
@@ -446,26 +519,17 @@ export default function ClassDetails() {
     const date = parseIsoDate(value) ?? new Date();
     return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
   };
-  const getClassMonthDays = (value: string, classDaysOfWeek: number[]) => {
-    const date = parseIsoDate(value) ?? new Date();
-    const year = date.getFullYear();
-    const monthIndex = date.getMonth();
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-    const days: number[] = [];
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      const dateValue = new Date(year, monthIndex, day);
-      if (classDaysOfWeek.includes(dateValue.getDay())) {
-        days.push(day);
-      }
-    }
-    return days;
-  };
   const formatBirthDate = (value?: string | null) =>
     value ? formatShortDate(value) : "-";
   const formatMonthKey = (value: string) => {
     const date = parseIsoDate(value) ?? new Date();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     return `${date.getFullYear()}-${month}`;
+  };
+  const getGenderCode = (value?: ClassGroup["gender"] | null) => {
+    if (value === "feminino") return "fem";
+    if (value === "masculino") return "masc";
+    return "misto";
   };
   const formatPhoneDisplay = (digits: string) => {
     if (!digits) return "-";
@@ -487,6 +551,53 @@ export default function ClassDetails() {
     const [hour, minute] = value.split(":").map(Number);
     return hour * 60 + minute;
   };
+  const rosterMonthEntries = useMemo(
+    () => (cls ? buildRosterMonthEntries(rosterMonthValue, cls.daysOfWeek) : []),
+    [cls, rosterMonthValue]
+  );
+  const rosterPreviewDays = useMemo(
+    () => rosterMonthEntries.map((entry) => entry.day),
+    [rosterMonthEntries]
+  );
+  const rosterAutoFundamentalsByDay = useMemo(
+    () =>
+      cls
+        ? buildRosterFundamentalsByDay({
+            classId: cls.id,
+            monthEntries: rosterMonthEntries,
+            plans: rosterPlans,
+            fallback: [],
+          })
+        : {},
+    [cls, rosterMonthEntries, rosterPlans]
+  );
+  const rosterFundamentalsByDay = useMemo(
+    () =>
+      cls
+        ? rosterPreviewDays.reduce<Record<number, RosterFundamental[]>>((acc, day) => {
+            const auto = rosterAutoFundamentalsByDay[day] ?? [];
+            const overrides = rosterFundamentalOverrides[day] ?? {};
+            const selected = new Set<RosterFundamental>(auto as RosterFundamental[]);
+            (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(
+              ([fundamental, value]) => {
+                if (value) {
+                  selected.add(fundamental);
+                } else {
+                  selected.delete(fundamental);
+                }
+              }
+            );
+            acc[day] = Array.from(selected);
+            return acc;
+          }, {})
+        : {},
+    [cls, rosterAutoFundamentalsByDay, rosterFundamentalOverrides, rosterPreviewDays]
+  );
+  const hasRosterFundamentalOverrides = useMemo(
+    () => Object.keys(rosterFundamentalOverrides).length > 0,
+    [rosterFundamentalOverrides]
+  );
+  const rosterPreviewStudents = useMemo(() => classStudents.slice(0, 3), [classStudents]);
   const clsId = cls?.id ?? "";
   const clsUnit = cls?.unit ?? "";
   const currentUnit = unit.trim() || clsUnit || "Sem unidade";
@@ -565,21 +676,16 @@ export default function ClassDetails() {
     let alive = true;
     (async () => {
       setLoading(true);
+      setScoutingLoading(true);
       try {
-        const { data, list, scouting } = await measureAsync(
+        const dataResult = await measureAsync(
           "screen.classDetails.load.initial",
-          async () => {
-            const data = await getClassById(id);
-            const list = await getClasses();
-            const scouting = data ? await getLatestScoutingLog(data.id) : null;
-            return { data, list, scouting };
-          },
+          () => getClassById(id),
           { screen: "classDetails", classId: id }
         );
         if (alive) {
+          const data = dataResult;
           setCls(data);
-          setAllClasses(list);
-          setLatestScouting(scouting);
           setName(data?.name ?? "");
           setUnit(data?.unit ?? "");
           setAgeBand(data?.ageBand ?? "08-09");
@@ -592,7 +698,20 @@ export default function ClassDetails() {
           setCoachNameOverride(
             data?.id ? coachNameByClass[data.id] ?? "" : ""
           );
+          setLoading(false);
         }
+        void (async () => {
+          try {
+            const scouting = await getLatestScoutingLog(id);
+            if (!alive) return;
+            setLatestScouting(scouting);
+          } catch {
+            if (!alive) return;
+            setLatestScouting(null);
+          } finally {
+            if (alive) setScoutingLoading(false);
+          }
+        })();
       } finally {
         if (alive) setLoading(false);
       }
@@ -601,6 +720,46 @@ export default function ClassDetails() {
       alive = false;
     };
   }, [coachNameByClass, id]);
+
+  useEffect(() => {
+    if (!showEditModal) return;
+    let alive = true;
+    (async () => {
+      try {
+        const list = await getClasses();
+        if (alive) {
+          setAllClasses(list);
+        }
+      } catch {
+        if (alive) {
+          setAllClasses([]);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [showEditModal]);
+
+  useEffect(() => {
+    if (!showRosterExportModal || !cls) return;
+    let alive = true;
+    (async () => {
+      try {
+        const plans = await getTrainingPlans({ classId: id });
+        if (alive) {
+          setRosterPlans(plans);
+        }
+      } catch {
+        if (alive) {
+          setRosterPlans([]);
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [cls, showRosterExportModal]);
 
   const resetEditFields = useCallback(() => {
     if (!cls) return;
@@ -769,28 +928,90 @@ export default function ClassDetails() {
     }).start();
   }, [classFabAnim, showClassFabMenu]);
 
+  const toggleRosterBooleanOption = useCallback(
+    (
+      key:
+        | "includeAttendance"
+        | "includeBirthDate"
+        | "includeCourse"
+        | "includeContact"
+        | "includeFundamentals"
+    ) => {
+      setRosterExportOptions((prev) => ({
+        ...prev,
+        [key]: !prev[key],
+      }));
+    },
+    []
+  );
+
+  const toggleRosterFundamentalCell = useCallback(
+    (day: number, fundamental: RosterFundamental) => {
+      setRosterFundamentalOverrides((prev) => {
+        const current = rosterFundamentalsByDay[day]?.includes(fundamental) ?? false;
+        const auto = rosterAutoFundamentalsByDay[day]?.includes(fundamental) ?? false;
+        const next = !current;
+        const dayOverrides = { ...(prev[day] ?? {}) };
+
+        if (next === auto) {
+          delete dayOverrides[fundamental];
+        } else {
+          dayOverrides[fundamental] = next;
+        }
+
+        const nextState = { ...prev };
+        if (Object.keys(dayOverrides).length) {
+          nextState[day] = dayOverrides;
+        } else {
+          delete nextState[day];
+        }
+        return nextState;
+      });
+    },
+    [rosterAutoFundamentalsByDay, rosterFundamentalsByDay]
+  );
+  const beginRosterFundamentalEdit = useCallback(
+    (index: number) => {
+      setEditingRosterFundamentalIndex(index);
+      setEditingRosterFundamentalValue(
+        rosterFundamentalLabels[index] ?? ROSTER_FUNDAMENTALS[index] ?? ""
+      );
+    },
+    [rosterFundamentalLabels]
+  );
+  const saveRosterFundamentalLabel = useCallback(() => {
+    if (editingRosterFundamentalIndex === null) return;
+    const targetIndex = editingRosterFundamentalIndex;
+    const fallback = ROSTER_FUNDAMENTALS[targetIndex] ?? rosterFundamentalLabels[targetIndex] ?? "";
+    const nextValue = editingRosterFundamentalValue.trim() || fallback;
+    setRosterFundamentalLabels((prev) => {
+      const next = [...prev];
+      next[targetIndex] = nextValue;
+      return next;
+    });
+    setEditingRosterFundamentalIndex(null);
+    setEditingRosterFundamentalValue("");
+  }, [editingRosterFundamentalIndex, editingRosterFundamentalValue, rosterFundamentalLabels]);
+  const cancelRosterFundamentalLabelEdit = useCallback(() => {
+    setEditingRosterFundamentalIndex(null);
+    setEditingRosterFundamentalValue("");
+  }, []);
+  const clearRosterFundamentalOverrides = useCallback(() => {
+    setRosterFundamentalOverrides({});
+  }, []);
+
+  useEffect(() => {
+    setRosterFundamentalOverrides({});
+  }, [rosterMonthValue]);
+
+  useEffect(() => {
+    if (!showRosterExportModal) {
+      cancelRosterFundamentalLabelEdit();
+    }
+  }, [cancelRosterFundamentalLabelEdit, showRosterExportModal]);
+
   if (loading) {
-    return (
-      <SafeAreaView
-        style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
-      >
-        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 26, width: 160, borderRadius: 12 }} />
-            <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
-          </View>
-          <ShimmerBlock style={{ height: 88, borderRadius: 20 }} />
-          <View style={{ gap: 12 }}>
-            <ShimmerBlock style={{ height: 120, borderRadius: 18 }} />
-            <ShimmerBlock style={{ height: 120, borderRadius: 18 }} />
-          </View>
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 44, borderRadius: 16 }} />
-            <ShimmerBlock style={{ height: 44, borderRadius: 16 }} />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
+    return <ScreenLoadingState />;
   }
 
   if (!cls) {
@@ -806,22 +1027,19 @@ export default function ClassDetails() {
   }
 
 
-  const onDuplicate = () => {
+  const onDuplicate = async () => {
     if (!cls) return;
-    Alert.alert(
-      "Duplicar turma",
-      "Deseja criar uma cópia desta turma?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Duplicar",
-          onPress: async () => {
-            await duplicateClass(cls);
-            router.replace("/classes");
-          },
-        },
-      ]
-    );
+    const shouldDuplicate = await confirmDialog({
+      title: "Duplicar turma",
+      message: "Deseja criar uma cópia desta turma?",
+      confirmLabel: "Duplicar",
+      cancelLabel: "Cancelar",
+      tone: "default",
+      onConfirm: async () => {},
+    });
+    if (!shouldDuplicate) return;
+    await duplicateClass(cls);
+    router.replace("/classes");
   };
 
   const onDelete = () => {
@@ -855,6 +1073,7 @@ export default function ClassDetails() {
 
   const handleExportRoster = async () => {
     if (!cls) return;
+    setRosterExportOptions(buildRosterExportOptions());
     setShowRosterExportModal(true);
   };
 
@@ -865,7 +1084,7 @@ export default function ClassDetails() {
     setClassColorSaving(true);
     try {
       await updateClassColor(cls.id, value);
-      setCls((prev) => (prev ? { ...prev, colorKey: value ?? undefined } : prev));
+      setCls((prev) => (prev ? { ...prev, colorKey: value ?? "" } : prev));
     } catch (error) {
       setClassColorKey(previous ?? null);
       Alert.alert("Falha ao atualizar cor", "Tente novamente.");
@@ -876,7 +1095,7 @@ export default function ClassDetails() {
 
   const exportRosterPdf = async (
     monthValue = rosterMonthValue,
-    includeAttendance = false
+    options: RosterExportOptions = rosterExportOptions
   ) => {
     if (!cls) return;
     try {
@@ -887,12 +1106,13 @@ export default function ClassDetails() {
         ? formatTimeRange(timeParts.hour, timeParts.minute, classDuration)
         : classStartTime;
       const monthLabel = formatMonthLabel(monthValue);
-      const monthDays = getClassMonthDays(monthValue, classDays);
+      const monthEntries = buildRosterMonthEntries(monthValue, classDays);
+      const monthDays = monthEntries.map((entry) => entry.day);
       const monthKey = formatMonthKey(monthValue);
       const todayKey = new Date().toISOString().split("T")[0];
       const attendanceByStudentDay: Record<string, Record<number, "P" | "F">> = {};
       const firstAttendanceByStudent: Record<string, string> = {};
-      if (includeAttendance) {
+      if (options.includeAttendance) {
         const records = await getAttendanceByClass(cls.id);
         records.forEach((record) => {
           const firstDate = firstAttendanceByStudent[record.studentId];
@@ -914,19 +1134,31 @@ export default function ClassDetails() {
           });
       }
       const periodizationLabel = getBlockForToday(cls);
-      const fundamentals = [
-        "Físico",
-        "Toque",
-        "Manchete",
-        "Saque",
-        "Ataque",
-        "Bloqueio",
-        "Apoio e Def",
-        "Passe",
-        "Levantamento",
-        "Transição",
-        "Jogo",
-      ];
+      const plans = rosterPlans.length ? rosterPlans : await getTrainingPlans({ classId: cls.id });
+      if (!rosterPlans.length) {
+        setRosterPlans(plans);
+      }
+      const fundamentals = [...rosterFundamentalLabels];
+      const autoFundamentalsByDay = buildRosterFundamentalsByDay({
+        classId: cls.id,
+        monthEntries,
+        plans,
+        fallback: getSuggestedFundamentalsForClass(cls),
+      });
+      const fundamentalsByDay = monthEntries.reduce<Record<number, RosterFundamental[]>>((acc, entry) => {
+        const auto = autoFundamentalsByDay[entry.day] ?? [];
+        const overrides = rosterFundamentalOverrides[entry.day] ?? {};
+        const selected = new Set<RosterFundamental>(auto as RosterFundamental[]);
+        (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(([fundamental, value]) => {
+          if (value) {
+            selected.add(fundamental);
+          } else {
+            selected.delete(fundamental);
+          }
+        });
+        acc[entry.day] = Array.from(selected);
+        return acc;
+      }, {});
       const rows = list.map((student, index) => {
         const contact = getContactPhone(student);
         const contactLabel =
@@ -939,17 +1171,17 @@ export default function ClassDetails() {
               : "Telefone inválido";
         const contactPhone =
           contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
-        const dayAttendance = includeAttendance
+        const dayAttendance = options.includeAttendance
           ? attendanceByStudentDay[student.id] ?? {}
           : undefined;
-        const total = includeAttendance
+        const total = options.includeAttendance
           ? monthDays.reduce(
               (acc, day) => acc + (dayAttendance?.[day] === "P" ? 1 : 0),
               0
             )
           : undefined;
         const studentCreatedAt = student.createdAt?.split("T")[0];
-        const firstAttendanceDate = includeAttendance
+        const firstAttendanceDate = options.includeAttendance
           ? firstAttendanceByStudent[student.id]
           : undefined;
         const startDateKey = firstAttendanceDate || studentCreatedAt || "";
@@ -957,9 +1189,10 @@ export default function ClassDetails() {
           index: index + 1,
           studentName: student.name,
           birthDate: formatBirthDate(student.birthDate),
-          contactLabel,
-          contactPhone,
-          attendance: includeAttendance
+          collegeCourse: options.includeCourse ? student.collegeCourse ?? "" : "",
+          contactLabel: options.includeContact ? contactLabel : "",
+          contactPhone: options.includeContact ? contactPhone : "",
+          attendance: options.includeAttendance
             ? monthDays.reduce<Record<number, "P" | "F" | "-" | "">>(
                 (acc, day) => {
                   const dateKey = `${monthKey}-${String(day).padStart(2, "0")}`;
@@ -991,18 +1224,26 @@ export default function ClassDetails() {
         monthLabel,
         exportDate,
         mode: "full" as const,
-        includeAttendance,
+        includeAttendance: options.includeAttendance,
         totalStudents: list.length,
         monthDays,
         fundamentals,
+        fundamentalKeys: [...ROSTER_FUNDAMENTALS],
+        fundamentalsByDay,
+        includeBirthDate: options.includeBirthDate,
+        includeCourse: options.includeCourse,
+        includeContact: options.includeContact,
+        includeFundamentals: options.includeFundamentals,
         periodizationLabel,
-        coachName: resolvedCoachName?.trim() || undefined,
+        coachName: resolvedCoachName?.trim() || "",
         rows,
       };
 
-      const fileName = includeAttendance
-        ? `lista_chamada_presencas_${safeFileName(className)}_${monthKey}.pdf`
-        : `lista_chamada_${safeFileName(className)}_${monthKey}.pdf`;
+      const fileDate = exportDate.replaceAll("/", "-");
+      const genderCode = getGenderCode(cls.gender);
+      const fileName = options.includeAttendance
+        ? `lista_chamada_presencas_${safeFileName(className)}_${genderCode}_${fileDate}.pdf`
+        : `lista_chamada_${safeFileName(className)}_${genderCode}_${fileDate}.pdf`;
 
       await exportPdf({
         html: classRosterHtml(data),
@@ -1012,7 +1253,7 @@ export default function ClassDetails() {
       logAction("Exportar lista da turma", {
         classId: cls.id,
         month: monthKey,
-        includeAttendance,
+        includeAttendance: options.includeAttendance,
       });
     } catch (error) {
       Alert.alert("Falha ao exportar lista", "Tente novamente.");
@@ -1082,7 +1323,7 @@ export default function ClassDetails() {
     const selectedContact = availableContacts[selectedContactIndex];
     if (!selectedContact) return;
 
-    // Usar mensagem customizada se fornecida, senão usar padrão
+    // Usar mensagem customizada se fornecida, se não usar padrão
     let messageText = customWhatsAppMessage.trim();
     if (!messageText) {
       messageText = getDefaultMessage("global", { className, unitLabel, enabledOverride: defaultMessageEnabled });
@@ -1391,7 +1632,14 @@ export default function ClassDetails() {
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Scouting recente
           </Text>
-          {latestScouting && scoutingCounts ? (
+          {scoutingLoading ? (
+            <View style={{ gap: 8 }}>
+              <ShimmerBlock style={{ height: 18, width: "42%", borderRadius: 8 }} />
+              <ShimmerBlock style={{ height: 14, width: "58%", borderRadius: 8 }} />
+              <ShimmerBlock style={{ height: 14, width: "72%", borderRadius: 8 }} />
+              <ShimmerBlock style={{ height: 14, width: "66%", borderRadius: 8 }} />
+            </View>
+          ) : latestScouting && scoutingCounts ? (
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -1884,8 +2132,9 @@ export default function ClassDetails() {
               {[...durationOptions, "Personalizar"].map((value) => {
                 const active = value !== "Personalizar" && duration === value;
                 return (
-                  <Pressable
+                  <AnchoredDropdownOption
                     key={value}
+                    active={active}
                     onPress={() => {
                       if (value === "Personalizar") {
                         setShowCustomDuration(true);
@@ -1898,13 +2147,6 @@ export default function ClassDetails() {
                       }
                       closeEditPickers();
                     }}
-                    style={{
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderRadius: 14,
-                      marginVertical: 3,
-                      backgroundColor: active ? colors.primaryBg : colors.card,
-                    }}
                   >
                     <Text
                       style={{
@@ -1915,7 +2157,7 @@ export default function ClassDetails() {
                     >
                       {value === "Personalizar" ? value : `${value} min`}
                     </Text>
-                  </Pressable>
+                  </AnchoredDropdownOption>
                 );
               })}
             </AnchoredDropdown>
@@ -1939,18 +2181,12 @@ export default function ClassDetails() {
               {ageBandOptions.map((value) => {
                 const active = ageBand === value;
                 return (
-                  <Pressable
+                  <AnchoredDropdownOption
                     key={value}
+                    active={active}
                     onPress={() => {
                       setAgeBand(value);
                       closeEditPickers();
-                    }}
-                    style={{
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderRadius: 14,
-                      marginVertical: 3,
-                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <Text
@@ -1962,7 +2198,7 @@ export default function ClassDetails() {
                     >
                       {value}
                     </Text>
-                  </Pressable>
+                  </AnchoredDropdownOption>
                 );
               })}
             </AnchoredDropdown>
@@ -1986,18 +2222,12 @@ export default function ClassDetails() {
               {genderOptions.map((value) => {
                 const active = gender === value;
                 return (
-                  <Pressable
+                  <AnchoredDropdownOption
                     key={value}
+                    active={active}
                     onPress={() => {
                       setGender(value);
                       closeEditPickers();
-                    }}
-                    style={{
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderRadius: 14,
-                      marginVertical: 3,
-                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <Text
@@ -2009,7 +2239,7 @@ export default function ClassDetails() {
                     >
                       {value}
                     </Text>
-                  </Pressable>
+                  </AnchoredDropdownOption>
                 );
               })}
             </AnchoredDropdown>
@@ -2033,18 +2263,12 @@ export default function ClassDetails() {
               {goalOptions.map((value) => {
                 const active = goal === value;
                 return (
-                  <Pressable
+                  <AnchoredDropdownOption
                     key={value}
+                    active={active}
                     onPress={() => {
                       setGoal(value);
                       closeEditPickers();
-                    }}
-                    style={{
-                      paddingVertical: 12,
-                      paddingHorizontal: 12,
-                      borderRadius: 14,
-                      marginVertical: 3,
-                      backgroundColor: active ? colors.primaryBg : colors.card,
                     }}
                   >
                     <Text
@@ -2056,7 +2280,7 @@ export default function ClassDetails() {
                     >
                       {value}
                     </Text>
-                  </Pressable>
+                  </AnchoredDropdownOption>
                 );
               })}
             </AnchoredDropdown>
@@ -2064,18 +2288,29 @@ export default function ClassDetails() {
         </ScrollView>
       </ModalSheet>
 
-      <ModalSheet
+            <ModalSheet
         visible={showRosterExportModal}
         onClose={() => setShowRosterExportModal(false)}
         position="center"
         cardStyle={rosterModalCardStyle}
       >
-        <View style={{ gap: 12 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Exportar lista de chamada
-          </Text>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ gap: 14, paddingBottom: 6 }}
+        >
+          <View style={{ gap: 4 }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+              Exportar lista de chamada
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.muted }}>
+              Marque as colunas e veja a prévia antes de baixar.
+            </Text>
+          </View>
+
           <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 12, color: colors.muted }}>Mês da lista</Text>
+            <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
+              Mês da lista
+            </Text>
             <View
               style={{
                 flexDirection: "row",
@@ -2087,7 +2322,7 @@ export default function ClassDetails() {
               <View
                 style={{
                   flex: 1,
-                  paddingVertical: 8,
+                  paddingVertical: 10,
                   paddingHorizontal: 12,
                   borderRadius: 12,
                   backgroundColor: colors.inputBg,
@@ -2095,36 +2330,506 @@ export default function ClassDetails() {
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "600" }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
                   {formatMonthLabel(rosterMonthValue)}
                 </Text>
               </View>
               <Pressable
                 onPress={() => setShowRosterMonthPicker(true)}
                 style={{
-                  paddingVertical: 8,
+                  paddingVertical: 10,
                   paddingHorizontal: 12,
-                  borderRadius: 10,
+                  borderRadius: 12,
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                   Escolher
                 </Text>
               </Pressable>
             </View>
-            <Text style={{ fontSize: 11, color: colors.muted }}>
-              Serão exibidos apenas os dias em que a turma treina.
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
+              Colunas do PDF
             </Text>
+            <View style={{ gap: 8 }}>
+              {ROSTER_COLUMN_OPTIONS.map((option) => {
+                const active = rosterExportOptions[option.key];
+                return (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => toggleRosterBooleanOption(option.key)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: 12,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: active ? colors.primaryBg : colors.border,
+                      backgroundColor: active ? colors.primaryBg : colors.card,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={active ? "checkbox-marked" : "checkbox-blank-outline"}
+                      size={20}
+                      color={active ? colors.primaryText : colors.text}
+                    />
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text
+                        style={{
+                          color: active ? colors.primaryText : colors.text,
+                          fontSize: 14,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text
+                        style={{
+                          color: active ? colors.primaryText : colors.muted,
+                          fontSize: 11,
+                        }}
+                      >
+                        {option.description}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {rosterExportOptions.includeFundamentals ? (
+            <View style={{ gap: 8 }}>
+              <View style={{ gap: 3 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
+                    Fundamentos trabalhados
+                  </Text>
+                  {hasRosterFundamentalOverrides ? (
+                    <Pressable
+                      onPress={clearRosterFundamentalOverrides}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                        Limpar ajustes
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Text style={{ fontSize: 11, color: colors.muted }}>
+                  O PDF usa automaticamente os planos aplicados no mês para marcar os X.
+                </Text>
+                <Text style={{ fontSize: 11, color: colors.muted }}>
+                  Toque na célula para alternar entre automático e manual. Toque no nome para editar
+                  e confirme com ✓.
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={{ gap: 8 }}>
+            <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
+              Prévia
+            </Text>
+            <View
+              style={{
+                padding: 12,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                gap: 10,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+                    {className}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    {formatMonthLabel(rosterMonthValue)} · {formatDays(classDays)}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end", gap: 2 }}>
+                  <Text style={{ color: colors.muted, fontSize: 10 }}>Periodização</Text>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 11,
+                      fontWeight: "700",
+                      textAlign: "right",
+                      maxWidth: 180,
+                    }}
+                  >
+                    {cls ? getBlockForToday(cls) : "-"}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                  }}
+                >
+                  <Text style={{ width: 22, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                    #
+                  </Text>
+                  <Text style={{ flex: 1, paddingVertical: 8, fontSize: 10, fontWeight: "700" }}>
+                    Atletas
+                  </Text>
+                  {rosterExportOptions.includeBirthDate ? (
+                    <Text style={{ width: 68, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                      Nasc
+                    </Text>
+                  ) : null}
+                  {rosterExportOptions.includeCourse ? (
+                    <Text style={{ width: 90, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                      Curso
+                    </Text>
+                  ) : null}
+                  {rosterExportOptions.includeContact ? (
+                    <Text style={{ width: 84, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                      Contato
+                    </Text>
+                  ) : null}
+                  {rosterExportOptions.includeAttendance
+                    ? rosterPreviewDays.map((day) => (
+                        <Text
+                          key={`preview-day-${day}`}
+                          style={{
+                            width: 22,
+                            paddingVertical: 8,
+                            textAlign: "center",
+                            fontSize: 10,
+                          }}
+                        >
+                          {day}
+                        </Text>
+                      ))
+                    : null}
+                  {rosterExportOptions.includeAttendance ? (
+                    <Text style={{ width: 34, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                      Total
+                    </Text>
+                  ) : null}
+                </View>
+
+                {rosterPreviewStudents.length ? (
+                  rosterPreviewStudents.map((student, index) => {
+                    const contact = getContactPhone(student);
+                    const contactLabel =
+                      contact.status === "ok"
+                        ? contact.source === "guardian"
+                          ? "Resp."
+                          : "Aluno"
+                        : contact.status === "missing"
+                          ? "Sem tel"
+                          : "Inválido";
+                    const contactPhone =
+                      contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
+                    return (
+                      <View
+                        key={student.id}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          borderBottomWidth: index === rosterPreviewStudents.length - 1 ? 0 : 1,
+                          borderBottomColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ width: 22, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                          {index + 1}
+                        </Text>
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: colors.text,
+                          }}
+                        >
+                          {student.name}
+                        </Text>
+                        {rosterExportOptions.includeBirthDate ? (
+                          <Text style={{ width: 68, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                            {formatBirthDate(student.birthDate)}
+                          </Text>
+                        ) : null}
+                        {rosterExportOptions.includeCourse ? (
+                          <Text
+                            style={{
+                              width: 90,
+                              paddingVertical: 8,
+                              textAlign: "center",
+                              fontSize: 10,
+                            }}
+                          >
+                            {student.collegeCourse?.trim() || "-"}
+                          </Text>
+                        ) : null}
+                        {rosterExportOptions.includeContact ? (
+                          <View style={{ width: 84, paddingVertical: 8, alignItems: "center" }}>
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: colors.text }}>
+                              {contactLabel}
+                            </Text>
+                            <Text style={{ fontSize: 9, color: colors.muted }}>
+                              {contactPhone || "â€”"}
+                            </Text>
+                          </View>
+                        ) : null}
+                        {rosterExportOptions.includeAttendance
+                          ? rosterPreviewDays.map((day) => (
+                              <Text
+                                key={`preview-row-${student.id}-${day}`}
+                                style={{
+                                  width: 22,
+                                  paddingVertical: 8,
+                                  textAlign: "center",
+                                  fontSize: 10,
+                                  color: colors.muted,
+                                }}
+                              >
+                                -
+                              </Text>
+                            ))
+                          : null}
+                        {rosterExportOptions.includeAttendance ? (
+                          <Text style={{ width: 34, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
+                            -
+                          </Text>
+                        ) : null}
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={{ padding: 12 }}>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      Nenhum aluno carregado para pré-visualização.
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {rosterExportOptions.includeFundamentals ? (
+                <View
+                  style={{
+                    marginTop: 2,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    padding: 10,
+                    gap: 8,
+                    backgroundColor: colors.inputBg,
+                  }}
+                >
+                  <View style={{ gap: 2 }}>
+                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                      Fundamentos trabalhados
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 10 }}>
+                      X automático conforme os planos do mês.
+                    </Text>
+                  </View>
+
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      backgroundColor: colors.card,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: colors.secondaryBg,
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          width: 132,
+                          paddingVertical: 8,
+                          paddingHorizontal: 8,
+                          fontSize: 10,
+                          fontWeight: "700",
+                          color: colors.text,
+                          borderRightWidth: 1,
+                          borderRightColor: colors.border,
+                        }}
+                      >
+                        Fundamento
+                      </Text>
+                      {rosterPreviewDays.map((day) => (
+                        <Text
+                          key={`matrix-head-${day}`}
+                          style={{
+                            width: 28,
+                            paddingVertical: 8,
+                            textAlign: "center",
+                            fontSize: 10,
+                            fontWeight: "700",
+                            color: colors.text,
+                            borderRightWidth: 1,
+                            borderRightColor: colors.border,
+                          }}
+                        >
+                          {day}
+                        </Text>
+                      ))}
+                    </View>
+
+                    {rosterFundamentalLabels.map((fundamentalLabel, index) => {
+                      const fundamentalKey = ROSTER_FUNDAMENTALS[index] ?? fundamentalLabel;
+                      const isEditing = editingRosterFundamentalIndex === index;
+                      return (
+                        <View
+                          key={`matrix-row-${fundamentalKey}`}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            borderBottomWidth:
+                              index === rosterFundamentalLabels.length - 1 ? 0 : 1,
+                            borderBottomColor: colors.border,
+                          }}
+                        >
+                          {isEditing ? (
+                            <View
+                              style={{
+                                width: 132,
+                                paddingVertical: 7,
+                                paddingHorizontal: 8,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 6,
+                                borderRightWidth: 1,
+                                borderRightColor: colors.border,
+                                backgroundColor: colors.card,
+                              }}
+                            >
+                              <TextInput
+                                autoFocus
+                                value={editingRosterFundamentalValue}
+                                onChangeText={setEditingRosterFundamentalValue}
+                                onSubmitEditing={saveRosterFundamentalLabel}
+                                onBlur={saveRosterFundamentalLabel}
+                                blurOnSubmit
+                                placeholder="Nome do fundamento"
+                                placeholderTextColor={colors.muted}
+                                style={{
+                                  flex: 1,
+                                  minWidth: 0,
+                                  padding: 0,
+                                  margin: 0,
+                                  fontSize: 10,
+                                  color: colors.text,
+                                }}
+                              />
+                            </View>
+                          ) : (
+                            <Pressable
+                              onPress={() => beginRosterFundamentalEdit(index)}
+                              style={{
+                                width: 132,
+                                paddingVertical: 7,
+                                paddingHorizontal: 8,
+                                borderRightWidth: 1,
+                                borderRightColor: colors.border,
+                                backgroundColor: colors.card,
+                              }}
+                            >
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  fontSize: 10,
+                                  color: colors.text,
+                                }}
+                              >
+                                {fundamentalLabel}
+                              </Text>
+                            </Pressable>
+                          )}
+                          {rosterPreviewDays.map((day) => {
+                            const active = rosterFundamentalsByDay[day]?.includes(fundamentalKey) ?? false;
+                            return (
+                              <Pressable
+                                key={`matrix-${fundamentalKey}-${day}`}
+                                onPress={() => toggleRosterFundamentalCell(day, fundamentalKey)}
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: active }}
+                                style={{
+                                  width: 28,
+                                  minHeight: 28,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  borderRightWidth: 1,
+                                  borderRightColor: colors.border,
+                                  backgroundColor: active ? colors.primaryBg : colors.card,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: "800",
+                                    color: active ? colors.primaryText : colors.muted,
+                                  }}
+                                >
+                                  {active ? "X" : ""}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           <View style={{ gap: 8 }}>
             <Pressable
               onPress={() => {
                 setShowRosterExportModal(false);
-                void exportRosterPdf(rosterMonthValue, true);
+                void exportRosterPdf(rosterMonthValue, rosterExportOptions);
               }}
               style={{
                 paddingVertical: 12,
@@ -2134,14 +2839,11 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
-                Baixar com presenças
+                Baixar PDF
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => {
-                setShowRosterExportModal(false);
-                void exportRosterPdf(rosterMonthValue, false);
-              }}
+              onPress={() => setShowRosterExportModal(false)}
               style={{
                 paddingVertical: 12,
                 borderRadius: 12,
@@ -2152,27 +2854,11 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-                Baixar sem presenças
+                Fechar
               </Text>
             </Pressable>
           </View>
-
-          <Pressable
-            onPress={() => setShowRosterExportModal(false)}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 10,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>
-              Fechar
-            </Text>
-          </Pressable>
-        </View>
+        </ScrollView>
       </ModalSheet>
 
       <ModalSheet
@@ -2410,34 +3096,36 @@ export default function ClassDetails() {
                   overflow: "hidden",
                 }}
               >
-                <ScrollView
+                <FlatList
+                  data={filteredContacts}
+                  keyExtractor={({ contact }) => `${contact.studentName}-${contact.phone}-${contact.source}`}
                   style={{ maxHeight: 260 }}
                   contentContainerStyle={{ padding: 6, gap: 6 }}
                   showsVerticalScrollIndicator
-                >
-                  {filteredContacts.length ? (
-                    filteredContacts.map(({ contact, index }) => (
-                      <View key={`${contact.studentName}-${contact.phone}-${contact.source}`} style={{ marginBottom: 6 }}>
-                        <WhatsAppContactRow
-                          contact={contact}
-                          index={index}
-                          isSelected={selectedContactIndex === index}
-                          onSelect={handleSelectContact}
-                          colors={colors}
-                          subtleSurface={whatsappModalSubtleSurface}
-                          borderColor={whatsappModalBorder}
-                          mutedColor={whatsappModalMuted}
-                        />
-                      </View>
-                    ))
-                  ) : (
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled
+                  ListEmptyComponent={
                     <View style={{ padding: 12 }}>
                       <Text style={{ color: whatsappModalMuted, fontSize: 12 }}>
                         Nenhum contato encontrado.
                       </Text>
                     </View>
+                  }
+                  renderItem={({ item: { contact, index } }) => (
+                    <View style={{ marginBottom: 6 }}>
+                      <WhatsAppContactRow
+                        contact={contact}
+                        index={index}
+                        isSelected={selectedContactIndex === index}
+                        onSelect={handleSelectContact}
+                        colors={colors}
+                        subtleSurface={whatsappModalSubtleSurface}
+                        borderColor={whatsappModalBorder}
+                        mutedColor={whatsappModalMuted}
+                      />
+                    </View>
                   )}
-                </ScrollView>
+                />
               </View>
             </View>
           )}

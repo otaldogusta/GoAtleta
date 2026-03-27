@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Alert, Animated, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, Animated, FlatList, Platform, ScrollView, Text, View } from "react-native";
 
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -22,6 +22,12 @@ import {
   isCompetitivePlanningMode,
   toCompetitiveClassPlans,
 } from "../../src/core/competitive-periodization";
+import { resolveWeeklyAutopilotKnowledgeDomain } from "../../src/core/autopilot/weekly-autopilot";
+import {
+  buildPlanDiff,
+  buildPlanReviewSummary,
+  toPlanningGraphFromClassPlans,
+} from "../../src/core/plan-engine";
 import {
   ageBands,
   cycleOptions,
@@ -65,6 +71,8 @@ import type {
   ClassCompetitiveProfile,
   ClassGroup,
   ClassPlan,
+  WeeklyAutopilotPlanReview,
+  WeeklyAutopilotKnowledgeContext,
 } from "../../src/core/models";
 
 import { normalizeUnitKey } from "../../src/core/unit-key";
@@ -77,6 +85,7 @@ import {
   getClasses,
 
   getClassPlansByClass,
+  getKnowledgeBaseSnapshot,
 
   saveClassCalendarException,
   saveClassCompetitiveProfile,
@@ -116,8 +125,10 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { getSectionCardStyle } from "../../src/ui/section-styles";
 
 import { CompetitiveAgendaCard } from "../../src/screens/periodization/CompetitiveAgendaCard";
+import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { DayModal } from "../../src/screens/periodization/modals/DayModal";
 import { GenerateModal } from "../../src/screens/periodization/modals/GenerateModal";
 import { PlanActionsModal } from "../../src/screens/periodization/modals/PlanActionsModal";
@@ -195,6 +206,37 @@ const emptyWeek: WeekPlan = {
 
   source: "AUTO",
 
+};
+
+const planReviewFieldLabels: Record<string, string> = {
+  phase: "Fase",
+  objective: "Objetivo",
+  loadTarget: "Carga",
+  intensityTarget: "Intensidade",
+  technicalFocus: "Foco técnico",
+  physicalFocus: "Foco físico",
+  constraints: "Restrições",
+  progressionModel: "Progressão",
+};
+
+const formatPlanReviewValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeText(String(item ?? "")))
+      .filter(Boolean)
+      .join(" • ") || "Sem valor";
+  }
+  if (value == null) return "Sem valor";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Sem valor";
+    }
+  }
+  return normalizeText(String(value)) || "Sem valor";
 };
 
 
@@ -513,6 +555,9 @@ export default function PeriodizationScreen() {
   const [showDayModal, setShowDayModal] = useState(false);
 
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
+  const [periodizationKnowledgeSnapshot, setPeriodizationKnowledgeSnapshot] =
+    useState<WeeklyAutopilotKnowledgeContext | null>(null);
+  const [isLoadingPeriodizationKnowledge, setIsLoadingPeriodizationKnowledge] = useState(false);
 
   const [isSavingPlans, setIsSavingPlans] = useState(false);
 
@@ -909,6 +954,10 @@ export default function PeriodizationScreen() {
 
       }
 
+      setDidApplyParams(true);
+
+      return;
+
     }
 
     if (unitParam) {
@@ -980,11 +1029,70 @@ export default function PeriodizationScreen() {
     [classes, selectedClassId]
 
   );
+  const periodizationKnowledgeDomain = useMemo(
+    () => (selectedClass ? resolveWeeklyAutopilotKnowledgeDomain(selectedClass) : null),
+    [
+      selectedClass?.ageBand,
+      selectedClass?.equipment,
+      selectedClass?.goal,
+      selectedClass?.level,
+      selectedClass?.mvLevel,
+    ]
+  );
   const isCompetitiveMode = isCompetitivePlanningMode(competitiveProfile?.planningMode);
   const activeCycleStartDate =
     competitiveProfile?.cycleStartDate?.trim() ||
     selectedClass?.cycleStartDate ||
     formatIsoDate(new Date());
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!selectedClass || !periodizationKnowledgeDomain) {
+      setPeriodizationKnowledgeSnapshot(null);
+      setIsLoadingPeriodizationKnowledge(false);
+      return;
+    }
+
+    setPeriodizationKnowledgeSnapshot(null);
+    setIsLoadingPeriodizationKnowledge(true);
+
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          const snapshot = await measureAsync(
+            "screen.periodization.load.knowledgeSnapshot",
+            () =>
+              getKnowledgeBaseSnapshot({
+                organizationId: activeOrganization?.id ?? null,
+                domain: periodizationKnowledgeDomain,
+              }),
+            {
+              screen: "periodization",
+              classId: selectedClass.id,
+              domain: periodizationKnowledgeDomain,
+            }
+          );
+
+          if (!alive) return;
+
+          setPeriodizationKnowledgeSnapshot(snapshot);
+        } finally {
+          if (alive) setIsLoadingPeriodizationKnowledge(false);
+        }
+      })().catch(() => {
+        if (!alive) return;
+        setPeriodizationKnowledgeSnapshot(null);
+        setIsLoadingPeriodizationKnowledge(false);
+      });
+    }, 0);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [activeOrganization?.id, periodizationKnowledgeDomain, selectedClass]);
+
   const chatbotConflictBottom = Math.max(insets.bottom + 92, 108);
   const plansFabBottom = Math.max(insets.bottom + 166, 182);
   const plansFabRight = 16;
@@ -1011,6 +1119,63 @@ export default function PeriodizationScreen() {
     const classDays = selectedClass?.daysOfWeek?.length ?? 0;
     return Math.max(1, classDays || sessionsPerWeek || 2);
   }, [selectedClass, sessionsPerWeek]);
+
+  const periodizationKnowledgeGraph = useMemo(() => {
+    if (!selectedClass || !periodizationKnowledgeSnapshot) return null;
+    return toPlanningGraphFromClassPlans({
+      classId: selectedClass.id,
+      organizationId: selectedClass.organizationId,
+      cycleStartDate: activeCycleStartDate,
+      classPlans,
+      knowledgeSnapshot: periodizationKnowledgeSnapshot,
+    });
+  }, [
+    activeCycleStartDate,
+    classPlans,
+    periodizationKnowledgeSnapshot,
+    selectedClass,
+  ]);
+
+  const periodizationKnowledgeBaselineGraph = useMemo(() => {
+    if (!selectedClass) return null;
+    return toPlanningGraphFromClassPlans({
+      classId: selectedClass.id,
+      organizationId: selectedClass.organizationId,
+      cycleStartDate: activeCycleStartDate,
+      classPlans,
+      knowledgeSnapshot: null,
+    });
+  }, [activeCycleStartDate, classPlans, selectedClass]);
+
+  const periodizationPlanReview = useMemo(() => {
+    if (!periodizationKnowledgeGraph || !periodizationKnowledgeSnapshot || !periodizationKnowledgeBaselineGraph) {
+      return null;
+    }
+
+    const review = buildPlanReviewSummary(periodizationKnowledgeGraph, periodizationKnowledgeSnapshot);
+    const diffs = periodizationKnowledgeGraph.weeks
+      .map((week, index) => {
+        const baselineWeek = periodizationKnowledgeBaselineGraph.weeks[index];
+        if (!baselineWeek) return null;
+        const diff = buildPlanDiff(baselineWeek, week);
+        return diff.changes.length > 0 ? diff : null;
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .slice(0, 3);
+
+    return {
+      ...review,
+      diffs,
+      warnings: review.issues
+        .filter((issue) => issue.severity !== "info")
+        .map((issue) => issue.message),
+    };
+  }, [
+    periodizationKnowledgeBaselineGraph,
+    periodizationKnowledgeGraph,
+    periodizationKnowledgeSnapshot,
+  ]);
+
   const periodizationModel = useMemo<PeriodizationModel>(() => {
     if (isCompetitiveMode) return "competitivo";
     if (ageBand === "12-14") return "formacao";
@@ -1121,6 +1286,8 @@ export default function PeriodizationScreen() {
   }, [competitiveProfile?.cycleStartDate, competitiveProfile?.targetDate, selectedClass]);
 
   useEffect(() => {
+
+    if (hasInitialClass) return;
 
     if (!hasUnitSelected) {
 
@@ -2226,6 +2393,58 @@ export default function PeriodizationScreen() {
   );
 
 
+  const weekEditorPlanReview = useMemo<WeeklyAutopilotPlanReview | null>(() => {
+    if (!selectedClass || !periodizationKnowledgeSnapshot) return null;
+
+    const existing = classPlans.find((plan) => plan.weekNumber === editingWeek) ?? null;
+    const draftPlan = buildManualPlanForWeek(editingWeek, existing);
+    if (!draftPlan) return null;
+
+    const editedPlans = classPlans.some((plan) => plan.weekNumber === editingWeek)
+      ? classPlans.map((plan) => (plan.weekNumber === editingWeek ? draftPlan : plan))
+      : [...classPlans, draftPlan];
+
+    const draftGraph = toPlanningGraphFromClassPlans({
+      classId: selectedClass.id,
+      organizationId: selectedClass.organizationId,
+      cycleStartDate: activeCycleStartDate,
+      classPlans: editedPlans,
+      knowledgeSnapshot: periodizationKnowledgeSnapshot,
+    });
+    const baselineGraph = toPlanningGraphFromClassPlans({
+      classId: selectedClass.id,
+      organizationId: selectedClass.organizationId,
+      cycleStartDate: activeCycleStartDate,
+      classPlans,
+      knowledgeSnapshot: null,
+    });
+
+    const review = buildPlanReviewSummary(draftGraph, periodizationKnowledgeSnapshot);
+    const draftWeek = draftGraph.weeks.find((week) => week.weekNumber === editingWeek) ?? null;
+    const baselineWeek = baselineGraph.weeks.find((week) => week.weekNumber === editingWeek) ?? null;
+    const diff = draftWeek && baselineWeek ? buildPlanDiff(baselineWeek, draftWeek) : null;
+
+    return {
+      ok: review.ok,
+      versionLabel: review.versionLabel,
+      domain: review.domain,
+      diffs: diff ? [diff] : [],
+      issues: review.issues,
+      warnings: review.issues
+        .filter((issue) => issue.severity !== "info")
+        .map((issue) => issue.message),
+      citations: [...new Set(review.issues.map((issue) => issue.reference).filter(Boolean) as string[])],
+    };
+  }, [
+    activeCycleStartDate,
+    buildManualPlanForWeek,
+    classPlans,
+    editingWeek,
+    periodizationKnowledgeSnapshot,
+    selectedClass,
+  ]);
+
+
   const resetWeekToAuto = useCallback(() => {
 
     if (!selectedClass) return;
@@ -2448,26 +2667,13 @@ export default function PeriodizationScreen() {
 
         return (
 
-          <Pressable
-
+          <AnchoredDropdownOption
+            active={active}
             onPress={() => onSelect(unit)}
-
-            style={{
-
-              paddingVertical: 8,
-
-              paddingHorizontal: 10,
-
-              borderRadius: 10,
-
-              margin: isFirst ? 6 : 2,
-
-              backgroundColor: active ? palette.bg : "transparent",
-
-            }}
-
+            activeBackgroundColor={palette.bg}
+            activeBorderColor={palette.bg}
+            inactiveBackgroundColor={colors.card}
           >
-
             <Text
 
               style={{
@@ -2486,7 +2692,7 @@ export default function PeriodizationScreen() {
 
             </Text>
 
-          </Pressable>
+          </AnchoredDropdownOption>
 
         );
 
@@ -2525,26 +2731,7 @@ export default function PeriodizationScreen() {
 
           return (
 
-            <Pressable
-
-              onPress={() => onSelect(cls)}
-
-              style={{
-
-                paddingVertical: 8,
-
-                paddingHorizontal: 12,
-
-                borderRadius: 14,
-
-                marginVertical: 3,
-
-                backgroundColor: active ? colors.primaryBg : colors.card,
-
-              }}
-
-            >
-
+            <AnchoredDropdownOption active={active} onPress={() => onSelect(cls)}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
 
                 <Text
@@ -2569,7 +2756,7 @@ export default function PeriodizationScreen() {
 
               </View>
 
-            </Pressable>
+            </AnchoredDropdownOption>
 
           );
 
@@ -2608,26 +2795,7 @@ export default function PeriodizationScreen() {
 
         return (
 
-          <Pressable
-
-            onPress={() => onSelect(value)}
-
-            style={{
-
-              paddingVertical: 12,
-
-              paddingHorizontal: 12,
-
-              borderRadius: 14,
-
-              marginVertical: 3,
-
-              backgroundColor: active ? colors.primaryBg : colors.card,
-
-            }}
-
-          >
-
+          <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
             <Text
 
               style={{
@@ -2646,7 +2814,7 @@ export default function PeriodizationScreen() {
 
             </Text>
 
-          </Pressable>
+          </AnchoredDropdownOption>
 
         );
 
@@ -2685,26 +2853,7 @@ export default function PeriodizationScreen() {
 
         return (
 
-          <Pressable
-
-            onPress={() => onSelect(value)}
-
-            style={{
-
-              paddingVertical: 12,
-
-              paddingHorizontal: 12,
-
-              borderRadius: 14,
-
-              marginVertical: 3,
-
-              backgroundColor: active ? colors.primaryBg : colors.card,
-
-            }}
-
-          >
-
+          <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
             <Text
 
               style={{
@@ -2723,7 +2872,7 @@ export default function PeriodizationScreen() {
 
             </Text>
 
-          </Pressable>
+          </AnchoredDropdownOption>
 
         );
 
@@ -3094,34 +3243,28 @@ export default function PeriodizationScreen() {
 
   const handleDisableCompetitiveMode = useCallback(async () => {
     if (!selectedClass) return;
-    Alert.alert(
-      "Desativar modo competitivo",
-      "O perfil competitivo desta turma sera removido. Os planos ja salvos permanecem.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Desativar",
-          style: "destructive",
-          onPress: () => {
-            void (async () => {
-              setIsSavingCompetitiveProfile(true);
-              try {
-                await deleteClassCompetitiveProfile(selectedClass.id);
-                setCompetitiveProfile(null);
-                Alert.alert("Periodização", "Modo competitivo desativado para a turma.");
-              } catch (error) {
-                const message =
-                  error instanceof Error ? error.message : "Falha ao desativar modo competitivo.";
-                Alert.alert("Periodização", message);
-              } finally {
-                setIsSavingCompetitiveProfile(false);
-              }
-            })();
-          },
-        },
-      ]
-    );
-  }, [selectedClass]);
+    const shouldDisable = await confirmDialog({
+      title: "Desativar modo competitivo",
+      message: "O perfil competitivo desta turma sera removido. Os planos ja salvos permanecem.",
+      confirmLabel: "Desativar",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {},
+    });
+    if (!shouldDisable) return;
+    setIsSavingCompetitiveProfile(true);
+    try {
+      await deleteClassCompetitiveProfile(selectedClass.id);
+      setCompetitiveProfile(null);
+      Alert.alert("Periodização", "Modo competitivo desativado para a turma.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Falha ao desativar modo competitivo.";
+      Alert.alert("Periodização", message);
+    } finally {
+      setIsSavingCompetitiveProfile(false);
+    }
+  }, [confirmDialog, selectedClass]);
 
   const handleAddCalendarException = useCallback(async () => {
     if (!selectedClass) return;
@@ -3342,6 +3485,226 @@ export default function PeriodizationScreen() {
 
   </View>
 
+        {selectedClass ? (
+          <View
+            style={[
+              getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
+              { gap: 10 },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={colors.primaryText} />
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                  Revisão científica
+                </Text>
+              </View>
+              <View
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                  borderRadius: 999,
+                  backgroundColor: isLoadingPeriodizationKnowledge
+                    ? colors.secondaryBg
+                    : periodizationKnowledgeSnapshot
+                      ? periodizationPlanReview?.ok
+                        ? colors.successBg
+                        : colors.warningBg
+                      : colors.secondaryBg,
+                }}
+              >
+                <Text
+                  style={{
+                    color: isLoadingPeriodizationKnowledge
+                      ? colors.muted
+                      : periodizationKnowledgeSnapshot
+                        ? periodizationPlanReview?.ok
+                          ? colors.successText
+                          : colors.warningText
+                        : colors.muted,
+                    fontSize: 11,
+                    fontWeight: "700",
+                  }}
+                >
+                  {isLoadingPeriodizationKnowledge
+                    ? "Carregando base"
+                    : periodizationKnowledgeSnapshot
+                      ? periodizationPlanReview?.ok
+                        ? "Plano validado"
+                        : `${periodizationPlanReview?.issues.length ?? 0} alerta(s)`
+                      : "Base ausente"}
+                </Text>
+              </View>
+            </View>
+
+            {isLoadingPeriodizationKnowledge ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Carregando snapshot científico da turma.
+              </Text>
+            ) : periodizationKnowledgeSnapshot ? (
+              <>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {normalizeText(
+                    `Base ${periodizationKnowledgeSnapshot.versionLabel} · ${periodizationKnowledgeSnapshot.domain}`
+                  )}
+                </Text>
+
+                {periodizationKnowledgeSnapshot.ruleHighlights.length ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      Diretrizes ativas
+                    </Text>
+                    <FlatList
+                      data={periodizationKnowledgeSnapshot.ruleHighlights.slice(0, 3)}
+                      keyExtractor={(item) => item}
+                      scrollEnabled={false}
+                      contentContainerStyle={{ gap: 6 }}
+                      renderItem={({ item }) => (
+                        <View
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 8,
+                            borderRadius: 12,
+                            backgroundColor: colors.background,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 12 }}>{normalizeText(item)}</Text>
+                        </View>
+                      )}
+                    />
+                  </View>
+                ) : null}
+
+                {periodizationKnowledgeSnapshot.references.length ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {normalizeText(
+                      `Referências: ${periodizationKnowledgeSnapshot.references
+                        .slice(0, 2)
+                        .map((item) => {
+                          const year = item.sourceYear ? ` (${item.sourceYear})` : "";
+                          return `${normalizeText(item.title)}${year}`;
+                        })
+                        .join(" • ")}`
+                    )}
+                  </Text>
+                ) : null}
+
+                {periodizationPlanReview ? (
+                  <>
+                    {periodizationPlanReview.diffs.length ? (
+                      <View style={{ gap: 8 }}>
+                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                          Efeito da base
+                        </Text>
+                        <FlatList
+                          data={periodizationPlanReview.diffs}
+                          keyExtractor={(diff) => diff.weekStart}
+                          scrollEnabled={false}
+                          contentContainerStyle={{ gap: 8 }}
+                          renderItem={({ item: diff }) => {
+                            const week = periodizationKnowledgeGraph?.weeks.find(
+                              (item) => item.weekStart === diff.weekStart
+                            );
+                            return (
+                              <View
+                                style={{
+                                  gap: 6,
+                                  padding: 10,
+                                  borderRadius: 12,
+                                  backgroundColor: colors.background,
+                                  borderWidth: 1,
+                                  borderColor: colors.border,
+                                }}
+                              >
+                                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                                  Semana {week?.weekNumber ?? "?"}
+                                </Text>
+                                <FlatList
+                                  data={diff.changes.slice(0, 2)}
+                                  keyExtractor={(change) => `${diff.weekStart}_${change.field}`}
+                                  scrollEnabled={false}
+                                  contentContainerStyle={{ gap: 4 }}
+                                  renderItem={({ item: change }) => (
+                                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                                      {normalizeText(
+                                        `${planReviewFieldLabels[change.field] ?? change.field}: ${formatPlanReviewValue(
+                                          change.before
+                                        )} → ${formatPlanReviewValue(change.after)}`
+                                      )}
+                                    </Text>
+                                  )}
+                                />
+                              </View>
+                            );
+                          }}
+                        />
+                      </View>
+                    ) : null}
+
+                    {periodizationPlanReview.issues.length ? (
+                      <View style={{ gap: 6 }}>
+                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                          Alertas
+                        </Text>
+                        <FlatList
+                          data={periodizationPlanReview.issues.slice(0, 3)}
+                          keyExtractor={(issue) => `${issue.weekStart}_${issue.code}`}
+                          scrollEnabled={false}
+                          contentContainerStyle={{ gap: 6 }}
+                          renderItem={({ item: issue }) => (
+                            <View
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 8,
+                                borderRadius: 12,
+                                backgroundColor: colors.background,
+                                borderWidth: 1,
+                                borderColor:
+                                  issue.severity === "error"
+                                    ? colors.dangerBorder
+                                    : issue.severity === "warning"
+                                      ? colors.warningBg
+                                      : colors.border,
+                              }}
+                            >
+                              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                                Semana{" "}
+                                {periodizationKnowledgeGraph?.weeks.find(
+                                  (item) => item.weekStart === issue.weekStart
+                                )?.weekNumber ?? "?"}
+                              </Text>
+                              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                                {normalizeText(issue.message)}
+                              </Text>
+                            </View>
+                          )}
+                        />
+                      </View>
+                    ) : (
+                      <Text style={{ color: colors.successText, fontSize: 12, fontWeight: "600" }}>
+                        Plano validado sem alertas na base científica ativa.
+                      </Text>
+                    )}
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Base científica ativa nao encontrada para esta turma.
+              </Text>
+            )}
+          </View>
+        ) : null}
+
         { activeTab === "geral" ? (
           <OverviewTab
             colors={colors}
@@ -3504,7 +3867,7 @@ export default function PeriodizationScreen() {
 
             borderColor: colors.border,
 
-            backgroundColor: colors.inputBg,
+            backgroundColor: colors.card,
 
           }}
 
@@ -3556,23 +3919,20 @@ export default function PeriodizationScreen() {
 
               </Pressable>
 
-              {filteredClasses.map((cls, index) => (
-
-                <ClassOption
-
-                  key={cls.id}
-
-                  cls={cls}
-
-                  active={cls.id === selectedClassId}
-
-                  onSelect={handleSelectClass}
-
-                  isFirst={index === 0}
-
-                />
-
-              ))}
+              <FlatList
+                data={filteredClasses}
+                keyExtractor={(cls) => cls.id}
+                scrollEnabled={false}
+                contentContainerStyle={{ gap: 0 }}
+                renderItem={({ item: cls, index }) => (
+                  <ClassOption
+                    cls={cls}
+                    active={cls.id === selectedClassId}
+                    onSelect={handleSelectClass}
+                    isFirst={index === 0}
+                  />
+                )}
+              />
 
             </>
 
@@ -3829,10 +4189,11 @@ export default function PeriodizationScreen() {
         isSavingWeek={isSavingWeek}
         onSave={handleSaveWeek}
         onResetToAuto={resetWeekToAuto}
-        onApplyDraftToWeeks={applyDraftToWeeks}
-        onConfirmDialog={confirmDialog}
-        normalizeText={normalizeText}
-      />
+      onApplyDraftToWeeks={applyDraftToWeeks}
+      onConfirmDialog={confirmDialog}
+      normalizeText={normalizeText}
+      planReview={weekEditorPlanReview}
+    />
 
     </SafeAreaView>
 

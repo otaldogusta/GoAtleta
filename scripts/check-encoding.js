@@ -20,30 +20,26 @@ const IGNORE_DIRS = new Set([
 ]);
 const IGNORE_FILES = new Set(["scripts/check-encoding.js"]);
 
-const MOJIBAKE_TOKENS = [
-  "Ã¡",
-  "Ã¢",
-  "Ã£",
-  "Ã¤",
-  "Ã§",
-  "Ã©",
-  "Ãª",
-  "Ã­",
-  "Ã³",
-  "Ã´",
-  "Ãµ",
-  "Ãº",
-  "Ã€",
-  "Ã“",
-  "Ã‡",
-  "Âº",
-  "Âª",
-  "Â ",
-  "â€™",
-  "â€œ",
-  "â€",
-  "â€“",
-  "â€”",
+const MOJIBAKE_PATTERNS = [
+  { token: "Ã¡", bytes: [0xc3, 0x83, 0xc2, 0xa1] },
+  { token: "Ã¢", bytes: [0xc3, 0x83, 0xc2, 0xa2] },
+  { token: "Ã£", bytes: [0xc3, 0x83, 0xc2, 0xa3] },
+  { token: "Ã§", bytes: [0xc3, 0x83, 0xc2, 0xa7] },
+  { token: "Ã©", bytes: [0xc3, 0x83, 0xc2, 0xa9] },
+  { token: "Ãª", bytes: [0xc3, 0x83, 0xc2, 0xaa] },
+  { token: "Ã­", bytes: [0xc3, 0x83, 0xc2, 0xad] },
+  { token: "Ã³", bytes: [0xc3, 0x83, 0xc2, 0xb3] },
+  { token: "Ã´", bytes: [0xc3, 0x83, 0xc2, 0xb4] },
+  { token: "Ãµ", bytes: [0xc3, 0x83, 0xc2, 0xb5] },
+  { token: "Ãº", bytes: [0xc3, 0x83, 0xc2, 0xba] },
+  { token: "Âº", bytes: [0xc3, 0x82, 0xc2, 0xba] },
+  { token: "Âª", bytes: [0xc3, 0x82, 0xc2, 0xaa] },
+  { token: "ðŸ", bytes: [0xc3, 0xb0, 0xc5, 0xb8] },
+  { token: "â€™", bytes: [0xc3, 0xa2, 0xe2, 0x82, 0xac, 0xe2, 0x84, 0xa2] },
+  { token: "â€œ", bytes: [0xc3, 0xa2, 0xe2, 0x82, 0xac, 0xc5, 0x93] },
+  { token: "â€", bytes: [0xc3, 0xa2, 0xe2, 0x82, 0xac, 0x9d] },
+  { token: "â€“", bytes: [0xc3, 0xa2, 0xe2, 0x82, 0xac, 0x93] },
+  { token: "â€”", bytes: [0xc3, 0xa2, 0xe2, 0x82, 0xac, 0x94] },
 ];
 
 const UNICODE_ESCAPE_LITERAL_REGEX = /\\\\u00[0-9a-fA-F]{2}/;
@@ -52,21 +48,26 @@ function toPosixPath(filePath) {
   return path.relative(ROOT_DIR, filePath).split(path.sep).join("/");
 }
 
-function getLineColumn(content, index) {
-  const slice = content.slice(0, index);
+function getLineColumnFromBuffer(buffer, index) {
+  const slice = buffer.slice(0, index).toString("utf8");
   const lines = slice.split("\n");
   const line = lines.length;
   const column = lines[lines.length - 1].length + 1;
   return { line, column };
 }
 
-function findFirstMojibakeToken(content) {
+function findPatternIndex(buffer, pattern) {
+  const needle = Buffer.from(pattern.bytes);
+  return buffer.indexOf(needle);
+}
+
+function findFirstMojibakePattern(buffer) {
   let best = null;
-  for (const token of MOJIBAKE_TOKENS) {
-    const index = content.indexOf(token);
+  for (const candidate of MOJIBAKE_PATTERNS) {
+    const index = findPatternIndex(buffer, candidate);
     if (index === -1) continue;
     if (!best || index < best.index) {
-      best = { token, index };
+      best = { token: candidate.token, index };
     }
   }
   return best;
@@ -76,25 +77,28 @@ function scanFile(filePath, issues) {
   const relativePath = toPosixPath(filePath);
   if (IGNORE_FILES.has(relativePath)) return;
 
-  const content = fs.readFileSync(filePath, "utf8");
+  const buffer = fs.readFileSync(filePath);
+  const content = buffer.toString("utf8");
 
   const replacementIndex = content.indexOf("\uFFFD");
   if (replacementIndex >= 0) {
-    const pos = getLineColumn(content, replacementIndex);
-    issues.push(`${toPosixPath(filePath)}:${pos.line}:${pos.column} - caractere de substituicao (U+FFFD)`);
+    const pos = getLineColumnFromBuffer(buffer, Buffer.from(content.slice(0, replacementIndex), "utf8").length);
+    issues.push(
+      `${toPosixPath(filePath)}:${pos.line}:${pos.column} - caractere de substituicao (U+FFFD)`
+    );
   }
 
   const escapeMatch = content.match(UNICODE_ESCAPE_LITERAL_REGEX);
   if (escapeMatch && typeof escapeMatch.index === "number") {
-    const pos = getLineColumn(content, escapeMatch.index);
+    const pos = getLineColumnFromBuffer(buffer, Buffer.from(content.slice(0, escapeMatch.index), "utf8").length);
     issues.push(
       `${toPosixPath(filePath)}:${pos.line}:${pos.column} - escape unicode literal (\\\\u00..) encontrado`
     );
   }
 
-  const mojibakeMatch = findFirstMojibakeToken(content);
+  const mojibakeMatch = findFirstMojibakePattern(buffer);
   if (mojibakeMatch) {
-    const pos = getLineColumn(content, mojibakeMatch.index);
+    const pos = getLineColumnFromBuffer(buffer, mojibakeMatch.index);
     issues.push(
       `${toPosixPath(filePath)}:${pos.line}:${pos.column} - padrao de mojibake detectado (${mojibakeMatch.token})`
     );

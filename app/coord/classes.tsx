@@ -1,5 +1,8 @@
-import ClassesScreen from "../classes";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function CoordinationClassesTab() {
-  return <ClassesScreen />;
-}
+const CoordinationClassesTab = createLazyRoute(
+  () => import("../classes"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando turmas..." />
+);
+
+export default CoordinationClassesTab;

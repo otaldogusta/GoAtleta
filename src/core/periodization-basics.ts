@@ -78,7 +78,9 @@ export const resolveSportProfile = (modality: string | null | undefined): SportP
   const normalized = normalizeProfileText(String(modality ?? ""));
   if (normalized.includes("fut")) return "futebol";
   if (normalized.includes("basq")) return "basquete";
-  if (normalized.includes("func")) return "funcional";
+  if (normalized.includes("fit") || normalized.includes("func") || normalized.includes("academ")) {
+    return "funcional";
+  }
   return "voleibol";
 };
 

@@ -21,7 +21,7 @@ import { useAuth } from "../auth/auth";
 import { getClasses } from "../db/seed";
 import { getScopedAssistantPath, isAssistantRoutePath } from "../navigation/profile-routes";
 import { markRender, measureAsync } from "../observability/perf";
-import { useOrganization } from "../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { useAppTheme } from "../ui/app-theme";
 import {
     buildOperationalContext,
@@ -148,7 +148,7 @@ const categoryLabelById: Record<InsightsCategory, string> = {
   regulation: "Regulamento atualizado",
 };
 
-const signalToCategory = (signalType: CopilotSignal["type"]): InsightsCategory => {
+const signalToCategory = (signalType: CopilotSignal["type"]): SignalInsightsCategory => {
   switch (signalType) {
     case "report_delay":
       return "reports";
@@ -507,7 +507,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const { colors } = useAppTheme();
   const pathname = usePathname();
   const { session } = useAuth();
-  const { activeOrganizationId } = useOrganization();
+  const { activeOrganizationId } = useOptionalOrganization() ?? {};
   const insets = useSafeAreaInsets();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
 
@@ -573,7 +573,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, [state.open]);
 
   useEffect(() => {
+    const shouldLoadScheduleWindows = state.open || Boolean(state.context);
     let cancelled = false;
+
+    if (!shouldLoadScheduleWindows) {
+      setScheduleWindows([]);
+      return;
+    }
+
     (async () => {
       const organizationId = activeOrganizationId ?? "";
       if (!organizationId) {
@@ -603,7 +610,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [activeOrganizationId]);
+  }, [activeOrganizationId, state.context, state.open]);
 
   useEffect(() => {
     if (!assistantTyping) {
@@ -908,7 +915,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   );
   const showRegulationSection =
     normalizedPath.startsWith("/events") || unreadRegulationCount > 0 || hasRuleSetContext;
-  const latestRegulationUpdate = useMemo(() => {
+  const latestRegulationUpdate = useMemo<RegulationUpdate | null>(() => {
     let latest: RegulationUpdate | null = null;
     let latestAt = "";
     state.regulationUpdates.forEach((item) => {
@@ -952,7 +959,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         }
         return;
       }
-      if (!signalsByCategory[insightsView.category as SignalInsightsCategory].length) {
+      const signalCategory = insightsView.category as SignalInsightsCategory;
+      if (!signalsByCategory[signalCategory].length) {
         setInsightsView({ mode: "root" });
       }
       return;
@@ -967,7 +975,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     if (!detailSignal) {
-      if (signalsByCategory[insightsView.category as SignalInsightsCategory].length) {
+      const signalCategory = insightsView.category as SignalInsightsCategory;
+      if (signalsByCategory[signalCategory].length) {
         setInsightsView({ mode: "category", category: insightsView.category });
       } else {
         setInsightsView({ mode: "root" });

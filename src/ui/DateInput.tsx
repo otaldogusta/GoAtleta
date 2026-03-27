@@ -55,7 +55,7 @@ export function DateInput({
 }: {
   value: string;
   onChange: (next: string) => void;
-  placeholder: string;
+  placeholder?: string;
   onOpenCalendar?: () => void;
 }) {
   const { colors } = useAppTheme();

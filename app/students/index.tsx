@@ -1,16 +1,16 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
+    Suspense,
+    lazy,
     memo,
     useCallback,
     useEffect,
     useMemo,
     useRef,
-    useState,
-    type ReactElement
+    useState
 } from "react";
 import {
     Alert,
@@ -20,7 +20,6 @@ import {
     RefreshControl,
     ScrollView,
     Text,
-    TextInput,
     View,
     useWindowDimensions
 } from "react-native";
@@ -38,6 +37,7 @@ import {
     compareClassesBySchedule,
     sortClassesBySchedule,
 } from "../../src/core/class-schedule-sort";
+import { getClassModalityLabel } from "../../src/core/class-modality";
 import { useEffectiveProfile } from "../../src/core/effective-profile";
 import type { ClassGroup, Student, StudentPreRegistration } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
@@ -49,20 +49,15 @@ import {
     getStudents,
     revealStudentCpf,
     saveStudent,
-    saveStudentPreRegistration,
-    updateStudent,
-    updateStudentPreRegistration
+    updateStudent
 } from "../../src/db/seed";
 import { useIsOnline } from "../../src/hooks/use-is-online";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
-import { BirthdaysTab } from "../../src/screens/students/BirthdaysTab";
-import { StudentRegistrationTab } from "../../src/screens/students/StudentRegistrationTab";
-import { StudentDocumentsFields } from "../../src/screens/students/components/StudentDocumentsFields";
+import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
-import { StudentsListTab } from "../../src/screens/students/StudentsListTab";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
 import { useBuildStudentMessage } from "../../src/screens/students/hooks/useBuildStudentMessage";
 import { useOnEditStudent } from "../../src/screens/students/hooks/useOnEditStudent";
@@ -76,40 +71,53 @@ import { StudentsFormsSyncModal } from "../../src/screens/students/modals/Studen
 import { StudentsImportModal } from "../../src/screens/students/modals/StudentsImportModal";
 import { WhatsAppModal } from "../../src/screens/students/modals/WhatsAppModal";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
-import { Button } from "../../src/ui/Button";
 import { getClassPalette } from "../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
-import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { getUnitPalette } from "../../src/ui/unit-colors";
-import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { useSaveToast } from "../../src/ui/save-toast";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
 import { normalizeRaDigits, validateStudentRa } from "../../src/utils/student-ra";
 import {
-    buildWaMeLink,
-    getContactPhone,
-    normalizePhoneBR,
-    openWhatsApp,
+    getContactPhone
 } from "../../src/utils/whatsapp";
 import {
     WHATSAPP_TEMPLATES,
-    calculateNextClassDate,
-    formatNextClassDate,
-    renderTemplate,
-    type WhatsAppTemplateId,
+    type WhatsAppTemplateId
 } from "../../src/utils/whatsapp-templates";
+
+const StudentRegistrationTab = lazy(() =>
+  import("../../src/screens/students/StudentRegistrationTab").then((module) => ({
+    default: module.StudentRegistrationTab,
+  }))
+);
+
+const BirthdaysTab = lazy(() =>
+  import("../../src/screens/students/BirthdaysTab").then((module) => ({
+    default: module.BirthdaysTab,
+  }))
+);
+
+const StudentsListTab = lazy(() =>
+  import("../../src/screens/students/StudentsListTab").then((module) => ({
+    default: module.StudentsListTab,
+  }))
+);
 
 const monthNames = [
   "Janeiro",
@@ -164,7 +172,7 @@ const formatClassScheduleLabel = (cls: ClassGroup | null) => {
 type BirthdayEntry = { student: Student; date: Date; unitName: string };
 type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
-type StudentsTab = "cadastro" | "aniversários" | "alunos";
+type StudentsTab = "cadastro" | "aniversarios" | "alunos";
 
 export default function StudentsScreen() {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -176,6 +184,7 @@ export default function StudentsScreen() {
   const isOnline = useIsOnline();
   const canRevealCpf = effectiveProfile === "admin";
   const { colors } = useAppTheme();
+  const { showSaveToast } = useSaveToast();
   const { activeOrganization } = useOrganization();
   const canManageStudentInvites = (activeOrganization?.role_level ?? 0) >= 50;
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
@@ -210,6 +219,7 @@ export default function StudentsScreen() {
   const [preRegistrations, setPreRegistrations] = useState<StudentPreRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const isMountedRef = useRef(true);
   const [showForm, setShowForm] = usePersistedState<boolean>(
     "students_show_form_v1",
     false
@@ -229,6 +239,8 @@ export default function StudentsScreen() {
   const [showAllBirthdays, setShowAllBirthdays] = useState(true);
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
   const [studentsSearch, setStudentsSearch] = useState("");
+  const debouncedBirthdaySearch = useDebouncedValue(birthdaySearch, 250);
+  const debouncedStudentsSearch = useDebouncedValue(studentsSearch, 250);
   // --- Formulário de aluno (42 campos → useReducer) ---
   const {
     form,
@@ -242,6 +254,7 @@ export default function StudentsScreen() {
     setPositionPrimary, setPositionSecondary, setAthleteObjective, setLearningStyle,
     setHealthIssue, setHealthIssueNotes, setMedicationUse,
     setMedicationNotes, setHealthObservations, setIsExperimental,
+    setCollegeCourse,
     setEditingId, setEditingCreatedAt,
     setOpenCreateSection, setOpenEditSection,
     setStudentFormError, setStudentDocumentsError, setEditSnapshot,
@@ -250,7 +263,7 @@ export default function StudentsScreen() {
 
   const {
     unit, ageBand, customAgeBand, classId,
-    name, photoUrl, photoMimeType,
+    name, collegeCourse, photoUrl, photoMimeType,
     birthDate, ageNumber, phone,
     cpfDisplay, cpfMaskedOriginal, cpfRevealedValue,
     isCpfVisible, cpfRevealUnavailable, revealCpfBusy,
@@ -301,6 +314,7 @@ export default function StudentsScreen() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
+  const [classModalityFilter, setClassModalityFilter] = useState<ClassModalityFilterValue>("all");
   const [showGuardianRelationPicker, setShowGuardianRelationPicker] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showEditUnitPicker, setShowEditUnitPicker] = useState(false);
@@ -418,77 +432,85 @@ export default function StudentsScreen() {
     []
   );
   const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", accordionAnimOptions);
+  const createAcademicAnim = useCollapsibleAnimation(openCreateSection === "academic", accordionAnimOptions);
   const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", accordionAnimOptions);
   const createSportAnim = useCollapsibleAnimation(openCreateSection === "sportProfile", accordionAnimOptions);
   const createHealthAnim = useCollapsibleAnimation(openCreateSection === "health", accordionAnimOptions);
   const createGuardianAnim = useCollapsibleAnimation(openCreateSection === "guardian", accordionAnimOptions);
   const editStudentDataAnim = useCollapsibleAnimation(openEditSection === "studentData", accordionAnimOptions);
+  const editAcademicAnim = useCollapsibleAnimation(openEditSection === "academic", accordionAnimOptions);
   const editDocumentsAnim = useCollapsibleAnimation(openEditSection === "documents", accordionAnimOptions);
   const editSportAnim = useCollapsibleAnimation(openEditSection === "sportProfile", accordionAnimOptions);
   const editHealthAnim = useCollapsibleAnimation(openEditSection === "health", accordionAnimOptions);
   const editGuardianAnim = useCollapsibleAnimation(openEditSection === "guardian", accordionAnimOptions);
   const editLinksAnim = useCollapsibleAnimation(openEditSection === "links", accordionAnimOptions);
-  useEffect(() => {
-    let alive = true;
-    (async () => {
+  const loadSupplementaryStudentsData = useCallback(
+    async (aliveRef: { current: boolean }) => {
       try {
-        const [classList, studentList, preRegistrationList] = await measureAsync(
-          "screen.students.load.initial",
-          () =>
-            Promise.all([
-              getClasses({ organizationId: activeOrganization?.id }),
-              getStudents({ organizationId: activeOrganization?.id }),
-              getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
-            ]),
-          { hasOrganization: activeOrganization?.id ? 1 : 0 }
-        );
-        if (!alive) return;
-        setClasses(classList);
-        setStudents(studentList);
+        const preRegistrationList = await getStudentPreRegistrations({
+          organizationId: activeOrganization?.id,
+        });
+        if (!aliveRef.current) return;
         setPreRegistrations(preRegistrationList);
         if (!canManageStudentInvites || !session?.access_token) {
           setPendingStudentInvites([]);
           return;
         }
-        void listStudentPendingInvites()
-          .then((pendingInvitesResult) => {
-            if (!alive) return;
-            setPendingStudentInvites(pendingInvitesResult.invites ?? []);
-          })
-          .catch(() => {
-            if (!alive) return;
-            setPendingStudentInvites([]);
-          });
+        const pendingInvitesResult = await listStudentPendingInvites().catch(() => ({ invites: [] }));
+        if (!aliveRef.current) return;
+        setPendingStudentInvites(pendingInvitesResult.invites ?? []);
       } catch (error) {
-        if (!alive) return;
+        if (!aliveRef.current) return;
+        console.warn("StudentsScreen supplementary load failed", error);
+      }
+    },
+    [activeOrganization?.id, canManageStudentInvites, session?.access_token]
+  );
+
+  useEffect(() => {
+    const alive = { current: true };
+    (async () => {
+      try {
+        const [classList, studentList] = await measureAsync(
+          "screen.students.load.critical",
+          () =>
+            Promise.all([
+              getClasses({ organizationId: activeOrganization?.id }),
+              getStudents({ organizationId: activeOrganization?.id }),
+            ]),
+          { hasOrganization: activeOrganization?.id ? 1 : 0 }
+        );
+        if (!alive.current) return;
+        setClasses(classList);
+        setStudents(studentList);
+        void measureAsync(
+          "screen.students.load.supplementary",
+          () => loadSupplementaryStudentsData(alive),
+          { hasOrganization: activeOrganization?.id ? 1 : 0 }
+        );
+      } catch (error) {
+        if (!alive.current) return;
         setClasses([]);
         setStudents([]);
         setPreRegistrations([]);
         setPendingStudentInvites([]);
         console.warn("StudentsScreen initial load failed", error);
       } finally {
-        if (alive) setLoading(false);
+        if (alive.current) setLoading(false);
       }
     })();
     return () => {
-      alive = false;
+      alive.current = false;
     };
-  }, [activeOrganization?.id, canManageStudentInvites, session?.access_token]);
+  }, [activeOrganization?.id, loadSupplementaryStudentsData]);
 
   const reload = async () => {
     try {
-      const [studentList, preRegistrationList] = await Promise.all([
+      const [studentList] = await Promise.all([
         getStudents({ organizationId: activeOrganization?.id }),
-        getStudentPreRegistrations({ organizationId: activeOrganization?.id }),
       ]);
       setStudents(studentList);
-      setPreRegistrations(preRegistrationList);
-      if (!canManageStudentInvites || !session?.access_token) {
-        setPendingStudentInvites([]);
-        return;
-      }
-      const pendingInvitesResult = await listStudentPendingInvites().catch(() => ({ invites: [] }));
-      setPendingStudentInvites(pendingInvitesResult.invites ?? []);
+      void loadSupplementaryStudentsData(isMountedRef);
     } catch (error) {
       console.warn("StudentsScreen reload failed", error);
     }
@@ -500,10 +522,16 @@ export default function StudentsScreen() {
     }
   }, [studentsTab, setStudentsTab]);
 
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const handleExportStudents = useCallback(async () => {
     const organizationId = activeOrganization?.id ?? null;
     if (!organizationId) {
-      Alert.alert("Alunos", "Selecione uma organizacao ativa.");
+      Alert.alert("Alunos", "Selecione uma organização ativa.");
       return;
     }
     setStudentsExportBusy(true);
@@ -513,7 +541,7 @@ export default function StudentsScreen() {
         organizationName: activeOrganization?.name ?? null,
       });
       Alert.alert(
-        "Exportacao concluida",
+        "Exportação concluída",
         `Arquivo ${result.fileName} com ${result.totalStudents} aluno(s).`
       );
     } catch (error) {
@@ -588,16 +616,16 @@ export default function StudentsScreen() {
   );
 
   const toggleCreateSection = useCallback(
-    (section: "studentData" | "documents" | "sportProfile" | "health" | "guardian") => {
-      setOpenCreateSection((prev) => (prev === section ? null : section));
+    (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian") => {
+      setOpenCreateSection(openCreateSection === section ? null : section);
     },
-    []
+    [openCreateSection, setOpenCreateSection]
   );
   const toggleEditSection = useCallback(
-    (section: "studentData" | "documents" | "sportProfile" | "health" | "guardian" | "links") => {
-      setOpenEditSection((prev) => (prev === section ? null : section));
+    (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian" | "links") => {
+      setOpenEditSection(openEditSection === section ? null : section);
     },
-    []
+    [openEditSection, setOpenEditSection]
   );
 
   const handleSelectUnit = useCallback((value: string) => {
@@ -948,6 +976,7 @@ export default function StudentsScreen() {
         ra: normalizeRaDigits(ra) || null,
         cpfMasked: cpfDisplay.trim() || null,
         rg: rgDocument.trim() || null,
+        collegeCourse: collegeCourse.trim() || null,
         loginEmail: loginEmail.trim() ? formatEmail(loginEmail) : "",
         guardianName: guardianName.trim(),
         guardianPhone: guardianPhone.trim(),
@@ -980,16 +1009,12 @@ export default function StudentsScreen() {
       await reload();
       showSaveNotice(wasEditing ? "Alterações salvas." : "Aluno cadastrado.");
       if (!wasEditing) {
-        Alert.alert(
-          "Aluno cadastrado",
-          `${name.trim()} foi cadastrado com sucesso.`,
-          [
-            {
-              text: "Ver alunos",
-              onPress: () => setStudentsTab("alunos"),
-            },
-          ]
-        );
+        showSaveToast({
+          message: `${name.trim()} foi cadastrado com sucesso.`,
+          variant: "success",
+          actionLabel: "Ver alunos",
+          onAction: () => setStudentsTab("alunos"),
+        });
       }
       return true;
     } catch (error) {
@@ -1006,6 +1031,7 @@ export default function StudentsScreen() {
     unit.trim() ||
     classId.trim() ||
     name.trim() ||
+    collegeCourse.trim() ||
     photoUrl ||
     birthDate.trim() ||
     phone.trim() ||
@@ -1043,6 +1069,7 @@ export default function StudentsScreen() {
       editSnapshot.customAgeBand !== customAgeBand ||
       editSnapshot.classId !== classId ||
       editSnapshot.name !== name ||
+      editSnapshot.collegeCourse !== collegeCourse ||
       editSnapshot.photoUrl !== photoUrl ||
       editSnapshot.birthDate !== birthDate ||
       editSnapshot.phone !== phone ||
@@ -1070,6 +1097,7 @@ export default function StudentsScreen() {
     classId,
     cpfDisplay,
     customAgeBand,
+    collegeCourse,
     athleteObjective,
     editSnapshot,
     editingId,
@@ -1176,7 +1204,10 @@ export default function StudentsScreen() {
         createdAt: nowIso,
       });
       await reload();
-      Alert.alert("Experimentais", "Pré-cadastro convertido em aluno.");
+      showSaveToast({
+        message: "Pré-cadastro convertido em aluno.",
+        variant: "success",
+      });
     },
     [activeOrganization?.id, classes, reload]
   );
@@ -1344,7 +1375,7 @@ export default function StudentsScreen() {
       setIsCpfVisible(true);
     } catch (error) {
       const detail =
-        error instanceof Error ? error.message : "Nao foi possivel revelar o CPF.";
+        error instanceof Error ? error.message : "Não foi possível revelar o CPF.";
       if (detail.toLowerCase().includes("indisponivel")) {
         setCpfRevealUnavailable(true);
       }
@@ -1371,18 +1402,38 @@ export default function StudentsScreen() {
     () => classById.get(classId)?.name ?? "",
     [classById, classId]
   );
+  const selectedClassLabel = useMemo(() => {
+    const cls = classById.get(classId) ?? null;
+    if (!cls) return "";
+    const genderLabel =
+      cls.gender === "masculino"
+        ? "Masculino"
+        : cls.gender === "feminino"
+        ? "Feminino"
+        : "Misto";
+    return `${cls.name} (${genderLabel})`;
+  }, [classById, classId]);
+  const selectedClassModalityLabel = useMemo(() => {
+    const cls = classById.get(classId) ?? null;
+    if (!cls) return "";
+    return getClassModalityLabel(cls.modality);
+  }, [classById, classId]);
   const editDocumentsSummary = useMemo(() => {
     const parts = [
-      ra ? `RA ${ra}` : "RA não informado",
       cpfDisplay ? "CPF cadastrado" : "CPF não informado",
       rgDocument ? "RG cadastrado" : "RG não informado",
     ];
-    return parts.join(" • ");
-  }, [cpfDisplay, ra, rgDocument]);
+    return parts.join(" ⬢ ");
+  }, [cpfDisplay, rgDocument]);
+  const editAcademicSummary = useMemo(() => {
+    const raLabel = ra.trim() ? `RA ${ra}` : "RA não informado";
+    const courseLabel = collegeCourse.trim() ? collegeCourse : "Curso não informado";
+    return `${raLabel} ⬢ ${courseLabel}`;
+  }, [collegeCourse, ra]);
   const editSportSummary = useMemo(() => {
     const primaryLabel = positionPrimary.trim() || "indefinido";
     const secondaryLabel = positionSecondary.trim() || "indefinido";
-    return `${primaryLabel} • ${secondaryLabel}`;
+    return `${primaryLabel} ⬢ ${secondaryLabel}`;
   }, [positionPrimary, positionSecondary]);
   const editHealthSummary = useMemo(() => {
     if (!healthIssue && !medicationUse && !healthObservations.trim()) {
@@ -1393,13 +1444,14 @@ export default function StudentsScreen() {
   const editGuardianSummary = useMemo(() => {
     const nameLabel = guardianName.trim() || "Responsável não informado";
     const phoneLabel = guardianPhone.trim() || "Sem telefone";
-    return `${nameLabel} • ${phoneLabel}`;
+    return `${nameLabel} ⬢ ${phoneLabel}`;
   }, [guardianName, guardianPhone]);
   const editLinksSummary = useMemo(() => {
-    const classLabel = selectedClassName || "Sem turma";
+    const classLabel = selectedClassLabel || "Sem turma";
     const unitLabel = unit || "Sem unidade";
-    return `${classLabel} • ${unitLabel}`;
-  }, [selectedClassName, unit]);
+    const modalityLabel = selectedClassModalityLabel || "Modalidade não informada";
+    return `${classLabel} ⬢ ${unitLabel} ⬢ ${modalityLabel}`;
+  }, [selectedClassLabel, selectedClassModalityLabel, unit]);
 
   const formatShortDate = (value: string) => {
     if (!value) return "";
@@ -1445,6 +1497,14 @@ export default function StudentsScreen() {
     return age;
   };
 
+  const hasBirthDateWarning = (birthDate: string) => {
+    const raw = String(birthDate ?? "").trim();
+    if (!raw) return false;
+    const age = calculateAge(raw);
+    if (age === null) return true;
+    return age < 5 || age > 60;
+  };
+
   const { onEdit } = useOnEditStudent({
     ageBandOptions,
     athleteLearningStyleOptions,
@@ -1465,6 +1525,7 @@ export default function StudentsScreen() {
     setEditingId,
     setEditingCreatedAt,
     setName,
+    setCollegeCourse,
     setPhotoUrl,
     setPhotoMimeType,
     setEditSnapshot,
@@ -1668,6 +1729,34 @@ export default function StudentsScreen() {
     }
     return sortClassesBySchedule(classes);
   }, [classes, unit, unitLabel]);
+  const selectedClassModality = useMemo(
+    () => classById.get(classId)?.modality ?? null,
+    [classById, classId]
+  );
+  const classModalities = useMemo(
+    () => Array.from(new Set(classOptions.map((item) => item.modality))),
+    [classOptions]
+  );
+  const filteredClassOptions = useMemo(
+    () =>
+      classModalityFilter === "all"
+        ? classOptions
+        : classOptions.filter((item) => item.modality === classModalityFilter),
+    [classModalityFilter, classOptions]
+  );
+
+  useEffect(() => {
+    if (!showClassPicker) return;
+    setClassModalityFilter(selectedClassModality ?? "all");
+  }, [selectedClassModality, showClassPicker]);
+
+  useEffect(() => {
+    if (!showClassPicker) return;
+    if (classModalityFilter === "all") return;
+    if (!classModalities.includes(classModalityFilter)) {
+      setClassModalityFilter(selectedClassModality ?? "all");
+    }
+  }, [classModalities, classModalityFilter, selectedClassModality, showClassPicker]);
 
   const getClassLabel = (cls: ClassGroup) => {
     const start = cls.startTime || "";
@@ -1769,7 +1858,7 @@ export default function StudentsScreen() {
     });
   }, [birthdayUnitFilter, classById, students, unitLabel]);
   const birthdayVisibleStudents = useMemo(() => {
-    const query = normalizeSearch(birthdaySearch);
+    const query = normalizeSearch(debouncedBirthdaySearch);
     const hasQuery = query.length > 0;
     return birthdayFilteredStudents.filter((student) => {
       if (!student.birthDate) return false;
@@ -1794,7 +1883,7 @@ export default function StudentsScreen() {
   }, [
     birthdayFilteredStudents,
     birthdayMonthFilter,
-    birthdaySearch,
+    debouncedBirthdaySearch,
     classById,
     normalizeSearch,
     unitLabel,
@@ -1807,7 +1896,7 @@ export default function StudentsScreen() {
             const cls = classById.get(student.classId) ?? null;
             return unitLabel(cls?.unit ?? "") === studentsUnitFilter;
           });
-    const query = normalizeSearch(studentsSearch);
+    const query = normalizeSearch(debouncedStudentsSearch);
     if (!query) return filteredByUnit;
     return filteredByUnit.filter((student) => {
       const cls = classById.get(student.classId) ?? null;
@@ -1818,7 +1907,7 @@ export default function StudentsScreen() {
       );
       return haystack.includes(query);
     });
-  }, [studentsUnitFilter, classById, students, unitLabel, normalizeSearch, studentsSearch]);
+  }, [studentsUnitFilter, classById, students, unitLabel, normalizeSearch, debouncedStudentsSearch]);
   const studentsByClassId = useMemo(() => {
     const byClass = new Map<string, Student[]>();
     studentsFiltered.forEach((student) => {
@@ -1943,7 +2032,7 @@ export default function StudentsScreen() {
     () => [
       { id: "alunos" as const, label: "Alunos", count: students.length },
       { id: "cadastro" as const, label: "Cadastro", count: null },
-      { id: "aniversários" as const, label: "Aniversários", count: birthdayTodayAll.length },
+      { id: "aniversarios" as const, label: "Aniversários", count: birthdayTodayAll.length },
     ],
     [students.length, birthdayTodayAll.length]
   );
@@ -2041,10 +2130,13 @@ export default function StudentsScreen() {
         onWhatsApp: (student: Student) => void;
         onInvite: (student: Student) => void;
         onPhotoPress: (student: Student) => void;
+        className: string;
+        unitName: string;
         classPalette: { bg: string; text: string };
       }) {
         const contact = getContactPhone(item);
         const disabled = contact.status === "missing";
+        const birthDateWarning = hasBirthDateWarning(item.birthDate);
         const nameParts = item.name.trim().split(/\s+/);
         const shortName = nameParts.slice(0, 2).join(" ");
         const restName = nameParts.slice(2).join(" ");
@@ -2056,7 +2148,7 @@ export default function StudentsScreen() {
               borderRadius: 18,
               backgroundColor: colors.background,
               borderWidth: 1,
-              borderColor: classPalette.bg,
+              borderColor: birthDateWarning ? colors.dangerSolidBg : classPalette.bg,
               shadowColor: "#000",
               shadowOpacity: 0.08,
               shadowRadius: 12,
@@ -2067,6 +2159,27 @@ export default function StudentsScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <View style={{ flex: 1, gap: 6, minWidth: 0 }}>
+                {birthDateWarning ? (
+                  <View
+                    style={{
+                      alignSelf: "flex-start",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                      borderWidth: 1,
+                      borderColor: colors.dangerSolidBg,
+                      backgroundColor: colors.dangerBg,
+                      borderRadius: 999,
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                    }}
+                  >
+                    <Ionicons name="alert-circle" size={12} color={colors.dangerText} />
+                    <Text style={{ color: colors.dangerText, fontSize: 10, fontWeight: "800" }}>
+                      Data suspeita
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <Pressable
                     onPress={() => onPhotoPress(item)}
@@ -2177,16 +2290,7 @@ export default function StudentsScreen() {
         isFirst: boolean;
       }) {
         return (
-          <Pressable
-            onPress={() => onSelect(value)}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 12,
-              borderRadius: 14,
-              marginVertical: 3,
-              backgroundColor: active ? colors.primaryBg : colors.card,
-            }}
-          >
+          <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
             <Text
               style={{
                 color: active ? colors.primaryText : colors.text,
@@ -2196,7 +2300,7 @@ export default function StudentsScreen() {
             >
               {label}
             </Text>
-          </Pressable>
+          </AnchoredDropdownOption>
         );
       }),
     [colors]
@@ -2216,15 +2320,10 @@ export default function StudentsScreen() {
         isFirst: boolean;
       }) {
         return (
-          <Pressable
+          <AnchoredDropdownOption
+            active={active}
             onPress={() => onSelect(item)}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 12,
-              borderRadius: 14,
-              marginVertical: 3,
-              backgroundColor: active ? colors.primaryBg : colors.card,
-            }}
+            rightAccessory={<ClassGenderBadge gender={item.gender} />}
           >
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
               <Text
@@ -2236,7 +2335,6 @@ export default function StudentsScreen() {
               >
                 {getClassLabel(item)}
               </Text>
-              <ClassGenderBadge gender={item.gender} />
             </View>
             <Text
               style={{
@@ -2247,7 +2345,7 @@ export default function StudentsScreen() {
             >
               {unitLabel(item.unit)}
             </Text>
-          </Pressable>
+          </AnchoredDropdownOption>
         );
       }),
     [colors, getClassLabel, unitLabel]
@@ -2275,16 +2373,18 @@ export default function StudentsScreen() {
               bg: colors.primaryBg,
               text: colors.primaryText,
             });
-      return (
-        <StudentRow
-          item={item}
-          onPress={onEdit}
-          onWhatsApp={openStudentWhatsApp}
-          onInvite={onGenerateInviteFromList}
-          onPhotoPress={openPhotoPreview}
-          classPalette={classPalette}
-        />
-      );
+        return (
+          <StudentRow
+            item={item}
+            onPress={onEdit}
+            onWhatsApp={openStudentWhatsApp}
+            onInvite={onGenerateInviteFromList}
+            onPhotoPress={openPhotoPreview}
+            className={classNameOverride}
+            unitName={unitName}
+            classPalette={classPalette}
+          />
+        );
     },
     [
       StudentRow,
@@ -2313,36 +2413,7 @@ export default function StudentsScreen() {
   }, [router]);
 
   if (loading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
-          <View style={{ gap: 10 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Pressable
-                onPress={goBackFromStudents}
-                style={{ flexDirection: "row", alignItems: "center" }}
-              >
-                <Ionicons name="chevron-back" size={20} color={colors.text} />
-              </Pressable>
-              <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
-            </View>
-            <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
-          </View>
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 38, borderRadius: 20 }} />
-            <ShimmerBlock style={{ height: 38, borderRadius: 20 }} />
-          </View>
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 38, borderRadius: 20 }} />
-          </View>
-          <View style={{ gap: 12 }}>
-            {Array.from({ length: 5 }).map((_, index) => (
-              <ShimmerBlock key={`student-shimmer-${index}`} style={{ height: 72, borderRadius: 18 }} />
-            ))}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
+    return <ScreenLoadingState />;
   }
 
   return (
@@ -2484,134 +2555,145 @@ export default function StudentsScreen() {
           </View>
         </View>
 
-        {studentsTab === "cadastro" && (
-          <StudentRegistrationTab
-            colors={colors}
-            selectFieldStyle={selectFieldStyle}
-            photoUrl={photoUrl}
-            setShowPhotoSheet={setShowPhotoSheet}
-            isExperimental={isExperimental}
-            showTypePicker={showTypePicker}
-            typeTriggerRef={typeTriggerRef}
-            toggleFormPicker={toggleFormPicker}
-            openCreateSection={openCreateSection}
-            toggleCreateSection={toggleCreateSection}
-            createStudentDataAnim={createStudentDataAnim}
-            createDocumentsAnim={createDocumentsAnim}
-            createSportAnim={createSportAnim}
-            createHealthAnim={createHealthAnim}
-            createGuardianAnim={createGuardianAnim}
-            name={name}
-            setName={setName}
-            formatName={formatName}
-            unit={unit}
-            showUnitPicker={showUnitPicker}
-            unitTriggerRef={unitTriggerRef}
-            selectedClassName={selectedClassName}
-            showClassPicker={showClassPicker}
-            classTriggerRef={classTriggerRef}
-            studentFormError={studentFormError}
-            birthDate={birthDate}
-            setBirthDate={setBirthDate}
-            setShowCalendar={setShowCalendar}
-            ageNumber={ageNumber}
-            phone={phone}
-            setPhone={setPhone}
-            formatPhone={formatPhone}
-            ra={ra}
-            setRa={setRa}
-            setStudentDocumentsError={setStudentDocumentsError}
-            cpfDisplay={cpfDisplay}
-            setCpfDisplay={setCpfDisplay}
-            setIsCpfVisible={setIsCpfVisible}
-            setCpfRevealedValue={setCpfRevealedValue}
-            setCpfRevealUnavailable={setCpfRevealUnavailable}
-            rgDocument={rgDocument}
-            setRgDocument={setRgDocument}
-            editingId={editingId}
-            canRevealCpf={canRevealCpf}
-            isCpfVisible={isCpfVisible}
-            revealCpfBusy={revealCpfBusy}
-            handleRevealEditingCpf={handleRevealEditingCpf}
-            studentDocumentsError={studentDocumentsError}
-            loginEmail={loginEmail}
-            setLoginEmail={setLoginEmail}
-            formatEmail={formatEmail}
-            positionPrimary={positionPrimary}
-            setPositionPrimary={setPositionPrimary}
-            positionSecondary={positionSecondary}
-            setPositionSecondary={setPositionSecondary}
-            athleteObjective={athleteObjective}
-            setAthleteObjective={setAthleteObjective}
-            learningStyle={learningStyle}
-            setLearningStyle={setLearningStyle}
-            healthIssue={healthIssue}
-            setHealthIssue={setHealthIssue}
-            healthIssueNotes={healthIssueNotes}
-            setHealthIssueNotes={setHealthIssueNotes}
-            medicationUse={medicationUse}
-            setMedicationUse={setMedicationUse}
-            medicationNotes={medicationNotes}
-            setMedicationNotes={setMedicationNotes}
-            healthObservations={healthObservations}
-            setHealthObservations={setHealthObservations}
-            guardianName={guardianName}
-            setGuardianName={setGuardianName}
-            guardianPhone={guardianPhone}
-            setGuardianPhone={setGuardianPhone}
-            guardianRelation={guardianRelation}
-            showGuardianRelationPicker={showGuardianRelationPicker}
-            guardianRelationTriggerRef={guardianRelationTriggerRef}
-            canSaveStudent={canSaveStudent}
-            onSave={onSave}
-            isFormDirty={isFormDirty}
-            doResetForm={doResetForm}
-            confirmDialog={confirmDialog}
-          />
-        )}
+        <Suspense
+          fallback={
+            <View style={{ gap: 12, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
+              <ShimmerBlock style={{ height: 28, width: 160, borderRadius: 12 }} />
+              <ShimmerBlock style={{ height: 140, borderRadius: 18 }} />
+              <ShimmerBlock style={{ height: 260, borderRadius: 18 }} />
+            </View>
+          }
+        >
+          {studentsTab === "cadastro" && (
+            <StudentRegistrationTab
+              colors={colors}
+              selectFieldStyle={selectFieldStyle}
+              photoUrl={photoUrl}
+              setShowPhotoSheet={setShowPhotoSheet}
+              isExperimental={isExperimental}
+              showTypePicker={showTypePicker}
+              typeTriggerRef={typeTriggerRef}
+              toggleFormPicker={toggleFormPicker}
+              openCreateSection={openCreateSection}
+              toggleCreateSection={toggleCreateSection}
+              createStudentDataAnim={createStudentDataAnim}
+              createAcademicAnim={createAcademicAnim}
+              createDocumentsAnim={createDocumentsAnim}
+              createSportAnim={createSportAnim}
+              createHealthAnim={createHealthAnim}
+              createGuardianAnim={createGuardianAnim}
+              name={name}
+              setName={setName}
+              formatName={formatName}
+              unit={unit}
+              showUnitPicker={showUnitPicker}
+              unitTriggerRef={unitTriggerRef}
+              selectedClassName={selectedClassName}
+              showClassPicker={showClassPicker}
+              classTriggerRef={classTriggerRef}
+              studentFormError={studentFormError}
+              birthDate={birthDate}
+              setBirthDate={setBirthDate}
+              setShowCalendar={setShowCalendar}
+              ageNumber={ageNumber}
+              phone={phone}
+              setPhone={setPhone}
+              formatPhone={formatPhone}
+              ra={ra}
+              setRa={setRa}
+              collegeCourse={collegeCourse}
+              setCollegeCourse={setCollegeCourse}
+              setStudentDocumentsError={setStudentDocumentsError}
+              cpfDisplay={cpfDisplay}
+              setCpfDisplay={setCpfDisplay}
+              setIsCpfVisible={setIsCpfVisible}
+              setCpfRevealedValue={setCpfRevealedValue}
+              setCpfRevealUnavailable={setCpfRevealUnavailable}
+              rgDocument={rgDocument}
+              setRgDocument={setRgDocument}
+              editingId={editingId}
+              canRevealCpf={canRevealCpf}
+              isCpfVisible={isCpfVisible}
+              revealCpfBusy={revealCpfBusy}
+              handleRevealEditingCpf={handleRevealEditingCpf}
+              studentDocumentsError={studentDocumentsError}
+              loginEmail={loginEmail}
+              setLoginEmail={setLoginEmail}
+              formatEmail={formatEmail}
+              positionPrimary={positionPrimary}
+              setPositionPrimary={setPositionPrimary}
+              positionSecondary={positionSecondary}
+              setPositionSecondary={setPositionSecondary}
+              athleteObjective={athleteObjective}
+              setAthleteObjective={setAthleteObjective}
+              learningStyle={learningStyle}
+              setLearningStyle={setLearningStyle}
+              healthIssue={healthIssue}
+              setHealthIssue={setHealthIssue}
+              healthIssueNotes={healthIssueNotes}
+              setHealthIssueNotes={setHealthIssueNotes}
+              medicationUse={medicationUse}
+              setMedicationUse={setMedicationUse}
+              medicationNotes={medicationNotes}
+              setMedicationNotes={setMedicationNotes}
+              healthObservations={healthObservations}
+              setHealthObservations={setHealthObservations}
+              guardianName={guardianName}
+              setGuardianName={setGuardianName}
+              guardianPhone={guardianPhone}
+              setGuardianPhone={setGuardianPhone}
+              guardianRelation={guardianRelation}
+              showGuardianRelationPicker={showGuardianRelationPicker}
+              guardianRelationTriggerRef={guardianRelationTriggerRef}
+              canSaveStudent={canSaveStudent}
+              onSave={onSave}
+              isFormDirty={isFormDirty}
+              doResetForm={doResetForm}
+              confirmDialog={confirmDialog}
+            />
+          )}
 
-        {studentsTab === "aniversários" && (
-          <BirthdaysTab
-            colors={colors}
-            birthdayMonthFilter={birthdayMonthFilter}
-            setBirthdayMonthFilter={setBirthdayMonthFilter}
-            birthdaySearch={birthdaySearch}
-            setBirthdaySearch={setBirthdaySearch}
-            birthdayToday={birthdayToday}
-            upcomingBirthdays={upcomingBirthdays}
-            showAllBirthdays={showAllBirthdays}
-            setShowAllBirthdays={setShowAllBirthdays}
-            showAllBirthdaysContent={showAllBirthdaysContent}
-            allBirthdaysAnimStyle={allBirthdaysAnimStyle}
-            birthdayUnitOptions={birthdayUnitOptions}
-            birthdayUnitFilter={birthdayUnitFilter}
-            setBirthdayUnitFilter={setBirthdayUnitFilter}
-            birthdayMonthGroups={birthdayMonthGroups}
-            classById={classById}
-            unitLabel={unitLabel}
-            calculateAge={calculateAge}
-            formatShortDate={formatShortDate}
-          />
-        )}
+          {studentsTab === "aniversarios" && (
+            <BirthdaysTab
+              colors={colors}
+              birthdayMonthFilter={birthdayMonthFilter}
+              setBirthdayMonthFilter={setBirthdayMonthFilter}
+              birthdaySearch={birthdaySearch}
+              setBirthdaySearch={setBirthdaySearch}
+              birthdayToday={birthdayToday}
+              upcomingBirthdays={upcomingBirthdays}
+              showAllBirthdays={showAllBirthdays}
+              setShowAllBirthdays={setShowAllBirthdays}
+              showAllBirthdaysContent={showAllBirthdaysContent}
+              allBirthdaysAnimStyle={allBirthdaysAnimStyle}
+              birthdayUnitOptions={birthdayUnitOptions}
+              birthdayUnitFilter={birthdayUnitFilter}
+              setBirthdayUnitFilter={setBirthdayUnitFilter}
+              birthdayMonthGroups={birthdayMonthGroups}
+              classById={classById}
+              unitLabel={unitLabel}
+              calculateAge={calculateAge}
+              formatShortDate={formatShortDate}
+            />
+          )}
 
-
-
-        {studentsTab === "alunos" && (
-          <StudentsListTab
-            studentsUnitOptions={studentsUnitOptions}
-            studentsUnitFilter={studentsUnitFilter}
-            setStudentsUnitFilter={setStudentsUnitFilter}
-            studentsSearch={studentsSearch}
-            setStudentsSearch={setStudentsSearch}
-            studentsFiltered={studentsFiltered}
-            studentsGrouped={studentsGrouped}
-            expandedUnits={expandedUnits}
-            expandedClasses={expandedClasses}
-            toggleUnitExpanded={toggleUnitExpanded}
-            toggleClassExpanded={toggleClassExpanded}
-            renderStudentItem={renderStudentItem}
-          />
-        )}
+          {studentsTab === "alunos" && (
+            <StudentsListTab
+              studentsUnitOptions={studentsUnitOptions}
+              studentsUnitFilter={studentsUnitFilter}
+              setStudentsUnitFilter={setStudentsUnitFilter}
+              studentsSearch={studentsSearch}
+              setStudentsSearch={setStudentsSearch}
+              studentsFiltered={studentsFiltered}
+              studentsGrouped={studentsGrouped}
+              expandedUnits={expandedUnits}
+              expandedClasses={expandedClasses}
+              toggleUnitExpanded={toggleUnitExpanded}
+              toggleClassExpanded={toggleClassExpanded}
+              renderStudentItem={renderStudentItem}
+            />
+          )}
+        </Suspense>
 
       </ScrollView>
 
@@ -2737,16 +2819,30 @@ export default function StudentsScreen() {
           }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
-          { classOptions.length ? (
-            classOptions.map((item, index) => (
-              <ClassOption
-                key={item.id}
-                item={item}
-                active={item.id === classId}
-                onSelect={handleSelectClass}
-                isFirst={index === 0}
+          {classOptions.length ? (
+            <View style={{ gap: 10 }}>
+              <ClassModalityFilterChips
+                colors={colors}
+                value={classModalityFilter}
+                modalities={classModalities}
+                onChange={setClassModalityFilter}
               />
-            ))
+              {filteredClassOptions.length ? (
+                filteredClassOptions.map((item, index) => (
+                  <ClassOption
+                    key={item.id}
+                    item={item}
+                    active={item.id === classId}
+                    onSelect={handleSelectClass}
+                    isFirst={index === 0}
+                  />
+                ))
+              ) : (
+                <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+                  Nenhuma turma dessa modalidade nesta unidade.
+                </Text>
+              )}
+            </View>
           ) : (
             <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
               Nenhuma turma encontrada.
@@ -2858,6 +2954,7 @@ export default function StudentsScreen() {
         openEditSection={openEditSection}
         toggleEditSection={toggleEditSection}
         editStudentDataAnim={editStudentDataAnim}
+        editAcademicAnim={editAcademicAnim}
         editDocumentsAnim={editDocumentsAnim}
         editSportAnim={editSportAnim}
         editHealthAnim={editHealthAnim}
@@ -2865,6 +2962,8 @@ export default function StudentsScreen() {
         editLinksAnim={editLinksAnim}
         name={name}
         setName={setName}
+        collegeCourse={collegeCourse}
+        setCollegeCourse={setCollegeCourse}
         loginEmail={loginEmail}
         setLoginEmail={setLoginEmail}
         birthDate={birthDate}
@@ -2893,6 +2992,7 @@ export default function StudentsScreen() {
         setCpfRevealedValue={setCpfRevealedValue}
         setCpfRevealUnavailable={setCpfRevealUnavailable}
         setStudentDocumentsError={setStudentDocumentsError}
+        editAcademicSummary={editAcademicSummary}
         editDocumentsSummary={editDocumentsSummary}
         positionPrimary={positionPrimary}
         setPositionPrimary={setPositionPrimary}
@@ -2931,7 +3031,7 @@ export default function StudentsScreen() {
         unit={unit}
         editUnitTriggerRef={editUnitTriggerRef}
         showEditUnitPicker={showEditUnitPicker}
-        selectedClassName={selectedClassName}
+        selectedClassName={selectedClassLabel}
         editClassTriggerRef={editClassTriggerRef}
         showEditClassPicker={showEditClassPicker}
         editLinksSummary={editLinksSummary}

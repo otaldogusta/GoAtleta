@@ -20,9 +20,9 @@ import {
 import { markRender, measureAsync } from "../../../observability/perf";
 import { useOrganization } from "../../../providers/OrganizationProvider";
 import { Pressable } from "../../../ui/Pressable";
-import { ShimmerBlock } from "../../../ui/Shimmer";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getGlassCardStyle } from "../../../ui/glass-styles";
+import { SectionLoadingState } from "../../../components/ui/SectionLoadingState";
 
 type LegacyPendingAttendance = Partial<AdminPendingAttendance> & {
   class_id?: string;
@@ -189,11 +189,8 @@ const AdminOverview = memo(function AdminOverview({
 
   if (loading) {
     return (
-      <View style={styles.metricsGrid}>
-        <ShimmerBlock style={styles.metricShimmer} />
-        <ShimmerBlock style={styles.metricShimmer} />
-        <ShimmerBlock style={styles.metricShimmer} />
-        <ShimmerBlock style={styles.metricShimmer} />
+      <View style={{ gap: 12 }}>
+        <SectionLoadingState />
       </View>
     );
   }

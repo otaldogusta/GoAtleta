@@ -79,7 +79,7 @@ export function AnimatedBottomTabs({
   }, [iconAnim, menuOpen]);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener("blur", () => {
+    const unsubscribe = (navigation as any).addListener("blur", () => {
       setMenuOpen(false);
     });
     return unsubscribe;

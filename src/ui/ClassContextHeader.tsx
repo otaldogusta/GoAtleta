@@ -9,6 +9,7 @@ import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
 import { LocationBadge } from "./LocationBadge";
 import { Pressable } from "./Pressable";
 import { getUnitPalette } from "./unit-colors";
+import { useIsOnline } from "../hooks/use-is-online";
 
 const decodeUnicodeEscapes = (value: string) => {
   let current = value;
@@ -74,7 +75,7 @@ type ClassContextHeaderProps = {
   gender: ClassGender;
   dateLabel: string;
   timeLabel: string;
-  notice: string;
+  notice?: string;
   classColorKey: string | null;
   scheduleFormat?: "split" | "combined";
 };
@@ -93,6 +94,7 @@ export function ClassContextHeader({
 }: ClassContextHeaderProps) {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const isOnline = useIsOnline();
   const unitLabel = unit?.trim() ?? "";
   const safeTitle = normalizeText(title);
   const safeClassName = normalizeText(className);
@@ -100,7 +102,7 @@ export function ClassContextHeader({
   const safeAgeBand = normalizeText(ageBand ?? "");
   const safeDateLabel = normalizeText(dateLabel);
   const safeTimeLabel = normalizeText(timeLabel);
-  const safeNotice = normalizeText(notice);
+  const safeNotice = normalizeText(notice ?? "");
   const unitPalette = unitLabel ? getUnitPalette(unitLabel, colors) : null;
   const classPalette = getClassPalette(classColorKey, colors, unitLabel);
   const hasCombinedSchedule = scheduleFormat === "combined" && !!dateLabel && !!timeLabel;
@@ -143,7 +145,8 @@ export function ClassContextHeader({
               width: 8,
               height: 8,
               borderRadius: 999,
-              backgroundColor: classPalette.bg,
+              backgroundColor: isOnline ? classPalette.bg : colors.border,
+              opacity: isOnline ? 1 : 0.45,
             }}
           />
           <Text numberOfLines={1} style={{ fontSize: 18, fontWeight: "700", color: colors.text, maxWidth: 140 }}>

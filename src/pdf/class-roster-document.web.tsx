@@ -1,13 +1,6 @@
 import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
-// @ts-expect-error no types for browser bundle entry
-import {
-    Document,
-    Page,
-    StyleSheet,
-    Text,
-    View,
-} from "@react-pdf/renderer/lib/react-pdf.browser";
+import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer/lib/react-pdf.browser";
 import type { ClassRosterPdfData, ClassRosterRow } from "./templates/class-roster";
 
 const styles = StyleSheet.create({
@@ -21,11 +14,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "bold",
   },
-  subtitle: {
-    color: "#555",
-    lineHeight: 1.35,
-    fontSize: 9,
-  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -34,7 +22,6 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: "#e6e6e6",
-    gap: 12,
   },
   headerLeft: { flex: 1, minWidth: 0 },
   headerTitle: { flexDirection: "row", alignItems: "baseline", gap: 8 },
@@ -51,7 +38,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
-    gap: 6,
   },
   metaItem: { flexDirection: "row", gap: 4 },
   metaLabel: { color: "#666", fontWeight: "bold" },
@@ -68,7 +54,6 @@ const styles = StyleSheet.create({
   coach: { marginTop: 6, fontSize: 9, color: "#444" },
   layout: {
     flexDirection: "row",
-    gap: 10,
     width: "100%",
   },
   leftColumn: {
@@ -76,8 +61,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   rightColumn: {
-    width: 260,
+    width: 250,
     flexShrink: 0,
+    marginLeft: 24,
   },
   table: {
     borderWidth: 1,
@@ -104,17 +90,16 @@ const styles = StyleSheet.create({
   },
   colIndex: { width: 22, textAlign: "center" },
   colBirth: { width: 56, textAlign: "center" },
+  colCourse: { width: 96, textAlign: "left" },
   colContact: { width: 104 },
   colTotal: { width: 44, textAlign: "center" },
   colName: { width: 150 },
-  colFund: { width: 110 },
   colDay: { flexGrow: 1, flexBasis: 0, minWidth: 12, textAlign: "center" },
-  colDayRight: { flexGrow: 1, flexBasis: 0, minWidth: 10, textAlign: "center" },
   block: {
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 8,
-    padding: 6,
+    padding: 10,
     backgroundColor: "#fafafa",
   },
   blockTitle: {
@@ -122,8 +107,102 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 4,
   },
+  fundTable: {
+    borderWidth: 1,
+    borderColor: "#d9d9d9",
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+  },
+  fundTableRow: {
+    flexDirection: "row",
+  },
+  fundTableHeader: {
+    backgroundColor: "#f2f2f2",
+    borderBottomWidth: 1,
+    borderBottomColor: "#d9d9d9",
+  },
+  fundLabelHead: {
+    width: 108,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    fontSize: 9,
+    fontWeight: "bold",
+    textAlign: "left",
+    borderRightWidth: 1,
+    borderRightColor: "#d9d9d9",
+  },
+  fundDayHead: {
+    width: 28,
+    paddingVertical: 4,
+    textAlign: "center",
+    fontSize: 9,
+    fontWeight: "bold",
+    borderRightWidth: 1,
+    borderRightColor: "#d9d9d9",
+  },
+  fundLabelCell: {
+    width: 108,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    fontSize: 9,
+    fontWeight: "bold",
+    borderRightWidth: 1,
+    borderRightColor: "#d9d9d9",
+    borderBottomWidth: 1,
+    borderBottomColor: "#d9d9d9",
+  },
+  fundDayCell: {
+    width: 28,
+    paddingVertical: 4,
+    textAlign: "center",
+    fontSize: 9,
+    fontWeight: "bold",
+    borderRightWidth: 1,
+    borderRightColor: "#d9d9d9",
+    borderBottomWidth: 1,
+    borderBottomColor: "#d9d9d9",
+  },
+  fundList: {
+    gap: 6,
+  },
+  fundRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    backgroundColor: "#fff",
+  },
+  fundBox: {
+    width: 14,
+    height: 14,
+    borderWidth: 1,
+    borderColor: "#777",
+    borderRadius: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 8,
+    lineHeight: 1,
+    color: "#111",
+  },
+  fundBoxActive: {
+    backgroundColor: "#111",
+    borderColor: "#111",
+  },
+  fundBoxTextActive: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  fundLabel: {
+    flex: 1,
+    minWidth: 0,
+  },
   notes: {
-    marginTop: 8,
+    marginTop: 18,
     backgroundColor: "#fff",
   },
   notesLine: {
@@ -132,7 +211,7 @@ const styles = StyleSheet.create({
     height: 14,
   },
   footer: {
-    marginTop: 8,
+    marginTop: 12,
     fontSize: 8,
     color: "#666",
     borderTopWidth: 1,
@@ -143,62 +222,28 @@ const styles = StyleSheet.create({
   },
 });
 
-const renderRowCells = (
-  row: ClassRosterRow,
-  isWhatsApp: boolean
-) => {
-  const isEmpty = !row.studentName;
-  if (isWhatsApp) {
-    return [
-      { key: "index", text: String(row.index), style: styles.colIndex },
-      { key: "name", text: row.studentName, style: styles.colName },
-      {
-        key: "contact",
-        text: isEmpty
-          ? ""
-          : `${row.contactLabel ?? "-"} ${row.contactPhone ?? ""}`.trim(),
-        style: styles.colContact,
-      },
-    ];
-  }
-
-  return [
-    { key: "index", text: String(row.index), style: styles.colIndex },
-    { key: "name", text: row.studentName, style: styles.colName },
-    {
-      key: "birth",
-      text: isEmpty ? "" : row.birthDate ?? "-",
-      style: styles.colBirth,
-    },
-  ];
-};
-
 export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
-  const isWhatsApp = data.mode === "whatsapp";
-  const minRows = 20;
-  const paddedRows =
-    data.rows.length >= minRows
-    ? data.rows
+  const showAttendance = data.includeAttendance !== false;
+  const showBirthDate = data.includeBirthDate !== false;
+  const showCourse = data.includeCourse === true;
+  const showContact = data.includeContact === true;
+  const showFundamentals = data.includeFundamentals !== false;
+  const paddedRows: ClassRosterRow[] =
+    data.rows.length >= 20
+      ? data.rows
       : [
           ...data.rows,
-          ...Array.from({ length: minRows - data.rows.length }, (_, idx) => ({
+          ...Array.from({ length: 20 - data.rows.length }, (_, idx) => ({
             index: data.rows.length + idx + 1,
             studentName: "",
             birthDate: "",
+            collegeCourse: "",
             contactLabel: "",
             contactPhone: "",
+            attendance: undefined,
+            total: undefined,
           })),
         ];
-  const headerCells = renderRowCells(
-    {
-      index: 0,
-      studentName: "Atletas",
-      birthDate: "Nasc",
-      contactLabel: "Contato",
-      contactPhone: "",
-    },
-    isWhatsApp
-  );
 
   return (
     <Document>
@@ -250,60 +295,66 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
           <View style={styles.leftColumn}>
             <View style={styles.table}>
               <View style={styles.row}>
-                {headerCells.map((cell) => (
-                  <Text
-                    key={`header-${cell.key}`}
-                    style={[styles.cell, styles.headerCell, cell.style]}
-                  >
-                    {cell.text}
+                <Text style={[styles.cell, styles.headerCell, styles.colIndex]}>#</Text>
+                <Text style={[styles.cell, styles.headerCell, styles.colName]}>Atletas</Text>
+                {showBirthDate ? (
+                  <Text style={[styles.cell, styles.headerCell, styles.colBirth]}>Nasc</Text>
+                ) : null}
+                {showCourse ? (
+                  <Text style={[styles.cell, styles.headerCell, styles.colCourse]}>Curso</Text>
+                ) : null}
+                {showContact ? (
+                  <Text style={[styles.cell, styles.headerCell, styles.colContact]}>Contato</Text>
+                ) : null}
+                {showAttendance
+                  ? data.monthDays.map((day) => (
+                      <Text key={`day-${day}`} style={[styles.cell, styles.headerCell, styles.colDay]}>
+                        {day}
+                      </Text>
+                    ))
+                  : null}
+                {showAttendance ? (
+                  <Text style={[styles.cell, styles.headerCell, styles.colTotal]} wrap={false}>
+                    Total
                   </Text>
-                ))}
-                {data.monthDays.map((day) => (
-                  <Text
-                    key={`day-${day}`}
-                    style={[
-                      styles.cell,
-                      styles.headerCell,
-                      styles.colDay,
-                    ]}
-                  >
-                    {day}
-                  </Text>
-                ))}
-                <Text style={[styles.cell, styles.headerCell, styles.colTotal]} wrap={false}>
-                  Total
-                </Text>
+                ) : null}
               </View>
-              {paddedRows.length ? (
-                paddedRows.map((row, idx) => {
-                  const cells = renderRowCells(row, isWhatsApp);
-                  return (
+              {paddedRows.length
+                ? paddedRows.map((row, idx) => (
                     <View
                       key={`row-${row.index}`}
-                      style={[styles.row, idx % 2 === 1 ? styles.rowAlt : null]}
+                      style={idx % 2 === 1 ? [styles.row, styles.rowAlt] : styles.row}
                     >
-                      {cells.map((cell) => (
-                        <Text key={`${row.index}-${cell.key}`} style={[styles.cell, cell.style]}>
-                          {cell.text}
+                      <Text style={[styles.cell, styles.colIndex]}>{row.index}</Text>
+                      <Text style={[styles.cell, styles.colName]}>{row.studentName}</Text>
+                      {showBirthDate ? (
+                        <Text style={[styles.cell, styles.colBirth]}>{row.studentName ? row.birthDate ?? "-" : ""}</Text>
+                      ) : null}
+                      {showCourse ? (
+                        <Text style={[styles.cell, styles.colCourse]}>
+                          {row.studentName ? row.collegeCourse ?? "-" : ""}
                         </Text>
-                      ))}
-                      {data.monthDays.map((day) => (
-                        <Text
-                          key={`${row.index}-day-${day}`}
-                          style={[styles.cell, styles.colDay]}
-                        >
-                          {data.includeAttendance
-                            ? row.attendance?.[day] ?? ""
-                            : ""}
+                      ) : null}
+                      {showContact ? (
+                        <Text style={[styles.cell, styles.colContact]}>
+                          {row.studentName ? `${row.contactLabel ?? "-"} ${row.contactPhone ?? ""}`.trim() : ""}
                         </Text>
-                      ))}
-                      <Text style={[styles.cell, styles.colTotal]}>
-                        {typeof row.total === "number" ? String(row.total) : ""}
-                      </Text>
+                      ) : null}
+                      {showAttendance
+                        ? data.monthDays.map((day) => (
+                            <Text key={`${row.index}-day-${day}`} style={[styles.cell, styles.colDay]}>
+                              {row.attendance?.[day] ?? ""}
+                            </Text>
+                          ))
+                        : null}
+                      {showAttendance ? (
+                        <Text style={[styles.cell, styles.colTotal]}>
+                          {typeof row.total === "number" ? String(row.total) : ""}
+                        </Text>
+                      ) : null}
                     </View>
-                  );
-                })
-              ) : null}
+                  ))
+                : null}
             </View>
 
             <View style={styles.footer}>
@@ -313,41 +364,70 @@ export function ClassRosterDocument({ data }: { data: ClassRosterPdfData }) {
           </View>
 
           <View style={styles.rightColumn}>
-            <View style={styles.block}>
-              <Text style={styles.blockTitle}>Fundamentos trabalhados</Text>
-              <View style={styles.table}>
-                <View style={styles.row}>
-                  <Text style={[styles.cell, styles.headerCell, styles.colFund]}>
-                    Fundamento
-                  </Text>
-                  {data.monthDays.map((day) => (
-                    <Text
-                      key={`fund-day-${day}`}
-                      style={[
-                        styles.cell,
-                        styles.headerCell,
-                        styles.colDayRight,
-                      ]}
-                    >
-                      {day}
-                    </Text>
-                  ))}
-                </View>
-                {data.fundamentals.map((item, idx) => (
-                  <View key={`fund-${idx}`} style={styles.row}>
-                    <Text style={[styles.cell, styles.colFund]}>{item}</Text>
+            {showFundamentals ? (
+              <View style={styles.block}>
+                <Text style={styles.blockTitle}>Fundamentos trabalhados</Text>
+                <View style={styles.fundTable}>
+                  <View style={[styles.fundTableRow, styles.fundTableHeader]}>
+                    <Text style={styles.fundLabelHead}>Fundamento</Text>
                     {data.monthDays.map((day) => (
-                      <Text
-                        key={`fund-${idx}-day-${day}`}
-                        style={[styles.cell, styles.colDayRight]}
-                      >
-                        {" "}
+                      <Text key={`fund-head-${day}`} style={styles.fundDayHead}>
+                        {day}
                       </Text>
                     ))}
                   </View>
-                ))}
+                  {data.fundamentals.length ? (
+                    data.fundamentals.map((item, index) => {
+                      const key = data.fundamentalKeys?.[index] ?? item;
+                      return (
+                      <View key={key} style={styles.fundTableRow}>
+                        <Text
+                          style={[
+                            styles.fundLabelCell,
+                            index === data.fundamentals.length - 1
+                              ? { borderBottomWidth: 0 }
+                              : {},
+                          ]}
+                        >
+                          {item}
+                        </Text>
+                        {data.monthDays.map((day, dayIndex) => {
+                          const active = ((data.fundamentalsByDay ?? {})[day] ?? []).includes(key);
+                          return (
+                            <Text
+                              key={`fund-${key}-${day}`}
+                              style={[
+                                styles.fundDayCell,
+                                index === data.fundamentals.length - 1
+                                  ? { borderBottomWidth: 0 }
+                                  : {},
+                              ]}
+                            >
+                              {active ? "X" : ""}
+                            </Text>
+                          );
+                        })}
+                      </View>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.fundTableRow}>
+                      <Text style={styles.fundLabelCell}>Sem fundamentos</Text>
+                      {data.monthDays.map((day, dayIndex) => (
+                        <Text
+                          key={`fund-empty-${day}`}
+                          style={[
+                            styles.fundDayCell,
+                          ]}
+                        >
+                          {" "}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
+            ) : null}
 
             <View style={[styles.block, styles.notes]}>
               <Text style={styles.blockTitle}>Observações</Text>

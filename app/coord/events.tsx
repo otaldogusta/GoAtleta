@@ -1,5 +1,8 @@
-import EventsScreen from "../events";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function CoordEventsRoute() {
-  return <EventsScreen />;
-}
+const CoordEventsRoute = createLazyRoute(
+  () => import("../events"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando eventos..." />
+);
+
+export default CoordEventsRoute;

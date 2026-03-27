@@ -1,5 +1,9 @@
 import type { StudentImportRow } from "../../api/student-import";
-import { mapGoogleFormsRowToAthleteIntake } from "../../core/athlete-intake";
+import { extractDetectedModalities, mapGoogleFormsRowToAthleteIntake } from "../../core/athlete-intake";
+import { buildFormsClassSuggestions, type FormsClassSuggestionDiagnostics } from "../../core/intelligence/forms-class-suggestion";
+import type { ClassGroup } from "../../core/models";
+
+const PT_BR_LOCALE = "pt-BR";
 
 export type GoogleFormsRawRow = Record<string, string>;
 
@@ -9,15 +13,46 @@ export type LoadedGoogleFormsSheet = {
   sourceFilename: string;
   rows: StudentImportRow[];
   rawRows: GoogleFormsRawRow[];
+  classSuggestionDiagnostics: FormsClassSuggestionDiagnostics | null;
+  hasClassColumn: boolean;
+  detectedModalities: Array<{
+    normalized: string;
+    label: string;
+    count: number;
+    isVolleyball: boolean;
+  }>;
 };
 
 const toKey = (value: string) =>
   String(value ?? "")
+    .replace(/^\uFEFF/, "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
+    .toLocaleLowerCase(PT_BR_LOCALE)
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+
+const normalizeCsvText = (value: string) =>
+  String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+
+const decodeUtf8Csv = async (response: Response): Promise<string> => {
+  try {
+    const buffer = await response.arrayBuffer();
+    const textDecoder =
+      typeof TextDecoder !== "undefined"
+        ? new TextDecoder("utf-8", { fatal: false, ignoreBOM: true })
+        : null;
+    if (!textDecoder) {
+      return normalizeCsvText(await response.text());
+    }
+    return normalizeCsvText(textDecoder.decode(buffer));
+  } catch {
+    return normalizeCsvText(await response.text());
+  }
+};
 
 const matchesHeaderToken = (normalizedHeader: string, token: string) => {
   const normalizedToken = toKey(token);
@@ -195,16 +230,17 @@ export const mapGoogleFormsCsvToImportRows = (csvText: string): StudentImportRow
 
 export async function loadGoogleFormsSheetImport(
   value: string,
+  classes: ClassGroup[] = [],
   fetcher: typeof fetch = fetch
 ): Promise<LoadedGoogleFormsSheet> {
   const sheetId = extractGoogleSheetsId(value);
   if (!sheetId) {
-    throw new Error("Cole um link valido do Google Sheets ou o ID da planilha.");
+    throw new Error("Cole um link válido do Google Sheets ou o ID da planilha.");
   }
 
   const csvUrl = buildGoogleSheetsCsvUrl(value);
   if (!csvUrl) {
-    throw new Error("Nao foi possivel gerar a URL CSV da planilha.");
+    throw new Error("Não foi possível gerar a URL CSV da planilha.");
   }
 
   const response = await fetcher(csvUrl, {
@@ -214,31 +250,62 @@ export async function loadGoogleFormsSheetImport(
   });
 
   if (!response.ok) {
-    throw new Error("Nao foi possivel acessar a planilha. Verifique se ela esta publicada ou compartilhada.");
+    throw new Error("Não foi possível acessar a planilha. Verifique se ela está publicada ou compartilhada.");
   }
 
-  const csvText = await response.text();
-  const normalizedText = csvText.trim().toLowerCase();
+  const csvText = await decodeUtf8Csv(response);
+  const normalizedText = csvText.trim().toLocaleLowerCase(PT_BR_LOCALE);
   if (!normalizedText) {
-    throw new Error("A planilha nao retornou dados.");
+    throw new Error("A planilha não retornou dados.");
   }
   if (normalizedText.startsWith("<!doctype html") || normalizedText.startsWith("<html")) {
-    throw new Error("A planilha nao esta acessivel como CSV. Verifique o compartilhamento do Google Sheets.");
+    throw new Error("A planilha não está acessível como CSV. Verifique o compartilhamento do Google Sheets.");
   }
 
   const rawRows = mapGoogleFormsCsvToRawRows(csvText);
+  const hasClassColumn = rawRows.some((row) =>
+    Object.keys(row).some((header) => {
+      const normalizedHeader = toKey(header);
+      return ["turma", "categoria", "grupo", "unidade", "polo", "campus", "local"].some((token) =>
+        matchesHeaderToken(normalizedHeader, token)
+      );
+    })
+  );
+  const detectedModalities = extractDetectedModalities(rawRows);
   const rows = rawRows
     .map((row, index) => mapGoogleFormsObjectToImportRow(row, index + 2))
     .filter((item): item is StudentImportRow => Boolean(item));
   if (!rows.length) {
-    throw new Error("Nenhuma resposta valida foi encontrada na planilha.");
+    throw new Error("Nenhuma resposta válida foi encontrada na planilha.");
   }
+
+  const classSuggestionDiagnostics = classes.length
+    ? buildFormsClassSuggestions({ rows, classes })
+    : null;
+  const highConfidenceSuggestions = new Map(
+    (classSuggestionDiagnostics?.suggestions ?? [])
+      .filter((item) => item.confidence === "high")
+      .map((item) => [item.rowNumber, item] as const)
+  );
+  const remappedRows = rows.map((row) => {
+    const suggestion = highConfidenceSuggestions.get(Number(row.sourceRowNumber ?? 0));
+    if (!suggestion) return row;
+    return {
+      ...row,
+      classId: suggestion.suggestedClassId,
+      className: suggestion.suggestedClassName,
+      unit: suggestion.suggestedUnit,
+    };
+  });
 
   return {
     sheetId,
     csvUrl,
     sourceFilename: `google-forms-${sheetId}.csv`,
-    rows,
+    rows: remappedRows,
     rawRows,
+    classSuggestionDiagnostics,
+    hasClassColumn,
+    detectedModalities,
   };
 }

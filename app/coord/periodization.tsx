@@ -1,5 +1,8 @@
-import PeriodizationScreen from "../periodization";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function CoordPeriodizationRoute() {
-  return <PeriodizationScreen />;
-}
+const CoordPeriodizationRoute = createLazyRoute(
+  () => import("../periodization"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando periodização..." />
+);
+
+export default CoordPeriodizationRoute;

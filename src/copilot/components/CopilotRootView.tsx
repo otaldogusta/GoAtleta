@@ -152,7 +152,7 @@ export function CopilotRootView({
                   setActiveSignal(signal.id);
                   setInsightsView({
                     mode: "detail",
-                    category: signalToCategory(signal.type),
+                    category: signalToCategory(signal.type as Parameters<typeof signalToCategory>[0]),
                     itemId: signal.id,
                   });
                 }}
@@ -162,7 +162,7 @@ export function CopilotRootView({
                   {signal.title}
                 </Text>
                 <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-                  {categoryLabelById[signalToCategory(signal.type)]} - {regulationRelativeLabel(signal.detectedAt, nowMs)}
+                  {categoryLabelById[signalToCategory(signal.type as Parameters<typeof signalToCategory>[0])]} - {regulationRelativeLabel(signal.detectedAt, nowMs)}
                 </Text>
               </Pressable>
               {index < operationalContext.panel.attentionSignals.length - 1 ? (

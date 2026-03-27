@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -28,6 +28,7 @@ import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
+import { useConfirmDialog } from "../src/ui/confirm-dialog";
 
 type FormState = {
   label: string;
@@ -66,6 +67,7 @@ export default function RegulationSourcesScreen() {
   const { colors } = useAppTheme();
   const { session } = useAuth();
   const { activeOrganization, activeOrganizationId } = useOrganization();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const [loading, setLoading] = useState(true);
@@ -205,23 +207,23 @@ export default function RegulationSourcesScreen() {
     async (source: RegulationSource) => {
       const organizationId = activeOrganizationId ?? "";
       if (!organizationId) return;
-      Alert.alert("Remover fonte", `Deseja remover "${source.label}"?`, [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Remover",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteRegulationSource(source.id, organizationId);
-              await loadSources();
-            } catch (deleteError) {
-              Alert.alert("Erro", deleteError instanceof Error ? deleteError.message : "Falha ao remover.");
-            }
-          },
+      confirmDialog({
+        title: "Remover fonte?",
+        message: `Deseja remover "${source.label}"?`,
+        confirmLabel: "Remover",
+        cancelLabel: "Cancelar",
+        tone: "danger",
+        onConfirm: async () => {
+          try {
+            await deleteRegulationSource(source.id, organizationId);
+            await loadSources();
+          } catch (deleteError) {
+            Alert.alert("Erro", deleteError instanceof Error ? deleteError.message : "Falha ao remover.");
+          }
         },
-      ]);
+      });
     },
-    [activeOrganizationId, loadSources]
+    [activeOrganizationId, confirmDialog, loadSources]
   );
 
   const handleSyncNow = useCallback(

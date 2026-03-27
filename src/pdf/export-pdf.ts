@@ -1,13 +1,7 @@
 import type { ReactElement } from "react";
 import { Linking, Platform } from "react-native";
-import {
-  cacheDirectory,
-  copyAsync,
-  documentDirectory,
-  EncodingType,
-  getContentUriAsync,
-  writeAsStringAsync,
-} from "expo-file-system";
+import * as FileSystem from "expo-file-system";
+const { cacheDirectory, copyAsync, documentDirectory, EncodingType, getContentUriAsync, writeAsStringAsync } = FileSystem as any;
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
@@ -36,7 +30,7 @@ export const exportPdf = async ({
       base64: true,
     });
 
-    const targetUri = await writePdfWithName(printResult, fileName);
+    const targetUri = await writePdfWithName({ uri: printResult.uri, base64: printResult.base64 ?? null }, fileName);
     const opened = await tryOpenPdf(targetUri);
     if (!opened) {
       const canShare = await Sharing.isAvailableAsync();
@@ -56,9 +50,8 @@ export const exportPdf = async ({
   if (!webDocument) {
     throw new Error("Missing webDocument for PDF export.");
   }
-  // @ts-expect-error no types for browser bundle entry
   const { pdf } = await import("@react-pdf/renderer/lib/react-pdf.browser");
-  const blob = await pdf(webDocument).toBlob();
+  const blob = await pdf(webDocument as any).toBlob();
   if (typeof window === "undefined" || typeof document === "undefined") {
     return { uri: "", fileName };
   }

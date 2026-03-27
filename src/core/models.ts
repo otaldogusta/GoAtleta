@@ -1,8 +1,10 @@
+import type { ClassModality } from "./class-modality";
+
 export type AgeBand = string;
 export type Goal = string;
 export type Equipment = "quadra" | "funcional" | "academia" | "misto";
 export type ClassGender = "masculino" | "feminino" | "misto";
-export type Modality = "voleibol" | "fitness";
+export type Modality = ClassModality;
 export type AthletePosition =
   | "indefinido"
   | "levantador"
@@ -58,18 +60,152 @@ export type SessionPlan = {
 };
 
 export type SessionLog = {
-  id: string;
-  clientId: string;
+  id?: string;
+  clientId?: string;
   classId: string;
   PSE: number;
-  technique: "boa" | "ok" | "ruim";
+  technique: "boa" | "ok" | "ruim" | "nenhum";
   attendance: number;
   activity: string;
   conclusion: string;
-  participantsCount: number;
+  participantsCount?: number;
   photos: string;
+  painScore?: number;
+  createdAt: string;
+};
+
+export type TrainingSessionStatus = "scheduled" | "completed" | "cancelled";
+export type TrainingSessionType = "training" | "integration" | "event" | "match";
+export type TrainingSessionSource = "manual" | "plan" | "import";
+
+export type TrainingSession = {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string;
+  startAt: string;
+  endAt: string;
+  status: TrainingSessionStatus;
+  type: TrainingSessionType;
+  source: TrainingSessionSource;
+  planId?: string | null;
+  classIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TrainingSessionClass = {
+  id: string;
+  sessionId: string;
+  classId: string;
+  organizationId: string;
+  createdAt: string;
+};
+
+export type TrainingSessionIntegrationRule = {
+  id: string;
+  organizationId: string;
+  sourceSessionId: string;
+  startAt: string;
+  endAt: string;
+  classCount: number;
+  classIds: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TrainingSessionIntegrationRuleClass = {
+  id: string;
+  ruleId: string;
+  classId: string;
+  organizationId: string;
+  createdAt: string;
+};
+
+export type TrainingSessionAttendance = {
+  id: string;
+  sessionId: string;
+  studentId: string;
+  classId: string;
+  organizationId: string;
+  status: "present" | "absent";
+  note: string;
   painScore: number;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeBaseDomain =
+  | "general"
+  | "youth_training"
+  | "general_fitness"
+  | "clinical"
+  | "performance";
+
+export type KnowledgeBaseVersionStatus = "draft" | "review" | "active" | "archived";
+export type KnowledgeSourceType = "guideline" | "book" | "paper" | "web" | "policy" | "other";
+export type KnowledgeRuleStatus = "draft" | "review" | "active" | "archived";
+export type KnowledgeRuleKind =
+  | "recommendation"
+  | "progression"
+  | "safety"
+  | "assessment"
+  | "recovery"
+  | "reference";
+
+export type KnowledgeBaseVersion = {
+  id: string;
+  organizationId: string;
+  domain: KnowledgeBaseDomain;
+  versionLabel: string;
+  description: string;
+  status: KnowledgeBaseVersionStatus;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeSource = {
+  id: string;
+  organizationId: string;
+  knowledgeBaseVersionId: string;
+  domain: KnowledgeBaseDomain;
+  title: string;
+  authors: string;
+  sourceYear?: number | null;
+  edition: string;
+  sourceType: KnowledgeSourceType;
+  sourceUrl: string;
+  citationText: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeRule = {
+  id: string;
+  organizationId: string;
+  knowledgeBaseVersionId: string;
+  domain: KnowledgeBaseDomain;
+  ruleKey: string;
+  ruleLabel: string;
+  ruleKind: KnowledgeRuleKind;
+  status: KnowledgeRuleStatus;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeRuleCitation = {
+  id: string;
+  organizationId: string;
+  knowledgeRuleId: string;
+  knowledgeSourceId?: string | null;
+  kbDocumentId?: string | null;
+  pages: string;
+  evidence: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type TrainingPlan = {
@@ -83,8 +219,8 @@ export type TrainingPlan = {
   warmupTime: string;
   mainTime: string;
   cooldownTime: string;
-  applyDays: number[];
-  applyDate: string;
+  applyDays?: number[];
+  applyDate?: string;
   createdAt: string;
 };
 
@@ -193,7 +329,7 @@ export type AbsenceNotice = {
 
 export type ScoutingLog = {
   id: string;
-  clientId: string;
+  clientId?: string;
   classId: string;
   unit: string;
   mode: "treino" | "jogo";
@@ -211,7 +347,7 @@ export type ScoutingLog = {
   attackSend1: number;
   attackSend2: number;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 };
 
 export type StudentScoutingLog = {
@@ -232,7 +368,7 @@ export type StudentScoutingLog = {
   attackSend1: number;
   attackSend2: number;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 };
 
 export type ClassPlan = {
@@ -372,6 +508,57 @@ export type ProgressionSessionPlan = {
 
 export type WeeklyAutopilotStatus = "draft" | "proposed" | "approved" | "rejected";
 
+export type WeeklyAutopilotKnowledgeReference = {
+  sourceId: string;
+  title: string;
+  authors: string;
+  sourceYear?: number | null;
+  sourceType: KnowledgeSourceType;
+  citationText: string;
+  url: string;
+};
+
+export type WeeklyAutopilotKnowledgeContext = {
+  versionId: string;
+  versionLabel: string;
+  domain: KnowledgeBaseDomain;
+  references: WeeklyAutopilotKnowledgeReference[];
+  ruleHighlights: string[];
+};
+
+export type WeeklyAutopilotPlanReviewChange = {
+  field: string;
+  before: unknown;
+  after: unknown;
+};
+
+export type WeeklyAutopilotPlanReviewDiff = {
+  weekStart: string;
+  changes: WeeklyAutopilotPlanReviewChange[];
+};
+
+export type WeeklyAutopilotPlanReviewIssue = {
+  weekStart: string;
+  code: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  reference?: string | null;
+  ruleId?: string | null;
+  ruleType?: "hard" | "soft" | null;
+  priority?: number | null;
+  autoCorrected?: boolean;
+};
+
+export type WeeklyAutopilotPlanReview = {
+  ok: boolean;
+  versionLabel: string;
+  domain: KnowledgeBaseDomain;
+  diffs: WeeklyAutopilotPlanReviewDiff[];
+  issues: WeeklyAutopilotPlanReviewIssue[];
+  warnings: string[];
+  citations: string[];
+};
+
 export type WeeklyAutopilotProposal = {
   id: string;
   organizationId: string;
@@ -382,6 +569,12 @@ export type WeeklyAutopilotProposal = {
   proposedPlanIds: string[];
   status: WeeklyAutopilotStatus;
   createdBy: string;
+  knowledgeBaseVersionId?: string | null;
+  knowledgeBaseVersionLabel?: string | null;
+  knowledgeDomain?: KnowledgeBaseDomain | null;
+  knowledgeReferences: WeeklyAutopilotKnowledgeReference[];
+  knowledgeRuleHighlights: string[];
+  planReview?: WeeklyAutopilotPlanReview | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -409,7 +409,7 @@ export function AuthProvider({
 
   const consumeAuthUrl = useCallback(async (url: string) => {
     const sessionData = parseAuthSession(url);
-    if (!sessionData.access_token) return null;
+    if (!sessionData?.access_token) return null;
     const user = await fetchUser(sessionData.access_token);
     const next: AuthSession = {
       ...sessionData,

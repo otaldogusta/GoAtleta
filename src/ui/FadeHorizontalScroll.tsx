@@ -68,7 +68,7 @@ export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollP
   }, []);
 
   const updateVisibility = useCallback(
-    (offset: number) => {
+    (offset?: number) => {
       const layoutWidth = layoutWidthRef.current;
       const contentWidth = contentWidthRef.current;
       if (!layoutWidth || !contentWidth || contentWidth <= layoutWidth + 1) {
@@ -110,7 +110,7 @@ export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollP
         ref={ref}
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={[webSmoothStyle, scrollStyle]}
+        style={[webSmoothStyle as object | undefined, scrollStyle]}
         contentContainerStyle={[{ paddingRight: fadeWidth }, contentContainerStyle]}
         onStartShouldSetResponderCapture={() => false}
         onContentSizeChange={(width) => {

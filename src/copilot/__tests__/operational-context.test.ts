@@ -1,6 +1,7 @@
+import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import { buildOperationalContext } from "../operational-context";
 
-const baseSignal = (overrides: Partial<any>) => ({
+const baseSignal = (overrides: Partial<CopilotSignal>): CopilotSignal => ({
   id: "s_base",
   type: "report_delay",
   severity: "medium",
@@ -109,7 +110,7 @@ describe("operational context builder", () => {
           title: "Regulamento atualizado - FIVB (FIVB 2026)",
           impactAreas: ["Torneios"],
           impactActions: [{ label: "Ver torneios", route: "/events" }],
-        },
+        } as any,
       ],
       regulationRuleSets: [
         {
@@ -126,7 +127,7 @@ describe("operational context builder", () => {
           updatedAt: "2026-02-20T08:00:00.000Z",
           clausesCount: 3,
           updatesCount: 1,
-        },
+        } as any,
       ],
       history: [
         {

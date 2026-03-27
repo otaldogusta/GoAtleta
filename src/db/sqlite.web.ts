@@ -75,7 +75,7 @@ export const db = {
   getAllSync<T>(sql: string) {
     const normalized = normalize(sql);
     if (normalized.startsWith("select * from classes order by name asc")) {
-      return sortClassesBySchedule(classes) as T[];
+      return sortClassesBySchedule(classes as any) as T[];
     }
     if (normalized.startsWith("select * from training_plans order by createdat desc")) {
       return [...trainingPlans].sort((a, b) =>
@@ -116,7 +116,7 @@ export const db = {
         conclusion: params.length > 5 ? String(params[5] ?? "") : "",
         participantsCount: params.length > 6 ? Number(params[6] ?? 0) : 0,
         photos: params.length > 7 ? String(params[7] ?? "") : "",
-        painScore: params.length > 8 ? Number(params[8] ?? 0) : undefined,
+        painScore: params.length > 8 ? Number(params[8] ?? 0) : 0,
         createdAt,
       };
       sessionLogs.push(row);

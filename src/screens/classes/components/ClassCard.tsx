@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
@@ -9,6 +9,8 @@ import { Pressable } from "../../../ui/Pressable";
 type Conflict = {
   name: string;
   day: number;
+  modality?: string;
+  kind: "conflict" | "integration";
 };
 
 type ClassCardProps = {
@@ -43,13 +45,21 @@ export const ClassCard = memo(function ClassCard({
 }: ClassCardProps) {
   markRender("screen.classes.render.classCard", { classId: item.id });
 
+  const [showIntegrationTooltip, setShowIntegrationTooltip] = useState(false);
   const safeConflicts = conflicts ?? [];
   const parsed = parseTime(item.startTime || "");
   const duration = item.durationMinutes || 60;
   const timeLabel = parsed
     ? `${formatTimeRange(parsed.hour, parsed.minute, duration)} - ${item.name}`
     : item.name;
-  const hasConflicts = safeConflicts.length > 0;
+  const integrationCandidates = safeConflicts.filter((conflict) => conflict.kind === "integration");
+  const conflictCandidates = safeConflicts.filter((conflict) => conflict.kind === "conflict");
+  const canIntegrate = integrationCandidates.length > 0;
+  const hasConflicts = conflictCandidates.length > 0;
+  const integrationSummary = integrationCandidates.map((conflict) => conflict.name).join(" + ");
+  const conflictSummary = conflictCandidates
+    .map((conflict) => `${conflict.name} (${dayNames[conflict.day]})`)
+    .join(", ");
 
   return (
     <Pressable
@@ -62,9 +72,42 @@ export const ClassCard = memo(function ClassCard({
         },
       ]}
     >
-      {hasConflicts ? (
+      {canIntegrate ? (
+        <View style={styles.integrationWrap}>
+          <Pressable
+            style={[styles.integrationPill, { backgroundColor: colors.primaryBg }]}
+            onHoverIn={() => {
+              if (Platform.OS === "web") setShowIntegrationTooltip(true);
+            }}
+            onHoverOut={() => {
+              if (Platform.OS === "web") setShowIntegrationTooltip(false);
+            }}
+          >
+            <Text style={[styles.integrationPillText, { color: colors.primaryText }]}>
+              Integrado
+            </Text>
+          </Pressable>
+          {showIntegrationTooltip ? (
+            <View
+              style={[
+                styles.integrationTooltip,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.integrationTooltipText, { color: colors.text }]}>
+                {integrationSummary}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : hasConflicts ? (
         <View style={[styles.conflictPill, { backgroundColor: colors.dangerBg }]}>
-          <Text style={[styles.conflictPillText, { color: colors.dangerText }]}>Conflito de horário</Text>
+          <Text style={[styles.conflictPillText, { color: colors.dangerText }]}>
+            Conflito de horário
+          </Text>
         </View>
       ) : null}
 
@@ -77,10 +120,7 @@ export const ClassCard = memo(function ClassCard({
 
       {hasConflicts ? (
         <Text style={[styles.conflictText, { color: colors.dangerText }]}>
-          {"Conflitos: " +
-            safeConflicts
-              .map((conflict) => `${conflict.name} (${dayNames[conflict.day]})`)
-              .join(", ")}
+          Conflitos: {conflictSummary}
         </Text>
       ) : null}
     </Pressable>
@@ -109,9 +149,49 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginBottom: 6,
   },
+  integrationPill: {
+    alignSelf: "flex-start",
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    marginBottom: 6,
+  },
+  integrationWrap: {
+    alignSelf: "flex-start",
+    position: "relative",
+    marginBottom: 6,
+  },
   conflictPillText: {
     fontWeight: "700",
     fontSize: 11,
+  },
+  integrationPillText: {
+    fontWeight: "700",
+    fontSize: 11,
+  },
+  integrationTooltip: {
+    position: "absolute",
+    top: -42,
+    left: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    minWidth: 180,
+    maxWidth: 260,
+    borderWidth: 1,
+    zIndex: 10,
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 8px 18px rgba(0, 0, 0, 0.24)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.24,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        }),
+  },
+  integrationTooltipText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   headerRow: {
     flexDirection: "row",

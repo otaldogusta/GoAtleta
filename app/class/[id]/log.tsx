@@ -14,6 +14,7 @@ import {
     saveSessionLog,
 } from "../../../src/db/seed";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { Button } from "../../../src/ui/Button";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { Pressable } from "../../../src/ui/Pressable";
@@ -113,16 +114,16 @@ export default function LogScreen() {
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showPsePicker) {
-        pseTriggerRef.current.measureInWindow((x, y, width, height) => {
+        pseTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setPseTriggerLayout({ x, y, width, height });
         });
       }
       if (showTechniquePicker) {
-        techniqueTriggerRef.current.measureInWindow((x, y, width, height) => {
+        techniqueTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setTechniqueTriggerLayout({ x, y, width, height });
         });
       }
-      containerRef.current.measureInWindow((x, y) => {
+      containerRef.current?.measureInWindow((x, y) => {
         setContainerWindow({ x, y });
       });
     });
@@ -132,15 +133,21 @@ export default function LogScreen() {
     let alive = true;
     (async () => {
       if (id) {
-        const data = await getClassById(id);
+        const data = await getClassById(id).catch(() => null);
         if (alive) setCls(data);
       }
       if (!id) return;
-      const [attendanceRecords, students, existingLog] = await Promise.all([
+      const [attendanceResult, studentsResult, logResult] = await Promise.allSettled([
         getAttendanceByDate(id, sessionDate),
         getStudentsByClass(id),
         getSessionLogByDate(id, sessionDate),
       ]);
+      const attendanceRecords =
+        attendanceResult.status === "fulfilled" ? attendanceResult.value : [];
+      const students =
+        studentsResult.status === "fulfilled" ? studentsResult.value : [];
+      const existingLog =
+        logResult.status === "fulfilled" ? logResult.value : null;
       if (!alive) return;
       const hydrateKey = `${id ?? ""}_${sessionDate}`;
       if (hydratedKeyRef.current !== hydrateKey) {
@@ -177,7 +184,7 @@ export default function LogScreen() {
       } else {
         setAttendancePercent(null);
       }
-      const plans = await getTrainingPlans();
+      const plans = await getTrainingPlans({ classId: id });
       const byClass = plans.filter((item) => item.classId === id);
       const byDate = byClass.find((item) => item.applyDate === sessionDate);
       const byWeekday = byClass.find((item) =>
@@ -221,8 +228,8 @@ export default function LogScreen() {
     const attendanceValue =
       typeof attendancePercent === "number" ? attendancePercent : 0;
     await saveSessionLog({
-      id: sessionLog.id,
-      clientId: sessionLog.clientId,
+      id: sessionLog?.id,
+      clientId: sessionLog?.clientId,
       classId: id,
       PSE,
       technique,
@@ -231,7 +238,7 @@ export default function LogScreen() {
       conclusion,
       participantsCount: parsedParticipants,
       photos,
-      createdAt: sessionLog.createdAt ?? createdAt,
+      createdAt: sessionLog?.createdAt ?? createdAt,
     });
     return dateValue ?? new Date().toISOString().slice(0, 10);
   };
@@ -251,9 +258,9 @@ export default function LogScreen() {
 
   const className = cls?.name ?? "Turma";
   const dateLabel = formatDisplayDate(sessionDate);
-  const parsedStart = parseTime(cls.startTime);
+  const parsedStart = cls ? parseTime(cls.startTime) : null;
   const timeLabel =
-    parsedStart && cls.durationMinutes
+    parsedStart && cls?.durationMinutes
       ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes)
       : "";
 
@@ -484,16 +491,10 @@ export default function LogScreen() {
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <Pressable
+              <AnchoredDropdownOption
                 key={n}
+                active={PSE === n}
                 onPress={() => handleSelectPse(n)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderRadius: 14,
-                  marginVertical: 3,
-                  backgroundColor: PSE === n ? colors.primaryBg : colors.card,
-                }}
               >
                 <Text
                   style={{
@@ -504,7 +505,7 @@ export default function LogScreen() {
                 >
                   {n}
                 </Text>
-              </Pressable>
+              </AnchoredDropdownOption>
             ))}
           </AnchoredDropdown>
 
@@ -525,16 +526,10 @@ export default function LogScreen() {
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {(["boa", "ok", "ruim"] as const).map((option) => (
-              <Pressable
+              <AnchoredDropdownOption
                 key={option}
+                active={technique === option}
                 onPress={() => handleSelectTechnique(option)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderRadius: 14,
-                  marginVertical: 3,
-                  backgroundColor: technique === option ? colors.primaryBg : colors.card,
-                }}
               >
                 <Text
                   style={{
@@ -545,7 +540,7 @@ export default function LogScreen() {
                 >
                   {option}
                 </Text>
-              </Pressable>
+              </AnchoredDropdownOption>
             ))}
           </AnchoredDropdown>
         </View>

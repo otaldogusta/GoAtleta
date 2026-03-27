@@ -127,6 +127,9 @@ export default function AbsenceNoticesScreen() {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 24 }}
+            initialNumToRender={8}
+            maxToRenderPerBatch={8}
+            windowSize={7}
             ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
             renderItem={({ item: notice }) => (
               <View

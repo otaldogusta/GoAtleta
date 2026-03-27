@@ -1,12 +1,13 @@
 import { memo, useCallback, useMemo } from "react";
-import { FlatList, Text, View } from "react-native";
+import type { StyleProp, ViewStyle } from "react-native";
+import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
 import { ClassCard } from "./ClassCard";
 
 type GroupedClasses = [string, ClassGroup[]][];
-type Conflict = { name: string; day: number };
+type Conflict = { name: string; day: number; modality?: string; kind: "conflict" | "integration" };
 
 type RowItem =
   | { key: string; kind: "header"; unit: string; count: number }
@@ -18,6 +19,11 @@ type Props = {
   dayNames: string[];
   colors: Record<string, string>;
   onOpenClass: (item: ClassGroup) => void;
+  refreshing?: boolean;
+  onRefresh?: () => void | Promise<void>;
+  onScrollBeginDrag?: () => void;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+  style?: StyleProp<ViewStyle>;
 };
 
 export const ClassesListSection = memo(function ClassesListSection({
@@ -26,6 +32,11 @@ export const ClassesListSection = memo(function ClassesListSection({
   dayNames,
   colors,
   onOpenClass,
+  refreshing,
+  onRefresh,
+  onScrollBeginDrag,
+  contentContainerStyle,
+  style,
 }: Props) {
   markRender("screen.classes.render.listSection");
 
@@ -111,14 +122,28 @@ export const ClassesListSection = memo(function ClassesListSection({
 
   return (
     <FlatList
+      style={[{ flex: 1, minHeight: 0 }, style]}
       data={rows}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      scrollEnabled={false}
       initialNumToRender={8}
       maxToRenderPerBatch={8}
       windowSize={7}
       removeClippedSubviews={false}
+      contentContainerStyle={contentContainerStyle}
+      onScrollBeginDrag={onScrollBeginDrag}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={Boolean(refreshing)}
+            onRefresh={() => {
+              void onRefresh();
+            }}
+            tintColor={colors.text}
+            colors={[colors.text]}
+          />
+        ) : undefined
+      }
     />
   );
 });

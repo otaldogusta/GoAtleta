@@ -1,7 +1,8 @@
 import { Text, View } from "react-native";
-import { Pressable } from "../../../ui/Pressable";
+
 import type { ThemeColors } from "../../../ui/app-theme";
-import { ModalSheet } from "../../../ui/ModalSheet";
+import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
+import { Pressable } from "../../../ui/Pressable";
 
 type GenerateAction = "fill" | "auto" | "all";
 
@@ -23,21 +24,16 @@ export function GenerateModal({
   onGenerateAction,
 }: Props) {
   return (
-    <ModalSheet
+    <ModalDialogFrame
       visible={visible}
       onClose={onClose}
-      cardStyle={[modalCardStyle, { paddingBottom: 16 }]}
+      cardStyle={[modalCardStyle, { paddingBottom: 16, maxHeight: "92%", height: "92%" }]}
       position="center"
+      colors={colors}
+      title="Gerar ciclo"
+      subtitle="Escolha como preencher as semanas do ciclo."
     >
-      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-        Gerar ciclo
-      </Text>
-
-      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-        Escolha como preencher as semanas do ciclo.
-      </Text>
-
-      <View style={{ gap: 10, marginTop: 12 }}>
+      <View style={{ gap: 10 }}>
         <Pressable
           onPress={() => onGenerateAction("fill")}
           disabled={isSavingPlans}
@@ -50,9 +46,7 @@ export function GenerateModal({
             borderColor: colors.border,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Completar faltantes
-          </Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>Completar faltantes</Text>
         </Pressable>
 
         <Pressable
@@ -65,9 +59,7 @@ export function GenerateModal({
             backgroundColor: colors.primaryBg,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            Regerar apenas AUTO
-          </Text>
+          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Regerar apenas AUTO</Text>
         </Pressable>
 
         <Pressable
@@ -85,6 +77,6 @@ export function GenerateModal({
           </Text>
         </Pressable>
       </View>
-    </ModalSheet>
+    </ModalDialogFrame>
   );
 }

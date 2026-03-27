@@ -36,7 +36,7 @@ export const ensureNotificationHandlerConfigured = () => {
       shouldShowAlert: true,
       shouldPlaySound: false,
       shouldSetBadge: false,
-    }),
+    } as any),
   });
   handlerConfigured = true;
 };

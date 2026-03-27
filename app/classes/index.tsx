@@ -1,13 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Animated,
     Easing,
     KeyboardAvoidingView,
     Platform,
-    RefreshControl,
     ScrollView,
     Text,
     TextInput,
@@ -17,16 +16,26 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
+import { resolveClassModality } from "../../src/core/class-modality";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
-import type { ClassGroup } from "../../src/core/models";
+import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
+import type { ClassGroup, TrainingSessionIntegrationRule } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
-import { deleteClassCascade, getClasses, saveClass, updateClass } from "../../src/db/seed";
+import {
+  deleteClassCascade,
+  getClasses,
+  getTrainingIntegrationRules,
+  saveClass,
+  updateClass,
+} from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -37,25 +46,42 @@ import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
-import { ModalSheet } from "../../src/ui/ModalSheet";
+import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
+const ClassEditModalBody = lazy(() =>
+  import("../../src/screens/classes/components/ClassEditModalBody").then((module) => ({
+    default: module.ClassEditModalBody,
+  }))
+);
+
 export default function ClassesScreen() {
   markRender("screen.classes.render.root");
 
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { edit } = useLocalSearchParams<{ edit?: string | string[] }>();
+  const { edit, tab, prefillName, prefillModality, prefillUnit } = useLocalSearchParams<{
+    edit?: string | string[];
+    tab?: string | string[];
+    prefillName?: string | string[];
+    prefillModality?: string | string[];
+    prefillUnit?: string | string[];
+  }>();
   const editParam = Array.isArray(edit) ? edit[0] : edit;
+  const tabParam = Array.isArray(tab) ? tab[0] : tab;
+  const prefillNameParam = Array.isArray(prefillName) ? prefillName[0] : prefillName;
+  const prefillModalityParam = Array.isArray(prefillModality) ? prefillModality[0] : prefillModality;
+  const prefillUnitParam = Array.isArray(prefillUnit) ? prefillUnit[0] : prefillUnit;
   const { colors } = useAppTheme();
   const bottomScrollPadding = insets.bottom + 112;
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
 
   useCopilotContext(
     useMemo(
@@ -232,11 +258,7 @@ export default function ClassesScreen() {
     { value: "feminino", label: "Feminino" },
     { value: "misto", label: "Misto" },
   ];
-  const modalityOptions: { value: NonNullable<ClassGroup["modality"]>; label: string }[] =
-    [
-      { value: "voleibol", label: "Voleibol" },
-      { value: "fitness", label: "Fitness" },
-    ];
+  const modalityOptions = [...CLASS_MODALITY_OPTIONS];
   const goals: ClassGroup["goal"][] = [
     "Fundamentos",
     "Força Geral",
@@ -468,19 +490,6 @@ export default function ClassesScreen() {
     return list.filter((item, index) => list.indexOf(item) === index);
   }, [goalSuggestions, goals]);
 
-  const inferModality = useCallback((item: ClassGroup | null) => {
-    if (!item) return "voleibol";
-    if (item.modality) return item.modality;
-    const goal = (item.goal ?? "").toLowerCase();
-    const unit = normalizeUnitKey(item.unit);
-    if (goal.includes("fundamentos")) {
-      if (unit.includes("esperanca") || unit.includes("pinhais")) {
-        return "voleibol";
-      }
-    }
-    return "fitness";
-  }, []);
-
   const normalizeTimeInput = (value: string) => {
     const digits = value.replace(/[^\d]/g, "").slice(0, 4);
     if (digits.length <= 2) return digits;
@@ -527,12 +536,94 @@ export default function ClassesScreen() {
     return `${pad(hour)}:${pad(minute)} - ${pad(endHour)}:${pad(endMinute)}`;
   };
 
+  const isComplementaryGenderPair = useCallback(
+    (a: ClassGroup["gender"], b: ClassGroup["gender"]) => {
+      const normalizedA = a ?? "misto";
+      const normalizedB = b ?? "misto";
+      return (
+        (normalizedA === "masculino" && normalizedB === "feminino") ||
+        (normalizedA === "feminino" && normalizedB === "masculino")
+      );
+    },
+    []
+  );
+
+  const buildPairKey = useCallback((leftId: string, rightId: string) => {
+    const ids = [leftId, rightId]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .sort();
+    return ids.join("|");
+  }, []);
+
+  const integrationPairKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const rule of integrationRules) {
+      const classIds = Array.from(
+        new Set(
+          (rule.classIds ?? [])
+            .map((classId) => String(classId ?? "").trim())
+            .filter(Boolean)
+        )
+      ).sort();
+      for (let i = 0; i < classIds.length; i += 1) {
+        for (let j = i + 1; j < classIds.length; j += 1) {
+          set.add(buildPairKey(classIds[i], classIds[j]));
+        }
+      }
+    }
+    return set;
+  }, [buildPairKey, integrationRules]);
+
+  const hasPersistedIntegrationRules = integrationRules.length > 0;
+
   const conflictsById = useMemo(() => {
-    const map: Record<string, { name: string; day: number }[]> = {};
+    const map: Record<
+      string,
+      { name: string; day: number; modality: ClassGroup["modality"]; kind: "conflict" | "integration" }[]
+    > = {};
+    const classById = new Map(classes.map((item) => [item.id, item]));
+    const addedIntegrationPairKeys = new Set<string>();
+
+    for (const rule of integrationRules) {
+      const classIds = Array.from(
+        new Set(
+          (rule.classIds ?? [])
+            .map((classId) => String(classId ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+      for (let i = 0; i < classIds.length; i += 1) {
+        for (let j = i + 1; j < classIds.length; j += 1) {
+          const pairKey = buildPairKey(classIds[i], classIds[j]);
+          if (addedIntegrationPairKeys.has(pairKey)) continue;
+          const left = classById.get(classIds[i]);
+          const right = classById.get(classIds[j]);
+          if (!left || !right) continue;
+          addedIntegrationPairKeys.add(pairKey);
+          if (!map[left.id]) map[left.id] = [];
+          if (!map[right.id]) map[right.id] = [];
+          map[left.id].push({
+            name: right.name ?? "Turma sem nome",
+            day: 0,
+            modality: right.modality,
+            kind: "integration",
+          });
+          map[right.id].push({
+            name: left.name ?? "Turma sem nome",
+            day: 0,
+            modality: left.modality,
+            kind: "integration",
+          });
+        }
+      }
+    }
+
     for (let i = 0; i < classes.length; i += 1) {
       const a = classes[i];
       const aStart = toMinutes(a.startTime || "");
       if (aStart === null) continue;
+      const aDuration = a.durationMinutes || 60;
       const aEnd = aStart + (a.durationMinutes || 60);
       const aDays = Array.isArray(a.daysOfWeek) ? a.daysOfWeek : [];
       for (let j = i + 1; j < classes.length; j += 1) {
@@ -540,22 +631,48 @@ export default function ClassesScreen() {
         if (unitKey(a.unit) !== unitKey(b.unit)) continue;
         const bStart = toMinutes(b.startTime || "");
         if (bStart === null) continue;
+        const bDuration = b.durationMinutes || 60;
         const bEnd = bStart + (b.durationMinutes || 60);
         const bDays = Array.isArray(b.daysOfWeek) ? b.daysOfWeek : [];
         const sharedDays = aDays.filter((day) => bDays.includes(day));
         if (!sharedDays.length) continue;
         const overlap = aStart < bEnd && bStart < aEnd;
         if (!overlap) continue;
+        const pairKey = buildPairKey(a.id, b.id);
+        const isIntegration = hasPersistedIntegrationRules
+          ? integrationPairKeys.has(pairKey)
+          : a.modality === b.modality &&
+            aDuration === bDuration &&
+            (a.startTime ?? "").trim() === (b.startTime ?? "").trim() &&
+            isComplementaryGenderPair(a.gender, b.gender);
+        if (hasPersistedIntegrationRules && isIntegration) continue;
         sharedDays.forEach((day) => {
           if (!map[a.id]) map[a.id] = [];
           if (!map[b.id]) map[b.id] = [];
-          map[a.id].push({ name: b.name ?? "Turma sem nome", day });
-          map[b.id].push({ name: a.name ?? "Turma sem nome", day });
+          map[a.id].push({
+            name: b.name ?? "Turma sem nome",
+            day,
+            modality: b.modality,
+            kind: isIntegration ? "integration" : "conflict",
+          });
+          map[b.id].push({
+            name: a.name ?? "Turma sem nome",
+            day,
+            modality: a.modality,
+            kind: isIntegration ? "integration" : "conflict",
+          });
         });
       }
     }
     return map;
-  }, [classes]);
+  }, [
+    buildPairKey,
+    classes,
+    hasPersistedIntegrationRules,
+    integrationPairKeys,
+    integrationRules,
+    isComplementaryGenderPair,
+  ]);
 
   const grouped = useMemo(() => {
     const map: Record<string, ClassGroup[]> = {};
@@ -578,12 +695,16 @@ export default function ClassesScreen() {
     const isAlive = () => !alive || alive.current;
     setLoading(true);
     try {
-      const data = await measureAsync(
-        "screen.classes.load.list",
-        () => getClasses(),
-        { screen: "classes" }
-      );
+      const [data, rules] = await Promise.all([
+        measureAsync(
+          "screen.classes.load.list",
+          () => getClasses(),
+          { screen: "classes" }
+        ),
+        getTrainingIntegrationRules(),
+      ]);
       if (isAlive()) setClasses(data);
+      if (isAlive()) setIntegrationRules(rules);
     } finally {
       if (isAlive()) setLoading(false);
     }
@@ -814,7 +935,7 @@ export default function ClassesScreen() {
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
     setEditColorKey(item.colorKey ?? null);
-    setEditModality(inferModality(item));
+    setEditModality(item.modality);
     setEditAgeBand(item.ageBand ?? "08-09");
     setEditGender(item.gender ?? "misto");
     setEditGoal(isGoalInList ? goalValue : "Fundamentos");
@@ -830,7 +951,18 @@ export default function ClassesScreen() {
     setEditShowCustomDuration(false);
     setEditShowAllAges(false);
     setShowEditModal(true);
-  }, [goalOptions, inferModality]);
+  }, [goalOptions]);
+
+  useEffect(() => {
+    if (tabParam !== "criar") return;
+    setMainTab("criar");
+    if (prefillNameParam) setNewName(prefillNameParam);
+    if (prefillUnitParam) setNewUnit(prefillUnitParam);
+    if (prefillModalityParam) {
+      const resolved = resolveClassModality(prefillModalityParam);
+      if (resolved) setNewModality(resolved);
+    }
+  }, [prefillModalityParam, prefillNameParam, prefillUnitParam, tabParam]);
 
   useEffect(() => {
     if (!editParam || editParam === handledEditId) return;
@@ -849,7 +981,7 @@ export default function ClassesScreen() {
       editingClass.name !== editName ||
       (editingClass.unit ?? "") !== editUnit ||
       (editingClass.colorKey ?? null) !== editColorKey ||
-      inferModality(editingClass) !== editModality ||
+      editingClass.modality !== editModality ||
       (editingClass.ageBand ?? "08-09") !== editAgeBand ||
       (editingClass.gender ?? "misto") !== editGender ||
       (editingClass.goal ?? "Fundamentos") !== goalValue ||
@@ -885,6 +1017,44 @@ export default function ClassesScreen() {
     );
   };
 
+  const findIntegrationCandidates = useCallback(
+    (sourceClassId: string, unit: string, modality: ClassGroup["modality"], startTime: string, daysOfWeek: number[]) => {
+      const ruleCandidates = integrationRules
+        .filter((rule) => (rule.classIds ?? []).includes(sourceClassId))
+        .flatMap((rule) => rule.classIds ?? [])
+        .map((classId) => classes.find((item) => item.id === classId) ?? null)
+        .filter((item): item is ClassGroup => item !== null && item.id !== sourceClassId);
+
+      const uniqueRuleCandidates = Array.from(
+        new Map(ruleCandidates.map((item) => [item.id, item])).values()
+      );
+      if (uniqueRuleCandidates.length) {
+        return uniqueRuleCandidates.filter((item) => {
+          if (normalizeUnitKey(item.unit) !== normalizeUnitKey(unit)) return false;
+          if (item.modality !== modality) return false;
+          if ((item.startTime ?? "").trim() !== startTime.trim()) return false;
+          const itemDays = Array.isArray(item.daysOfWeek) ? item.daysOfWeek : [];
+          const daySet = new Set(daysOfWeek);
+          return itemDays.some((day) => daySet.has(day));
+        });
+      }
+
+      const normalizedUnit = normalizeUnitKey(unit);
+      const daySet = new Set(daysOfWeek);
+      return classes.filter((item) => {
+        if (item.id === sourceClassId) return false;
+        if (integrationPairKeys.has(buildPairKey(sourceClassId, item.id))) return false;
+        if (normalizeUnitKey(item.unit) !== normalizedUnit) return false;
+        if (item.modality !== modality) return false;
+        if ((item.startTime ?? "").trim() !== startTime.trim()) return false;
+        const itemDays = Array.isArray(item.daysOfWeek) ? item.daysOfWeek : [];
+        if (!isComplementaryGenderPair(editGender, item.gender)) return false;
+        return itemDays.some((day) => daySet.has(day));
+      });
+    },
+    [buildPairKey, classes, editGender, integrationRules, integrationPairKeys, isComplementaryGenderPair]
+  );
+
   const saveEditClass = async () => {
     if (!editingClass) return;
     if (!editName.trim()) return;
@@ -914,25 +1084,55 @@ export default function ClassesScreen() {
     }
     setEditFormError("");
     setEditSaving(true);
-      try {
-        await updateClass(editingClass.id, {
-          name: editName.trim(),
-          unit: editUnit.trim() || "Sem unidade",
-          colorKey: editColorKey ?? null,
-          ageBand: editAgeBand,
-          gender: editGender,
-          modality: editModality ?? undefined,
-          daysOfWeek: editDays,
-          goal: goalValue,
-          startTime: timeValue,
-          durationMinutes: durationValue,
-          mvLevel: editMvLevel,
-          cycleStartDate: editCycleStartDate || undefined,
-          cycleLengthWeeks: cycleValue,
+    try {
+      const integrationCandidates = findIntegrationCandidates(
+        editingClass.id,
+        editUnit.trim() || "Sem unidade",
+        editModality,
+        timeValue,
+        editDays
+      );
+      await updateClass(editingClass.id, {
+        name: editName.trim(),
+        unit: editUnit.trim() || "Sem unidade",
+        colorKey: editColorKey ?? null,
+        ageBand: editAgeBand,
+        gender: editGender,
+        modality: editModality ?? undefined,
+        daysOfWeek: editDays,
+        goal: goalValue,
+        startTime: timeValue,
+        durationMinutes: durationValue,
+        mvLevel: editMvLevel,
+        cycleStartDate: editCycleStartDate || undefined,
+        cycleLengthWeeks: cycleValue,
       });
       await loadClasses();
       setShowEditModal(false);
       setEditingClass(null);
+
+      if (integrationCandidates.length) {
+        const classIds = [editingClass.id, ...integrationCandidates.map((item) => item.id)];
+        const classNames = integrationCandidates.map((item) => item.name).join(" + ");
+        confirmDialog({
+          title: "Treino integrado detectado",
+          message: classNames
+            ? `Encontramos turma(s) no mesmo horário: ${classNames}. Deseja criar um treino integrado?`
+            : "Encontramos turma(s) no mesmo horário. Deseja criar um treino integrado?",
+          confirmLabel: "Criar treino",
+          cancelLabel: "Agora não",
+          tone: "default",
+          onConfirm: () => {
+            router.push({
+              pathname: "/training",
+              params: {
+                createSessionClassIds: classIds.join(","),
+                createSessionStartTime: timeValue,
+              },
+            });
+          },
+        });
+      }
     } finally {
       setEditSaving(false);
     }
@@ -1383,15 +1583,11 @@ export default function ClassesScreen() {
         isFirst: boolean;
       }) {
         return (
-          <Pressable
+          <AnchoredDropdownOption
+            active={active}
             onPress={() => onSelect(unit)}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 12,
-              borderRadius: 14,
-              marginVertical: 3,
-              backgroundColor: active ? palette.bg : colors.card,
-            }}
+            activeBackgroundColor={palette.bg}
+            activeBorderColor={palette.bg}
           >
             <Text
               style={{
@@ -1402,7 +1598,7 @@ export default function ClassesScreen() {
             >
               {unit}
             </Text>
-          </Pressable>
+          </AnchoredDropdownOption>
         );
       }),
     [colors]
@@ -1424,16 +1620,7 @@ export default function ClassesScreen() {
         isFirst?: boolean;
       }) {
         return (
-          <Pressable
-            onPress={() => onSelect(value)}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 12,
-              borderRadius: 14,
-              marginVertical: 3,
-              backgroundColor: active ? colors.primaryBg : colors.card,
-            }}
-          >
+          <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
             <Text
               style={{
                 color: active ? colors.primaryText : colors.text,
@@ -1443,7 +1630,7 @@ export default function ClassesScreen() {
             >
               {label}
             </Text>
-          </Pressable>
+          </AnchoredDropdownOption>
         );
       }),
     [colors]
@@ -1495,7 +1682,7 @@ export default function ClassesScreen() {
     const isDirty =
       newName.trim() ||
       newUnit.trim() ||
-      newModality !== "voleibol" ||
+    newModality !== "" ||
       newStartTime.trim() !== "14:00" ||
       newDuration.trim() !== "60" ||
       newAgeBand.trim() !== "08-09" ||
@@ -1508,29 +1695,8 @@ export default function ClassesScreen() {
 
   if (loading && !classes.length) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScrollView
-          contentContainerStyle={{
-            gap: 16,
-            paddingBottom: bottomScrollPadding,
-            paddingHorizontal: 16,
-            paddingTop: 16,
-          }}
-        >
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 28, width: 140, borderRadius: 12 }} />
-            <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
-          </View>
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 42, borderRadius: 22 }} />
-            <ShimmerBlock style={{ height: 42, borderRadius: 22 }} />
-          </View>
-          <View style={{ gap: 12 }}>
-            {Array.from({ length: 4 }).map((_, index) => (
-              <ShimmerBlock key={`class-shimmer-${index}`} style={{ height: 90, borderRadius: 18 }} />
-            ))}
-          </View>
-        </ScrollView>
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScreenLoadingState />
       </SafeAreaView>
     );
   }
@@ -1649,6 +1815,38 @@ export default function ClassesScreen() {
         </View>
         </View>
 
+        {mainTab === "lista" ? (
+          <View style={{ flex: 1, minHeight: 0, gap: 12, paddingHorizontal: 16, paddingTop: 12 }}>
+            <UnitFilterBar
+              units={units}
+              selectedUnit={unitFilter}
+              onSelectUnit={handleSelectUnit}
+            />
+            <View style={{ flex: 1, minHeight: 0, paddingLeft: 10 }}>
+              <ClassesListSection
+                grouped={grouped}
+                conflictsById={conflictsById}
+                dayNames={dayNames}
+                colors={colors}
+                onOpenClass={handleOpenClass}
+                refreshing={refreshing}
+                onRefresh={async () => {
+                  setRefreshing(true);
+                  try {
+                    await loadClasses();
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+                onScrollBeginDrag={closeAllPickers}
+                contentContainerStyle={{
+                  paddingBottom: bottomScrollPadding,
+                  gap: 0,
+                }}
+              />
+            </View>
+          </View>
+        ) : (
         <ScrollView
           style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}
           contentContainerStyle={{
@@ -1659,43 +1857,7 @@ export default function ClassesScreen() {
           }}
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={closeAllPickers}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                try {
-                  await loadClasses();
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
-              tintColor={colors.text}
-              colors={[colors.text]}
-            />
-          }
         >
-
-        {mainTab === "lista" && (
-        <View style={{ gap: 12, marginTop: 12 }}>
-          <UnitFilterBar
-            units={units}
-            selectedUnit={unitFilter}
-            onSelectUnit={handleSelectUnit}
-          />
-          <View style={{ paddingLeft: 10 }}>
-            <ClassesListSection
-              grouped={grouped}
-              conflictsById={conflictsById}
-              dayNames={dayNames}
-              colors={colors}
-              onOpenClass={handleOpenClass}
-            />
-          </View>
-        </View>
-        )}
-
-        {mainTab === "criar" && (
         <View style={{ gap: 12, marginTop: 12 }}>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
@@ -2015,8 +2177,8 @@ export default function ClassesScreen() {
             disabled={saving || !newName.trim()}
           />
         </View>
-        )}
         </ScrollView>
+        )}
 
         <AnchoredDropdown
           visible={showUnitFilterPickerContent}
@@ -2269,615 +2431,169 @@ export default function ClassesScreen() {
       </View>
       </KeyboardAvoidingView>
 
-      <ModalSheet
+      <ConfirmCloseOverlay
+        visible={showEditCloseConfirm}
+        onCancel={() => setShowEditCloseConfirm(false)}
+        onConfirm={() => {
+          setShowEditCloseConfirm(false);
+          closeEditModal();
+        }}
+      />
+      <ModalDialogFrame
         visible={showEditModal}
         onClose={requestCloseEditModal}
-        cardStyle={editModalCardStyle}
+        cardStyle={[
+          editModalCardStyle,
+          {
+            paddingBottom: 0,
+            maxHeight: "92%",
+            height: "92%",
+            minHeight: 0,
+            overflow: "hidden",
+          },
+        ]}
         position="center"
-      >
-        <ConfirmCloseOverlay
-          visible={showEditCloseConfirm}
-          onCancel={() => setShowEditCloseConfirm(false)}
-          onConfirm={() => {
-            setShowEditCloseConfirm(false);
-            closeEditModal();
-          }}
-        />
-        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Editar turma
-          </Text>
-          <Pressable
-            onPress={requestCloseEditModal}
-            style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-              Fechar
-            </Text>
-          </Pressable>
-        </View>
-        <ScrollView
-          style={{ maxHeight: "92%" }}
-          contentContainerStyle={{ gap: 4, paddingHorizontal: 12, paddingBottom: 16 }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          onScrollBeginDrag={closeAllPickers}
-        >
-        <View ref={editContainerRef} style={{ position: "relative", gap: 4, marginTop: 16 }}>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
-                <TextInput
-                  placeholder="Nome da turma"
-                  value={editName}
-                  onChangeText={setEditName}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-                <TextInput
-                  placeholder="Unidade"
-                  value={editUnit}
-                  onChangeText={setEditUnit}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
+        colors={colors}
+        title="Editar turma"
+        subtitle={editingClass?.name ? editingClass.name : "Ajuste os dados, agenda e perfil da turma."}
+      footer={
+        <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button
+                label={editSaving ? "Salvando..." : "Salvar alterações"}
+                onPress={saveEditClass}
+                disabled={editSaving || !editName.trim() || !isEditDirty}
+                loading={editSaving}
+              />
             </View>
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Cor da turma</Text>
-              <FadeHorizontalScroll
-                containerStyle={{}}
-                scrollStyle={{}}
-                fadeColor={colors.card}
-                fadeWidth={36}
-                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-              >
-                {editColorOptions.map((option, index) => {
-                  const value = option.key === "default" ? null : option.key;
-                  const active = (editColorKey ?? null) === value;
-                  return (
-                    <ColorOption
-                      key={option.key}
-                      label={option.label}
-                      value={value}
-                      active={active}
-                      palette={option.palette}
-                      onSelect={handleSelectEditColor}
-                      isFirst={index === 0}
-                    />
-                  );
-                })}
-              </FadeHorizontalScroll>
+            <View style={{ flex: 1 }}>
+              <Button
+                label="Excluir turma"
+                variant="danger"
+                onPress={handleDeleteClass}
+                disabled={editSaving}
+                loading={false}
+              />
             </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
-                <TextInput
-                  placeholder="Horário (HH:MM)"
-                  value={editStartTime}
-                  onChangeText={(value) => setEditStartTime(normalizeTimeInput(value))}
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
-                <View ref={editDurationTriggerRef}>
-                  <Pressable
-                    onPress={() => toggleEditPicker("duration")}
-                    style={selectFieldStyle}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {editDuration ? `${editDuration} min` : "Selecione"}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditDurationPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-                { editShowCustomDuration ? (
-                  <TextInput
-                    placeholder="Duração (min)"
-                    value={editDuration}
-                    onChangeText={setEditDuration}
-                    keyboardType="numeric"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                ) : null}
-              </View>
-            </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Data início do ciclo</Text>
-                <DateInput
-                  value={editCycleStartDate}
-                  onChange={setEditCycleStartDate}
-                  onOpenCalendar={() => setShowEditCycleCalendar(true)}
-                  placeholder="DD/MM/AAAA"
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Duração do ciclo</Text>
-                <View ref={editCycleLengthTriggerRef}>
-                  <Pressable
-                    onPress={() => toggleEditPicker("cycle")}
-                    style={selectFieldStyle}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {editCycleLengthWeeks ? `${editCycleLengthWeeks} semanas` : "Selecione"}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditCycleLengthPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Nível</Text>
-                <View ref={editMvLevelTriggerRef}>
-                  <Pressable
-                    onPress={() => toggleEditPicker("level")}
-                    style={selectFieldStyle}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {getOptionLabel(editMvLevel, mvLevelOptions) || "Selecione"}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditMvLevelPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
-                <View ref={editAgeBandTriggerRef}>
-                  <Pressable
-                    onPress={() => toggleEditPicker("age")}
-                    style={selectFieldStyle}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {editAgeBand || "Selecione"}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditAgeBandPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-                { editShowAllAges ? (
-                  <TextInput
-                    placeholder="Faixa etária (ex: 14-16)"
-                    value={editAgeBand}
-                    onChangeText={setEditAgeBand}
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.background,
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                ) : null}
-              </View>
-            </View>
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
-              <View ref={editGenderTriggerRef}>
-                <Pressable
-                  onPress={() => toggleEditPicker("gender")}
-                  style={selectFieldStyle}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {getOptionLabel(editGender, genderOptions) || "Selecione"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showEditGenderPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
-                <View ref={editModalityTriggerRef}>
-                  <Pressable
-                    onPress={() => toggleEditPicker("modality")}
-                    style={selectFieldStyle}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {getOptionLabel(editModality, modalityOptions) || "Selecione"}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditModalityPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-                <View ref={editGoalTriggerRef} style={{ width: "100%" }}>
-                  <Pressable
-                    onPress={() => toggleEditPicker("goal")}
-                    style={[selectFieldStyle, { width: "100%" }]}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {editShowCustomGoal
-                        ? editCustomGoal || "Personalizar"
-                        : editGoal || "Selecione"}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditGoalPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-              </View>
-              {editShowCustomGoal ? (
-                <TextInput
-                  placeholder="Objetivo (ex: Força, Potência)"
-                  value={editCustomGoal}
-                  onChangeText={setEditCustomGoal}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              ) : null}
-              </View>
-            </View>
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Dias da semana</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {dayNames.map((label, index) => {
-                  const active = editDays.includes(index);
-                  return (
-                    <Pressable
-                      key={label}
-                      onPress={() => toggleEditDay(index)}
-                      style={getChipStyle(active)}
-                    >
-                      <Text style={getChipTextStyle(active)}>{label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            { editFormError ? (
-              <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                {editFormError}
-              </Text>
-            ) : null}
-            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-            <Button
-              label={editSaving ? "Salvando..." : "Salvar alterações"}
-              onPress={saveEditClass}
-              disabled={editSaving || !editName.trim() || !isEditDirty}
-            />
-            <Button
-              label="Excluir turma"
-              variant="danger"
-              onPress={handleDeleteClass}
-              disabled={editSaving}
-              loading={false}
-            />
           </View>
-        </ScrollView>
-
-        <AnchoredDropdown
-          visible={showEditDurationPickerContent}
-          layout={editDurationTriggerLayout}
-          container={editContainerWindow}
-          animationStyle={editDurationPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
+        }
+        contentContainerStyle={{ gap: 12, paddingBottom: 24, paddingHorizontal: 12, paddingTop: 12 }}
+      >
+        <Suspense
+          fallback={
+            <View style={{ gap: 10, paddingHorizontal: 12, paddingTop: 16, paddingBottom: 24 }}>
+              <ShimmerBlock style={{ height: 22, width: 120, borderRadius: 10 }} />
+              <ShimmerBlock style={{ height: 120, borderRadius: 14 }} />
+              <ShimmerBlock style={{ height: 120, borderRadius: 14 }} />
+            </View>
+          }
         >
-          {durationOptions.map((item, index) => (
-            <SelectOption
-              key={item}
-              label={item + " min"}
-              value={item}
-              active={editDuration === item && !editShowCustomDuration}
-              onSelect={handleEditSelectDuration}
-              isFirst={index === 0}
-            />
-          ))}
-          <SelectOption
-            label={customOptionLabel}
-            value={customOptionLabel}
-            active={editShowCustomDuration}
-            onSelect={handleEditSelectDuration}
+          <ClassEditModalBody
+            refs={{
+              editContainerRef,
+              editDurationTriggerRef,
+              editCycleLengthTriggerRef,
+              editMvLevelTriggerRef,
+              editAgeBandTriggerRef,
+              editGenderTriggerRef,
+              editModalityTriggerRef,
+              editGoalTriggerRef,
+            }}
+            layouts={{
+              editContainerWindow,
+              editDurationTriggerLayout,
+              editCycleLengthTriggerLayout,
+              editMvLevelTriggerLayout,
+              editAgeBandTriggerLayout,
+              editGenderTriggerLayout,
+              editModalityTriggerLayout,
+              editGoalTriggerLayout,
+            }}
+            pickers={{
+              showEditDurationPicker,
+              showEditCycleLengthPicker,
+              showEditMvLevelPicker,
+              showEditAgeBandPicker,
+              showEditGenderPicker,
+              showEditModalityPicker,
+              showEditGoalPicker,
+              showEditDurationPickerContent,
+              showEditCycleLengthPickerContent,
+              showEditMvLevelPickerContent,
+              showEditAgeBandPickerContent,
+              showEditGenderPickerContent,
+              showEditModalityPickerContent,
+              showEditGoalPickerContent,
+              editDurationPickerAnimStyle,
+              editCycleLengthPickerAnimStyle,
+              editMvLevelPickerAnimStyle,
+              editAgeBandPickerAnimStyle,
+              editGenderPickerAnimStyle,
+              editModalityPickerAnimStyle,
+              editGoalPickerAnimStyle,
+              showEditCycleCalendar,
+            }}
+            fields={{
+              editName,
+              setEditName,
+              editUnit,
+              setEditUnit,
+              editColorOptions,
+              editColorKey,
+              handleSelectEditColor,
+              editStartTime,
+              setEditStartTime,
+              normalizeTimeInput,
+              editDuration,
+              setEditDuration,
+              editShowCustomDuration,
+              editCycleStartDate,
+              setEditCycleStartDate,
+              editCycleLengthWeeks,
+              editMvLevel,
+              editAgeBand,
+              setEditAgeBand,
+              editShowAllAges,
+              editGender,
+              editModality,
+              editShowCustomGoal,
+              editGoal,
+              editCustomGoal,
+              setEditCustomGoal,
+              editDays,
+              toggleEditDay,
+              editFormError,
+              editSaving,
+              isEditDirty,
+            }}
+            options={{
+              dayNames,
+              durationOptions,
+              cycleLengthOptions,
+              ageBandOptions,
+              genderOptions,
+              modalityOptions,
+              mvLevelOptions,
+              goalOptions,
+              customOptionLabel,
+            }}
+            actions={{
+              closeAllPickers,
+              toggleEditPicker,
+              handleEditSelectDuration,
+              handleEditSelectCycleLength,
+              handleEditSelectMvLevel,
+              handleEditSelectAgeBand,
+              handleEditSelectGender,
+              handleEditSelectModality,
+              handleEditSelectGoal,
+              saveEditClass,
+              handleDeleteClass,
+              setShowEditCycleCalendar,
+            }}
           />
-        </AnchoredDropdown>
-
-        <AnchoredDropdown
-          visible={showEditCycleLengthPickerContent}
-          layout={editCycleLengthTriggerLayout}
-          container={editContainerWindow}
-          animationStyle={editCycleLengthPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {cycleLengthOptions.map((value, index) => (
-            <SelectOption
-              key={value}
-              label={`${value} semanas`}
-              value={value}
-              active={editCycleLengthWeeks === value}
-              onSelect={handleEditSelectCycleLength}
-              isFirst={index === 0}
-            />
-          ))}
-        </AnchoredDropdown>
-
-        <AnchoredDropdown
-          visible={showEditMvLevelPickerContent}
-          layout={editMvLevelTriggerLayout}
-          container={editContainerWindow}
-          animationStyle={editMvLevelPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {mvLevelOptions.map((option, index) => (
-            <SelectOption
-              key={option.value}
-              label={option.label}
-              value={option.value}
-              active={editMvLevel === option.value}
-              onSelect={handleEditSelectMvLevel}
-              isFirst={index === 0}
-            />
-          ))}
-        </AnchoredDropdown>
-
-        <AnchoredDropdown
-          visible={showEditAgeBandPickerContent}
-          layout={editAgeBandTriggerLayout}
-          container={editContainerWindow}
-          animationStyle={editAgeBandPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-          scrollContentStyle={{ padding: 4 }}
-        >
-          {ageBandOptions.map((band, index) => (
-            <SelectOption
-              key={band}
-              label={band}
-              value={band}
-              active={editAgeBand === band && !editShowAllAges}
-              onSelect={handleEditSelectAgeBand}
-              isFirst={index === 0}
-            />
-          ))}
-          <SelectOption
-            label={customOptionLabel}
-            value={customOptionLabel}
-            active={editShowAllAges}
-            onSelect={handleEditSelectAgeBand}
-          />
-        </AnchoredDropdown>
-
-        <AnchoredDropdown
-          visible={showEditGenderPickerContent}
-          layout={editGenderTriggerLayout}
-          container={editContainerWindow}
-          animationStyle={editGenderPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-          scrollContentStyle={{ padding: 4 }}
-        >
-          {genderOptions.map((option, index) => (
-            <SelectOption
-              key={option.value}
-              label={option.label}
-              value={option.value}
-              active={editGender === option.value}
-              onSelect={handleEditSelectGender}
-              isFirst={index === 0}
-            />
-          ))}
-        </AnchoredDropdown>
-
-        <AnchoredDropdown
-          visible={showEditModalityPickerContent}
-          layout={editModalityTriggerLayout}
-          container={editContainerWindow}
-          animationStyle={editModalityPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-          scrollContentStyle={{ padding: 4 }}
-        >
-          {modalityOptions.map((option, index) => (
-            <SelectOption
-              key={option.value}
-              label={option.label}
-              value={option.value}
-              active={editModality === option.value}
-              onSelect={handleEditSelectModality}
-              isFirst={index === 0}
-            />
-          ))}
-        </AnchoredDropdown>
-
-        <AnchoredDropdown
-          visible={showEditGoalPickerContent}
-          layout={editGoalTriggerLayout}
-          container={editContainerWindow}
-          animationStyle={editGoalPickerAnimStyle}
-          zIndex={320}
-          maxHeight={260}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-          scrollContentStyle={{ padding: 4 }}
-        >
-          {goalOptions.map((goal, index) => (
-            <SelectOption
-              key={goal}
-              label={goal}
-              value={goal}
-              active={editGoal === goal && !editShowCustomGoal}
-              onSelect={handleEditSelectGoal}
-              isFirst={index === 0}
-            />
-          ))}
-          <SelectOption
-            label={customOptionLabel}
-            value={customOptionLabel}
-            active={editShowCustomGoal}
-            onSelect={handleEditSelectGoal}
-          />
-        </AnchoredDropdown>
-      </ModalSheet>
+        </Suspense>
+      </ModalDialogFrame>
       <DatePickerModal
         visible={showNewCycleCalendar}
         value={newCycleStartDate}
@@ -2886,18 +2602,9 @@ export default function ClassesScreen() {
         closeOnSelect={false}
         initialViewMode="day"
       />
-      <DatePickerModal
-        visible={showEditCycleCalendar}
-        value={editCycleStartDate}
-        onChange={(value) => setEditCycleStartDate(value)}
-        onClose={() => setShowEditCycleCalendar(false)}
-        closeOnSelect={false}
-        initialViewMode="day"
-      />
     </SafeAreaView>
   );
 }
-
 
 
 

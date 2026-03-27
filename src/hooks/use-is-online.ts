@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 /**
  * Hook para detectar se o dispositivo está online ou offline.
  * Monitora mudanças de conexão e atualiza o estado em tempo real.
- * 
+ *
  * Se @react-native-community/netinfo não estiver disponível,
  * assume online por padrão (fallback para app online-first).
  */
@@ -16,8 +16,9 @@ export function useIsOnline(): boolean {
     const setupNetworkListener = async () => {
       try {
         // Try to dynamically import NetInfo - it may not be installed
-        const NetInfo = await import("@react-native-community/netinfo");
-        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const NetInfo: any = await import("@react-native-community/netinfo" as any);
+
         // Get initial state
         try {
           const state = await NetInfo.default.fetch();
@@ -29,7 +30,7 @@ export function useIsOnline(): boolean {
 
         // Subscribe to changes
         try {
-          unsubscribe = NetInfo.default.addEventListener((state) => {
+          unsubscribe = NetInfo.default.addEventListener((state: any) => {
             setIsOnline(state.isConnected !== false);
           });
         } catch (subscribeError) {

@@ -4,6 +4,7 @@ import { Alert, StyleProp, Text, TextInput, View, ViewStyle } from "react-native
 import type { ClassGroup, Student } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
@@ -72,8 +73,8 @@ export type WhatsAppModalProps = {
   closeAllPickers: () => void;
 
   // refs
-  whatsappContainerRef: RefObject<View>;
-  templateTriggerRef: RefObject<View>;
+  whatsappContainerRef: RefObject<View | null>;
+  templateTriggerRef: RefObject<View | null>;
 
   // settings
   groupInviteLinks: Record<string, string>;
@@ -296,7 +297,7 @@ export function WhatsAppModal({
             ) : null}
 
             {selectedTemplateId ? (
-              WHATSAPP_TEMPLATES[selectedTemplateId].requires.map((field) => {
+              (WHATSAPP_TEMPLATES[selectedTemplateId].requires ?? []).map((field) => {
                 if (
                   field === "nextClassDate" ||
                   field === "nextClassTime" ||
@@ -515,9 +516,9 @@ export function WhatsAppModal({
               panelStyle={{
                 borderWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.background,
+                backgroundColor: colors.card,
               }}
-              scrollContentStyle={{ padding: 8, gap: 8 }}
+              scrollContentStyle={{ padding: 8, gap: 6 }}
             >
               {Object.values(WHATSAPP_TEMPLATES).map((template) => {
                 const isSelected = selectedTemplateId === template.id;
@@ -543,8 +544,9 @@ export function WhatsAppModal({
                   }
                 }
                 return (
-                  <Pressable
+                  <AnchoredDropdownOption
                     key={template.id}
+                    active={isSelected}
                     disabled={!canUse}
                     onPress={() => {
                       if (!canUse) {
@@ -597,7 +599,7 @@ export function WhatsAppModal({
                         {missingRequirement}
                       </Text>
                     ) : null}
-                  </Pressable>
+                  </AnchoredDropdownOption>
                 );
               })}
             </AnchoredDropdown>

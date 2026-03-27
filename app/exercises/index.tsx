@@ -33,6 +33,7 @@ import {
     saveExercise,
     updateExercise,
 } from "../../src/db/seed";
+import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -74,6 +75,7 @@ export default function ExercisesScreen() {
   const metaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
+  const debouncedSearchText = useDebouncedValue(searchText, 250);
 
   const load = useCallback(async () => {
     try {
@@ -94,7 +96,7 @@ export default function ExercisesScreen() {
 
   const filteredItems = useMemo(() => {
     let list = items;
-    const query = searchText.trim().toLowerCase();
+    const query = debouncedSearchText.trim().toLowerCase();
     if (!query) return list;
     return list.filter((item) => {
       const haystack = [
@@ -107,7 +109,7 @@ export default function ExercisesScreen() {
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [items, searchText]);
+  }, [debouncedSearchText, items]);
 
   const clearForm = () => {
     setTitle("");

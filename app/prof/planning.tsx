@@ -1,5 +1,8 @@
-import TrainingScreen from "../training";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function ProfPlanningTab() {
-  return <TrainingScreen />;
-}
+const ProfPlanningTab = createLazyRoute(
+  () => import("../training"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando planejamento..." />
+);
+
+export default ProfPlanningTab;

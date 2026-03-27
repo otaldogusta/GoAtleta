@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import type { RefObject } from "react";
 import {
@@ -13,8 +13,11 @@ import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
 import { Pressable } from "../../ui/Pressable";
+import { StudentAcademicFields } from "./components/StudentAcademicFields";
 import { StudentDocumentsFields } from "./components/StudentDocumentsFields";
 import type { StudentFormSection } from "./hooks/useStudentForm";
+
+const safeText = (value: unknown) => String(value ?? "");
 
 type CollapsibleAnim = {
     isVisible: boolean;
@@ -60,13 +63,14 @@ export type StudentRegistrationTabProps = {
     // Type picker
     isExperimental: boolean;
     showTypePicker: boolean;
-    typeTriggerRef: RefObject<View>;
+    typeTriggerRef: RefObject<View | null>;
     toggleFormPicker: (target: "unit" | "class" | "guardianRelation" | "type") => void;
 
     // Section accordion state & animations
     openCreateSection: StudentFormSection;
-    toggleCreateSection: (section: "studentData" | "documents" | "sportProfile" | "health" | "guardian") => void;
+    toggleCreateSection: (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian") => void;
     createStudentDataAnim: CollapsibleAnim;
+    createAcademicAnim: CollapsibleAnim;
     createDocumentsAnim: CollapsibleAnim;
     createSportAnim: CollapsibleAnim;
     createHealthAnim: CollapsibleAnim;
@@ -76,14 +80,16 @@ export type StudentRegistrationTabProps = {
     name: string;
     setName: (v: string) => void;
     formatName: (v: string) => string;
+    collegeCourse: string;
+    setCollegeCourse: (v: string) => void;
 
     unit: string;
     showUnitPicker: boolean;
-    unitTriggerRef: RefObject<View>;
+    unitTriggerRef: RefObject<View | null>;
 
     selectedClassName: string;
     showClassPicker: boolean;
-    classTriggerRef: RefObject<View>;
+    classTriggerRef: RefObject<View | null>;
 
     studentFormError: string;
 
@@ -96,10 +102,9 @@ export type StudentRegistrationTabProps = {
     setPhone: (v: string) => void;
     formatPhone: (v: string) => string;
 
-    // Documents fields
+    // Academic fields
     ra: string;
     setRa: (v: string) => void;
-    setStudentDocumentsError: (patch: DocumentsError | ((prev: DocumentsError) => DocumentsError)) => void;
 
     cpfDisplay: string;
     setCpfDisplay: (v: string) => void;
@@ -116,6 +121,9 @@ export type StudentRegistrationTabProps = {
     revealCpfBusy: boolean;
     handleRevealEditingCpf: () => void;
     studentDocumentsError: DocumentsError;
+
+    // Documents fields
+    setStudentDocumentsError: (patch: DocumentsError | ((prev: DocumentsError) => DocumentsError)) => void;
 
     loginEmail: string;
     setLoginEmail: (v: string) => void;
@@ -150,7 +158,7 @@ export type StudentRegistrationTabProps = {
     setGuardianPhone: (v: string) => void;
     guardianRelation: string;
     showGuardianRelationPicker: boolean;
-    guardianRelationTriggerRef: RefObject<View>;
+    guardianRelationTriggerRef: RefObject<View | null>;
 
     // Actions
     canSaveStudent: boolean;
@@ -172,6 +180,7 @@ export function StudentRegistrationTab({
     openCreateSection,
     toggleCreateSection,
     createStudentDataAnim,
+    createAcademicAnim,
     createDocumentsAnim,
     createSportAnim,
     createHealthAnim,
@@ -179,6 +188,8 @@ export function StudentRegistrationTab({
     name,
     setName,
     formatName,
+    collegeCourse,
+    setCollegeCourse,
     unit,
     showUnitPicker,
     unitTriggerRef,
@@ -195,7 +206,6 @@ export function StudentRegistrationTab({
     formatPhone,
     ra,
     setRa,
-    setStudentDocumentsError,
     cpfDisplay,
     setCpfDisplay,
     setIsCpfVisible,
@@ -209,6 +219,7 @@ export function StudentRegistrationTab({
     revealCpfBusy,
     handleRevealEditingCpf,
     studentDocumentsError,
+    setStudentDocumentsError,
     loginEmail,
     setLoginEmail,
     formatEmail,
@@ -316,10 +327,37 @@ export function StudentRegistrationTab({
             </View>
 
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
+              <Pressable onPress={() => toggleCreateSection("academic")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>{[safeText(ra).trim() ? `RA: ${safeText(ra)}` : "", safeText(collegeCourse).trim() ? safeText(collegeCourse) : ""].filter(Boolean).join(" • ") || "RA e curso..."}</Text>
+                </View>
+                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
+              </Pressable>
+              {openCreateSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
+              {createAcademicAnim.isVisible ? (
+                <Animated.View style={[createAcademicAnim.animatedStyle, { overflow: "hidden" }]}>
+                  <View style={{ gap: 10, padding: 12 }}>
+                    <StudentAcademicFields
+                      ra={ra}
+                      collegeCourse={collegeCourse}
+                      onChangeRa={(value) => {
+                        setRa(value);
+                        setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
+                      }}
+                      onChangeCollegeCourse={setCollegeCourse}
+                      errors={studentDocumentsError}
+                    />
+                  </View>
+                </Animated.View>
+              ) : null}
+            </View>
+
+            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable onPress={() => toggleCreateSection("documents")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{ra.trim() ? `RA: ${ra}` : "RA, CPF, RG, e-mail..."}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>{[cpfDisplay.trim() ? "CPF" : "", rgDocument.trim() ? "RG" : "", loginEmail.trim() ? "e-mail" : ""].filter(Boolean).join(", ") || "CPF, RG, e-mail..."}</Text>
                 </View>
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
               </Pressable>
@@ -328,10 +366,8 @@ export function StudentRegistrationTab({
                 <Animated.View style={[createDocumentsAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                     <StudentDocumentsFields
-                      ra={ra}
                       cpfDisplay={cpfDisplay}
                       rg={rgDocument}
-                      onChangeRa={(value) => { setRa(normalizeRaDigits(value)); setStudentDocumentsError((prev) => ({ ...prev, ra: undefined })); }}
                       onChangeCpf={(value) => { setCpfDisplay(value); setIsCpfVisible(false); setCpfRevealedValue(null); setCpfRevealUnavailable(false); setStudentDocumentsError((prev) => ({ ...prev, cpf: undefined })); }}
                       onChangeRg={setRgDocument}
                       showRevealCpfButton={Boolean(editingId && canRevealCpf)}

@@ -88,7 +88,7 @@ const getSecureStore = (): SecureStoreModule | null => {
 export const loadSession = async (): Promise<AuthSession | null> => {
   const secureStore = getSecureStore();
   const remember = await AsyncStorage.getItem(REMEMBER_KEY);
-  if (remember !== "true") {
+  if (isNative && remember !== "true") {
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (secureStore) {
       await secureStore.deleteItemAsync(STORAGE_KEY);
@@ -162,7 +162,7 @@ export const saveSession = async (session: AuthSession | null, remember = true) 
   }
   accessToken = session.access_token ?? "";
   currentSession = session;
-  if (!remember) {
+  if (!remember && isNative) {
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (secureStore) {
       await secureStore.deleteItemAsync(STORAGE_KEY);
@@ -192,14 +192,15 @@ export const setRememberPreference = async (remember: boolean) => {
     setWebKey(REMEMBER_KEY, "true");
     return;
   }
-  accessToken = "";
-  currentSession = null;
-  await AsyncStorage.removeItem(STORAGE_KEY);
-  if (secureStore) {
-    await secureStore.deleteItemAsync(STORAGE_KEY);
+  if (isNative) {
+    accessToken = "";
+    currentSession = null;
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    if (secureStore) {
+      await secureStore.deleteItemAsync(STORAGE_KEY);
+    }
   }
   await AsyncStorage.setItem(REMEMBER_KEY, "false");
-  removeWebKey(STORAGE_KEY);
   setWebKey(REMEMBER_KEY, "false");
 };
 
@@ -208,7 +209,7 @@ export const getSessionUserId = async (): Promise<string> => {
     const stored = await loadSession();
     if (!stored) return "";
   }
-  return currentSession.user.id ?? "";
+  return currentSession!.user.id ?? "";
 };
 
 const refreshSession = async (): Promise<AuthSession | null> => {
@@ -216,7 +217,7 @@ const refreshSession = async (): Promise<AuthSession | null> => {
     const stored = await loadSession();
     if (!stored) return null;
   }
-  if (!currentSession.refresh_token) {
+  if (!currentSession!.refresh_token) {
     await saveSession(null, false);
     return null;
   }
@@ -230,7 +231,7 @@ const refreshSession = async (): Promise<AuthSession | null> => {
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ refresh_token: currentSession.refresh_token }),
+        body: JSON.stringify({ refresh_token: currentSession!.refresh_token }),
       }
     );
     const text = await res.text();
@@ -246,9 +247,9 @@ const refreshSession = async (): Promise<AuthSession | null> => {
     const remember = (await AsyncStorage.getItem(REMEMBER_KEY)) === "true";
     const next: AuthSession = {
       access_token: payload.access_token,
-      refresh_token: payload.refresh_token ?? currentSession.refresh_token,
+      refresh_token: payload.refresh_token ?? currentSession!.refresh_token,
       expires_at: payload.expires_at,
-      user: payload.user ?? currentSession.user,
+      user: payload.user ?? currentSession!.user,
     };
     await saveSession(next, remember);
     return next;

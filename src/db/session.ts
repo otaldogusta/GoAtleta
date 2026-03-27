@@ -14,12 +14,15 @@ import {
   supabasePost,
   supabasePatch,
 } from "./client";
+import { getClassById } from "./classes";
 import {
   buildScoutingLogClientId,
   buildSessionLogClientId,
   buildStudentScoutingClientId,
   enqueueWrite,
 } from "./nfc-sync";
+import { resolveTrainingPlanForDate, syncTrainingSessionFromReport } from "./training-sessions";
+import { getTrainingPlans } from "./training";
 import type { ScoutingLogRow, SessionLogRow, StudentScoutingRow } from "./row-types";
 
 // ---------------------------------------------------------------------------
@@ -119,7 +122,7 @@ export async function getLatestScoutingLog(
 export async function saveScoutingLog(
   log: ScoutingLog,
   options?: { allowQueue?: boolean; organizationId?: string }
-) {
+): Promise<ScoutingLog> {
   const allowQueue = options?.allowQueue !== false;
   try {
     const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
@@ -330,29 +333,59 @@ export async function saveSessionLog(
           createdat: log.createdAt,
         }
       );
-      return;
+    } else {
+      await supabasePost(
+        "/session_logs?on_conflict=client_id",
+        [
+          {
+            id: logId,
+            client_id: clientId,
+            classid: log.classId,
+            organization_id: organizationId ?? undefined,
+            rpe: pseValue,
+            technique: log.technique,
+            attendance: log.attendance,
+            activity,
+            conclusion,
+            participants_count: participantsCount,
+            photos,
+            pain_score: log.painScore ?? null,
+            createdat: log.createdAt,
+          },
+        ],
+        { Prefer: "resolution=merge-duplicates" }
+      );
     }
-    await supabasePost(
-      "/session_logs?on_conflict=client_id",
-      [
-        {
-          id: logId,
-          client_id: clientId,
-          classid: log.classId,
-          organization_id: organizationId ?? undefined,
-          rpe: pseValue,
-          technique: log.technique,
-          attendance: log.attendance,
-          activity,
-          conclusion,
-          participants_count: participantsCount,
-          photos,
-          pain_score: log.painScore ?? null,
-          createdat: log.createdAt,
-        },
-      ],
-      { Prefer: "resolution=merge-duplicates" }
-    );
+
+    try {
+      const [classInfo, plans] = await Promise.all([
+        getClassById(log.classId, { organizationId }),
+        getTrainingPlans({ organizationId, classId: log.classId }),
+      ]);
+      if (classInfo) {
+        const plan = resolveTrainingPlanForDate(
+          plans,
+          classInfo.id,
+          (log.createdAt ?? new Date().toISOString()).slice(0, 10)
+        );
+        await syncTrainingSessionFromReport({
+          classInfo,
+          createdAt: log.createdAt ?? new Date().toISOString(),
+          report: {
+            activity,
+            conclusion,
+            PSE: pseValue,
+            attendance: log.attendance,
+            participantsCount: participantsCount ?? undefined,
+            photos,
+          },
+          plan,
+          organizationId,
+        });
+      }
+    } catch {
+      // best-effort compatibility layer; legacy report save already succeeded
+    }
   } catch (error) {
     if (allowQueue && isNetworkError(error)) {
       await enqueueWrite({
@@ -388,7 +421,7 @@ export async function getSessionLogByDate(
     clientId: row.client_id ?? row.id,
     classId: row.classid,
     PSE: row.rpe,
-    technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
+    technique: (["boa", "ok", "ruim", "nenhum"].includes(row.technique ?? "") ? row.technique : "boa") as "boa" | "ok" | "ruim" | "nenhum",
     attendance: row.attendance,
     activity: row.activity ?? "",
     conclusion: row.conclusion ?? "",
@@ -418,7 +451,7 @@ export async function getSessionLogsByRange(
     clientId: row.client_id ?? row.id,
     classId: row.classid,
     PSE: row.rpe,
-    technique: row.technique === "ruim" ? "ruim" : row.technique === "ok" ? "ok" : "boa",
+    technique: (["boa", "ok", "ruim", "nenhum"].includes(row.technique ?? "") ? row.technique : "boa") as "boa" | "ok" | "ruim" | "nenhum",
     attendance: row.attendance,
     activity: row.activity ?? "",
     conclusion: row.conclusion ?? "",

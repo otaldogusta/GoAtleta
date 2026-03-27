@@ -2,6 +2,7 @@ export type ClassRosterRow = {
   index: number;
   studentName: string;
   birthDate: string;
+  collegeCourse?: string;
   contactLabel: string;
   contactPhone: string;
   attendance?: Record<number, "P" | "F" | "-" | "">;
@@ -19,9 +20,15 @@ export type ClassRosterPdfData = {
   exportDate: string;
   mode: "full" | "whatsapp";
   includeAttendance?: boolean;
+  includeBirthDate?: boolean;
+  includeCourse?: boolean;
+  includeContact?: boolean;
+  includeFundamentals?: boolean;
   totalStudents: number;
   monthDays: number[];
   fundamentals: string[];
+  fundamentalKeys?: string[];
+  fundamentalsByDay?: Record<number, string[]>;
   periodizationLabel: string;
   coachName: string;
   rows: ClassRosterRow[];
@@ -32,101 +39,114 @@ const esc = (value: string) =>
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;");
+    .replace(/"/g, "&quot;");
 
 export const classRosterHtml = (data: ClassRosterPdfData) => {
-  const isWhatsApp = data.mode === "whatsapp";
+  const showAttendance = data.includeAttendance !== false;
+  const showBirthDate = data.includeBirthDate !== false;
+  const showCourse = data.includeCourse === true;
+  const showContact = data.includeContact === true;
+  const showFundamentals = data.includeFundamentals !== false;
+  const fixedCols =
+    22 +
+    150 +
+    (showBirthDate ? 56 : 0) +
+    (showCourse ? 96 : 0) +
+    (showContact ? 104 : 0) +
+    (showAttendance ? 44 : 0);
   const dayCount = Math.max(1, data.monthDays.length);
-  const emptyCols = 3 + data.monthDays.length + 1;
-  const leftFixedCols = isWhatsApp ? 320 : 272;
-  const fundFixedCols = 110;
-  const dayHeaderCells = data.monthDays
-    .map((day) => `<th class="col-day">${day}</th>`)
-    .join("");
-  const fundDayHeaderCells = data.monthDays
-    .map((day) => `<th class="col-day">${day}</th>`)
-    .join("");
-
-  const headerCells = isWhatsApp ? `
+  const emptyCols =
+    2 +
+    (showBirthDate ? 1 : 0) +
+    (showCourse ? 1 : 0) +
+    (showContact ? 1 : 0) +
+    (showAttendance ? data.monthDays.length + 1 : 0);
+  const dayHeaderCells = showAttendance
+    ? data.monthDays.map((day) => `<th class="col-day">${day}</th>`).join("")
+    : "";
+  const headerCells = `
       <th class="col-index">#</th>
       <th class="col-name">Atletas</th>
-      <th class="col-contact">Contato</th>
-      ${dayHeaderCells}
-      <th class="col-total">Total</th>
-    `
-    : `
-      <th class="col-index">#</th>
-      <th class="col-name">Atletas</th>
-      <th class="col-birth">Nasc</th>
-      ${dayHeaderCells}
-      <th class="col-total">Total</th>
+      ${showBirthDate ? `<th class="col-birth">Nasc</th>` : ""}
+      ${showCourse ? `<th class="col-course">Curso</th>` : ""}
+      ${showContact ? `<th class="col-contact">Contato</th>` : ""}
+      ${showAttendance ? `${dayHeaderCells}<th class="col-total">Total</th>` : ""}
     `;
 
   const minRows = 20;
-  const paddedRows = data.rows.length >= minRows ?
-    data.rows
-    : [
-        ...data.rows,
-        ...Array.from({ length: minRows - data.rows.length }, (_, idx) => ({
-          index: data.rows.length + idx + 1,
-          studentName: "",
-          birthDate: "",
-          contactLabel: "",
-          contactPhone: "",
-        })),
-      ];
+  const paddedRows: ClassRosterRow[] =
+    data.rows.length >= minRows
+      ? data.rows
+      : [
+          ...data.rows,
+          ...Array.from({ length: minRows - data.rows.length }, (_, idx) => ({
+            index: data.rows.length + idx + 1,
+            studentName: "",
+            birthDate: "",
+            collegeCourse: "",
+            contactLabel: "",
+            contactPhone: "",
+            attendance: undefined,
+            total: undefined,
+          })),
+        ];
 
   const rows = paddedRows
     .map((row, rowIndex) => {
       const isEmpty = !row.studentName;
-      const dayCells = data.monthDays
-        .map((day) => {
-          const value = data.includeAttendance
-            ? row.attendance?.[day] ?? ""
-            : "";
-          return `<td class="col-day">${value}</td>`;
-        })
-        .join("");
-      const totalCell = typeof row.total === "number" ? String(row.total) : "";
-      if (isWhatsApp) {
-        return `
-          <tr class="${rowIndex % 2 === 0 ? "row-alt" : ""}">
-            <td class="col-index">${row.index}</td>
-            <td class="col-name">${esc(row.studentName)}</td>
-            <td class="col-contact">${
+      const dayCells = showAttendance
+        ? data.monthDays
+            .map((day) => {
+              const value = row.attendance?.[day] ?? "";
+              return `<td class="col-day">${value}</td>`;
+            })
+            .join("")
+        : "";
+      const totalCell = showAttendance && typeof row.total === "number" ? String(row.total) : "";
+      const rowCells = [
+        `<td class="col-index">${row.index}</td>`,
+        `<td class="col-name">${esc(row.studentName)}</td>`,
+        showBirthDate
+          ? `<td class="col-birth">${isEmpty ? "" : esc(row.birthDate ?? "-")}</td>`
+          : "",
+        showCourse
+          ? `<td class="col-course">${isEmpty ? "" : esc(row.collegeCourse ?? "-")}</td>`
+          : "",
+        showContact
+          ? `<td class="col-contact">${
               isEmpty ? "" : `${esc(row.contactLabel ?? "-")} ${esc(row.contactPhone ?? "")}`.trim()
-            }</td>
-            ${dayCells}
-            <td class="col-total">${totalCell}</td>
-          </tr>
-        `;
-      }
+            }</td>`
+          : "",
+        showAttendance ? `${dayCells}<td class="col-total">${totalCell}</td>` : "",
+      ].join("");
 
       return `
         <tr class="${rowIndex % 2 === 0 ? "row-alt" : ""}">
-          <td class="col-index">${row.index}</td>
-          <td class="col-name">${esc(row.studentName)}</td>
-          <td class="col-birth">${isEmpty ? "" : esc(row.birthDate ?? "-")}</td>
-          ${dayCells}
-          <td class="col-total">${totalCell}</td>
+          ${rowCells}
         </tr>
       `;
     })
     .join("");
 
-  const fundamentalsRows = data.fundamentals
-    .map((item) => {
-      const dayCells = data.monthDays
-        .map(() => `<td class="col-day"></td>`)
-        .join("");
-      return `
-        <tr>
-          <td class="col-fund">${esc(item)}</td>
-          ${dayCells}
-        </tr>
-      `;
-    })
-    .join("");
+  const fundamentalsMatrix = showFundamentals
+    ? data.fundamentals
+        .map((fundamental, index) => {
+          const key = data.fundamentalKeys?.[index] ?? fundamental;
+          const dayCells = data.monthDays
+            .map((day) => {
+              const active = ((data.fundamentalsByDay ?? {})[day] ?? []).includes(key);
+              return `<td class="fund-cell">${active ? "X" : ""}</td>`;
+            })
+            .join("");
+          return `
+            <tr class="fund-row">
+              <td class="fund-label">${esc(fundamental)}</td>
+              ${dayCells}
+            </tr>
+          `;
+        })
+        .join("")
+    : "";
 
   return `
   <html>
@@ -209,7 +229,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
         }
         .layout {
           display: flex;
-          gap: 12px;
+          gap: 26px;
           align-items: flex-start;
           width: 100%;
         }
@@ -218,7 +238,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           min-width: 0;
         }
         .right-column {
-          width: 260px;
+          width: 250px;
           flex-shrink: 0;
         }
 
@@ -230,18 +250,14 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           vertical-align: middle;
           word-break: break-word;
         }
-        .roster-table th.col-day,
-        .fund-table th.col-day {
+        .roster-table th.col-day {
           word-break: keep-all;
           white-space: nowrap;
-        }
-        .fund-table th.col-day {
-          font-size: 7px;
-          line-height: 1;
         }
         th { background: #f2f2f2; text-align: center; }
         .col-index { width: 22px; text-align: center; }
         .col-birth { width: 56px; text-align: center; }
+        .col-course { width: 96px; text-align: left; }
         .col-contact { width: 104px; }
         .col-total {
           width: 44px;
@@ -251,17 +267,9 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
           hyphens: none;
         }
         .col-name { width: 150px; text-align: left; }
-        .col-fund { width: 110px; text-align: left; }
-        .fund-table .col-fund { width: 95px; }
         .roster-table .col-day {
           text-align: center;
           width: calc((100% - var(--fixed-cols)) / var(--day-count));
-          white-space: nowrap;
-        }
-        .fund-table .col-day {
-          text-align: center;
-          width: calc((100% - var(--fixed-cols)) / var(--day-count));
-          min-width: 16px;
           white-space: nowrap;
         }
         .row-alt { background: #fafafa; }
@@ -269,17 +277,53 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
         .block {
           border: 1px solid #ddd;
           border-radius: 10px;
-          padding: 8px;
+          padding: 12px;
           background: #fafafa;
         }
         .block-title {
           font-size: 12px;
           font-weight: 700;
-          margin-bottom: 6px;
+          margin-bottom: 8px;
+        }
+        .fund-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          background: #fff;
+          border: 1px solid #d9d9d9;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .fund-table th,
+        .fund-table td {
+          border: 1px solid #d9d9d9;
+          padding: 4px 5px;
+          font-size: 9px;
+          vertical-align: middle;
+        }
+        .fund-table thead th {
+          background: #f2f2f2;
+          font-weight: 700;
+          text-align: center;
+        }
+        .fund-label {
+          width: 108px;
+          text-align: left;
+          font-weight: 700;
+        }
+        .fund-day {
+          width: calc((100% - 108px) / var(--fund-day-count));
+          text-align: center;
+          white-space: nowrap;
+        }
+        .fund-cell {
+          text-align: center;
+          font-weight: 700;
+          letter-spacing: 0.25px;
         }
         .notes {
-          margin-top: 10px;
-          min-height: 120px;
+          margin-top: 18px;
+          min-height: 140px;
           background: #fff;
         }
         .notes-line {
@@ -288,7 +332,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
         }
 
         .footer {
-          margin-top: 10px;
+          margin-top: 14px;
           font-size: 10px;
           color: #666;
           display: flex;
@@ -341,7 +385,7 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
 
       <div class="layout">
         <div class="left-column">
-          <table class="roster-table" style="--day-count:${dayCount}; --fixed-cols:${leftFixedCols}px">
+          <table class="roster-table" style="--day-count:${dayCount}; --fixed-cols:${fixedCols}px">
             <thead>
               <tr>
                 ${headerCells}
@@ -358,20 +402,27 @@ export const classRosterHtml = (data: ClassRosterPdfData) => {
         </div>
 
         <div class="right-column">
+          ${showFundamentals ? `
           <div class="block">
             <div class="block-title">Fundamentos trabalhados</div>
-            <table class="fund-table" style="--day-count:${dayCount}; --fixed-cols:${fundFixedCols}px">
+            <table class="fund-table" style="--fund-day-count:${Math.max(1, data.monthDays.length)}">
               <thead>
                 <tr>
-                  <th class="col-fund">Fundamento</th>
-                  ${fundDayHeaderCells}
+                  <th class="fund-label">Fundamento</th>
+                  ${data.monthDays
+                    .map((day) => `<th class="fund-day">${day}</th>`)
+                    .join("")}
                 </tr>
               </thead>
               <tbody>
-                ${fundamentalsRows || `<tr><td class="col-fund">Sem fundamentos</td>${data.monthDays.map(() => `<td class="col-day"></td>`).join("")}</tr>`}
+                ${fundamentalsMatrix ||
+                  `<tr><td class="fund-label">Sem fundamentos</td>${data.monthDays
+                    .map(() => `<td class="fund-cell"></td>`)
+                    .join("")}</tr>`}
               </tbody>
             </table>
           </div>
+          ` : ""}
           <div class="block notes">
             <div class="block-title">Observações</div>
             ${Array.from({ length: 8 }).map(() => `<div class="notes-line"></div>`).join("")}

@@ -1,9 +1,12 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import {
-    type MemoExoticComponent,
+    type NamedExoticComponent,
     type ReactElement,
     type RefObject,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 import {
     Animated,
@@ -23,6 +26,8 @@ import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { DateInput } from "../../../ui/DateInput";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
+import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../components/ClassModalityFilterChips";
+import { StudentAcademicFields } from "../components/StudentAcademicFields";
 import { StudentDocumentsFields } from "../components/StudentDocumentsFields";
 
 type CollapsibleAnim = {
@@ -61,7 +66,7 @@ export type StudentEditModalProps = {
     closeEditModal: () => void;
 
     // Container ref / window
-    editModalRef: RefObject<View>;
+    editModalRef: RefObject<View | null>;
     setEditContainerWindow: (value: { x: number; y: number } | null) => void;
 
     // Photo
@@ -72,9 +77,10 @@ export type StudentEditModalProps = {
     // Section accordion
     openEditSection: string | null;
     toggleEditSection: (
-        section: "studentData" | "documents" | "sportProfile" | "health" | "guardian" | "links"
+        section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian" | "links"
     ) => void;
     editStudentDataAnim: CollapsibleAnim;
+    editAcademicAnim: CollapsibleAnim;
     editDocumentsAnim: CollapsibleAnim;
     editSportAnim: CollapsibleAnim;
     editHealthAnim: CollapsibleAnim;
@@ -84,6 +90,8 @@ export type StudentEditModalProps = {
     // Student data fields
     name: string;
     setName: (value: string) => void;
+    collegeCourse: string;
+    setCollegeCourse: (value: string) => void;
     loginEmail: string;
     setLoginEmail: (value: string) => void;
     birthDate: string;
@@ -120,6 +128,7 @@ export type StudentEditModalProps = {
             | { ra?: string; cpf?: string; rg?: string }
             | ((prev: { ra?: string; cpf?: string; rg?: string }) => { ra?: string; cpf?: string; rg?: string })
     ) => void;
+    editAcademicSummary: string;
     editDocumentsSummary: string;
 
     // Sport profile
@@ -152,7 +161,7 @@ export type StudentEditModalProps = {
     guardianPhone: string;
     setGuardianPhone: (value: string) => void;
     guardianRelation: string;
-    editGuardianRelationTriggerRef: RefObject<View>;
+    editGuardianRelationTriggerRef: RefObject<View | null>;
     toggleEditPicker: (target: "unit" | "class" | "guardianRelation") => void;
     showEditGuardianRelationPicker: boolean;
     editGuardianSummary: string;
@@ -165,10 +174,10 @@ export type StudentEditModalProps = {
 
     // Links
     unit: string;
-    editUnitTriggerRef: RefObject<View>;
+    editUnitTriggerRef: RefObject<View | null>;
     showEditUnitPicker: boolean;
     selectedClassName: string;
-    editClassTriggerRef: RefObject<View>;
+    editClassTriggerRef: RefObject<View | null>;
     showEditClassPicker: boolean;
     editLinksSummary: string;
     unitOptions: string[];
@@ -203,8 +212,8 @@ export type StudentEditModalProps = {
     colors: ThemeColors;
 
     // Option components (memoized in parent)
-    SelectOption: MemoExoticComponent<(props: SelectOptionProps) => ReactElement>;
-    ClassOption: MemoExoticComponent<(props: ClassOptionProps) => ReactElement>;
+    SelectOption: NamedExoticComponent<SelectOptionProps>;
+    ClassOption: NamedExoticComponent<ClassOptionProps>;
 };
 
 export function StudentEditModal({
@@ -222,6 +231,7 @@ export function StudentEditModal({
     openEditSection,
     toggleEditSection,
     editStudentDataAnim,
+    editAcademicAnim,
     editDocumentsAnim,
     editSportAnim,
     editHealthAnim,
@@ -229,6 +239,8 @@ export function StudentEditModal({
     editLinksAnim,
     name,
     setName,
+    collegeCourse,
+    setCollegeCourse,
     loginEmail,
     setLoginEmail,
     birthDate,
@@ -257,6 +269,7 @@ export function StudentEditModal({
     setCpfRevealedValue,
     setCpfRevealUnavailable,
     setStudentDocumentsError,
+    editAcademicSummary,
     editDocumentsSummary,
     positionPrimary,
     setPositionPrimary,
@@ -322,6 +335,37 @@ export function StudentEditModal({
     SelectOption,
     ClassOption,
 }: StudentEditModalProps) {
+    const [classModalityFilter, setClassModalityFilter] = useState<ClassModalityFilterValue>("all");
+    const selectedClass = useMemo(
+        () => classOptions.find((item) => item.id === classId) ?? null,
+        [classId, classOptions]
+    );
+    const selectedClassModality = selectedClass?.modality ?? null;
+    const classModalities = useMemo(
+        () => Array.from(new Set(classOptions.map((item) => item.modality))),
+        [classOptions]
+    );
+    const filteredClassOptions = useMemo(
+        () =>
+            classModalityFilter === "all"
+                ? classOptions
+                : classOptions.filter((item) => item.modality === classModalityFilter),
+        [classModalityFilter, classOptions]
+    );
+
+    useEffect(() => {
+        if (!showEditClassPicker) return;
+        setClassModalityFilter(selectedClassModality ?? "all");
+    }, [selectedClassModality, showEditClassPicker]);
+
+    useEffect(() => {
+        if (!showEditClassPicker) return;
+        if (classModalityFilter === "all") return;
+        if (!classModalities.includes(classModalityFilter)) {
+            setClassModalityFilter(selectedClassModality ?? "all");
+        }
+    }, [classModalities, classModalityFilter, selectedClassModality, showEditClassPicker]);
+
     return (
         <ModalSheet
             visible={showEditModal}
@@ -480,6 +524,36 @@ export function StudentEditModal({
 
                             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
                                 <Pressable
+                                    onPress={() => toggleEditSection("academic")}
+                                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
+                                >
+                                    <View style={{ flex: 1, gap: 2 }}>
+                                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
+                                        <Text style={{ color: colors.muted, fontSize: 11 }}>{editAcademicSummary}</Text>
+                                    </View>
+                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "academic" ? "180deg" : "0deg" }] }} />
+                                </Pressable>
+                                {openEditSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
+                                {editAcademicAnim.isVisible ? (
+                                    <Animated.View style={[editAcademicAnim.animatedStyle, { overflow: "hidden" }]}>
+                                        <View style={{ gap: 10, padding: 12 }}>
+                                            <StudentAcademicFields
+                                                ra={ra}
+                                                collegeCourse={collegeCourse}
+                                                onChangeRa={(value) => {
+                                                    setRa(normalizeRaDigits(value));
+                                                    setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
+                                                }}
+                                                onChangeCollegeCourse={setCollegeCourse}
+                                                errors={studentDocumentsError}
+                                            />
+                                        </View>
+                                    </Animated.View>
+                                ) : null}
+                            </View>
+
+                            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
+                                <Pressable
                                     onPress={() => toggleEditSection("documents")}
                                     style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
                                 >
@@ -494,13 +568,8 @@ export function StudentEditModal({
                                     <Animated.View style={[editDocumentsAnim.animatedStyle, { overflow: "hidden" }]}>
                                         <View style={{ gap: 10, padding: 12 }}>
                                             <StudentDocumentsFields
-                                                ra={ra}
                                                 cpfDisplay={cpfDisplay}
                                                 rg={rgDocument}
-                                                onChangeRa={(value) => {
-                                                    setRa(normalizeRaDigits(value));
-                                                    setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
-                                                }}
                                                 onChangeCpf={(value) => {
                                                     setCpfDisplay(value);
                                                     setIsCpfVisible(false);
@@ -765,6 +834,12 @@ export function StudentEditModal({
                                                     </View>
                                                 </View>
                                             </View>
+                                            <ClassModalityFilterChips
+                                                colors={colors}
+                                                value={classModalityFilter}
+                                                modalities={classModalities}
+                                                onChange={setClassModalityFilter}
+                                            />
                                             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                                                 <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
                                                     <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>{unit || "Sem unidade"}</Text>
@@ -833,9 +908,9 @@ export function StudentEditModal({
                         panelStyle={{
                             borderWidth: 1,
                             borderColor: colors.border,
-                            backgroundColor: colors.background,
+                            backgroundColor: colors.card,
                         }}
-                        scrollContentStyle={{ padding: 4 }}
+                        scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
                         {unitOptions.length ? (
                             unitOptions.map((item, index) => (
@@ -871,12 +946,12 @@ export function StudentEditModal({
                         panelStyle={{
                             borderWidth: 1,
                             borderColor: colors.border,
-                            backgroundColor: colors.background,
+                            backgroundColor: colors.card,
                         }}
-                        scrollContentStyle={{ padding: 4 }}
+                        scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
-                        {classOptions.length ? (
-                            classOptions.map((item, index) => (
+                        {filteredClassOptions.length ? (
+                            filteredClassOptions.map((item, index) => (
                                 <ClassOption
                                     key={item.id}
                                     item={item}
@@ -885,6 +960,10 @@ export function StudentEditModal({
                                     isFirst={index === 0}
                                 />
                             ))
+                        ) : classOptions.length ? (
+                            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+                                Nenhuma turma dessa modalidade nesta unidade.
+                            </Text>
                         ) : (
                             <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
                                 Nenhuma turma encontrada.
@@ -908,9 +987,9 @@ export function StudentEditModal({
                         panelStyle={{
                             borderWidth: 1,
                             borderColor: colors.border,
-                            backgroundColor: colors.background,
+                            backgroundColor: colors.card,
                         }}
-                        scrollContentStyle={{ padding: 4 }}
+                        scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
                         {guardianRelationOptions.map((item, index) => (
                             <SelectOption

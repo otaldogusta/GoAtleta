@@ -1,6 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
-
-
+﻿import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 
 import { Link, useRouter } from "expo-router";
@@ -14,6 +12,8 @@ import { Image } from "expo-image";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
+    Suspense,
+    lazy,
     useCallback,
     useEffect,
     useMemo,
@@ -30,6 +30,7 @@ import {
 
     Dimensions,
 
+    FlatList,
     PanResponder,
 
     Platform,
@@ -89,12 +90,26 @@ import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 import { FadeHorizontalScroll } from "../../ui/FadeHorizontalScroll";
 
 import { ShimmerBlock } from "../../ui/Shimmer";
+import { ScreenLoadingState } from "../../components/ui/ScreenLoadingState";
+import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 
 import { useAppTheme } from "../../ui/app-theme";
+import { useConfirmDialog } from "../../ui/confirm-dialog";
 
 import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { AgendaCard } from "./components/AgendaCard";
+const HomeProfessorBelowFold = lazy(() =>
+  import("./HomeProfessorBelowFold").then((module) => ({
+    default: module.HomeProfessorBelowFold,
+  }))
+);
+
+function HomeProfessorBelowFoldFallback() {
+  return (
+    <SectionLoadingState />
+  );
+}
 
 
 
@@ -169,6 +184,7 @@ export function HomeProfessorScreen({
   const { syncing, pendingCount, lastSyncAt, lastError, syncNow } = useSmartSync();
 
   const { showSaveToast } = useSaveToast();
+  const { confirm: confirmDialog } = useConfirmDialog();
 
   const screenWidth = Dimensions.get("window").width;
 
@@ -193,9 +209,14 @@ export function HomeProfessorScreen({
   const inboxUnreadBorder =
     mode === "dark" ? "#334155" : "rgba(99, 102, 241, 0.34)";
 
+  const showInitialLoading =
+    (organizationLoading || loadingClasses || loadingEvents) &&
+    classes.length === 0 &&
+    upcomingEvents.length === 0;
+
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
 
-  const agendaScrollRef = useRef<ScrollView>(null);
+  const agendaScrollRef = useRef<FlatList<(typeof scheduleWindow)[number]> | null>(null);
 
   const [agendaWidth, setAgendaWidth] = useState(0);
 
@@ -297,6 +318,14 @@ export function HomeProfessorScreen({
     },
     [resolveProfilePhoto]
   );
+  const loadInbox = useCallback(async () => {
+    try {
+      const items = await getNotifications();
+      setInbox(items);
+    } catch {
+      setInbox([]);
+    }
+  }, []);
   useEffect(() => {
     profilePhotoCacheRef.current = { uri: null, updatedAt: 0 };
   }, [role, session?.user?.id]);
@@ -307,13 +336,15 @@ export function HomeProfessorScreen({
 
     let alive = true;
 
+    void loadProfilePhoto()
+      .then((uri) => {
+        if (alive) setProfilePhotoUri(uri);
+      })
+      .catch(() => {
+        if (alive) setProfilePhotoUri(null);
+      });
+
     (async () => {
-      try {
-        const items = await getNotifications();
-        if (alive) setInbox(items);
-      } catch {
-        if (alive) setInbox([]);
-      }
 
       if (!session || role !== "trainer") {
         if (alive) {
@@ -384,10 +415,6 @@ export function HomeProfessorScreen({
 
     })();
 
-    void loadProfilePhoto().then((uri) => {
-      if (alive) setProfilePhotoUri(uri);
-    });
-
     const unsubscribe = subscribeNotifications((items) => {
 
       if (!alive) return;
@@ -405,6 +432,24 @@ export function HomeProfessorScreen({
     };
 
   }, [session, role, activeOrganization?.id, organizationLoading, loadProfilePhoto, ensureSeedData]);
+
+  useEffect(() => {
+    if (!showInbox) return;
+    let alive = true;
+    void loadInbox().finally(() => {
+      if (!alive) return;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [loadInbox, showInbox]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadInbox();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadInbox]);
 
 
 
@@ -748,19 +793,85 @@ export function HomeProfessorScreen({
 
 
 
+  const agendaScrollItems = useMemo(() => {
+    const sortByStartTime = (
+      a: (typeof scheduleWindow)[number],
+      b: (typeof scheduleWindow)[number]
+    ) => a.startTime - b.startTime;
+
+    const buckets = {
+      pastDays: [] as (typeof scheduleWindow)[number][],
+      pastToday: [] as (typeof scheduleWindow)[number][],
+      currentToday: [] as (typeof scheduleWindow)[number][],
+      upcomingToday: [] as (typeof scheduleWindow)[number][],
+      futureDays: [] as (typeof scheduleWindow)[number][],
+    };
+
+    scheduleWindow.forEach((item) => {
+      if (item.dateKey < todayDateKey) {
+        buckets.pastDays.push(item);
+        return;
+      }
+
+      if (item.dateKey > todayDateKey) {
+        buckets.futureDays.push(item);
+        return;
+      }
+
+      if (item.endTime <= nowTime) {
+        buckets.pastToday.push(item);
+        return;
+      }
+
+      if (item.startTime <= nowTime && item.endTime > nowTime) {
+        buckets.currentToday.push(item);
+        return;
+      }
+
+      buckets.upcomingToday.push(item);
+    });
+
+    buckets.pastDays.sort(sortByStartTime);
+    buckets.pastToday.sort(sortByStartTime);
+    buckets.currentToday.sort(sortByStartTime);
+    buckets.upcomingToday.sort(sortByStartTime);
+    buckets.futureDays.sort(sortByStartTime);
+
+    return [
+      ...buckets.pastDays,
+      ...buckets.pastToday,
+      ...buckets.currentToday,
+      ...buckets.upcomingToday,
+      ...buckets.futureDays,
+    ];
+  }, [nowTime, scheduleWindow, todayDateKey]);
+
+
+
   const autoIndex = useMemo(() => {
 
-    if (!scheduleWindow.length) return null;
+    if (!agendaScrollItems.length) return null;
 
-    const firstTodayIndex = scheduleWindow.findIndex((item) => item.dateKey === todayDateKey);
-    if (firstTodayIndex !== -1) return firstTodayIndex;
+    const firstCurrentIndex = agendaScrollItems.findIndex(
+      (item) =>
+        item.dateKey === todayDateKey &&
+        item.startTime <= nowTime &&
+        item.endTime > nowTime
+    );
+    if (firstCurrentIndex !== -1) return firstCurrentIndex;
 
-    const nextIndex = scheduleWindow.findIndex((item) => item.startTime > nowTime);
-    if (nextIndex !== -1) return nextIndex;
+    const firstUpcomingTodayIndex = agendaScrollItems.findIndex(
+      (item) => item.dateKey === todayDateKey && item.startTime > nowTime
+    );
+    if (firstUpcomingTodayIndex !== -1) return firstUpcomingTodayIndex;
 
-    return scheduleWindow.length ? scheduleWindow.length - 1 : null;
+    const firstFutureIndex = agendaScrollItems.findIndex((item) => item.dateKey > todayDateKey);
+    if (firstFutureIndex !== -1) return firstFutureIndex;
 
-  }, [scheduleWindow, nowTime, todayDateKey]);
+    const firstPastIndex = agendaScrollItems.findIndex((item) => item.dateKey < todayDateKey);
+    return firstPastIndex !== -1 ? firstPastIndex : agendaScrollItems.length - 1;
+
+  }, [agendaScrollItems, nowTime, todayDateKey]);
 
   const [manualIndex, setManualIndex] = useState<number | null>(null);
 
@@ -768,7 +879,7 @@ export function HomeProfessorScreen({
 
   useEffect(() => {
 
-    if (!scheduleWindow.length || autoIndex === null) {
+    if (!agendaScrollItems.length || autoIndex === null) {
 
       setManualIndex(null);
 
@@ -782,7 +893,7 @@ export function HomeProfessorScreen({
 
     }
 
-  }, [autoIndex, manualIndex, scheduleWindow.length]);
+  }, [autoIndex, manualIndex, agendaScrollItems.length]);
 
 
 
@@ -790,7 +901,7 @@ export function HomeProfessorScreen({
 
     if (manualIndex == null) return;
 
-    if (!scheduleWindow.length) {
+    if (!agendaScrollItems.length) {
 
       setManualIndex(null);
 
@@ -798,7 +909,7 @@ export function HomeProfessorScreen({
 
     }
 
-    if (manualIndex >= scheduleWindow.length) {
+    if (manualIndex >= agendaScrollItems.length) {
 
       setManualIndex(null);
 
@@ -806,13 +917,13 @@ export function HomeProfessorScreen({
 
     }
 
-  }, [manualIndex, scheduleWindow.length]);
+  }, [manualIndex, agendaScrollItems.length]);
 
 
 
   const activeIndex = manualIndex ?? autoIndex;
 
-  const activeItem = activeIndex !== null ? scheduleWindow[activeIndex] : null;
+  const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isAndroidLight = Platform.OS === "android" && mode === "light";
 
   const agendaCardGap = 10;
@@ -831,32 +942,22 @@ export function HomeProfessorScreen({
 
     if (Platform.OS !== "web") return undefined;
 
-    return { scrollSnapType: "x mandatory", scrollBehavior: "smooth" } as const;
+    return { scrollSnapType: "x mandatory", scrollBehavior: "smooth" } as any;
 
   }, []);
 
-  const agendaSnapOffsets = useMemo(() => {
-
-    if (!agendaWidth || !scheduleWindow.length) return undefined;
-
-    const size = agendaCardWidth + agendaCardGap;
-
-    return scheduleWindow.map((_, index) => index * size);
-
-  }, [agendaCardGap, agendaCardWidth, agendaWidth, scheduleWindow]);
-
   const agendaContentContainerStyle = useMemo(
-    () => ({ paddingRight: agendaCardGap }),
+    () => ({ paddingRight: agendaCardGap } as const),
     [agendaCardGap]
   );
 
   const agendaLoadingRowStyle = useMemo(
-    () => ({ flexDirection: "row", gap: agendaCardGap, paddingVertical: 2 }),
+    () => ({ flexDirection: "row", gap: agendaCardGap, paddingVertical: 2 } as const),
     [agendaCardGap]
   );
 
   const agendaShimmerCardStyle = useMemo(
-    () => ({ width: agendaCardWidth, height: 92, borderRadius: 14 }),
+    () => ({ width: agendaCardWidth, height: 92, borderRadius: 14 } as const),
     [agendaCardWidth]
   );
 
@@ -887,26 +988,19 @@ export function HomeProfessorScreen({
   );
 
   const agendaDivider = useMemo(() => {
-    if (!scheduleWindow.length) return null as null | { index: number; label: string };
-    const hasPastToday = scheduleWindow.some(
+    if (!agendaScrollItems.length) return null as null | { index: number; label: string };
+    const hasPastToday = agendaScrollItems.some(
       (item) => item.dateKey === todayDateKey && item.endTime <= nowTime
     );
     if (!hasPastToday) return null;
 
-    const firstUpcomingTodayIndex = scheduleWindow.findIndex(
-      (item) => item.dateKey === todayDateKey && item.endTime > nowTime
-    );
-    if (firstUpcomingTodayIndex !== -1) {
-      return { index: firstUpcomingTodayIndex, label: "Próximas aulas" };
-    }
-
-    const firstAfterTodayIndex = scheduleWindow.findIndex((item) => item.dateKey > todayDateKey);
+    const firstAfterTodayIndex = agendaScrollItems.findIndex((item) => item.dateKey > todayDateKey);
     if (firstAfterTodayIndex !== -1) {
-      return { index: firstAfterTodayIndex, label: "Dia concluído" };
+      return { index: firstAfterTodayIndex, label: "Próximos dias" };
     }
 
     return null;
-  }, [scheduleWindow, todayDateKey, nowTime]);
+  }, [agendaScrollItems, todayDateKey, nowTime]);
 
 
 
@@ -914,7 +1008,7 @@ export function HomeProfessorScreen({
 
     (event: any) => {
 
-      if (!scheduleWindow.length) return;
+      if (!agendaScrollItems.length) return;
 
       const offset = event.nativeEvent.contentOffset.x;
 
@@ -922,13 +1016,13 @@ export function HomeProfessorScreen({
 
       if (!size) return;
 
-      const index = Math.max(0, Math.min(scheduleWindow.length - 1, Math.round(offset / size)));
+      const index = Math.max(0, Math.min(agendaScrollItems.length - 1, Math.round(offset / size)));
 
       setManualIndex(index);
 
     },
 
-    [agendaCardGap, agendaCardWidth, scheduleWindow.length]
+    [agendaCardGap, agendaCardWidth, agendaScrollItems.length]
 
   );
 
@@ -942,7 +1036,7 @@ export function HomeProfessorScreen({
 
       if (!size) return;
 
-      agendaScrollRef.current.scrollTo({ x: index * size, animated: true });
+    agendaScrollRef.current?.scrollToOffset({ offset: index * size, animated: true });
 
     },
 
@@ -964,7 +1058,7 @@ export function HomeProfessorScreen({
 
     requestAnimationFrame(() => {
 
-      agendaScrollRef.current.scrollTo({ x: offset, animated: false });
+      agendaScrollRef.current?.scrollToOffset({ offset, animated: false });
 
     });
 
@@ -976,13 +1070,13 @@ export function HomeProfessorScreen({
 
     didInitialAgendaScroll.current = false;
 
-  }, [activeOrganization?.id, scheduleWindow.length, todayDateKey]);
+  }, [activeOrganization?.id, agendaScrollItems.length, todayDateKey]);
 
   useEffect(() => {
     setManualIndex(null);
     didInitialAgendaScroll.current = false;
     requestAnimationFrame(() => {
-      agendaScrollRef.current?.scrollTo({ x: 0, animated: false });
+      agendaScrollRef.current?.scrollToOffset({ offset: 0, animated: false });
     });
   }, [activeOrganization?.id]);
 
@@ -998,7 +1092,7 @@ export function HomeProfessorScreen({
 
     requestAnimationFrame(() => {
 
-      agendaScrollRef.current.scrollTo({ x: offset, animated: true });
+      agendaScrollRef.current?.scrollToOffset({ offset, animated: true });
 
     });
 
@@ -1010,47 +1104,6 @@ export function HomeProfessorScreen({
     return colors.primaryBg;
   }, [colors.border, colors.primaryBg, isAndroidLight, mode]);
 
-  const agendaCards = useMemo(
-    () =>
-      scheduleWindow.map((item, idx) => {
-        if (!item?.classId || !item?.dateKey) return null;
-        const label = getStatusLabelForItem(item);
-        const isPast = item.endTime <= nowTime;
-        const isActive = activeIndex === idx;
-        return (
-          <AgendaCard
-            key={`${item.classId}-${item.dateKey}-${idx}`}
-            index={idx}
-            item={item}
-            label={label}
-            isPast={isPast}
-            isActive={isActive}
-            isLast={idx === scheduleWindow.length - 1}
-            showDivider={agendaDivider?.index === idx}
-            agendaCardWidth={agendaCardWidth}
-            agendaCardGap={agendaCardGap}
-            activeBorderColor={agendaActiveBorderColor}
-            colors={colors}
-            mode={mode}
-            onCardPress={handleAgendaCardPress}
-          />
-        );
-      }),
-    [
-      scheduleWindow,
-      getStatusLabelForItem,
-      nowTime,
-      activeIndex,
-      agendaDivider?.index,
-      agendaCardWidth,
-      agendaCardGap,
-      agendaActiveBorderColor,
-      colors,
-      mode,
-      handleAgendaCardPress,
-    ]
-  );
-
   const activeAttendanceTarget = useMemo(() => {
     const classId = activeItem?.classId;
     const date = activeItem?.dateKey;
@@ -1060,6 +1113,53 @@ export function HomeProfessorScreen({
       date,
     };
   }, [activeItem]);
+
+  const handleOpenPlanningForActiveClass = useCallback(() => {
+    if (!activeAttendanceTarget) {
+      showSaveToast({ message: "Selecione uma turma na agenda para abrir o planejamento.", variant: "info" });
+      return;
+    }
+
+    router.push({
+      pathname: "/prof/planning",
+      params: {
+        targetClassId: activeAttendanceTarget.classId,
+        targetDate: activeAttendanceTarget.date,
+      },
+    });
+  }, [activeAttendanceTarget, router, showSaveToast]);
+
+  const handleOpenAttendanceForActiveClass = useCallback(() => {
+    if (!activeAttendanceTarget) {
+      showSaveToast({ message: "Selecione uma turma na agenda para abrir a chamada.", variant: "info" });
+      return;
+    }
+
+    router.push({
+      pathname: "/class/[id]/attendance",
+      params: {
+        id: activeAttendanceTarget.classId,
+        date: activeAttendanceTarget.date,
+      },
+    });
+  }, [activeAttendanceTarget, router, showSaveToast]);
+
+  const handleOpenReportsForActiveClass = useCallback(() => {
+    if (!activeAttendanceTarget) {
+      showSaveToast({ message: "Selecione uma turma na agenda para abrir os relatórios.", variant: "info" });
+      return;
+    }
+
+    router.push({
+      pathname: "/class/[id]/session",
+      params: {
+        id: activeAttendanceTarget.classId,
+        date: activeAttendanceTarget.date,
+        tab: "relatorio",
+      },
+    });
+  }, [activeAttendanceTarget, router, showSaveToast]);
+
   const showToast = (message: string, type: "info" | "success" | "error") => {
 
     showSaveToast({ message, variant: type });
@@ -1095,7 +1195,7 @@ export function HomeProfessorScreen({
   const refreshHomeData = useCallback(async () => {
 
     const tasks: Promise<unknown>[] = [
-      getNotifications().then(setInbox).catch(() => setInbox([])),
+      loadInbox(),
     ];
 
     tasks.push(
@@ -1161,6 +1261,7 @@ export function HomeProfessorScreen({
     upcomingWindowDays,
     organizationLoading,
     loadProfilePhoto,
+    loadInbox,
     ensureSeedData,
   ]);
 
@@ -1219,29 +1320,6 @@ export function HomeProfessorScreen({
     }
 
   };
-
-  const shortcutCardSurfaceStyle = isAndroidLight
-    ? {
-        backgroundColor: "#ffffff",
-        overflow: "hidden",
-        borderWidth: 1,
-        borderColor: colors.border,
-        shadowOpacity: 0,
-        shadowRadius: 0,
-        shadowOffset: { width: 0, height: 0 },
-        elevation: 0,
-      }
-      : {
-        backgroundColor: colors.card,
-        overflow: "hidden",
-        borderWidth: 1,
-        borderColor: colors.border,
-        shadowColor: "#000",
-        shadowOpacity: mode === "dark" ? 0.28 : 0.08,
-        shadowRadius: mode === "dark" ? 10 : 6,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: mode === "dark" ? 6 : 2,
-      };
 
   const todayAgendaItems = useMemo(
     () =>
@@ -1320,6 +1398,10 @@ export function HomeProfessorScreen({
       ] as const,
     []
   );
+
+  if (showInitialLoading) {
+    return <ScreenLoadingState />;
+  }
 
   return (
 
@@ -1639,6 +1721,210 @@ export function HomeProfessorScreen({
 
         ) : null}
 
+        {!isAdminDashboardContext ? (
+        <View
+          style={{
+            padding: 14,
+            borderRadius: 20,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 12,
+            overflow: "hidden",
+          }}
+        >
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              Agenda do dia
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Arraste para ver a semana anterior e a próxima.
+            </Text>
+          </View>
+
+          <FlatList
+            ref={agendaScrollRef}
+            horizontal
+            data={agendaScrollItems}
+            keyExtractor={(item, index) => `${item.classId}-${item.dateKey}-${index}`}
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            decelerationRate="fast"
+            snapToAlignment="start"
+            snapToInterval={agendaCardWidth + agendaCardGap}
+            contentContainerStyle={agendaContentContainerStyle}
+            onMomentumScrollEnd={handleAgendaScrollEnd}
+            onScrollEndDrag={handleAgendaScrollEnd}
+            onLayout={(event) => {
+              const width = event.nativeEvent.layout.width;
+              if (width > 0) {
+                setAgendaWidth((currentWidth) => (currentWidth === width ? currentWidth : width));
+              }
+            }}
+            scrollEventThrottle={16}
+            style={[{ width: "100%" }, agendaScrollStyle]}
+            ListEmptyComponent={<View style={agendaLoadingRowStyle}><ShimmerBlock style={agendaShimmerCardStyle} /><ShimmerBlock style={agendaShimmerCardStyle} /><ShimmerBlock style={agendaShimmerCardStyle} /></View>}
+            renderItem={({ item, index }) => {
+              if (!item?.classId || !item?.dateKey) return null;
+              const label = getStatusLabelForItem(item);
+              const isPast = item.endTime <= nowTime;
+              const isActive = activeIndex === index;
+              return (
+                <AgendaCard
+                  index={index}
+                  item={item}
+                  label={label}
+                  isPast={isPast}
+                  isActive={isActive}
+                  isLast={index === agendaScrollItems.length - 1}
+                  showDivider={agendaDivider?.index === index}
+                  agendaCardWidth={agendaCardWidth}
+                  agendaCardGap={agendaCardGap}
+                  activeBorderColor={agendaActiveBorderColor}
+                  colors={colors}
+                  mode={mode}
+                  onCardPress={handleAgendaCardPress}
+                />
+              );
+            }}
+          />
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <View style={{ flex: 1, flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+              <Pressable
+                onPress={handleOpenPlanningForActiveClass}
+                style={{
+                  flex: 1,
+                  minWidth: 120,
+                  paddingVertical: 12,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Planejamento</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleOpenAttendanceForActiveClass}
+                style={{
+                  flex: 1,
+                  minWidth: 120,
+                  paddingVertical: 12,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Chamada</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleOpenReportsForActiveClass}
+                style={{
+                  flex: 1,
+                  minWidth: 120,
+                  paddingVertical: 12,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Relatórios</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={() => router.push("/agenda")}
+              accessibilityLabel="Ver mais aulas"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.primaryBg,
+                flexShrink: 0,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontSize: 20, fontWeight: "800" }}>
+                +
+              </Text>
+            </Pressable>
+          </View>
+
+          <View
+            style={{
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: 16,
+              gap: 14,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                Próximos 7 dias
+              </Text>
+              <Pressable onPress={() => router.push("/agenda")}>
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                  Ver tudo
+                </Text>
+              </Pressable>
+            </View>
+
+            {upcomingEvents.length === 0 ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Nenhum evento cadastrado para os próximos dias.
+              </Text>
+            ) : (
+              <FlatList
+                data={upcomingEvents.slice(0, 4)}
+                keyExtractor={(event) => event.id}
+                scrollEnabled={false}
+                contentContainerStyle={{ gap: 10 }}
+                renderItem={({ item: event }) => (
+                  <Pressable
+                    onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
+                    style={{
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.secondaryBg,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      gap: 2,
+                    }}
+                  >
+                    <Text
+                      style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}
+                      numberOfLines={1}
+                    >
+                      {event.title}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                      {new Date(event.startsAt).toLocaleDateString("pt-BR")} • {event.eventType}
+                    </Text>
+                  </Pressable>
+                )}
+              />
+            )}
+          </View>
+        </View>
+        ) : null}
+
         {isAdminDashboardContext ? (
         <View
           style={{
@@ -1674,28 +1960,33 @@ export function HomeProfessorScreen({
                 Visão ampla da operação e atalhos de coordenação.
               </Text>
               <View style={{ gap: 6, marginTop: 4 }}>
-                {adminRailActions.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => router.push({ pathname: item.route })}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                      paddingVertical: 8,
-                      paddingHorizontal: 10,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.card,
-                    }}
-                  >
-                    <Ionicons name={item.icon} size={14} color={colors.text} />
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
+                <FlatList
+                  data={adminRailActions}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ gap: 6 }}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => router.push({ pathname: item.route })}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        paddingVertical: 8,
+                        paddingHorizontal: 10,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                      }}
+                    >
+                      <Ionicons name={item.icon} size={14} color={colors.text} />
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
               </View>
             </View>
 
@@ -1750,7 +2041,7 @@ export function HomeProfessorScreen({
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
                     {nextScheduleSlot
-                      ? `${nextScheduleSlot.reference.dateLabel} • ${nextScheduleSlot.reference.timeLabel}`
+                      ? `${nextScheduleSlot.reference.dateLabel} ⬢ ${nextScheduleSlot.reference.timeLabel}`
                       : "Sem horário no momento"}
                   </Text>
                 </View>
@@ -1819,33 +2110,38 @@ export function HomeProfessorScreen({
                       Nenhuma aula programada para hoje.
                     </Text>
                   ) : (
-                    todayScheduleSlotPreview.map((slot) => (
-                      <View
-                        key={slot.key}
-                        style={{
-                          borderRadius: 10,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                          paddingVertical: 8,
-                          paddingHorizontal: 10,
-                          gap: 2,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                          {slot.items.length > 1
-                            ? `${slot.items.length} turmas • ${slot.timeLabel}`
-                            : `${slot.items[0]?.className ?? "Turma"} • ${slot.timeLabel}`}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                          {slot.items
-                            .slice(0, 2)
-                            .map((item) => item.className)
-                            .join(", ")}
-                          {slot.items.length > 2 ? ` +${slot.items.length - 2}` : ""}
-                        </Text>
-                      </View>
-                    ))
+                    <FlatList
+                      data={todayScheduleSlotPreview}
+                      keyExtractor={(slot) => slot.key}
+                      scrollEnabled={false}
+                      contentContainerStyle={{ gap: 8 }}
+                      renderItem={({ item: slot }) => (
+                        <View
+                          style={{
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.card,
+                            paddingVertical: 8,
+                            paddingHorizontal: 10,
+                            gap: 2,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                            {slot.items.length > 1
+                              ? `${slot.items.length} turmas ⬢ ${slot.timeLabel}`
+                              : `${slot.items[0]?.className ?? "Turma"} ⬢ ${slot.timeLabel}`}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            {slot.items
+                              .slice(0, 2)
+                              .map((item) => item.className)
+                              .join(", ")}
+                            {slot.items.length > 2 ? ` +${slot.items.length - 2}` : ""}
+                          </Text>
+                        </View>
+                      )}
+                    />
                   )}
                   {todayRemainingSlots > 0 ? (
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
@@ -1873,28 +2169,33 @@ export function HomeProfessorScreen({
                       Nenhum evento cadastrado para os próximos dias.
                     </Text>
                   ) : (
-                    upcomingEvents.slice(0, 4).map((event) => (
-                      <Pressable
-                        key={event.id}
-                        onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
-                        style={{
-                          borderRadius: 10,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                          paddingVertical: 8,
-                          paddingHorizontal: 10,
-                          gap: 2,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }} numberOfLines={1}>
-                          {event.title}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                          {new Date(event.startsAt).toLocaleDateString("pt-BR")} • {event.eventType}
-                        </Text>
-                      </Pressable>
-                    ))
+                    <FlatList
+                      data={upcomingEvents.slice(0, 4)}
+                      keyExtractor={(event) => event.id}
+                      scrollEnabled={false}
+                      contentContainerStyle={{ gap: 8 }}
+                      renderItem={({ item: event }) => (
+                        <Pressable
+                          onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
+                          style={{
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.card,
+                            paddingVertical: 8,
+                            paddingHorizontal: 10,
+                            gap: 2,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }} numberOfLines={1}>
+                            {event.title}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                            {new Date(event.startsAt).toLocaleDateString("pt-BR")} ⬢ {event.eventType}
+                          </Text>
+                        </Pressable>
+                      )}
+                    />
                   )}
                 </View>
               </View>
@@ -1904,677 +2205,13 @@ export function HomeProfessorScreen({
         ) : null}
 
         {!isAdminDashboardContext ? (
-        <>
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 20,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 12,
-          }}
-        >
-          <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Agenda do dia
-            </Text>
-          </View>
-          <View
-            onLayout={(event) => {
-              const width = event.nativeEvent.layout.width;
-              if (width && width !== agendaWidth) setAgendaWidth(width);
-            }}
-            style={{
-              padding: 12,
-              borderRadius: 14,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <FadeHorizontalScroll
-              key={`agenda-${activeOrganization?.id ?? "none"}-${todayDateKey}`}
-              ref={agendaScrollRef}
-              scrollEnabled={scheduleWindow.length > 1}
-              scrollStyle={agendaScrollStyle}
-              onMomentumScrollEnd={handleAgendaScrollEnd}
-              snapToOffsets={agendaSnapOffsets}
-              snapToAlignment="start"
-              disableIntervalMomentum
-              decelerationRate="fast"
-              fadeColor={colors.secondaryBg}
-              fadeWidth={8}
-              contentContainerStyle={agendaContentContainerStyle}
-            >
-              { loadingClasses && scheduleWindow.length === 0 ? (
-                <View style={agendaLoadingRowStyle}>
-                  <ShimmerBlock style={agendaShimmerCardStyle} />
-                  <ShimmerBlock style={agendaShimmerCardStyle} />
-                </View>
-              ) : scheduleWindow.length === 0 ? (
-                <View style={{ paddingVertical: 6 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Nenhuma aula programada no período.
-                  </Text>
-                </View>
-              ) : (
-                agendaCards
-              )}
-            </FadeHorizontalScroll>
-          </View>
-          {!isAdminDashboardContext ? (
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              onPress={() => {
-                if (!activeAttendanceTarget) return;
-                router.push({
-                  pathname: "/class/[id]/session",
-                  params: {
-                    id: activeAttendanceTarget.classId,
-                    date: activeAttendanceTarget.date,
-                    tab: "treino",
-                  },
-                });
-              }}
-              disabled={!activeAttendanceTarget}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: activeAttendanceTarget
-                  ? colors.secondaryBg
-                  : colors.primaryDisabledBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-                opacity: activeAttendanceTarget ? 1 : 0.6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Planejamento
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (!activeAttendanceTarget) return;
-                router.push({
-                  pathname: "/class/[id]/attendance",
-                  params: {
-                    id: activeAttendanceTarget.classId,
-                    date: activeAttendanceTarget.date,
-                  },
-                });
-              }}
-              disabled={!activeAttendanceTarget}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: activeAttendanceTarget
-                  ? colors.secondaryBg
-                  : colors.primaryDisabledBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-                opacity: activeAttendanceTarget ? 1 : 0.6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Chamada
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (!activeAttendanceTarget) return;
-                router.push({
-                  pathname: "/class/[id]/session",
-                  params: {
-                    id: activeAttendanceTarget.classId,
-                    date: activeAttendanceTarget.date,
-                    tab: "relatório",
-                  },
-                });
-              }}
-              disabled={!activeAttendanceTarget}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: activeAttendanceTarget
-                  ? colors.secondaryBg
-                  : colors.primaryDisabledBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-                opacity: activeAttendanceTarget ? 1 : 0.6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Relatórios
-              </Text>
-            </Pressable>
-          </View>
-          ) : (
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              onPress={() => router.push({ pathname: "/coord/management" })}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Coordenação
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push({ pathname: "/coord/reports" })}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Relatórios
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push({ pathname: "/coord/events" })}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Eventos
-              </Text>
-            </Pressable>
-          </View>
-          )}
-        </View>
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 20,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Próximos 7 dias
-            </Text>
-            <Pressable onPress={() => router.push({ pathname: "/coord/events" })}>
-              <Text style={{ color: colors.primaryBg, fontWeight: "700", fontSize: 12 }}>
-                Ver tudo
-              </Text>
-            </Pressable>
-          </View>
-          {loadingEvents && upcomingEvents.length === 0 ? (
-            <View style={{ gap: 8 }}>
-              <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
-              <ShimmerBlock style={{ height: 60, borderRadius: 12 }} />
-            </View>
-          ) : upcomingEvents.length === 0 ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Nenhum evento cadastrado para os próximos dias.
-            </Text>
-          ) : (
-            upcomingEvents.slice(0, 4).map((event) => {
-              const start = new Date(event.startsAt);
-              const end = new Date(event.endsAt);
-              return (
-                <Pressable
-                  key={event.id}
-                  onPress={() =>
-                    router.push({ pathname: "/events/[id]", params: { id: event.id } })
-                  }
-                  style={{
-                    padding: 10,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    gap: 4,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                    {event.title}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {start.toLocaleDateString("pt-BR")} {"\u2022"}{" "}
-                    {start.toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}{" "}
-                    -{" "}
-                    {end.toLocaleTimeString("pt-BR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
-                    <View
-                      style={{
-                        borderRadius: 999,
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                        backgroundColor: colors.card,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
-                        {event.eventType}
-                      </Text>
-                    </View>
-                    <View
-                      style={{
-                        borderRadius: 999,
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                        backgroundColor: colors.card,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
-                        {event.sport}
-                      </Text>
-                    </View>
-                    {event.hasMyClass ? (
-                      <View
-                        style={{
-                          borderRadius: 999,
-                          paddingHorizontal: 8,
-                          paddingVertical: 3,
-                          backgroundColor: colors.primaryBg,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.primaryText,
-                            fontSize: 10,
-                            fontWeight: "700",
-                          }}
-                        >
-                          Minhas turmas
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </Pressable>
-              );
-            })
-          )}
-        </View>
-        </>
-        ) : null}
-        {!isAdminDashboardContext ? (
-        <>
-        <View style={{ gap: 10 }}>
-
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-            Atalhos
-
-          </Text>
-
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/planning" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Planejamento
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Modelos e planejamentos
-
-              </Text>
-
-            </Pressable>
-
-            {canOpenClassesShortcut ? (
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/classes" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Turmas
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Cadastros e lista
-
-              </Text>
-
-            </Pressable>
-            ) : null}
-
-            {canOpenStudentsShortcut ? (
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/students" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Alunos
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Lista e chamada
-
-              </Text>
-
-            </Pressable>
-            ) : null}
-
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/calendar" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Calendário semanal
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Aulas e chamada
-
-              </Text>
-
-            </Pressable>
-
-            {canSeeCoordination ? (
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/coord/management" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Coordenação
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Dashboard e gerenciar membros
-
-              </Text>
-
-            </Pressable>
-            ) : null}
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/absence-notices" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Avisos de ausência
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Alunos ausentes
-
-              </Text>
-
-            </Pressable>
-
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/nfc-attendance" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Presença NFC
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Registrar por UID
-
-              </Text>
-
-            </Pressable>
-
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/exercises" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-
-
-
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Exercícios
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Biblioteca com vídeos
-
-              </Text>
-
-            </Pressable>
-
-            <Pressable
-
-              onPress={() => router.push({ pathname: "/prof/periodization" })}
-
-              style={{
-
-                flexBasis: "48%",
-
-                padding: 14,
-
-                borderRadius: 18,
-
-                ...shortcutCardSurfaceStyle,
-
-              }}
-
-            >
-
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-
-                Periodização
-
-              </Text>
-
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-
-                Ciclos e cargas
-
-              </Text>
-
-            </Pressable>
-
-          </View>
-
-        </View>
-        </>
+          <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
+            <HomeProfessorBelowFold
+              canOpenClassesShortcut={canOpenClassesShortcut}
+              canOpenStudentsShortcut={canOpenStudentsShortcut}
+              canSeeCoordination={canSeeCoordination}
+            />
+          </Suspense>
         ) : null}
 
       </View>
@@ -2685,52 +2322,24 @@ export function HomeProfessorScreen({
                     onPress={() => {
 
                       const handleClear = async () => {
-
                         await clearNotifications();
-
                         const items = await getNotifications();
-
                         setInbox(items);
-
                         setExpandedId(null);
-
                       };
 
-                      if (Platform.OS === "web") {
-
-                        void handleClear();
-
-                        return;
-
-                      }
-
-                      Alert.alert(
-
-                        "Limpar notificações?",
-
-                        "Isso remove todas as notificações do inbox.",
-
-                        [
-
-                          { text: "Cancelar", style: "cancel" },
-
-                          {
-
-                            text: "Limpar",
-
-                            style: "destructive",
-
-                            onPress: async () => {
-
-                              await handleClear();
-
-                            },
-
-                          },
-
-                        ]
-
-                      );
+                      void (async () => {
+                        const shouldClear = await confirmDialog({
+                          title: "Limpar notificações?",
+                          message: "Isso remove todas as notificações do inbox.",
+                          confirmLabel: "Limpar",
+                          cancelLabel: "Cancelar",
+                          tone: "danger",
+                          onConfirm: async () => {},
+                        });
+                        if (!shouldClear) return;
+                        await handleClear();
+                      })();
 
                     }}
 
@@ -2924,116 +2533,60 @@ export function HomeProfessorScreen({
             ) : (
 
               <View style={{ flex: 1 }}>
-
-                <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 16 }}>
-
-                  {inbox.map((item) => {
-
+                <FlatList
+                  data={inbox}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
+                  renderItem={({ item }) => {
                     const isExpanded = expandedId === item.id;
-
                     const preview = truncateBody(item.body, 160);
-
                     const showMore = !isExpanded && preview !== item.body;
-
                     return (
-
-                      <View key={item.id}>
-
+                      <View>
                         <Pressable
-
                           onPress={() =>
-
                             setExpandedId((prev) => (prev === item.id ? null : item.id))
-
                           }
-
                           onLongPress={async () => {
-
                             await Clipboard.setStringAsync(item.body);
-
                           }}
-
                           style={{
-
                             padding: 10,
-
                             borderRadius: 12,
-
                             backgroundColor: item.read ? colors.inputBg : inboxUnreadBg,
-
                             borderWidth: 1,
-
                             borderColor: item.read ? colors.border : inboxUnreadBorder,
-
                             gap: 4,
-
                           }}
-
                         >
-
                           <Text
-
                             style={{
-
                               fontWeight: "700",
-
                               color: colors.text,
-
                               fontSize: 14,
-
                             }}
-
                           >
-
                             {item.title}
-
                           </Text>
 
                           <Text style={{ color: colors.text, fontSize: 13 }}>
-
                             {isExpanded ? item.body : preview}
-
                           </Text>
 
-                          { showMore ? (
-
+                          {showMore ? (
                             <Text style={{ color: colors.muted, fontSize: 12 }}>
-
                               Ler mais
-
                             </Text>
-
                           ) : null}
 
                           <Text style={{ color: colors.muted, fontSize: 11 }}>
-
                             {formatTime(item.createdAt)}
-
                           </Text>
-
                         </Pressable>
-
-                        <View
-
-                          style={{
-
-                            height: 1,
-
-                            backgroundColor: colors.border,
-
-                            marginTop: 10,
-
-                          }}
-
-                        />
-
                       </View>
-
                     );
-
-                  })}
-
-                </ScrollView>
+                  }}
+                />
 
               </View>
 
@@ -3054,5 +2607,4 @@ export function HomeProfessorScreen({
 export default function HomeProfessor() {
   return <HomeProfessorScreen />;
 }
-
 

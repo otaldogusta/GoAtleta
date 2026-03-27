@@ -237,7 +237,7 @@ export default function ResetPasswordScreen() {
                     padding: 0,
                     color: colors.inputText,
                     backgroundColor: colors.inputBg,
-                    outlineStyle: "none",
+                    outlineStyle: "none" as any,
                     outlineWidth: 0,
                   }}
                 />
@@ -356,7 +356,7 @@ export default function ResetPasswordScreen() {
                     padding: 0,
                     color: colors.inputText,
                     backgroundColor: colors.inputBg,
-                    outlineStyle: "none",
+                    outlineStyle: "none" as any,
                     outlineWidth: 0,
                   }}
                 />

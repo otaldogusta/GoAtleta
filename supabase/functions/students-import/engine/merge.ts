@@ -1,9 +1,9 @@
 import type {
-  ExistingStudentRow,
-  ImportPolicy,
-  MatchConfidence,
-  MergeResult,
-  NormalizedImportRow,
+    ExistingStudentRow,
+    ImportPolicy,
+    MatchConfidence,
+    MergeResult,
+    NormalizedImportRow,
 } from "./types.ts";
 
 const currentYear = () => new Date().getFullYear();
@@ -48,10 +48,20 @@ type MergeInput = {
   resolvedClassId: string | null;
   classFound: boolean;
   duplicateInput: boolean;
+  duplicateWinnerRowNumber?: number | null;
 };
 
 export const computeMergePatch = (params: MergeInput): MergeResult => {
-  const { existing, incoming, policy, confidence, resolvedClassId, classFound, duplicateInput } = params;
+  const {
+    existing,
+    incoming,
+    policy,
+    confidence,
+    resolvedClassId,
+    classFound,
+    duplicateInput,
+    duplicateWinnerRowNumber,
+  } = params;
   const flags: string[] = [];
   const patch: Record<string, unknown> = {};
   const conflicts: Record<string, unknown> = {};
@@ -59,9 +69,12 @@ export const computeMergePatch = (params: MergeInput): MergeResult => {
   if (duplicateInput) {
     flags.push("DUPLICATE_INPUT_ROW");
     return {
-      action: "conflict",
+      action: "skip",
       patch: null,
-      conflicts: { identityKey: incoming.identityKey ?? null },
+      conflicts: {
+        identityKey: incoming.identityKey ?? null,
+        supersededByRow: duplicateWinnerRowNumber ?? null,
+      },
       flags,
     };
   }
@@ -81,13 +94,8 @@ export const computeMergePatch = (params: MergeInput): MergeResult => {
   }
 
   if (!existing && !resolvedClassId) {
+    // Do not block creation when class mapping fails; import the student unassigned and flag for follow-up.
     flags.push("CLASS_NOT_FOUND");
-    return {
-      action: "conflict",
-      patch: null,
-      conflicts: { classId: incoming.classId ?? incoming.className ?? null },
-      flags,
-    };
   }
 
   if (policy === "misto" && existing && (confidence === "medium" || confidence === "low")) {
@@ -165,20 +173,32 @@ export const computeMergePatch = (params: MergeInput): MergeResult => {
   considerField("name", incoming.name, existing.name, "NAME_CONFLICT");
 
   if (incoming.birthDate) {
-    if (isBirthDateSuspect(incoming.birthDate)) {
-      conflicts.birthdate = { existing: existing.birthdate ?? null, incoming: incoming.birthDate };
-      if (!flags.includes("BIRTHDATE_SUSPECT")) flags.push("BIRTHDATE_SUSPECT");
-      if (!flags.includes("BIRTHDATE_CONFLICT")) flags.push("BIRTHDATE_CONFLICT");
-    } else {
-      considerField("birthdate", incoming.birthDate, existing.birthdate, "BIRTHDATE_CONFLICT");
-      if ("birthdate" in patch) {
-        patch.age = Math.max(0, currentYear() - Number(incoming.birthDate.slice(0, 4)));
-      }
+    const incomingSuspect = isBirthDateSuspect(incoming.birthDate);
+    const existingBirth = normalizeString(existing.birthdate);
+    const sameBirth = sameValue(incoming.birthDate, existingBirth);
+
+    if (incomingSuspect && !flags.includes("BIRTHDATE_SUSPECT")) {
+      flags.push("BIRTHDATE_SUSPECT");
+    }
+
+    if (!existingBirth) {
+      patch.birthdate = incoming.birthDate;
+      patch.age = incomingSuspect
+        ? 0
+        : Math.max(0, currentYear() - Number(incoming.birthDate.slice(0, 4)));
+    } else if (!sameBirth && !flags.includes("BIRTHDATE_CONFLICT")) {
+      // Keep existing birthdate when it diverges, but mark for visual review in the app.
+      flags.push("BIRTHDATE_CONFLICT");
     }
   }
 
   if (resolvedClassId && classFound) {
-    considerField("classid", resolvedClassId, existing.classid, "CLASS_CONFLICT");
+    if (!hasExisting(existing.classid)) {
+      patch.classid = resolvedClassId;
+    } else if (!sameValue(resolvedClassId, existing.classid) && !flags.includes("CLASS_CONFLICT")) {
+      // Do not block smart sync due to class mismatch; keep current class and mark as warning.
+      flags.push("CLASS_CONFLICT");
+    }
   } else if (incoming.classId || incoming.className) {
     flags.push("CLASS_NOT_FOUND");
     conflicts.classid = { existing: existing.classid, incoming: incoming.classId ?? incoming.className ?? null };

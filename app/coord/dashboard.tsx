@@ -1,5 +1,11 @@
-import HomeAdmin from "../../src/screens/home/HomeAdmin";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function CoordinationDashboardTab() {
-  return <HomeAdmin />;
-}
+const CoordinationDashboardTab = createLazyRoute(
+  () =>
+    import("../../src/screens/home/HomeAdmin").then((module) => ({
+      default: module.default,
+    })),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando painel..." />
+);
+
+export default CoordinationDashboardTab;

@@ -1,4 +1,4 @@
-import { useReducer, useCallback } from "react";
+import { useCallback, useReducer } from "react";
 import type { Student } from "../../../core/models";
 
 // ---------------------------------------------------------------------------
@@ -7,6 +7,7 @@ import type { Student } from "../../../core/models";
 
 export type StudentFormSection =
   | "studentData"
+  | "academic"
   | "documents"
   | "sportProfile"
   | "health"
@@ -18,12 +19,13 @@ export type EditSection = StudentFormSection | "links";
 export type StudentFormState = {
   // Turma / unidade
   unit: string;
-  ageBand: Student["ageBand"] | "";
+  ageBand: string;
   customAgeBand: string;
   classId: string;
 
   // Dados pessoais
   name: string;
+  collegeCourse: string;
   photoUrl: string | null;
   photoMimeType: string | null;
   birthDate: string;
@@ -81,6 +83,8 @@ export type StudentFormState = {
     | "cpfRevealUnavailable"
     | "revealCpfBusy"
     | "ageNumber"
+    | "formError"
+    | "documentsError"
   > | null;
 
   // Erros
@@ -100,7 +104,9 @@ type SetFieldAction = {
 
 type SetDocumentsErrorAction = {
   type: "SET_DOCUMENTS_ERROR";
-  patch: { ra?: string; cpf?: string; rg?: string };
+  patch:
+    | { ra?: string; cpf?: string; rg?: string }
+    | ((prev: StudentFormState["documentsError"]) => StudentFormState["documentsError"]);
 };
 
 type SetSnapshotAction = {
@@ -128,6 +134,7 @@ const INITIAL_FORM: StudentFormState = {
   customAgeBand: "",
   classId: "",
   name: "",
+  collegeCourse: "",
   photoUrl: null,
   photoMimeType: null,
   birthDate: "",
@@ -177,10 +184,16 @@ function studentFormReducer(
       return { ...state, [action.field]: action.value };
 
     case "SET_DOCUMENTS_ERROR":
+      {
+      const nextPatch =
+        typeof action.patch === "function"
+          ? action.patch(state.documentsError)
+          : action.patch;
       return {
         ...state,
-        documentsError: { ...state.documentsError, ...action.patch },
+        documentsError: { ...state.documentsError, ...nextPatch },
       };
+      }
 
     case "SET_SNAPSHOT":
       return { ...state, editSnapshot: action.snapshot };
@@ -201,6 +214,7 @@ function studentFormReducer(
         customAgeBand: "",
         formError: "",
         name: "",
+        collegeCourse: "",
         photoUrl: null,
         photoMimeType: null,
         birthDate: "",
@@ -250,7 +264,7 @@ export function useStudentForm() {
     []
   );
   const setAgeBand = useCallback(
-    (v: Student["ageBand"] | "") =>
+    (v: string) =>
       dispatch({ type: "SET_FIELD", field: "ageBand", value: v }),
     []
   );
@@ -265,6 +279,11 @@ export function useStudentForm() {
   );
   const setName = useCallback(
     (v: string) => dispatch({ type: "SET_FIELD", field: "name", value: v }),
+    []
+  );
+  const setCollegeCourse = useCallback(
+    (v: string) =>
+      dispatch({ type: "SET_FIELD", field: "collegeCourse", value: v }),
     []
   );
   const setPhotoUrl = useCallback(
@@ -415,14 +434,18 @@ export function useStudentForm() {
     []
   );
   const setOpenCreateSection = useCallback(
-    (v: StudentFormSection) =>
-      dispatch({ type: "SET_FIELD", field: "openCreateSection", value: v }),
-    []
+    (v: StudentFormSection | ((prev: StudentFormSection) => StudentFormSection)) => {
+      const nextValue = typeof v === "function" ? v(form.openCreateSection) : v;
+      dispatch({ type: "SET_FIELD", field: "openCreateSection", value: nextValue });
+    },
+    [form.openCreateSection]
   );
   const setOpenEditSection = useCallback(
-    (v: EditSection) =>
-      dispatch({ type: "SET_FIELD", field: "openEditSection", value: v }),
-    []
+    (v: EditSection | ((prev: EditSection) => EditSection)) => {
+      const nextValue = typeof v === "function" ? v(form.openEditSection) : v;
+      dispatch({ type: "SET_FIELD", field: "openEditSection", value: nextValue });
+    },
+    [form.openEditSection]
   );
   const setStudentFormError = useCallback(
     (v: string) =>
@@ -437,13 +460,7 @@ export function useStudentForm() {
             prev: StudentFormState["documentsError"]
           ) => StudentFormState["documentsError"])
     ) => {
-      if (typeof patch === "function") {
-        // Para compatibilidade com o padrão `setStudentDocumentsError(prev => ({...prev, ...}))`
-        // usamos uma ação especial que é resolvida no componente
-        dispatch({ type: "SET_DOCUMENTS_ERROR", patch: patch({}) });
-      } else {
-        dispatch({ type: "SET_DOCUMENTS_ERROR", patch });
-      }
+      dispatch({ type: "SET_DOCUMENTS_ERROR", patch });
     },
     []
   );
@@ -467,6 +484,7 @@ export function useStudentForm() {
     setCustomAgeBand,
     setClassId,
     setName,
+    setCollegeCourse,
     setPhotoUrl,
     setPhotoMimeType,
     setBirthDate,

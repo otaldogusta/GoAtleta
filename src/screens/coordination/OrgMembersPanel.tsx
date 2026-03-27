@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -47,11 +47,14 @@ import {
 } from "../../api/trainer-invite";
 import { useAuth } from "../../auth/auth";
 import { useEffectiveProfile } from "../../core/effective-profile";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { ShimmerBlock } from "../../ui/Shimmer";
+import { ScreenLoadingState } from "../../components/ui/ScreenLoadingState";
 import { useAppTheme } from "../../ui/app-theme";
+import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { useModalCardStyle } from "../../ui/use-modal-card-style";
 
 type RoleLevel = 5 | 10 | 50;
@@ -178,6 +181,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const router = useRouter();
   const profile = useEffectiveProfile();
   const { colors } = useAppTheme();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { width } = useWindowDimensions();
   const { session } = useAuth();
   const {
@@ -230,6 +234,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
   const [pendingInviteBusyId, setPendingInviteBusyId] = useState<string | null>(null);
   const latestLoadRequestRef = useRef(0);
+  const debouncedSearch = useDebouncedValue(search, 250);
 
   const adminsCount = useMemo(
     () => members.filter((member) => member.roleLevel >= 50).length,
@@ -237,13 +242,13 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   );
 
   const filteredMembers = useMemo(() => {
-    const normalized = search.trim().toLowerCase();
+    const normalized = debouncedSearch.trim().toLowerCase();
     if (!normalized) return members;
     return members.filter((member) => {
       const text = `${member.displayName} ${member.email ?? ""} ${member.userId}`.toLowerCase();
       return text.includes(normalized);
     });
-  }, [members, search]);
+  }, [debouncedSearch, members]);
 
   const classHeadsByUser = useMemo(() => {
     const map = new Map<string, MemberClassHead[]>();
@@ -350,17 +355,9 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     }
     setError(null);
     try {
-      const [rows, classes, heads, inviteResult] = await Promise.all([
-        adminListOrgMembers(organizationId),
-        adminListOrgClasses(organizationId),
-        adminListOrgMemberClassHeads(organizationId),
-        listTrainerInvites(organizationId).catch(() => ({ invites: [] })),
-      ]);
+      const rows = await adminListOrgMembers(organizationId);
       if (requestId !== latestLoadRequestRef.current) return;
       setMembers(rows);
-      setOrgClasses(classes);
-      setMemberClassHeads(heads);
-      setPendingTrainerInvites(inviteResult.invites ?? []);
       setLastUpdatedAt(
         new Date().toLocaleTimeString("pt-BR", {
           hour: "2-digit",
@@ -370,6 +367,28 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
       setSelectedMember((current) =>
         current ? rows.find((row) => row.userId === current.userId) ?? null : null
       );
+
+      void (async () => {
+        try {
+          const [classes, heads, inviteResult] = await Promise.all([
+            adminListOrgClasses(organizationId),
+            adminListOrgMemberClassHeads(organizationId),
+            listTrainerInvites(organizationId).catch(() => ({ invites: [] })),
+          ]);
+          if (requestId !== latestLoadRequestRef.current) return;
+          setOrgClasses(classes);
+          setMemberClassHeads(heads);
+          setPendingTrainerInvites(inviteResult.invites ?? []);
+        } catch {
+          if (requestId !== latestLoadRequestRef.current) return;
+          setOrgClasses([]);
+          setMemberClassHeads([]);
+          setPendingTrainerInvites([]);
+        } finally {
+          if (requestId !== latestLoadRequestRef.current) return;
+          setClassHeadsLoading(false);
+        }
+      })();
     } catch (err) {
       if (requestId !== latestLoadRequestRef.current) return;
       setError(toUiError(err));
@@ -385,7 +404,6 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
         setRefreshing(false);
       } else {
         setLoading(false);
-        setClassHeadsLoading(false);
       }
     }
   }, [organizationId, organizationLoading]);
@@ -442,6 +460,9 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   };
 
   const animateExpandCollapse = useCallback(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
     LayoutAnimation.configureNext({
       duration: 190,
       create: {
@@ -463,12 +484,11 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     setExpandedSections((current) => ({ ...current, [key]: !current[key] }));
   };
 
+  const selectedMemberRoleLevel = selectedMember?.roleLevel ?? 0;
   const currentMemberIsSelf = selectedMember?.userId === session?.user?.id;
-  const currentMemberIsLastAdmin =
-    Boolean(selectedMember) && selectedMember.roleLevel >= 50 && adminsCount <= 1;
-  const selectedMemberCanManageClasses = Boolean(selectedMember) && selectedMember.roleLevel >= 10;
-  const selectedMemberIsProfessor =
-    Boolean(selectedMember) && selectedMember.roleLevel >= 10 && selectedMember.roleLevel < 50;
+  const currentMemberIsLastAdmin = selectedMemberRoleLevel >= 50 && adminsCount <= 1;
+  const selectedMemberCanManageClasses = selectedMemberRoleLevel >= 10;
+  const selectedMemberIsProfessor = selectedMemberRoleLevel >= 10 && selectedMemberRoleLevel < 50;
 
   const onGenerateProfessorMessage = useCallback(async () => {
     if (!selectedMember || !selectedMemberIsProfessor) return;
@@ -580,31 +600,27 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const onRemoveMember = () => {
     if (!organizationId || !selectedMember) return;
 
-    Alert.alert(
-      "Remover membro",
-      `Deseja remover ${selectedMember.displayName} da organiza\u00e7\u00e3o?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Remover",
-          style: "destructive",
-          onPress: async () => {
-            setMemberBusy(true);
-            setError(null);
-            try {
-              await adminRemoveOrgMember(organizationId, selectedMember.userId);
-              closeMemberSheet();
-              setSelectedMember(null);
-              await loadMembers({ soft: true });
-            } catch (err) {
-              setError(toUiError(err));
-            } finally {
-              setMemberBusy(false);
-            }
-          },
-        },
-      ]
-    );
+    confirmDialog({
+      title: "Remover membro?",
+      message: `Deseja remover ${selectedMember.displayName} da organização?`,
+      confirmLabel: "Remover",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        setMemberBusy(true);
+        setError(null);
+        try {
+          await adminRemoveOrgMember(organizationId, selectedMember.userId);
+          closeMemberSheet();
+          setSelectedMember(null);
+          await loadMembers({ soft: true });
+        } catch (err) {
+          setError(toUiError(err));
+        } finally {
+          setMemberBusy(false);
+        }
+      },
+    });
   };
 
   const onToggleClassDraft = (classId: string) => {
@@ -651,36 +667,59 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     return `${classes.length} turmas: ${preview}`;
   };
 
+  const memberStats = useMemo(() => {
+    let admins = 0;
+    let teachers = 0;
+    let interns = 0;
+
+    members.forEach((member) => {
+      if (member.roleLevel >= 50) {
+        admins += 1;
+      } else if (member.roleLevel >= 10) {
+        teachers += 1;
+      } else {
+        interns += 1;
+      }
+    });
+
+    return {
+      admins,
+      teachers,
+      interns,
+      total: members.length,
+    };
+  }, [members]);
+
   const statItems: { key: string; label: string; value: number; icon: string; tint: string }[] = [
-  {
-    key: "admin",
-    label: "Coordena\u00e7\u00e3o",
-    value: members.filter((m) => m.roleLevel >= 50).length,
-    icon: "shield-checkmark-outline",
-    tint: colors.primaryBg,
-  },
-  {
-    key: "teacher",
-    label: "Professor",
-    value: members.filter((m) => m.roleLevel >= 10 && m.roleLevel < 50).length,
-    icon: "school-outline",
-    tint: "rgba(125, 211, 252, 0.24)",
-  },
-  {
-    key: "intern",
-    label: "Estagi\u00e1rio",
-    value: members.filter((m) => m.roleLevel < 10).length,
-    icon: "sparkles-outline",
-    tint: "rgba(196, 181, 253, 0.24)",
-  },
-  {
-    key: "total",
-    label: "Total",
-    value: members.length,
-    icon: "people-outline",
-    tint: "rgba(250, 204, 21, 0.2)",
-  },
-];
+    {
+      key: "admin",
+      label: "Coordena\u00e7\u00e3o",
+      value: memberStats.admins,
+      icon: "shield-checkmark-outline",
+      tint: colors.primaryBg,
+    },
+    {
+      key: "teacher",
+      label: "Professor",
+      value: memberStats.teachers,
+      icon: "school-outline",
+      tint: "rgba(125, 211, 252, 0.24)",
+    },
+    {
+      key: "intern",
+      label: "Estagi\u00e1rio",
+      value: memberStats.interns,
+      icon: "sparkles-outline",
+      tint: "rgba(196, 181, 253, 0.24)",
+    },
+    {
+      key: "total",
+      label: "Total",
+      value: memberStats.total,
+      icon: "people-outline",
+      tint: "rgba(250, 204, 21, 0.2)",
+    },
+  ];
 
   const closeMemberSheet = () => {
     setShowMemberSheet(false);
@@ -822,9 +861,13 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
 
   const Container = embedded ? View : SafeAreaView;
 
+  if (showInitialShimmer) {
+    return <ScreenLoadingState />;
+  }
+
   return (
     <Container style={{ flex: 1, backgroundColor: colors.background }}>
-    <FlatList
+      <FlatList
       data={loading && members.length === 0 ? [] : filteredMembers}
       keyExtractor={(item) => item.userId}
       renderItem={({ item: member }) => {
@@ -1106,48 +1149,53 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                   Sem convites ativos para colaborador/moderador.
                 </Text>
               ) : (
-                pendingTrainerInvites.slice(0, 6).map((invite) => (
-                  <View
-                    key={invite.id}
-                    style={{
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      padding: 10,
-                      gap: 6,
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        {getInviteRoleLabel(invite.target_role_level)}
-                      </Text>
-                      <Pressable
-                        disabled={pendingInviteBusyId === invite.id}
-                        onPress={() => void onRevokePendingInvite(invite.id)}
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          opacity: pendingInviteBusyId === invite.id ? 0.6 : 1,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                          {pendingInviteBusyId === invite.id ? "Cancelando..." : "Cancelar"}
+                <FlatList
+                  data={pendingTrainerInvites.slice(0, 6)}
+                  keyExtractor={(invite) => invite.id}
+                  scrollEnabled={false}
+                  ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+                  renderItem={({ item: invite }) => (
+                    <View
+                      style={{
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        padding: 10,
+                        gap: 6,
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>
+                          {getInviteRoleLabel(invite.target_role_level)}
                         </Text>
-                      </Pressable>
+                        <Pressable
+                          disabled={pendingInviteBusyId === invite.id}
+                          onPress={() => void onRevokePendingInvite(invite.id)}
+                          style={{
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.card,
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            opacity: pendingInviteBusyId === invite.id ? 0.6 : 1,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
+                            {pendingInviteBusyId === invite.id ? "Cancelando..." : "Cancelar"}
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                        Destino: {invite.invited_to || "não informado"}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        Expira em {formatInviteDate(invite.expires_at)}
+                      </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-                      Destino: {invite.invited_to || "não informado"}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>
-                      Expira em {formatInviteDate(invite.expires_at)}
-                    </Text>
-                  </View>
-                ))
+                  )}
+                />
               )}
             </View>
           ) : null}
@@ -1696,13 +1744,15 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                             {"Se a turma j\u00e1 tiver outro respons\u00e1vel, ela ser\u00e1 reatribu\u00edda ao salvar."}
                           </Text>
 
-                          <ScrollView
+                          <FlatList
+                            data={orgClasses}
+                            keyExtractor={(orgClass) => orgClass.id}
                             style={{ maxHeight: 240 }}
                             contentContainerStyle={{ gap: 8 }}
                             nestedScrollEnabled
                             showsVerticalScrollIndicator={false}
-                          >
-                            {orgClasses.map((orgClass) => {
+                            scrollEnabled
+                            renderItem={({ item: orgClass }) => {
                               const checked = classHeadDraftIds.includes(orgClass.id);
                               const currentHead = classHeadByClassId.get(orgClass.id);
                               const currentHeadName = currentHead
@@ -1714,7 +1764,6 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
 
                               return (
                                 <Pressable
-                                  key={orgClass.id}
                                   disabled={disabled}
                                   onPress={() => onToggleClassDraft(orgClass.id)}
                                   style={{
@@ -1775,8 +1824,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                                   ) : null}
                                 </Pressable>
                               );
-                            })}
-                          </ScrollView>
+                            }}
+                          />
 
                           <Pressable
                             disabled={!classHeadSelectionDirty || classHeadBusy || memberBusy}

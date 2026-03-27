@@ -12,6 +12,7 @@ import {
 } from "../src/notificationsInbox";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useConfirmDialog } from "../src/ui/confirm-dialog";
 
 const formatTime = (value: string) => {
   const date = new Date(value);
@@ -27,6 +28,7 @@ const formatTime = (value: string) => {
 export default function CommunicationsScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const [items, setItems] = useState<AppNotification[]>([]);
 
   useEffect(() => {
@@ -42,6 +44,15 @@ export default function CommunicationsScreen() {
   }, []);
 
   const handleClear = async () => {
+    const shouldClear = await confirmDialog({
+      title: "Limpar comunicados?",
+      message: "Isso remove todas as mensagens salvas.",
+      confirmLabel: "Limpar",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {},
+    });
+    if (!shouldClear) return;
     await clearNotifications();
     setItems([]);
   };
@@ -65,16 +76,7 @@ export default function CommunicationsScreen() {
 
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable
-            onPress={() => {
-              Alert.alert(
-                "Limpar comunicados?",
-                "Isso remove todas as mensagens salvas.",
-                [
-                  { text: "Cancelar", style: "cancel" },
-                  { text: "Limpar", style: "destructive", onPress: handleClear },
-                ]
-              );
-            }}
+            onPress={() => void handleClear()}
             style={{
               paddingVertical: 8,
               paddingHorizontal: 12,

@@ -29,11 +29,11 @@ export default function AbsenceReportScreen() {
   const [busy, setBusy] = useState(false);
 
   const canSubmit = useMemo(() => {
-    return Boolean(student.id && student.classId && date && reason && !busy);
-  }, [busy, date, reason, student.classId, student.id]);
+    return Boolean(student?.id && student?.classId && date && reason && !busy);
+  }, [busy, date, reason, student?.classId, student?.id]);
 
   const submit = async () => {
-    if (!student.id || !student.classId) return;
+    if (!student?.id || !student?.classId) return;
     if (!date) {
       Alert.alert("Informe a data do treino.");
       return;

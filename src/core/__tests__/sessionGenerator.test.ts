@@ -1,3 +1,4 @@
+import type { ClassGroup } from "../models";
 import { generateSession } from "../sessionGenerator";
 
 const mk = (ageBand: any, goal = "Fundamentos") => ({
@@ -11,7 +12,7 @@ const mk = (ageBand: any, goal = "Fundamentos") => ({
   goal,
   equipment: "misto",
   level: 1,
-});
+} as unknown as ClassGroup);
 
 test("gera sessão para 8-9 com conteúdo de voleibol", () => {
   const s = generateSession(mk("08-09"));

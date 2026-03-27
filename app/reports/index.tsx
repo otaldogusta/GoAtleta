@@ -17,6 +17,7 @@ import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import TrainerReportsScreen from "./trainer";
 
 type DashboardTab = "attendance" | "session" | "activity";
@@ -478,18 +479,7 @@ export default function ReportsScreen() {
   if (!isAdmin) return <TrainerReportsScreen />;
 
   if (loading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ padding: 16, gap: 12 }}>
-          {header}
-          <View style={{ gap: 10 }}>
-            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
-            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
-            <ShimmerBlock style={{ height: 98, borderRadius: 16 }} />
-          </View>
-        </View>
-      </SafeAreaView>
-    );
+    return <ScreenLoadingState />;
   }
 
   return (

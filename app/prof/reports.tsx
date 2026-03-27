@@ -1,5 +1,8 @@
-import ReportsScreen from "../reports";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function ProfReportsTab() {
-  return <ReportsScreen />;
-}
+const ProfReportsTab = createLazyRoute(
+  () => import("../reports"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando relatórios..." />
+);
+
+export default ProfReportsTab;

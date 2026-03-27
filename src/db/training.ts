@@ -22,13 +22,16 @@ import type { ExerciseRow, HiddenTemplateRow, TrainingPlanRow, TrainingTemplateR
 // ---------------------------------------------------------------------------
 
 export async function getTrainingPlans(
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; classId?: string | null } = {}
 ): Promise<TrainingPlan[]> {
   try {
     const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+    const classId = options.classId?.trim() || "";
     const rows = await supabaseGet<TrainingPlanRow[]>(
       organizationId
-        ? `/training_plans?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&order=createdat.desc`
+        ? `/training_plans?select=*&organization_id=eq.${encodeURIComponent(organizationId)}${
+            classId ? `&classid=eq.${encodeURIComponent(classId)}` : ""
+          }&order=createdat.desc`
         : "/training_plans?select=*&order=createdat.desc"
     );
     const mapped = rows.map((row) => ({
@@ -46,12 +49,17 @@ export async function getTrainingPlans(
       applyDate: row.applydate ?? "",
       createdAt: row.createdat,
     }));
-    await writeCache(CACHE_KEYS.trainingPlans, mapped);
+    if (!classId) {
+      await writeCache(CACHE_KEYS.trainingPlans, mapped);
+    }
     return mapped;
   } catch (error) {
     if (isNetworkError(error)) {
       const cached = await readCache<TrainingPlan[]>(CACHE_KEYS.trainingPlans);
-      if (cached) return cached;
+      if (cached) {
+        const classId = options.classId?.trim() || "";
+        return classId ? cached.filter((plan) => plan.classId === classId) : cached;
+      }
     }
     throw error;
   }

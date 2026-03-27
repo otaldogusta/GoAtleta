@@ -4,12 +4,12 @@
 // ---------------------------------------------------------------------------
 
 import * as Sentry from "@sentry/react-native";
-import {
-  mapGoogleFormsRowToAthleteIntake,
-  matchAthleteIntakeToStudents,
-  type AthleteIntake,
-} from "../core/athlete-intake";
 import { normalizeAgeBand, parseAgeBandRange } from "../core/age-band";
+import {
+    mapGoogleFormsRowToAthleteIntake,
+    matchAthleteIntakeToStudents,
+    type AthleteIntake,
+} from "../core/athlete-intake";
 import type {
   AbsenceNotice,
   AttendanceRecord,
@@ -17,37 +17,41 @@ import type {
   Student,
   StudentPreRegistration,
   StudentPreRegistrationStatus,
+  WeeklyAutopilotKnowledgeReference,
+  WeeklyAutopilotPlanReview,
   WeeklyAutopilotProposal,
 } from "../core/models";
 import { normalizeCpfDigits, validateCpf } from "../utils/cpf";
 import { normalizeRg } from "../utils/document-normalization";
-import { deriveRaStartYear, normalizeRaDigits } from "../utils/student-ra";
 import { safeJsonParse } from "../utils/safe-json";
+import { deriveRaStartYear, normalizeRaDigits } from "../utils/student-ra";
+import { getClassById, getClasses } from "./classes";
 import {
-  CACHE_KEYS,
-  getActiveOrganizationId,
-  getScopedOrganizationId,
-  isAuthError,
-  isMissingColumnInSchemaCache,
-  isMissingRelation,
-  isNetworkError,
-  readCache,
-  supabaseDelete,
-  supabaseGet,
-  supabasePatch,
-  supabasePost,
-  writeCache,
+    CACHE_KEYS,
+    getActiveOrganizationId,
+    getScopedOrganizationId,
+    isAuthError,
+    isMissingColumnInSchemaCache,
+    isMissingRelation,
+    isNetworkError,
+    readCache,
+    supabaseDelete,
+    supabaseGet,
+    supabasePatch,
+    supabasePost,
+    writeCache,
 } from "./client";
 import { enqueueWrite } from "./nfc-sync";
+import { resolveTrainingPlanForDate, syncTrainingSessionFromAttendance } from "./training-sessions";
+import { getTrainingPlans } from "./training";
 import type {
-  AbsenceNoticeRow,
-  AthleteIntakeRow,
-  AttendanceRow,
-  StudentClassEnrollmentRow,
-  StudentPreRegistrationRow,
-  StudentRow,
+    AbsenceNoticeRow,
+    AthleteIntakeRow,
+    AttendanceRow,
+    StudentClassEnrollmentRow,
+    StudentPreRegistrationRow,
+    StudentRow,
 } from "./row-types";
-import { getClasses } from "./classes";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +70,7 @@ export type SyncGoogleFormsAthleteIntakesResult = {
   matchedStudents: number;
   linkedClasses: number;
   suggestedClasses: number;
+  modalityMappedClasses: number;
 };
 
 type AbsenceNoticeInput = {
@@ -87,9 +92,20 @@ type WeeklyAutopilotProposalRow = {
   proposed_plan_ids: string;
   status: WeeklyAutopilotProposal["status"];
   created_by: string;
+  knowledge_base_version_id?: string | null;
+  knowledge_base_version_label?: string | null;
+  knowledge_domain?: string | null;
+  knowledge_references?: string | null;
+  knowledge_rule_highlights?: string | null;
+  plan_review?: string | null;
   created_at: string;
   updated_at: string;
 };
+
+type AttendanceCacheStore = Record<
+  string,
+  Record<string, Record<string, AttendanceRecord[]>>
+>;
 
 // ---------------------------------------------------------------------------
 // Row mappers / internal helpers
@@ -97,6 +113,50 @@ type WeeklyAutopilotProposalRow = {
 
 const buildStudentsCacheKey = (organizationId: string | null) =>
   organizationId ? `${CACHE_KEYS.students}_${organizationId}` : CACHE_KEYS.students;
+
+const buildAttendanceCacheOrgKey = (organizationId: string | null | undefined) =>
+  organizationId?.trim() || "__global__";
+
+const readAttendanceCacheStore = async () =>
+  (await readCache<AttendanceCacheStore>(CACHE_KEYS.attendanceRecords)) ?? {};
+
+const writeAttendanceCacheStore = async (store: AttendanceCacheStore) => {
+  await writeCache(CACHE_KEYS.attendanceRecords, store);
+};
+
+const getCachedAttendanceByDate = async (
+  classId: string,
+  date: string,
+  organizationId: string | null | undefined
+) => {
+  try {
+    const store = await readAttendanceCacheStore();
+    const orgKey = buildAttendanceCacheOrgKey(organizationId);
+    return store[orgKey]?.[classId]?.[date] ?? [];
+  } catch {
+    return [];
+  }
+};
+
+const cacheAttendanceByDate = async (
+  classId: string,
+  date: string,
+  records: AttendanceRecord[],
+  organizationId: string | null | undefined
+) => {
+  try {
+    const store = await readAttendanceCacheStore();
+    const orgKey = buildAttendanceCacheOrgKey(organizationId);
+    const nextOrgStore = store[orgKey] ?? {};
+    const nextClassStore = nextOrgStore[classId] ?? {};
+    nextClassStore[date] = records;
+    nextOrgStore[classId] = nextClassStore;
+    store[orgKey] = nextOrgStore;
+    await writeAttendanceCacheStore(store);
+  } catch {
+    // ignore cache write failures
+  }
+};
 
 const mapStudentRow = (
   row: StudentRow,
@@ -211,6 +271,37 @@ const mapAbsenceNotice = (row: AbsenceNoticeRow): AbsenceNotice => ({
   createdAt: row.created_at,
 });
 
+const normalizeStudentPreRegistrationStatus = (
+  value: string | null | undefined
+): StudentPreRegistrationStatus => {
+  const normalized = String(value ?? "").trim();
+  if (normalized === "trial_scheduled") return "trial_scheduled";
+  if (normalized === "trial_done") return "trial_done";
+  if (normalized === "converted") return "converted";
+  if (normalized === "lost") return "lost";
+  return "lead";
+};
+
+const parseJsonArrayLike = (value: unknown) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    const parsed = safeJsonParse<unknown>(value, []);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+  return [];
+};
+
+const parseJsonObjectLike = <T>(value: unknown, fallback: T): T => {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as T;
+  if (typeof value === "string") {
+    const parsed = safeJsonParse<unknown>(value, fallback);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as T;
+    }
+  }
+  return fallback;
+};
+
 const mapWeeklyAutopilotProposal = (
   row: WeeklyAutopilotProposalRow
 ): WeeklyAutopilotProposal => ({
@@ -220,15 +311,98 @@ const mapWeeklyAutopilotProposal = (
   weekStart: row.week_start,
   summary: row.summary,
   actions: (() => {
-    const parsed = safeJsonParse<unknown>(row.actions, []);
-    return Array.isArray(parsed) ? parsed.map(String) : [];
+    const parsed = parseJsonArrayLike(row.actions);
+    return parsed.map(String);
   })(),
   proposedPlanIds: (() => {
-    const parsed = safeJsonParse<unknown>(row.proposed_plan_ids, []);
-    return Array.isArray(parsed) ? parsed.map(String) : [];
+    const parsed = parseJsonArrayLike(row.proposed_plan_ids);
+    return parsed.map(String);
   })(),
   status: row.status,
   createdBy: row.created_by,
+  knowledgeBaseVersionId: String(row.knowledge_base_version_id ?? "").trim() || null,
+  knowledgeBaseVersionLabel: String(row.knowledge_base_version_label ?? "").trim() || null,
+  knowledgeDomain: (() => {
+    const value = String(row.knowledge_domain ?? "").trim();
+    return value ? (value as WeeklyAutopilotProposal["knowledgeDomain"]) : null;
+  })(),
+  knowledgeReferences: (() => {
+    const parsed = parseJsonArrayLike(row.knowledge_references);
+    return parsed
+      .map((item) => item as Partial<WeeklyAutopilotKnowledgeReference>)
+      .map((item) => ({
+        sourceId: String(item.sourceId ?? ""),
+        title: String(item.title ?? ""),
+        authors: String(item.authors ?? ""),
+        sourceYear:
+          typeof item.sourceYear === "number" && Number.isFinite(item.sourceYear)
+            ? item.sourceYear
+            : null,
+        sourceType:
+          (String(item.sourceType ?? "") as WeeklyAutopilotKnowledgeReference["sourceType"]) ||
+          "other",
+        citationText: String(item.citationText ?? ""),
+        url: String(item.url ?? ""),
+      }))
+      .filter((item) => Boolean(item.sourceId || item.title));
+  })(),
+  knowledgeRuleHighlights: (() => {
+    const parsed = parseJsonArrayLike(row.knowledge_rule_highlights);
+    return parsed.map(String).filter(Boolean);
+  })(),
+  planReview: (() => {
+    const parsed = parseJsonObjectLike<WeeklyAutopilotPlanReview | null>(row.plan_review, null);
+    if (!parsed) return null;
+    return {
+      ok: Boolean(parsed.ok),
+      versionLabel: String(parsed.versionLabel ?? ""),
+      domain: (String(parsed.domain ?? "") as WeeklyAutopilotPlanReview["domain"]) || "general",
+      diffs: Array.isArray(parsed.diffs)
+        ? parsed.diffs.map((diff) => ({
+            weekStart: String((diff as { weekStart?: unknown }).weekStart ?? ""),
+            changes: Array.isArray((diff as { changes?: unknown }).changes)
+              ? ((diff as { changes?: unknown }).changes as Array<Record<string, unknown>>).map(
+                  (change) => ({
+                    field: String(change.field ?? ""),
+                    before: change.before,
+                    after: change.after,
+                  })
+                )
+              : [],
+          }))
+        : [],
+      issues: Array.isArray(parsed.issues)
+        ? parsed.issues.map((issue) => ({
+            weekStart: String((issue as { weekStart?: unknown }).weekStart ?? ""),
+            code: String((issue as { code?: unknown }).code ?? ""),
+            message: String((issue as { message?: unknown }).message ?? ""),
+            severity:
+              (String((issue as { severity?: unknown }).severity ?? "") as
+                WeeklyAutopilotPlanReview["issues"][number]["severity"]) || "warning",
+            reference:
+              typeof (issue as { reference?: unknown }).reference === "string"
+                ? String((issue as { reference?: unknown }).reference)
+                : null,
+            ruleId:
+              typeof (issue as { ruleId?: unknown }).ruleId === "string"
+                ? String((issue as { ruleId?: unknown }).ruleId)
+                : null,
+            ruleType:
+              typeof (issue as { ruleType?: unknown }).ruleType === "string"
+                ? ((String((issue as { ruleType?: unknown }).ruleType) as
+                    WeeklyAutopilotPlanReview["issues"][number]["ruleType"]) || null)
+                : null,
+            priority:
+              typeof (issue as { priority?: unknown }).priority === "number"
+                ? Number((issue as { priority?: unknown }).priority)
+                : null,
+            autoCorrected: Boolean((issue as { autoCorrected?: unknown }).autoCorrected),
+          }))
+        : [],
+      warnings: Array.isArray(parsed.warnings) ? parsed.warnings.map(String).filter(Boolean) : [],
+      citations: Array.isArray(parsed.citations) ? parsed.citations.map(String).filter(Boolean) : [],
+    };
+  })(),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -330,8 +504,8 @@ const scoreAgeBandFit = (ageBand: string, age: number | null) => {
   const normalized = normalizeAgeBand(ageBand);
   const range = parseAgeBandRange(normalized);
   if (!range) return { score: 0, matched: false };
-  if (age < range.min || age > range.max) return { score: -100, matched: false };
-  const center = (range.min + range.max) / 2;
+  if (age < range.start || age > range.end) return { score: -100, matched: false };
+  const center = (range.start + range.end) / 2;
   const distance = Math.abs(age - center);
   return { score: 25 - Math.min(20, distance * 2), matched: true };
 };
@@ -380,10 +554,19 @@ const resolveAthleteIntakeClassId = (params: {
   row: Record<string, string>;
   intake: AthleteIntake;
   fallbackClassId?: string | null;
+  modalityClassMap?: Record<string, string | null>;
   classes: ClassGroup[];
 }) => {
   if (params.fallbackClassId?.trim()) {
     return { classId: params.fallbackClassId, source: "student" as const };
+  }
+
+  const mappedClassId = params.intake.modalities
+    .map((item) => normalizeAthleteIntakeLookup(item))
+    .map((item) => params.modalityClassMap?.[item] ?? null)
+    .find((item) => Boolean(item?.trim()));
+  if (mappedClassId?.trim()) {
+    return { classId: mappedClassId, source: "modality" as const };
   }
 
   const className = findAthleteIntakeRawValue(params.row, ["turma", "categoria", "grupo"]);
@@ -884,6 +1067,69 @@ export async function deleteStudent(id: string) {
   );
 }
 
+export async function deleteStudents(ids: string[]) {
+  const filteredIds = ids.map((id) => id.trim()).filter(Boolean);
+  if (!filteredIds.length) return;
+  const activeOrganizationId = await getActiveOrganizationId();
+  const inFilter = buildStudentsInFilter(filteredIds);
+  await supabaseDelete(
+    activeOrganizationId
+      ? "/students?organization_id=eq." +
+          encodeURIComponent(activeOrganizationId) +
+          "&id=in.(" +
+          inFilter +
+          ")"
+      : "/students?id=in.(" + inFilter + ")"
+  );
+}
+
+export async function moveStudentsToClass(
+  ids: string[],
+  fromClassId: string,
+  toClassId: string,
+  organizationId?: string | null
+) {
+  const filteredIds = ids.map((id) => id.trim()).filter(Boolean);
+  if (!filteredIds.length || fromClassId === toClassId) return;
+
+  const activeOrganizationId = organizationId ?? (await getActiveOrganizationId());
+  const inFilter = buildStudentsInFilter(filteredIds);
+  const studentsPath = activeOrganizationId
+    ? "/students?organization_id=eq." +
+      encodeURIComponent(activeOrganizationId) +
+      "&id=in.(" +
+      inFilter +
+      ")"
+    : "/students?id=in.(" + inFilter + ")";
+  const enrollmentPath = activeOrganizationId
+    ? "/student_class_enrollments?organization_id=eq." +
+      encodeURIComponent(activeOrganizationId) +
+      "&student_id=in.(" +
+      inFilter +
+      ")&class_id=eq." +
+      encodeURIComponent(fromClassId)
+    : "/student_class_enrollments?student_id=in.(" +
+      inFilter +
+      ")&class_id=eq." +
+      encodeURIComponent(fromClassId);
+
+  await supabasePatch(studentsPath, {
+    classid: toClassId,
+  });
+
+  try {
+    await supabaseDelete(enrollmentPath);
+  } catch (error) {
+    if (isMissingRelation(error, "student_class_enrollments")) {
+      return;
+    }
+    await supabasePatch(studentsPath, {
+      classid: fromClassId,
+    });
+    throw error;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pre-registrations
 // ---------------------------------------------------------------------------
@@ -900,7 +1146,7 @@ const mapStudentPreRegistrationRow = (
   classInterest: row.class_interest ?? null,
   unitInterest: row.unit_interest ?? null,
   trialDate: row.trial_date ?? null,
-  status: row.status,
+  status: normalizeStudentPreRegistrationStatus(row.status),
   notes: row.notes ?? null,
   convertedStudentId: row.converted_student_id ?? null,
   createdAt: row.created_at,
@@ -1053,6 +1299,7 @@ export async function syncGoogleFormsAthleteIntakes(params: {
   rawRows: Record<string, string>[];
   organizationId?: string | null;
   classes?: ClassGroup[];
+  modalityClassMap?: Record<string, string | null>;
 }): Promise<SyncGoogleFormsAthleteIntakesResult> {
   const organizationId = await getScopedOrganizationId(
     params.organizationId,
@@ -1069,7 +1316,15 @@ export async function syncGoogleFormsAthleteIntakes(params: {
     .filter((item): item is { row: Record<string, string>; intake: AthleteIntake } => Boolean(item));
 
   if (!prepared.length) {
-    return { total: 0, created: 0, updated: 0, matchedStudents: 0, linkedClasses: 0, suggestedClasses: 0 };
+    return {
+      total: 0,
+      created: 0,
+      updated: 0,
+      matchedStudents: 0,
+      linkedClasses: 0,
+      suggestedClasses: 0,
+      modalityMappedClasses: 0,
+    };
   }
 
   const [students, classes, existingRows] = await Promise.all([
@@ -1125,6 +1380,7 @@ export async function syncGoogleFormsAthleteIntakes(params: {
     matchedStudents: 0,
     linkedClasses: 0,
     suggestedClasses: 0,
+    modalityMappedClasses: 0,
   };
 
   for (const item of prepared) {
@@ -1134,6 +1390,7 @@ export async function syncGoogleFormsAthleteIntakes(params: {
       row: item.row,
       intake: item.intake,
       fallbackClassId: matchedStudent?.classId ?? null,
+      modalityClassMap: params.modalityClassMap,
       classes,
     });
     const resolvedClassId = resolvedClass.classId;
@@ -1181,6 +1438,7 @@ export async function syncGoogleFormsAthleteIntakes(params: {
     if (matchedStudentId) result.matchedStudents += 1;
     if (resolvedClassId) result.linkedClasses += 1;
     if (resolvedClass.source === "suggested" && resolvedClassId) result.suggestedClasses += 1;
+    if (resolvedClass.source === "modality" && resolvedClassId) result.modalityMappedClasses += 1;
 
     if (existing) {
       await supabasePatch(
@@ -1284,8 +1542,30 @@ export async function saveAttendanceRecords(
     if (rows.length > 0) {
       await supabasePost("/attendance_logs", rows);
     }
+
+    await cacheAttendanceByDate(classId, date, records, organizationId);
+
+    try {
+      const [classInfo, plans] = await Promise.all([
+        getClassById(classId, { organizationId }),
+        getTrainingPlans({ organizationId, classId }),
+      ]);
+      if (classInfo) {
+        const plan = resolveTrainingPlanForDate(plans, classInfo.id, date);
+        await syncTrainingSessionFromAttendance({
+          classInfo,
+          date,
+          records,
+          plan,
+          organizationId,
+        });
+      }
+    } catch {
+      // best-effort compatibility layer; legacy attendance save already succeeded
+    }
   } catch (error) {
     if (allowQueue && isNetworkError(error)) {
+      await cacheAttendanceByDate(classId, date, records, options?.organizationId ?? null);
       await enqueueWrite({
         id: "queue_att_" + Date.now(),
         kind: "attendance_records",
@@ -1326,21 +1606,34 @@ export async function getAttendanceByDate(
   options: { organizationId?: string | null } = {}
 ): Promise<AttendanceRecord[]> {
   const organizationId = options.organizationId ?? (await getActiveOrganizationId());
-  const rows = await supabaseGet<AttendanceRow[]>(
-    organizationId
-      ? `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}&organization_id=eq.${encodeURIComponent(organizationId)}`
-      : `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}`
-  );
-  return rows.map((row) => ({
-    id: row.id,
-    classId: row.classid,
-    studentId: row.studentid,
-    date: row.date,
-    status: row.status === "faltou" ? "faltou" : "presente",
-    note: row.note ?? "",
-    painScore: row.pain_score ?? 0,
-    createdAt: row.createdat,
-  }));
+  try {
+    const rows = await supabaseGet<AttendanceRow[]>(
+      organizationId
+        ? `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}&organization_id=eq.${encodeURIComponent(organizationId)}`
+        : `/attendance_logs?select=*&classid=eq.${encodeURIComponent(classId)}&date=eq.${encodeURIComponent(date)}`
+    );
+    const records: AttendanceRecord[] = rows.map((row) => ({
+      id: row.id,
+      classId: row.classid,
+      studentId: row.studentid,
+      date: row.date,
+      status: row.status === "faltou" ? "faltou" : "presente",
+      note: row.note ?? "",
+      painScore: row.pain_score ?? 0,
+      createdAt: row.createdat,
+    }));
+    await cacheAttendanceByDate(classId, date, records, organizationId);
+    return records;
+  } catch (error) {
+    if (isMissingRelation(error, "attendance_logs")) return [];
+    const cached = await getCachedAttendanceByDate(classId, date, organizationId);
+    if (cached.length > 0 && (isNetworkError(error) || isAuthError(error))) {
+      return cached;
+    }
+    if (cached.length > 0) return cached;
+    if (isNetworkError(error) || isAuthError(error)) return [];
+    throw error;
+  }
 }
 
 export async function getAttendanceByStudent(
@@ -1372,13 +1665,19 @@ export async function getAttendanceByStudent(
 }
 
 export async function getAttendanceAll(
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; startIso?: string; endIso?: string } = {}
 ): Promise<AttendanceRecord[]> {
   const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+  const startIso = options.startIso?.trim() || "";
+  const endIso = options.endIso?.trim() || "";
   const rows = await supabaseGet<AttendanceRow[]>(
     organizationId
-      ? `/attendance_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.desc`
-      : "/attendance_logs?select=*&order=date.desc"
+      ? `/attendance_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}${
+          startIso ? `&date=gte.${encodeURIComponent(startIso)}` : ""
+        }${endIso ? `&date=lt.${encodeURIComponent(endIso)}` : ""}&order=date.desc`
+      : `/attendance_logs?select=*${startIso ? `&date=gte.${encodeURIComponent(startIso)}` : ""}${
+          endIso ? `&date=lt.${encodeURIComponent(endIso)}` : ""
+        }&order=date.desc`
   );
   return rows.map((row) => ({
     id: row.id,
@@ -1480,6 +1779,12 @@ export async function saveWeeklyAutopilotProposal(proposal: WeeklyAutopilotPropo
       proposed_plan_ids: JSON.stringify(proposal.proposedPlanIds ?? []),
       status: proposal.status,
       created_by: proposal.createdBy,
+      knowledge_base_version_id: proposal.knowledgeBaseVersionId ?? null,
+      knowledge_base_version_label: proposal.knowledgeBaseVersionLabel ?? "",
+      knowledge_domain: proposal.knowledgeDomain ?? "",
+      knowledge_references: JSON.stringify(proposal.knowledgeReferences ?? []),
+      knowledge_rule_highlights: JSON.stringify(proposal.knowledgeRuleHighlights ?? []),
+      plan_review: JSON.stringify(proposal.planReview ?? null),
       created_at: proposal.createdAt,
       updated_at: proposal.updatedAt,
     },

@@ -68,8 +68,8 @@ export function getDefaultMessage(
   options: {
     className: string;
     unitLabel: string;
-    role: "guardian" | "student" | null;
-    date: string;
+    role?: "guardian" | "student" | null;
+    date?: string;
     enabledOverride: boolean; // For runtime toggle
   }
 ): string {

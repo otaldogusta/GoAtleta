@@ -1,5 +1,8 @@
-import OrgMembersScreen from "../org-members";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function CoordOrgMembersRoute() {
-  return <OrgMembersScreen />;
-}
+const CoordOrgMembersRoute = createLazyRoute(
+  () => import("../org-members"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando membros..." />
+);
+
+export default CoordOrgMembersRoute;

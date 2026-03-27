@@ -40,7 +40,7 @@ export default function StudentPlanScreen() {
 
   const routeClassId = typeof params.classId === "string" ? params.classId : "";
   const routeDate = typeof params.date === "string" && isIsoDate(params.date) ? params.date : "";
-  const targetClassId = routeClassId || student.classId || "";
+  const targetClassId = routeClassId || student?.classId || "";
   const targetDate = routeDate || "";
   const targetDateLabel = useMemo(
     () => (targetDate ? formatFullDate(targetDate) : ""),
@@ -63,7 +63,7 @@ export default function StudentPlanScreen() {
       try {
         if (targetDate) {
           const weekdayId = getWeekdayId(targetDate);
-          const plans = await getTrainingPlans();
+          const plans = await getTrainingPlans({ classId: targetClassId });
           const byClass = plans.filter((item) => item.classId === targetClassId);
           const byDate = byClass.find((item) => item.applyDate === targetDate);
           const byWeekday =

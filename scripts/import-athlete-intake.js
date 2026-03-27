@@ -97,11 +97,21 @@ const outputDir = outputDirArg
   ? path.resolve(outputDirArg)
   : path.resolve(process.cwd(), "data", "imports");
 
+const PT_BR_LOCALE = "pt-BR";
+
+function normalizeCsvUtf8Text(value) {
+  return String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+}
+
 function toKey(value) {
   return String(value ?? "")
+    .replace(/^\uFEFF/, "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
+    .toLocaleLowerCase(PT_BR_LOCALE)
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -680,7 +690,7 @@ async function upsertAthleteIntakes(records, options) {
 
 (async () => {
   const sourcePath = path.resolve(inputPath);
-  const csvRaw = fs.readFileSync(sourcePath, "utf8");
+  const csvRaw = normalizeCsvUtf8Text(fs.readFileSync(sourcePath, "utf8"));
   const delimiter = detectDelimiter(csvRaw);
   const rows = parseCsv(csvRaw, delimiter);
   if (!rows.length) {

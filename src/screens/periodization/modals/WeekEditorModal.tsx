@@ -1,7 +1,7 @@
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+﻿import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../ui/confirm-dialog";
-import { ModalSheet } from "../../../ui/ModalSheet";
+import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 
 type Props = {
@@ -37,6 +37,35 @@ type Props = {
   onApplyDraftToWeeks: (weeks: number[]) => void;
   onConfirmDialog: (opts: ConfirmDialogOptions) => void;
   normalizeText: (value: string) => string;
+  planReview?: WeeklyAutopilotPlanReview | null;
+};
+
+const planReviewFieldLabels: Record<string, string> = {
+  phase: "Fase",
+  objective: "Objetivo",
+  loadTarget: "Carga",
+  intensityTarget: "Intensidade",
+  technicalFocus: "Foco técnico",
+  physicalFocus: "Foco físico",
+  constraints: "Restrições",
+  progressionModel: "Progressão",
+};
+
+const formatReviewValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean).join(" • ") || "Sem valor";
+  }
+  if (value == null) return "Sem valor";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Sem valor";
+    }
+  }
+  return String(value).trim() || "Sem valor";
 };
 
 export function WeekEditorModal({
@@ -71,6 +100,7 @@ export function WeekEditorModal({
   onApplyDraftToWeeks,
   onConfirmDialog,
   normalizeText,
+  planReview,
 }: Props) {
   const inputStyle = {
     borderWidth: 1,
@@ -81,9 +111,10 @@ export function WeekEditorModal({
     color: colors.inputText,
     fontSize: 13,
   };
+  const hasBlockingIssue = Boolean(planReview?.issues.some((issue) => issue.severity === "error"));
 
   return (
-    <ModalSheet
+    <ModalDialogFrame
       visible={visible}
       onClose={onClose}
       cardStyle={[
@@ -97,35 +128,62 @@ export function WeekEditorModal({
         },
       ]}
       position="center"
-    >
-      <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 8 }}>
-          <View>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              {`Editar agenda da semana ${editingWeek}`}
+      colors={colors}
+      title={`Editar agenda da semana ${editingWeek}`}
+      subtitle={normalizeText(selectedClassName)}
+      footer={
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={onSave}
+            disabled={isSavingWeek || hasBlockingIssue}
+            style={{
+              flex: 1,
+              paddingVertical: 10,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: isSavingWeek
+                ? colors.primaryDisabledBg
+                : hasBlockingIssue
+                  ? colors.dangerBg
+                  : colors.primaryBg,
+            }}
+          >
+            <Text
+              style={{
+                color: isSavingWeek
+                  ? colors.secondaryText
+                  : hasBlockingIssue
+                    ? colors.dangerText
+                    : colors.primaryText,
+                fontWeight: "700",
+              }}
+            >
+              {isSavingWeek
+                ? "Salvando..."
+                : hasBlockingIssue
+                  ? "Corrigir alertas"
+                  : "Salvar alterações"}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {normalizeText(selectedClassName)}
-            </Text>
-          </View>
+          </Pressable>
 
           <Pressable
             onPress={onClose}
             style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
+              flex: 1,
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.background,
+              borderWidth: 1,
+              borderColor: colors.border,
               alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
             }}
           >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-              Fechar
-            </Text>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
           </Pressable>
         </View>
-
+      }
+    >
+      <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         <KeyboardAvoidingView
           style={{ width: "100%", flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -140,12 +198,123 @@ export function WeekEditorModal({
             }}
             style={{ flex: 1 }}
             showsVerticalScrollIndicator
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-          >
-            {/* ── Planejamento da semana ── */}
-            <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+        >
+          {planReview ? (
+            <View
+              style={{
+                gap: 8,
+                padding: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+                  Revisão científica
+                </Text>
+                <View
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 999,
+                    backgroundColor: planReview.ok ? colors.successBg : colors.warningBg,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: planReview.ok ? colors.successText : colors.warningText,
+                      fontSize: 11,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {planReview.ok ? "Plano validado" : `${planReview.issues.length} alerta(s)`}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {normalizeText(`Base ${planReview.versionLabel} · ${planReview.domain}`)}
+              </Text>
+
+              {planReview.diffs.length ? (
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                    Mudanças do rascunho
+                  </Text>
+                  {planReview.diffs.slice(0, 2).map((diff) => (
+                    <View
+                      key={diff.weekStart}
+                      style={{
+                        gap: 6,
+                        padding: 10,
+                        borderRadius: 12,
+                        backgroundColor: colors.background,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      {diff.changes.slice(0, 2).map((change) => (
+                        <Text key={`${diff.weekStart}_${change.field}`} style={{ color: colors.muted, fontSize: 12 }}>
+                          {normalizeText(
+                            `${planReviewFieldLabels[change.field] ?? change.field}: ${formatReviewValue(
+                              change.before
+                            )} → ${formatReviewValue(change.after)}`
+                          )}
+                        </Text>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              {planReview.issues.length ? (
+                <View style={{ gap: 6 }}>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                    Alertas
+                  </Text>
+                  {planReview.issues.slice(0, 2).map((issue) => (
+                    <View
+                      key={`${issue.weekStart}_${issue.code}`}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 8,
+                        borderRadius: 12,
+                        backgroundColor: colors.background,
+                        borderWidth: 1,
+                        borderColor:
+                          issue.severity === "error"
+                            ? colors.dangerBorder
+                            : issue.severity === "warning"
+                              ? colors.warningBg
+                              : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                        {normalizeText(issue.message)}
+                      </Text>
+                      </View>
+                    ))}
+                  {hasBlockingIssue ? (
+                    <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "600" }}>
+                      Corrija os alertas em vermelho antes de salvar.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : (
+                <Text style={{ color: colors.successText, fontSize: 12, fontWeight: "600" }}>
+                  Sem alertas na base científica ativa.
+                </Text>
+              )}
+            </View>
+          ) : null}
+
+          {/* Planejamento da semana */}
+          <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
+            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
                 {normalizeText("Planejamento da semana")}
               </Text>
 
@@ -206,7 +375,7 @@ export function WeekEditorModal({
               </View>
             </View>
 
-            {/* ── Parâmetros da sessão ── */}
+            {/* Parâmetros da sessão */}
             <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
               <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
                 {normalizeText("Parâmetros da sessão")}
@@ -265,7 +434,7 @@ export function WeekEditorModal({
               </View>
             </View>
 
-            {/* ── Restrições ── */}
+            {/* Restrições */}
             <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>
                 {normalizeText("Restrições")}
@@ -281,7 +450,7 @@ export function WeekEditorModal({
               />
             </View>
 
-            {/* ── Ações rápidas ── */}
+            {/* Ações rápidas */}
             <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 {normalizeText("Ações rápidas")}
@@ -336,7 +505,7 @@ export function WeekEditorModal({
               </View>
             </View>
 
-            {/* ── Aplicar para outras semanas ── */}
+            {/* Aplicar para outras semanas */}
             <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 Aplicar estrutura para outras semanas
@@ -406,44 +575,10 @@ export function WeekEditorModal({
               </Pressable>
             </View>
 
-            {/* ── Ações finais ── */}
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={onSave}
-                disabled={isSavingWeek}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  backgroundColor: isSavingWeek ? colors.primaryDisabledBg : colors.primaryBg,
-                }}
-              >
-                <Text style={{ color: isSavingWeek ? colors.secondaryText : colors.primaryText, fontWeight: "700" }}>
-                  {isSavingWeek ? "Salvando..." : "Salvar alterações"}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={onClose}
-                style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Cancelar
-                </Text>
-              </Pressable>
-            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
-    </ModalSheet>
+    </ModalDialogFrame>
   );
 }
+import type { WeeklyAutopilotPlanReview } from "../../../core/models";

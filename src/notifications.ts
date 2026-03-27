@@ -13,7 +13,7 @@ export const requestNotificationPermission = async () => {
   const Notifications = getNotificationsModule();
   if (!Notifications) return false;
   const current = await Notifications.getPermissionsAsync();
-  if (current.granted || current.ios.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+  if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
     return true;
   }
   const requested = await Notifications.requestPermissionsAsync();

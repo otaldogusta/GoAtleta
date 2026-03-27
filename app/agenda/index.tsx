@@ -5,9 +5,9 @@ import {
     useState
 } from "react";
 import {
+    FlatList,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
     Text,
     TextInput,
     View
@@ -164,8 +164,8 @@ export default function AgendaScreen() {
       const filtered = classes.filter((cls) => cls.daysOfWeek.includes(day));
       filtered.forEach((cls, index) => {
         const parsed = parseTime(cls.startTime || "");
-        const startHour = parsed.hour ?? 14 + index;
-        const startMinute = parsed.minute ?? 0;
+        const startHour = parsed?.hour ?? 14 + index;
+        const startMinute = parsed?.minute ?? 0;
         const endTime = addMinutes(startHour, startMinute, cls.durationMinutes || 60);
         const start = formatIcsDateTime(date, startHour, startMinute);
         const end = formatIcsDateTime(date, endTime.hour, endTime.minute);
@@ -416,43 +416,43 @@ export default function AgendaScreen() {
         <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
           {formatDateLabel(selectedDate)}
         </Text>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
-          { dayEvents.length === 0 ? (
-            <Text style={{ color: colors.muted }}>Nenhuma aula neste dia</Text>
-          ) : (
-            dayEvents.map((event) => (
-              <Pressable
-                key={event.id}
-                onPress={() => {
-                  console.log("Agenda - Event clicked, event.id:", event.id, "typeof:", typeof event.id);
-                  router.push({
-                    pathname: "/class/[id]/attendance",
-                    params: { id: String(event.id) }
-                  });
-                }}
-                style={{}}
+        <FlatList
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: 8, paddingVertical: 8 }}
+          data={dayEvents}
+          keyExtractor={(event) => event.id}
+          renderItem={({ item: event }) => (
+            <Pressable
+              onPress={() => {
+                console.log("Agenda - Event clicked, event.id:", event.id, "typeof:", typeof event.id);
+                router.push({
+                  pathname: "/class/[id]/attendance",
+                  params: { id: String(event.id) }
+                });
+              }}
+              style={{}}
+            >
+              <View
+                style={[
+                  getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
+                  {
+                    shadowOpacity: 0.04,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 2,
+                  },
+                ]}
               >
-                <View
-                  style={[
-                    getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16 }),
-                    {
-                      shadowOpacity: 0.04,
-                      shadowRadius: 10,
-                      shadowOffset: { width: 0, height: 6 },
-                      elevation: 2,
-                    },
-                  ]}
-                >
-                  <Text style={{ fontWeight: "700" }}>{event.title}</Text>
-                  <Text>
-                    {pad2(event.start.hour)}:{pad2(event.start.minute)} -{" "}
-                    {pad2(event.end.hour)}:{pad2(event.end.minute)}
-                  </Text>
-                </View>
-              </Pressable>
-            ))
+                <Text style={{ fontWeight: "700" }}>{event.title}</Text>
+                <Text>
+                  {pad2(event.start.hour)}:{pad2(event.start.minute)} -{" "}
+                  {pad2(event.end.hour)}:{pad2(event.end.minute)}
+                </Text>
+              </View>
+            </Pressable>
           )}
-        </ScrollView>
+          ListEmptyComponent={<Text style={{ color: colors.muted }}>Nenhuma aula neste dia</Text>}
+        />
       </View>
 
       <View style={{ marginTop: 8 }}>

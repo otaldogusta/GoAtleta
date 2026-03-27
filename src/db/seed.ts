@@ -53,6 +53,39 @@ export {
 } from "./session";
 
 export {
+  buildTrainingSessionId,
+  buildTrainingSessionWindow,
+  resolveTrainingPlanForDate,
+  getTrainingIntegrationRules,
+  syncTrainingIntegrationRuleFromSession,
+  deleteTrainingIntegrationRuleBySession,
+  syncTrainingSessionFromAttendance,
+  syncTrainingSessionFromReport,
+  getTrainingSessionByDate,
+  getTrainingSessionAttendanceBySessionId,
+  getTrainingSessionsByClass,
+  deleteTrainingSessionsByClass,
+  upsertTrainingSession,
+} from "./training-sessions";
+
+export {
+  getKnowledgeBaseVersions,
+  getActiveKnowledgeBaseVersion,
+  getKnowledgeBaseSnapshot,
+  upsertKnowledgeBaseVersion,
+  getKnowledgeSources,
+  upsertKnowledgeSource,
+  getKnowledgeRules,
+  upsertKnowledgeRule,
+  getKnowledgeRuleCitations,
+  upsertKnowledgeRuleCitation,
+  deleteKnowledgeBaseVersion,
+  deleteKnowledgeSource,
+  deleteKnowledgeRule,
+  deleteKnowledgeRuleCitation,
+} from "./knowledge-base";
+
+export {
   getTrainingPlans,
   saveTrainingPlan,
   updateTrainingPlan,
@@ -97,6 +130,8 @@ export {
   revealStudentCpf,
   updateStudentPhoto,
   deleteStudent,
+  deleteStudents,
+  moveStudentsToClass,
   getStudentPreRegistrations,
   saveStudentPreRegistration,
   updateStudentPreRegistration,

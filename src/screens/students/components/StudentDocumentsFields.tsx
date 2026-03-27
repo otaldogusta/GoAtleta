@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { memo } from "react";
 import { ActivityIndicator, Text, TextInput, View } from "react-native";
 
 import { Pressable } from "../../../ui/Pressable";
@@ -7,10 +8,8 @@ import { maskCpf } from "../../../utils/cpf";
 import { formatRgBr } from "../../../utils/document-normalization";
 
 type Props = {
-  ra: string;
   cpfDisplay: string;
   rg: string;
-  onChangeRa: (value: string) => void;
   onChangeCpf: (value: string) => void;
   onChangeRg: (value: string) => void;
   readonly?: boolean;
@@ -18,14 +17,12 @@ type Props = {
   isCpfVisible?: boolean;
   revealCpfBusy?: boolean;
   onRevealCpf?: () => void;
-  errors?: { ra?: string; cpf?: string; rg?: string };
+  errors?: { cpf?: string; rg?: string };
 };
 
-export function StudentDocumentsFields({
-  ra,
+export const StudentDocumentsFields = memo(function StudentDocumentsFields({
   cpfDisplay,
   rg,
-  onChangeRa,
   onChangeCpf,
   onChangeRg,
   readonly = false,
@@ -50,35 +47,13 @@ export function StudentDocumentsFields({
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
       <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>RA</Text>
-        <TextInput
-          value={ra}
-          onChangeText={onChangeRa}
-          editable={!readonly}
-          placeholder={readonly ? "Nao informado" : "2022202626"}
-          placeholderTextColor={colors.placeholder}
-          keyboardType="numeric"
-          style={[
-            inputStyle,
-            errors?.ra
-              ? {
-                  borderColor: colors.dangerText,
-                }
-              : null,
-          ]}
-        />
-        {errors?.ra ? (
-          <Text style={{ color: colors.dangerText, fontSize: 11 }}>{errors.ra}</Text>
-        ) : null}
-      </View>
-      <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>CPF</Text>
         <View style={{ position: "relative" }}>
           <TextInput
             value={cpfDisplay}
             onChangeText={(value) => onChangeCpf(maskCpf(value))}
             editable={!readonly}
-            placeholder={readonly ? "Nao informado" : "000.000.000-00"}
+            placeholder={readonly ? "N\u00e3o informado" : "000.000.000-00"}
             placeholderTextColor={colors.placeholder}
             keyboardType="numeric"
             style={[
@@ -107,18 +82,12 @@ export function StudentDocumentsFields({
               {revealCpfBusy ? (
                 <ActivityIndicator size="small" color={colors.muted} />
               ) : (
-                <Ionicons
-                  name={isCpfVisible ? "eye-off-outline" : "eye-outline"}
-                  size={18}
-                  color={colors.muted}
-                />
+                <Ionicons name={isCpfVisible ? "eye-off-outline" : "eye-outline"} size={18} color={colors.muted} />
               )}
             </Pressable>
           ) : null}
         </View>
-        {errors?.cpf ? (
-          <Text style={{ color: colors.dangerText, fontSize: 11 }}>{errors.cpf}</Text>
-        ) : null}
+        {errors?.cpf ? <Text style={{ color: colors.dangerText, fontSize: 11 }}>{errors.cpf}</Text> : null}
       </View>
       <View style={{ flex: 1, minWidth: 160, gap: 6 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>RG</Text>
@@ -126,7 +95,7 @@ export function StudentDocumentsFields({
           value={rg}
           onChangeText={(value) => onChangeRg(formatRgBr(value))}
           editable={!readonly}
-          placeholder={readonly ? "Nao informado" : "00.000.000-0"}
+          placeholder={readonly ? "N\u00e3o informado" : "00.000.000-0"}
           placeholderTextColor={colors.placeholder}
           style={[
             inputStyle,
@@ -137,10 +106,8 @@ export function StudentDocumentsFields({
               : null,
           ]}
         />
-        {errors?.rg ? (
-          <Text style={{ color: colors.dangerText, fontSize: 11 }}>{errors.rg}</Text>
-        ) : null}
+        {errors?.rg ? <Text style={{ color: colors.dangerText, fontSize: 11 }}>{errors.rg}</Text> : null}
       </View>
     </View>
   );
-}
+});

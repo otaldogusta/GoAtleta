@@ -1,4 +1,4 @@
-import { FlatList, Text, useWindowDimensions, View } from "react-native";
+import { FlatList, Platform, Text, useWindowDimensions, View } from "react-native";
 
 import {
   type AdminPendingAttendance,
@@ -78,7 +78,9 @@ export function ConsistencyPanel({
             keyExtractor={(item) => `${item.classId}_${item.targetDate}`}
             scrollEnabled={false}
             initialNumToRender={10}
+            maxToRenderPerBatch={8}
             windowSize={6}
+            removeClippedSubviews={Platform.OS !== "web"}
             contentContainerStyle={{ gap: 8 }}
             renderItem={({ item }) => (
               <Pressable
@@ -145,7 +147,9 @@ export function ConsistencyPanel({
             keyExtractor={(item) => `${item.classId}_${item.periodStart}`}
             scrollEnabled={false}
             initialNumToRender={10}
+            maxToRenderPerBatch={8}
             windowSize={6}
+            removeClippedSubviews={Platform.OS !== "web"}
             contentContainerStyle={{ gap: 8 }}
             renderItem={({ item }) => {
               const daysSinceReport = item.daysWithoutReport;

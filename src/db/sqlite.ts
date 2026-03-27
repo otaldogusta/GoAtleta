@@ -51,6 +51,42 @@ export function initDb() {
       createdAt TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS training_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      startAt TEXT NOT NULL DEFAULT '',
+      endAt TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      type TEXT NOT NULL DEFAULT 'training',
+      source TEXT NOT NULL DEFAULT 'manual',
+      planId TEXT,
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS training_session_classes (
+      id TEXT PRIMARY KEY NOT NULL,
+      sessionId TEXT NOT NULL,
+      classId TEXT NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS training_session_attendance (
+      id TEXT PRIMARY KEY NOT NULL,
+      sessionId TEXT NOT NULL,
+      studentId TEXT NOT NULL,
+      classId TEXT NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'present',
+      note TEXT NOT NULL DEFAULT '',
+      painScore INTEGER,
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
     CREATE TABLE IF NOT EXISTS scouting_logs (
       id TEXT PRIMARY KEY NOT NULL,
       classId TEXT NOT NULL,
@@ -159,7 +195,64 @@ export function initDb() {
       tags TEXT NOT NULL DEFAULT '[]',
       sport TEXT NOT NULL DEFAULT '',
       level TEXT NOT NULL DEFAULT '',
+      knowledgeBaseVersionId TEXT,
+      knowledgeSourceId TEXT,
       createdAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS knowledge_base_versions (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      domain TEXT NOT NULL DEFAULT 'general',
+      versionLabel TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      publishedAt TEXT,
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS knowledge_sources (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      knowledgeBaseVersionId TEXT NOT NULL DEFAULT '',
+      domain TEXT NOT NULL DEFAULT 'general',
+      title TEXT NOT NULL DEFAULT '',
+      authors TEXT NOT NULL DEFAULT '',
+      sourceYear INTEGER,
+      edition TEXT NOT NULL DEFAULT '',
+      sourceType TEXT NOT NULL DEFAULT 'other',
+      sourceUrl TEXT NOT NULL DEFAULT '',
+      citationText TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS knowledge_rules (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      knowledgeBaseVersionId TEXT NOT NULL DEFAULT '',
+      domain TEXT NOT NULL DEFAULT 'general',
+      ruleKey TEXT NOT NULL DEFAULT '',
+      ruleLabel TEXT NOT NULL DEFAULT '',
+      ruleKind TEXT NOT NULL DEFAULT 'recommendation',
+      status TEXT NOT NULL DEFAULT 'draft',
+      payload TEXT NOT NULL DEFAULT '{}',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS knowledge_rule_citations (
+      id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
+      knowledgeRuleId TEXT NOT NULL DEFAULT '',
+      knowledgeSourceId TEXT,
+      kbDocumentId TEXT,
+      pages TEXT NOT NULL DEFAULT '',
+      evidence TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL DEFAULT '',
+      updatedAt TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS org_ai_profiles (
@@ -275,6 +368,12 @@ export function initDb() {
       proposedPlanIds TEXT NOT NULL DEFAULT '[]',
       status TEXT NOT NULL DEFAULT 'proposed',
       createdBy TEXT NOT NULL DEFAULT '',
+      knowledgeBaseVersionId TEXT,
+      knowledgeBaseVersionLabel TEXT NOT NULL DEFAULT '',
+      knowledgeDomain TEXT NOT NULL DEFAULT 'general',
+      knowledgeReferences TEXT NOT NULL DEFAULT '[]',
+      knowledgeRuleHighlights TEXT NOT NULL DEFAULT '[]',
+      planReview TEXT NOT NULL DEFAULT '{}',
       createdAt TEXT NOT NULL DEFAULT '',
       updatedAt TEXT NOT NULL DEFAULT ''
     );
@@ -353,16 +452,52 @@ export function initDb() {
     );
   } catch {}
 
-  try {
-    db.execSync(
-      "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_sport ON kb_documents (organizationId, sport)"
-    );
-  } catch {}
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_sport ON kb_documents (organizationId, sport)"
+      );
+    } catch {}
 
-  try {
-    db.execSync(
-      "CREATE INDEX IF NOT EXISTS idx_org_ai_profiles_org ON org_ai_profiles (organizationId)"
-    );
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_version ON kb_documents (organizationId, knowledgeBaseVersionId)"
+      );
+    } catch {}
+
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_kb_documents_source ON kb_documents (knowledgeSourceId)"
+      );
+    } catch {}
+
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_base_versions_org_domain ON knowledge_base_versions (organizationId, domain)"
+      );
+    } catch {}
+
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_sources_version ON knowledge_sources (knowledgeBaseVersionId)"
+      );
+    } catch {}
+
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_rules_version ON knowledge_rules (knowledgeBaseVersionId)"
+      );
+    } catch {}
+
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_knowledge_rule_citations_rule ON knowledge_rule_citations (knowledgeRuleId)"
+      );
+    } catch {}
+
+    try {
+      db.execSync(
+        "CREATE INDEX IF NOT EXISTS idx_org_ai_profiles_org ON org_ai_profiles (organizationId)"
+      );
   } catch {}
 
   try {
@@ -391,6 +526,54 @@ export function initDb() {
 
   try {
     db.execSync(
+      "CREATE UNIQUE INDEX IF NOT EXISTS training_session_classes_unique ON training_session_classes (sessionId, classId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE UNIQUE INDEX IF NOT EXISTS training_session_attendance_unique ON training_session_attendance (sessionId, studentId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_training_sessions_org_start ON training_sessions (organizationId, startAt DESC)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_training_session_classes_class ON training_session_classes (classId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_training_session_classes_org_class ON training_session_classes (organizationId, classId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_training_session_attendance_session ON training_session_attendance (sessionId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_training_session_attendance_class ON training_session_attendance (classId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_training_session_attendance_student ON training_session_attendance (studentId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_memory_org_class_created ON assistant_memory_entries (organizationId, classId, createdAt DESC)"
     );
   } catch {}
@@ -404,6 +587,12 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_weekly_autopilot_org_class_week ON weekly_autopilot_proposals (organizationId, classId, weekStart DESC)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_weekly_autopilot_org_knowledge_version ON weekly_autopilot_proposals (organizationId, knowledgeBaseVersionId)"
     );
   } catch {}
 
@@ -554,6 +743,36 @@ export function initDb() {
   } catch {}
   try {
     db.execSync(
+      "ALTER TABLE weekly_autopilot_proposals ADD COLUMN knowledgeBaseVersionId TEXT"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE weekly_autopilot_proposals ADD COLUMN knowledgeBaseVersionLabel TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE weekly_autopilot_proposals ADD COLUMN knowledgeDomain TEXT NOT NULL DEFAULT 'general'"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE weekly_autopilot_proposals ADD COLUMN knowledgeReferences TEXT NOT NULL DEFAULT '[]'"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE weekly_autopilot_proposals ADD COLUMN knowledgeRuleHighlights TEXT NOT NULL DEFAULT '[]'"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE weekly_autopilot_proposals ADD COLUMN planReview TEXT NOT NULL DEFAULT '{}'"
+    );
+  } catch {}
+  try {
+    db.execSync(
       "ALTER TABLE session_logs ADD COLUMN painScore INTEGER"
     );
   } catch {}
@@ -575,6 +794,16 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE session_logs ADD COLUMN photos TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE kb_documents ADD COLUMN knowledgeBaseVersionId TEXT"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE kb_documents ADD COLUMN knowledgeSourceId TEXT"
     );
   } catch {}
   try {

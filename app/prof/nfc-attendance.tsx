@@ -1,5 +1,8 @@
-import NfcAttendanceScreen from "../nfc-attendance";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function ProfNfcAttendanceRoute() {
-  return <NfcAttendanceScreen />;
-}
+const ProfNfcAttendanceRoute = createLazyRoute(
+  () => import("../nfc-attendance"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando NFC..." />
+);
+
+export default ProfNfcAttendanceRoute;

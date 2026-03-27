@@ -4,9 +4,10 @@ import {
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
 } from "react";
-import { Text, View } from "react-native";
+import { Animated, Easing, Text, View } from "react-native";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
@@ -28,6 +29,7 @@ type PendingState = {
   options: ConfirmUndoOptions;
   timeoutId: ReturnType<typeof setTimeout>;
   endAt: number;
+  totalMs: number;
 };
 
 type ConfirmUndoContextValue = {
@@ -45,6 +47,8 @@ export function ConfirmUndoProvider({
   const [confirmOptions, setConfirmOptions] = useState<ConfirmUndoOptions | null>(null);
   const [pending, setPending] = useState<PendingState | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const undoProgressAnim = useRef(new Animated.Value(1)).current;
+  const [bannerWidth, setBannerWidth] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -81,7 +85,14 @@ export function ConfirmUndoProvider({
     options.onOptimistic();
     const delay = options.delayMs ?? 4500;
     const endAt = Date.now() + delay;
+    undoProgressAnim.setValue(1);
     setRemainingSeconds(Math.max(0, Math.ceil(delay / 1000)));
+    Animated.timing(undoProgressAnim, {
+      toValue: 0,
+      duration: delay,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start();
     const timeoutId = setTimeout(() => {
       void (async () => {
         try {
@@ -93,20 +104,24 @@ export function ConfirmUndoProvider({
         }
       })();
     }, delay);
-    setPending({ options, timeoutId, endAt });
-  }, [confirmOptions]);
+    setPending({ options, timeoutId, endAt, totalMs: delay });
+  }, [confirmOptions, undoProgressAnim]);
 
   const handleUndo = useCallback(async () => {
     if (!pending) return;
     clearTimeout(pending.timeoutId);
     setPending(null);
     setRemainingSeconds(0);
+    undoProgressAnim.stopAnimation();
+    undoProgressAnim.setValue(1);
     await pending.options.onUndo();
-  }, [pending]);
+  }, [pending, undoProgressAnim]);
 
   useEffect(() => {
     if (!pending) {
       setRemainingSeconds(0);
+      undoProgressAnim.stopAnimation();
+      undoProgressAnim.setValue(1);
       return;
     }
 
@@ -132,7 +147,6 @@ export function ConfirmUndoProvider({
   const undoMessage = rawUndoMessage.includes("{seconds}")
     ? rawUndoMessage.replace("{seconds}", String(remainingSeconds))
     : rawUndoMessage;
-
   const contextValue = useMemo(
     () => ({
       confirm,
@@ -201,42 +215,80 @@ export function ConfirmUndoProvider({
         <View
           style={{
             position: "absolute",
-            left: 16,
-            right: 16,
-            bottom: 24,
-            paddingVertical: 12,
-            paddingHorizontal: 14,
-            borderRadius: 14,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.12,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 4,
-            flexDirection: "row",
+            left: 0,
+            right: 0,
+            top: 16,
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
+            paddingHorizontal: 16,
+            zIndex: 9999,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "600", flex: 1 }}>
-            {undoMessage}
-          </Text>
-          <Pressable
-            onPress={handleUndo}
+          <View
+            onLayout={(event) => {
+              const nextWidth = event.nativeEvent.layout.width;
+              if (Math.abs(nextWidth - bannerWidth) > 1) {
+                setBannerWidth(nextWidth);
+              }
+            }}
             style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: colors.primaryBg,
+              width: "100%",
+              maxWidth: 440,
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              shadowColor: "#000",
+              shadowOpacity: 0.12,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 6 },
+              elevation: 4,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              overflow: "hidden",
             }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              {undoLabel}
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 3,
+                backgroundColor: colors.border,
+              }}
+            >
+              <Animated.View
+                style={{
+                  height: "100%",
+                  width: undoProgressAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, bannerWidth],
+                  }),
+                  backgroundColor: colors.primaryBg,
+                }}
+              />
+            </View>
+            <Text style={{ color: colors.text, fontWeight: "600", flex: 1 }}>
+              {undoMessage}
             </Text>
-          </Pressable>
+            <Pressable
+              onPress={handleUndo}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                {undoLabel}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       ) : null}
     </ConfirmUndoContext.Provider>

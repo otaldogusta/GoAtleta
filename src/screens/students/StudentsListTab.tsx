@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { Text, TextInput, View } from "react-native";
 import type { ClassGender } from "../../core/models";
 import type { Student } from "../../core/models";
@@ -44,7 +44,7 @@ export type StudentsListTabProps = {
   renderStudentItem: (args: RenderStudentItemArgs) => ReactElement | null;
 };
 
-export function StudentsListTab({
+export const StudentsListTab = memo(function StudentsListTab({
   studentsUnitOptions,
   studentsUnitFilter,
   setStudentsUnitFilter,
@@ -360,4 +360,4 @@ export function StudentsListTab({
       </View>
     </View>
   );
-}
+});

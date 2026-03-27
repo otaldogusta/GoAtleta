@@ -155,7 +155,7 @@ const normalizeForCacheKey = (value: unknown, depth = 0): unknown => {
   if (valueType === "string") {
     const text = value as string;
     return text.length > MAX_CACHE_KEY_STRING_LENGTH
-      ? `${text.slice(0, MAX_CACHE_KEY_STRING_LENGTH)}â€¦[${text.length}]`
+      ? `${text.slice(0, MAX_CACHE_KEY_STRING_LENGTH)}⬦[${text.length}]`
       : text;
   }
   if (valueType === "number" || valueType === "boolean") return value;

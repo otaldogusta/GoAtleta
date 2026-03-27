@@ -370,6 +370,70 @@ const chunk = <T>(list: T[], size: number): T[][] => {
   return chunks;
 };
 
+const buildStudentInsertPayload = (
+  patch: Record<string, unknown>,
+  organizationId: string
+) => ({
+  ...patch,
+  id:
+    typeof patch.id === "string" && patch.id.trim().length > 0
+      ? patch.id.trim()
+      : crypto.randomUUID(),
+  organization_id: organizationId,
+});
+
+const nonEmptyScore = (value: unknown) => (String(value ?? "").trim().length > 0 ? 1 : 0);
+
+const rowCompletenessScore = (row: NormalizedImportRow): number => {
+  return (
+    nonEmptyScore(row.name) * 2 +
+    nonEmptyScore(row.birthDate) * 2 +
+    nonEmptyScore(row.classId) +
+    nonEmptyScore(row.className) +
+    nonEmptyScore(row.unit) +
+    nonEmptyScore(row.ra) +
+    nonEmptyScore(row.externalId) +
+    nonEmptyScore(row.rgNormalized) +
+    nonEmptyScore(row.phone) +
+    nonEmptyScore(row.loginEmail) +
+    nonEmptyScore(row.guardianName) +
+    nonEmptyScore(row.guardianPhone) +
+    nonEmptyScore(row.guardianCpfHmac)
+  );
+};
+
+const choosePrimaryRowsForDuplicateIdentity = (
+  rows: NormalizedImportRow[]
+): Map<number, number> => {
+  const duplicateGroups = new Map<string, NormalizedImportRow[]>();
+  for (const row of rows) {
+    if (!row.identityKey) continue;
+    const list = duplicateGroups.get(row.identityKey) ?? [];
+    list.push(row);
+    duplicateGroups.set(row.identityKey, list);
+  }
+
+  const supersededByRowNumber = new Map<number, number>();
+
+  duplicateGroups.forEach((groupRows) => {
+    if (groupRows.length <= 1) return;
+
+    const winner = [...groupRows].sort((a, b) => {
+      const scoreDiff = rowCompletenessScore(b) - rowCompletenessScore(a);
+      if (scoreDiff !== 0) return scoreDiff;
+      // Prefer latest response when completeness ties.
+      return b.sourceRowNumber - a.sourceRowNumber;
+    })[0];
+
+    groupRows.forEach((row) => {
+      if (row.sourceRowNumber === winner.sourceRowNumber) return;
+      supersededByRowNumber.set(row.sourceRowNumber, winner.sourceRowNumber);
+    });
+  });
+
+  return supersededByRowNumber;
+};
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -560,8 +624,8 @@ Deno.serve(async (request) => {
             action = "skip";
           } else if (resolution === "OVERWRITE") {
             if (!studentId || !patch) {
-              action = "error";
-              errorMessage = "Conflict overwrite requires student_id and patch.";
+              action = "skip";
+              errorMessage = "Conflict overwrite ignored: missing student_id or patch.";
             } else {
               const { data: updated, error: updateError } = await supabase
                 .from("students")
@@ -586,7 +650,7 @@ Deno.serve(async (request) => {
           } else {
             const { data: created, error: createError } = await supabase
               .from("students")
-              .insert({ ...patch, organization_id: organizationId })
+              .insert(buildStudentInsertPayload(patch, organizationId))
               .select("id")
               .single();
             if (createError || !created) {
@@ -764,14 +828,14 @@ Deno.serve(async (request) => {
   const classLookup = buildClassLookup((classesRows ?? []) as ExistingClassRow[]);
   const matcher = buildMatcher((studentsRows ?? []) as ExistingStudentRow[]);
 
-  const seenIdentity = new Set<string>();
+  const supersededByRowNumber = choosePrimaryRowsForDuplicateIdentity(normalizedRows);
   const logsToInsert: Record<string, unknown>[] = [];
   const plannedRows: PlannedRow[] = [];
 
   for (const row of normalizedRows) {
     try {
-      const duplicateInput = Boolean(row.identityKey && seenIdentity.has(row.identityKey));
-      if (row.identityKey) seenIdentity.add(row.identityKey);
+      const duplicateWinnerRowNumber = supersededByRowNumber.get(row.sourceRowNumber) ?? null;
+      const duplicateInput = Boolean(duplicateWinnerRowNumber);
 
       const match = findExistingStudent(row, matcher);
       const classResolution = resolveClass(row, classLookup);
@@ -788,24 +852,6 @@ Deno.serve(async (request) => {
           },
           flags: ["AMBIGUOUS_MATCH"],
         };
-      } else if (
-        match.student &&
-        match.matchedBy === "name+birthdate" &&
-        classResolution.classId &&
-        match.student.classid &&
-        match.student.classid !== classResolution.classId
-      ) {
-        merge = {
-          action: "conflict" as ImportAction,
-          patch: null,
-          conflicts: {
-            matchedBy: "name+birthdate",
-            existingClassId: match.student.classid,
-            incomingClassId: classResolution.classId,
-            reason: "Match por nome+nascimento conflita com turma existente.",
-          },
-          flags: ["LOW_CONFIDENCE_CLASS_MISMATCH"],
-        };
       } else {
         merge = computeMergePatch({
           existing: match.student,
@@ -815,6 +861,7 @@ Deno.serve(async (request) => {
           resolvedClassId: classResolution.classId,
           classFound: classResolution.classFound,
           duplicateInput,
+          duplicateWinnerRowNumber,
         });
       }
 
@@ -824,10 +871,7 @@ Deno.serve(async (request) => {
 
       if (mode === "apply") {
         if (action === "create" && merge.patch) {
-          const insertPayload = {
-            ...merge.patch,
-            organization_id: organizationId,
-          };
+          const insertPayload = buildStudentInsertPayload(merge.patch, organizationId);
           const { data: created, error: createError } = await supabase
             .from("students")
             .insert(insertPayload)

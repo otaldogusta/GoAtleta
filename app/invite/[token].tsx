@@ -22,7 +22,9 @@ import {
 } from "../../src/auth/pending-invite";
 import { useRole } from "../../src/auth/role";
 import { Pressable } from "../../src/ui/Pressable";
+import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { ScreenHeader } from "../../src/ui/ScreenHeader";
 
 export default function StudentInviteScreen() {
   const { colors } = useAppTheme();
@@ -218,107 +220,108 @@ export default function StudentInviteScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1, padding: 24 }}
-          keyboardShouldPersistTaps="handled"
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-          <Animated.View
-            style={{
-              flex: 1,
-              justifyContent: "center",
-              gap: 24,
-              opacity: enterAnim,
-              transform: [
-                {
-                  translateY: enterAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [10, 0],
-                  }),
-                },
-              ],
-            }}
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, padding: 24 }}
+            keyboardShouldPersistTaps="handled"
           >
-            <Pressable
-              onPress={() => router.replace("/login")}
-              style={{ alignSelf: "flex-start" }}
-            >
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="chevron-back" size={16} color={colors.text} />
-              </View>
-            </Pressable>
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontSize: 26, fontWeight: "800", color: colors.text }}>
-                {mode === "signup" ? "Ative seu convite" : "Vincule seu acesso"}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {mode === "signup"
-                   ? "Crie sua conta para acessar seus treinos."
-                  : "Entre para vincular seu convite e continuar."}
-              </Text>
-            </View>
-
-            <View
+            <Animated.View
               style={{
-                padding: 18,
-                borderRadius: 22,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 14,
-                shadowColor: "#000",
-                shadowOpacity: 0.1,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 8 },
-                elevation: 5,
+                flex: 1,
+                justifyContent: "center",
+                gap: 24,
+                opacity: enterAnim,
+                transform: [
+                  {
+                    translateY: enterAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [10, 0],
+                    }),
+                  },
+                ],
               }}
             >
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {[
-                  { id: "signup" as const, label: "Criar conta" },
-                  { id: "login" as const, label: "Entrar" },
-                ].map((option) => {
-                  const active = mode === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => setMode(option.id)}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 10,
-                        borderRadius: 12,
-                        alignItems: "center",
-                        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text
+              <Pressable
+                onPress={() => router.replace("/login")}
+                style={{ alignSelf: "flex-start" }}
+              >
+                <View
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 17,
+                    backgroundColor: colors.secondaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={16} color={colors.text} />
+                </View>
+              </Pressable>
+
+              <ScreenHeader
+                title={mode === "signup" ? "Ative seu convite" : "Vincule seu acesso"}
+                subtitle={
+                  mode === "signup"
+                    ? "Crie sua conta para acessar seus treinos."
+                    : "Entre para vincular seu convite e continuar."
+                }
+                withSafeArea={false}
+              />
+
+              <View
+                style={{
+                  padding: 18,
+                  borderRadius: 22,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: 14,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.1,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 8 },
+                  elevation: 5,
+                }}
+              >
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {[
+                    { id: "signup" as const, label: "Criar conta" },
+                    { id: "login" as const, label: "Entrar" },
+                  ].map((option) => {
+                    const active = mode === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => setMode(option.id)}
                         style={{
-                          color: active ? colors.primaryText : colors.text,
-                          fontWeight: "700",
+                          flex: 1,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          alignItems: "center",
+                          backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
                         }}
                       >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+                        <Text
+                          style={{
+                            color: active ? colors.primaryText : colors.text,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
               <View
                 style={{
@@ -341,8 +344,6 @@ export default function StudentInviteScreen() {
                     color: colors.inputText,
                     backgroundColor: "transparent",
                     borderWidth: 0,
-                    outlineStyle: "none",
-                    outlineWidth: 0,
                   }}
                 />
               </View>
@@ -369,8 +370,6 @@ export default function StudentInviteScreen() {
                     paddingVertical: 12,
                     color: colors.inputText,
                     backgroundColor: "transparent",
-                    outlineStyle: "none",
-                    outlineWidth: 0,
                   }}
                 />
                 { password.length > 0 ? (
@@ -410,8 +409,6 @@ export default function StudentInviteScreen() {
                       paddingVertical: 12,
                       color: colors.inputText,
                       backgroundColor: "transparent",
-                      outlineStyle: "none",
-                      outlineWidth: 0,
                     }}
                   />
                   { confirm.length > 0 ? (
@@ -587,9 +584,10 @@ export default function StudentInviteScreen() {
                 </View>
               ) : null}
             </View>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }

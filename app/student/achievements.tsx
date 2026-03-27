@@ -1,5 +1,8 @@
-import StudentBadgesScreen from "../student-badges";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function StudentAchievementsTab() {
-  return <StudentBadgesScreen />;
-}
+const StudentAchievementsTab = createLazyRoute(
+  () => import("../student-badges"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando conquistas..." />
+);
+
+export default StudentAchievementsTab;

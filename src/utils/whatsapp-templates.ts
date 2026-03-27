@@ -15,7 +15,7 @@ export interface WhatsAppTemplate {
   id: WhatsAppTemplateId;
   title: string;
   body: string;
-  requires: string[];
+  requires?: string[];
 }
 
 export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateId, WhatsAppTemplate> = {
@@ -58,17 +58,17 @@ export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateId, WhatsAppTemplate> = 
 };
 
 export interface TemplatePlaceholders {
-  coachName: string;
-  className: string;
-  unitLabel: string;
-  dateLabel: string;
-  studentName: string;
-  nextClassDate: string;
-  nextClassTime: string;
-  groupInviteLink: string;
-  inviteLink: string;
-  highlightNote: string;
-  customText: string;
+  coachName?: string;
+  className?: string;
+  unitLabel?: string;
+  dateLabel?: string;
+  studentName?: string;
+  nextClassDate?: string;
+  nextClassTime?: string;
+  groupInviteLink?: string;
+  inviteLink?: string;
+  highlightNote?: string;
+  customText?: string;
 }
 
 /**

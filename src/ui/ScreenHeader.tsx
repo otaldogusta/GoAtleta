@@ -10,7 +10,7 @@ export function ScreenHeader({
 }: {
   title: string;
   subtitle: string;
-  withSafeArea: boolean;
+  withSafeArea?: boolean;
 }) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();

@@ -11,6 +11,7 @@ import {
 import type { ClassGroup, Student } from "../../../core/models";
 import type { WhatsAppTemplateId } from "../../../utils/whatsapp-templates";
 import { WHATSAPP_TEMPLATES } from "../../../utils/whatsapp-templates";
+import { useSaveToast } from "../../../ui/save-toast";
 
 export type UseStudentInvitesParams = {
   classes: ClassGroup[];
@@ -60,6 +61,7 @@ export function useStudentInvites({
   setCustomStudentMessage,
   setPendingStudentInviteBusyId,
 }: UseStudentInvitesParams) {
+  const { showSaveToast } = useSaveToast();
   const toInviteErrorMessage = useCallback((error: unknown) => {
     const code = getInviteErrorCode(error);
     if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
@@ -149,9 +151,12 @@ export function useStudentInvites({
         copyLink: true,
       });
       if (!generated) return;
-      Alert.alert("Convite pronto", "Link de convite gerado e copiado para a área de transferência.");
+      showSaveToast({
+        message: "Link de convite gerado e copiado para a área de transferência.",
+        variant: "success",
+      });
     },
-    [applyStudentInviteTemplate, classes]
+    [applyStudentInviteTemplate, classes, showSaveToast]
   );
 
   const onCancelPendingStudentInvite = useCallback(

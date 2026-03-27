@@ -3,10 +3,10 @@ export type SessionBlock = {
   time: string;
   items: {
     name: string;
-    duration: string;
-    reps: string;
-    intensity: string;
-    notes: string;
+    duration?: string;
+    reps?: string;
+    intensity?: string;
+    notes?: string;
   }[];
 };
 

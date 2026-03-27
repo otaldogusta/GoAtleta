@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -7,6 +7,7 @@ import {
     Alert,
     Animated,
     Easing,
+    FlatList,
     Image,
     KeyboardAvoidingView,
     Platform,
@@ -17,6 +18,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../../src/ui/Pressable";
+import { ScreenBackdrop } from "../../../src/components/ui/ScreenBackdrop";
 
 import { rewriteReportText, type ReportRewriteField } from "../../../src/api/ai";
 import type { ClassGroup, ScoutingLog, SessionLog, TrainingPlan } from "../../../src/core/models";
@@ -55,14 +57,16 @@ import { useAppTheme } from "../../../src/ui/app-theme";
 import { Button } from "../../../src/ui/Button";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
+import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { ShimmerBlock } from "../../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { formatClock, formatDuration } from "../../../src/utils/format-time";
 
 const sessionTabs = [
   { id: "treino", label: "Treino mais recente" },
-  { id: "relatorio", label: "Fazer relatório" },
+  { id: "relatório", label: "Fazer relatório" },
   { id: "scouting", label: "Scouting" },
 ] as const;
 
@@ -177,6 +181,8 @@ export default function SessionScreen() {
   const { showSaveToast } = useSaveToast();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [isLoadingSessionExtras, setIsLoadingSessionExtras] = useState(true);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
   const [scoutingLog, setScoutingLog] = useState<ScoutingLog | null>(null);
   const [scoutingCounts, setScoutingCounts] = useState(createEmptyCounts());
@@ -187,7 +193,7 @@ export default function SessionScreen() {
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
   const sessionTabAnim = useRef<Record<SessionTabId, Animated.Value>>({
     treino: new Animated.Value(1),
-    relatorio: new Animated.Value(0),
+    relatório: new Animated.Value(0),
     scouting: new Animated.Value(0),
   }).current;
   const [showAppliedPreview, setShowAppliedPreview] = useState(false);
@@ -449,7 +455,7 @@ export default function SessionScreen() {
         if (!isLocalImageUri(uri)) return uri;
         try {
           const base64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: (FileSystem as any).EncodingType?.Base64 ?? "base64",
           });
           const mime = inferMimeTypeFromUri(uri);
           return `data:${mime};base64,${base64}`;
@@ -581,59 +587,69 @@ export default function SessionScreen() {
 
   useEffect(() => {
     let alive = true;
+    setIsLoadingSession(true);
     (async () => {
-      const data = await getClassById(id);
-      if (alive) setCls(data);
-      if (data) {
-        const classStudents = await getStudentsByClass(data.id);
-        if (alive) setStudentsCount(classStudents.length);
-        const plans = await getTrainingPlans();
-        const byClass = plans.filter((item) => item.classId === data.id);
-        const byDate = byClass.find((item) => item.applyDate === sessionDate);
-        const byWeekday = byClass.find((item) =>
-          (item.applyDays ?? []).includes(weekdayId)
-        );
-        if (alive) setPlan(byDate ?? byWeekday ?? null);
-        if (!alive) return;
-      }
-      if (id) {
-        const log = await getSessionLogByDate(id, sessionDate);
-        if (alive) {
-          setSessionLog(log);
-          if (log) {
-            setPSE(typeof log.PSE === "number" ? log.PSE : 0);
-            setTechnique(
-              (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum"
-            );
-            setActivity(log.activity ?? "");
-            setConclusion(log.conclusion ?? "");
-            setParticipantsCount(
-              typeof log.participantsCount === "number"
-                ? String(log.participantsCount)
-                : ""
-            );
-            setPhotos(log.photos ?? "");
-            setReportBaseline({
-              PSE: typeof log.PSE === "number" ? log.PSE : 0,
-              technique:
-                (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum",
-              activity: log.activity ?? "",
-              conclusion: log.conclusion ?? "",
-              participantsCount:
+      try {
+        const data = await getClassById(id);
+        if (alive) setCls(data);
+        if (data) {
+          const [classStudents, plans] = await Promise.all([
+            getStudentsByClass(data.id),
+            getTrainingPlans({
+              organizationId: data.organizationId ?? null,
+              classId: data.id,
+            }),
+          ]);
+          if (alive) setStudentsCount(classStudents.length);
+          const byClass = plans.filter((item) => item.classId === data.id);
+          const byDate = byClass.find((item) => item.applyDate === sessionDate);
+          const byWeekday = byClass.find((item) =>
+            (item.applyDays ?? []).includes(weekdayId)
+          );
+          if (alive) setPlan(byDate ?? byWeekday ?? null);
+          if (!alive) return;
+        }
+        if (id) {
+          const [log, scouting] = await Promise.all([
+            getSessionLogByDate(id, sessionDate),
+            getScoutingLogByDate(id, sessionDate, scoutingMode),
+          ]);
+          if (alive) {
+            setSessionLog(log);
+            if (log) {
+              setPSE(typeof log.PSE === "number" ? log.PSE : 0);
+              setTechnique(
+                (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum"
+              );
+              setActivity(log.activity ?? "");
+              setConclusion(log.conclusion ?? "");
+              setParticipantsCount(
                 typeof log.participantsCount === "number"
                   ? String(log.participantsCount)
-                  : "",
-              photos: log.photos ?? "",
-            });
+                  : ""
+              );
+              setPhotos(log.photos ?? "");
+              setReportBaseline({
+                PSE: typeof log.PSE === "number" ? log.PSE : 0,
+                technique:
+                  (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum",
+                activity: log.activity ?? "",
+                conclusion: log.conclusion ?? "",
+                participantsCount:
+                  typeof log.participantsCount === "number"
+                    ? String(log.participantsCount)
+                    : "",
+                photos: log.photos ?? "",
+              });
+            }
+            const counts = scouting ? countsFromLog(scouting) : createEmptyCounts();
+            setScoutingLog(scouting);
+            setScoutingCounts(counts);
+            setScoutingBaseline(counts);
           }
         }
-        const scouting = await getScoutingLogByDate(id, sessionDate, scoutingMode);
-        if (alive) {
-          const counts = scouting ? countsFromLog(scouting) : createEmptyCounts();
-          setScoutingLog(scouting);
-          setScoutingCounts(counts);
-          setScoutingBaseline(counts);
-        }
+      } finally {
+        if (alive) setIsLoadingSession(false);
       }
     })();
     return () => {
@@ -644,52 +660,40 @@ export default function SessionScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!id) return;
-      const [attendanceRecords, students] = await Promise.all([
-        getAttendanceByDate(id, sessionDate),
-        getStudentsByClass(id),
-      ]);
-      if (!alive) return;
-      if (attendanceRecords.length) {
-        const present = attendanceRecords.filter(
-          (record) => record.status === "presente"
-        ).length;
-        const total = attendanceRecords.length;
-        const percent = total > 0 ? Math.round((present / total) * 100) : 0;
-        setAttendancePercent(percent);
-      } else if (students.length) {
-        setAttendancePercent(0);
-      } else {
-        setAttendancePercent(null);
+      setIsLoadingSessionExtras(true);
+      try {
+        if (!id) return;
+        const attendanceRecords = await getAttendanceByDate(id, sessionDate);
+        if (!alive) return;
+        if (attendanceRecords.length) {
+          const present = attendanceRecords.filter(
+            (record) => record.status === "presente"
+          ).length;
+          const total = attendanceRecords.length;
+          const percent = total > 0 ? Math.round((present / total) * 100) : 0;
+          setAttendancePercent(percent);
+        } else if (studentsCount > 0) {
+          setAttendancePercent(0);
+        } else {
+          setAttendancePercent(null);
+        }
+        if (!plan) return;
+        const fallback = buildSimpleActivityFromPlan(plan);
+        if (fallback) {
+          setAutoActivity(fallback);
+        }
+      } finally {
+        if (alive) setIsLoadingSessionExtras(false);
       }
-
-      const plans = await getTrainingPlans();
-      const byClass = plans.filter((item) => item.classId === id);
-      const byDate = byClass.find((item) => item.applyDate === sessionDate);
-      const byWeekday = byClass.find((item) =>
-        (item.applyDays ?? []).includes(weekdayId)
-      );
-      const planForActivity = byDate ?? byWeekday ?? null;
-      if (!planForActivity) return;
-      const fallback = buildSimpleActivityFromPlan(planForActivity);
-      if (!fallback) return;
-      setAutoActivity(fallback);
     })();
     return () => {
       alive = false;
     };
   }, [
-    activity,
     id,
     sessionDate,
-    weekdayId,
-    sessionLog,
-    PSE,
-    technique,
-    conclusion,
-    participantsCount,
-    photos,
-    reportBaseline,
+    plan,
+    studentsCount,
   ]);
 
   useEffect(() => {
@@ -982,7 +986,7 @@ export default function SessionScreen() {
     try {
       const safeClass = safeFileName(cls.name);
       const safeDate = safeFileName(sessionDate);
-      const fileName = `relatorio-${safeClass}-${safeDate}.pdf`;
+      const fileName = `relatório-${safeClass}-${safeDate}.pdf`;
       await measure("exportSessionReportPdf", () =>
         exportPdf({
           html,
@@ -1015,7 +1019,7 @@ export default function SessionScreen() {
       const payload = {
         ...buildLogFromCounts(base, scoutingCounts),
         mode: scoutingMode,
-      };
+      } as Parameters<typeof saveScoutingLog>[0];
       const saved = await saveScoutingLog(payload);
       setScoutingLog(saved);
       setScoutingBaseline(countsFromLog(saved));
@@ -1030,7 +1034,7 @@ export default function SessionScreen() {
 
   useEffect(() => {
     if (!tab) return;
-    if (tab === "treino" || tab === "relatorio" || tab === "scouting") {
+    if (tab === "treino" || tab === "relatório" || tab === "scouting") {
       setSessionTab(tab);
     }
   }, [tab]);
@@ -1046,27 +1050,27 @@ export default function SessionScreen() {
     });
   }, [sessionTab, sessionTabAnim]);
 
+  if (isLoadingSession) {
+    return <ScreenLoadingState />;
+  }
+
+  if (isLoadingSessionExtras) {
+    return <ScreenLoadingState />;
+  }
+
   if (!cls) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ gap: 12, padding: 16 }}>
-          <ShimmerBlock style={{ height: 26, width: 180, borderRadius: 12 }} />
-          <ShimmerBlock style={{ height: 16, width: 220, borderRadius: 8 }} />
-          <ShimmerBlock style={{ height: 110, borderRadius: 18 }} />
-          <ShimmerBlock style={{ height: 140, borderRadius: 18 }} />
-          <ShimmerBlock style={{ height: 200, borderRadius: 18 }} />
-        </View>
-      </SafeAreaView>
-    );
+    return <ScreenLoadingState />;
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
-      >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
+        >
       <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
       <ClassContextHeader
         title={title}
@@ -1227,13 +1231,11 @@ export default function SessionScreen() {
                   borderRadius: 18,
                   backgroundColor:
                     index === activeIndex
-                      ? mode === "dark"
-                        ? "#1e293b"
-                        : "#e0f2fe"
+                      ? colors.secondaryBg
                       : colors.card,
                   borderWidth: 1,
-                  borderColor: index === activeIndex ? "#38bdf8" : colors.border,
-                  shadowColor: "#000",
+                  borderColor: index === activeIndex ? colors.primaryBg : colors.border,
+                  shadowColor: colors.background,
                   shadowOpacity: 0.04,
                   shadowRadius: 10,
                   shadowOffset: { width: 0, height: 6 },
@@ -1441,81 +1443,92 @@ export default function SessionScreen() {
             <Text style={{ fontWeight: "700", color: colors.text, fontSize: 12 }}>
               Guia rápido (0/1/2)
             </Text>
-            {scoutingSkills.map((skill) => (
-              <Text key={skill.id} style={{ color: colors.muted, fontSize: 12 }}>
-                {skill.label}: {scoutingSkillHelp[skill.id].join(" | ")}
-              </Text>
-            ))}
+            <FlatList
+              data={scoutingSkills}
+              keyExtractor={(skill) => skill.id}
+              scrollEnabled={false}
+              contentContainerStyle={{ gap: 2 }}
+              renderItem={({ item: skill }) => (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {skill.label}: {scoutingSkillHelp[skill.id].join(" | ")}
+                </Text>
+              )}
+            />
           </View>
           <View style={{ gap: 10 }}>
-            {scoutingSkills.map((skill, index) => {
-              const metrics = scoutingTotals[index];
-              const counts = scoutingCounts[skill.id];
-              const goodPct = Math.round(metrics.goodPct * 100);
-              return (
-                <View
-                  key={skill.id}
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    gap: 8,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                    <Text style={{ fontWeight: "700", color: colors.text }}>
-                      {skill.label}
-                    </Text>
+            <FlatList
+              data={scoutingSkills}
+              keyExtractor={(skill) => skill.id}
+              scrollEnabled={false}
+              contentContainerStyle={{ gap: 10 }}
+              renderItem={({ item: skill, index }) => {
+                const metrics = scoutingTotals[index];
+                const counts = scoutingCounts[skill.id];
+                const goodPct = Math.round(metrics.goodPct * 100);
+                return (
+                  <View
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      gap: 8,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <Text style={{ fontWeight: "700", color: colors.text }}>
+                        {skill.label}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {metrics.total} ações | media {metrics.avg.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {([0, 1, 2] as const).map((score) => {
+                        const palette =
+                          score === 2
+                            ? { bg: colors.successBg, text: colors.successText }
+                            : score === 1
+                              ? { bg: colors.inputBg, text: colors.text }
+                              : { bg: colors.dangerSolidBg, text: colors.dangerSolidText };
+                        return (
+                          <Pressable
+                            key={score}
+                            onPress={() => updateScoutingCount(skill.id, score, 1)}
+                            onLongPress={() => updateScoutingCount(skill.id, score, -1)}
+                            onContextMenu={(event) => {
+                              if (event && typeof (event as { preventDefault?: () => void }).preventDefault === "function") {
+                                (event as { preventDefault: () => void }).preventDefault();
+                              }
+                              updateScoutingCount(skill.id, score, -1);
+                            }}
+                            delayLongPress={200}
+                            style={{
+                              flex: 1,
+                              paddingVertical: 8,
+                              borderRadius: 12,
+                              alignItems: "center",
+                              backgroundColor: palette.bg,
+                            }}
+                          >
+                            <Text style={{ color: palette.text, fontWeight: "700" }}>
+                              {score}
+                            </Text>
+                            <Text style={{ color: palette.text, fontSize: 11, opacity: 0.9 }}>
+                              x{counts[score]}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {metrics.total} ações | media {metrics.avg.toFixed(2)}
+                      Boas (2): {goodPct}%
                     </Text>
                   </View>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {([0, 1, 2] as const).map((score) => {
-                      const palette =
-                        score === 2
-                          ? { bg: colors.successBg, text: colors.successText }
-                          : score === 1
-                            ? { bg: colors.inputBg, text: colors.text }
-                            : { bg: colors.dangerSolidBg, text: colors.dangerSolidText };
-                      return (
-                        <Pressable
-                          key={score}
-                          onPress={() => updateScoutingCount(skill.id, score, 1)}
-                          onLongPress={() => updateScoutingCount(skill.id, score, -1)}
-                          onContextMenu={(event) => {
-                            if (event && typeof (event as { preventDefault?: () => void }).preventDefault === "function") {
-                              (event as { preventDefault: () => void }).preventDefault();
-                            }
-                            updateScoutingCount(skill.id, score, -1);
-                          }}
-                          delayLongPress={200}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 8,
-                            borderRadius: 12,
-                            alignItems: "center",
-                            backgroundColor: palette.bg,
-                          }}
-                        >
-                          <Text style={{ color: palette.text, fontWeight: "700" }}>
-                            {score}
-                          </Text>
-                          <Text style={{ color: palette.text, fontSize: 11, opacity: 0.9 }}>
-                            x{counts[score]}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Boas (2): {goodPct}%
-                  </Text>
-                </View>
-              );
-            })}
+                );
+              }}
+            />
           </View>
           {focusSuggestion ? (
             <View style={{ gap: 6 }}>
@@ -1556,7 +1569,7 @@ export default function SessionScreen() {
           </Pressable>
         </View>
         ) : null}
-        {sessionTab === "relatorio" ? (
+        {sessionTab === "relatório" ? (
         <View
           ref={containerRef}
           onLayout={syncPickerLayouts}
@@ -1726,7 +1739,7 @@ export default function SessionScreen() {
                       borderRadius: 999,
                       width: 30,
                       height: 30,
-                      backgroundColor: "#111111",
+                      backgroundColor: colors.primaryBg,
                       alignItems: "center",
                       justifyContent: "center",
                       opacity: isRewritingActivity ? 0.65 : 1,
@@ -1735,7 +1748,7 @@ export default function SessionScreen() {
                     <Ionicons
                       name={isRewritingActivity ? "hourglass-outline" : "sparkles-outline"}
                       size={14}
-                      color="#FFFFFF"
+                      color={colors.primaryText}
                     />
                   </Pressable>
                 ) : null}
@@ -1850,7 +1863,7 @@ export default function SessionScreen() {
                       borderRadius: 999,
                       width: 30,
                       height: 30,
-                      backgroundColor: "#111111",
+                      backgroundColor: colors.primaryBg,
                       alignItems: "center",
                       justifyContent: "center",
                       opacity: isRewritingConclusion ? 0.65 : 1,
@@ -1859,7 +1872,7 @@ export default function SessionScreen() {
                     <Ionicons
                       name={isRewritingConclusion ? "hourglass-outline" : "sparkles-outline"}
                       size={14}
-                      color="#FFFFFF"
+                      color={colors.primaryText}
                     />
                   </Pressable>
                 ) : null}
@@ -1930,13 +1943,19 @@ export default function SessionScreen() {
                 </View>
 
                 {reportPhotoUris.length ? (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {reportPhotoUris.map((uri, index) => (
+                  <FlatList
+                    data={reportPhotoUris}
+                    keyExtractor={(uri, index) => `${uri}_${index}`}
+                    numColumns={Platform.OS === "web" ? 4 : 3}
+                    scrollEnabled={false}
+                    contentContainerStyle={{ gap: 8 }}
+                    columnWrapperStyle={{ gap: 8 }}
+                    renderItem={({ item: uri, index }) => (
                       <Pressable
-                        key={`${uri}_${index}`}
                         onPress={() => setPhotoActionIndex(index)}
                         style={{
-                          width: Platform.OS === "web" ? 112 : "31.6%",
+                          flex: 1,
+                          minWidth: 0,
                           height: Platform.OS === "web" ? 112 : undefined,
                           aspectRatio: Platform.OS === "web" ? undefined : 1,
                           borderRadius: 10,
@@ -1965,11 +1984,11 @@ export default function SessionScreen() {
                             justifyContent: "center",
                           }}
                         >
-                          <Ionicons name="create-outline" size={12} color="#FFFFFF" />
+                          <Ionicons name="create-outline" size={12} color={colors.primaryText} />
                         </View>
                       </Pressable>
-                    ))}
-                  </View>
+                    )}
+                  />
                 ) : null}
               </View>
             </View>
@@ -2005,16 +2024,10 @@ export default function SessionScreen() {
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <Pressable
+              <AnchoredDropdownOption
                 key={n}
+                active={PSE === n}
                 onPress={() => handleSelectPse(n)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderRadius: 14,
-                  marginVertical: 3,
-                  backgroundColor: PSE === n ? colors.primaryBg : colors.card,
-                }}
               >
                 <Text
                   style={{
@@ -2025,7 +2038,7 @@ export default function SessionScreen() {
                 >
                   {n}
                 </Text>
-              </Pressable>
+              </AnchoredDropdownOption>
             ))}
           </AnchoredDropdown>
 
@@ -2046,16 +2059,10 @@ export default function SessionScreen() {
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {(["nenhum", "boa", "ok", "ruim"] as const).map((value) => (
-              <Pressable
+              <AnchoredDropdownOption
                 key={value}
+                active={technique === value}
                 onPress={() => handleSelectTechnique(value)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderRadius: 14,
-                  marginVertical: 3,
-                  backgroundColor: technique === value ? colors.primaryBg : colors.card,
-                }}
               >
                 <Text
                   style={{
@@ -2067,7 +2074,7 @@ export default function SessionScreen() {
                 >
                   {value}
                 </Text>
-              </Pressable>
+              </AnchoredDropdownOption>
             ))}
           </AnchoredDropdown>
 
@@ -2266,11 +2273,8 @@ export default function SessionScreen() {
           />
         </Pressable>
       ) : null}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
-
-
-
-

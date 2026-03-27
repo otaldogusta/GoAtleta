@@ -1,5 +1,5 @@
 import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
-import { SUPABASE_URL } from "./config";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { parseInviteApiResponse } from "./invite-errors";
 
 type CreateInviteOptions = {
@@ -51,6 +51,7 @@ const requestWithAuth = async (path: string, body: Record<string, unknown>) => {
     fetch(baseUrl + path, {
       method: "POST",
       headers: {
+        apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },

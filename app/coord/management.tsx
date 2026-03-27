@@ -1,5 +1,8 @@
-import CoordinationScreen from "../coordination";
+import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
 
-export default function CoordinationManagementTab() {
-  return <CoordinationScreen />;
-}
+const CoordinationManagementTab = createLazyRoute(
+  () => import("../coordination"),
+  <RouteScreenFallback title="Carregando" subtitle="Carregando gestão..." />
+);
+
+export default CoordinationManagementTab;

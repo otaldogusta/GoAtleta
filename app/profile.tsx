@@ -35,7 +35,7 @@ import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
 import { SettingsRow } from "../src/ui/SettingsRow";
-import { ShimmerBlock } from "../src/ui/Shimmer";
+import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 
 
@@ -473,7 +473,7 @@ export default function ProfileScreen() {
           base64: false,
         });
         const asset = result.assets?.[0];
-        if (!result.canceled && asset.uri) {
+        if (!result.canceled && asset?.uri) {
           const uri = student?.id
             ? await uploadStudentPhoto({
                 organizationId: student.organizationId ?? "",
@@ -513,7 +513,7 @@ export default function ProfileScreen() {
         base64: false,
       });
       const asset = result.assets?.[0];
-      if (!result.canceled && asset.uri) {
+      if (!result.canceled && asset?.uri) {
         const uri = student?.id
           ? await uploadStudentPhoto({
               organizationId: student.organizationId ?? "",
@@ -541,6 +541,10 @@ export default function ProfileScreen() {
       setShowPhotoSheet(false);
     }
   };
+
+  if (loadingProfile) {
+    return <ScreenLoadingState />;
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -573,22 +577,7 @@ export default function ProfileScreen() {
           <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Perfil</Text>
         </Pressable>
 
-        { loadingProfile ? (
-          <View style={{ gap: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-              <ShimmerBlock style={{ width: 120, height: 120, borderRadius: 60 }} />
-              <View style={{ gap: 8 }}>
-                <ShimmerBlock style={{ width: 60, height: 10, borderRadius: 6 }} />
-                <ShimmerBlock style={{ width: 90, height: 14, borderRadius: 6 }} />
-              </View>
-            </View>
-            <View style={{ gap: 8 }}>
-              <ShimmerBlock style={{ width: 180, height: 28, borderRadius: 8 }} />
-              <ShimmerBlock style={{ width: 140, height: 20, borderRadius: 8 }} />
-            </View>
-          </View>
-        ) : (
-          <View style={{ gap: 12 }}>
+        <View style={{ gap: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
               <View style={{ position: "relative" }}>
                 <Pressable
@@ -665,28 +654,16 @@ export default function ProfileScreen() {
               ) : null}
             </View>
           </View>
-        )}
-
-
-
-
-        { loadingProfile ? (
-          <View style={{ gap: 8 }}>
-            <ShimmerBlock style={{ width: 70, height: 12, borderRadius: 6 }} />
-            <ShimmerBlock style={{ height: 56, borderRadius: 14 }} />
-          </View>
-        ) : (
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Perfil</Text>
-            <SettingsRow
-              icon={profileDisplay.icon as any}
-              iconBg="rgba(255, 185, 136, 0.16)"
-              label={profileDisplay.label}
-              subtitle={profileDisplay.subtitle}
-              rightContent={<View />}
-            />
-          </View>
-        )}
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Perfil</Text>
+          <SettingsRow
+            icon={profileDisplay.icon as any}
+            iconBg="rgba(255, 185, 136, 0.16)"
+            label={profileDisplay.label}
+            subtitle={profileDisplay.subtitle}
+            rightContent={<View />}
+          />
+        </View>
 
         {!loadingProfile && showWorkspaceSwitcher ? (
           <View style={{ gap: 8 }}>
@@ -800,15 +777,7 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        { loadingProfile ? (
-          <>
-            <ShimmerBlock style={{ width: 70, height: 12, borderRadius: 6 }} />
-            <ShimmerBlock style={{ height: 56, borderRadius: 14 }} />
-            <ShimmerBlock style={{ width: 60, height: 12, borderRadius: 6 }} />
-            <ShimmerBlock style={{ height: 56, borderRadius: 14 }} />
-          </>
-        ) : (
-          <>
+        <>
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
                 Configurações
@@ -1008,11 +977,7 @@ export default function ProfileScreen() {
                       borderRadius: 999,
                       borderWidth: 1,
                       borderColor: accountSecurity.googleConnected ? colors.muted : colors.border,
-                      backgroundColor: accountSecurity.googleConnected
-                        ? mode === "dark"
-                          ? "rgba(0,0,0,0.28)"
-                          : "rgba(15,23,42,0.08)"
-                        : colors.card,
+                      backgroundColor: accountSecurity.googleConnected ? colors.secondaryBg : colors.card,
                       paddingHorizontal: 10,
                       paddingVertical: 6,
                       opacity: accountSecurity.googleConnected ? 0.8 : 1,
@@ -1139,7 +1104,6 @@ export default function ProfileScreen() {
               />
             </View>
           </>
-        )}
       </ScrollView>
       <Modal
         visible={showPhotoViewer}
@@ -1147,14 +1111,17 @@ export default function ProfileScreen() {
         transparent={false}
         onRequestClose={() => setShowPhotoViewer(false)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
               paddingHorizontal: 16,
               paddingVertical: 10,
+              backgroundColor: colors.background,
             }}
           >
             <Pressable
@@ -1163,14 +1130,14 @@ export default function ProfileScreen() {
                 width: 36,
                 height: 36,
                 borderRadius: 18,
-                backgroundColor: "rgba(255,255,255,0.08)",
+                backgroundColor: colors.secondaryBg,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="chevron-back" size={18} color="#fff" />
+              <Ionicons name="chevron-back" size={18} color={colors.text} />
             </Pressable>
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
               Foto do perfil
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
@@ -1183,12 +1150,12 @@ export default function ProfileScreen() {
                   width: 36,
                   height: 36,
                   borderRadius: 18,
-                  backgroundColor: "rgba(255,255,255,0.08)",
+                  backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="create-outline" size={18} color="#fff" />
+                <Ionicons name="create-outline" size={18} color={colors.text} />
               </Pressable>
               <Pressable
                 onPress={() => setShowPhotoViewer(false)}
@@ -1196,12 +1163,12 @@ export default function ProfileScreen() {
                   width: 36,
                   height: 36,
                   borderRadius: 18,
-                  backgroundColor: "rgba(255,255,255,0.08)",
+                  backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="share-social-outline" size={18} color="#fff" />
+                <Ionicons name="share-social-outline" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>
@@ -1218,12 +1185,12 @@ export default function ProfileScreen() {
                   width: 220,
                   height: 220,
                   borderRadius: 110,
-                  backgroundColor: "rgba(255,255,255,0.1)",
+                  backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="person" size={96} color="#fff" />
+                <Ionicons name="person" size={96} color={colors.text} />
               </View>
             )}
           </View>

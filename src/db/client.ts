@@ -33,6 +33,20 @@ const summarizeResponse = (text: string) => {
   return trimmed.replace(/\s+/g, " ").slice(0, 280);
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isTransientFetchError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Network request failed") ||
+    message.includes("Failed to fetch") ||
+    message.includes("fetch failed") ||
+    message.includes("NetworkError") ||
+    message.includes("TypeError: Failed to fetch") ||
+    message.includes("Timed out")
+  );
+};
+
 const doFetch = (
   method: string,
   path: string,
@@ -71,11 +85,38 @@ export const supabaseRequest = async (
   }
 
   const startedAt = Date.now();
-  let res = await doFetch(method, path, token, body, extraHeaders);
+  const maxAttempts = method === "GET" ? 3 : 1;
+  let res: Response | null = null;
+  let lastError: unknown = null;
 
-  if (res.status === 401) {
-    const refreshed = await forceRefreshAccessToken();
-    if (refreshed) res = await doFetch(method, path, refreshed, body, extraHeaders);
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      res = await doFetch(method, path, token, body, extraHeaders);
+
+      if (res.status === 401) {
+        const refreshed = await forceRefreshAccessToken();
+        if (refreshed) {
+          token = refreshed;
+          res = await doFetch(method, path, token, body, extraHeaders);
+        }
+      }
+
+      if (method === "GET" && res.status >= 500 && attempt < maxAttempts - 1) {
+        await sleep(150 * (attempt + 1));
+        continue;
+      }
+      break;
+    } catch (error) {
+      lastError = error;
+      if (method !== "GET" || !isTransientFetchError(error) || attempt >= maxAttempts - 1) {
+        throw error;
+      }
+      await sleep(150 * (attempt + 1));
+    }
+  }
+
+  if (!res) {
+    throw lastError instanceof Error ? lastError : new Error("Falha ao conectar com o Supabase.");
   }
 
   const ms = Date.now() - startedAt;
@@ -137,6 +178,7 @@ export const CACHE_KEYS = {
   classPlans: "cache_class_plans_v1",
   classCompetitiveProfiles: "cache_class_competitive_profiles_v1",
   classCalendarExceptions: "cache_class_calendar_exceptions_v1",
+  attendanceRecords: "cache_attendance_records_v1",
   trainingPlans: "cache_training_plans_v1",
   trainingTemplates: "cache_training_templates_v1",
   students: "cache_students_v1",
@@ -215,7 +257,10 @@ export const isNetworkError = (error: unknown) => {
 
 export const isAuthError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
   if (message.includes("Missing auth token")) return true;
+  if (lower.includes("sessao expirada") || lower.includes("sessão expirada")) return true;
+  if (lower.includes("faca login novamente") || lower.includes("faça login novamente")) return true;
   return message.includes("Supabase") && (message.includes(" 401 ") || message.includes(" 403 "));
 };
 

@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
+
 import type { ThemeColors } from "../../../ui/app-theme";
-import { ModalSheet } from "../../../ui/ModalSheet";
+import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 
 type Props = {
@@ -34,20 +35,16 @@ export function PlanActionsModal({
   const canExport = Boolean(selectedClass) && hasRows && hasWeekPlans;
 
   return (
-    <ModalSheet
+    <ModalDialogFrame
       visible={visible}
       onClose={onClose}
-      cardStyle={[modalCardStyle, { paddingBottom: 16 }]}
+      cardStyle={[modalCardStyle, { paddingBottom: 16, maxHeight: "92%", height: "92%" }]}
       position="center"
+      colors={colors}
+      title="Ações da periodização"
+      subtitle="Escolha o que deseja fazer nesta turma."
     >
-      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-        Ações da periodização
-      </Text>
-      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-        Escolha o que deseja fazer nesta turma.
-      </Text>
-
-      <View style={{ gap: 10, marginTop: 12 }}>
+      <View style={{ gap: 10 }}>
         <Pressable
           onPress={onImportPlans}
           disabled={!selectedClass || isImportingPlansFile}
@@ -79,9 +76,7 @@ export function PlanActionsModal({
             opacity: !canExport ? 0.6 : 1,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Exportar semana
-          </Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>Exportar semana</Text>
         </Pressable>
 
         <Pressable
@@ -105,6 +100,6 @@ export function PlanActionsModal({
           </Text>
         </Pressable>
       </View>
-    </ModalSheet>
+    </ModalDialogFrame>
   );
 }

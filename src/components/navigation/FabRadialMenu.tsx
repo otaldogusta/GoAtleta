@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  type SharedValue,
 } from "react-native-reanimated";
 
 import { Pressable } from "../../ui/Pressable";
@@ -24,7 +25,7 @@ type RadialActionButtonProps = {
   action: RadialAction;
   index: number;
   total: number;
-  progress: Animated.SharedValue<number>;
+  progress: SharedValue<number>;
   onPress: (action: RadialAction) => void;
 };
 

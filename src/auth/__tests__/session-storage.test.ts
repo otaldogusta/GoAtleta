@@ -86,6 +86,32 @@ describe("session storage", () => {
     expect(secureStoreMock.setItemAsync).not.toHaveBeenCalled();
   });
 
+  test("web persists session even when remember is false", async () => {
+    const mod = await loadSessionModuleFor("web");
+    const payload = {
+      access_token: "web-a",
+      refresh_token: "web-r",
+      expires_at: 999999,
+      user: { id: "u-web", email: "u-web@x.com" },
+    };
+
+    await mod.saveSession(payload, false);
+
+    expect(asyncStorageMock.setItem).toHaveBeenCalledWith(
+      "auth_session_v1",
+      JSON.stringify(payload)
+    );
+
+    asyncStorageMock.getItem.mockImplementation((key: string) => {
+      if (key === "auth_remember_me") return Promise.resolve("false");
+      if (key === "auth_session_v1") return Promise.resolve(JSON.stringify(payload));
+      return Promise.resolve(null);
+    });
+
+    const session = await mod.loadSession();
+    expect(session?.access_token).toBe("web-a");
+  });
+
   test("hasStoredSession returns true when secure store has payload", async () => {
     const mod = await loadSessionModuleFor("ios");
     asyncStorageMock.getItem.mockResolvedValue("true");

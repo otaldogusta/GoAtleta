@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -7,6 +7,7 @@ import {
     Alert,
     Animated,
     BackHandler,
+    FlatList,
     LayoutAnimation,
     Platform,
     ScrollView,
@@ -19,42 +20,52 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { uploadStudentPhoto } from "../../../src/api/student-photo-storage";
+import { getClassModalityLabel, matchesClassModalityText } from "../../../src/core/class-modality";
 import { matchAthleteIntakeToStudents, type AthleteIntake } from "../../../src/core/athlete-intake";
 import { useEffectiveProfile } from "../../../src/core/effective-profile";
 import type { ClassGroup, Student } from "../../../src/core/models";
 import {
     deleteStudent,
+    deleteStudents,
     getAthleteIntakesByClass,
     getClassById,
+    getClasses,
     getStudentsByClass,
     linkExistingStudentByIdentity,
+    moveStudentsToClass,
     revealStudentCpf,
     saveStudent,
     updateStudent,
     updateStudentPhoto,
 } from "../../../src/db/seed";
 import { useIsOnline } from "../../../src/hooks/use-is-online";
+import { useDebouncedValue } from "../../../src/hooks/useDebouncedValue";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { ConfirmCloseOverlay } from "../../../src/ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { useConfirmUndo } from "../../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
+import { useSaveToast } from "../../../src/ui/save-toast";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
+import { measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
 import { normalizeRaDigits, validateStudentRa } from "../../../src/utils/student-ra";
 import { buildWaMeLink, getContactPhone, openWhatsApp } from "../../../src/utils/whatsapp";
+import { StudentAcademicFields } from "../../../src/screens/students/components/StudentAcademicFields";
+import { StudentDocumentsFields } from "../../../src/screens/students/components/StudentDocumentsFields";
 
 const guardianRelationOptions = ["Mãe", "Pai", "Avó", "Avô", "Irmão", "Irmã", "Tio", "Tia", "Outro"] as const;
 const positionOptions = ["indefinido", "levantador", "oposto", "ponteiro", "central", "libero"] as const;
 type DropKey = "guardian" | "primary" | "secondary" | null;
 type CreateDropKey = "createGuardian" | "createPrimary" | "createSecondary" | null;
 type Layout = { x: number; y: number; width: number; height: number };
-type StudentSectionKey = "studentData" | "sportProfile" | "documents" | "health" | "guardian" | "links" | null;
-type CreateSectionKey = "studentData" | "sportProfile" | "health" | "documents" | "guardian" | "links" | null;
+type StudentSectionKey = "studentData" | "academic" | "sportProfile" | "documents" | "health" | "guardian" | "links" | null;
+type CreateSectionKey = "studentData" | "academic" | "sportProfile" | "health" | "documents" | "guardian" | "links" | null;
 type ScreenTab = "alunos" | "cadastro";
 
 const inputStyle = (colors: ReturnType<typeof useAppTheme>["colors"]) => ({
@@ -153,21 +164,17 @@ const normalizeTextKey = (value: string) =>
     .toLowerCase()
     .trim();
 
+const classGenderLabel: Record<ClassGroup["gender"], string> = {
+  masculino: "Masculino",
+  feminino: "Feminino",
+  misto: "Misto",
+};
+
+const formatMoveClassLabel = (cls: ClassGroup) =>
+  `${cls.name} • ${cls.unit} • ${classGenderLabel[cls.gender] ?? cls.gender}`;
+
 const matchesClassModality = (modalityLabel: string, classModality: ClassGroup["modality"] | undefined) => {
-  const label = normalizeTextKey(modalityLabel);
-  if (!label) return false;
-  if (classModality === "voleibol") {
-    return label.includes("volei") || label.includes("voleibol") || label.includes("volleyball");
-  }
-  if (classModality === "fitness") {
-    return (
-      label.includes("fitness") ||
-      label.includes("funcional") ||
-      label.includes("academia") ||
-      label.includes("musculacao")
-    );
-  }
-  return false;
+  return matchesClassModalityText(modalityLabel, classModality);
 };
 
 export default function ClassStudentsScreen() {
@@ -175,6 +182,7 @@ export default function ClassStudentsScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
+  const { showSaveToast } = useSaveToast();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
   const canRevealCpf = effectiveProfile === "admin";
@@ -187,6 +195,13 @@ export default function ClassStudentsScreen() {
     padding: 16,
     radius: 16,
   });
+  const moveModalCardStyle = useModalCardStyle({
+    maxHeight: Platform.OS === "web" ? "88%" : "94%",
+    maxWidth: 640,
+    padding: 16,
+    radius: 18,
+    gap: 12,
+  });
 
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -198,12 +213,23 @@ export default function ClassStudentsScreen() {
   const [createExitTarget, setCreateExitTarget] = useState<"back" | "alunos" | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [saving, setSaving] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
+  const [selectionUiVisible, setSelectionUiVisible] = useState(false);
+  const selectionModeAnim = useRef(new Animated.Value(0)).current;
+  const debouncedSearch = useDebouncedValue(search, 250);
   const [dropKey, setDropKey] = useState<DropKey>(null);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showCreateCloseConfirm, setShowCreateCloseConfirm] = useState(false);
   const [openSection, setOpenSection] = useState<StudentSectionKey>("studentData");
   const [openCreateSection, setOpenCreateSection] = useState<CreateSectionKey>("studentData");
   const [createDropKey, setCreateDropKey] = useState<CreateDropKey>(null);
+  const [showMoveClassModal, setShowMoveClassModal] = useState(false);
+  const [moveClasses, setMoveClasses] = useState<ClassGroup[]>([]);
+  const [moveClassesLoading, setMoveClassesLoading] = useState(false);
+  const [moveClassSearch, setMoveClassSearch] = useState("");
+  const [moveClassError, setMoveClassError] = useState("");
+  const [selectedMoveClassId, setSelectedMoveClassId] = useState("");
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -214,6 +240,7 @@ export default function ClassStudentsScreen() {
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
   const [guardianRelation, setGuardianRelation] = useState("");
+  const [collegeCourse, setCollegeCourse] = useState("");
   const [primaryPos, setPrimaryPos] = useState("");
   const [secondaryPos, setSecondaryPos] = useState("");
   const [objective, setObjective] = useState("");
@@ -269,6 +296,7 @@ export default function ClassStudentsScreen() {
     guardianName: string;
     guardianPhone: string;
     guardianRelation: string;
+    collegeCourse: string;
     primaryPos: string;
     secondaryPos: string;
     objective: string;
@@ -306,12 +334,14 @@ export default function ClassStudentsScreen() {
     []
   );
   const studentDataAnim = useCollapsibleAnimation(openSection === "studentData", accordionAnimOptions);
+  const academicAnim = useCollapsibleAnimation(openSection === "academic", accordionAnimOptions);
   const sportAnim = useCollapsibleAnimation(openSection === "sportProfile", accordionAnimOptions);
   const documentsAnim = useCollapsibleAnimation(openSection === "documents", accordionAnimOptions);
   const healthAnim = useCollapsibleAnimation(openSection === "health", accordionAnimOptions);
   const guardianAnim = useCollapsibleAnimation(openSection === "guardian", accordionAnimOptions);
   const linksAnim = useCollapsibleAnimation(openSection === "links", accordionAnimOptions);
   const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", accordionAnimOptions);
+  const createAcademicAnim = useCollapsibleAnimation(openCreateSection === "academic", accordionAnimOptions);
   const createSportAnim = useCollapsibleAnimation(openCreateSection === "sportProfile", accordionAnimOptions);
   const createHealthAnim = useCollapsibleAnimation(openCreateSection === "health", accordionAnimOptions);
   const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", accordionAnimOptions);
@@ -320,7 +350,7 @@ export default function ClassStudentsScreen() {
 
   const rowStyle = useMemo(
     () => ({
-      flexDirection: (isCompactForm ? "column" : "row") as const,
+      flexDirection: isCompactForm ? ("column" as const) : ("row" as const),
       alignItems: "flex-start" as const,
       gap: 12,
     }),
@@ -333,14 +363,24 @@ export default function ClassStudentsScreen() {
     }
   }, []);
 
+  const runSectionLayoutAnimation = useCallback(() => {
+    // LayoutAnimation may be unavailable/unstable on web; keep section toggle functional.
+    if (Platform.OS === "web") return;
+    try {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    } catch {
+      // Ignore animation failures and still toggle section state.
+    }
+  }, []);
+
   const toggleSection = useCallback((section: Exclude<StudentSectionKey, null>) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    runSectionLayoutAnimation();
     setOpenSection((prev) => (prev === section ? null : section));
-  }, []);
+  }, [runSectionLayoutAnimation]);
   const toggleCreateSection = useCallback((section: Exclude<CreateSectionKey, null>) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    runSectionLayoutAnimation();
     setOpenCreateSection((prev) => (prev === section ? null : section));
-  }, []);
+  }, [runSectionLayoutAnimation]);
 
   const colStyle = useMemo(
     () => ({
@@ -366,19 +406,33 @@ export default function ClassStudentsScreen() {
     [colors.border, colors.inputBg]
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (alive?: { current: boolean }) => {
     if (!id) return;
+    const isAlive = () => !alive || alive.current;
     setLoading(true);
     setLoadError("");
     try {
-      const [classData, list, intakes] = await Promise.all([
+      const [classData, list] = await Promise.all([
         getClassById(id),
         getStudentsByClass(id),
-        getAthleteIntakesByClass(id),
       ]);
+      if (!isAlive()) return;
       setCls(classData);
       setStudents(list.slice().sort((a, b) => a.name.localeCompare(b.name)));
-      setAthleteIntakes(intakes);
+      void (async () => {
+        try {
+          const intakes = await measureAsync(
+            "screen.classStudents.load.intakes",
+            () => getAthleteIntakesByClass(id),
+            { screen: "classStudents", classId: id }
+          );
+          if (!isAlive()) return;
+          setAthleteIntakes(intakes);
+        } catch {
+          if (!isAlive()) return;
+          setAthleteIntakes([]);
+        }
+      })();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao carregar alunos da turma.";
       if (message.toLowerCase().includes("missing auth token")) {
@@ -390,6 +444,35 @@ export default function ClassStudentsScreen() {
       setLoading(false);
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!showMoveClassModal || !cls?.organizationId) return;
+    let cancelled = false;
+
+    const loadMoveClasses = async () => {
+      setMoveClassesLoading(true);
+      setMoveClassError("");
+      try {
+        const classRows = await getClasses({ organizationId: cls.organizationId });
+        if (cancelled) return;
+        setMoveClasses(classRows.filter((item) => item.id !== cls.id));
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Não foi possível carregar as turmas.";
+        setMoveClassError(message);
+      } finally {
+        if (!cancelled) {
+          setMoveClassesLoading(false);
+        }
+      }
+    };
+
+    void loadMoveClasses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cls?.id, cls?.organizationId, showMoveClassModal]);
 
   const intakeByStudentId = useMemo(() => {
     const byStudent = new Map<string, AthleteIntake>();
@@ -440,13 +523,17 @@ export default function ClassStudentsScreen() {
   );
 
   useEffect(() => {
-    void load();
+    const alive = { current: true };
+    void load(alive);
+    return () => {
+      alive.current = false;
+    };
   }, [load]);
 
   const closeDropdown = useCallback(() => setDropKey(null), []);
 
   const syncLayouts = useCallback(() => {
-    const apply = (key: Exclude<DropKey, null>, ref: React.RefObject<View>) => {
+    const apply = (key: Exclude<DropKey, null>, ref: React.RefObject<View | null>) => {
       ref.current?.measureInWindow((x, y, width0, height0) => {
         setLayouts((prev) => ({ ...prev, [key]: { x, y, width: width0, height: height0 } }));
       });
@@ -469,7 +556,7 @@ export default function ClassStudentsScreen() {
   }, [dropKey, syncLayouts]);
 
   const filtered = useMemo(() => {
-    const t = search.trim().toLowerCase();
+    const t = debouncedSearch.trim().toLowerCase();
     return students.filter((s) => {
       if (!t) return true;
       const p = String(s.phone ?? "").replace(/\D/g, "");
@@ -481,7 +568,7 @@ export default function ClassStudentsScreen() {
         raDigits.includes(t.replace(/\D/g, ""))
       );
     });
-  }, [search, students]);
+  }, [debouncedSearch, students]);
 
   const pickStudentPhoto = useCallback(async (source: "camera" | "library") => {
     try {
@@ -599,6 +686,7 @@ export default function ClassStudentsScreen() {
     setGuardianName(s.guardianName ?? "");
     setGuardianPhone(formatPhoneBrWithCountry(s.guardianPhone ?? ""));
     setGuardianRelation(s.guardianRelation ?? "");
+    setCollegeCourse(s.collegeCourse ?? "");
     setPrimaryPos(s.positionPrimary && s.positionPrimary !== "indefinido" ? s.positionPrimary : "");
     setSecondaryPos(s.positionSecondary && s.positionSecondary !== "indefinido" ? s.positionSecondary : "");
     setObjective(s.athleteObjective && s.athleteObjective !== "base" ? s.athleteObjective : "");
@@ -630,6 +718,7 @@ export default function ClassStudentsScreen() {
       guardianName: s.guardianName ?? "",
       guardianPhone: formatPhoneBrWithCountry(s.guardianPhone ?? ""),
       guardianRelation: s.guardianRelation ?? "",
+      collegeCourse: s.collegeCourse ?? "",
       primaryPos: s.positionPrimary && s.positionPrimary !== "indefinido" ? s.positionPrimary : "",
       secondaryPos:
         s.positionSecondary && s.positionSecondary !== "indefinido" ? s.positionSecondary : "",
@@ -659,6 +748,7 @@ export default function ClassStudentsScreen() {
       editSnapshot.guardianName !== guardianName ||
       editSnapshot.guardianPhone !== guardianPhone ||
       editSnapshot.guardianRelation !== guardianRelation ||
+      editSnapshot.collegeCourse !== collegeCourse ||
       editSnapshot.primaryPos !== primaryPos ||
       editSnapshot.secondaryPos !== secondaryPos ||
       editSnapshot.objective !== objective ||
@@ -685,6 +775,7 @@ export default function ClassStudentsScreen() {
     guardianName,
     guardianPhone,
     guardianRelation,
+    collegeCourse,
     healthIssue,
     healthIssueNotes,
     healthObs,
@@ -834,18 +925,27 @@ export default function ClassStudentsScreen() {
         requestDiscardCreateForm("alunos");
         return;
       }
+      if (nextTab !== "alunos") {
+        setSelectionModeEnabled(false);
+        setSelectedStudentIds([]);
+      }
       setScreenTab(nextTab);
     },
     [requestDiscardCreateForm, screenTab]
   );
 
   const handleBackPress = useCallback(() => {
+    if (selectionModeEnabled) {
+      setSelectionModeEnabled(false);
+      setSelectedStudentIds([]);
+      return;
+    }
     if (screenTab === "cadastro") {
       requestDiscardCreateForm("back");
       return;
     }
     router.back();
-  }, [requestDiscardCreateForm, router, screenTab]);
+  }, [requestDiscardCreateForm, router, screenTab, selectionModeEnabled]);
 
   const canSubmitCreateStudent = createFormDirty && !creatingStudent;
 
@@ -956,16 +1056,12 @@ export default function ClassStudentsScreen() {
       }
       resetCreateForm();
       await load();
-      Alert.alert(
-        "Aluno cadastrado",
-        `${cleanName} foi adicionado à turma com sucesso.`,
-        [
-          {
-            text: "Ver alunos",
-            onPress: () => setScreenTab("alunos"),
-          },
-        ]
-      );
+      showSaveToast({
+        message: `${cleanName} foi adicionado à turma com sucesso.`,
+        variant: "success",
+        actionLabel: "Ver alunos",
+        onAction: () => setScreenTab("alunos"),
+      });
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Não foi possível cadastrar o aluno.";
       setCreateError(detail);
@@ -1033,6 +1129,7 @@ export default function ClassStudentsScreen() {
         guardianName: guardianName.trim(),
         guardianPhone: guardianPhone.trim(),
         guardianRelation: guardianRelation.trim(),
+        collegeCourse: collegeCourse.trim() || null,
         positionPrimary: (primaryPos || "indefinido") as Student["positionPrimary"],
         positionSecondary: (secondaryPos || "indefinido") as Student["positionSecondary"],
         athleteObjective: (objective || "base") as Student["athleteObjective"],
@@ -1114,6 +1211,277 @@ export default function ClassStudentsScreen() {
     });
   }, [closeEditModal, confirm, editingStudent?.id, load]);
 
+  const selectedStudents = useMemo(
+    () => students.filter((student) => selectedStudentIds.includes(student.id)),
+    [selectedStudentIds, students]
+  );
+  const filteredMoveClasses = useMemo(() => {
+    const query = normalizeTextKey(moveClassSearch);
+    const sortedClasses = moveClasses
+      .filter((item) => item.id !== cls?.id)
+      .slice()
+      .sort((a, b) => {
+        const unitCompare = a.unit.localeCompare(b.unit);
+        if (unitCompare !== 0) return unitCompare;
+        return a.name.localeCompare(b.name);
+      });
+    if (!query) return sortedClasses;
+    return sortedClasses.filter((item) => {
+      const searchable = normalizeTextKey(`${item.name} ${item.unit} ${classGenderLabel[item.gender] ?? item.gender}`);
+      return searchable.includes(query);
+    });
+  }, [cls?.id, moveClassSearch, moveClasses]);
+  const selectedMoveClass = useMemo(
+    () => moveClasses.find((item) => item.id === selectedMoveClassId) ?? null,
+    [moveClasses, selectedMoveClassId]
+  );
+  const isSelectionMode = selectionModeEnabled;
+  const allFilteredSelected = filtered.length > 0 && filtered.every((student) => selectedStudentIds.includes(student.id));
+
+  useEffect(() => {
+    if (isSelectionMode) {
+      setSelectionUiVisible(true);
+    }
+    Animated.timing(selectionModeAnim, {
+      toValue: isSelectionMode ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished && !isSelectionMode) {
+        setSelectionUiVisible(false);
+      }
+    });
+  }, [isSelectionMode, selectionModeAnim]);
+
+  const toggleSelectedStudent = useCallback((studentId: string) => {
+    setSelectedStudentIds((current) =>
+      current.includes(studentId)
+        ? current.filter((value) => value !== studentId)
+        : [...current, studentId]
+    );
+  }, []);
+
+  const clearSelectedStudents = useCallback(() => {
+    setSelectedStudentIds([]);
+  }, []);
+
+  const enterSelectionMode = useCallback(() => {
+    setSelectionModeEnabled(true);
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionModeEnabled(false);
+    setSelectedStudentIds([]);
+  }, []);
+
+  const selectAllStudents = useCallback(() => {
+    if (!filtered.length) return;
+    setSelectedStudentIds(filtered.map((student) => student.id));
+  }, [filtered]);
+
+  const closeMoveClassModal = useCallback(() => {
+    setShowMoveClassModal(false);
+    setMoveClassSearch("");
+    setMoveClassError("");
+    setSelectedMoveClassId("");
+  }, []);
+
+  const openMoveClassModal = useCallback(() => {
+    if (!selectedStudents.length) return;
+    setMoveClassSearch("");
+    setMoveClassError("");
+    setSelectedMoveClassId("");
+    setShowMoveClassModal(true);
+  }, [selectedStudents.length]);
+
+  const handleConfirmMoveSelectedStudents = useCallback(() => {
+    if (!cls || !selectedStudents.length || !selectedMoveClass) return;
+    const targets = selectedStudents.map((student) => ({ ...student }));
+    const targetIds = targets.map((student) => student.id);
+    const targetIdSet = new Set(targetIds);
+    const restoreMovedStudents = () => {
+      setStudents((prev) => {
+        const byId = new Map(prev.map((item) => [item.id, item]));
+        for (const student of targets) {
+          byId.set(student.id, student);
+        }
+        return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+      });
+    };
+
+    confirm({
+      title: "Mover alunos?",
+      message: `${targets.length} aluno(s) serão movidos para ${formatMoveClassLabel(selectedMoveClass)}.`,
+      confirmLabel: "Mover",
+      undoMessage: `${targets.length} aluno(s) movido(s) para ${selectedMoveClass.name}. Desfazer?`,
+      onOptimistic: () => {
+        setStudents((prev) => prev.filter((item) => !targetIdSet.has(item.id)));
+        clearSelectedStudents();
+        closeMoveClassModal();
+      },
+      onConfirm: async () => {
+        try {
+          await moveStudentsToClass(targetIds, cls.id, selectedMoveClass.id, cls.organizationId);
+          showSaveToast({
+            message: `${targets.length} aluno(s) movido(s) para ${selectedMoveClass.name}.`,
+            variant: "success",
+          });
+          await load();
+        } catch (error) {
+          restoreMovedStudents();
+          const detail = error instanceof Error ? error.message : "Não foi possível mover os alunos.";
+          Alert.alert("Mover alunos", detail);
+        }
+      },
+      onUndo: async () => {
+        restoreMovedStudents();
+      },
+    });
+  }, [
+    clearSelectedStudents,
+    cls,
+    confirm,
+    load,
+    selectedMoveClass,
+    selectedStudents,
+    closeMoveClassModal,
+    showSaveToast,
+  ]);
+
+  const handleSelectionMore = useCallback(() => {
+    const actions: { text: string; onPress?: () => void; style?: "default" | "cancel" | "destructive" }[] = [];
+    actions.push({
+      text: "Mover de turma",
+      onPress: () => openMoveClassModal(),
+    });
+    if (allFilteredSelected) {
+      actions.push({
+        text: "Desmarcar tudo",
+        onPress: () => clearSelectedStudents(),
+      });
+    } else {
+      actions.push({
+        text: "Selecionar tudo",
+        onPress: () => selectAllStudents(),
+      });
+    }
+    actions.push(
+      {
+        text: "Cancelar seleção",
+        onPress: () => exitSelectionMode(),
+      },
+      { text: "Fechar", style: "cancel" }
+    );
+    Alert.alert("Mais ações", undefined, actions);
+  }, [allFilteredSelected, clearSelectedStudents, exitSelectionMode, openMoveClassModal, selectAllStudents]);
+
+  const handleDuplicateSelectedStudents = useCallback(() => {
+    if (!cls) return;
+    const targets = selectedStudents.map((student) => ({ ...student }));
+    if (!targets.length) return;
+    const nowIso = new Date().toISOString();
+    const duplicates = targets.map((student, index) => {
+      const duplicatedId = `s_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
+      const duplicateName = student.name.trim().endsWith(" (cópia)")
+        ? student.name.trim()
+        : `${student.name.trim()} (cópia)`;
+      return {
+        ...student,
+        id: duplicatedId,
+        name: duplicateName,
+        organizationId: cls.organizationId,
+        classId: student.classId || cls.id,
+        ra: null,
+        cpfMasked: null,
+        cpfHmac: null,
+        rg: null,
+        rgNormalized: null,
+        loginEmail: "",
+        createdAt: nowIso,
+      } satisfies Student;
+    });
+    const duplicateIds = new Set(duplicates.map((student) => student.id));
+    const restoreDuplicates = () => {
+      setStudents((prev) =>
+        prev
+          .filter((item) => !duplicateIds.has(item.id))
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+      );
+    };
+
+    confirm({
+      title: "Duplicar alunos?",
+      message: `${targets.length} aluno(s) serão copiados para novos cadastros.`,
+      confirmLabel: "Duplicar",
+      undoMessage: `${targets.length} aluno(s) copiado(s). Desfazer?`,
+      onOptimistic: () => {
+        setStudents((prev) =>
+          [...prev, ...duplicates].slice().sort((a, b) => a.name.localeCompare(b.name))
+        );
+        clearSelectedStudents();
+      },
+      onConfirm: async () => {
+        try {
+          for (const duplicate of duplicates) {
+            await saveStudent(duplicate);
+            if (duplicate.photoUrl) {
+              await updateStudentPhoto(duplicate.id, duplicate.photoUrl);
+            }
+          }
+        } catch (error) {
+          restoreDuplicates();
+          const detail = error instanceof Error ? error.message : "Não foi possível duplicar os alunos.";
+          Alert.alert("Duplicar alunos", detail);
+        }
+      },
+      onUndo: async () => {
+        restoreDuplicates();
+      },
+    });
+  }, [clearSelectedStudents, cls, confirm, selectedStudents]);
+
+  const handleDeleteSelectedStudents = useCallback(() => {
+    const targets = selectedStudents.map((student) => ({ ...student }));
+    if (!targets.length) return;
+    const targetIds = targets.map((student) => student.id);
+    const targetIdSet = new Set(targetIds);
+    const restoreDeletedStudents = () => {
+      setStudents((prev) => {
+        const byId = new Map(prev.map((item) => [item.id, item]));
+        for (const student of targets) {
+          if (!byId.has(student.id)) {
+            byId.set(student.id, student);
+          }
+        }
+        return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+      });
+    };
+
+    confirm({
+      title: "Excluir alunos?",
+      message: `${targets.length} aluno(s) serão excluídos da turma. Essa ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      undoMessage: `${targets.length} aluno(s) excluído(s). Desfazer?`,
+      onOptimistic: () => {
+        setStudents((prev) => prev.filter((item) => !targetIdSet.has(item.id)));
+        clearSelectedStudents();
+      },
+      onConfirm: async () => {
+        try {
+          await deleteStudents(targetIds);
+        } catch (error) {
+          restoreDeletedStudents();
+          const detail = error instanceof Error ? error.message : "Não foi possível excluir os alunos.";
+          Alert.alert("Excluir alunos", detail);
+        }
+      },
+      onUndo: async () => {
+        restoreDeletedStudents();
+      },
+    });
+  }, [clearSelectedStudents, confirm, selectedStudents]);
+
   const activeLayout = dropKey ? layouts[dropKey] : null;
   const activeOptions =
     dropKey === "guardian"
@@ -1136,15 +1504,21 @@ export default function ClassStudentsScreen() {
     return parts.join(" • ");
   }, [birthText, email, phone]);
 
-  const documentsSummary = useMemo(() => {
+  const academicSummary = useMemo(() => {
     const parts = [
       ra ? `RA ${ra}` : "RA não informado",
+      collegeCourse.trim() ? `Curso ${collegeCourse.trim()}` : "Curso não informado",
+    ];
+    return parts.join(" • ");
+  }, [collegeCourse, ra]);
+
+  const documentsSummary = useMemo(() => {
+    const parts = [
       cpfDisplay ? "CPF cadastrado" : "CPF não informado",
       rgDocument ? "RG cadastrado" : "RG não informado",
     ];
     return parts.join(" • ");
-  }, [cpfDisplay, ra, rgDocument]);
-
+  }, [cpfDisplay, rgDocument]);
   const sportSummary = useMemo(() => {
     return [getSelectDisplayValue(primaryPos), getSelectDisplayValue(secondaryPos)].join(" • ");
   }, [primaryPos, secondaryPos]);
@@ -1185,6 +1559,21 @@ export default function ClassStudentsScreen() {
     return parts.join(" • ");
   }, [createBirthText, createEmail, createPhone]);
 
+  const createAcademicSummary = useMemo(() => {
+    const parts = [
+      createRa.trim() ? `RA ${createRa.trim()}` : "RA não informado",
+      createCollegeCourse.trim() ? `Curso ${createCollegeCourse.trim()}` : "Curso não informado",
+    ];
+    return parts.join(" • ");
+  }, [createCollegeCourse, createRa]);
+
+  const createDocumentsSummary = useMemo(() => {
+    const parts = [
+      createCpf.trim() ? "CPF informado" : "CPF não informado",
+      createRg.trim() ? "RG informado" : "RG não informado",
+    ];
+    return parts.join(" • ");
+  }, [createCpf, createRg]);
   const createSportSummary = useMemo(() => {
     const positionLabel = getOptionLabel(createPositionPrimary || "indefinido");
     const secondaryLabel = getOptionLabel(createPositionSecondary || "indefinido");
@@ -1197,15 +1586,6 @@ export default function ClassStudentsScreen() {
     }
     return "Informações de saúde registradas";
   }, [createHealthIssue, createHealthObs, createMedicationUse]);
-
-  const createDocumentsSummary = useMemo(() => {
-    const parts = [
-      createRa.trim() ? `RA ${createRa.trim()}` : "RA não informado",
-      createCpf.trim() ? "CPF informado" : "CPF não informado",
-      createRg.trim() ? "RG informado" : "RG não informado",
-    ];
-    return parts.join(" • ");
-  }, [createCpf, createRa, createRg]);
 
   const createGuardianSummary = useMemo(() => {
     const nameLabel = createGuardianName.trim() || "Responsável não informado";
@@ -1281,7 +1661,7 @@ export default function ClassStudentsScreen() {
   const sportsLinkBadges = useMemo(() => {
     const badges: string[] = [];
     if (cls?.modality) {
-      badges.push(cls.modality === "voleibol" ? "Vôlei" : "Fitness");
+      badges.push(getClassModalityLabel(cls.modality));
     }
     for (const modality of intakeModalitiesSummary.all) {
       if (!badges.includes(modality)) {
@@ -1409,66 +1789,329 @@ export default function ClassStudentsScreen() {
                 placeholderTextColor={colors.placeholder}
                 style={inputStyle(colors)}
               />
+              {!isSelectionMode ? (
+                <Pressable
+                  onPress={enterSelectionMode}
+                  style={{
+                    marginTop: 10,
+                    alignSelf: "flex-start",
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Selecionar alunos
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text style={{ marginTop: 8, color: colors.muted, fontSize: 11 }}>
+                  Toque nos círculos à esquerda para selecionar vários alunos.
+                </Text>
+              )}
             </View>
 
-            <ScrollView contentContainerStyle={{ gap: 10, paddingTop: 12, paddingBottom: Math.max(insets.bottom + 24, 36) }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator persistentScrollbar={Platform.OS === "android"}>
+            {selectionUiVisible ? (
+              <Animated.View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  opacity: selectionModeAnim,
+                  transform: [
+                    {
+                      translateY: selectionModeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-6, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Pressable
+                    onPress={() => {
+                      if (allFilteredSelected) {
+                        clearSelectedStudents();
+                        return;
+                      }
+                      selectAllStudents();
+                    }}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      borderWidth: 2,
+                      borderColor: allFilteredSelected ? colors.primaryBg : colors.border,
+                      backgroundColor: allFilteredSelected ? colors.primaryBg : colors.card,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transform: [
+                        {
+                          scale: selectionModeAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.94, 1],
+                          }),
+                        },
+                      ],
+                    }}
+                  >
+                    {allFilteredSelected ? (
+                      <Ionicons name="checkmark" size={16} color={colors.primaryText} />
+                    ) : null}
+                  </Pressable>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                    {selectedStudentIds.length} selecionado(s)
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={exitSelectionMode}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Cancelar
+                  </Text>
+                </Pressable>
+              </Animated.View>
+            ) : null}
+
+            <ScrollView
+              contentContainerStyle={{
+                gap: 10,
+                paddingTop: 12,
+                paddingBottom: Math.max(insets.bottom + (isSelectionMode ? 176 : 24), 36),
+              }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              persistentScrollbar={Platform.OS === "android"}
+            >
               {loading ? (
                 <Text style={{ color: colors.muted }}>Carregando alunos...</Text>
               ) : (
                 filtered.map((s) => {
                   const c = getContactPhone(s);
+                  const hasPhone = c.status === "ok" && Boolean(c.phoneDigits);
+                  const selected = selectedStudentIds.includes(s.id);
                   return (
-                    <View
+                    <Pressable
                       key={s.id}
+                      onPress={() => {
+                        if (isSelectionMode) {
+                          toggleSelectedStudent(s.id);
+                          return;
+                        }
+                        openEdit(s);
+                      }}
                       style={{
                         borderWidth: 1,
-                        borderColor: colors.border,
+                        borderColor: selected ? colors.primaryBg : colors.border,
                         borderRadius: 14,
-                        backgroundColor: colors.card,
+                        backgroundColor: selected ? colors.primaryBg + "18" : colors.card,
                         padding: 12,
-                        gap: 8,
+                        gap: 12,
                         flexDirection: "row",
                         alignItems: "center",
                       }}
                     >
-                      <View style={{ width: 52, height: 52, borderRadius: 26, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg, alignItems: "center", justifyContent: "center" }}>
+                      {isSelectionMode ? (
+                        <View
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 17,
+                            borderWidth: 2,
+                            borderColor: selected ? colors.primaryBg : colors.border,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: selected ? colors.primaryBg : colors.card,
+                            marginRight: 4,
+                          }}
+                        >
+                          {selected ? (
+                            <Ionicons name="checkmark" size={17} color={colors.primaryText} />
+                          ) : null}
+                        </View>
+                      ) : null}
+                      <View
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 26,
+                          overflow: "hidden",
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.secondaryBg,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
                         {s.photoUrl ? (
                           <Image source={{ uri: s.photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                         ) : (
                           <Ionicons name="person" size={22} color={colors.muted} />
                         )}
                       </View>
-                      <Pressable onPress={() => openEdit(s)} style={{ flex: 1 }}>
+                      <View style={{ flex: 1, gap: 2 }}>
                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>{s.name}</Text>
-                      </Pressable>
+                      </View>
                       <View style={{ gap: 8 }}>
                         <Pressable
                           onPress={() =>
-                            void (c.phone
-                              ? openWhatsApp(buildWaMeLink(c.phone, `Olá! Sou da turma ${cls?.name ?? ""}.`))
+                            void (hasPhone
+                              ? openWhatsApp(buildWaMeLink(c.phoneDigits, `Olá! Sou da turma ${cls?.name ?? ""}.`))
                               : Promise.resolve())
                           }
-                          disabled={!c.phone}
+                          disabled={!hasPhone}
                           style={{
                             width: 42,
                             height: 42,
                             borderRadius: 21,
                             alignItems: "center",
                             justifyContent: "center",
-                            backgroundColor: c.phone ? "#25D366" : colors.secondaryBg,
+                            backgroundColor: hasPhone ? "#25D366" : colors.secondaryBg,
                             borderWidth: 1,
-                            borderColor: c.phone ? "#25D366" : colors.border,
-                            opacity: c.phone ? 1 : 0.5,
+                            borderColor: hasPhone ? "#25D366" : colors.border,
+                            opacity: hasPhone ? 1 : 0.5,
                           }}
                         >
-                          <Ionicons name="logo-whatsapp" size={20} color={c.phone ? "#fff" : colors.muted} />
+                          <Ionicons name="logo-whatsapp" size={20} color={hasPhone ? "#fff" : colors.muted} />
                         </Pressable>
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })
               )}
             </ScrollView>
+            {screenTab === "alunos" && selectionUiVisible ? (
+              <Animated.View
+                style={{
+                  position: "absolute",
+                  left: 16,
+                  right: 16,
+                  bottom: Math.max(insets.bottom + 16, 16),
+                  borderRadius: 18,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  gap: 10,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.12,
+                  shadowRadius: 18,
+                  shadowOffset: { width: 0, height: 8 },
+                  elevation: 8,
+                  opacity: selectionModeAnim,
+                  transform: [
+                    {
+                      translateY: selectionModeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [12, 0],
+                      }),
+                    },
+                    {
+                      scale: selectionModeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.98, 1],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                  {selectedStudents.length} selecionado(s)
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={openMoveClassModal}
+                    style={{
+                      width: 52,
+                      height: 44,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.card,
+                      opacity: selectedStudents.length ? 1 : 0.45,
+                    }}
+                    disabled={!selectedStudents.length}
+                    accessibilityLabel="Mover alunos"
+                  >
+                    <Ionicons name="swap-horizontal-outline" size={17} color={colors.text} />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleDuplicateSelectedStudents}
+                    style={{
+                      width: 52,
+                      height: 44,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.card,
+                      opacity: selectedStudents.length ? 1 : 0.45,
+                    }}
+                    disabled={!selectedStudents.length}
+                    accessibilityLabel="Duplicar alunos"
+                  >
+                    <Ionicons name="copy-outline" size={17} color={colors.text} />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleDeleteSelectedStudents}
+                    style={{
+                      width: 52,
+                      height: 44,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.dangerSolidBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: selectedStudents.length ? 1 : 0.45,
+                    }}
+                    disabled={!selectedStudents.length}
+                    accessibilityLabel="Excluir alunos"
+                  >
+                    <Ionicons name="trash-outline" size={17} color={colors.dangerSolidText} />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleSelectionMore}
+                    style={{
+                      width: 52,
+                      height: 44,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.background,
+                    }}
+                    accessibilityLabel="Mais ações"
+                  >
+                    <Ionicons name="ellipsis-horizontal" size={17} color={colors.text} />
+                  </Pressable>
+                </View>
+              </Animated.View>
+            ) : null}
           </>
         ) : (
           <View style={{ flex: 1, marginTop: 12 }}>
@@ -1522,7 +2165,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createStudentDataAnim.isVisible ? (
+              {(openCreateSection === "studentData" || createStudentDataAnim.isVisible) ? (
                 <Animated.View style={[createStudentDataAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                     <TextInput value={createName} onChangeText={setCreateName} placeholder="Nome do aluno" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
@@ -1542,6 +2185,32 @@ export default function ClassStudentsScreen() {
 
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable
+                onPress={() => toggleCreateSection("academic")}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createAcademicSummary}</Text>
+                </View>
+                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
+              </Pressable>
+              {openCreateSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
+              {(openCreateSection === "academic" || createAcademicAnim.isVisible) ? (
+                <Animated.View style={[createAcademicAnim.animatedStyle, { overflow: "hidden" }]}>
+                  <View style={{ gap: 10, padding: 12 }}>
+                    <StudentAcademicFields
+                      ra={createRa}
+                      collegeCourse={createCollegeCourse}
+                      onChangeRa={setCreateRa}
+                      onChangeCollegeCourse={setCreateCollegeCourse}
+                    />
+                  </View>
+                </Animated.View>
+              ) : null}
+            </View>
+
+            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
+              <Pressable
                 onPress={() => toggleCreateSection("sportProfile")}
                 style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
               >
@@ -1552,7 +2221,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "sportProfile" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createSportAnim.isVisible ? (
+              {(openCreateSection === "sportProfile" || createSportAnim.isVisible) ? (
                 <Animated.View style={[createSportAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                     <View style={rowStyle}>
@@ -1606,10 +2275,9 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createDocumentsAnim.isVisible ? (
+              {(openCreateSection === "documents" || createDocumentsAnim.isVisible) ? (
                 <Animated.View style={[createDocumentsAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
-                    <TextInput value={createRa} onChangeText={(v) => setCreateRa(normalizeRaDigits(v))} placeholder="RA (ex: 2022202626)" placeholderTextColor={colors.placeholder} keyboardType="numeric" style={inputStyle(colors)} />
                     <View style={{ flexDirection: "row", gap: 10 }}>
                       <View style={{ flex: 1 }}>
                         <TextInput value={createCpf} onChangeText={(v) => setCreateCpf(maskCpf(v))} placeholder="CPF (opcional)" placeholderTextColor={colors.placeholder} keyboardType="numeric" style={inputStyle(colors)} />
@@ -1635,7 +2303,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createHealthAnim.isVisible ? (
+              {(openCreateSection === "health" || createHealthAnim.isVisible) ? (
                 <Animated.View style={[createHealthAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                     <View style={rowStyle}>
@@ -1688,7 +2356,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "guardian" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createGuardianAnim.isVisible ? (
+              {(openCreateSection === "guardian" || createGuardianAnim.isVisible) ? (
                 <Animated.View style={[createGuardianAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                     <View style={{ flexDirection: "row", gap: 10 }}>
@@ -1732,7 +2400,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "links" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createLinksAnim.isVisible ? (
+              {(openCreateSection === "links" || createLinksAnim.isVisible) ? (
                 <Animated.View style={[createLinksAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 8, padding: 12 }}>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -1748,7 +2416,7 @@ export default function ClassStudentsScreen() {
                           }}
                         >
                           <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>
-                            {cls.modality === "voleibol" ? "Vôlei" : "Fitness"}
+                            {getClassModalityLabel(cls.modality)}
                           </Text>
                         </View>
                       ) : null}
@@ -1872,7 +2540,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "studentData" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {studentDataAnim.isVisible ? (
+              {(openSection === "studentData" || studentDataAnim.isVisible) ? (
                 <Animated.View style={[studentDataAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                     <View style={rowStyle}>
@@ -1923,6 +2591,36 @@ export default function ClassStudentsScreen() {
 
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable
+                onPress={() => toggleSection("academic")}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>{academicSummary}</Text>
+                </View>
+                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "academic" ? "180deg" : "0deg" }] }} />
+              </Pressable>
+              {openSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
+              {(openSection === "academic" || academicAnim.isVisible) ? (
+                <Animated.View style={[academicAnim.animatedStyle, { overflow: "hidden" }]}>
+                  <View style={{ gap: 10, padding: 12 }}>
+                    <StudentAcademicFields
+                      ra={ra}
+                      collegeCourse={collegeCourse}
+                      onChangeRa={(value) => {
+                        setRa(normalizeRaDigits(value));
+                        setDocumentsError((prev) => ({ ...prev, ra: undefined }));
+                      }}
+                      onChangeCollegeCourse={setCollegeCourse}
+                      errors={documentsError}
+                    />
+                  </View>
+                </Animated.View>
+              ) : null}
+            </View>
+
+            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
+              <Pressable
                 onPress={() => toggleSection("documents")}
                 style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
               >
@@ -1933,65 +2631,27 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "documents" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {documentsAnim.isVisible ? (
+              {(openSection === "documents" || documentsAnim.isVisible) ? (
                 <Animated.View style={[documentsAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
-                    <TextInput
-                      value={ra}
-                      onChangeText={(value) => {
-                        setRa(normalizeRaDigits(value));
-                        setDocumentsError((prev) => ({ ...prev, ra: undefined }));
+                    <StudentDocumentsFields
+                      cpfDisplay={cpfDisplay}
+                      rg={rgDocument}
+                      onChangeCpf={(value) => {
+                        setCpfWasEdited(true);
+                        setCpfDisplay(value);
+                        setCpfRevealedValue(null);
+                        setIsCpfVisible(false);
+                        setCpfRevealUnavailable(false);
+                        setDocumentsError((prev) => ({ ...prev, cpf: undefined }));
                       }}
-                      placeholder="RA (ex: 2022202626)"
-                      placeholderTextColor={colors.placeholder}
-                      keyboardType="numeric"
-                      style={[inputStyle(colors), documentsError.ra ? { borderColor: colors.dangerText } : null]}
+                      onChangeRg={setRgDocument}
+                      showRevealCpfButton={Boolean(editingStudent && canRevealCpf)}
+                      isCpfVisible={isCpfVisible}
+                      revealCpfBusy={revealCpfBusy}
+                      onRevealCpf={() => void revealCpf()}
+                      errors={documentsError}
                     />
-                    {documentsError.ra ? <Text style={{ color: colors.dangerText, fontSize: 11 }}>{documentsError.ra}</Text> : null}
-
-                    <View style={rowStyle}>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>CPF</Text>
-                        <View style={{ position: "relative" }}>
-                          <TextInput
-                            value={cpfDisplay}
-                            onChangeText={(value) => {
-                              setCpfWasEdited(true);
-                              setCpfDisplay(maskCpf(value));
-                              setCpfRevealedValue(null);
-                              setIsCpfVisible(false);
-                              setCpfRevealUnavailable(false);
-                              setDocumentsError((prev) => ({ ...prev, cpf: undefined }));
-                            }}
-                            placeholder="000.000.000-00"
-                            placeholderTextColor={colors.placeholder}
-                            keyboardType="numeric"
-                            style={[inputStyle(colors), canRevealCpf ? { paddingRight: 36 } : null, documentsError.cpf ? { borderColor: colors.dangerText } : null]}
-                          />
-                          {canRevealCpf ? (
-                            <Pressable onPress={() => void revealCpf()} disabled={revealCpfBusy} style={{ position: "absolute", right: 10, top: 0, bottom: 0, justifyContent: "center", opacity: revealCpfBusy ? 0.7 : 1 }}>
-                              {revealCpfBusy ? (
-                                <Ionicons name="hourglass-outline" size={18} color={colors.muted} />
-                              ) : (
-                                <Ionicons name={isCpfVisible ? "eye-off-outline" : "eye-outline"} size={18} color={colors.muted} />
-                              )}
-                            </Pressable>
-                          ) : null}
-                        </View>
-                        {documentsError.cpf ? <Text style={{ color: colors.dangerText, fontSize: 11 }}>{documentsError.cpf}</Text> : null}
-                      </View>
-                      <View style={colStyle}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>RG</Text>
-                        <TextInput
-                          value={rgDocument}
-                          onChangeText={(value) => setRgDocument(formatRgBr(value))}
-                          placeholder="00.000.000-0"
-                          placeholderTextColor={colors.placeholder}
-                          style={[inputStyle(colors), documentsError.rg ? { borderColor: colors.dangerText } : null]}
-                        />
-                        {documentsError.rg ? <Text style={{ color: colors.dangerText, fontSize: 11 }}>{documentsError.rg}</Text> : null}
-                      </View>
-                    </View>
                   </View>
                 </Animated.View>
               ) : null}
@@ -2009,7 +2669,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "sportProfile" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {sportAnim.isVisible ? (
+              {(openSection === "sportProfile" || sportAnim.isVisible) ? (
                 <Animated.View style={[sportAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                   <View style={rowStyle}>
@@ -2049,7 +2709,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "health" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {healthAnim.isVisible ? (
+              {(openSection === "health" || healthAnim.isVisible) ? (
                 <Animated.View style={[healthAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                   <View style={rowStyle}>
@@ -2141,7 +2801,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "guardian" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {guardianAnim.isVisible ? (
+              {(openSection === "guardian" || guardianAnim.isVisible) ? (
                 <Animated.View style={[guardianAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
                   <View style={rowStyle}>
@@ -2180,7 +2840,7 @@ export default function ClassStudentsScreen() {
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "links" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {linksAnim.isVisible ? (
+              {(openSection === "links" || linksAnim.isVisible) ? (
                 <Animated.View style={[linksAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 8, padding: 12 }}>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -2275,11 +2935,132 @@ export default function ClassStudentsScreen() {
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {activeOptions.map((opt, index) => (
-              <Pressable key={`${opt}-${index}`} onPress={() => onSelect(opt)} style={{ paddingHorizontal: 12, paddingVertical: 12, borderRadius: 14, marginVertical: 3, backgroundColor: opt === activeValue ? colors.primaryBg : colors.card }}>
+              <AnchoredDropdownOption
+                key={`${opt}-${index}`}
+                active={opt === activeValue}
+                onPress={() => onSelect(opt)}
+              >
                 <Text style={{ color: opt === activeValue ? colors.primaryText : colors.text, fontSize: 14, fontWeight: opt === activeValue ? "700" : "500" }}>{getOptionLabel(opt)}</Text>
-              </Pressable>
+              </AnchoredDropdownOption>
             ))}
           </AnchoredDropdown>
+        </View>
+      </ModalSheet>
+
+      <ModalSheet
+        visible={showMoveClassModal}
+        onClose={closeMoveClassModal}
+        position="center"
+        overlayZIndex={18800}
+        cardStyle={moveModalCardStyle}
+      >
+        <View style={{ gap: 10 }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Mover alunos</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Selecione a turma de destino para {selectedStudents.length} aluno(s).
+            </Text>
+          </View>
+
+          <TextInput
+            value={moveClassSearch}
+            onChangeText={setMoveClassSearch}
+            placeholder="Buscar turma"
+            placeholderTextColor={colors.placeholder}
+            style={inputStyle(colors)}
+          />
+
+          {moveClassError ? (
+            <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "600" }}>{moveClassError}</Text>
+          ) : null}
+
+          {moveClassesLoading ? (
+            <View style={{ paddingVertical: 14, alignItems: "center" }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>Carregando turmas...</Text>
+            </View>
+          ) : filteredMoveClasses.length ? (
+            <FlatList
+              data={filteredMoveClasses}
+              keyExtractor={(item) => item.id}
+              style={{ maxHeight: Platform.OS === "web" ? 420 : 360 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              persistentScrollbar={Platform.OS === "android"}
+              renderItem={({ item }) => {
+                const active = item.id === selectedMoveClassId;
+                return (
+                  <Pressable
+                    onPress={() => setSelectedMoveClassId(item.id)}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: active ? colors.primaryBg : colors.border,
+                      backgroundColor: active ? colors.secondaryBg : colors.card,
+                      borderRadius: 14,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      gap: 2,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.text,
+                        fontSize: 14,
+                        fontWeight: "800",
+                      }}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text
+                      style={{
+                        color: active ? colors.primaryText : colors.muted,
+                        fontSize: 12,
+                      }}
+                    >
+                      {formatMoveClassLabel(item)}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
+          ) : (
+            <View style={{ paddingVertical: 14, alignItems: "center" }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Nenhuma outra turma encontrada.
+              </Text>
+            </View>
+          )}
+
+          <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+            <Pressable
+              onPress={closeMoveClassModal}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void handleConfirmMoveSelectedStudents()}
+              disabled={!selectedMoveClassId || !selectedStudents.length}
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 12,
+                backgroundColor: colors.primaryBg,
+                opacity: !selectedMoveClassId || !selectedStudents.length ? 0.45 : 1,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                Mover {selectedStudents.length} aluno(s)
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </ModalSheet>
 

@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
     Animated,
+    FlatList,
     ScrollView,
     Text,
     View
@@ -29,7 +30,7 @@ import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
-import { ShimmerBlock } from "../src/ui/Shimmer";
+import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { usePersistedState } from "../src/ui/use-persisted-state";
@@ -218,13 +219,19 @@ export default function CalendarScreen() {
     let alive = true;
     (async () => {
       try {
-        const [classList, planList] = await Promise.all([
-          getClasses(),
-          getTrainingPlans(),
-        ]);
+        const classList = await getClasses();
         if (!alive) return;
         setClasses(classList);
-        setPlans(planList);
+        void (async () => {
+          try {
+            const planList = await getTrainingPlans();
+            if (!alive) return;
+            setPlans(planList);
+          } catch {
+            if (!alive) return;
+            setPlans([]);
+          }
+        })();
       } finally {
         if (alive) setLoadingData(false);
       }
@@ -527,8 +534,16 @@ export default function CalendarScreen() {
       applyDays: [],
     };
     await updateTrainingPlan(updated);
-    const nextPlans = await getTrainingPlans();
-    setPlans(nextPlans);
+    setPlans((current) => {
+      const next = current.slice();
+      const index = next.findIndex((item) => item.id === updated.id);
+      if (index >= 0) {
+        next[index] = updated;
+      } else {
+        next.push(updated);
+      }
+      return next.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    });
     closeApplyPicker();
     showSaveToast({
       message: "Planejamento aplicado com sucesso.",
@@ -555,37 +570,10 @@ export default function CalendarScreen() {
 
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-
-
         {loadingData ? (
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}>
-          <View style={{ gap: 2 }}>
-            <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
-              }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-                Calendário semanal
-              </Text>
-            </Pressable>
-            <Text style={{ color: colors.muted, marginTop: 2 }}>
-              {weekRangeLabel}
-            </Text>
-          </View>
-
-            <ShimmerBlock style={{ height: 34, borderRadius: 999 }} />
-            <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
-            <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
-            <ShimmerBlock style={{ height: 90, borderRadius: 18 }} />
-          </ScrollView>
+          <ScreenLoadingState />
         ) : (
+
           <ScrollView
             contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}
             pointerEvents={showApplyPicker ? "none" : "auto"}
@@ -1044,16 +1032,16 @@ export default function CalendarScreen() {
                 </View>
               ) : null}
               {filteredApplyPlans.length ? (
-                <ScrollView
+                <FlatList
+                  data={filteredApplyPlans}
+                  keyExtractor={(plan) => plan.id}
                   contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
                   style={{ maxHeight: "92%" }}
                   keyboardShouldPersistTaps="handled"
                   nestedScrollEnabled
                   showsVerticalScrollIndicator
-                >
-                  {filteredApplyPlans.map((plan) => (
+                  renderItem={({ item: plan }) => (
                     <View
-                      key={plan.id}
                       style={{
                         padding: 12,
                         borderRadius: 14,
@@ -1093,8 +1081,8 @@ export default function CalendarScreen() {
                         </Text>
                       </Pressable>
                     </View>
-                  ))}
-                </ScrollView>
+                  )}
+                />
               ) : (
                 <Text style={{ color: colors.muted }}>
                   Nenhum planejamento salvo para essa faixa e unidade.

@@ -6,6 +6,7 @@ import { markRender } from "../../../observability/perf";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { LocationBadge } from "../../../ui/LocationBadge";
 import { Pressable } from "../../../ui/Pressable";
+import type { ThemeColors } from "../../../ui/app-theme";
 import { getUnitPalette } from "../../../ui/unit-colors";
 
 type AgendaCardItem = {
@@ -29,7 +30,7 @@ type AgendaCardProps = {
   agendaCardWidth: number;
   agendaCardGap: number;
   activeBorderColor: string;
-  colors: Record<string, string>;
+  colors: ThemeColors;
   mode: "light" | "dark";
   onCardPress: (index: number) => void;
 };
@@ -60,7 +61,7 @@ export const AgendaCard = memo(function AgendaCard({
         width: agendaCardWidth,
         marginRight: isLast ? 0 : agendaCardGap,
       },
-      Platform.OS === "web" ? styles.webSnap : null,
+      Platform.OS === "web" ? ({ scrollSnapAlign: "start" } as any) : null,
     ],
     [agendaCardGap, agendaCardWidth, isLast]
   );
@@ -146,9 +147,6 @@ export const AgendaCard = memo(function AgendaCard({
 const styles = StyleSheet.create({
   container: {
     position: "relative",
-  },
-  webSnap: {
-    scrollSnapAlign: "start",
   },
   divider: {
     position: "absolute",

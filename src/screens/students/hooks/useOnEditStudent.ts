@@ -1,11 +1,11 @@
 import { useCallback } from "react";
 import { Alert } from "react-native";
 import type {
-  AthleteObjective,
-  AthleteLearningStyle,
-  AthletePosition,
-  ClassGroup,
-  Student,
+    AthleteLearningStyle,
+    AthleteObjective,
+    AthletePosition,
+    ClassGroup,
+    Student,
 } from "../../../core/models";
 
 export type UseOnEditStudentParams = {
@@ -29,6 +29,7 @@ export type UseOnEditStudentParams = {
   setEditingId: (value: string | null) => void;
   setEditingCreatedAt: (value: string | null) => void;
   setName: (value: string) => void;
+  setCollegeCourse: (value: string) => void;
   setPhotoUrl: (value: string | null) => void;
   setPhotoMimeType: (value: string | null) => void;
   setEditSnapshot: (value: {
@@ -37,6 +38,7 @@ export type UseOnEditStudentParams = {
     customAgeBand: string;
     classId: string;
     name: string;
+    collegeCourse: string;
     photoUrl: string | null;
     birthDate: string;
     phone: string;
@@ -105,6 +107,7 @@ export function useOnEditStudent({
   setEditingId,
   setEditingCreatedAt,
   setName,
+  setCollegeCourse,
   setPhotoUrl,
   setPhotoMimeType,
   setEditSnapshot,
@@ -158,6 +161,7 @@ export function useOnEditStudent({
           nextClassId = cls.id;
         }
         const birthDateValue = safeText(student.birthDate);
+        const collegeCourseValue = safeText(student.collegeCourse);
         const loginEmailValue = safeText(student.loginEmail);
         const cpfDisplayValue = safeText(student.cpfMasked);
         const rgDocumentValue = safeText(student.rg);
@@ -188,6 +192,7 @@ export function useOnEditStudent({
         setEditingId(student.id);
         setEditingCreatedAt(student.createdAt);
         setName(safeText(student.name));
+        setCollegeCourse(collegeCourseValue);
         setPhotoUrl(student.photoUrl ?? null);
         setPhotoMimeType(null);
         setEditSnapshot({
@@ -196,6 +201,7 @@ export function useOnEditStudent({
           customAgeBand: nextCustomAgeBand,
           classId: nextClassId,
           name: safeText(student.name),
+          collegeCourse: collegeCourseValue,
           photoUrl: student.photoUrl ?? null,
           birthDate: birthDateValue,
           phone: student.phone,
@@ -246,7 +252,7 @@ export function useOnEditStudent({
         setMedicationUse(student.medicationUse ?? false);
         setMedicationNotes(medicationNotesValue);
         setHealthObservations(healthObservationsValue);
-        setOpenEditSection(null);
+        setOpenEditSection("studentData");
         closeAllPickers();
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
@@ -273,6 +279,7 @@ export function useOnEditStudent({
       setEditingId,
       setEditingCreatedAt,
       setName,
+      setCollegeCourse,
       setPhotoUrl,
       setPhotoMimeType,
       setEditSnapshot,

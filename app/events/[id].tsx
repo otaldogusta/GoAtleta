@@ -27,10 +27,13 @@ import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable as AppPressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { useAppTheme } from "../../src/ui/app-theme";
+import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
@@ -82,16 +85,17 @@ const parseInputDate = (value: string) => {
 const formatRuleIssues = (messages: string[]) =>
   messages.map((message, index) => `${index + 1}. ${message}`).join("\n");
 
-const confirmRuleWarnings = (messages: string[]) =>
-  new Promise<boolean>((resolve) => {
-    Alert.alert(
-      "Conferencia de regulamento",
-      `Ha recomendacoes para este torneio:\n\n${formatRuleIssues(messages)}`,
-      [
-        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
-        { text: "Continuar", onPress: () => resolve(true) },
-      ]
-    );
+const confirmRuleWarnings = (
+  confirmDialog: (options: ConfirmDialogOptions) => Promise<boolean>,
+  messages: string[]
+) =>
+  confirmDialog({
+    title: "Conferencia de regulamento",
+    message: `Ha recomendacoes para este torneio:\n\n${formatRuleIssues(messages)}`,
+    confirmLabel: "Continuar",
+    cancelLabel: "Cancelar",
+    tone: "default",
+    onConfirm: async () => {},
   });
 
 const buildSnapshot = (values: EventFormSnapshot) => {
@@ -313,6 +317,7 @@ export default function EventDetailsScreen() {
       const warningIssues = ruleCheck.issues.filter((issue) => issue.severity === "warning");
       if (warningIssues.length) {
         const shouldContinue = await confirmRuleWarnings(
+          confirmDialog,
           warningIssues.map((issue) => issue.message)
         );
         if (!shouldContinue) return;
@@ -442,23 +447,7 @@ export default function EventDetailsScreen() {
         <ScrollView style={{ width: "100%" }} contentContainerStyle={{ gap: 10 }} showsVerticalScrollIndicator={false}>
           {error ? <Text style={{ color: colors.dangerText }}>{error}</Text> : null}
           {loading ? (
-            <View style={{ gap: 10 }}>
-              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
-                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
-              </View>
-              <ShimmerBlock style={{ height: 84, borderRadius: 10 }} />
-              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
-                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
-              </View>
-              <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
-                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
-                <ShimmerBlock style={{ flex: 1, height: 44, borderRadius: 10 }} />
-              </View>
-              <ShimmerBlock style={{ height: 40, borderRadius: 999 }} />
-              <ShimmerBlock style={{ height: 44, borderRadius: 10 }} />
-            </View>
+            <ScreenLoadingState />
           ) : (
             <>
               <View style={{ flexDirection: isRowLayout ? "row" : "column", gap: 8 }}>
@@ -631,31 +620,25 @@ export default function EventDetailsScreen() {
           onRequestClose={closeDetailDropdowns}
           panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {eventTypes.map((option) => {
-            const active = eventType === option;
-            return (
-              <AppPressable
-                key={option}
-                onPress={() => {
-                  setEventType(option);
-                  setShowEventTypeDropdown(false);
-                }}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  marginVertical: 3,
-                  backgroundColor: active ? colors.primaryBg : colors.card,
-                }}
-              >
-                <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
-                  {eventTypeLabel[option]}
-                </Text>
-              </AppPressable>
-            );
-          })}
-        </AnchoredDropdown>
+      >
+        {eventTypes.map((option) => {
+          const active = eventType === option;
+          return (
+            <AnchoredDropdownOption
+              key={option}
+              active={active}
+              onPress={() => {
+                setEventType(option);
+                setShowEventTypeDropdown(false);
+              }}
+            >
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
+                {eventTypeLabel[option]}
+              </Text>
+            </AnchoredDropdownOption>
+          );
+        })}
+      </AnchoredDropdown>
 
         <AnchoredDropdown
           visible={showSportDropdown}
@@ -668,31 +651,25 @@ export default function EventDetailsScreen() {
           onRequestClose={closeDetailDropdowns}
           panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {sportTypes.map((option) => {
-            const active = sport === option;
-            return (
-              <AppPressable
-                key={option}
-                onPress={() => {
-                  setSport(option);
-                  setShowSportDropdown(false);
-                }}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  marginVertical: 3,
-                  backgroundColor: active ? colors.primaryBg : colors.card,
-                }}
-              >
-                <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
-                  {sportTypeLabel[option]}
-                </Text>
-              </AppPressable>
-            );
-          })}
-        </AnchoredDropdown>
+      >
+        {sportTypes.map((option) => {
+          const active = sport === option;
+          return (
+            <AnchoredDropdownOption
+              key={option}
+              active={active}
+              onPress={() => {
+                setSport(option);
+                setShowSportDropdown(false);
+              }}
+            >
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "700" }}>
+                {sportTypeLabel[option]}
+              </Text>
+            </AnchoredDropdownOption>
+          );
+        })}
+      </AnchoredDropdown>
         </View>
       </ModalSheet>
     </SafeAreaView>

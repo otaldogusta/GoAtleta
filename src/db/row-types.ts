@@ -76,6 +76,29 @@ export type HiddenTemplateRow = {
   createdat: string;
 };
 
+export type TrainingSessionIntegrationRuleRow = {
+  id: string;
+  organization_id?: string | null;
+  source_session_id: string;
+  start_at: string;
+  end_at: string;
+  class_count?: number | null;
+  created_at: string;
+  updated_at?: string | null;
+};
+
+export type TrainingSessionIntegrationRuleRpcRow = TrainingSessionIntegrationRuleRow & {
+  class_ids?: string[] | null;
+};
+
+export type TrainingSessionIntegrationRuleClassRow = {
+  id: string;
+  rule_id: string;
+  class_id: string;
+  organization_id?: string | null;
+  created_at: string;
+};
+
 export type StudentRow = {
   id: string;
   name: string;
@@ -301,6 +324,97 @@ export type SessionLogRow = {
   photos?: string | null;
   pain_score?: number | null;
   createdat: string;
+};
+
+export type TrainingSessionRow = {
+  id: string;
+  organization_id?: string | null;
+  title?: string | null;
+  description?: string | null;
+  start_at: string;
+  end_at: string;
+  status: string;
+  type: string;
+  source: string;
+  plan_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TrainingSessionClassRow = {
+  id: string;
+  session_id: string;
+  class_id: string;
+  organization_id?: string | null;
+  created_at?: string | null;
+};
+
+export type TrainingSessionAttendanceRow = {
+  id: string;
+  session_id: string;
+  student_id: string;
+  class_id: string;
+  organization_id?: string | null;
+  status: string;
+  note?: string | null;
+  pain_score?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type KnowledgeBaseVersionRow = {
+  id: string;
+  organization_id?: string | null;
+  domain: string;
+  version_label: string;
+  description?: string | null;
+  status: string;
+  published_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgeSourceRow = {
+  id: string;
+  organization_id?: string | null;
+  knowledge_base_version_id: string;
+  domain: string;
+  title: string;
+  authors?: string | null;
+  source_year?: number | null;
+  edition?: string | null;
+  source_type: string;
+  source_url?: string | null;
+  citation_text?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgeRuleRow = {
+  id: string;
+  organization_id?: string | null;
+  knowledge_base_version_id: string;
+  domain: string;
+  rule_key: string;
+  rule_label?: string | null;
+  rule_kind: string;
+  status: string;
+  payload?: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgeRuleCitationRow = {
+  id: string;
+  organization_id?: string | null;
+  knowledge_rule_id: string;
+  knowledge_source_id?: string | null;
+  kb_document_id?: string | null;
+  pages?: string | null;
+  evidence?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ExerciseRow = {

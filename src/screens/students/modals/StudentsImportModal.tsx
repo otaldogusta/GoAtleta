@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +17,7 @@ import { useAppTheme } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
+import { useConfirmDialog } from "../../../ui/confirm-dialog";
 import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 
 type StudentsImportModalProps = {
@@ -273,7 +274,7 @@ const mapRawRowsToImport = (rawRows: string[][]): StudentImportRow[] => {
             base.birthDate = normalizeDate(raw);
             return;
           }
-          base[key] = raw;
+          (base as Record<string, string | number | undefined>)[key] = raw;
         });
       } else {
         base.name = String(cells[0] ?? "").trim();
@@ -360,6 +361,7 @@ export function StudentsImportModal({
   onImportApplied,
 }: StudentsImportModalProps) {
   const { colors } = useAppTheme();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const cardStyle = useModalCardStyle({
     maxWidth: 560,
     maxHeight: "80%",
@@ -450,35 +452,45 @@ export function StudentsImportModal({
   const confirmApply = useCallback(async () => {
     if (!organizationId || !fileInfo || !previewResult) return;
 
-    Alert.alert("Adicionar planilha", "Deseja realmente adicionar esta planilha no app?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Adicionar",
-        onPress: async () => {
-          setApplyLoading(true);
-          try {
-            const result = await applyStudentsSync({
-              organizationId,
-              policy: "misto",
-              sourceFilename: fileInfo.sourceFilename,
-              runId: previewResult.runId,
-            });
+    const shouldApply = await confirmDialog({
+      title: "Adicionar planilha",
+      message: "Deseja realmente adicionar esta planilha no app?",
+      confirmLabel: "Adicionar",
+      cancelLabel: "Cancelar",
+      tone: "default",
+      onConfirm: async () => {},
+    });
+    if (!shouldApply) return;
 
-            Alert.alert(
-              "Importacao concluida",
-              `Run ${result.runId} | C:${result.summary.create} U:${result.summary.update} X:${result.summary.conflict} S:${result.summary.skip} E:${result.summary.error}`
-            );
-            onImportApplied?.();
-            onClose();
-          } catch (error) {
-            await handleImportError(error);
-          } finally {
-            setApplyLoading(false);
-          }
-        },
-      },
-    ]);
-  }, [fileInfo, handleImportError, onClose, onImportApplied, organizationId, previewResult]);
+    setApplyLoading(true);
+    try {
+      const result = await applyStudentsSync({
+        organizationId,
+        policy: "misto",
+        sourceFilename: fileInfo.sourceFilename,
+        runId: previewResult.runId,
+      });
+
+      Alert.alert(
+        "Importacao concluida",
+        `Run ${result.runId} | C:${result.summary.create} U:${result.summary.update} X:${result.summary.conflict} S:${result.summary.skip} E:${result.summary.error}`
+      );
+      onImportApplied?.();
+      onClose();
+    } catch (error) {
+      await handleImportError(error);
+    } finally {
+      setApplyLoading(false);
+    }
+  }, [
+    confirmDialog,
+    fileInfo,
+    handleImportError,
+    onClose,
+    onImportApplied,
+    organizationId,
+    previewResult,
+  ]);
 
   const summary = previewResult?.summary ?? null;
   const summaryCards = summary

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
@@ -9,12 +9,12 @@ export type ConfirmDialogOptions = {
   message: string;
   confirmLabel: string;
   cancelLabel: string;
-  tone: "default" | "danger";
+  tone?: "default" | "danger";
   onConfirm: () => void | Promise<void>;
 };
 
 type ConfirmDialogContextValue = {
-  confirm: (options: ConfirmDialogOptions) => void;
+  confirm: (options: ConfirmDialogOptions) => Promise<boolean>;
 };
 
 type ResolvedConfirmOptions = Omit<ConfirmDialogOptions, "onConfirm">;
@@ -61,18 +61,36 @@ export function ConfirmDialogProvider({
   const { colors } = useAppTheme();
   const [options, setOptions] = useState<ConfirmDialogOptions | null>(null);
   const [dialogKey, setDialogKey] = useState(0);
+  const pendingResolveRef = useRef<((value: boolean) => void) | null>(null);
 
   const confirm = useCallback((next: ConfirmDialogOptions) => {
+    if (pendingResolveRef.current) {
+      pendingResolveRef.current(false);
+      pendingResolveRef.current = null;
+    }
     setOptions(next);
     setDialogKey((current) => current + 1);
+    return new Promise<boolean>((resolve) => {
+      pendingResolveRef.current = resolve;
+    });
   }, []);
 
   const handleConfirm = useCallback(() => {
     const current = options;
     setOptions(null);
+    const resolve = pendingResolveRef.current;
+    pendingResolveRef.current = null;
+    resolve?.(true);
     if (!current) return;
     void current.onConfirm();
   }, [options]);
+
+  const handleCancel = useCallback(() => {
+    setOptions(null);
+    const resolve = pendingResolveRef.current;
+    pendingResolveRef.current = null;
+    resolve?.(false);
+  }, []);
 
   const contextValue = useMemo(
     () => ({
@@ -95,7 +113,7 @@ export function ConfirmDialogProvider({
         <ModalSheet
           key={dialogKey}
           visible
-          onClose={() => setOptions(null)}
+          onClose={handleCancel}
           position="center"
           overlayZIndex={30000}
           backdropOpacity={0.7}
@@ -120,7 +138,7 @@ export function ConfirmDialogProvider({
           </View>
           <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
             <Pressable
-              onPress={() => setOptions(null)}
+              onPress={handleCancel}
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 14,
@@ -161,7 +179,7 @@ export function useConfirmDialog() {
   const context = useContext(ConfirmDialogContext);
   if (!context) {
     return {
-      confirm: () => {},
+      confirm: async () => false,
     };
   }
   return context;

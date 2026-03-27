@@ -10,7 +10,7 @@ import {
 } from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -38,6 +38,8 @@ import {
     useCopilotActions,
     useCopilotContext,
     useCopilotSignals,
+    type CopilotAction,
+    type CopilotContextData,
 } from "../src/copilot/CopilotProvider";
 import {
     buildNextClassSuggestion,
@@ -64,10 +66,16 @@ import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
-import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
 import { Pressable } from "../src/ui/Pressable";
+import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { useAppTheme } from "../src/ui/app-theme";
+
+const OrgMembersPanel = lazy(() =>
+  import("../src/screens/coordination/OrgMembersPanel").then((module) => ({
+    default: module.OrgMembersPanel,
+  }))
+);
 
 type CoordinationTab = "dashboard" | "members";
 
@@ -100,6 +108,27 @@ const parseTimeToMinutes = (value: string | null | undefined) => {
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
   return hour * 60 + minute;
 };
+
+function OrgMembersPanelFallback() {
+  const { colors } = useAppTheme();
+  return (
+    <View
+      style={{
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.card,
+        padding: 16,
+        gap: 12,
+      }}
+    >
+      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>Gerenciar membros</Text>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        Carregando dados de membros e permissões...
+      </Text>
+    </View>
+  );
+}
 
 const formatExecutiveSummaryText = (summary: ExecutiveSummaryResult) => {
   const highlights = summary.highlights.map((item) => `- ${item}`).join("\n");
@@ -1188,7 +1217,7 @@ export default function CoordinationScreen() {
     )
   );
 
-  const coordinationCopilotActions = useMemo(
+  const coordinationCopilotActions = useMemo<CopilotAction[]>(
     () =>
       activeTab !== "dashboard"
         ? []
@@ -1197,8 +1226,9 @@ export default function CoordinationScreen() {
               id: "signal_intervention_plan",
               title: "Plano de intervenção",
               description: "Gera plano tatico para o sinal selecionado.",
-              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
-              run: async (ctx) => {
+              requires: (ctx: CopilotContextData | null) =>
+                ctx?.activeSignal ? null : "Selecione um sinal primeiro.",
+              run: async (ctx: CopilotContextData | null) => {
                 if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalInterventionPlan(ctx.activeSignal);
                 return { message: "Plano de intervenção gerado e copiado." };
@@ -1208,8 +1238,9 @@ export default function CoordinationScreen() {
               id: "signal_parent_message",
               title: "Mensagem para pais",
               description: "Monta mensagem curta para comunicação com responsáveis.",
-              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
-              run: async (ctx) => {
+              requires: (ctx: CopilotContextData | null) =>
+                ctx?.activeSignal ? null : "Selecione um sinal primeiro.",
+              run: async (ctx: CopilotContextData | null) => {
                 if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalParentMessage(ctx.activeSignal);
                 return { message: "Mensagem para responsáveis copiada." };
@@ -1219,8 +1250,9 @@ export default function CoordinationScreen() {
               id: "signal_cause_analysis",
               title: "Analisar causas",
               description: "Executa análise estruturada de causa para o sinal.",
-              requires: (ctx) => (ctx?.activeSignal ? null : "Selecione um sinal primeiro."),
-              run: async (ctx) => {
+              requires: (ctx: CopilotContextData | null) =>
+                ctx?.activeSignal ? null : "Selecione um sinal primeiro.",
+              run: async (ctx: CopilotContextData | null) => {
                 if (!ctx?.activeSignal) return { message: "Selecione um sinal primeiro." };
                 await handleSignalCauseAnalysis(ctx.activeSignal);
                 return { message: "Análise de causa pronta e copiada." };
@@ -1313,8 +1345,10 @@ export default function CoordinationScreen() {
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ flex: 1, padding: 16 }}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <ScreenBackdrop />
+        <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+          <View style={{ flex: 1, padding: 16 }}>
           <View
             style={{
               borderRadius: 16,
@@ -1348,13 +1382,16 @@ export default function CoordinationScreen() {
               <Ionicons name="chevron-back" size={18} color={colors.text} />
             </Pressable>
           </View>
-        </View>
-      </SafeAreaView>
+          </View>
+        </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenBackdrop />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
       <View
         style={{
           paddingHorizontal: isDesktopLayout ? 20 : isCompactLayout ? 12 : 16,
@@ -1426,7 +1463,9 @@ export default function CoordinationScreen() {
 
       {activeTab === "members" ? (
         <View style={{ flex: 1 }}>
-          <OrgMembersPanel embedded />
+          <Suspense fallback={<OrgMembersPanelFallback />}>
+            <OrgMembersPanel embedded />
+          </Suspense>
         </View>
       ) : (
         <ScrollView
@@ -1724,6 +1763,7 @@ export default function CoordinationScreen() {
           )}
         </ScrollView>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
