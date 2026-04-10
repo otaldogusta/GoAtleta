@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 import {
     Animated,
     Platform,
@@ -184,7 +185,7 @@ const regulationRelativeLabel = (value: string | null | undefined, nowMs: number
 };
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
-  if (!value) return { message: "A??o conclu?da." };
+  if (!value) return { message: "Ação concluída." };
   if (typeof value === "string") return { message: value };
   return value;
 };
@@ -206,21 +207,21 @@ const extractEmbeddedErrorMessage = (value: string) => {
 
 const toFriendlyContextError = (value: string | null | undefined) => {
   const raw = String(value ?? "").trim();
-  if (!raw) return "Falha ao executar a a??o.";
+  if (!raw) return "Falha ao executar a ação.";
   const normalized = raw.toLowerCase();
   if (normalized.includes("entrada invalida") || normalized.includes("invalid input")) {
-    return "N?o consegui interpretar essa solicita??o no contexto atual.";
+    return "Não consegui interpretar essa solicitação no contexto atual.";
   }
   if (normalized.includes("timeout")) {
     return "A resposta demorou mais que o esperado. Tente novamente.";
   }
   if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
-    return "Falha de conex?o. Verifique sua internet e tente novamente.";
+    return "Falha de conexão. Verifique sua internet e tente novamente.";
   }
   if (normalized.includes("token") || normalized.includes("auth")) {
-    return "Sess?o expirada. Fa?a login novamente.";
+    return "Sessão expirada. Faça login novamente.";
   }
-  return "Falha ao executar a a??o.";
+  return "Falha ao executar a ação.";
 };
 
 const buildHistoryItem = (params: {
@@ -445,23 +446,23 @@ const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
 
   if (actionId === "nfc_summary") {
     if (!nfcSignals.length && !repeatedAbsenceSignals.length) {
-      return "No contexto NFC atual, n?o h? alerta urgente.";
+      return "No contexto NFC atual, não há alerta urgente.";
     }
-    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presen?a incomum e ${repeatedAbsenceSignals.length} alerta(s) de aus?ncia recorrente.`;
+    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presença incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausência recorrente.`;
   }
 
   if (actionId === "nfc_actions") {
     if (nfcSignals.length > 0) {
-      return "Pr?ximos passos: revisar tags com leitura duplicada, validar v?nculo da turma ativa e sincronizar pend?ncias.";
+      return "Próximos passos: revisar tags com leitura duplicada, validar vínculo da turma ativa e sincronizar pendências.";
     }
-    return "Pr?ximos passos: manter leitura ativa, revisar v?nculos de tag e confirmar sincroniza??o ao final da sess?o.";
+    return "Próximos passos: manter leitura ativa, revisar vínculos de tag e confirmar sincronização ao final da sessão.";
   }
 
   if (actionId === "nfc_duplicates") {
     if (nfcSignals.length > 0) {
       return `Duplicidades em foco: ${nfcSignals[0].summary}`;
     }
-    return "Sem padr?o forte de duplicidade no contexto NFC atual.";
+    return "Sem padrão forte de duplicidade no contexto NFC atual.";
   }
 
   return null;
@@ -515,6 +516,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
   const lastComputedSnapshotRef = useRef<CentralSnapshot | null>(null);
   const currentSnapshotRef = useRef<CentralSnapshot | null>(null);
+  const operationalContextRef = useRef<OperationalContextResult | null>(null);
 
   const [state, setState] = useState<CopilotState>({
     context: null,
@@ -540,11 +542,25 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
   const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  markRender("screen.copilot.render.provider", { open: state.open ? 1 : 0 });
+
+  useRenderDiagnostic("CopilotProvider", {
+    "state.open": state.open,
+    "state.hasUnreadUpdates": state.hasUnreadUpdates,
+    "state.unreadCount": state.unreadCount,
+    "state.signals.length": state.signals.length,
+    "state.actions.length": state.actions.length,
+    "state.history.length": state.history.length,
+    activeOrganizationId,
+    pathname,
+  });
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    markRender("screen.copilot.render.provider", { open: state.open ? 1 : 0 });
+  }, [state.open]);
 
   const {
     contextRegistryRef,
@@ -714,6 +730,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       state.signals,
     ]
   );
+  operationalContextRef.current = operationalContext;
 
   const currentSnapshot = useMemo(() => {
     return buildCentralSnapshot({
@@ -752,12 +769,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     }
     clearPendingReplyTimer();
     setAssistantTyping(false);
+    const currentState = stateRef.current;
+    const currentOpCtx = operationalContextRef.current;
     setContextPreview({
       actionTitle: "",
       message: buildDefaultContextReply({
-        screen: state.context?.screen ?? null,
-        panel: operationalContext.panel,
-        actions: state.actions,
+        screen: currentState.context?.screen ?? null,
+        panel: currentOpCtx?.panel ?? operationalContext.panel,
+        actions: currentState.actions,
       }),
     });
     setInsightsView({ mode: "root" });
@@ -768,7 +787,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       hasUnreadUpdates: false,
       unreadCount: 0,
     }));
-  }, [clearPendingReplyTimer, operationalContext.panel, state.actions, state.context?.screen]);
+  }, [clearPendingReplyTimer, operationalContext.panel]);
 
   const close = useCallback(() => {
     clearPendingReplyTimer();
@@ -854,7 +873,20 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       state,
       operationalContext,
     }),
-    [operationalContext, state]
+    [
+      operationalContext,
+      state.context,
+      state.actions,
+      state.signals,
+      state.regulationUpdates,
+      state.regulationRuleSets,
+      state.selectedSignalId,
+      state.open,
+      state.runningActionId,
+      state.history,
+      state.hasUnreadUpdates,
+      state.unreadCount,
+    ]
   );
 
   const actionsValue = useMemo<CopilotActionsContextValue>(
@@ -955,31 +987,39 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     if (insightsView.mode === "category") {
       if (insightsView.category === "regulation") {
         if (!unreadRegulationCount) {
-          setInsightsView({ mode: "root" });
+          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
         }
         return;
       }
       const signalCategory = insightsView.category as SignalInsightsCategory;
       if (!signalsByCategory[signalCategory].length) {
-        setInsightsView({ mode: "root" });
+        setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
       }
       return;
     }
     if (insightsView.category === "regulation") {
       if (detailRegulationUpdate) return;
       if (unreadRegulationCount) {
-        setInsightsView({ mode: "category", category: "regulation" });
+        setInsightsView((prev) =>
+          prev.mode === "category" && prev.category === "regulation"
+            ? prev
+            : { mode: "category", category: "regulation" }
+        );
       } else {
-        setInsightsView({ mode: "root" });
+        setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
       }
       return;
     }
     if (!detailSignal) {
       const signalCategory = insightsView.category as SignalInsightsCategory;
       if (signalsByCategory[signalCategory].length) {
-        setInsightsView({ mode: "category", category: insightsView.category });
+        setInsightsView((prev) =>
+          prev.mode === "category" && prev.category === insightsView.category
+            ? prev
+            : { mode: "category", category: insightsView.category }
+        );
       } else {
-        setInsightsView({ mode: "root" });
+        setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
       }
     }
   }, [detailRegulationUpdate, detailSignal, insightsView, signalsByCategory, unreadRegulationCount]);
@@ -1047,11 +1087,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           : colors.muted;
   const selectedSeverityLabel =
     activeDrawerSignal?.severity === "critical"
-      ? "Cr?tico"
+      ? "Crítico"
       : activeDrawerSignal?.severity === "high"
         ? "Alto"
         : activeDrawerSignal?.severity === "medium"
-          ? "M?dio"
+          ? "Médio"
           : "Baixo";
   const activeCategoryLabel = activeCategoryForActions
     ? categoryLabelById[activeCategoryForActions]

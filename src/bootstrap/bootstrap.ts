@@ -1,10 +1,13 @@
 import * as Sentry from "@sentry/react-native";
+import type { PedagogicalDimensionsConfig } from "../config/pedagogical-dimensions-config";
 import { smartSync } from "../core/smart-sync";
 import { flushPendingWrites } from "../db/seed";
 import { initDb } from "../db/sqlite";
+import { loadPedagogicalConfig } from "./pedagogical-config-loader";
 
 export type BootstrapResult = {
   session?: null;
+  pedagogicalConfig?: PedagogicalDimensionsConfig | null;
 };
 
 export async function bootstrapApp(): Promise<BootstrapResult> {
@@ -20,7 +23,6 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
       await initDb();
       const dbMs = Date.now() - dbStart;
       if (__DEV__) {
-         
         console.log(`[bootstrap] initDb: ${dbMs}ms`);
       }
       Sentry.addBreadcrumb({
@@ -28,6 +30,20 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         message: `initDb: ${dbMs}ms`,
         level: "info",
       });
+
+      const configStart = Date.now();
+      const { config: pedagogicalConfig, error: configError } = await loadPedagogicalConfig();
+      const configMs = Date.now() - configStart;
+      if (__DEV__) {
+        console.log(
+          `[bootstrap] loadPedagogicalConfig: ${configMs}ms${configError ? " (with fallback)" : ""}`
+        );
+      }
+      if (configError) {
+        Sentry.captureException(configError, {
+          tags: { bootstrap_phase: "pedagogical-config" },
+        });
+      }
 
       void (async () => {
         try {
@@ -40,13 +56,12 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         }
       })();
 
-      return {};
+      return { pedagogicalConfig };
     })(),
     timeout,
   ]);
   const totalMs = Date.now() - started;
   if (__DEV__) {
-     
     console.log(`[bootstrap] total: ${totalMs}ms`);
   }
   Sentry.addBreadcrumb({

@@ -8,9 +8,11 @@ import type {
   KnowledgeRuleStatus,
   KnowledgeSource,
   KnowledgeSourceType,
+  TrainingPlanPedagogy,
   WeeklyAutopilotKnowledgeContext,
   WeeklyAutopilotKnowledgeReference,
 } from "../core/models";
+import { applyOverrideLearning } from "../core/override-learning";
 import {
   getActiveOrganizationId,
   isAuthError,
@@ -26,6 +28,7 @@ import type {
   KnowledgeRuleRow,
   KnowledgeSourceRow,
 } from "./row-types";
+import { getOverrideStatsByRule } from "./training";
 
 const hashString = (value: string) => {
   let hash = 2166136261;
@@ -75,6 +78,7 @@ const normalizeRuleStatus = (value: string | null | undefined): KnowledgeRuleSta
 
 const normalizeRuleKind = (value: string | null | undefined): KnowledgeRuleKind => {
   const normalized = normalizeText(value);
+  if (normalized === "methodology") return "methodology";
   if (normalized === "progression") return "progression";
   if (normalized === "safety") return "safety";
   if (normalized === "assessment") return "assessment";
@@ -85,6 +89,185 @@ const normalizeRuleKind = (value: string | null | undefined): KnowledgeRuleKind 
 
 const toPayload = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const toStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeText(String(item ?? ""))).filter(Boolean);
+  }
+  const text = normalizeText(typeof value === "string" ? value : "");
+  return text ? [text] : [];
+};
+
+const toNumberArray = (value: unknown): number[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item));
+};
+
+const matchesAny = (candidate: string, allowed: string[]) =>
+  allowed.length === 0 || allowed.includes(candidate);
+
+const buildMethodologyMatch = (
+  rule: KnowledgeRule,
+  options: {
+    context?: string | null;
+    modality?: string | null;
+    level?: string | number | null;
+  }
+) => {
+  const payload = rule.payload ?? {};
+  const context = normalizeText(options.context);
+  const modality = normalizeText(options.modality);
+  const levelText = normalizeText(
+    typeof options.level === "number" ? String(options.level) : (options.level ?? "")
+  );
+  const contexts = toStringArray(payload.contexts ?? payload.context);
+  const modalities = toStringArray(payload.modalities ?? payload.modality);
+  const levelsText = toStringArray(payload.levels ?? payload.level);
+  const levelsNumber = toNumberArray(payload.levels ?? payload.level);
+
+  const matchedContext = contexts.length === 0 ? true : matchesAny(context, contexts);
+  const matchedModality = modalities.length === 0 ? true : matchesAny(modality, modalities);
+  const matchedLevel =
+    !levelText || (levelsText.length === 0 && levelsNumber.length === 0)
+      ? true
+      : levelsText.includes(levelText) || levelsNumber.includes(Number(levelText));
+
+  return {
+    contexts,
+    modalities,
+    levelsText,
+    levelsNumber,
+    matchedContext,
+    matchedModality,
+    matchedLevel,
+  };
+};
+
+const pickMethodologyScore = (
+  rule: KnowledgeRule,
+  options: {
+    context?: string | null;
+    modality?: string | null;
+    level?: string | number | null;
+  }
+) => {
+  if (rule.ruleKind !== "methodology" || rule.status !== "active") return Number.NEGATIVE_INFINITY;
+
+  const payload = rule.payload ?? {};
+  const context = normalizeText(options.context);
+  const modality = normalizeText(options.modality);
+  const levelText = normalizeText(
+    typeof options.level === "number" ? String(options.level) : (options.level ?? "")
+  );
+  const match = buildMethodologyMatch(rule, options);
+
+  if (!match.matchedContext || !match.matchedModality || !match.matchedLevel) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const priority = Number(payload.priority);
+  let score = Number.isFinite(priority) ? priority : 0;
+  if (payload.default === true) score += 100;
+  if (match.contexts.length > 0 && context) score += 10;
+  if (match.modalities.length > 0 && modality) score += 10;
+  if ((match.levelsText.length > 0 || match.levelsNumber.length > 0) && levelText) score += 10;
+  return score;
+};
+
+export async function resolveActiveMethodology(options: {
+  organizationId?: string | null;
+  classId?: string | null;
+  preferredDomains?: KnowledgeBaseDomain[];
+  context?: string | null;
+  modality?: string | null;
+  level?: string | number | null;
+} = {}): Promise<TrainingPlanPedagogy["methodology"] | null> {
+  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+  if (!organizationId) return null;
+
+  const preferredDomains = options.preferredDomains?.length
+    ? options.preferredDomains
+    : (["youth_training", "general"] as KnowledgeBaseDomain[]);
+
+  for (const domain of preferredDomains) {
+    const version = await getActiveKnowledgeBaseVersion({ organizationId, domain });
+    if (!version) continue;
+
+    const rules = await getKnowledgeRules({
+      organizationId,
+      knowledgeBaseVersionId: version.id,
+    });
+    const rankedRules = [...rules]
+      .filter((item) => item.ruleKind === "methodology" && item.status === "active")
+      .map((item) => ({
+        rule: item,
+        score: pickMethodologyScore(item, options),
+        match: buildMethodologyMatch(item, options),
+      }))
+      .filter((item) => Number.isFinite(item.score))
+      .sort((left, right) => right.score - left.score);
+
+    let resolvedRules = rankedRules;
+    const classId = normalizeText(options.classId);
+    if (classId) {
+      const overrideStats = await getOverrideStatsByRule(classId, { organizationId });
+      const learnedRules = applyOverrideLearning(
+        rankedRules.map((item) => ({
+          ruleId: item.rule.id,
+          ruleKey: item.rule.ruleKey,
+          ruleLabel: item.rule.ruleLabel || undefined,
+          score: item.score,
+        })),
+        overrideStats,
+        2
+      );
+      const scoreByRuleId = new Map(learnedRules.map((item) => [item.ruleId, item.score]));
+      resolvedRules = rankedRules
+        .map((item) => ({
+          ...item,
+          score: scoreByRuleId.get(item.rule.id) ?? item.score,
+        }))
+        .sort((left, right) => right.score - left.score);
+    }
+
+    const selected = resolvedRules[0];
+    const rule = selected?.rule;
+
+    if (!rule) continue;
+
+    const constraints = toStringArray(rule.payload.constraints ?? rule.payload.constraintHighlights);
+    const approach = normalizeText(
+      typeof rule.payload.approach === "string" ? rule.payload.approach : rule.ruleKey
+    );
+
+    return {
+      approach: approach || rule.ruleKey,
+      kbRuleKey: rule.id,
+      source: "internal_kb",
+      constraints: constraints.length ? constraints : undefined,
+      reasoning: {
+        matchedContext: selected.match.matchedContext,
+        matchedModality: selected.match.matchedModality,
+        matchedLevel: selected.match.matchedLevel,
+        score: selected.score,
+        ruleLabel: rule.ruleLabel || undefined,
+        domain: version.domain,
+        knowledgeBaseVersionId: version.id,
+        knowledgeBaseVersionLabel: version.versionLabel,
+        alternatives: resolvedRules.slice(1, 4).map((item) => ({
+          ruleId: item.rule.id,
+          ruleKey: item.rule.ruleKey,
+          ruleLabel: item.rule.ruleLabel || undefined,
+          score: item.score,
+        })),
+      },
+    };
+  }
+
+  return null;
+}
 
 const mapVersionRow = (row: KnowledgeBaseVersionRow): KnowledgeBaseVersion => ({
   id: row.id,

@@ -10,7 +10,6 @@ import {
     useState
 } from "react";
 import {
-    ActivityIndicator,
     Animated,
     KeyboardAvoidingView,
     Platform,
@@ -37,6 +36,7 @@ export default function LoginScreen() {
   const useNativeDriver = Platform.OS !== "web";
 
   const solidInputBg = colors.inputBg;
+  const loginInputBg = mode === "dark" ? "rgba(18, 28, 48, 0.92)" : solidInputBg;
   const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
   const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
   const router = useRouter();
@@ -428,7 +428,7 @@ export default function LoginScreen() {
                   borderWidth: 1,
                   borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
                   borderRadius: 14,
-                  backgroundColor: solidInputBg,
+                  backgroundColor: loginInputBg,
                   overflow: "hidden",
                   paddingHorizontal: 12,
                   paddingVertical: 10,
@@ -476,9 +476,9 @@ export default function LoginScreen() {
                       paddingHorizontal: 12,
                       paddingVertical: 10,
                       borderRadius: 14,
-                      backgroundColor: solidInputBg,
+                      backgroundColor: loginInputBg,
                       overflow: "hidden",
-                      minHeight: 48,
+                      height: 48,
                     }}
                   >
                     <TextInput
@@ -504,18 +504,24 @@ export default function LoginScreen() {
                         backgroundColor: "transparent",
                       }}
                     />
-                    { password.length > 0 ? (
-                      <Pressable
-                        onPress={() => setShowPassword((prev) => !prev)}
-                        style={{ paddingLeft: 8, paddingVertical: 8 }}
-                      >
-                        <Ionicons
-                          name={showPassword ? "eye-off" : "eye"}
-                          size={18}
-                          color={colors.muted}
-                        />
-                      </Pressable>
-                    ) : null}
+                    <Pressable
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      disabled={password.length === 0}
+                      style={{
+                        width: 34,
+                        height: 34,
+                        marginLeft: 8,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: password.length > 0 ? 1 : 0,
+                      }}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off" : "eye"}
+                        size={18}
+                        color={colors.muted}
+                      />
+                    </Pressable>
                   </View>
 
                   { message ? (
@@ -713,39 +719,6 @@ export default function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-      { busy && !showReset ? (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            backgroundColor:
-              mode === "dark" ? "rgba(11, 18, 32, 0.48)" : "rgba(15, 23, 42, 0.16)",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <View
-            style={{
-              paddingHorizontal: 20,
-              paddingVertical: 14,
-              borderRadius: 16,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <ActivityIndicator color={colors.primaryBg} />
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Entrando...
-            </Text>
-          </View>
-        </View>
-      ) : null}
     </View>
   );
 }

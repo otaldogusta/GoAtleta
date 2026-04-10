@@ -1,6 +1,9 @@
+import { toPdfCoachingText, toPdfText } from "../pdf-coaching-text";
+
 export type SessionBlock = {
   title: string;
   time: string;
+  summary?: string;
   items: {
     name: string;
     duration?: string;
@@ -14,6 +17,7 @@ export type SessionPlanPdfData = {
   className: string;
   ageGroup?: string;
   unitLabel?: string;
+  genderLabel?: string;
   dateLabel: string;
   title?: string;
   objective?: string;
@@ -32,21 +36,31 @@ const esc = (value: string) =>
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
 
-const asText = (value: unknown) => {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  return String(value);
-};
+const asText = (value: unknown) => toPdfText(value);
+
+const asCoachingText = (value: unknown) => toPdfCoachingText(value);
 
 const nl2br = (value: unknown) => esc(asText(value)).replace(/\n/g, "<br/>");
 
 const buildOrderedLines = (rows: string[]) =>
   rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
 
+const resolveBlockDescriptionLines = (block: SessionBlock) => {
+  const blockItems = Array.isArray(block?.items) ? block.items : [];
+  const descriptionRows = blockItems
+    .map((item) => asCoachingText(item?.notes).trim())
+    .filter(Boolean);
+
+  if (descriptionRows.length) return descriptionRows;
+
+  const blockSummary = asCoachingText(block?.summary).trim();
+  return blockSummary ? [blockSummary] : [];
+};
+
 export const sessionPlanHtml = (data: SessionPlanPdfData) => {
-  const objective = asText(data?.objective);
-  const title = asText(data?.title);
-  const notes = asText(data?.notes);
+  const objective = asCoachingText(data?.objective);
+  const title = asCoachingText(data?.title);
+  const notes = asCoachingText(data?.notes);
   const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
 
   const blockRowsHtml = blocks
@@ -55,13 +69,9 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       const time = asText(block?.time) || "-";
       const blockItems = Array.isArray(block?.items) ? block.items : [];
       const activities = buildOrderedLines(
-        blockItems.map((item) => asText(item?.name).trim()).filter(Boolean)
+        blockItems.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
       );
-      const descriptions = buildOrderedLines(
-        blockItems
-          .map((item) => asText(item?.notes).trim() || asText(item?.name).trim())
-          .filter(Boolean)
-      );
+      const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
 
       return `
       <tr>
@@ -86,16 +96,40 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           background: #fff;
         }
         h1 {
-          text-align: center;
           font-size: 16px;
-          margin: 0 0 16px 0;
+          margin: 0;
           letter-spacing: 0.4px;
         }
-        .meta {
-          margin-top: 10px;
-          font-size: 12px;
-          margin-bottom: 12px;
-          line-height: 1.45;
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+          margin-bottom: 14px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #e6e6e6;
+        }
+        .header-left {
+          flex: 1;
+          min-width: 0;
+        }
+        .header-meta {
+          margin-top: 8px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 14px;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+        .meta-item {
+          display: flex;
+          gap: 4px;
+          min-width: 220px;
+        }
+        .meta-label {
+          color: #666;
+          font-weight: 700;
+          white-space: nowrap;
         }
         table {
           width: 100%;
@@ -153,13 +187,30 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
     </head>
 
     <body>
-      <h1>PLANEJAMENTO DE AULA DO DIA</h1>
-      <div class="meta">
-        <strong>Turma:</strong> ${esc(asText(data?.className))}${
-          asText(data?.ageGroup) ? ` (${esc(asText(data?.ageGroup))})` : ""
-        }<br/>
-        <strong>Data:</strong> ${esc(asText(data?.dateLabel))}
-        ${asText(data?.unitLabel) ? `<br/><strong>Unidade:</strong> ${esc(asText(data?.unitLabel))}` : ""}
+      <div class="header">
+        <div class="header-left">
+          <h1>PLANEJAMENTO DE AULA DO DIA</h1>
+          <div class="header-meta">
+            <div class="meta-item">
+              <span class="meta-label">Turma:</span>
+              <span>${esc(asText(data?.className))}${
+                asText(data?.ageGroup) ? ` (${esc(asText(data?.ageGroup))})` : ""
+              }</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Data:</span>
+              <span>${esc(asText(data?.dateLabel))}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Unidade:</span>
+              <span>${esc(asText(data?.unitLabel) || "-")}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Gênero:</span>
+              <span>${esc(asText(data?.genderLabel) || "-")}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <table>
@@ -192,5 +243,4 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   </html>
   `;
 };
-
 

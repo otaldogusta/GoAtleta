@@ -1,4 +1,5 @@
 import type { ClassModality } from "./class-modality";
+import type { PedagogicalApproachDetection } from "./methodology/pedagogical-approach-detector";
 
 export type AgeBand = string;
 export type Goal = string;
@@ -147,6 +148,7 @@ export type KnowledgeSourceType = "guideline" | "book" | "paper" | "web" | "poli
 export type KnowledgeRuleStatus = "draft" | "review" | "active" | "archived";
 export type KnowledgeRuleKind =
   | "recommendation"
+  | "methodology"
   | "progression"
   | "safety"
   | "assessment"
@@ -208,6 +210,231 @@ export type KnowledgeRuleCitation = {
   updatedAt: string;
 };
 
+export type TrainingPlanObjectiveType =
+  | "tecnico"
+  | "tatico"
+  | "motor"
+  | "fisico"
+  | "cognitivo";
+
+export type TrainingPlanDevelopmentStage =
+  | "fundamental"
+  | "especializado"
+  | "aplicado";
+
+export type PedagogicalPeriodizationModel = "formacao" | "rendimento" | "hibrido";
+
+export type PedagogicalPeriodizationLoad = {
+  level: "baixo" | "medio" | "alto";
+  trend?: "subindo" | "estavel" | "descendo";
+};
+
+export type PeriodizationContext = {
+  model: PedagogicalPeriodizationModel;
+  objective: string;
+  focus: string;
+  constraints?: string[];
+  pedagogicalIntent?: string;
+  load?: PedagogicalPeriodizationLoad;
+  cyclePhase?: string;
+  source?: "class_plan" | "competitive_profile" | "default";
+};
+
+/**
+ * Known convenience values for methodology approach.
+ * Extend by adding to KnowledgeRuleRow (rule_kind = "methodology") — no code change needed.
+ */
+export type KnownMethodologyApproach = "analitico" | "global" | "jogo" | "hibrido";
+
+export type TrainingPlanActivity = {
+  name: string;
+  description?: string;
+  objective?: string;
+  criteria?: TrainingPlanCriterion[];
+  source?: "ai" | "fallback";
+  confidence?: number;
+  constraints?: string[];
+  progression?: string;
+};
+
+export type TrainingPlanCriterion = {
+  type: "consistencia" | "precisao" | "decisao" | "eficiencia";
+  description: string;
+  threshold?: number;
+};
+
+export type TrainingPlanSessionBlock = {
+  summary?: string;
+  activities: TrainingPlanActivity[];
+};
+
+export type TrainingPlanPedagogy = {
+  periodizationContext?: PeriodizationContext;
+  periodization?: {
+    phase: string;
+    theme: string;
+    technicalFocus: string;
+    physicalFocus: string;
+    constraints?: string;
+    rpeTarget?: string;
+    weekNumber?: number;
+    startDate?: string;
+  };
+  sessionObjective?: string;
+  learningObjectives?: {
+    general: string;
+    specific: string[];
+    cap?: {
+      conceitual: string[];
+      procedimental: string[];
+      atitudinal: string[];
+    };
+    successCriteria?: string[];
+    pedagogicalGuidelines?: string[];
+  };
+  adaptation?: {
+    achieved: boolean;
+    performanceScore: number;
+    targetScore: number;
+    adjustment: "increase" | "maintain" | "regress";
+    evidence: string;
+    sampleConfidence?: "baixo" | "medio" | "alto";
+    learningVelocity?: number;
+    consistencyScore?: number;
+    deltaFromPrevious?: number | null;
+    gap?: {
+      value: number;
+      level: "residual" | "pequeno" | "moderado" | "critico";
+      direction: "deficit" | "superavit";
+    };
+    telemetry?: {
+      decisionId: string;
+      decision: {
+        suggested: "increase" | "maintain" | "regress";
+        applied: "increase" | "maintain" | "regress";
+        wasFollowed: boolean;
+      };
+      context: {
+        gapLevel: "residual" | "pequeno" | "moderado" | "critico";
+        trend: "subindo" | "estagnado" | "caindo";
+        sampleConfidence: "baixo" | "medio" | "alto";
+        consistencyScore: number;
+        learningVelocity: number;
+      };
+      reason?: {
+        type?: "health" | "readiness" | "context" | "other";
+        note?: string;
+      };
+      meta: {
+        sessionId: string;
+        classId: string;
+      };
+      timestamp: string;
+    };
+  };
+  skillLearningState?: {
+    skill: VolleyballSkill;
+    level: "instavel" | "consolidando" | "consistente";
+    trend: "subindo" | "estagnado" | "caindo";
+  };
+  blocks?: {
+    warmup: TrainingPlanSessionBlock;
+    main: TrainingPlanSessionBlock;
+    cooldown: TrainingPlanSessionBlock;
+  };
+  objective?: {
+    type: TrainingPlanObjectiveType;
+    description: string;
+  };
+  focus?: {
+    skill: VolleyballSkill;
+    subSkill?: string;
+  };
+  progression?: {
+    dimension: ProgressionDimension;
+  };
+  developmentStage?: TrainingPlanDevelopmentStage;
+  load?: {
+    intendedRPE: number;
+    volume: "baixo" | "moderado" | "alto";
+  };
+  methodology?: {
+    /**
+     * Known values: KnownMethodologyApproach.
+     * Can also be any KnowledgeRuleRow.rule_key (kind = "methodology") for custom approaches.
+     * Decoupled from a fixed author/framework — updated via KB, not via code.
+     */
+    approach: KnownMethodologyApproach | string;
+    /** Optional direct link to a KnowledgeRuleRow.id for full audit trail. */
+    kbRuleKey?: string;
+    /** Source of the methodology definition — "internal_kb" | "manual" | "manual_override". */
+    source?: "internal_kb" | "manual" | "manual_override";
+    constraints?: string[];
+    reasoning?: {
+      matchedContext: boolean;
+      matchedModality: boolean;
+      matchedLevel: boolean;
+      score: number;
+      overridden?: boolean;
+      ruleLabel?: string;
+      domain?: KnowledgeBaseDomain;
+      knowledgeBaseVersionId?: string;
+      knowledgeBaseVersionLabel?: string;
+      alternatives?: Array<{
+        ruleId: string;
+        ruleKey: string;
+        ruleLabel?: string;
+        score: number;
+      }>;
+    };
+  };
+  pedagogicalApproach?: PedagogicalApproachDetection;
+  /**
+   * Pedagogical dimensions system - science-based guidance on session design.
+   * v1: Metadata only (for analytics, not yet driving decisions).
+   */
+  dimensions?: {
+    base: {
+      variability: "baixa" | "media" | "alta";
+      representativeness: "baixa" | "media" | "alta";
+      decisionMaking: "baixa" | "media" | "alta";
+      taskComplexity: "baixa" | "media" | "alta";
+      feedbackFrequency: "baixa" | "media" | "alta";
+    };
+    refined?: {
+      variability: "baixa" | "media" | "alta";
+      representativeness: "baixa" | "media" | "alta";
+      decisionMaking: "baixa" | "media" | "alta";
+      taskComplexity: "baixa" | "media" | "alta";
+      feedbackFrequency: "baixa" | "media" | "alta";
+      adjustments?: Array<{
+        dimension: string;
+        oldLevel: "baixa" | "media" | "alta";
+        newLevel: "baixa" | "media" | "alta";
+        reason: string;
+        delta: number;
+        timestamp: string;
+      }>;
+      refinedAt?: string;
+    };
+    derivedAt?: string;
+    confidenceLevel?: "alta" | "media" | "baixa";
+  };
+  override?: {
+    type: "methodology";
+    fromRuleId: string;
+    toRuleId: string;
+    fromApproach: string;
+    toApproach: string;
+    reason?: {
+      text?: string;
+      tags?: string[];
+    };
+    userId?: string;
+    createdAt: string;
+  };
+};
+
 export type TrainingPlan = {
   id: string;
   classId: string;
@@ -222,6 +449,15 @@ export type TrainingPlan = {
   applyDays?: number[];
   applyDate?: string;
   createdAt: string;
+  version?: number;
+  status?: "generated" | "final";
+  origin?: "auto" | "manual" | "manual_apply" | "edited_auto" | "imported";
+  inputHash?: string;
+  generatedAt?: string;
+  finalizedAt?: string;
+  parentPlanId?: string;
+  previousVersionId?: string;
+  pedagogy?: TrainingPlanPedagogy;
 };
 
 export type TrainingTemplate = {

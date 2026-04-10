@@ -3,9 +3,6 @@ import { useCallback } from "react";
 import {
   toCompetitiveClassPlans,
 } from "../../../core/competitive-periodization";
-import {
-  toClassPlans,
-} from "../../../core/periodization-generator";
 import type {
   ClassCalendarException,
   ClassCompetitiveProfile,
@@ -13,6 +10,13 @@ import type {
   ClassPlan,
 } from "../../../core/models";
 import type { PeriodizationModel, SportProfile } from "../../../core/periodization-basics";
+import {
+  isAnnualCycle,
+} from "../../../core/periodization-basics";
+import {
+  toAnnualClassPlans,
+  toClassPlans,
+} from "../../../core/periodization-generator";
 import {
   deleteClassPlansByClass,
   getClassPlansByClass,
@@ -87,6 +91,17 @@ export function useGeneratePlansMode({
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 profile: competitiveProfile!,
               })
+            : isAnnualCycle(cycleLength)
+              ? toAnnualClassPlans({
+                  classId: selectedClass.id,
+                  ageBand,
+                  cycleLength,
+                  startDate: activeCycleStartDate,
+                  mvLevel: selectedClass.mvLevel,
+                  model: periodizationModel,
+                  sessionsPerWeek: weeklySessions,
+                  sport: sportProfile,
+                })
             : toClassPlans({
                 classId: selectedClass.id,
                 ageBand,

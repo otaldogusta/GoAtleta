@@ -129,7 +129,7 @@ export function useRegulationUpdates<S extends RegulationStatePatch>(
         const topicsPreview = update.changedTopics.slice(0, 2).join(", ");
         const impactPreview = update.impactAreas.slice(0, 2).join(", ");
         const body = topicsPreview
-          ? `Mudan?as em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
+          ? `Mudanças em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
           : update.diffSummary;
         await addNotification("Regulamento atualizado", body);
       }

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -90,8 +90,8 @@ const confirmRuleWarnings = (
   messages: string[]
 ) =>
   confirmDialog({
-    title: "Conferencia de regulamento",
-    message: `Ha recomendacoes para este torneio:\n\n${formatRuleIssues(messages)}`,
+    title: "Conferência de regulamento",
+    message: `Há recomendações para este torneio:\n\n${formatRuleIssues(messages)}`,
     confirmLabel: "Continuar",
     cancelLabel: "Cancelar",
     tone: "default",
@@ -618,7 +618,6 @@ export default function EventDetailsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeDetailDropdowns}
-          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
       >
         {eventTypes.map((option) => {
@@ -649,7 +648,6 @@ export default function EventDetailsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeDetailDropdowns}
-          panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
       >
         {sportTypes.map((option) => {

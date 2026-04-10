@@ -1,3 +1,5 @@
+import { getClassModalityLabel, resolveClassModality } from "./class-modality";
+
 export type IntakeRiskStatus = "apto" | "atencao" | "revisar";
 
 export type AthleteIntake = {
@@ -106,17 +108,20 @@ const toSex = (value: string): AthleteIntake["sex"] => {
 };
 
 const containsVolleyball = (modalities: string[]) =>
-  modalities.some((item) => {
-    const normalized = toKey(item);
-    return normalized.includes("volei") || normalized.includes("voleibol");
-  });
+  normalizeAthleteModalities(modalities).includes("voleibol");
 
 const hasMultiModality = (modalities: string[]) =>
-  new Set(modalities.map((item) => toKey(item))).size > 1;
+  normalizeAthleteModalities(modalities).length > 1;
 
 const unique = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
 
-export const normalizeAthleteModality = (value: string) => toKey(value);
+const canonicalizeAthleteModality = (value: string) =>
+  resolveClassModality(value) ?? toKey(value);
+
+const normalizeAthleteModalities = (values: string[]) =>
+  unique(values.map((value) => canonicalizeAthleteModality(value)));
+
+export const normalizeAthleteModality = (value: string) => canonicalizeAthleteModality(value);
 
 export const extractDetectedModalities = (rows: RawRow[]) => {
   const counts = new Map<string, { label: string; count: number }>();
@@ -133,7 +138,10 @@ export const extractDetectedModalities = (rows: RawRow[]) => {
         current.count += 1;
         return;
       }
-      counts.set(normalized, { label: modality.trim(), count: 1 });
+      counts.set(normalized, {
+        label: getClassModalityLabel(normalized) || modality.trim(),
+        count: 1,
+      });
     });
   });
 
@@ -142,8 +150,7 @@ export const extractDetectedModalities = (rows: RawRow[]) => {
       normalized,
       label: item.label,
       count: item.count,
-      isVolleyball:
-        normalized.includes("volei") || normalized.includes("voleibol"),
+      isVolleyball: normalized === "voleibol",
     }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
 };
@@ -157,8 +164,8 @@ export function mapGoogleFormsRowToAthleteIntake(
   const sex = toSex(findValue(row, ["sexo"]));
   const birthDate = toIsoDate(findValue(row, ["data de nascimento"]));
   const emailRaw = findValue(row, ["email"]);
-  const modalities = splitModalities(
-    findValue(row, ["qual(ais) modalidade", "modalidade(s)", "modalidade"])
+  const modalities = normalizeAthleteModalities(
+    splitModalities(findValue(row, ["qual(ais) modalidade", "modalidade(s)", "modalidade"]))
   );
 
   const cardioMedicalRestriction = toBooleanYesNo(
@@ -268,9 +275,7 @@ export function mapGoogleFormsRowToAthleteIntake(
 export function buildAthleteIntakeSummary(records: AthleteIntake[]) {
   const total = records.length;
   const onlyVolleyball = records.filter((item) => {
-    const uniqueModalities = Array.from(
-      new Set(item.modalities.map((entry) => toKey(entry)).filter(Boolean))
-    );
+    const uniqueModalities = normalizeAthleteModalities(item.modalities);
     return uniqueModalities.length === 1 && containsVolleyball(item.modalities);
   }).length;
 

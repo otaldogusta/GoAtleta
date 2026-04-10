@@ -4,9 +4,9 @@ import { Animated, FlatList, Text, TextInput, View } from "react-native";
 import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
 import { type ThemeColors } from "../../ui/app-theme";
-import { getSectionCardStyle } from "../../ui/section-styles";
 import { Pressable } from "../../ui/Pressable";
-import { CyclePlanTable, type WeekPlan, type CyclePlanTableProps } from "./CyclePlanTable";
+import { getSectionCardStyle } from "../../ui/section-styles";
+import { CyclePlanTable, type CyclePlanTableProps, type WeekPlan } from "./CyclePlanTable";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
@@ -90,7 +90,8 @@ export type CycleTabProps = {
   hasWeekPlans: boolean;
   weekPlans: WeekPlan[];
   currentWeek: number;
-  mesoWeekNumbers: number[];
+  selectedWeekNumber: number;
+  monthWeekNumbers: number[];
   monthSegments: Array<{ label: string; length: number }>;
   macroSegments: Array<{ label: string; length: number }>;
   mesoSegments: Array<{ label: string; length: number }>;
@@ -98,6 +99,7 @@ export type CycleTabProps = {
   weeklySessions: number;
   periodizationModel: CyclePlanTableProps["periodizationModel"];
   sportProfile: CyclePlanTableProps["sportProfile"];
+  onSelectedWeekChange: (week: number) => void;
   openWeekEditor: (week: number) => void;
 
   // Carga semanal section
@@ -147,7 +149,8 @@ export function CycleTab({
   hasWeekPlans,
   weekPlans,
   currentWeek,
-  mesoWeekNumbers,
+  selectedWeekNumber,
+  monthWeekNumbers,
   monthSegments,
   macroSegments,
   mesoSegments,
@@ -155,6 +158,7 @@ export function CycleTab({
   weeklySessions,
   periodizationModel,
   sportProfile,
+  onSelectedWeekChange,
   openWeekEditor,
   sectionOpen,
   toggleSection,
@@ -198,7 +202,8 @@ export function CycleTab({
         hasWeekPlans={hasWeekPlans}
         weekPlans={weekPlans}
         currentWeek={currentWeek}
-        mesoWeekNumbers={mesoWeekNumbers}
+        selectedWeekNumber={selectedWeekNumber}
+        monthWeekNumbers={monthWeekNumbers}
         monthSegments={monthSegments}
         macroSegments={macroSegments}
         mesoSegments={mesoSegments}
@@ -206,6 +211,7 @@ export function CycleTab({
         weeklySessions={weeklySessions}
         periodizationModel={periodizationModel}
         sportProfile={sportProfile}
+        onSelectedWeekChange={onSelectedWeekChange}
         openWeekEditor={openWeekEditor}
       />
 
@@ -258,7 +264,7 @@ export function CycleTab({
 
             const level = weekPlans[index]?.volume ?? "médio";
 
-            const isActive = index + 1 === currentWeek;
+            const isActive = index + 1 === selectedWeekNumber;
 
             const palette = getVolumePalette(level, colors);
 

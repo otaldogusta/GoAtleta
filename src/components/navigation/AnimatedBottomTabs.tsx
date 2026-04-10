@@ -11,6 +11,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -31,6 +32,7 @@ export function AnimatedBottomTabs({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
+  useRenderDiagnostic("AnimatedBottomTabs", { role, pathname, "colors.background": colors.background });
   const [menuOpen, setMenuOpen] = useState(false);
   const iconAnim = useSharedValue(0);
   const hideNavigation =

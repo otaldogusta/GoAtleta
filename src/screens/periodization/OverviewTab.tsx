@@ -7,7 +7,7 @@ import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
 
 import type { ClassGroup, ClassPlan } from "../../core/models";
-import type { VolumeLevel } from "../../core/periodization-basics";
+import { isAnnualCycle, type VolumeLevel } from "../../core/periodization-basics";
 
 type WeekPlan = {
   week: number;
@@ -58,6 +58,7 @@ type OverviewTabProps = {
   router: { push: (params: any) => void };
   classPlans: ClassPlan[];
   isSavingPlans: boolean;
+  onCompleteMissingCoverage: () => void;
   setShowGenerateModal: (value: boolean) => void;
   unitMismatchWarning: string;
 };
@@ -96,9 +97,20 @@ export function OverviewTab({
   router,
   classPlans,
   isSavingPlans,
+  onCompleteMissingCoverage,
   setShowGenerateModal,
   unitMismatchWarning,
 }: OverviewTabProps) {
+  const coveredWeeks = new Set(
+    classPlans
+      .map((plan) => plan.weekNumber)
+      .filter((weekNumber) => Number.isFinite(weekNumber) && weekNumber >= 1 && weekNumber <= cycleLength)
+  ).size;
+  const missingWeeks = Math.max(0, cycleLength - coveredWeeks);
+  const showAnnualCoverageWarning = Boolean(
+    selectedClass && isAnnualCycle(cycleLength) && missingWeeks > 0
+  );
+
   return (
     <>
 
@@ -845,6 +857,49 @@ export function OverviewTab({
         </Pressable>
 
       </View>
+
+      {showAnnualCoverageWarning ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "warning", { padding: 12, radius: 14 }),
+            { marginTop: 12, gap: 8 },
+          ]}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name="alert-circle" size={16} color={colors.warningText} />
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700", flex: 1 }}>
+              Cobertura anual incompleta
+            </Text>
+          </View>
+
+          <Text style={{ color: colors.text, fontSize: 12 }}>
+            Cobertura atual: {coveredWeeks} de {cycleLength} semanas.
+          </Text>
+
+          <Text style={{ color: colors.warningText, fontSize: 12 }}>
+            Faltam {missingWeeks} semana{missingWeeks === 1 ? "" : "s"} para completar o ciclo anual desta turma.
+          </Text>
+
+          <Pressable
+            onPress={onCompleteMissingCoverage}
+            disabled={isSavingPlans}
+            style={{
+              alignSelf: "flex-start",
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.warningText,
+              backgroundColor: colors.card,
+              opacity: isSavingPlans ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Completar semanas faltantes
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
     </>
   );

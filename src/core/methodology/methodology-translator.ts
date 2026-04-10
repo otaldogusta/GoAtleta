@@ -1,5 +1,10 @@
 import { parseAgeBandRange } from "../age-band";
 import { buildLudicAdaptation } from "./ludic-adapter";
+import {
+  buildPedagogicalApproachOverlay,
+  detectPedagogicalApproach,
+  type PedagogicalApproachDetection,
+} from "./pedagogical-approach-detector";
 import { buildPerformanceAdaptation } from "./performance-adapter";
 
 export type MethodologyMode = "ludic" | "balanced" | "performance";
@@ -15,6 +20,7 @@ export type MethodologyTranslationRequest = {
 export type MethodologyTranslation = {
   mode: MethodologyMode;
   pedagogicalTemperature: number;
+  detectedApproach: PedagogicalApproachDetection;
   tags: string[];
   tips: string[];
   blockFormats: {
@@ -71,6 +77,8 @@ export const translateMethodology = (
   );
 
   const mode = resolveMode(temperature);
+  const detectedApproach = detectPedagogicalApproach(objectiveHint);
+  const approachOverlay = buildPedagogicalApproachOverlay(detectedApproach);
 
   const ludic = buildLudicAdaptation({
     ageStart: parseAgeBandRange(request.ageBand).start,
@@ -84,8 +92,16 @@ export const translateMethodology = (
     objectiveHint,
   });
 
+  const mergeApproach = (input: Omit<MethodologyTranslation, "detectedApproach">): MethodologyTranslation => ({
+    ...input,
+    detectedApproach,
+    tags: unique([...approachOverlay.tags, ...input.tags]),
+    tips: unique([...approachOverlay.tips, ...input.tips]),
+    coachPrompt: unique([input.coachPrompt, approachOverlay.promptFragment]).join(" ").trim(),
+  });
+
   if (mode === "ludic") {
-    return {
+    return mergeApproach({
       mode,
       pedagogicalTemperature: temperature,
       tags: ludic.tags,
@@ -93,11 +109,11 @@ export const translateMethodology = (
       blockFormats: ludic.blockFormats,
       coachPrompt: "Modo lúdico ativo: priorize engajamento, clareza e progressão por missão.",
       requiresHumanApproval: true,
-    };
+    });
   }
 
   if (mode === "performance") {
-    return {
+    return mergeApproach({
       mode,
       pedagogicalTemperature: temperature,
       tags: performance.tags,
@@ -105,10 +121,10 @@ export const translateMethodology = (
       blockFormats: performance.blockFormats,
       coachPrompt: "Modo rendimento ativo: mantenha critério técnico, métricas e controle de carga.",
       requiresHumanApproval: true,
-    };
+    });
   }
 
-  return {
+  return mergeApproach({
     mode,
     pedagogicalTemperature: temperature,
     tags: unique([...ludic.tags.slice(0, 3), ...performance.tags.slice(0, 3)]),
@@ -120,5 +136,5 @@ export const translateMethodology = (
     },
     coachPrompt: "Modo híbrido ativo: equilibrar ludicidade e exigência técnica com critérios claros.",
     requiresHumanApproval: true,
-  };
+  });
 };

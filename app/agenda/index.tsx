@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
     useEffect,
@@ -18,6 +19,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import type { ClassGroup } from "../../src/core/models";
 import { getClasses } from "../../src/db/seed";
 import { Button } from "../../src/ui/Button";
+import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 
@@ -26,7 +28,7 @@ const pad2 = (value: number) => String(value).padStart(2, "0");
 const monthNames = [
   "Janeiro",
   "Fevereiro",
-  "Marco",
+  "Março",
   "Abril",
   "Maio",
   "Junho",
@@ -202,14 +204,40 @@ export default function AgendaScreen() {
         style={{ flex: 1, padding: 16 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <View style={{ marginBottom: 12 }}>
-        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-          Agenda mensal
-        </Text>
-        <Text style={{ color: colors.muted, marginTop: 4 }}>
-          Dias por unidade e turmas
-        </Text>
-      </View>
+        <ScreenTopChrome
+          style={{
+            gap: 16,
+            paddingBottom: 8,
+            paddingTop: 16,
+            marginBottom: 12,
+          }}
+        >
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/");
+            }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              Agenda mensal
+            </Text>
+          </Pressable>
+
+          <View>
+            <Text style={{ color: colors.muted, marginTop: 4 }}>
+              Dias por unidade e turmas
+            </Text>
+          </View>
+        </ScreenTopChrome>
 
       <View
         style={[

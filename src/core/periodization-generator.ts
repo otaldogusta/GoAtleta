@@ -2,6 +2,7 @@ import { parseAgeBandRange } from "./age-band";
 import type { ClassPlan } from "./models";
 import {
   ageBands,
+  isAnnualCycle,
   type PeriodizationModel,
   type SportProfile,
   type VolumeLevel,
@@ -17,6 +18,19 @@ export type WeekTemplate = {
   focus: string;
   volume: VolumeLevel;
   notes: string[];
+};
+
+type AnnualPhaseTemplate = {
+  id: string;
+  title: string;
+  durationWeeks: number;
+  phase: string;
+  technicalFocus: string;
+  physicalFocus: string;
+  rpeTarget: string;
+  notes: string[];
+  warmupProfile?: string;
+  jumpTarget?: string;
 };
 
 export type AcwrValidationResult =
@@ -122,6 +136,231 @@ export const basePlans: Record<(typeof ageBands)[number], WeekTemplate[]> = {
   ],
 };
 
+const annualVolleyballPlans: Record<(typeof ageBands)[number], AnnualPhaseTemplate[]> = {
+  "06-08": [
+    {
+      id: "exploracao_motora",
+      title: "Exploração motora",
+      durationWeeks: 8,
+      phase: "Base",
+      technicalFocus: "Coordenação geral, manipulação de bola e jogos simples",
+      physicalFocus: "Equilíbrio, base postural e deslocamentos básicos",
+      rpeTarget: "3-4",
+      notes: ["Aprendizagem lúdica", "Regras simples e cooperação"],
+      warmupProfile: "Circuitos leves com bola e deslocamentos",
+    },
+    {
+      id: "fundamentos_ludicos",
+      title: "Fundamentos lúdicos",
+      durationWeeks: 8,
+      phase: "Base",
+      technicalFocus: "Toque, manchete e controle básico com alvos grandes",
+      physicalFocus: "Coordenação fina e estabilidade dinâmica",
+      rpeTarget: "4-5",
+      notes: ["Feedback simples", "Séries curtas e sucesso frequente"],
+      warmupProfile: "Ativação com brincadeiras e alvos",
+    },
+    {
+      id: "controle_bola",
+      title: "Controle de bola",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Continuidade de toques e controle em dupla/trio",
+      physicalFocus: "Agilidade leve e ritmo de execução",
+      rpeTarget: "4-5",
+      notes: ["Sequências de 2-3 contatos", "Progressão com alvos simples"],
+      warmupProfile: "Coordenação com bolas leves",
+    },
+    {
+      id: "jogos_reduzidos",
+      title: "Jogos reduzidos",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "1x1, 2x2 e ocupação básica de espaço",
+      physicalFocus: "Reação e deslocamento em espaço reduzido",
+      rpeTarget: "4-5",
+      notes: ["Transferência para o jogo", "Cooperação e tomada de decisão simples"],
+      warmupProfile: "Jogos de entrada com bola",
+    },
+    {
+      id: "integracao_basica",
+      title: "Integração básica",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Manter continuidade e escolher a melhor solução simples",
+      physicalFocus: "Agilidade perceptiva e coordenação global",
+      rpeTarget: "4-5",
+      notes: ["Comunicação básica", "Decisão rápida com baixa pressão"],
+      warmupProfile: "Aquecimento com reação e leitura visual",
+    },
+    {
+      id: "consolidacao_ludica",
+      title: "Consolidação lúdica",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Revisão dos fundamentos e jogos adaptados de fechamento",
+      physicalFocus: "Manutenção coordenativa com recuperação leve",
+      rpeTarget: "3-4",
+      notes: ["Consolidar o ano", "Fechamento com alta aderência"],
+      warmupProfile: "Ativação leve com desafios cooperativos",
+    },
+  ],
+  "09-11": [
+    {
+      id: "exploracao_motora",
+      title: "Exploração motora",
+      durationWeeks: 8,
+      phase: "Base",
+      technicalFocus: "Controle de bola, toque e manchete em contexto lúdico",
+      physicalFocus: "Coordenação geral, equilíbrio e base postural",
+      rpeTarget: "3-4",
+      notes: ["Adaptação ao ambiente", "Cooperação e regras simples"],
+      warmupProfile: "Jogos motores e manipulação de bola",
+    },
+    {
+      id: "fundamentos_basicos",
+      title: "Fundamentos básicos",
+      durationWeeks: 8,
+      phase: "Base",
+      technicalFocus: "Toque, manchete e saque adaptado com alvo simples",
+      physicalFocus: "Coordenação e estabilidade dinâmica",
+      rpeTarget: "4-5",
+      notes: ["Repetibilidade técnica", "Contato limpo e postura"],
+      warmupProfile: "Ativação com alvos e controle de bola",
+    },
+    {
+      id: "consolidacao_tecnica",
+      title: "Consolidação técnica",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Passe ao alvo, saque direcionado e levantamento simples",
+      physicalFocus: "Agilidade, ritmo e coordenação sob controle",
+      rpeTarget: "4-5",
+      notes: ["Consistência e direção", "Sequências de 2-3 contatos"],
+      warmupProfile: "Ativação específica de plataforma e toque",
+    },
+    {
+      id: "jogos_reduzidos",
+      title: "Jogos reduzidos",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "1x1, 2x2, 3x3 e continuidade com ocupação de espaço",
+      physicalFocus: "Deslocamento e reação em espaço reduzido",
+      rpeTarget: "4-5",
+      notes: ["Transferência para o jogo", "Semanas baixas estratégicas"],
+      warmupProfile: "Jogos condicionados de entrada",
+    },
+    {
+      id: "tomada_decisao",
+      title: "Tomada de decisão",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Leitura do jogo, ajuste de direção e comunicação",
+      physicalFocus: "Agilidade perceptiva e recuperação curta",
+      rpeTarget: "4-5",
+      notes: ["Alvo livre", "Decidir entre manter vivo e acelerar"],
+      warmupProfile: "Aquecimento com leitura e escolha",
+    },
+    {
+      id: "integracao_tecnico_tatica",
+      title: "Integração técnico-tática",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Jogo adaptado, combinações simples e revisão anual",
+      physicalFocus: "Manutenção coordenativa e redução gradual da carga",
+      rpeTarget: "3-4",
+      notes: ["Fechamento do ano", "Autoavaliação e feedback"],
+      warmupProfile: "Ativação leve com tarefas integradas",
+    },
+  ],
+  "12-14": [
+    {
+      id: "base_tecnica",
+      title: "Base técnica",
+      durationWeeks: 8,
+      phase: "Base",
+      technicalFocus: "Refino de fundamentos, controle de bola e posição",
+      physicalFocus: "Coordenação, força leve e aterrissagem",
+      rpeTarget: "4-5",
+      notes: ["Base estável", "Ritmo controlado"],
+      warmupProfile: "Mobilidade e técnica com bola",
+    },
+    {
+      id: "consolidacao_tecnica",
+      title: "Consolidação técnica",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Passe ao alvo, saque direcionado e levantamento consistente",
+      physicalFocus: "Agilidade e potência controlada",
+      rpeTarget: "4-5",
+      notes: ["Consistência e precisão", "Progressão de alvo"],
+      warmupProfile: "Ativação específica por fundamento",
+    },
+    {
+      id: "sistemas_de_jogo",
+      title: "Sistemas de jogo",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Transição defesa-ataque, leitura e organização coletiva",
+      physicalFocus: "Velocidade, salto controlado e reação",
+      rpeTarget: "5-6",
+      notes: ["4x4 e 6x6 adaptado", "Conexão entre setores"],
+      warmupProfile: "Aquecimento com deslocamentos específicos",
+    },
+    {
+      id: "tomada_decisao",
+      title: "Tomada de decisão",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Escolha de solução, leitura do bloqueio e continuidade",
+      physicalFocus: "Velocidade de reação e tolerância a repetições",
+      rpeTarget: "5-6",
+      notes: ["Pressão moderada", "Resolução em jogo reduzido"],
+      warmupProfile: "Ativação com oposição leve",
+    },
+    {
+      id: "integracao_tatica",
+      title: "Integração tática",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Combinar fundamento e intenção tática em jogo adaptado",
+      physicalFocus: "Potência controlada e recuperação monitorada",
+      rpeTarget: "5-6",
+      notes: ["Transferência para o jogo", "Maior complexidade"],
+      warmupProfile: "Ativação curta e específica",
+    },
+    {
+      id: "fechamento",
+      title: "Fechamento anual",
+      durationWeeks: 8,
+      phase: "Desenvolvimento",
+      technicalFocus: "Revisão anual, consolidação e autoavaliação",
+      physicalFocus: "Manutenção com redução progressiva do volume",
+      rpeTarget: "4-5",
+      notes: ["Fechamento do ciclo", "Feedback e revisão"],
+      warmupProfile: "Ativação leve com revisão técnica",
+    },
+  ],
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+const parseIsoDate = (value: string) => {
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toIsoDate = (value: Date) =>
+  `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+
+const addDays = (value: string, days: number) => {
+  const base = parseIsoDate(value);
+  if (!base) return value;
+  return toIsoDate(new Date(base.getTime() + days * DAY_MS));
+};
+
 // ---------------------------------------------------------------------------
 // Age band helpers
 // ---------------------------------------------------------------------------
@@ -158,6 +397,72 @@ export const getJumpTarget = (mvLevel: string, band: (typeof ageBands)[number]) 
   if (level === "MV1") return "10-20";
   if (level === "MV2") return "20-40";
   return "30-60";
+};
+
+const getWeekStartDate = (startDate: string, weekNumber: number) =>
+  addDays(startDate, Math.max(0, weekNumber - 1) * 7);
+
+const fitTemplateToCycleLength = <T extends AnnualPhaseTemplate>(
+  template: T[],
+  cycleLength: number
+) => {
+  if (!template.length) return [] as T[];
+  const safeLength = Math.max(template.length, cycleLength);
+  const baseTotal = template.reduce((sum, item) => sum + Math.max(1, item.durationWeeks), 0);
+  const scaled = template.map((item) => (Math.max(1, item.durationWeeks) / baseTotal) * safeLength);
+  const rounded = scaled.map((value) => Math.max(1, Math.floor(value)));
+  let diff = safeLength - rounded.reduce((sum, value) => sum + value, 0);
+
+  const order = scaled
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort((left, right) => right.remainder - left.remainder)
+    .map((item) => item.index);
+
+  let cursor = 0;
+  while (diff !== 0 && cursor < 200) {
+    const index = order[cursor % order.length] ?? 0;
+    if (diff > 0) {
+      rounded[index] += 1;
+      diff -= 1;
+    } else if (rounded[index] > 1) {
+      rounded[index] -= 1;
+      diff += 1;
+    }
+    cursor += 1;
+  }
+
+  return template.map((item, index) => ({
+    ...item,
+    durationWeeks: rounded[index] ?? item.durationWeeks,
+  }));
+};
+
+const resolveAnnualTemplate = (options: {
+  ageBand: (typeof ageBands)[number];
+  model: PeriodizationModel;
+  sport: SportProfile;
+}) => {
+  if (options.sport !== "voleibol") return null;
+  if (options.model === "competitivo") return null;
+  return annualVolleyballPlans[options.ageBand] ?? annualVolleyballPlans["09-11"];
+};
+
+const getAnnualPhaseForWeek = (options: {
+  ageBand: (typeof ageBands)[number];
+  cycleLength: number;
+  weekNumber: number;
+  model: PeriodizationModel;
+  sport: SportProfile;
+}) => {
+  const template = resolveAnnualTemplate(options);
+  if (!template?.length) return null;
+  const fitted = fitTemplateToCycleLength(template, options.cycleLength);
+  let cursor = 0;
+  for (const phase of fitted) {
+    cursor += phase.durationWeeks;
+    if (options.weekNumber <= cursor) return phase;
+  }
+  return fitted[fitted.length - 1] ?? null;
 };
 
 // ---------------------------------------------------------------------------
@@ -348,6 +653,7 @@ export const buildClassPlan = (options: {
 }): ClassPlan => {
   const base = basePlans[options.ageBand] ?? basePlans["09-11"];
   const template = base[(options.weekNumber - 1) % base.length];
+  const startDate = getWeekStartDate(options.startDate, options.weekNumber);
   const phase = getPhaseForWeek(
     options.weekNumber,
     options.cycleLength ?? 12,
@@ -356,10 +662,41 @@ export const buildClassPlan = (options: {
   );
   const createdAt = new Date().toISOString();
 
+  if (isAnnualCycle(options.cycleLength)) {
+    const annualPhase = getAnnualPhaseForWeek({
+      ageBand: options.ageBand,
+      cycleLength: options.cycleLength,
+      weekNumber: options.weekNumber,
+      model: options.model,
+      sport: options.sport,
+    });
+
+    if (annualPhase) {
+      return {
+        id: `cp_${options.classId}_${Date.now()}_${options.weekNumber}`,
+        classId: options.classId,
+        startDate,
+        weekNumber: options.weekNumber,
+        phase: annualPhase.phase,
+        theme: annualPhase.title,
+        technicalFocus: annualPhase.technicalFocus,
+        physicalFocus: annualPhase.physicalFocus,
+        constraints: annualPhase.notes.join(" | "),
+        mvFormat: getMvFormat(options.ageBand),
+        warmupProfile: annualPhase.warmupProfile ?? annualPhase.notes[0] ?? "",
+        jumpTarget: annualPhase.jumpTarget ?? getJumpTarget(options.mvLevel, options.ageBand),
+        rpeTarget: annualPhase.rpeTarget,
+        source: options.source,
+        createdAt,
+        updatedAt: createdAt,
+      };
+    }
+  }
+
   return {
     id: `cp_${options.classId}_${Date.now()}_${options.weekNumber}`,
     classId: options.classId,
-    startDate: options.startDate,
+    startDate,
     weekNumber: options.weekNumber,
     phase,
     theme: template.focus,
@@ -381,6 +718,31 @@ export const buildClassPlan = (options: {
 // ---------------------------------------------------------------------------
 
 export const toClassPlans = (options: {
+  classId: string;
+  ageBand: (typeof ageBands)[number];
+  cycleLength: number;
+  startDate: string;
+  mvLevel: string;
+  model: PeriodizationModel;
+  sessionsPerWeek: number;
+  sport: SportProfile;
+}): ClassPlan[] =>
+  Array.from({ length: options.cycleLength }).map((_, index) =>
+    buildClassPlan({
+      classId: options.classId,
+      ageBand: options.ageBand,
+      startDate: options.startDate,
+      weekNumber: index + 1,
+      source: "AUTO",
+      mvLevel: options.mvLevel,
+      cycleLength: options.cycleLength,
+      model: options.model,
+      sessionsPerWeek: options.sessionsPerWeek,
+      sport: options.sport,
+    })
+  );
+
+export const toAnnualClassPlans = (options: {
   classId: string;
   ageBand: (typeof ageBands)[number];
   cycleLength: number;

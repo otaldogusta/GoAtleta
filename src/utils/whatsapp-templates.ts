@@ -3,11 +3,11 @@
  * Contextual pre-filled messages for common scenarios
  */
 
-export type WhatsAppTemplateId = 
-  | "absent_today" 
-  | "class_reminder" 
-  | "group_invite" 
-  | "positive_feedback" 
+export type WhatsAppTemplateId =
+  | "absent_today"
+  | "class_reminder"
+  | "group_invite"
+  | "positive_feedback"
   | "quick_notice"
   | "student_invite";
 
@@ -116,6 +116,17 @@ export type WhatsAppContext =
   | { screen: "class" }
   | { screen: "session_report" };
 
+const normalizeDateStart = (value: Date) => {
+  const normalized = new Date(value);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+const getSortedClassDays = (daysOfWeek: number[]) =>
+  [...new Set(daysOfWeek.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))].sort(
+    (a, b) => a - b
+  );
+
 export function getSuggestedTemplate(context: WhatsAppContext): WhatsAppTemplateId {
   switch (context.screen) {
     case "attendance":
@@ -130,33 +141,34 @@ export function getSuggestedTemplate(context: WhatsAppContext): WhatsAppTemplate
 }
 
 /**
+ * Calculate previous/next class date from a reference day.
+ */
+export function calculateAdjacentClassDate(
+  daysOfWeek: number[],
+  referenceDate: Date,
+  direction: -1 | 1
+): Date | null {
+  const sortedDays = getSortedClassDays(daysOfWeek);
+  if (!sortedDays.length) return null;
+
+  const base = normalizeDateStart(referenceDate);
+
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const candidate = new Date(base);
+    candidate.setDate(base.getDate() + offset * direction);
+    if (sortedDays.includes(candidate.getDay())) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Calculate next class date based on days of week
  */
 export function calculateNextClassDate(daysOfWeek: number[]): Date | null {
-  if (!daysOfWeek || daysOfWeek.length === 0) return null;
-
-  const today = new Date();
-  const currentDay = today.getDay();
-
-  // Sort days and find next occurrence
-  const sortedDays = [...daysOfWeek].sort((a, b) => a - b);
-  
-  // Find next day after today
-  let nextDay = sortedDays.find(day => day > currentDay);
-  
-  // If no day after today, use first day of next week
-  if (nextDay === undefined) {
-    nextDay = sortedDays[0];
-  }
-
-  const daysUntilNext = nextDay > currentDay 
-    ? nextDay - currentDay 
-    : 7 - currentDay + nextDay;
-
-  const nextDate = new Date(today);
-  nextDate.setDate(today.getDate() + daysUntilNext);
-
-  return nextDate;
+  return calculateAdjacentClassDate(daysOfWeek, new Date(), 1);
 }
 
 /**
@@ -167,6 +179,6 @@ export function formatNextClassDate(date: Date): string {
   const dayName = days[date.getDay()];
   const dayNum = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
-  
+
   return `${dayName}, ${dayNum}/${month}`;
 }

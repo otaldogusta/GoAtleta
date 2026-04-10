@@ -80,9 +80,7 @@ function TrainingApplyModalContentBase({
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
         showsVerticalScrollIndicator
-        scrollEventThrottle={16}
         onScrollBeginDrag={actions.closeApplyPickers}
-        onScroll={actions.syncApplyPickerLayouts}
       >
         <View
           ref={refs.applyContainerRef}
@@ -214,14 +212,8 @@ function TrainingApplyModalContentBase({
             zIndex={420}
             maxHeight={220}
             nestedScrollEnabled
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={actions.closeApplyPickers}
-            dismissOnBackdropPress
           >
             {[
               { label: "Selecione uma unidade", value: "" },
@@ -261,14 +253,8 @@ function TrainingApplyModalContentBase({
             zIndex={420}
             maxHeight={240}
             nestedScrollEnabled
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={actions.closeApplyPickers}
-            dismissOnBackdropPress
           >
             {data.classOptionsForUnit.length ? (
               data.classOptionsForUnit.map((item) => {

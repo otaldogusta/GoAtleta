@@ -8,6 +8,7 @@ import {
     useRef,
     useState,
 } from "react";
+import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 
 import { clearAiCache } from "../api/ai";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
@@ -67,6 +68,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const permissionsRequestKeyRef = useRef("");
   const lastFetchTokenRef = useRef("");
   const lastFetchErrorAtRef = useRef(0);
+
+  useRenderDiagnostic("OrganizationProvider", {
+    activeOrganizationId,
+    isLoading,
+    permissionsLoading,
+    "organizations.length": organizations.length,
+    sessionUserId: session?.user?.id ?? null,
+  });
 
   useEffect(() => {
     let alive = true;

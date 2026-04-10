@@ -1,10 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "../../../auth/auth";
-import { buildAthleteIntakeSummary, mapGoogleFormsRowToAthleteIntake } from "../../../core/athlete-intake";
+import {
+  buildAthleteIntakeSummary,
+  mapGoogleFormsRowToAthleteIntake,
+  normalizeAthleteModality,
+} from "../../../core/athlete-intake";
 import type { ClassGroup } from "../../../core/models";
 import { syncGoogleFormsAthleteIntakes } from "../../../db/seed";
 import {
@@ -15,6 +19,7 @@ import {
 } from "../../../services/students-sync-service";
 import { useAppTheme } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
+import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
@@ -136,6 +141,14 @@ type ApplyConfirmState = {
 };
 
 type ModalityClassMap = Record<string, string | null>;
+type RowDecision = "import" | "anamnesis" | "ignore";
+type DropdownLayout = { x: number; y: number; width: number; height: number };
+
+const ROW_DECISION_OPTIONS: Array<{ key: RowDecision; label: string }> = [
+  { key: "import", label: "Importar" },
+  { key: "anamnesis", label: "Anamnese" },
+  { key: "ignore", label: "Ignorar" },
+];
 
 const getClassLabel = (item: ClassGroup) => {
   const gender = item.gender === "feminino" ? "Feminino" : item.gender === "masculino" ? "Masculino" : "Misto";
@@ -151,6 +164,14 @@ const getEffectiveModalityClassId = (
     return modalityClassMap[normalizedModality] ?? null;
   }
   return defaultClassId;
+};
+
+const shouldAutoAssignModality = (normalizedModality: string) =>
+  resolveClassModality(normalizedModality) === "voleibol";
+
+const getDefaultRowDecision = (intakeModalities: string[]) => {
+  const hasVolleyball = intakeModalities.some((item) => normalizeAthleteModality(item) === "voleibol");
+  return hasVolleyball ? "import" : "anamnesis";
 };
 
 const resolveAutoClassByUnitModality = (
@@ -248,7 +269,17 @@ export function StudentsFormsSyncModal({
   const [showOtherModalities, setShowOtherModalities] = useState(false);
   const [showSheetPreview, setShowSheetPreview] = useState(false);
   const [showAllPreviewRows, setShowAllPreviewRows] = useState(false);
+  const [showSyncDetails, setShowSyncDetails] = useState(false);
+  const [showUnitDropdown, setShowUnitDropdown] = useState(false);
+  const [showClassDropdown, setShowClassDropdown] = useState(false);
+  const [unitDropdownLayout, setUnitDropdownLayout] = useState<DropdownLayout | null>(null);
+  const [classDropdownLayout, setClassDropdownLayout] = useState<DropdownLayout | null>(null);
+  const [dropdownContainer, setDropdownContainer] = useState<{ x: number; y: number } | null>(null);
+  const [rowDecisions, setRowDecisions] = useState<Record<number, RowDecision>>({});
   const [selectedUnit, setSelectedUnit] = useState("");
+  const dropdownContainerRef = useRef<View | null>(null);
+  const unitTriggerRef = useRef<View | null>(null);
+  const classTriggerRef = useRef<View | null>(null);
   const [storedModalityClassMap, setStoredModalityClassMap, storedModalityClassMapLoaded] = usePersistedState<ModalityClassMap>(
     organizationId ? `students-forms-modality-class-map:${organizationId}` : null,
     {}
@@ -257,7 +288,7 @@ export function StudentsFormsSyncModal({
     organizationId ? `students-forms-default-class:${organizationId}` : null,
     null
   );
-
+  const dropdownAnimationStyle = useMemo(() => ({ opacity: 1 }), []);
   const summary = previewResult?.summary ?? null;
   const canApply = Boolean(
     summary &&
@@ -454,15 +485,7 @@ export function StudentsFormsSyncModal({
 
       const intake = mapGoogleFormsRowToAthleteIntake(rawRow);
       const isMale = intake.sex === "masculino";
-      const hasVolleyball = intake.modalities.some((item) => {
-        const normalized = item
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
-        return normalized.includes("volei") || normalized.includes("voleibol");
-      });
+      const hasVolleyball = intake.modalities.some((item) => normalizeAthleteModality(item) === "voleibol");
 
       if (!isMale || !hasVolleyball) return;
 
@@ -565,6 +588,8 @@ export function StudentsFormsSyncModal({
       const sourceIndex = Math.max(0, rowNumber - 2);
       const rawRow = loadedSheet.rawRows[sourceIndex];
       const intake = rawRow ? mapGoogleFormsRowToAthleteIntake(rawRow) : null;
+      const decision =
+        rowDecisions[rowNumber] ?? (intake ? getDefaultRowDecision(intake.modalities) : "anamnesis");
       const sexLabel =
         intake?.sex === "masculino" ? "M" : intake?.sex === "feminino" ? "F" : "?";
       return {
@@ -573,9 +598,24 @@ export function StudentsFormsSyncModal({
         sexLabel,
         className: row.className ?? "–",
         action: plan?.action ?? null,
+        decision,
       };
     });
-  }, [loadedSheet, previewResult]);
+  }, [loadedSheet, previewResult, rowDecisions]);
+
+  const rowDecisionCounts = useMemo(() => {
+    const counts = { import: 0, anamnesis: 0, ignore: 0 };
+    sheetPreviewRows.forEach((item) => {
+      counts[item.decision] += 1;
+    });
+    return counts;
+  }, [sheetPreviewRows]);
+
+  const resolveRowDecision = useCallback(
+    (rowNumber: number, intakeModalities: string[]) =>
+      rowDecisions[rowNumber] ?? getDefaultRowDecision(intakeModalities),
+    [rowDecisions]
+  );
 
   useEffect(() => {
     if (!visible) return;
@@ -607,14 +647,76 @@ export function StudentsFormsSyncModal({
     [onClose, router]
   );
 
+  const closeSyncDropdowns = useCallback(() => {
+    setShowUnitDropdown(false);
+    setShowClassDropdown(false);
+  }, []);
+
+  const syncSyncDropdownLayouts = useCallback(() => {
+    if (!showUnitDropdown && !showClassDropdown) return;
+    requestAnimationFrame(() => {
+      dropdownContainerRef.current?.measureInWindow((x, y) => {
+        setDropdownContainer({ x, y });
+      });
+      if (showUnitDropdown) {
+        unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setUnitDropdownLayout({ x, y, width, height });
+        });
+      }
+      if (showClassDropdown) {
+        classTriggerRef.current?.measureInWindow((x, y, width, height) => {
+          setClassDropdownLayout({ x, y, width, height });
+        });
+      }
+    });
+  }, [showClassDropdown, showUnitDropdown]);
+
+  const openUnitDropdown = useCallback(() => {
+    setShowClassDropdown(false);
+    setShowUnitDropdown((current) => {
+      const nextOpen = !current;
+      if (nextOpen) {
+        requestAnimationFrame(() => {
+          dropdownContainerRef.current?.measureInWindow((x, y) => {
+            setDropdownContainer({ x, y });
+          });
+          unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+            setUnitDropdownLayout({ x, y, width, height });
+          });
+        });
+      }
+      return nextOpen;
+    });
+  }, [syncSyncDropdownLayouts]);
+
+  const openClassDropdown = useCallback(() => {
+    setShowUnitDropdown(false);
+    setShowClassDropdown((current) => {
+      const nextOpen = !current;
+      if (nextOpen) {
+        requestAnimationFrame(() => {
+          dropdownContainerRef.current?.measureInWindow((x, y) => {
+            setDropdownContainer({ x, y });
+          });
+          classTriggerRef.current?.measureInWindow((x, y, width, height) => {
+            setClassDropdownLayout({ x, y, width, height });
+          });
+        });
+      }
+      return nextOpen;
+    });
+  }, [syncSyncDropdownLayouts]);
+
   const resetFeedback = useCallback(() => {
     setFlowError(null);
     setApplyResultMessage(null);
     setPreviewResult(null);
     setLoadedSheet(null);
+    setRowDecisions({});
     setForceApplyConflictRows([]);
     setNeedsPreviewRefresh(false);
-  }, []);
+    closeSyncDropdowns();
+  }, [closeSyncDropdowns]);
 
   useEffect(() => {
     setForceApplyConflictRows((current) =>
@@ -631,6 +733,17 @@ export function StudentsFormsSyncModal({
         : [...current, normalized]
     );
   }, [validConflictRowNumbers]);
+
+  const setRowDecision = useCallback((rowNumber: number, decision: RowDecision) => {
+    setRowDecisions((current) => {
+      if ((current[rowNumber] ?? null) === decision) return current;
+      return { ...current, [rowNumber]: decision };
+    });
+    if (previewResult) {
+      setPreviewResult(null);
+      setNeedsPreviewRefresh(true);
+    }
+  }, [previewResult]);
 
   const handleSelectUnit = useCallback(
     (unit: string) => {
@@ -666,25 +779,19 @@ export function StudentsFormsSyncModal({
         if (!rawRow) return row;
         const intake = mapGoogleFormsRowToAthleteIntake(rawRow);
         const classId = intake.modalities
-          .map((item) => ({
-            normalized: item
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .toLowerCase()
-              .replace(/\s+/g, " ")
-              .trim(),
-            raw: item,
-          }))
-          .map((item) => {
-            const explicitMappingExists = Object.prototype.hasOwnProperty.call(map, item.normalized);
+          .map((item) => normalizeAthleteModality(item))
+          .map((normalized) => {
+            const explicitMappingExists = Object.prototype.hasOwnProperty.call(map, normalized);
+            const autoAssignable = shouldAutoAssignModality(normalized);
             const mapped = getEffectiveModalityClassId(
-              item.normalized,
+              normalized,
               map,
               selectedUnit ? defaultClassId : null
             );
             if (mapped) return mapped;
             if (explicitMappingExists) return null;
-            return resolveAutoClassByUnitModality(item.normalized, selectedUnit, classes);
+            if (!autoAssignable) return null;
+            return resolveAutoClassByUnitModality(normalized, selectedUnit, classes);
           })
           .find((value): value is string => Boolean(value));
         if (!classId) return row;
@@ -725,16 +832,33 @@ export function StudentsFormsSyncModal({
       setLoadingMessage("Lendo planilha do Google Sheets...");
       const loaded = await loadGoogleFormsSheetImport(sheetUrl, classes);
       setLoadedSheet(loaded);
+      const nextRowDecisions: Record<number, RowDecision> = { ...rowDecisions };
+      loaded.rows.forEach((row, index) => {
+        const rowNumber = Number(row.sourceRowNumber ?? index + 2);
+        if (!Number.isFinite(rowNumber) || rowNumber <= 0) return;
+        if (nextRowDecisions[rowNumber] !== undefined) return;
+        const sourceIndex = Math.max(0, rowNumber - 2);
+        const rawRow = loaded.rawRows[sourceIndex];
+        const intake = rawRow ? mapGoogleFormsRowToAthleteIntake(rawRow) : null;
+        nextRowDecisions[rowNumber] = getDefaultRowDecision(intake?.modalities ?? []);
+      });
+      setRowDecisions(nextRowDecisions);
       const nextModalityMap: ModalityClassMap = { ...modalityClassMap };
       loaded.detectedModalities.forEach((item) => {
         if (nextModalityMap[item.normalized] !== undefined) return;
-        if (selectedUnit && defaultClassId) {
+        if (item.isVolleyball && selectedUnit && defaultClassId) {
           nextModalityMap[item.normalized] = defaultClassId;
         }
       });
       setStoredModalityClassMap(nextModalityMap);
       setLoadingMessage("Gerando prévia da sincronização...");
-      const mappedRows = buildRowsWithModalityMapping(loaded, nextModalityMap);
+      const mappedRows = buildRowsWithModalityMapping(loaded, nextModalityMap).filter((row) => {
+        const rowNumber = Number(row.sourceRowNumber ?? 0);
+        const sourceIndex = Math.max(0, rowNumber - 2);
+        const rawRow = loaded.rawRows[sourceIndex];
+        const intake = rawRow ? mapGoogleFormsRowToAthleteIntake(rawRow) : null;
+        return (nextRowDecisions[rowNumber] ?? getDefaultRowDecision(intake?.modalities ?? [])) === "import";
+      });
       const preview = await previewStudentsSync({
         organizationId,
         policy: "misto",
@@ -761,6 +885,7 @@ export function StudentsFormsSyncModal({
     session?.access_token,
     selectedUnit,
     storedDefaultClassIdLoaded,
+    rowDecisions,
     setStoredModalityClassMap,
     sheetUrl,
     storedModalityClassMapLoaded,
@@ -773,11 +898,11 @@ export function StudentsFormsSyncModal({
     }
     setApplyConfirmState({
       mode: "all",
-      title: "Aplicar sincronização",
-      message: "Confirma aplicar a prévia atual?",
-      confirmLabel: "Aplicar",
+      title: "Confirmar aplicação",
+      message: `Você vai importar ${rowDecisionCounts.import} linha(s), manter ${rowDecisionCounts.anamnesis} apenas na anamnese e ignorar ${rowDecisionCounts.ignore}.`,
+      confirmLabel: `Aplicar ${rowDecisionCounts.import} linhas`,
     });
-  }, [loadedSheet, organizationId, previewResult]);
+  }, [loadedSheet, organizationId, previewResult, rowDecisionCounts]);
 
   const handleApplySkippingConflicts = useCallback(() => {
     if (!organizationId || !loadedSheet || !previewResult) {
@@ -795,7 +920,7 @@ export function StudentsFormsSyncModal({
     }
     setApplyConfirmState({
       mode: "safe",
-      title: "Aplicar sem conflitos",
+      title: "Confirmar aplicação segura",
       message: selectedForceApplyRows.length > 0
         ? `Serão aplicadas ${effectiveSafeRowsCount} linhas (${safeRowsCount} seguras + ${selectedForceApplyRows.length} conflito(s) marcados como 'adicionar mesmo assim').`
         : `Serão aplicadas ${safeRowsCount} linhas seguras. ${summary?.conflict ?? 0} conflito(s) serão ignorados.`,
@@ -809,6 +934,7 @@ export function StudentsFormsSyncModal({
     safeRowsCount,
     selectedForceApplyRows.length,
     summary?.conflict,
+    rowDecisionCounts,
   ]);
 
   const executeApply = useCallback(async (mode: "all" | "safe") => {
@@ -835,12 +961,24 @@ export function StudentsFormsSyncModal({
     const nextModalityMap: ModalityClassMap = { ...modalityClassMap };
     loadedSheet.detectedModalities.forEach((item) => {
       if (nextModalityMap[item.normalized] !== undefined) return;
-      if (selectedUnit && defaultClassId) {
+      if (item.isVolleyball && selectedUnit && defaultClassId) {
         nextModalityMap[item.normalized] = defaultClassId;
       }
     });
 
-    const mappedRows = buildRowsWithModalityMapping(loadedSheet, nextModalityMap);
+    const mappedRows = buildRowsWithModalityMapping(loadedSheet, nextModalityMap).filter((row) => {
+      const rowNumber = Number(row.sourceRowNumber ?? 0);
+      const sourceIndex = Math.max(0, rowNumber - 2);
+      const rawRow = loadedSheet.rawRows[sourceIndex];
+      const intake = rawRow ? mapGoogleFormsRowToAthleteIntake(rawRow) : null;
+      return resolveRowDecision(rowNumber, intake?.modalities ?? []) === "import";
+    });
+    const intakeRows = loadedSheet.rawRows.filter((_, index) => {
+      const rowNumber = index + 2;
+      const rawRow = loadedSheet.rawRows[index];
+      const intake = rawRow ? mapGoogleFormsRowToAthleteIntake(rawRow) : null;
+      return resolveRowDecision(rowNumber, intake?.modalities ?? []) !== "ignore";
+    });
     const totalRows = Number(previewResult.summary?.totalRows ?? mappedRows.length ?? 0);
     const targetRows = Math.max(0, mode === "safe" ? effectiveSafeRowsCount : totalRows);
 
@@ -888,7 +1026,7 @@ export function StudentsFormsSyncModal({
 
       const intakeResult = await syncGoogleFormsAthleteIntakes({
         organizationId,
-        rawRows: loadedSheet.rawRows,
+        rawRows: intakeRows,
         classes,
         modalityClassMap,
       });
@@ -967,6 +1105,7 @@ export function StudentsFormsSyncModal({
     selectedForceApplyRows,
     selectedUnit,
     session?.access_token,
+    resolveRowDecision,
   ]);
 
   const requestCloseWhileApplying = useCallback(async () => {
@@ -1069,6 +1208,8 @@ export function StudentsFormsSyncModal({
           contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
         >
           <View
+            ref={dropdownContainerRef}
+            onLayout={syncSyncDropdownLayouts}
             style={{
               borderWidth: 1,
               borderColor: colors.border,
@@ -1161,100 +1302,89 @@ export function StudentsFormsSyncModal({
               gap: 10,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
-              Vínculo padrão
-            </Text>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>Vínculo padrão</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Escolha uma Unidade. A Turma é opcional e, se não for escolhida, a distribuição é automática por modalidade e sexo.
+              Escolha uma Unidade. Para vôlei, a distribuição pode ser automática por modalidade e sexo. As demais modalidades ficam para escolha explícita.
             </Text>
 
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Unidade</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {unitOptions.map((unit) => {
-                  const selected = selectedUnit === unit;
-                  return (
-                    <AnchoredDropdownOption
-                      key={unit}
-                      active={selected}
-                      onPress={() => handleSelectUnit(unit)}
-                      style={{
-                        borderRadius: 10,
-                        paddingHorizontal: 10,
-                        paddingVertical: 8,
-                      }}
-                    >
-                      <Text style={{ color: selected ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "700" }}>
-                        {unit}
-                      </Text>
-                    </AnchoredDropdownOption>
-                  );
-                })}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Unidade</Text>
+                <View ref={unitTriggerRef}>
+                  <Pressable
+                    onPress={openUnitDropdown}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 10,
+                      backgroundColor: colors.card,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flex: 1 }} numberOfLines={1}>
+                      {selectedUnit || "Todas as unidades"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{ transform: [{ rotate: showUnitDropdown ? "180deg" : "0deg" }] }}
+                    />
+                  </Pressable>
+                </View>
               </View>
-            </View>
 
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Turma</Text>
-              <AnchoredDropdownOption
-                active={defaultClassId === null}
-                onPress={() => {
-                  if (defaultClassId === null) return;
-                  setStoredDefaultClassId(null);
-                  setPreviewResult(null);
-                  setNeedsPreviewRefresh(true);
-                }}
-                activeBackgroundColor={colors.secondaryBg}
-                activeBorderColor={colors.primaryBg}
-                style={{
-                  borderRadius: 10,
-                  paddingHorizontal: 10,
-                  paddingVertical: 9,
-                }}
-              >
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                  Automática (sem turma fixa)
-                </Text>
-              </AnchoredDropdownOption>
-              <View style={{ gap: 6 }}>
-                {classOptionsByUnit.map((item) => {
-                  const selected = defaultClassId === item.id;
-                  return (
-                    <AnchoredDropdownOption
-                      key={item.id}
-                      active={selected}
-                      onPress={() => handleSelectDefaultClass(item.id)}
-                      activeBackgroundColor={colors.secondaryBg}
-                      activeBorderColor={colors.primaryBg}
-                      style={{
-                        borderRadius: 10,
-                        paddingHorizontal: 10,
-                        paddingVertical: 9,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flex: 1 }} numberOfLines={2}>
-                          {getClassLabel(item)}
-                        </Text>
-                        {selected ? <Ionicons name="checkmark-circle" size={16} color={colors.primaryBg} /> : null}
-                      </View>
-                    </AnchoredDropdownOption>
-                  );
-                })}
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Turma</Text>
+                <View ref={classTriggerRef}>
+                  <Pressable
+                    onPress={openClassDropdown}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 10,
+                      backgroundColor: colors.card,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flex: 1 }} numberOfLines={2}>
+                      {defaultClassId === null
+                        ? "Automática (sem turma fixa)"
+                        : selectedDefaultClass
+                          ? getClassLabel(selectedDefaultClass)
+                          : "Selecione uma turma"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{ transform: [{ rotate: showClassDropdown ? "180deg" : "0deg" }] }}
+                    />
+                  </Pressable>
+                </View>
               </View>
             </View>
 
             {selectedDefaultClass ? (
               <View style={{ gap: 3 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Padrão ativo: {getClassLabel(selectedDefaultClass)}
-                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Padrão ativo: {getClassLabel(selectedDefaultClass)}</Text>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>
                   Se a resposta tiver sexo, o sistema tenta direcionar automaticamente para a turma masculina/feminina correspondente na mesma unidade.
                 </Text>
               </View>
             ) : (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Sem turma fixa: o sistema usa distribuição automática por unidade, modalidade e sexo.
+                Sem turma fixa: o sistema usa distribuição automática por unidade, modalidade e sexo apenas para vôlei.
               </Text>
             )}
 
@@ -1306,7 +1436,7 @@ export function StudentsFormsSyncModal({
                               disabled={!defaultClassId}
                             />
                             <Button
-                              label="Só anamnese"
+                              label="Anamnese"
                               variant={usingAnamnesisOnly ? "secondary" : "outline"}
                               onPress={() => updateModalityMapping(item.normalized, null)}
                             />
@@ -1325,7 +1455,13 @@ export function StudentsFormsSyncModal({
             ) : null}
 
             <Text style={{ color: colors.muted, fontSize: 11 }}>
-              Com turma vinculada por modalidade: {modalityResolvedCount} • Sem turma vinculada por modalidade: {unresolvedNonVolleyballCount}
+              Turmas por modalidade: {modalityResolvedCount} • Sem turma: {unresolvedNonVolleyballCount}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              Linhas: importar {rowDecisionCounts.import} • anamnese {rowDecisionCounts.anamnesis} • ignorar {rowDecisionCounts.ignore}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              Padrão: vôlei entra na turma; outras modalidades ficam em anamnese.
             </Text>
             {intakeSummary ? (
               <Text style={{ color: colors.muted, fontSize: 11 }}>
@@ -1373,6 +1509,38 @@ export function StudentsFormsSyncModal({
                   <View
                     style={{
                       flexDirection: "row",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      paddingHorizontal: 12,
+                      paddingTop: 10,
+                      paddingBottom: 8,
+                    }}
+                  >
+                    {[
+                      { label: "Importar", color: colors.successText ?? "#2e7d32" },
+                      { label: "Anamnese", color: colors.infoText ?? "#1565c0" },
+                      { label: "Ignorar", color: colors.muted },
+                    ].map((item) => (
+                      <View
+                        key={item.label}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 999,
+                          backgroundColor: colors.background,
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                        }}
+                      >
+                        <Text style={{ color: item.color, fontSize: 10, fontWeight: "700" }}>
+                          {item.label}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View
+                    style={{
+                      flexDirection: "row",
                       paddingHorizontal: 12,
                       paddingVertical: 6,
                       backgroundColor: colors.card,
@@ -1384,7 +1552,7 @@ export function StudentsFormsSyncModal({
                     <Text style={{ color: colors.muted, fontSize: 10, width: 18, textAlign: "center", fontWeight: "700" }}>Sx</Text>
                     <Text style={{ color: colors.muted, fontSize: 10, width: 90, textAlign: "right", fontWeight: "700" }}>Turma</Text>
                     {previewResult ? (
-                      <Text style={{ color: colors.muted, fontSize: 10, width: 58, textAlign: "right", fontWeight: "700" }}>Ação</Text>
+                      <Text style={{ color: colors.muted, fontSize: 10, width: 58, textAlign: "right", fontWeight: "700" }}>Status</Text>
                     ) : null}
                   </View>
                   {(showAllPreviewRows ? sheetPreviewRows : sheetPreviewRows.slice(0, 30)).map((item) => {
@@ -1395,46 +1563,73 @@ export function StudentsFormsSyncModal({
                           ? { label: "Atualizar", color: colors.primaryText ?? "#1565c0" }
                           : item.action === "conflict"
                             ? { label: "Conflito", color: colors.warningText ?? "#e65100" }
-                            : item.action === "error"
+                        : item.action === "error"
                               ? { label: "Erro", color: colors.dangerText ?? "#b71c1c" }
-                              : { label: "Já existe", color: colors.muted };
+                          : { label: "Já existe", color: colors.muted };
                     return (
                       <View
                         key={item.rowNumber}
                         style={{
-                          flexDirection: "row",
-                          alignItems: "center",
                           paddingHorizontal: 12,
                           paddingVertical: 7,
                           borderTopWidth: 1,
                           borderTopColor: colors.border,
-                          gap: 4,
+                          gap: 6,
                         }}
                       >
-                        <Text style={{ color: colors.muted, fontSize: 11, width: 32 }}>L{item.rowNumber}</Text>
-                        <Text style={{ color: colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>
-                          {item.name}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11, width: 18, textAlign: "center" }}>
-                          {item.sexLabel}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 11, width: 90, textAlign: "right" }} numberOfLines={1}>
-                          {item.className}
-                        </Text>
-                        {previewResult ? (
-                          <Text
-                            style={{
-                              fontSize: 10,
-                              width: 58,
-                              textAlign: "right",
-                              fontWeight: "700",
-                              color: actionStyle.color,
-                            }}
-                            numberOfLines={1}
-                          >
-                            {actionStyle.label}
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Text style={{ color: colors.muted, fontSize: 11, width: 32 }}>L{item.rowNumber}</Text>
+                          <Text style={{ color: colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>
+                            {item.name}
                           </Text>
-                        ) : null}
+                          <Text style={{ color: colors.muted, fontSize: 11, width: 18, textAlign: "center" }}>
+                            {item.sexLabel}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 11, width: 90, textAlign: "right" }} numberOfLines={1}>
+                            {item.className}
+                          </Text>
+                          {previewResult ? (
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                width: 58,
+                                textAlign: "right",
+                                fontWeight: "700",
+                                color: actionStyle.color,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {actionStyle.label}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                          {([
+                            { key: "import", label: "Importar" },
+                            { key: "anamnesis", label: "Anamnese" },
+                            { key: "ignore", label: "Ignorar" },
+                          ] as const).map((option) => {
+                            const active = item.decision === option.key;
+                            return (
+                              <Pressable
+                                key={option.key}
+                                onPress={() => setRowDecision(item.rowNumber, option.key)}
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor: active ? colors.primaryBg : colors.border,
+                                  backgroundColor: active ? colors.secondaryBg : colors.background,
+                                  borderRadius: 999,
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 4,
+                                }}
+                              >
+                                <Text style={{ color: active ? colors.text : colors.muted, fontSize: 10, fontWeight: "700" }}>
+                                  {option.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
                       </View>
                     );
                   })}
@@ -1517,6 +1712,23 @@ export function StudentsFormsSyncModal({
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 Total de respostas processadas: {summary.totalRows}
               </Text>
+              <Pressable
+                onPress={() => setShowSyncDetails((prev) => !prev)}
+                style={{
+                  alignSelf: "flex-start",
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 999,
+                  backgroundColor: colors.background,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                  {showSyncDetails ? "Ocultar detalhes" : "Ver detalhes"}
+                </Text>
+              </Pressable>
+              <View style={{ display: showSyncDetails ? "flex" : "none", gap: 10 }}>
               {syncStatusMessage ? (
                 <View
                   style={{
@@ -1605,7 +1817,7 @@ export function StudentsFormsSyncModal({
                   }}
                 >
                   <Text style={{ color: colors.warningText, fontWeight: "800", fontSize: 12 }}>
-                    Linhas sem ação nesta prévia: {nonAppliedDiagnostics.total}
+                    Sem ação: {nonAppliedDiagnostics.total}
                   </Text>
                   <Text style={{ color: colors.warningText, fontSize: 11 }}>
                     Isso inclui principalmente cadastros que já estavam sincronizados e linhas que pedem revisão.
@@ -1632,7 +1844,10 @@ export function StudentsFormsSyncModal({
                   }}
                 >
                   <Text style={{ color: colors.warningText, fontWeight: "800", fontSize: 12 }}>
-                    {summary.conflict} conflitos impedem a aplicação desta prévia
+                    Conflitos reais: {summary.conflict}
+                  </Text>
+                  <Text style={{ color: colors.warningText, fontSize: 11 }}>
+                    Principais sinais:
                   </Text>
                   {topConflictFlags.map(([flag, total]) => {
                     const detail = getFlagDetail(flag);
@@ -1656,11 +1871,12 @@ export function StudentsFormsSyncModal({
                   }}
                 >
                   <Text style={{ color: colors.infoText, fontWeight: "800", fontSize: 12 }}>
-                    Aplicação indisponível
+                    Aplicação bloqueada
                   </Text>
                   <Text style={{ color: colors.infoText, fontSize: 11 }}>{applyDisabledReason}</Text>
                 </View>
               ) : null}
+              </View>
               {canApply ? (
                 <Button
                   label={applyButtonLabel}
@@ -1767,6 +1983,99 @@ export function StudentsFormsSyncModal({
           ) : null}
 
         </ScrollView>
+
+        <AnchoredDropdown
+          visible={showUnitDropdown}
+          layout={unitDropdownLayout}
+          container={dropdownContainer}
+          animationStyle={dropdownAnimationStyle}
+          zIndex={410}
+          maxHeight={220}
+          nestedScrollEnabled
+          onRequestClose={closeSyncDropdowns}
+        >
+          <AnchoredDropdownOption
+            active={!selectedUnit}
+            onPress={() => {
+              handleSelectUnit("");
+              closeSyncDropdowns();
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Todas as unidades</Text>
+          </AnchoredDropdownOption>
+          {unitOptions.map((unit) => {
+            const selected = selectedUnit === unit;
+            return (
+              <AnchoredDropdownOption
+                key={unit}
+                active={selected}
+                onPress={() => {
+                  handleSelectUnit(unit);
+                  closeSyncDropdowns();
+                }}
+              >
+                <Text style={{ color: selected ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "700" }}>
+                  {unit}
+                </Text>
+              </AnchoredDropdownOption>
+            );
+          })}
+        </AnchoredDropdown>
+
+        <AnchoredDropdown
+          visible={showClassDropdown}
+          layout={classDropdownLayout}
+          container={dropdownContainer}
+          animationStyle={dropdownAnimationStyle}
+          zIndex={410}
+          maxHeight={240}
+          nestedScrollEnabled
+          onRequestClose={closeSyncDropdowns}
+        >
+          <AnchoredDropdownOption
+            active={defaultClassId === null}
+            onPress={() => {
+              if (defaultClassId !== null) {
+                setStoredDefaultClassId(null);
+                setPreviewResult(null);
+                setNeedsPreviewRefresh(true);
+              }
+              closeSyncDropdowns();
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+              Automática (sem turma fixa)
+            </Text>
+          </AnchoredDropdownOption>
+          {classOptionsByUnit.length ? (
+            classOptionsByUnit.map((item) => {
+              const selected = defaultClassId === item.id;
+              return (
+                <AnchoredDropdownOption
+                  key={item.id}
+                  active={selected}
+                  onPress={() => {
+                    handleSelectDefaultClass(item.id);
+                    closeSyncDropdowns();
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flex: 1 }} numberOfLines={2}>
+                      {getClassLabel(item)}
+                    </Text>
+                    {selected ? <Ionicons name="checkmark-circle" size={16} color={colors.primaryBg} /> : null}
+                  </View>
+                </AnchoredDropdownOption>
+              );
+            })
+          ) : (
+            <View style={{ padding: 10 }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {selectedUnit ? "Nenhuma turma cadastrada para esta unidade." : "Selecione uma unidade."}
+              </Text>
+            </View>
+          )}
+        </AnchoredDropdown>
       </View>
       </ModalSheet>
 

@@ -1,0 +1,293 @@
+{
+  "version": "2026.04.07.1",
+  "lastUpdated": "2026-04-07T00:00:00Z",
+  "description": "Pedagogical Dimensions System - Science-based, updatable configuration for training session design",
+  "metadata": {
+    "author": "GoAtleta Coaching System",
+    "sources": [
+      "Schmidt & Lee (2020) - Motor Control and Learning",
+      "Davids et al. (2008+) - Ecological Dynamics",
+      "Renshaw et al. (2016+) - Constraint-Led Approach",
+      "Fitts & Posner (1967) - Motor Learning Stages",
+      "Newell (1986) - Constraints Model"
+    ]
+  },
+  "dimensions": {
+    "variability": {
+      "baixa": {
+        "label": "Blocked Practice",
+        "description": "Identical repetitions in controlled environment. Motor planning phase.",
+        "scientificBasis": "Schmidt & Lee (2020) - early acquisition stage",
+        "confidenceLevel": "alta"
+      },
+      "media": {
+        "label": "Variable Practice",
+        "description": "Same task, different contexts. Skill consolidation.",
+        "scientificBasis": "Schmidt & Lee (2020) - contextual interference, intermediate stage",
+        "confidenceLevel": "alta"
+      },
+      "alta": {
+        "label": "Random/Variable Practice",
+        "description": "Diverse tasks and conditions. Transfer and generalization.",
+        "scientificBasis": "Schmidt & Lee (2020) - advanced learning and transfer",
+        "confidenceLevel": "alta"
+      }
+    },
+    "representativeness": {
+      "baixa": {
+        "label": "Decontextualized Drills",
+        "description": "Isolated, controlled environment. Technique refinement focus.",
+        "scientificBasis": "Ecological Dynamics - constrained practice",
+        "confidenceLevel": "alta"
+      },
+      "media": {
+        "label": "Semi-Realistic Scenarios",
+        "description": "Simplified match conditions. Transitional learning.",
+        "scientificBasis": "Ecological Dynamics - intermediate representativeness",
+        "confidenceLevel": "alta"
+      },
+      "alta": {
+        "label": "Game-Realistic Conditions",
+        "description": "Constraints match match environment. Transfer to competition.",
+        "scientificBasis": "Ecological Dynamics - affordances and constraints learning",
+        "confidenceLevel": "alta"
+      }
+    },
+    "decisionMaking": {
+      "baixa": {
+        "label": "Coach-Directed, Low Autonomy",
+        "description": "Coach sets all decisions. Learner focuses on execution.",
+        "scientificBasis": "Constraint-Led Approach - environmental constraints guide learning",
+        "confidenceLevel": "alta"
+      },
+      "media": {
+        "label": "Guided Choices",
+        "description": "Coach sets constraints, learner makes choices within bounds.",
+        "scientificBasis": "Constraint-Led Approach - guided exploration",
+        "confidenceLevel": "alta"
+      },
+      "alta": {
+        "label": "High Autonomy, Game-Realistic",
+        "description": "Learner makes all strategic/tactical decisions.",
+        "scientificBasis": "Constraint-Led Approach - full affordance exploration",
+        "confidenceLevel": "alta"
+      }
+    },
+    "taskComplexity": {
+      "baixa": {
+        "label": "Simple Motor Patterns",
+        "description": "Single focal point, foundational technique.",
+        "scientificBasis": "Fitts & Posner (1967) - cognitive stage, Newell (1986) - task constraints",
+        "confidenceLevel": "alta"
+      },
+      "media": {
+        "label": "Moderate Coordination",
+        "description": "2–3 elements combined. Intermediate skill.",
+        "scientificBasis": "Newell (1986) - moderate task constraint",
+        "confidenceLevel": "alta"
+      },
+      "alta": {
+        "label": "Complex Multi-Element Sequences",
+        "description": "High coordination and cognitive demand. Advanced technique.",
+        "scientificBasis": "Fitts & Posner (1967) - autonomous stage",
+        "confidenceLevel": "alta"
+      }
+    },
+    "feedbackFrequency": {
+      "baixa": {
+        "label": "Low Frequency",
+        "description": "Delayed, summary feedback. Post-session.",
+        "scientificBasis": "Schmidt & Lee (2020) - reduced relative error dependency",
+        "confidenceLevel": "media"
+      },
+      "media": {
+        "label": "Moderate Frequency",
+        "description": "Near real-time feedback. Post-drill summary.",
+        "scientificBasis": "Schmidt & Lee (2020) - balanced feedback schedule",
+        "confidenceLevel": "media"
+      },
+      "alta": {
+        "label": "High Frequency",
+        "description": "Immediate feedback per repetition or per rally.",
+        "scientificBasis": "Schmidt & Lee (2020) - early learning stage guidance",
+        "confidenceLevel": "media"
+      }
+    }
+  },
+  "ageProfiles": {
+    "comment": "Base dimension profiles derived from age (stage of motor development). No performance adjustment yet.",
+    "8-11": {
+      "label": "8-11 years (Iniciação)",
+      "variability": "baixa",
+      "representativeness": "baixa",
+      "decisionMaking": "baixa",
+      "taskComplexity": "baixa",
+      "feedbackFrequency": "alta",
+      "rationale": "Early childhood motor development; need motor planning + technique foundation; high external guidance"
+    },
+    "10-12": {
+      "label": "10-12 years (Transição Iniciação→Formação)",
+      "variability": "media",
+      "representativeness": "baixa",
+      "decisionMaking": "baixa",
+      "taskComplexity": "media",
+      "feedbackFrequency": "media",
+      "rationale": "Moderate baseline experience; variable practice for consolidation; still high feedback"
+    },
+    "12-14": {
+      "label": "12-14 years (Formação)",
+      "variability": "media",
+      "representativeness": "media",
+      "decisionMaking": "media",
+      "taskComplexity": "media",
+      "feedbackFrequency": "media",
+      "rationale": "Approaching adolescence; ready for game-realistic training; moderate autonomy; moderate feedback"
+    },
+    "14+": {
+      "label": "14+ years (Especialização/Competitive)",
+      "variability": "alta",
+      "representativeness": "alta",
+      "decisionMaking": "alta",
+      "taskComplexity": "alta",
+      "feedbackFrequency": "baixa",
+      "rationale": "High motor experience; game-realistic demands; high autonomy; learner self-monitors"
+    }
+  },
+  "levelAdjustments": {
+    "comment": "Adjustments applied per class level (1=iniciação, 2=formação, 3=competitivo). Add deltas to age profile.",
+    "1": {
+      "label": "Level 1 (Iniciação)",
+      "deltaVariability": 0,
+      "deltaRepresentativeness": 0,
+      "deltaDecisionMaking": 0,
+      "deltaTaskComplexity": 0,
+      "deltaFeedbackFrequency": 0,
+      "rationale": "No adjustment; age profile is primary"
+    },
+    "2": {
+      "label": "Level 2 (Formação)",
+      "deltaVariability": 0.1,
+      "deltaRepresentativeness": 0.1,
+      "deltaDecisionMaking": 0.1,
+      "deltaTaskComplexity": 0.1,
+      "deltaFeedbackFrequency": -0.1,
+      "rationale": "Advance towards higher variability, realism, autonomy; reduce feedback dependency"
+    },
+    "3": {
+      "label": "Level 3 (Competitive/Especialização)",
+      "deltaVariability": 0.2,
+      "deltaRepresentativeness": 0.2,
+      "deltaDecisionMaking": 0.2,
+      "deltaTaskComplexity": 0.2,
+      "deltaFeedbackFrequency": -0.2,
+      "rationale": "Maximize variability, realism, autonomy; minimize feedback (self-monitoring)"
+    }
+  },
+  "phaseModifiers": {
+    "comment": "Adjustments based on periodization phase. Applied after age + level composition.",
+    "fundamentos": {
+      "label": "Fundamentos (Skill Foundation)",
+      "deltaVariability": -0.1,
+      "deltaRepresentativeness": -0.1,
+      "deltaDecisionMaking": -0.05,
+      "deltaTaskComplexity": -0.05,
+      "deltaFeedbackFrequency": 0.1,
+      "rationale": "Focus on technique; reduce game-realism; increase feedback for technique refinement"
+    },
+    "consolidacao": {
+      "label": "Consolidação (Consolidation)",
+      "deltaVariability": 0,
+      "deltaRepresentativeness": 0.05,
+      "deltaDecisionMaking": 0.05,
+      "deltaTaskComplexity": 0,
+      "deltaFeedbackFrequency": 0,
+      "rationale": "Neutral; slight increase in realism + autonomy"
+    },
+    "especializacao": {
+      "label": "Especialização (Specialization)",
+      "deltaVariability": 0.1,
+      "deltaRepresentativeness": 0.15,
+      "deltaDecisionMaking": 0.15,
+      "deltaTaskComplexity": 0.1,
+      "deltaFeedbackFrequency": -0.1,
+      "rationale": "Increase game-realism, decision load, complexity; reduce feedback"
+    },
+    "competicao": {
+      "label": "Competição (Competition)",
+      "deltaVariability": 0.2,
+      "deltaRepresentativeness": 0.2,
+      "deltaDecisionMaking": 0.1,
+      "deltaTaskComplexity": 0,
+      "deltaFeedbackFrequency": -0.2,
+      "rationale": "Maximize game-realism + variability; minimize feedback (match conditions)"
+    }
+  },
+  "refinementRules": {
+    "comment": "Rules to refine base profile based on pedagogical evaluation (gap, trend, consistency). Applied if sampleConfidence >= 'medio'.",
+    "rules": [
+      {
+        "id": "critical-gap-low-consistency",
+        "condition": "gap.level === 'critico' && consistencyScore < 50%",
+        "description": "Critical gap with low consistency → increase feedback",
+        "adjustments": {
+          "feedbackFrequency": "+1"
+        },
+        "priority": 1
+      },
+      {
+        "id": "trend-improving-high-consistency",
+        "condition": "trend === 'subindo' && consistencyScore > 80%",
+        "description": "Trending upward with high consistency → increase representativeness",
+        "adjustments": {
+          "representativeness": "+1"
+        },
+        "priority": 2
+      },
+      {
+        "id": "critical-gap-high-consistency",
+        "condition": "gap.level === 'critico' && consistencyScore > 75%",
+        "description": "Critical gap but high basic consistency → increase task complexity",
+        "adjustments": {
+          "taskComplexity": "+1"
+        },
+        "priority": 3
+      },
+      {
+        "id": "trend-declining-low-consistency",
+        "condition": "trend === 'descendo' && consistencyScore < 40%",
+        "description": "Declining trend with low consistency → revert to lower variability + increase feedback",
+        "adjustments": {
+          "variability": "-1",
+          "feedbackFrequency": "+1"
+        },
+        "priority": 1
+      },
+      {
+        "id": "plateau-medium-consistency",
+        "condition": "trend === 'estavel' && consistencyScore > 60% && consistencyScore < 75%",
+        "description": "Plateauing with medium consistency → increase variability or representativeness",
+        "adjustments": {
+          "variability": "+1"
+        },
+        "priority": 4
+      }
+    ],
+    "safetyGates": [
+      {
+        "id": "low-sample-confidence",
+        "condition": "sampleConfidence === 'baixo'",
+        "action": "BLOCK all adjustments; return baseProfile unmodified",
+        "description": "Insufficient sample size or reliability to adjust; defer to base profile"
+      }
+    ]
+  },
+  "changeLogs": [
+    {
+      "version": "2026.04.07.1",
+      "date": "2026-04-07T00:00:00Z",
+      "changes": "Initial pedagogical dimensions system. 5 dimensions (variability, representativeness, decisionMaking, taskComplexity, feedbackFrequency) with 3 levels each. 4 age profiles (8-11, 10-12, 12-14, 14+). 3 level adjustments. 4 phase modifiers. 5 refinement rules + safety gates.",
+      "motivation": "Transform GoAtleta from static author-anchored pedagogy to science-driven, updatable system. Dimensions derive from motor learning consensus (Schmidt & Lee, Ecological Dynamics, Constraint-Led Approach).",
+      "reviewedBy": "GoAtleta Coaching Team"
+    }
+  ]
+}

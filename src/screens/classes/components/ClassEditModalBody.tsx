@@ -1,4 +1,4 @@
-import { memo, type RefObject } from "react";
+import { memo, type ReactNode, type RefObject, useState } from "react";
 
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, TextInput, View } from "react-native";
@@ -6,7 +6,6 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { DateInput } from "../../../ui/DateInput";
-import { DatePickerModal } from "../../../ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../../ui/FadeHorizontalScroll";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getSectionCardStyle } from "../../../ui/section-styles";
@@ -23,51 +22,54 @@ type ColorOption = {
 };
 
 type Option = { value: string; label: string };
+type EditSection = "basics" | "agenda" | "profile" | "days" | "advanced";
 
 type ClassEditModalBodyProps = {
+  compact?: boolean;
+  renderPickers?: boolean;
   refs: {
     editContainerRef: RefObject<View | null>;
     editDurationTriggerRef: RefObject<View | null>;
-    editCycleLengthTriggerRef: RefObject<View | null>;
-    editMvLevelTriggerRef: RefObject<View | null>;
     editAgeBandTriggerRef: RefObject<View | null>;
     editGenderTriggerRef: RefObject<View | null>;
-    editModalityTriggerRef: RefObject<View | null>;
     editGoalTriggerRef: RefObject<View | null>;
+    editCycleLengthTriggerRef?: RefObject<View | null>;
+    editMvLevelTriggerRef?: RefObject<View | null>;
+    editModalityTriggerRef?: RefObject<View | null>;
   };
   layouts: {
     editContainerWindow: WindowPosition | null;
     editDurationTriggerLayout: PickerLayout | null;
-    editCycleLengthTriggerLayout: PickerLayout | null;
-    editMvLevelTriggerLayout: PickerLayout | null;
     editAgeBandTriggerLayout: PickerLayout | null;
     editGenderTriggerLayout: PickerLayout | null;
-    editModalityTriggerLayout: PickerLayout | null;
     editGoalTriggerLayout: PickerLayout | null;
+    editCycleLengthTriggerLayout?: PickerLayout | null;
+    editMvLevelTriggerLayout?: PickerLayout | null;
+    editModalityTriggerLayout?: PickerLayout | null;
   };
   pickers: {
     showEditDurationPicker: boolean;
-    showEditCycleLengthPicker: boolean;
-    showEditMvLevelPicker: boolean;
     showEditAgeBandPicker: boolean;
     showEditGenderPicker: boolean;
-    showEditModalityPicker: boolean;
     showEditGoalPicker: boolean;
     showEditDurationPickerContent: boolean;
-    showEditCycleLengthPickerContent: boolean;
-    showEditMvLevelPickerContent: boolean;
     showEditAgeBandPickerContent: boolean;
     showEditGenderPickerContent: boolean;
-    showEditModalityPickerContent: boolean;
     showEditGoalPickerContent: boolean;
     editDurationPickerAnimStyle: any;
-    editCycleLengthPickerAnimStyle: any;
-    editMvLevelPickerAnimStyle: any;
     editAgeBandPickerAnimStyle: any;
     editGenderPickerAnimStyle: any;
-    editModalityPickerAnimStyle: any;
     editGoalPickerAnimStyle: any;
-    showEditCycleCalendar: boolean;
+    showEditCycleLengthPicker?: boolean;
+    showEditMvLevelPicker?: boolean;
+    showEditModalityPicker?: boolean;
+    showEditCycleLengthPickerContent?: boolean;
+    showEditMvLevelPickerContent?: boolean;
+    showEditModalityPickerContent?: boolean;
+    editCycleLengthPickerAnimStyle?: any;
+    editMvLevelPickerAnimStyle?: any;
+    editModalityPickerAnimStyle?: any;
+    showEditCycleCalendar?: boolean;
   };
   fields: {
     editName: string;
@@ -83,19 +85,22 @@ type ClassEditModalBodyProps = {
     editDuration: string;
     setEditDuration: (value: string) => void;
     editShowCustomDuration: boolean;
-    editCycleStartDate: string;
-    setEditCycleStartDate: (value: string) => void;
-    editCycleLengthWeeks: number;
-    editMvLevel: string;
+    editCycleStartDate?: string;
+    setEditCycleStartDate?: (value: string) => void;
+    editCycleLengthWeeks?: number;
+    editMvLevel?: string;
     editAgeBand: string;
     setEditAgeBand: (value: string) => void;
-    editShowAllAges: boolean;
+    editShowCustomAgeBand?: boolean;
+    editCustomAgeBand?: string;
+    setEditCustomAgeBand?: (value: string) => void;
     editGender: ClassGroup["gender"];
-    editModality: ClassGroup["modality"];
-    editShowCustomGoal: boolean;
+    editModality?: ClassGroup["modality"];
+    editShowCustomGoal?: boolean;
     editGoal: string;
-    editCustomGoal: string;
-    setEditCustomGoal: (value: string) => void;
+    editCustomGoal?: string;
+    setEditCustomGoal?: (value: string) => void;
+    setEditGoal?: (value: string) => void;
     editDays: number[];
     toggleEditDay: (value: number) => void;
     editFormError: string;
@@ -105,27 +110,27 @@ type ClassEditModalBodyProps = {
   options: {
     dayNames: string[];
     durationOptions: string[];
-    cycleLengthOptions: number[];
     ageBandOptions: string[];
     genderOptions: Option[];
-    modalityOptions: Option[];
-    mvLevelOptions: Option[];
     goalOptions: string[];
     customOptionLabel: string;
+    cycleLengthOptions?: number[];
+    modalityOptions?: Option[];
+    mvLevelOptions?: Option[];
   };
   actions: {
     closeAllPickers: () => void;
     toggleEditPicker: (target: "duration" | "cycle" | "level" | "age" | "gender" | "modality" | "goal") => void;
     handleEditSelectDuration: (value: SelectOptionValue) => void;
-    handleEditSelectCycleLength: (value: SelectOptionValue) => void;
-    handleEditSelectMvLevel: (value: SelectOptionValue) => void;
     handleEditSelectAgeBand: (value: SelectOptionValue) => void;
     handleEditSelectGender: (value: SelectOptionValue) => void;
-    handleEditSelectModality: (value: SelectOptionValue) => void;
     handleEditSelectGoal: (value: SelectOptionValue) => void;
     saveEditClass: () => void;
     handleDeleteClass: () => void;
-    setShowEditCycleCalendar: (value: boolean) => void;
+    handleEditSelectCycleLength?: (value: SelectOptionValue) => void;
+    handleEditSelectMvLevel?: (value: SelectOptionValue) => void;
+    handleEditSelectModality?: (value: SelectOptionValue) => void;
+    setShowEditCycleCalendar?: (value: boolean) => void;
   };
 };
 
@@ -159,6 +164,8 @@ const SelectOption = memo(function SelectOptionItem({
 SelectOption.displayName = "SelectOption";
 
 function ClassEditModalBodyBase({
+  compact = false,
+  renderPickers = true,
   refs,
   layouts,
   pickers,
@@ -183,6 +190,83 @@ function ClassEditModalBodyBase({
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
     gap: 8,
+  };
+  const [openSection, setOpenSection] = useState<EditSection | null>("basics");
+  const resolveGenderLabel = (value: ClassGroup["gender"] | "" | undefined) => {
+    if (value === "feminino") return "Feminino";
+    if (value === "masculino") return "Masculino";
+    if (value === "misto") return "Misto";
+    return "Selecione";
+  };
+
+  const resolveGoalLabel = () => {
+    if (fields.editShowCustomGoal) {
+      return fields.editCustomGoal?.trim() || "Personalizar";
+    }
+    return fields.editGoal?.trim() || "Selecione";
+  };
+
+  const resolveAgeBandLabel = () => {
+    if (fields.editShowCustomAgeBand) {
+      return fields.editCustomAgeBand?.trim() || "Personalizar";
+    }
+    return fields.editAgeBand?.trim() || "Selecione";
+  };
+
+  const hasAdvancedSection =
+    !compact &&
+    Boolean(
+      fields.setEditCycleStartDate ||
+        fields.editCycleLengthWeeks !== undefined ||
+        fields.editMvLevel !== undefined ||
+        fields.editModality !== undefined ||
+        options.cycleLengthOptions?.length ||
+        options.mvLevelOptions?.length ||
+        options.modalityOptions?.length
+    );
+
+  const SectionCard = ({
+    section,
+    title,
+    summary,
+    children,
+  }: {
+    section: EditSection;
+    title: string;
+    summary: string;
+    children: ReactNode;
+  }) => {
+    const isOpen = openSection === section;
+    return (
+      <View style={sectionCardStyle}>
+        <Pressable
+          onPress={() => {
+            actions.closeAllPickers();
+            setOpenSection((current) => (current === section ? null : section));
+          }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{title}</Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>{summary}</Text>
+          </View>
+          <Ionicons
+            name="chevron-down"
+            size={16}
+            color={colors.muted}
+            style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }}
+          />
+        </Pressable>
+        {isOpen ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
+        {isOpen ? <View style={{ gap: 12, padding: 12 }}>{children}</View> : null}
+      </View>
+    );
   };
 
   const renderColorOption = (option: ColorOption, index: number) => {
@@ -215,9 +299,12 @@ function ClassEditModalBodyBase({
 
   return (
     <>
-        <View ref={refs.editContainerRef} style={{ position: "relative", gap: 12 }}>
-        <View style={sectionCardStyle}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Dados básicos</Text>
+      <View style={{ position: "relative", gap: 12 }}>
+        <SectionCard
+          section="basics"
+          title="Dados básicos"
+          summary={`${fields.editName || "Sem nome"} • ${fields.editUnit || "Sem unidade"}`}
+        >
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
@@ -269,8 +356,13 @@ function ClassEditModalBodyBase({
               {fields.editColorOptions.map((option, index) => renderColorOption(option, index))}
             </FadeHorizontalScroll>
           </View>
+        </SectionCard>
 
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", marginTop: 6 }}>Agenda</Text>
+        <SectionCard
+          section="agenda"
+          title="Agenda"
+          summary={`${fields.editStartTime || "--:--"} • ${fields.editDuration ? `${fields.editDuration} min` : "Duração"}`}
+        >
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
@@ -326,59 +418,20 @@ function ClassEditModalBodyBase({
               ) : null}
             </View>
           </View>
+        </SectionCard>
 
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", marginTop: 6 }}>Ciclo e perfil</Text>
+        <SectionCard
+          section="profile"
+          title="Perfil esportivo"
+          summary={`${resolveAgeBandLabel()} • ${resolveGenderLabel(fields.editGender)} • ${resolveGoalLabel()}`}
+        >
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Data início do ciclo</Text>
-              <DateInput
-                value={fields.editCycleStartDate}
-                onChange={fields.setEditCycleStartDate}
-                onOpenCalendar={() => actions.setShowEditCycleCalendar(true)}
-                placeholder="DD/MM/AAAA"
-              />
-            </View>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Duração do ciclo</Text>
-              <View ref={refs.editCycleLengthTriggerRef}>
-                <Pressable onPress={() => actions.toggleEditPicker("cycle")} style={selectFieldStyle}>
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {fields.editCycleLengthWeeks ? `${fields.editCycleLengthWeeks} semanas` : "Selecione"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.muted}
-                    style={{ transform: [{ rotate: pickers.showEditCycleLengthPicker ? "180deg" : "0deg" }] }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Nível</Text>
-              <View ref={refs.editMvLevelTriggerRef}>
-                <Pressable onPress={() => actions.toggleEditPicker("level")} style={selectFieldStyle}>
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {options.mvLevelOptions.find((option) => option.value === fields.editMvLevel)?.label || "Selecione"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.muted}
-                    style={{ transform: [{ rotate: pickers.showEditMvLevelPicker ? "180deg" : "0deg" }] }}
-                  />
-                </Pressable>
-              </View>
-            </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
               <View ref={refs.editAgeBandTriggerRef}>
                 <Pressable onPress={() => actions.toggleEditPicker("age")} style={selectFieldStyle}>
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {fields.editAgeBand || "Selecione"}
+                    {resolveAgeBandLabel()}
                   </Text>
                   <Ionicons
                     name="chevron-down"
@@ -388,11 +441,14 @@ function ClassEditModalBodyBase({
                   />
                 </Pressable>
               </View>
-              {fields.editShowAllAges ? (
+              {fields.editShowCustomAgeBand ? (
                 <TextInput
-                  placeholder="Faixa etária (ex: 14-16)"
-                  value={fields.editAgeBand}
-                  onChangeText={fields.setEditAgeBand}
+                  placeholder="Personalizar faixa etária"
+                  value={fields.editCustomAgeBand ?? ""}
+                  onChangeText={(value) => {
+                    fields.setEditCustomAgeBand?.(value);
+                    fields.setEditAgeBand?.(value);
+                  }}
                   placeholderTextColor={colors.placeholder}
                   style={{
                     borderWidth: 1,
@@ -406,115 +462,196 @@ function ClassEditModalBodyBase({
                 />
               ) : null}
             </View>
+            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
+              <View ref={refs.editGenderTriggerRef}>
+                <Pressable onPress={() => actions.toggleEditPicker("gender")} style={selectFieldStyle}>
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {resolveGenderLabel(fields.editGender)}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={colors.muted}
+                    style={{ transform: [{ rotate: pickers.showEditGenderPicker ? "180deg" : "0deg" }] }}
+                  />
+                </Pressable>
+              </View>
+            </View>
           </View>
 
           <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
-            <View ref={refs.editGenderTriggerRef}>
-              <Pressable onPress={() => actions.toggleEditPicker("gender")} style={selectFieldStyle}>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
+            <View ref={refs.editGoalTriggerRef}>
+              <Pressable onPress={() => actions.toggleEditPicker("goal")} style={selectFieldStyle}>
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                  {options.genderOptions.find((option) => option.value === fields.editGender)?.label || "Selecione"}
+                  {resolveGoalLabel()}
                 </Text>
                 <Ionicons
                   name="chevron-down"
                   size={16}
                   color={colors.muted}
-                  style={{ transform: [{ rotate: pickers.showEditGenderPicker ? "180deg" : "0deg" }] }}
+                  style={{ transform: [{ rotate: pickers.showEditGoalPicker ? "180deg" : "0deg" }] }}
                 />
               </Pressable>
             </View>
+            {fields.editShowCustomGoal ? (
+              <TextInput
+                placeholder="Personalizar objetivo"
+                value={fields.editCustomGoal ?? ""}
+                onChangeText={(value) => {
+                  fields.setEditCustomGoal?.(value);
+                  fields.setEditGoal?.(value);
+                }}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.background,
+                  color: colors.inputText,
+                  fontSize: 13,
+                }}
+              />
+            ) : null}
           </View>
+        </SectionCard>
 
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
-              <View ref={refs.editModalityTriggerRef}>
-                <Pressable onPress={() => actions.toggleEditPicker("modality")} style={selectFieldStyle}>
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {options.modalityOptions.find((option) => option.value === fields.editModality)?.label || "Selecione"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.muted}
-                    style={{ transform: [{ rotate: pickers.showEditModalityPicker ? "180deg" : "0deg" }] }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-              <View ref={refs.editGoalTriggerRef} style={{ width: "100%" }}>
-                <Pressable onPress={() => actions.toggleEditPicker("goal")} style={[selectFieldStyle, { width: "100%" }]}>
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {fields.editShowCustomGoal
-                      ? fields.editCustomGoal || "Personalizar"
-                      : fields.editGoal || "Selecione"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.muted}
-                    style={{ transform: [{ rotate: pickers.showEditGoalPicker ? "180deg" : "0deg" }] }}
-                  />
-                </Pressable>
-              </View>
-              {fields.editShowCustomGoal ? (
-                <TextInput
-                  placeholder="Objetivo (ex: Força, Potência)"
-                  value={fields.editCustomGoal}
-                  onChangeText={fields.setEditCustomGoal}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
+        {hasAdvancedSection ? (
+          <SectionCard
+            section="advanced"
+            title="Planejamento"
+            summary="Ciclo, modalidade e nível"
+          >
+            {fields.setEditCycleStartDate ? (
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Início do ciclo</Text>
+                <DateInput
+                  value={fields.editCycleStartDate ?? ""}
+                  onChange={(value) => fields.setEditCycleStartDate?.(value)}
+                  placeholder="Início do ciclo"
+                  onOpenCalendar={actions.setShowEditCycleCalendar ? () => actions.setShowEditCycleCalendar?.(true) : undefined}
                 />
-              ) : null}
-            </View>
-          </View>
+              </View>
+            ) : null}
 
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>Dias da semana</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {options.dayNames.map((label, index) => {
-                const active = fields.editDays.includes(index);
-                return (
-                  <Pressable key={label} onPress={() => fields.toggleEditDay(index)} style={getChipStyle(active, colors)}>
-                    <Text style={getChipTextStyle(active, colors)}>{label}</Text>
+            {fields.editCycleLengthWeeks !== undefined && actions.handleEditSelectCycleLength && options.cycleLengthOptions?.length ? (
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Duração do ciclo</Text>
+                <View ref={refs.editCycleLengthTriggerRef}>
+                  <Pressable onPress={() => actions.toggleEditPicker("cycle")} style={selectFieldStyle}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {fields.editCycleLengthWeeks ? `${fields.editCycleLengthWeeks} semanas` : "Selecione"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{ transform: [{ rotate: pickers.showEditCycleLengthPicker ? "180deg" : "0deg" }] }}
+                    />
                   </Pressable>
-                );
-              })}
-            </View>
+                </View>
+              </View>
+            ) : null}
+
+            {fields.editMvLevel !== undefined && actions.handleEditSelectMvLevel && options.mvLevelOptions?.length ? (
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Nível MV</Text>
+                <View ref={refs.editMvLevelTriggerRef}>
+                  <Pressable onPress={() => actions.toggleEditPicker("level")} style={selectFieldStyle}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {fields.editMvLevel || "Selecione"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{ transform: [{ rotate: pickers.showEditMvLevelPicker ? "180deg" : "0deg" }] }}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {fields.editModality !== undefined && actions.handleEditSelectModality && options.modalityOptions?.length ? (
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
+                <View ref={refs.editModalityTriggerRef}>
+                  <Pressable onPress={() => actions.toggleEditPicker("modality")} style={selectFieldStyle}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                      {fields.editModality || "Selecione"}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={colors.muted}
+                      style={{ transform: [{ rotate: pickers.showEditModalityPicker ? "180deg" : "0deg" }] }}
+                    />
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+          </SectionCard>
+        ) : null}
+
+        <SectionCard
+          section="days"
+          title="Dias da semana"
+          summary={`${fields.editDays.length} selecionados`}
+        >
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {options.dayNames.map((label, index) => {
+              const active = fields.editDays.includes(index);
+              return (
+                <Pressable key={label} onPress={() => fields.toggleEditDay(index)} style={getChipStyle(active, colors)}>
+                  <Text style={getChipTextStyle(active, colors)}>{label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
-
-          {fields.editFormError ? (
-            <Text style={{ color: colors.dangerText, fontSize: 12 }}>{fields.editFormError}</Text>
-          ) : null}
-
-          <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 8 }} />
-        </View>
+          {fields.editFormError ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{fields.editFormError}</Text> : null}
+        </SectionCard>
       </View>
+      {renderPickers ? (
+        <ClassEditModalPickers
+          refs={refs}
+          layouts={layouts}
+          pickers={pickers}
+          fields={fields}
+          options={options}
+          actions={actions}
+        />
+      ) : null}
+    </>
+  );
+}
 
+function ClassEditModalPickersBase({
+  layouts,
+  pickers,
+  fields,
+  options,
+  actions,
+}: ClassEditModalBodyProps) {
+  const showEditCycleLengthPickerContent = Boolean(pickers.showEditCycleLengthPickerContent);
+  const showEditMvLevelPickerContent = Boolean(pickers.showEditMvLevelPickerContent);
+  const showEditModalityPickerContent = Boolean(pickers.showEditModalityPickerContent);
+  const editCycleLengthTriggerLayout = layouts.editCycleLengthTriggerLayout ?? null;
+  const editMvLevelTriggerLayout = layouts.editMvLevelTriggerLayout ?? null;
+  const editModalityTriggerLayout = layouts.editModalityTriggerLayout ?? null;
+
+  return (
+    <>
       <AnchoredDropdown
         visible={pickers.showEditDurationPickerContent}
         layout={layouts.editDurationTriggerLayout}
         container={layouts.editContainerWindow}
         animationStyle={pickers.editDurationPickerAnimStyle}
-        zIndex={320}
+        zIndex={5200}
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        panelStyle={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-        }}
       >
         <View style={{ gap: 6 }}>
           {options.durationOptions.map((option) => (
@@ -536,56 +673,46 @@ function ClassEditModalBodyBase({
       </AnchoredDropdown>
 
       <AnchoredDropdown
-        visible={pickers.showEditCycleLengthPickerContent}
-        layout={layouts.editCycleLengthTriggerLayout}
+        visible={showEditCycleLengthPickerContent}
+        layout={editCycleLengthTriggerLayout}
         container={layouts.editContainerWindow}
         animationStyle={pickers.editCycleLengthPickerAnimStyle}
-        zIndex={321}
+        zIndex={5201}
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        panelStyle={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-        }}
       >
         <View style={{ gap: 6 }}>
-          {options.cycleLengthOptions.map((option) => (
+          {(options.cycleLengthOptions ?? []).map((option) => (
             <SelectOption
               key={option}
               label={`${option} semanas`}
               value={option}
               active={fields.editCycleLengthWeeks === option}
-              onSelect={actions.handleEditSelectCycleLength}
+              onSelect={actions.handleEditSelectCycleLength!}
             />
           ))}
         </View>
       </AnchoredDropdown>
 
       <AnchoredDropdown
-        visible={pickers.showEditMvLevelPickerContent}
-        layout={layouts.editMvLevelTriggerLayout}
+        visible={showEditMvLevelPickerContent}
+        layout={editMvLevelTriggerLayout}
         container={layouts.editContainerWindow}
         animationStyle={pickers.editMvLevelPickerAnimStyle}
-        zIndex={322}
+        zIndex={5202}
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        panelStyle={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-        }}
       >
         <View style={{ gap: 6 }}>
-          {options.mvLevelOptions.map((option, index) => (
+          {(options.mvLevelOptions ?? []).map((option) => (
             <SelectOption
               key={option.value}
               label={option.label}
               value={option.value}
               active={fields.editMvLevel === option.value}
-              onSelect={actions.handleEditSelectMvLevel}
+              onSelect={actions.handleEditSelectMvLevel!}
             />
           ))}
         </View>
@@ -596,15 +723,10 @@ function ClassEditModalBodyBase({
         layout={layouts.editAgeBandTriggerLayout}
         container={layouts.editContainerWindow}
         animationStyle={pickers.editAgeBandPickerAnimStyle}
-        zIndex={323}
+        zIndex={5203}
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        panelStyle={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-        }}
       >
         <View style={{ gap: 6 }}>
           {options.ageBandOptions.map((option) => (
@@ -612,14 +734,14 @@ function ClassEditModalBodyBase({
               key={option}
               label={option}
               value={option}
-              active={fields.editAgeBand === option}
+              active={!fields.editShowCustomAgeBand && fields.editAgeBand === option}
               onSelect={actions.handleEditSelectAgeBand}
             />
           ))}
           <SelectOption
             label={options.customOptionLabel}
             value={options.customOptionLabel}
-            active={fields.editShowAllAges}
+            active={Boolean(fields.editShowCustomAgeBand)}
             onSelect={actions.handleEditSelectAgeBand}
           />
         </View>
@@ -630,15 +752,10 @@ function ClassEditModalBodyBase({
         layout={layouts.editGenderTriggerLayout}
         container={layouts.editContainerWindow}
         animationStyle={pickers.editGenderPickerAnimStyle}
-        zIndex={324}
+        zIndex={5204}
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        panelStyle={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-        }}
       >
         <View style={{ gap: 6 }}>
           {options.genderOptions.map((option) => (
@@ -654,28 +771,23 @@ function ClassEditModalBodyBase({
       </AnchoredDropdown>
 
       <AnchoredDropdown
-        visible={pickers.showEditModalityPickerContent}
-        layout={layouts.editModalityTriggerLayout}
+        visible={showEditModalityPickerContent}
+        layout={editModalityTriggerLayout}
         container={layouts.editContainerWindow}
         animationStyle={pickers.editModalityPickerAnimStyle}
-        zIndex={325}
+        zIndex={5205}
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        panelStyle={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-        }}
       >
         <View style={{ gap: 6 }}>
-          {options.modalityOptions.map((option) => (
+          {(options.modalityOptions ?? []).map((option) => (
             <SelectOption
               key={option.value}
               label={option.label}
               value={option.value}
               active={fields.editModality === option.value}
-              onSelect={actions.handleEditSelectModality}
+              onSelect={actions.handleEditSelectModality!}
             />
           ))}
         </View>
@@ -686,15 +798,10 @@ function ClassEditModalBodyBase({
         layout={layouts.editGoalTriggerLayout}
         container={layouts.editContainerWindow}
         animationStyle={pickers.editGoalPickerAnimStyle}
-        zIndex={326}
+        zIndex={5206}
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        panelStyle={{
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-        }}
       >
         <View style={{ gap: 6 }}>
           {options.goalOptions.map((goal) => (
@@ -709,21 +816,17 @@ function ClassEditModalBodyBase({
           <SelectOption
             label={options.customOptionLabel}
             value={options.customOptionLabel}
-            active={fields.editShowCustomGoal}
+            active={Boolean(fields.editShowCustomGoal)}
             onSelect={actions.handleEditSelectGoal}
           />
         </View>
       </AnchoredDropdown>
-
-      <DatePickerModal
-        visible={pickers.showEditCycleCalendar}
-        value={fields.editCycleStartDate}
-        onChange={fields.setEditCycleStartDate}
-        onClose={() => actions.setShowEditCycleCalendar(false)}
-      />
     </>
   );
 }
+
+export const ClassEditModalPickers = memo(ClassEditModalPickersBase);
+ClassEditModalPickers.displayName = "ClassEditModalPickers";
 
 function getChipStyle(
   active: boolean,

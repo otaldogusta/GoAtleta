@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -51,6 +51,7 @@ import { getUnitPalette } from "../../src/ui/unit-colors";
 import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 const ClassEditModalBody = lazy(() =>
@@ -152,7 +153,8 @@ export default function ClassesScreen() {
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomDuration, setEditShowCustomDuration] = useState(false);
-  const [editShowAllAges, setEditShowAllAges] = useState(false);
+  const [editShowCustomAgeBand, setEditShowCustomAgeBand] = useState(false);
+  const [editCustomAgeBand, setEditCustomAgeBand] = useState("");
   const [editShowCustomGoal, setEditShowCustomGoal] = useState(false);
   const [editCustomGoal, setEditCustomGoal] = useState("");
   const [showEditDurationPicker, setShowEditDurationPicker] = useState(false);
@@ -269,7 +271,7 @@ export default function ClassesScreen() {
     "Resistencia",
     "Potência",
     "Mobilidade",
-    "Coordenação",
+    "Coordena??o",
     "Prevencao de lesoes",
   ];
   const durationOptions = ["60", "75", "90"];
@@ -750,7 +752,7 @@ export default function ClassesScreen() {
       return;
     }
     if (!newMvLevel) {
-      setFormError("Selecione o nível.");
+      setFormError("Selecione o Nível.");
       Vibration.vibrate(40);
       return;
     }
@@ -929,14 +931,18 @@ export default function ClassesScreen() {
   }, [mainTab, mainTabAnim]);
 
   const openEditModal = useCallback((item: ClassGroup) => {
+    const nextAgeBand = item.ageBand ?? "08-09";
     const goalValue = item.goal ?? "Fundamentos";
+    const isAgeBandCustom = nextAgeBand.trim().length > 0 && !ageBandOptions.includes(nextAgeBand);
     const isGoalInList = goalOptions.includes(goalValue);
     setEditingClass(item);
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
     setEditColorKey(item.colorKey ?? null);
     setEditModality(item.modality);
-    setEditAgeBand(item.ageBand ?? "08-09");
+    setEditAgeBand(nextAgeBand as ClassGroup["ageBand"]);
+    setEditCustomAgeBand(isAgeBandCustom ? nextAgeBand : "");
+    setEditShowCustomAgeBand(isAgeBandCustom);
     setEditGender(item.gender ?? "misto");
     setEditGoal(isGoalInList ? goalValue : "Fundamentos");
     setEditShowCustomGoal(!isGoalInList && Boolean(goalValue));
@@ -949,9 +955,8 @@ export default function ClassesScreen() {
     setEditCycleLengthWeeks(item.cycleLengthWeeks ?? 12);
     setEditFormError("");
     setEditShowCustomDuration(false);
-    setEditShowAllAges(false);
     setShowEditModal(true);
-  }, [goalOptions]);
+  }, [ageBandOptions, goalOptions]);
 
   useEffect(() => {
     if (tabParam !== "criar") return;
@@ -977,12 +982,13 @@ export default function ClassesScreen() {
   const isEditDirty = useMemo(() => {
     if (!editingClass) return false;
     const goalValue = editShowCustomGoal ? editCustomGoal.trim() : editGoal;
+    const ageBandValue = editShowCustomAgeBand ? editCustomAgeBand.trim() : editAgeBand;
     return (
       editingClass.name !== editName ||
       (editingClass.unit ?? "") !== editUnit ||
       (editingClass.colorKey ?? null) !== editColorKey ||
       editingClass.modality !== editModality ||
-      (editingClass.ageBand ?? "08-09") !== editAgeBand ||
+      (editingClass.ageBand ?? "08-09") !== ageBandValue ||
       (editingClass.gender ?? "misto") !== editGender ||
       (editingClass.goal ?? "Fundamentos") !== goalValue ||
       (editingClass.startTime ?? "14:00") !== editStartTime ||
@@ -1059,6 +1065,7 @@ export default function ClassesScreen() {
     if (!editingClass) return;
     if (!editName.trim()) return;
     const goalValue = editShowCustomGoal ? editCustomGoal.trim() : editGoal.trim();
+    const ageBandValue = editShowCustomAgeBand ? editCustomAgeBand.trim() : editAgeBand;
     if (!goalValue) {
       setEditFormError("Defina o objetivo da turma.");
       Vibration.vibrate(40);
@@ -1096,7 +1103,7 @@ export default function ClassesScreen() {
         name: editName.trim(),
         unit: editUnit.trim() || "Sem unidade",
         colorKey: editColorKey ?? null,
-        ageBand: editAgeBand,
+        ageBand: ageBandValue || editAgeBand,
         gender: editGender,
         modality: editModality ?? undefined,
         daysOfWeek: editDays,
@@ -1117,8 +1124,8 @@ export default function ClassesScreen() {
         confirmDialog({
           title: "Treino integrado detectado",
           message: classNames
-            ? `Encontramos turma(s) no mesmo horário: ${classNames}. Deseja criar um treino integrado?`
-            : "Encontramos turma(s) no mesmo horário. Deseja criar um treino integrado?",
+            ? `Encontramos turma(s) no mesmo Horário: ${classNames}. Deseja criar um treino integrado?`
+            : "Encontramos turma(s) no mesmo Horário. Deseja criar um treino integrado?",
           confirmLabel: "Criar treino",
           cancelLabel: "Agora não",
           tone: "default",
@@ -1354,18 +1361,21 @@ export default function ClassesScreen() {
     (value: SelectOptionValue) => {
       if (value === customOptionLabel) {
         animateLayout();
-        setEditShowAllAges(true);
+        setEditShowCustomAgeBand(true);
+        setEditCustomAgeBand(ageBandOptions.includes(editAgeBand) ? "" : editAgeBand);
         setShowEditAgeBandPicker(false);
         return;
       }
-      if (editShowAllAges) {
+      if (editShowCustomAgeBand) {
         animateLayout();
-        setEditShowAllAges(false);
+        setEditShowCustomAgeBand(false);
       }
-      setEditAgeBand(String(value));
+      const selected = String(value);
+      setEditCustomAgeBand(selected);
+      setEditAgeBand(selected as ClassGroup["ageBand"]);
       setShowEditAgeBandPicker(false);
     },
-    [customOptionLabel, editShowAllAges]
+    [customOptionLabel, editAgeBand, editShowCustomAgeBand, ageBandOptions]
   );
 
   const handleEditSelectGender = useCallback((value: SelectOptionValue) => {
@@ -1586,8 +1596,6 @@ export default function ClassesScreen() {
           <AnchoredDropdownOption
             active={active}
             onPress={() => onSelect(unit)}
-            activeBackgroundColor={palette.bg}
-            activeBorderColor={palette.bg}
           >
             <Text
               style={{
@@ -1708,112 +1716,111 @@ export default function ClassesScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
-        <View
+        <ScreenTopChrome
           style={{
             gap: 16,
-            backgroundColor: colors.background,
             paddingBottom: 8,
             paddingHorizontal: 16,
             paddingTop: 16,
           }}
         >
-        <View style={{ marginBottom: 4 }}>
-          <Pressable
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              router.replace("/");
+          <View style={{ marginBottom: 4 }}>
+            <Pressable
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace("/");
+              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+                Turmas
+              </Text>
+            </Pressable>
+          </View>
+
+          <ConfirmCloseOverlay
+            visible={showCreateTabConfirm}
+            onCancel={() => {
+              setShowCreateTabConfirm(false);
+              setPendingMainTab(null);
             }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            onConfirm={() => {
+              setShowCreateTabConfirm(false);
+              resetCreateForm();
+              setMainTab(pendingMainTab ?? "lista");
+              setPendingMainTab(null);
+            }}
+          />
+
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 6,
+              padding: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+            }}
           >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              Turmas
-            </Text>
-          </Pressable>
-        </View>
-
-        <ConfirmCloseOverlay
-          visible={showCreateTabConfirm}
-          onCancel={() => {
-            setShowCreateTabConfirm(false);
-            setPendingMainTab(null);
-          }}
-          onConfirm={() => {
-            setShowCreateTabConfirm(false);
-            resetCreateForm();
-            setMainTab(pendingMainTab ?? "lista");
-            setPendingMainTab(null);
-          }}
-        />
-
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 6,
-            padding: 6,
-            borderRadius: 999,
-            backgroundColor: colors.secondaryBg,
-          }}
-        >
-            {[
-              { id: "lista" as const, label: "Lista" },
-              { id: "criar" as const, label: "Criar turma" },
-            ].map((tab) => {
-              const tabProgress = mainTabAnim[tab.id];
-              const tabScale = tabProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.95, 1],
-              });
-              const tabOpacity = tabProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.68, 1],
-              });
-              const tabBackground = tabProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [colors.card, colors.primaryBg],
-              });
-              const tabTextColor = tabProgress.interpolate({
-                inputRange: [0, 1],
-                outputRange: [colors.text, colors.primaryText],
-              });
-              return (
-                <Animated.View
-                  key={tab.id}
-                  style={{
-                    flex: 1,
-                    borderRadius: 999,
-                    opacity: tabOpacity,
-                    transform: [{ scale: tabScale }],
-                    backgroundColor: tabBackground,
-                  }}
-                >
-                <Pressable
-                  onPress={() => requestSwitchMainTab(tab.id)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 999,
-                    alignItems: "center",
-                  }}
-                >
-                  <Animated.Text
+              {[
+                { id: "lista" as const, label: "Lista" },
+                { id: "criar" as const, label: "Criar turma" },
+              ].map((tab) => {
+                const tabProgress = mainTabAnim[tab.id];
+                const tabScale = tabProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.95, 1],
+                });
+                const tabOpacity = tabProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.68, 1],
+                });
+                const tabBackground = tabProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [colors.card, colors.primaryBg],
+                });
+                const tabTextColor = tabProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [colors.text, colors.primaryText],
+                });
+                return (
+                  <Animated.View
+                    key={tab.id}
                     style={{
-                      color: tabTextColor,
-                      fontWeight: "700",
-                      fontSize: 12,
+                      flex: 1,
+                      borderRadius: 999,
+                      opacity: tabOpacity,
+                      transform: [{ scale: tabScale }],
+                      backgroundColor: tabBackground,
                     }}
                   >
-                    {tab.label}
-                  </Animated.Text>
-                </Pressable>
-                </Animated.View>
-              );
-            })}
-        </View>
-        </View>
+                  <Pressable
+                    onPress={() => requestSwitchMainTab(tab.id)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 999,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Animated.Text
+                      style={{
+                        color: tabTextColor,
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
+                      {tab.label}
+                    </Animated.Text>
+                  </Pressable>
+                  </Animated.View>
+                );
+              })}
+          </View>
+        </ScreenTopChrome>
 
         {mainTab === "lista" ? (
           <View style={{ flex: 1, minHeight: 0, gap: 12, paddingHorizontal: 16, paddingTop: 12 }}>
@@ -1899,7 +1906,7 @@ export default function ClassesScreen() {
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>gênero</Text>
               <View ref={genderTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("gender")}
@@ -2048,7 +2055,7 @@ export default function ClassesScreen() {
               />
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Dura??o</Text>
               <View ref={durationTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("duration")}
@@ -2071,7 +2078,7 @@ export default function ClassesScreen() {
               </View>
               { showCustomDuration ? (
                 <TextInput
-                  placeholder="Duração (min)"
+                  placeholder="Dura??o (min)"
                   value={newDuration}
                   onChangeText={setNewDuration}
                   keyboardType="numeric"
@@ -2131,7 +2138,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Duração do ciclo</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Dura??o do ciclo</Text>
               <View ref={cycleLengthTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("cycle")}
@@ -2189,11 +2196,6 @@ export default function ClassesScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {units.map((unit, index) => {
@@ -2224,11 +2226,6 @@ export default function ClassesScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {durationOptions.map((value, index) => (
@@ -2258,11 +2255,6 @@ export default function ClassesScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {cycleLengthOptions.map((value, index) => (
@@ -2286,11 +2278,6 @@ export default function ClassesScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {mvLevelOptions.map((option, index) => (
@@ -2314,11 +2301,6 @@ export default function ClassesScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {ageBandOptions.map((band, index) => (
@@ -2348,11 +2330,6 @@ export default function ClassesScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {genderOptions.map((option, index) => (
@@ -2376,11 +2353,6 @@ export default function ClassesScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {modalityOptions.map((option, index) => (
@@ -2404,11 +2376,6 @@ export default function ClassesScreen() {
           maxHeight={260}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {goalOptions.map((goal, index) => (
@@ -2553,7 +2520,9 @@ export default function ClassesScreen() {
               editMvLevel,
               editAgeBand,
               setEditAgeBand,
-              editShowAllAges,
+              editShowCustomAgeBand,
+              editCustomAgeBand,
+              setEditCustomAgeBand,
               editGender,
               editModality,
               editShowCustomGoal,
@@ -2605,12 +2574,6 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-
-
-
 
 
 

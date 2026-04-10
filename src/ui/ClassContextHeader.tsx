@@ -10,62 +10,7 @@ import { LocationBadge } from "./LocationBadge";
 import { Pressable } from "./Pressable";
 import { getUnitPalette } from "./unit-colors";
 import { useIsOnline } from "../hooks/use-is-online";
-
-const decodeUnicodeEscapes = (value: string) => {
-  let current = value;
-  for (let i = 0; i < 3; i += 1) {
-    const next = current
-      .replace(/\\\\u([0-9a-fA-F]{4})/g, (_, code) =>
-        String.fromCharCode(parseInt(code, 16))
-      )
-      .replace(/\\u([0-9a-fA-F]{4})/g, (_, code) =>
-        String.fromCharCode(parseInt(code, 16))
-      )
-      .replace(/\\\\U([0-9a-fA-F]{8})/g, (_, code) =>
-        String.fromCharCode(parseInt(code, 16))
-      )
-      .replace(/\\U([0-9a-fA-F]{8})/g, (_, code) =>
-        String.fromCharCode(parseInt(code, 16))
-      );
-    if (next === current) break;
-    current = next;
-  }
-  return current;
-};
-
-const tryJsonDecode = (value: string) => {
-  try {
-    const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    return JSON.parse(`"${escaped}"`) as string;
-  } catch {
-    return value;
-  }
-};
-
-const MOJIBAKE_REGEX = /[\u00c3\u00c2\ufffd]/;
-
-const normalizeText = (value: string) => {
-  if (!value) return value;
-  let current = String(value);
-  for (let i = 0; i < 3; i += 1) {
-    const decoded = decodeUnicodeEscapes(tryJsonDecode(current));
-    if (decoded === current) break;
-    current = decoded;
-  }
-  if (/\\u[0-9a-fA-F]{4}/.test(current) || /\\U[0-9a-fA-F]{8}/.test(current)) {
-    current = decodeUnicodeEscapes(current);
-  }
-  if (!MOJIBAKE_REGEX.test(current)) return current;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      current = decodeURIComponent(escape(current));
-    } catch {
-      break;
-    }
-    if (!MOJIBAKE_REGEX.test(current)) break;
-  }
-  return current;
-};
+import { normalizeDisplayText } from "../utils/text-normalization";
 
 type ClassContextHeaderProps = {
   title: string;
@@ -96,13 +41,13 @@ export function ClassContextHeader({
   const { colors } = useAppTheme();
   const isOnline = useIsOnline();
   const unitLabel = unit?.trim() ?? "";
-  const safeTitle = normalizeText(title);
-  const safeClassName = normalizeText(className);
-  const safeUnitLabel = normalizeText(unitLabel);
-  const safeAgeBand = normalizeText(ageBand ?? "");
-  const safeDateLabel = normalizeText(dateLabel);
-  const safeTimeLabel = normalizeText(timeLabel);
-  const safeNotice = normalizeText(notice ?? "");
+  const safeTitle = normalizeDisplayText(title);
+  const safeClassName = normalizeDisplayText(className);
+  const safeUnitLabel = normalizeDisplayText(unitLabel);
+  const safeAgeBand = normalizeDisplayText(ageBand ?? "");
+  const safeDateLabel = normalizeDisplayText(dateLabel);
+  const safeTimeLabel = normalizeDisplayText(timeLabel);
+  const safeNotice = normalizeDisplayText(notice ?? "");
   const unitPalette = unitLabel ? getUnitPalette(unitLabel, colors) : null;
   const classPalette = getClassPalette(classColorKey, colors, unitLabel);
   const hasCombinedSchedule = scheduleFormat === "combined" && !!dateLabel && !!timeLabel;

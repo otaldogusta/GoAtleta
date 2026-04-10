@@ -1,3 +1,5 @@
+import { normalizeDisplayText } from "../../utils/text-normalization";
+
 export type PeriodizationWeekRow = {
   week: number;
   dateRange?: string;
@@ -25,11 +27,24 @@ export type PeriodizationPdfData = {
   targetDate?: string;
   tacticalSystem?: string;
   currentPhase?: string;
+  contextModel?: string;
+  contextObjective?: string;
+  contextFocus?: string;
+  contextCyclePhase?: string;
+  contextPedagogicalIntent?: string;
+  contextLoad?: string;
+  contextConstraints?: string;
   rows: PeriodizationWeekRow[];
 };
 
+const asText = (value: unknown) => {
+  if (typeof value === "string") return normalizeDisplayText(value);
+  if (value === null || value === undefined) return "";
+  return normalizeDisplayText(String(value));
+};
+
 const esc = (value: string) =>
-  value
+  asText(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -101,6 +116,25 @@ export const periodizationHtml = (data: PeriodizationPdfData) => {
           data.tacticalSystem ? `<strong>Sistema tatico:</strong> ${esc(data.tacticalSystem)}<br/>` : ""
         }
         ${data.currentPhase ? `<strong>Fase atual:</strong> ${esc(data.currentPhase)}<br/>` : ""}
+        ${
+          data.contextModel ||
+          data.contextObjective ||
+          data.contextFocus ||
+          data.contextCyclePhase ||
+          data.contextPedagogicalIntent ||
+          data.contextLoad ||
+          data.contextConstraints
+            ? `<strong>Contexto pedagogico:</strong><br/>
+               ${data.contextModel ? `Modelo: ${esc(data.contextModel)}<br/>` : ""}
+               ${data.contextObjective ? `Objetivo: ${esc(data.contextObjective)}<br/>` : ""}
+               ${data.contextFocus ? `Foco: ${esc(data.contextFocus)}<br/>` : ""}
+               ${data.contextCyclePhase ? `Fase do ciclo: ${esc(data.contextCyclePhase)}<br/>` : ""}
+               ${data.contextPedagogicalIntent ? `Intencao: ${esc(data.contextPedagogicalIntent)}<br/>` : ""}
+               ${data.contextLoad ? `Carga: ${esc(data.contextLoad)}<br/>` : ""}
+               ${data.contextConstraints ? `Restricoes: ${esc(data.contextConstraints)}<br/>` : ""}
+              `
+            : ""
+        }
         ${
           typeof data.cycleLength === "number"
             ? `<strong>Semanas:</strong> ${data.cycleLength}<br/>`

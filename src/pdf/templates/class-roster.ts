@@ -1,3 +1,5 @@
+import { normalizeDisplayText } from "../../utils/text-normalization";
+
 export type ClassRosterRow = {
   index: number;
   studentName: string;
@@ -34,8 +36,14 @@ export type ClassRosterPdfData = {
   rows: ClassRosterRow[];
 };
 
+const asText = (value: unknown) => {
+  if (typeof value === "string") return normalizeDisplayText(value);
+  if (value === null || value === undefined) return "";
+  return normalizeDisplayText(String(value));
+};
+
 const esc = (value: string) =>
-  value
+  asText(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

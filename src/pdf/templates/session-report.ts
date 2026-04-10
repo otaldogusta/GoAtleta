@@ -1,3 +1,5 @@
+import { toPdfCoachingText, toPdfText } from "../pdf-coaching-text";
+
 export type SessionReportPdfData = {
   monthLabel: string;
   dateLabel: string;
@@ -10,11 +12,9 @@ export type SessionReportPdfData = {
   deadlineLabel: string;
 };
 
-const asText = (value: unknown) => {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  return String(value);
-};
+const asText = (value: unknown) => toPdfText(value);
+
+const asCoachingText = (value: unknown) => toPdfCoachingText(value);
 
 const esc = (value: unknown) =>
   asText(value)
@@ -46,8 +46,8 @@ const isRenderableImageUri = (value: string) =>
   /^(https?:|file:|content:|blob:|data:image\/)/i.test(value);
 
 export const sessionReportHtml = (data: SessionReportPdfData) => {
-  const activity = asText(data?.activity).trim();
-  const conclusion = asText(data?.conclusion).trim();
+  const activity = asCoachingText(data?.activity).trim();
+  const conclusion = asCoachingText(data?.conclusion).trim();
   const photos = asText(data?.photos).trim();
   const photoUris = parsePhotoUris(photos).filter(isRenderableImageUri).slice(0, 6);
   const participants =

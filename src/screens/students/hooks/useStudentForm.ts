@@ -1,4 +1,4 @@
-import { useCallback, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { Student } from "../../../core/models";
 
 // ---------------------------------------------------------------------------
@@ -257,6 +257,16 @@ function studentFormReducer(
 
 export function useStudentForm() {
   const [form, dispatch] = useReducer(studentFormReducer, INITIAL_FORM);
+  const openCreateSectionRef = useRef<StudentFormState["openCreateSection"]>(form.openCreateSection);
+  const openEditSectionRef = useRef<StudentFormState["openEditSection"]>(form.openEditSection);
+
+  useEffect(() => {
+    openCreateSectionRef.current = form.openCreateSection;
+  }, [form.openCreateSection]);
+
+  useEffect(() => {
+    openEditSectionRef.current = form.openEditSection;
+  }, [form.openEditSection]);
 
   // Setters individuais — mesma API que useState para minimizar diff no componente pai
   const setUnit = useCallback(
@@ -435,17 +445,17 @@ export function useStudentForm() {
   );
   const setOpenCreateSection = useCallback(
     (v: StudentFormSection | ((prev: StudentFormSection) => StudentFormSection)) => {
-      const nextValue = typeof v === "function" ? v(form.openCreateSection) : v;
+      const nextValue = typeof v === "function" ? v(openCreateSectionRef.current) : v;
       dispatch({ type: "SET_FIELD", field: "openCreateSection", value: nextValue });
     },
-    [form.openCreateSection]
+    []
   );
   const setOpenEditSection = useCallback(
     (v: EditSection | ((prev: EditSection) => EditSection)) => {
-      const nextValue = typeof v === "function" ? v(form.openEditSection) : v;
+      const nextValue = typeof v === "function" ? v(openEditSectionRef.current) : v;
       dispatch({ type: "SET_FIELD", field: "openEditSection", value: nextValue });
     },
-    [form.openEditSection]
+    []
   );
   const setStudentFormError = useCallback(
     (v: string) =>

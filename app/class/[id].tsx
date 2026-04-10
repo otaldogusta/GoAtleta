@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+﻿import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
@@ -10,12 +10,13 @@ import {
     Text,
     TextInput,
     Vibration,
-    View
+    View,
+    useWindowDimensions
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import type { ClassGroup, ScoutingLog, Student, TrainingPlan } from "../../src/core/models";
 import {
@@ -59,7 +60,6 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
-import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
@@ -68,8 +68,12 @@ import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { getUnitPalette, toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
+import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
+import {
+  ClassEditModalBody,
+  ClassEditModalPickers,
+} from "../../src/screens/classes/components/ClassEditModalBody";
 import {
     buildWaMeLink,
     getContactPhone,
@@ -206,6 +210,7 @@ export default function ClassDetails() {
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const { colors, mode } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -223,7 +228,13 @@ export default function ClassDetails() {
     maxWidth: 520,
   });
   const rosterModalCardStyle = useModalCardStyle({ maxHeight: "86%", maxWidth: 820 });
-  const editModalCardStyle = useModalCardStyle({ maxHeight: "90%", maxWidth: 440 });
+  const isCompactEditModal = Platform.OS !== "web" && windowWidth <= 760;
+  const editModalCardStyle = useModalCardStyle({
+    maxHeight: Platform.OS === "web" ? "92%" : "96%",
+    maxWidth: isCompactEditModal ? 700 : 960,
+    padding: 16,
+    radius: 16,
+  });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
   const [customWhatsAppMessage, setCustomWhatsAppMessage] = useState("");
@@ -276,6 +287,7 @@ export default function ClassDetails() {
     x: number;
     y: number;
   } | null>(null);
+  const editScrollRef = useRef<ScrollView | null>(null);
   const [editDurationTriggerLayout, setEditDurationTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -334,17 +346,12 @@ export default function ClassDetails() {
   const [latestScouting, setLatestScouting] = useState<ScoutingLog | null>(null);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [goal, setGoal] = useState<ClassGroup["goal"]>("Fundamentos");
+  const [editCustomGoal, setEditCustomGoal] = useState("");
+  const [showEditCustomGoal, setShowEditCustomGoal] = useState(false);
+  const [editCustomAgeBand, setEditCustomAgeBand] = useState("");
+  const [showEditCustomAgeBand, setShowEditCustomAgeBand] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
-  const [showDetails, setShowDetails] = usePersistedState<boolean>(
-    "class_details_show_info_v1",
-    true
-  );
-  const {
-    animatedStyle: detailsAnimStyle,
-    isVisible: showDetailsContent,
-  } = useCollapsibleAnimation(showDetails);
-
   if (showWhatsAppSettingsModal) {
     markRender("screen.classDetails.render.whatsappModal");
   }
@@ -771,9 +778,18 @@ export default function ClassDetails() {
     setStartTime(cls.startTime ?? "14:00");
     setDuration(String(cls.durationMinutes ?? 60));
     setDaysOfWeek(cls.daysOfWeek ?? []);
-    setGoal(cls.goal ?? "Fundamentos");
+    const nextAgeBand = cls.ageBand ?? "08-09";
+    const nextGoal = cls.goal ?? "Fundamentos";
+    const customAgeBandSelected = nextAgeBand.trim().length > 0 && !ageBandOptions.includes(nextAgeBand);
+    setAgeBand(nextAgeBand as ClassGroup["ageBand"]);
+    setEditCustomAgeBand(customAgeBandSelected ? nextAgeBand : "");
+    setShowEditCustomAgeBand(customAgeBandSelected);
+    const customGoalSelected = nextGoal.trim().length > 0 && !goalOptions.includes(nextGoal);
+    setGoal(nextGoal);
+    setEditCustomGoal(customGoalSelected ? nextGoal : "");
+    setShowEditCustomGoal(customGoalSelected);
     setFormError("");
-  }, [classCoachName, cls]);
+  }, [ageBandOptions, classCoachName, cls, goalOptions]);
 
   const closeEditPickers = useCallback(() => {
     setShowEditDurationPicker(false);
@@ -782,51 +798,80 @@ export default function ClassDetails() {
     setShowEditGoalPicker(false);
   }, []);
 
-  const toggleEditPicker = useCallback(
+  const openEditPicker = useCallback(
     (target: "duration" | "age" | "gender" | "goal") => {
-      setShowEditDurationPicker((prev) => (target === "duration" ? !prev : false));
-      setShowEditAgeBandPicker((prev) => (target === "age" ? !prev : false));
-      setShowEditGenderPicker((prev) => (target === "gender" ? !prev : false));
-      setShowEditGoalPicker((prev) => (target === "goal" ? !prev : false));
+      closeEditPickers();
+
+      const measureAndOpen = (attempt = 0) => {
+        const measureRef =
+          target === "duration"
+            ? editDurationTriggerRef.current
+            : target === "age"
+              ? editAgeBandTriggerRef.current
+              : target === "gender"
+                ? editGenderTriggerRef.current
+                : editGoalTriggerRef.current;
+
+        measureRef?.measureInWindow((x, y, width, height) => {
+          const isReady = width > 0 && height > 0;
+          if (isReady) {
+            if (target === "duration") {
+              setEditDurationTriggerLayout({ x, y, width, height });
+              setShowEditDurationPicker(true);
+            } else if (target === "age") {
+              setEditAgeBandTriggerLayout({ x, y, width, height });
+              setShowEditAgeBandPicker(true);
+            } else if (target === "gender") {
+              setEditGenderTriggerLayout({ x, y, width, height });
+              setShowEditGenderPicker(true);
+            } else {
+              setEditGoalTriggerLayout({ x, y, width, height });
+              setShowEditGoalPicker(true);
+            }
+            return;
+          }
+
+          if (attempt < 3) {
+            requestAnimationFrame(() => measureAndOpen(attempt + 1));
+          }
+        });
+      };
+
+      requestAnimationFrame(() => requestAnimationFrame(() => measureAndOpen()));
     },
-    []
+    [
+      closeEditPickers,
+      editAgeBandTriggerRef,
+      editDurationTriggerRef,
+      editGenderTriggerRef,
+      editGoalTriggerRef,
+    ]
   );
 
-  const syncEditPickerLayouts = useCallback(() => {
-    if (!showEditDurationPicker && !showEditAgeBandPicker && !showEditGenderPicker && !showEditGoalPicker) return;
-    requestAnimationFrame(() => {
-      if (showEditDurationPicker && editDurationTriggerRef.current) {
-        editDurationTriggerRef.current.measureInWindow((x, y, width, height) => {
-          setEditDurationTriggerLayout({ x, y, width, height });
-        });
+  const toggleEditPicker = useCallback(
+    (target: "duration" | "age" | "gender" | "goal") => {
+      const isOpen =
+        (target === "duration" && showEditDurationPicker) ||
+        (target === "age" && showEditAgeBandPicker) ||
+        (target === "gender" && showEditGenderPicker) ||
+        (target === "goal" && showEditGoalPicker);
+
+      if (isOpen) {
+        closeEditPickers();
+        return;
       }
-      if (showEditAgeBandPicker && editAgeBandTriggerRef.current) {
-        editAgeBandTriggerRef.current.measureInWindow((x, y, width, height) => {
-          setEditAgeBandTriggerLayout({ x, y, width, height });
-        });
-      }
-      if (showEditGenderPicker && editGenderTriggerRef.current) {
-        editGenderTriggerRef.current.measureInWindow((x, y, width, height) => {
-          setEditGenderTriggerLayout({ x, y, width, height });
-        });
-      }
-      if (showEditGoalPicker && editGoalTriggerRef.current) {
-        editGoalTriggerRef.current.measureInWindow((x, y, width, height) => {
-          setEditGoalTriggerLayout({ x, y, width, height });
-        });
-      }
-      if (editContainerRef.current) {
-        editContainerRef.current.measureInWindow((x, y) => {
-          setEditContainerWindow({ x, y });
-        });
-      }
-    });
-  }, [
-    showEditDurationPicker,
-    showEditAgeBandPicker,
-    showEditGenderPicker,
-    showEditGoalPicker,
-  ]);
+
+      openEditPicker(target);
+    },
+    [
+      closeEditPickers,
+      openEditPicker,
+      showEditAgeBandPicker,
+      showEditDurationPicker,
+      showEditGenderPicker,
+      showEditGoalPicker,
+    ]
+  );
 
   const isEditDirty = useMemo(() => {
     if (!cls) return false;
@@ -844,14 +889,89 @@ export default function ClassDetails() {
   }, [ageBand, classCoachName, cls, coachNameOverride, daysOfWeek, duration, gender, goal, name, startTime, unit]);
 
   useEffect(() => {
-    syncEditPickerLayouts();
-  }, [
-    showEditDurationPicker,
-    showEditAgeBandPicker,
-    showEditGenderPicker,
-    showEditGoalPicker,
-    syncEditPickerLayouts,
-  ]);
+    if (!showEditModal) return;
+    requestAnimationFrame(() => {
+      if (editContainerRef.current) {
+        editContainerRef.current.measureInWindow((x, y) => {
+          setEditContainerWindow({ x, y });
+        });
+      }
+      if (editDurationTriggerRef.current) {
+        editDurationTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditDurationTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (editAgeBandTriggerRef.current) {
+        editAgeBandTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditAgeBandTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (editGenderTriggerRef.current) {
+        editGenderTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditGenderTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (editGoalTriggerRef.current) {
+        editGoalTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditGoalTriggerLayout({ x, y, width, height });
+        });
+      }
+    });
+  }, [showEditModal]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !showEditModal) return;
+
+    let cancelled = false;
+    let rafId = 0;
+    let cleanupStyles: (() => void) | null = null;
+
+    const applyScrollbarStyles = () => {
+      if (cancelled) return;
+
+      const scrollNode = (editScrollRef.current as unknown as { getScrollableNode?: () => unknown } | null)
+        ?.getScrollableNode?.();
+      const element = (scrollNode ?? editScrollRef.current) as unknown as HTMLElement | null;
+
+      if (!element || typeof element.addEventListener !== "function") {
+        rafId = requestAnimationFrame(applyScrollbarStyles);
+        return;
+      }
+
+      const style = element.style as CSSStyleDeclaration & { scrollbarGutter?: string };
+      const previous = {
+        overflowX: style.overflowX,
+        overflowY: style.overflowY,
+        scrollbarWidth: style.scrollbarWidth,
+        scrollbarColor: style.scrollbarColor,
+        scrollbarGutter: style.scrollbarGutter ?? "",
+      };
+
+      style.overflowX = "hidden";
+      style.overflowY = "scroll";
+      style.scrollbarWidth = "thin";
+      style.scrollbarColor = `${colors.border} transparent`;
+      style.scrollbarGutter = "stable";
+
+      cleanupStyles = () => {
+        style.overflowX = previous.overflowX;
+        style.overflowY = previous.overflowY;
+        style.scrollbarWidth = previous.scrollbarWidth;
+        style.scrollbarColor = previous.scrollbarColor;
+        style.scrollbarGutter = previous.scrollbarGutter;
+      };
+    };
+
+    applyScrollbarStyles();
+
+    return () => {
+      cancelled = true;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      cleanupStyles?.();
+    };
+  }, [colors.border, showEditModal, editContainerWindow]);
 
   const toggleDay = (value: number) => {
     setDaysOfWeek((prev) =>
@@ -880,8 +1000,8 @@ export default function ClassDetails() {
         name: name.trim() || cls.name,
         unit: unit.trim() || "Rede Esperança",
         daysOfWeek,
-        goal,
-        ageBand: ageBand.trim() || cls.ageBand,
+        goal: showEditCustomGoal ? editCustomGoal.trim() || goal : goal,
+        ageBand: (showEditCustomAgeBand ? editCustomAgeBand.trim() || ageBand : ageBand).trim() || cls.ageBand,
         gender,
         startTime: timeValue,
         durationMinutes: durationValue,
@@ -902,6 +1022,10 @@ export default function ClassDetails() {
     setShowEditCloseConfirm(false);
     closeEditPickers();
     setShowCustomDuration(false);
+    setShowEditCustomAgeBand(false);
+    setEditCustomAgeBand("");
+    setShowEditCustomGoal(false);
+    setEditCustomGoal("");
     resetEditFields();
   }, [closeEditPickers, resetEditFields]);
 
@@ -1341,17 +1465,22 @@ export default function ClassDetails() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <ScrollView
-        contentContainerStyle={{
-          gap: 16,
-          paddingBottom: Math.max(insets.bottom + 220, 236),
-          paddingHorizontal: 16,
-          paddingTop: 16,
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <ScreenTopChrome
+          style={{
+            gap: 8,
+            paddingHorizontal: 16,
+            paddingTop: 20,
+            paddingBottom: 16,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
             <Pressable
               onPress={() => {
                 if (router.canGoBack()) {
@@ -1360,10 +1489,23 @@ export default function ClassDetails() {
                 }
                 router.replace("/classes");
               }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                flexShrink: 1,
+              }}
             >
               <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
-              <Text numberOfLines={1} style={{ fontSize: 26, fontWeight: "700", color: colors.text, maxWidth: 220 }}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  fontSize: 28,
+                  fontWeight: "700",
+                  color: colors.text,
+                  maxWidth: 240,
+                }}
+              >
                 {className}
               </Text>
               <ClassGenderBadge gender={classGender} size="md" />
@@ -1386,110 +1528,23 @@ export default function ClassDetails() {
                   borderColor: colors.border,
                 }}
               >
-                <MaterialCommunityIcons
-                  name="pencil"
-                  size={18}
-                  color={colors.text}
-                />
+                <MaterialCommunityIcons name="pencil" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>
+        </ScreenTopChrome>
 
-        </View>
-
-        <View
-          style={getSectionCardStyle(colors, "neutral", { radius: 16, padding: 12 })}
-        >
-          <Pressable
-            onPress={() => {
-              animateLayout();
-              setShowDetails((prev) => !prev);
-            }}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              paddingVertical: 6,
-              paddingHorizontal: 8,
-              borderRadius: 10,
-              backgroundColor: colors.inputBg,
-            }}
-          >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-              Informações
-            </Text>
-            <MaterialCommunityIcons
-              name={showDetails ? "chevron-down" : "chevron-right"}
-              size={18}
-              color={colors.muted}
-            />
-          </Pressable>
-          {showDetailsContent ? (
-            <Animated.View style={detailsAnimStyle}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 999,
-                    backgroundColor: classPalette.bg,
-                  }}
-                />
-                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
-                  {(() => {
-                    const parsed = parseTime(classStartTime);
-                    if (!parsed) return className;
-                    return `${formatTimeRange(parsed.hour, parsed.minute, classDuration)} - ${className}`;
-                  })()}
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", gap: 6, marginTop: 6, alignItems: "center" }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Gênero:</Text>
-                <ClassGenderBadge gender={classGender} />
-              </View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 10 }}>
-                <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>
-                    {unitLabel}
-                  </Text>
-                </View>
-                <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa</Text>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>
-                    {classAgeBand}
-                  </Text>
-                </View>
-                <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Dias</Text>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>
-                    {formatDays(classDays)}
-                  </Text>
-                </View>
-                <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>
-                    {classStartTime}
-                  </Text>
-                </View>
-                <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>
-                    {classDuration + " min"}
-                  </Text>
-                </View>
-                <View style={{ minWidth: "45%" }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>
-                    {classGoal}
-                  </Text>
-                </View>
-              </View>
-            </Animated.View>
-          ) : null}
-        </View>
-
+      <ScrollView
+        ref={editScrollRef}
+        contentContainerStyle={{
+          gap: 16,
+          paddingBottom: Math.max(insets.bottom + 220, 236),
+          paddingHorizontal: 16,
+          paddingTop: 0,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
+        
         <View
           style={[
             getSectionCardStyle(colors, "primary", { radius: 18 }),
@@ -1800,492 +1855,368 @@ export default function ClassDetails() {
         visible={showEditModal}
         onClose={requestCloseEditModal}
         position="center"
-        cardStyle={editModalCardStyle}
+        cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
       >
-        <ConfirmCloseOverlay
-          visible={showEditCloseConfirm}
-          onCancel={() => setShowEditCloseConfirm(false)}
-          onConfirm={closeEditModal}
-        />
-        <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 12 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Editar turma
-          </Text>
-          <Pressable
-            onPress={requestCloseEditModal}
+        <View
+          ref={editContainerRef}
+          onLayout={() => {
+            editContainerRef.current?.measureInWindow((x, y) => {
+              setEditContainerWindow({ x, y });
+            });
+          }}
+          style={{ flex: 1, minHeight: 0, gap: 12, position: "relative" }}
+        >
+          <ConfirmCloseOverlay
+            visible={showEditCloseConfirm}
+            onCancel={() => setShowEditCloseConfirm(false)}
+            onConfirm={closeEditModal}
+          />
+          <View
             style={{
-              height: 32,
-              paddingHorizontal: 12,
-              borderRadius: 16,
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
+              justifyContent: "space-between",
             }}
           >
-            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-              Fechar
+            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
+              Editar turma
             </Text>
-          </Pressable>
-        </View>
-        <ScrollView
-          style={{ maxHeight: "90%" }}
-          contentContainerStyle={{ gap: 12, paddingHorizontal: 12, paddingBottom: 16, paddingTop: 12 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator
-          nestedScrollEnabled
-          onScrollBeginDrag={closeEditPickers}
-          onScroll={syncEditPickerLayouts}
-          scrollEventThrottle={16}
-        >
-          <View
-            ref={editContainerRef}
-            onLayout={syncEditPickerLayouts}
-            style={{ position: "relative", gap: 12 }}
-          >
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
-                <TextInput
-                  placeholder="Nome da turma"
-                  value={name}
-                  onChangeText={setName}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-                <TextInput
-                  placeholder="Unidade"
-                  value={unit}
-                  onChangeText={setUnit}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
-            </View>
-
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>
-                  Professor responsavel
-                </Text>
-                <TextInput
-                  placeholder="Nome do professor"
-                  value={coachNameOverride}
-                  onChangeText={setCoachNameOverride}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Cor da turma</Text>
-              <FadeHorizontalScroll
-                fadeColor={colors.card}
-                contentContainerStyle={{ flexDirection: "row", gap: 10 }}
-              >
-                {colorOptions.map((option, index) => {
-                  const value = option.key === "default" ? null : option.key;
-                  const active = (classColorKey ?? null) === value;
-                  return (
-                    <Pressable
-                      key={option.key}
-                      onPress={() => handleSelectClassColor(value)}
-                      disabled={classColorSaving}
-                      style={{
-                        alignItems: "center",
-                        gap: 4,
-                        marginLeft: index === 0 ? 6 : 0,
-                        opacity: classColorSaving ? 0.6 : 1,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 999,
-                          backgroundColor: option.palette.bg,
-                          borderWidth: active ? 3 : 1,
-                          borderColor: active ? colors.text : colors.border,
-                        }}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </FadeHorizontalScroll>
-            </View>
-
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Horário</Text>
-                <TextInput
-                  placeholder="Horário (HH:MM)"
-                  value={startTime}
-                  onChangeText={(value) => setStartTime(normalizeTimeInput(value))}
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Duração</Text>
-                <View ref={editDurationTriggerRef}>
-                  <Pressable onPress={() => toggleEditPicker("duration")} style={selectFieldStyle}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {duration ? `${duration} min` : "Selecione"}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={18}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditDurationPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-                {showCustomDuration ? (
-                  <TextInput
-                    placeholder="Duração (min)"
-                    value={duration}
-                    onChangeText={setDuration}
-                    keyboardType="numeric"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                      fontSize: 13,
-                    }}
-                  />
-                ) : null}
-              </View>
-            </View>
-
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
-                <View ref={editAgeBandTriggerRef}>
-                  <Pressable onPress={() => toggleEditPicker("age")} style={selectFieldStyle}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {ageBand || "Selecione"}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={18}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditAgeBandPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
-                <View ref={editGenderTriggerRef}>
-                  <Pressable onPress={() => toggleEditPicker("gender")} style={selectFieldStyle}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {gender || "Selecione"}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={18}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showEditGenderPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-              <View ref={editGoalTriggerRef}>
-                <Pressable onPress={() => toggleEditPicker("goal")} style={selectFieldStyle}>
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {goal || "Selecione"}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={18}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showEditGoalPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Dias da semana</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{
-                  flexDirection: "row",
-                  gap: 8,
-                  paddingVertical: 2,
-                  paddingRight: 16,
-                }}
-              >
-                {dayNames.map((label, index) => {
-                  const active = daysOfWeek.includes(index);
-                  return (
-                    <Pressable
-                      key={label}
-                      onPress={() => toggleDay(index)}
-                      style={getChipStyle(active, { bg: colors.primaryBg, text: colors.primaryText })}
-                    >
-                      <Text style={getChipTextStyle(active, { bg: colors.primaryBg, text: colors.primaryText })}>
-                        {label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-
-            {formError ? (
-              <Text style={{ color: colors.dangerText, fontSize: 12 }}>
-                {formError}
-              </Text>
-            ) : null}
-            <Button
-              label="Salvar alterações"
-              onPress={handleSaveEdit}
-              variant="primary"
-              disabled={saving || !isEditDirty}
-              loading={saving}
-            />
-            <Button
-              label="Excluir turma"
-              onPress={onDelete}
-              variant="danger"
-              disabled={saving}
-            />
-
-            <AnchoredDropdown
-              visible={showEditDurationPickerContent}
-              layout={editDurationTriggerLayout}
-              container={editContainerWindow}
-              animationStyle={editDurationPickerAnimStyle}
-              zIndex={420}
-              maxHeight={220}
-              nestedScrollEnabled
-              onRequestClose={closeEditPickers}
-              panelStyle={{
+            <Pressable
+              onPress={requestCloseEditModal}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
                 borderWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.card,
               }}
-              scrollContentStyle={{ padding: 8, gap: 6 }}
             >
-              {[...durationOptions, "Personalizar"].map((value) => {
-                const active = value !== "Personalizar" && duration === value;
-                return (
-                  <AnchoredDropdownOption
-                    key={value}
-                    active={active}
-                    onPress={() => {
-                      if (value === "Personalizar") {
-                        setShowCustomDuration(true);
-                        if (!durationOptions.includes(duration)) {
-                          setDuration("");
-                        }
-                      } else {
-                        setShowCustomDuration(false);
-                        setDuration(value);
-                      }
-                      closeEditPickers();
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: active ? colors.primaryText : colors.text,
-                        fontSize: 14,
-                        fontWeight: active ? "700" : "500",
-                      }}
-                    >
-                      {value === "Personalizar" ? value : `${value} min`}
-                    </Text>
-                  </AnchoredDropdownOption>
-                );
-              })}
-            </AnchoredDropdown>
-
-            <AnchoredDropdown
-              visible={showEditAgeBandPickerContent}
-              layout={editAgeBandTriggerLayout}
-              container={editContainerWindow}
-              animationStyle={editAgeBandPickerAnimStyle}
-              zIndex={420}
-              maxHeight={240}
-              nestedScrollEnabled
-              onRequestClose={closeEditPickers}
-              panelStyle={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-              }}
-              scrollContentStyle={{ padding: 8, gap: 6 }}
-            >
-              {ageBandOptions.map((value) => {
-                const active = ageBand === value;
-                return (
-                  <AnchoredDropdownOption
-                    key={value}
-                    active={active}
-                    onPress={() => {
-                      setAgeBand(value);
-                      closeEditPickers();
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: active ? colors.primaryText : colors.text,
-                        fontSize: 14,
-                        fontWeight: active ? "700" : "500",
-                      }}
-                    >
-                      {value}
-                    </Text>
-                  </AnchoredDropdownOption>
-                );
-              })}
-            </AnchoredDropdown>
-
-            <AnchoredDropdown
-              visible={showEditGenderPickerContent}
-              layout={editGenderTriggerLayout}
-              container={editContainerWindow}
-              animationStyle={editGenderPickerAnimStyle}
-              zIndex={420}
-              maxHeight={200}
-              nestedScrollEnabled
-              onRequestClose={closeEditPickers}
-              panelStyle={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-              }}
-              scrollContentStyle={{ padding: 8, gap: 6 }}
-            >
-              {genderOptions.map((value) => {
-                const active = gender === value;
-                return (
-                  <AnchoredDropdownOption
-                    key={value}
-                    active={active}
-                    onPress={() => {
-                      setGender(value);
-                      closeEditPickers();
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: active ? colors.primaryText : colors.text,
-                        fontSize: 14,
-                        fontWeight: active ? "700" : "500",
-                      }}
-                    >
-                      {value}
-                    </Text>
-                  </AnchoredDropdownOption>
-                );
-              })}
-            </AnchoredDropdown>
-
-            <AnchoredDropdown
-              visible={showEditGoalPickerContent}
-              layout={editGoalTriggerLayout}
-              container={editContainerWindow}
-              animationStyle={editGoalPickerAnimStyle}
-              zIndex={420}
-              maxHeight={240}
-              nestedScrollEnabled
-              onRequestClose={closeEditPickers}
-              panelStyle={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-              }}
-              scrollContentStyle={{ padding: 8, gap: 6 }}
-            >
-              {goalOptions.map((value) => {
-                const active = goal === value;
-                return (
-                  <AnchoredDropdownOption
-                    key={value}
-                    active={active}
-                    onPress={() => {
-                      setGoal(value);
-                      closeEditPickers();
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: active ? colors.primaryText : colors.text,
-                        fontSize: 14,
-                        fontWeight: active ? "700" : "500",
-                      }}
-                    >
-                      {value}
-                    </Text>
-                  </AnchoredDropdownOption>
-                );
-              })}
-            </AnchoredDropdown>
+              <Ionicons name="close" size={18} color={colors.text} />
+            </Pressable>
           </View>
-        </ScrollView>
+
+          <View style={{ flex: 1, minHeight: 0, position: "relative" }}>
+            <ScrollView
+              style={[
+                { width: "100%", flex: 1 },
+                Platform.OS === "web"
+                  ? ({
+                      overflowX: "hidden",
+                      overflowY: "scroll",
+                      scrollbarWidth: "thin",
+                      scrollbarColor: `${colors.border} transparent`,
+                      scrollbarGutter: "stable",
+                    } as any)
+                  : null,
+              ]}
+              contentContainerStyle={{ gap: 10, paddingBottom: 24, paddingRight: 8 }}
+              keyboardShouldPersistTaps="handled"
+              onScrollBeginDrag={closeEditPickers}
+              showsVerticalScrollIndicator
+            >
+              <ClassEditModalBody
+                compact
+                renderPickers={false}
+              refs={{
+                editContainerRef,
+                editDurationTriggerRef,
+                editAgeBandTriggerRef,
+                editGenderTriggerRef,
+                editGoalTriggerRef,
+              }}
+              layouts={{
+                editContainerWindow,
+                editDurationTriggerLayout,
+                editAgeBandTriggerLayout,
+                editGenderTriggerLayout,
+                editGoalTriggerLayout,
+              }}
+              pickers={{
+                showEditDurationPicker,
+                showEditAgeBandPicker,
+                showEditGenderPicker,
+                showEditGoalPicker,
+                showEditDurationPickerContent,
+                showEditAgeBandPickerContent,
+                showEditGenderPickerContent,
+                showEditGoalPickerContent,
+                editDurationPickerAnimStyle,
+                editAgeBandPickerAnimStyle,
+                editGenderPickerAnimStyle,
+                editGoalPickerAnimStyle,
+              }}
+              fields={{
+                editName: name,
+                setEditName: setName,
+                editUnit: unit,
+                setEditUnit: setUnit,
+                editColorOptions: colorOptions,
+                editColorKey: classColorKey,
+                handleSelectEditColor: handleSelectClassColor,
+                editStartTime: startTime,
+                setEditStartTime: setStartTime,
+                normalizeTimeInput,
+                editDuration: duration,
+                setEditDuration: setDuration,
+                editShowCustomDuration: showCustomDuration,
+                editAgeBand: ageBand,
+                setEditAgeBand: setAgeBand,
+                editShowCustomAgeBand: showEditCustomAgeBand,
+                editCustomAgeBand,
+                setEditCustomAgeBand,
+                editGender: gender,
+                editGoal: goal,
+                editCustomGoal,
+                setEditCustomGoal,
+                setEditGoal: setGoal,
+                editDays: daysOfWeek,
+                toggleEditDay: toggleDay,
+                editFormError: formError,
+                editSaving: saving,
+                isEditDirty,
+                editShowCustomGoal: showEditCustomGoal,
+              }}
+              options={{
+                dayNames,
+                durationOptions,
+                ageBandOptions,
+                genderOptions: genderOptions.map((value) => ({
+                  value,
+                  label: value === 'misto' ? 'Misto' : value === 'feminino' ? 'Feminino' : 'Masculino',
+                })),
+                goalOptions,
+                customOptionLabel: 'Personalizar',
+              }}
+              actions={{
+                closeAllPickers: closeEditPickers,
+                toggleEditPicker: (target) => {
+                  if (target === "duration" || target === "age" || target === "gender" || target === "goal") {
+                    const isOpen =
+                      (target === "duration" && showEditDurationPicker) ||
+                      (target === "age" && showEditAgeBandPicker) ||
+                      (target === "gender" && showEditGenderPicker) ||
+                      (target === "goal" && showEditGoalPicker);
+                    if (isOpen) {
+                      closeEditPickers();
+                      return;
+                    }
+                    toggleEditPicker(target);
+                    return;
+                  }
+                  closeEditPickers();
+                },
+                handleEditSelectDuration: (value) => {
+                  const selected = String(value);
+                  if (selected === 'Personalizar') {
+                    setShowCustomDuration(true);
+                    if (!durationOptions.includes(duration)) {
+                      setDuration('');
+                    }
+                  } else {
+                    setShowCustomDuration(false);
+                    setDuration(selected);
+                  }
+                  closeEditPickers();
+                },
+                handleEditSelectAgeBand: (value) => {
+                  const selected = String(value);
+                  if (selected === "Personalizar") {
+                    setShowEditCustomAgeBand(true);
+                    setEditCustomAgeBand(ageBandOptions.includes(ageBand) ? "" : ageBand);
+                  } else {
+                    setShowEditCustomAgeBand(false);
+                    setEditCustomAgeBand(selected);
+                    setAgeBand(selected as ClassGroup["ageBand"]);
+                  }
+                  closeEditPickers();
+                },
+                handleEditSelectGender: (value) => {
+                  setGender(String(value) as ClassGroup['gender']);
+                  closeEditPickers();
+                },
+                handleEditSelectGoal: (value) => {
+                  const selected = String(value);
+                  if (selected === "Personalizar") {
+                    setShowEditCustomGoal(true);
+                    setEditCustomGoal(goal && goalOptions.includes(goal) ? "" : goal);
+                  } else {
+                    setShowEditCustomGoal(false);
+                    setEditCustomGoal(selected);
+                    setGoal(selected);
+                  }
+                  closeEditPickers();
+                },
+                saveEditClass: handleSaveEdit,
+                handleDeleteClass: onDelete,
+              }}
+            />
+
+            <Pressable
+              onPress={onDelete}
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 48,
+                borderRadius: 14,
+                backgroundColor: colors.dangerSolidBg,
+              }}
+            >
+              <Text style={{ color: colors.dangerSolidText, fontSize: 16, fontWeight: "800" }}>
+                Excluir turma
+              </Text>
+            </Pressable>
+            </ScrollView>
+          </View>
+
+          <View style={{ gap: 10, paddingTop: 4, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <Pressable
+              onPress={handleSaveEdit}
+              disabled={!isEditDirty || saving}
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 48,
+                borderRadius: 14,
+                backgroundColor: !isEditDirty || saving ? colors.inputBg : colors.primaryBg,
+                opacity: !isEditDirty || saving ? 0.7 : 1,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
+                {saving ? "Salvando..." : "Salvar alterações"}
+              </Text>
+            </Pressable>
+          </View>
+
+          <ClassEditModalPickers
+            refs={{
+              editContainerRef,
+              editDurationTriggerRef,
+              editAgeBandTriggerRef,
+              editGenderTriggerRef,
+              editGoalTriggerRef,
+            }}
+            layouts={{
+              editContainerWindow,
+              editDurationTriggerLayout,
+              editAgeBandTriggerLayout,
+              editGenderTriggerLayout,
+              editGoalTriggerLayout,
+            }}
+            pickers={{
+              showEditDurationPicker,
+              showEditAgeBandPicker,
+              showEditGenderPicker,
+              showEditGoalPicker,
+              showEditDurationPickerContent,
+              showEditAgeBandPickerContent,
+              showEditGenderPickerContent,
+              showEditGoalPickerContent,
+              editDurationPickerAnimStyle,
+              editAgeBandPickerAnimStyle,
+              editGenderPickerAnimStyle,
+              editGoalPickerAnimStyle,
+            }}
+            fields={{
+              editName: name,
+              setEditName: setName,
+              editUnit: unit,
+              setEditUnit: setUnit,
+              editColorOptions: colorOptions,
+              editColorKey: classColorKey,
+              handleSelectEditColor: handleSelectClassColor,
+              editStartTime: startTime,
+              setEditStartTime: setStartTime,
+              normalizeTimeInput,
+              editDuration: duration,
+              setEditDuration: setDuration,
+              editShowCustomDuration: showCustomDuration,
+              editAgeBand: ageBand,
+              setEditAgeBand: setAgeBand,
+              editShowCustomAgeBand: showEditCustomAgeBand,
+              editCustomAgeBand,
+              setEditCustomAgeBand,
+              editGender: gender,
+              editGoal: goal,
+              editCustomGoal,
+              setEditCustomGoal,
+              setEditGoal: setGoal,
+              editDays: daysOfWeek,
+              toggleEditDay: toggleDay,
+              editFormError: formError,
+              editSaving: saving,
+              isEditDirty,
+              editShowCustomGoal: showEditCustomGoal,
+            }}
+            options={{
+              dayNames,
+              durationOptions,
+              ageBandOptions,
+              genderOptions: genderOptions.map((value) => ({
+                value,
+                label: value === "misto" ? "Misto" : value === "feminino" ? "Feminino" : "Masculino",
+              })),
+              goalOptions,
+              customOptionLabel: "Personalizar",
+            }}
+            actions={{
+              closeAllPickers: closeEditPickers,
+              toggleEditPicker: (target) => {
+                if (target === "duration" || target === "age" || target === "gender" || target === "goal") {
+                  toggleEditPicker(target);
+                  return;
+                }
+                closeEditPickers();
+              },
+              handleEditSelectDuration: (value) => {
+                const selected = String(value);
+                if (selected === "Personalizar") {
+                  setShowCustomDuration(true);
+                  if (!durationOptions.includes(duration)) {
+                    setDuration("");
+                  }
+                } else {
+                  setShowCustomDuration(false);
+                  setDuration(selected);
+                }
+                closeEditPickers();
+              },
+              handleEditSelectAgeBand: (value) => {
+                const selected = String(value);
+                if (selected === "Personalizar") {
+                  setShowEditCustomAgeBand(true);
+                  setEditCustomAgeBand(ageBandOptions.includes(ageBand) ? "" : ageBand);
+                } else {
+                  setShowEditCustomAgeBand(false);
+                  setEditCustomAgeBand(selected);
+                  setAgeBand(selected as ClassGroup["ageBand"]);
+                }
+                closeEditPickers();
+              },
+              handleEditSelectGender: (value) => {
+                setGender(String(value) as ClassGroup["gender"]);
+                closeEditPickers();
+              },
+                handleEditSelectGoal: (value) => {
+                const selected = String(value);
+                if (selected === "Personalizar") {
+                  setShowEditCustomGoal(true);
+                  setEditCustomGoal(goal && goalOptions.includes(goal) ? "" : goal);
+                } else {
+                  setShowEditCustomGoal(false);
+                  setEditCustomGoal(selected);
+                  setGoal(selected);
+                }
+                closeEditPickers();
+              },
+              saveEditClass: handleSaveEdit,
+              handleDeleteClass: onDelete,
+            }}
+          />
+        </View>
+
       </ModalSheet>
 
             <ModalSheet
@@ -2467,7 +2398,7 @@ export default function ClassDetails() {
                     {className}
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {formatMonthLabel(rosterMonthValue)} · {formatDays(classDays)}
+                    {formatMonthLabel(rosterMonthValue)} ? {formatDays(classDays)}
                   </Text>
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 2 }}>
@@ -2607,7 +2538,7 @@ export default function ClassDetails() {
                               {contactLabel}
                             </Text>
                             <Text style={{ fontSize: 9, color: colors.muted }}>
-                              {contactPhone || "â€”"}
+                              {contactPhone || "—"}
                             </Text>
                           </View>
                         ) : null}
@@ -3242,3 +3173,4 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
+

@@ -1,12 +1,13 @@
 import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
 import {
-  Document,
-  Page,
-  StyleSheet,
-  Text,
-  View,
+    Document,
+    Page,
+    StyleSheet,
+    Text,
+    View,
 } from "@react-pdf/renderer/lib/react-pdf.browser";
+import { toPdfCoachingText, toPdfText } from "./pdf-coaching-text";
 import type { SessionPlanPdfData } from "./templates/session-plan";
 
 const styles = StyleSheet.create({
@@ -19,13 +20,33 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 14,
+    marginBottom: 8,
   },
-  meta: {
+  header: {
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e6e6e6",
+  },
+  headerMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 14,
+    rowGap: 6,
+  },
+  metaItem: {
+    flexDirection: "row",
+    gap: 4,
+    width: "48%",
+  },
+  metaLabel: {
+    color: "#666666",
+    fontWeight: "bold",
+    fontSize: 10.5,
+  },
+  metaValue: {
+    fontSize: 10.5,
     color: "#333333",
-    marginBottom: 12,
-    lineHeight: 1.4,
   },
   table: {
     borderWidth: 1,
@@ -102,14 +123,24 @@ const styles = StyleSheet.create({
   },
 });
 
-const asText = (value: unknown) => {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  return String(value);
-};
+const asText = (value: unknown) => toPdfText(value);
+
+const asCoachingText = (value: unknown) => toPdfCoachingText(value);
 
 const buildOrderedLines = (rows: string[]) =>
   rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
+
+const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number]) => {
+  const items = Array.isArray(block?.items) ? block.items : [];
+  const descriptionRows = items
+    .map((item) => asCoachingText(item?.notes).trim())
+    .filter(Boolean);
+
+  if (descriptionRows.length) return descriptionRows;
+
+  const blockSummary = asCoachingText(block?.summary).trim();
+  return blockSummary ? [blockSummary] : [];
+};
 
 const TITLE_TEXT = "PLANEJAMENTO DE AULA DO DIA";
 const LABEL_PERIODO = "Per\u00edodo";
@@ -117,22 +148,39 @@ const LABEL_DESCRICAO = "Descri\u00e7\u00e3o";
 const LABEL_OBSERVACOES = "Observa\u00e7\u00f5es:";
 
 export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
-  const objective = asText(data?.objective);
-  const title = asText(data?.title);
-  const notes = asText(data?.notes);
+  const objective = asCoachingText(data?.objective);
+  const title = asCoachingText(data?.title);
+  const notes = asCoachingText(data?.notes);
   const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
   const generatedAt = new Date().toLocaleDateString("pt-BR");
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.title}>{TITLE_TEXT}</Text>
-        <Text style={styles.meta}>
-          Turma: {asText(data?.className)}
-          {asText(data?.ageGroup) ? ` (${asText(data?.ageGroup)})` : ""}{"\n"}
-          Data: {asText(data?.dateLabel)}
-          {asText(data?.unitLabel) ? `\nUnidade: ${asText(data?.unitLabel)}` : ""}
-        </Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>{TITLE_TEXT}</Text>
+          <View style={styles.headerMeta}>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Turma:</Text>
+              <Text style={styles.metaValue}>
+                {asText(data?.className)}
+                {asText(data?.ageGroup) ? ` (${asText(data?.ageGroup)})` : ""}
+              </Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Data:</Text>
+              <Text style={styles.metaValue}>{asText(data?.dateLabel)}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Unidade:</Text>
+              <Text style={styles.metaValue}>{asText(data?.unitLabel) || "-"}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Gênero:</Text>
+              <Text style={styles.metaValue}>{asText(data?.genderLabel) || "-"}</Text>
+            </View>
+          </View>
+        </View>
 
         <View style={styles.table}>
           <View style={styles.row}>
@@ -179,13 +227,9 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             const time = asText(block?.time) || "-";
             const items = Array.isArray(block?.items) ? block.items : [];
             const activities = buildOrderedLines(
-              items.map((item) => asText(item?.name).trim()).filter(Boolean)
+              items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
             );
-            const descriptions = buildOrderedLines(
-              items
-                .map((item) => asText(item?.notes).trim() || asText(item?.name).trim())
-                .filter(Boolean)
-            );
+            const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
             return (
               <View key={`${period}-${blockIndex}`} style={styles.row}>
                 <View style={[styles.cell, styles.periodCell]}>

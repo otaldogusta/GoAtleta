@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { CopilotAction } from "../../../copilot/CopilotProvider";
 import type { PeriodizationModel, SportProfile } from "../../../core/periodization-basics";
+import type { PeriodizationContext } from "../../../core/models";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -9,6 +10,7 @@ import type { PeriodizationModel, SportProfile } from "../../../core/periodizati
 export type PeriodizationCopilotSnapshot = {
   classLabel: string;
   model: PeriodizationModel;
+  periodizationContext: PeriodizationContext;
   sport: SportProfile;
   sportLabel: string;
   durationMinutes: number;
@@ -45,9 +47,17 @@ export function usePeriodizationCopilotActions(
         description: "Analisa a coerência do macrociclo e dos blocos dominantes.",
         requires: () => (weekPlansLength ? null : "Gere o ciclo para habilitar esta análise."),
         run: () => {
+          const context = periodizationCopilotSnapshot.periodizationContext;
+          const contextConstraints = context.constraints?.length
+            ? context.constraints.join(" • ")
+            : "Sem restrições adicionais";
           const highlights = [
             `Turma: ${periodizationCopilotSnapshot.classLabel}`,
             `Esporte: ${periodizationCopilotSnapshot.sportLabel}`,
+            `Contexto: ${context.model} | Objetivo: ${context.objective}`,
+            `Foco: ${context.focus}`,
+            `Fase: ${context.cyclePhase ?? "sem fase definida"}`,
+            `Restrições: ${contextConstraints}`,
             `Ciclo: ${periodizationCopilotSnapshot.weeks} semanas (semana atual ${periodizationCopilotSnapshot.currentWeek})`,
             `Períodos: ${periodizationCopilotSnapshot.periodSummary}`,
             `Blocos dominantes: ${periodizationCopilotSnapshot.dominantSummary}`,
@@ -66,15 +76,20 @@ export function usePeriodizationCopilotActions(
         description: "Propõe ajustes de carga e PSE da próxima semana.",
         requires: () => (weekPlansLength ? null : "Gere o ciclo para habilitar esta análise."),
         run: () => {
+          const context = periodizationCopilotSnapshot.periodizationContext;
           const demandValue = Number.parseInt(periodizationCopilotSnapshot.nextDemand, 10);
           const targetLoad = demandValue >= 9 ? "Média" : periodizationCopilotSnapshot.nextLoad;
           const targetDemand = demandValue >= 9 ? "8/10" : periodizationCopilotSnapshot.nextDemand;
           const targetPse = demandValue >= 9 ? "5-6" : periodizationCopilotSnapshot.nextPse;
-          const focus = targetLoad === "Alta" ? "potência específica com controle de volume" : "qualidade técnica e consistência tática";
+          const focus =
+            targetLoad === "Alta"
+              ? "potência específica com controle de volume"
+              : "qualidade técnica e consistência tática";
 
           return [
             `Referência: ${periodizationCopilotSnapshot.nextWeekLabel} (${periodizationCopilotSnapshot.classLabel})`,
             `Esporte base da turma: ${periodizationCopilotSnapshot.sportLabel}`,
+            `Contexto pedagógico: ${context.model} | ${context.objective}`,
             `Planejado atual: carga ${periodizationCopilotSnapshot.nextLoad}, demanda ${periodizationCopilotSnapshot.nextDemand}, PSE ${periodizationCopilotSnapshot.nextPse}`,
             `Ajuste sugerido: carga ${targetLoad}, demanda ${targetDemand}, PSE ${targetPse}`,
             `Foco da semana: ${focus}.`,
@@ -87,9 +102,11 @@ export function usePeriodizationCopilotActions(
         description: "Gera roteiro para comparar demanda planejada com PSE real coletado.",
         requires: () => (weekPlansLength ? null : "Gere o ciclo para habilitar esta análise."),
         run: () => {
+          const context = periodizationCopilotSnapshot.periodizationContext;
           return [
             `Checklist Planejado vs Real (${periodizationCopilotSnapshot.classLabel})`,
             `Esporte: ${periodizationCopilotSnapshot.sportLabel}`,
+            `Contexto: ${context.model} | ${context.focus}`,
             "1. Registrar demanda planejada da semana (ex.: 7/10).",
             "2. Coletar PSE médio real da turma ao fim das sessões.",
             "3. Calcular desvio: real - planejado.",

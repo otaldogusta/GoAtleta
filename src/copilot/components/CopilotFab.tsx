@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import { memo } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 
+import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { Pressable } from "../../ui/Pressable";
 
 type CopilotFabProps = {
@@ -11,13 +13,14 @@ type CopilotFabProps = {
   onPress: () => void;
 };
 
-export function CopilotFab({
+export const CopilotFab = memo(function CopilotFab({
   hasUnreadUpdates,
   pulseAnim,
   primaryBgColor,
   fabBottomOffset,
   onPress,
 }: CopilotFabProps) {
+  useRenderDiagnostic("CopilotFab", { hasUnreadUpdates, fabBottomOffset, primaryBgColor });
   return (
     <View
       pointerEvents="box-none"
@@ -86,7 +89,7 @@ export function CopilotFab({
       </Pressable>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   fabWrapper: {

@@ -58,7 +58,7 @@ export const StudentDocumentsFields = memo(function StudentDocumentsFields({
             keyboardType="numeric"
             style={[
               inputStyle,
-              showRevealCpfButton && onRevealCpf ? { paddingRight: 36 } : null,
+              { paddingRight: 36 },
               errors?.cpf
                 ? {
                     borderColor: colors.dangerText,
@@ -66,26 +66,24 @@ export const StudentDocumentsFields = memo(function StudentDocumentsFields({
                 : null,
             ]}
           />
-          {showRevealCpfButton && onRevealCpf ? (
-            <Pressable
-              onPress={onRevealCpf}
-              disabled={revealCpfBusy}
-              style={{
-                position: "absolute",
-                right: 10,
-                top: 0,
-                bottom: 0,
-                justifyContent: "center",
-                opacity: revealCpfBusy ? 0.7 : 1,
-              }}
-            >
-              {revealCpfBusy ? (
-                <ActivityIndicator size="small" color={colors.muted} />
-              ) : (
-                <Ionicons name={isCpfVisible ? "eye-off-outline" : "eye-outline"} size={18} color={colors.muted} />
-              )}
-            </Pressable>
-          ) : null}
+          <Pressable
+            onPress={onRevealCpf}
+            disabled={!showRevealCpfButton || !onRevealCpf || revealCpfBusy}
+            style={{
+              position: "absolute",
+              right: 10,
+              top: 0,
+              bottom: 0,
+              justifyContent: "center",
+              opacity: !showRevealCpfButton || !onRevealCpf ? 0 : revealCpfBusy ? 0.7 : 1,
+            }}
+          >
+            {revealCpfBusy ? (
+              <ActivityIndicator size="small" color={colors.muted} />
+            ) : (
+              <Ionicons name={isCpfVisible ? "eye-off-outline" : "eye-outline"} size={18} color={colors.muted} />
+            )}
+          </Pressable>
         </View>
         {errors?.cpf ? <Text style={{ color: colors.dangerText, fontSize: 11 }}>{errors.cpf}</Text> : null}
       </View>

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -93,8 +93,8 @@ const confirmRuleWarnings = (
   messages: string[]
 ) =>
   confirmDialog({
-    title: "Conferencia de regulamento",
-    message: `Ha recomendacoes para este torneio:\n\n${formatRuleIssues(messages)}`,
+    title: "Conferência de regulamento",
+    message: `Há recomendações para este torneio:\n\n${formatRuleIssues(messages)}`,
     confirmLabel: "Continuar",
     cancelLabel: "Cancelar",
     tone: "default",
@@ -299,19 +299,6 @@ export default function EventsScreen() {
   const closeAllDropdowns = () => {
     closeCreateDropdowns();
   };
-
-  const measureTriggerLayout = useCallback(
-    (trigger: View | null, setter: (layout: DropdownLayout | null) => void) => {
-      if (!trigger) {
-        setter(null);
-        return;
-      }
-      trigger.measureInWindow((x, y, width, height) => {
-        setter({ x, y, width, height });
-      });
-    },
-    []
-  );
 
   const openEventTypeDropdown = () => {
     const next = !showEventTypeDropdown;
@@ -1147,7 +1134,6 @@ export default function EventsScreen() {
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
         scrollContentStyle={{ padding: 8, gap: 6 }}
       >
         {eventTypes.map((option) => {
@@ -1178,7 +1164,6 @@ export default function EventsScreen() {
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
         scrollContentStyle={{ padding: 8, gap: 6 }}
       >
         {sportTypes.map((option) => {
@@ -1209,7 +1194,6 @@ export default function EventsScreen() {
         maxHeight={108}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
         scrollContentStyle={{ padding: 8, gap: 6 }}
       >
         {[
@@ -1243,7 +1227,6 @@ export default function EventsScreen() {
         maxHeight={108}
         nestedScrollEnabled
         onRequestClose={closeCreateDropdowns}
-        panelStyle={{ borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}
         scrollContentStyle={{ padding: 8, gap: 6 }}
       >
         {reminderOptions.map((option) => {

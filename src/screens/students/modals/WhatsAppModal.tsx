@@ -513,11 +513,6 @@ export function WhatsAppModal({
               maxHeight={220}
               nestedScrollEnabled
               onRequestClose={closeAllPickers}
-              panelStyle={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-              }}
               scrollContentStyle={{ padding: 8, gap: 6 }}
             >
               {Object.values(WHATSAPP_TEMPLATES).map((template) => {

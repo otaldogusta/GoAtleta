@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import {
     type NamedExoticComponent,
@@ -19,6 +19,7 @@ import {
     ViewStyle,
 } from "react-native";
 import type { ClassGroup, Student } from "../../../core/models";
+import { deriveStudentHealthAssessment } from "../../../core/student-health";
 import { normalizeRaDigits } from "../../../utils/student-ra";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import type { ThemeColors } from "../../../ui/app-theme";
@@ -352,6 +353,17 @@ export function StudentEditModal({
                 : classOptions.filter((item) => item.modality === classModalityFilter),
         [classModalityFilter, classOptions]
     );
+    const editHealthAssessment = useMemo(
+        () =>
+            deriveStudentHealthAssessment({
+                healthIssue,
+                healthIssueNotes,
+                medicationUse,
+                medicationNotes,
+                healthObservations,
+            }),
+        [healthIssue, healthIssueNotes, healthObservations, medicationNotes, medicationUse]
+    );
 
     useEffect(() => {
         if (!showEditClassPicker) return;
@@ -480,7 +492,6 @@ export function StudentEditModal({
                                                         placeholder="Nome do aluno"
                                                         value={name}
                                                         onChangeText={setName}
-                                                        onBlur={() => setName(formatName(name))}
                                                         placeholderTextColor={colors.placeholder}
                                                         style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
                                                     />
@@ -491,7 +502,6 @@ export function StudentEditModal({
                                                         placeholder="email@exemplo.com"
                                                         value={loginEmail}
                                                         onChangeText={setLoginEmail}
-                                                        onBlur={() => setLoginEmail(formatEmail(loginEmail))}
                                                         keyboardType="email-address"
                                                         autoCapitalize="none"
                                                         autoCorrect={false}
@@ -659,7 +669,40 @@ export function StudentEditModal({
                                     style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
                                 >
                                     <View style={{ flex: 1, gap: 2 }}>
-                                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
+                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
+                                            {editHealthAssessment.level !== "apto" ? (
+                                                <View
+                                                    style={{
+                                                        borderRadius: 999,
+                                                        borderWidth: 1,
+                                                        borderColor:
+                                                            editHealthAssessment.level === "revisar"
+                                                                ? colors.dangerBorder
+                                                                : colors.warningBg,
+                                                        backgroundColor:
+                                                            editHealthAssessment.level === "revisar"
+                                                                ? colors.dangerBg
+                                                                : colors.warningBg,
+                                                        paddingHorizontal: 8,
+                                                        paddingVertical: 2,
+                                                    }}
+                                                >
+                                                    <Text
+                                                        style={{
+                                                            color:
+                                                                editHealthAssessment.level === "revisar"
+                                                                    ? colors.dangerText
+                                                                    : colors.warningText,
+                                                            fontSize: 10,
+                                                            fontWeight: "700",
+                                                        }}
+                                                    >
+                                                        {editHealthAssessment.label}
+                                                    </Text>
+                                                </View>
+                                            ) : null}
+                                        </View>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editHealthSummary}</Text>
                                     </View>
                                     <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "health" ? "180deg" : "0deg" }] }} />
@@ -768,7 +811,6 @@ export function StudentEditModal({
                                                         placeholder="Nome do responsável"
                                                         value={guardianName}
                                                         onChangeText={setGuardianName}
-                                                        onBlur={() => setGuardianName(formatName(guardianName))}
                                                         placeholderTextColor={colors.placeholder}
                                                         style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
                                                     />
@@ -905,11 +947,6 @@ export function StudentEditModal({
                         maxHeight={220}
                         nestedScrollEnabled
                         onRequestClose={closeAllEditPickers}
-                        panelStyle={{
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.card,
-                        }}
                         scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
                         {unitOptions.length ? (
@@ -943,11 +980,6 @@ export function StudentEditModal({
                         maxHeight={240}
                         nestedScrollEnabled
                         onRequestClose={closeAllEditPickers}
-                        panelStyle={{
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.card,
-                        }}
                         scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
                         {filteredClassOptions.length ? (
@@ -984,11 +1016,6 @@ export function StudentEditModal({
                         maxHeight={160}
                         nestedScrollEnabled
                         onRequestClose={closeAllEditPickers}
-                        panelStyle={{
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.card,
-                        }}
                         scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
                         {guardianRelationOptions.map((item, index) => (

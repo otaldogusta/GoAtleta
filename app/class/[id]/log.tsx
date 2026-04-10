@@ -270,8 +270,6 @@ export default function LogScreen() {
         contentContainerStyle={{ padding: 16 }}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={closePickers}
-        onScroll={syncPickerLayouts}
-        scrollEventThrottle={16}
       >
         { cls ? (
           <ClassContextHeader
@@ -421,7 +419,7 @@ export default function LogScreen() {
                 Conclusão
               </Text>
               <TextInput
-                placeholder="Observações finais da aula"
+                placeholder="Observa??es finais da aula"
                 value={conclusion}
                 onChangeText={(value) => {
                   setConclusion(value);
@@ -483,11 +481,6 @@ export default function LogScreen() {
             maxHeight={220}
             nestedScrollEnabled
             onRequestClose={closePickers}
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
@@ -518,11 +511,6 @@ export default function LogScreen() {
             maxHeight={200}
             nestedScrollEnabled
             onRequestClose={closePickers}
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {(["boa", "ok", "ruim"] as const).map((option) => (
@@ -548,4 +536,3 @@ export default function LogScreen() {
     </SafeAreaView>
   );
 }
-

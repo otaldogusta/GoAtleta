@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { memo, type Dispatch, type SetStateAction } from "react";
@@ -128,7 +128,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
           borderColor: colors.border,
         }}
       >
-        <Ionicons name="search" size={16} color={colors.muted} />
+                <Ionicons name="search" size={16} color={colors.muted} />
         <TextInput
           placeholder="Buscar nomes, datas e meses"
           placeholderTextColor={colors.placeholder}
@@ -136,22 +136,22 @@ export const BirthdaysTab = memo(function BirthdaysTab({
           onChangeText={setBirthdaySearch}
           style={{ flex: 1, color: colors.inputText, fontSize: 13 }}
         />
-        {birthdaySearch ? (
-          <Pressable
-            onPress={() => setBirthdaySearch("")}
-            onContextMenu={(event: any) => event.preventDefault()}
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="close" size={14} color={colors.muted} />
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={() => setBirthdaySearch("")}
+          onContextMenu={(event: any) => event.preventDefault()}
+          disabled={!birthdaySearch}
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            backgroundColor: colors.secondaryBg,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: birthdaySearch ? 1 : 0,
+          }}
+        >
+          <Ionicons name="close" size={14} color={colors.muted} />
+        </Pressable>
       </View>
 
       <View
@@ -224,7 +224,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
                       {student.name}
                     </Text>
-                    <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
+                      <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
                       {age ? `${age} anos` : "Idade não informada"} - {unitName}
                     </Text>
                   </View>
@@ -361,16 +361,16 @@ export const BirthdaysTab = memo(function BirthdaysTab({
                       justifyContent: "center",
                     }}
                   >
-                    <Text
-                      style={{
-                        color: colors.primaryText,
-                        fontSize: 12,
-                        fontWeight: "700",
-                        textAlign: "center",
-                      }}
-                    >
+                      <Text
+                        style={{
+                          color: colors.primaryText,
+                          fontSize: 12,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                      >
                       {daysLeft === 1 ? "Amanhã" : `${daysLeft} dias`}
-                    </Text>
+                      </Text>
                   </View>
                 </View>
               );
@@ -615,7 +615,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
                   Sem aniversários
                 </Text>
                 <Text style={{ color: colors.muted, marginTop: 4 }}>
@@ -629,3 +629,4 @@ export const BirthdaysTab = memo(function BirthdaysTab({
     </View>
   );
 });
+

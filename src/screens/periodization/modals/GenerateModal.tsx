@@ -1,5 +1,6 @@
 import { Text, View } from "react-native";
 
+import { isAnnualCycle } from "../../../core/periodization-basics";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
@@ -12,6 +13,7 @@ type Props = {
   modalCardStyle: object;
   colors: ThemeColors;
   isSavingPlans: boolean;
+  cycleLength: number;
   onGenerateAction: (action: GenerateAction) => void;
 };
 
@@ -21,8 +23,11 @@ export function GenerateModal({
   modalCardStyle,
   colors,
   isSavingPlans,
+  cycleLength,
   onGenerateAction,
 }: Props) {
+  const annual = isAnnualCycle(cycleLength);
+
   return (
     <ModalDialogFrame
       visible={visible}
@@ -30,8 +35,12 @@ export function GenerateModal({
       cardStyle={[modalCardStyle, { paddingBottom: 16, maxHeight: "92%", height: "92%" }]}
       position="center"
       colors={colors}
-      title="Gerar ciclo"
-      subtitle="Escolha como preencher as semanas do ciclo."
+      title={annual ? "Gerar ciclo anual" : "Gerar ciclo"}
+      subtitle={
+        annual
+          ? "Escolha como preencher as semanas do macro anual da turma."
+          : "Escolha como preencher as semanas do ciclo."
+      }
     >
       <View style={{ gap: 10 }}>
         <Pressable
@@ -46,7 +55,9 @@ export function GenerateModal({
             borderColor: colors.border,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Completar faltantes</Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
+            {annual ? "Completar semanas faltantes" : "Completar faltantes"}
+          </Text>
         </Pressable>
 
         <Pressable

@@ -11,10 +11,6 @@ type Props = {
   rightAccessory?: ReactNode;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
-  activeBackgroundColor?: string;
-  inactiveBackgroundColor?: string;
-  activeBorderColor?: string;
-  inactiveBorderColor?: string;
 };
 
 export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
@@ -24,18 +20,10 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
   rightAccessory,
   disabled,
   style,
-  activeBackgroundColor,
-  inactiveBackgroundColor,
-  activeBorderColor,
-  inactiveBorderColor,
 }: Props) {
   const { colors } = useAppTheme();
-  const backgroundColor = active
-    ? activeBackgroundColor ?? colors.primaryBg
-    : inactiveBackgroundColor ?? colors.card;
-  const borderColor = active
-    ? activeBorderColor ?? (activeBackgroundColor ?? colors.primaryBg)
-    : inactiveBorderColor ?? colors.border;
+  const backgroundColor = active ? colors.secondaryBg : colors.card;
+  const borderColor = colors.border;
 
   return (
     <Pressable

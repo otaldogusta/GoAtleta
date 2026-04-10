@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { memo } from "react";
 import {
   Animated,
   Platform,
@@ -96,7 +97,7 @@ type CopilotModalProps = {
   handleComposerKeyPress: (event: any) => void;
 };
 
-export function CopilotModal({
+export const CopilotModal = memo(function CopilotModal({
   visible,
   isWebModal,
   viewportWidth,
@@ -143,6 +144,7 @@ export function CopilotModal({
   submitComposer,
   handleComposerKeyPress,
 }: CopilotModalProps) {
+  if (!visible) return null;
   return (
     <ModalSheet
       visible={visible}
@@ -455,4 +457,4 @@ export function CopilotModal({
       </View>
     </ModalSheet>
   );
-}
+});

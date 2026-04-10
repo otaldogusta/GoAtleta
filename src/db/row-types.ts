@@ -54,6 +54,15 @@ export type TrainingPlanRow = {
   applydays?: number[];
   applydate?: string;
   createdat: string;
+  version?: number | null;
+  status?: "generated" | "final" | null;
+  origin?: "auto" | "manual" | "manual_apply" | "edited_auto" | "imported" | null;
+  inputhash?: string | null;
+  generatedat?: string | null;
+  finalizedat?: string | null;
+  parent_plan_id?: string | null;
+  previous_version_id?: string | null;
+  pedagogy?: unknown | null;
 };
 
 export type TrainingTemplateRow = {
@@ -438,4 +447,16 @@ export type PendingWriteRow = {
   retryCount: number;
   lastError: string | null;
   dedupKey: string;
+};
+
+export type OverrideEventRow = {
+  id: string;
+  organization_id: string;
+  class_id: string;
+  from_rule_id: string;
+  to_rule_id: string;
+  reason_text?: string | null;
+  reason_tags?: string[] | null;
+  user_id?: string | null;
+  created_at: string;
 };

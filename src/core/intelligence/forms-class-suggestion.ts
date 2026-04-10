@@ -1,4 +1,5 @@
 import { normalizeAgeBand } from "../age-band";
+import { resolveClassModality } from "../class-modality";
 import type { ClassGroup } from "../models";
 import { canonicalizeUnitLabel } from "../unit-label";
 
@@ -46,8 +47,7 @@ const extractAgeBandHint = (value: string | null | undefined) => {
 };
 
 const hasVolleyballSignal = (value: string | null | undefined) => {
-  const normalized = normalizeText(value);
-  return normalized.includes("volei") || normalized.includes("voleibol");
+  return resolveClassModality(value) === "voleibol";
 };
 
 const scoreTokenOverlap = (left: string[], right: string[]) => {

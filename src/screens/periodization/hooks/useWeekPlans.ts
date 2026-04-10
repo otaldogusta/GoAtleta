@@ -1,27 +1,27 @@
 import { useMemo } from "react";
 
 import {
-  buildCompetitiveWeekMeta,
+    buildCompetitiveWeekMeta,
 } from "../../../core/competitive-periodization";
-import {
-  type PeriodizationModel,
-  type SportProfile,
-  ageBands,
-} from "../../../core/periodization-basics";
-import { getPlannedLoads } from "../../../core/periodization-load";
-import {
-  basePlans,
-  getJumpTarget,
-  getPSETarget,
-  getPhaseForWeek,
-  getVolumeForModel,
-  getVolumeFromTargets,
-} from "../../../core/periodization-generator";
 import type {
-  ClassCalendarException,
-  ClassGroup,
-  ClassPlan,
+    ClassCalendarException,
+    ClassGroup,
+    ClassPlan,
 } from "../../../core/models";
+import {
+    type PeriodizationModel,
+    type SportProfile,
+    ageBands,
+} from "../../../core/periodization-basics";
+import {
+    basePlans,
+    getJumpTarget,
+    getPSETarget,
+    getPhaseForWeek,
+    getVolumeForModel,
+    getVolumeFromTargets,
+} from "../../../core/periodization-generator";
+import { getPlannedLoads } from "../../../core/periodization-load";
 import type { WeekPlan } from "../CyclePlanTable";
 
 // ── helpers (ported from app/periodization/index.tsx) ──────────────────────
@@ -99,6 +99,17 @@ export type UseWeekPlansParams = {
   weeklySessions: number;
 };
 
+const isCycleWeekNumber = (weekNumber: number, cycleLength: number) =>
+  Number.isFinite(weekNumber) && weekNumber >= 1 && weekNumber <= cycleLength;
+
+export const getPlansWithinCycle = (
+  plans: ClassPlan[],
+  cycleLength: number
+): ClassPlan[] =>
+  plans
+    .filter((plan) => isCycleWeekNumber(plan.weekNumber, cycleLength))
+    .sort((a, b) => a.weekNumber - b.weekNumber);
+
 export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
   const {
     selectedClass,
@@ -118,13 +129,23 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
     if (!selectedClass) return [];
 
     const base = basePlans[ageBand] ?? basePlans["09-11"];
-    const sourcePlans = classPlans.length ? classPlans : competitivePreviewPlans;
-    const length = sourcePlans.length || cycleLength;
+    const length = Math.max(1, cycleLength);
     const durationMinutes = Math.max(15, Number(selectedClass.durationMinutes ?? 60));
 
-    if (sourcePlans.length) {
-      return sourcePlans.map((plan, index) => {
-        const template = base[index % base.length];
+    const savedPlansByWeek = new Map(
+      getPlansWithinCycle(classPlans, length).map((plan) => [plan.weekNumber, plan])
+    );
+    const previewPlansByWeek = new Map(
+      getPlansWithinCycle(competitivePreviewPlans, length).map((plan) => [plan.weekNumber, plan])
+    );
+
+    const weeks: WeekPlan[] = [];
+
+    for (let i = 1; i <= length; i += 1) {
+      const template = base[(i - 1) % base.length];
+      const plan = savedPlansByWeek.get(i) ?? previewPlansByWeek.get(i) ?? null;
+
+      if (plan) {
         const normalizedPhase = normalizeText(plan.phase);
         const normalizedTheme = normalizeText(plan.theme);
         const normalizedConstraints = normalizeText(plan.constraints);
@@ -136,15 +157,15 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
         const plannedLoads = getPlannedLoads(resolvedPSETarget, durationMinutes, weeklySessions);
         const meta = isCompetitiveMode
           ? buildCompetitiveWeekMeta({
-              weekNumber: plan.weekNumber,
+              weekNumber: i,
               cycleStartDate: activeCycleStartDate,
               daysOfWeek: selectedClass.daysOfWeek,
               exceptions: calendarExceptions,
             })
           : null;
 
-        return {
-          week: plan.weekNumber,
+        weeks.push({
+          week: i,
           title: normalizedPhase,
           focus: normalizedTheme,
           volume: isCompetitiveMode
@@ -159,20 +180,17 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
           plannedSessionLoad: plannedLoads.plannedSessionLoad,
           plannedWeeklyLoad: plannedLoads.plannedWeeklyLoad,
           source: plan.source || "AUTO",
-        } as WeekPlan;
-      });
-    }
+        } as WeekPlan);
 
-    const weeks: WeekPlan[] = [];
+        continue;
+      }
 
-    for (let i = 0; i < length; i += 1) {
-      const template = base[i % base.length];
-      const phase = getPhaseForWeek(i + 1, length, periodizationModel, sportProfile);
+      const phase = getPhaseForWeek(i, length, periodizationModel, sportProfile);
       const pseTarget = getPSETarget(phase, weeklySessions, sportProfile);
       const plannedLoads = getPlannedLoads(pseTarget, durationMinutes, weeklySessions);
       weeks.push({
         ...template,
-        week: i + 1,
+        week: i,
         title: phase,
         volume: getVolumeForModel(template.volume, periodizationModel, weeklySessions, sportProfile),
         jumpTarget: getJumpTarget(selectedClass?.mvLevel ?? "", ageBand),

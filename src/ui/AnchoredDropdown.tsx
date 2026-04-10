@@ -3,7 +3,6 @@ import {
     Animated,
     Dimensions,
     Platform,
-    Pressable,
     ScrollView,
     StyleProp,
     View,
@@ -26,11 +25,11 @@ type AnchoredDropdownProps = {
   scrollContentStyle?: StyleProp<ViewStyle>;
   children: React.ReactNode;
   onRequestClose?: () => void;
-  dismissOnBackdropPress?: boolean;
   showVerticalScrollIndicator?: boolean;
+  portalToBodyOnWeb?: boolean;
 };
 
-const DEFAULT_DROPDOWN_MAX_HEIGHT = 168;
+const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
 
 export function AnchoredDropdown({
   visible,
@@ -44,8 +43,8 @@ export function AnchoredDropdown({
   scrollContentStyle,
   children,
   onRequestClose,
-  dismissOnBackdropPress = !!onRequestClose,
   showVerticalScrollIndicator = true,
+  portalToBodyOnWeb = true,
 }: AnchoredDropdownProps) {
   const { colors } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
@@ -60,7 +59,6 @@ export function AnchoredDropdown({
       const canScroll = element.scrollHeight > element.clientHeight + 1;
       if (!canScroll) {
         event.preventDefault();
-        event.stopPropagation();
         return;
       }
 
@@ -69,8 +67,6 @@ export function AnchoredDropdown({
       const atBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 1;
       const scrollingUp = deltaY < 0;
       const scrollingDown = deltaY > 0;
-
-      event.stopPropagation();
 
       if ((atTop && scrollingUp) || (atBottom && scrollingDown)) {
         event.preventDefault();
@@ -83,83 +79,125 @@ export function AnchoredDropdown({
     };
   }, [layout, visible]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    if (!visible) return;
+
+    document.body.classList.add("dropdown-scrollbars");
+    document.documentElement.classList.add("dropdown-scrollbars");
+    return () => {
+      document.body.classList.remove("dropdown-scrollbars");
+      document.documentElement.classList.remove("dropdown-scrollbars");
+    };
+  }, [visible]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible || !scrollRef.current) return;
+
+    const element = scrollRef.current as unknown as HTMLElement | null;
+    if (!element) return;
+
+    const previous = {
+      overflowX: element.style.overflowX,
+      overflowY: element.style.overflowY,
+      scrollbarWidth: element.style.scrollbarWidth,
+      scrollbarColor: element.style.scrollbarColor,
+      msOverflowStyle:
+        (element.style as CSSStyleDeclaration & { msOverflowStyle?: string }).msOverflowStyle ?? "",
+    };
+
+    element.style.overflowX = "hidden";
+    element.style.overflowY = "scroll";
+    element.style.scrollbarWidth = "thin";
+    element.style.scrollbarColor = `${colors.border} transparent`;
+    (element.style as CSSStyleDeclaration & { msOverflowStyle?: string }).msOverflowStyle = "auto";
+
+    return () => {
+      element.style.overflowX = previous.overflowX;
+      element.style.overflowY = previous.overflowY;
+      element.style.scrollbarWidth = previous.scrollbarWidth;
+      element.style.scrollbarColor = previous.scrollbarColor;
+      (element.style as CSSStyleDeclaration & { msOverflowStyle?: string }).msOverflowStyle = previous.msOverflowStyle;
+    };
+  }, [colors.border, visible]);
+
   if (!visible || !layout) return null;
 
-  const resolvedMaxHeight = Math.min(maxHeight, DEFAULT_DROPDOWN_MAX_HEIGHT);
-  const left = container ? layout.x - container.x : layout.x;
-  const defaultTop = container
-    ? layout.y - container.y + layout.height + 8
-    : layout.y + layout.height + 8;
+  const windowWidth = Dimensions.get("window").width;
   const windowHeight = Dimensions.get("window").height;
+  const useViewportCoordinates = Platform.OS === "web" && portalToBodyOnWeb;
+  const availableWidth = Math.max(180, windowWidth - 24);
+  const measuredWidth = layout.width > 0 ? layout.width : 240;
+  const resolvedWidth = Math.min(measuredWidth, availableWidth);
+  const resolvedMaxHeight = Math.min(maxHeight, DEFAULT_DROPDOWN_MAX_HEIGHT, Math.floor(windowHeight * 0.23));
+  const leftBase = useViewportCoordinates || !container ? layout.x : layout.x - container.x;
+  const left = Math.max(16, Math.min(leftBase, windowWidth - 16 - resolvedWidth));
+  const defaultTop = useViewportCoordinates || !container
+    ? layout.y + layout.height + 8
+    : layout.y - container.y + layout.height + 8;
   const availableBottom = windowHeight - 24;
   const top =
     defaultTop + resolvedMaxHeight > availableBottom
       ? Math.max(8, defaultTop - layout.height - resolvedMaxHeight)
       : defaultTop;
 
-  const handleBackdropPress = () => {
-    if (dismissOnBackdropPress && onRequestClose) {
-      onRequestClose();
-    }
-  };
-
-  return (
-    <>
-      {dismissOnBackdropPress && onRequestClose && (
-        <Pressable
-          onPress={handleBackdropPress}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: zIndex - 1,
-            elevation: zIndex - 1,
-          }}
-        />
-      )}
-      <Animated.View
+  const dropdown = (
+    <Animated.View
+      style={[
+        {
+          position: Platform.OS === "web" ? "fixed" : "absolute",
+          left,
+          top,
+          width: resolvedWidth,
+          minWidth: resolvedWidth,
+          zIndex,
+          elevation: zIndex,
+        },
+        animationStyle,
+      ]}
+    >
+      <View
         style={[
+          panelStyle,
           {
-            position: "absolute",
-            left,
-            top,
-            width: layout.width,
-            zIndex,
-            elevation: zIndex,
+            height: resolvedMaxHeight,
+            maxHeight: resolvedMaxHeight,
+            borderRadius: 18,
+            overflow: "hidden",
+            borderWidth: 1,
+            borderColor: "rgba(255, 255, 255, 0.08)",
+            backgroundColor: "rgba(6, 10, 20, 0.98)",
+            shadowColor: "#000",
+            shadowOpacity: 0.32,
+            shadowRadius: 20,
+            shadowOffset: { width: 0, height: 12 },
+            elevation: 20,
           },
-          animationStyle,
         ]}
       >
-        <View
+        <ScrollView
+          ref={scrollRef}
           style={[
-            {
-              maxHeight: resolvedMaxHeight,
-              borderRadius: 18,
-              overflow: "hidden",
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            },
-            panelStyle,
+            { height: resolvedMaxHeight, maxHeight: resolvedMaxHeight },
           ]}
+          contentContainerStyle={[{ padding: 8, gap: 6, paddingBottom: 10 }, scrollContentStyle]}
+          nestedScrollEnabled={nestedScrollEnabled}
+          showsVerticalScrollIndicator={showVerticalScrollIndicator}
+          persistentScrollbar={Platform.OS === "android"}
+          scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
+          overScrollMode={Platform.OS === "android" ? "always" : "auto"}
         >
-          <ScrollView
-            ref={scrollRef}
-            style={{ maxHeight: resolvedMaxHeight }}
-            contentContainerStyle={[{ padding: 8, gap: 6 }, scrollContentStyle]}
-            nestedScrollEnabled={nestedScrollEnabled}
-            showsVerticalScrollIndicator={showVerticalScrollIndicator}
-            persistentScrollbar={Platform.OS === "android"}
-            scrollEventThrottle={16}
-            keyboardShouldPersistTaps="handled"
-            overScrollMode={Platform.OS === "android" ? "always" : "auto"}
-          >
-            {children}
-          </ScrollView>
-        </View>
-      </Animated.View>
-    </>
+          {children}
+        </ScrollView>
+      </View>
+    </Animated.View>
   );
+
+  if (Platform.OS === "web" && portalToBodyOnWeb && typeof document !== "undefined") {
+    const ReactDOM = require("react-dom");
+    return ReactDOM.createPortal(dropdown, document.body);
+  }
+
+  return dropdown;
 }

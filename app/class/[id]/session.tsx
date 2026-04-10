@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -9,6 +9,7 @@ import {
     Easing,
     FlatList,
     Image,
+    InteractionManager,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -17,11 +18,84 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Pressable } from "../../../src/ui/Pressable";
 import { ScreenBackdrop } from "../../../src/components/ui/ScreenBackdrop";
+import {
+    BlockEditModal,
+    type BlockEditPayload,
+    type EditableBlockItem,
+} from "../../../src/screens/session/components/BlockEditModal";
+import { Pressable } from "../../../src/ui/Pressable";
 
-import { rewriteReportText, type ReportRewriteField } from "../../../src/api/ai";
-import type { ClassGroup, ScoutingLog, SessionLog, TrainingPlan } from "../../../src/core/models";
+import {
+    generateStructuredActivitiesWithAI,
+    rewriteReportText,
+    type ReportRewriteField,
+} from "../../../src/api/ai";
+import { usePedagogicalConfig } from "../../../src/bootstrap/pedagogical-config-context";
+import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
+import type { PedagogicalDimensionsConfig } from "../../../src/config/pedagogical-dimensions-config";
+import { ptBR } from "../../../src/constants/copy/pt-br";
+import { toVisibleCoachingText } from "../../../src/core/methodology/coaching-lexicon";
+import type { PedagogicalApproachDetection } from "../../../src/core/methodology/pedagogical-approach-detector";
+import {
+    buildSessionApproachAwareBlockDescription,
+    buildSessionApproachAwareGeneralObjective,
+    buildSessionApproachGuideline,
+    buildSessionPedagogicalApproachInput,
+    detectSessionPedagogicalApproach as detectSessionPedagogicalApproachCore,
+    formatSessionPedagogicalRiskLabel,
+} from "../../../src/core/methodology/session-pedagogical-language";
+import {
+    buildSessionPedagogicalPanelIntent,
+    buildSessionPedagogicalPanelRisk,
+    buildSessionPedagogicalPanelSecondary,
+    buildSessionPedagogicalPanelSignals,
+    buildSessionPedagogicalPanelSummary,
+    formatSessionAdjustmentLabel,
+    formatSessionDecisionReasonTypeLabel,
+    formatSessionMethodologyApproachLabel,
+    formatSessionMethodologyEvidenceExcerpt,
+    formatSessionMethodologyEvidenceSource,
+    formatSessionMethodologyScoreSummary,
+    formatSessionOverrideSummary,
+    formatSessionPedagogicalFocusSkill,
+    type SessionMethodologyEvidence,
+} from "../../../src/core/methodology/session-pedagogical-panel-language";
+import type {
+    ClassGroup,
+    ClassPlan,
+    KnowledgeSource,
+    ProgressionDimension,
+    ScoutingLog,
+    SessionLog,
+    Student,
+    TrainingPlan,
+    TrainingPlanActivity,
+    TrainingPlanCriterion,
+    TrainingPlanPedagogy,
+    VolleyballSkill,
+} from "../../../src/core/models";
+import {
+    buildCAPFromDimensions,
+    buildDimensionGuidelines,
+    deriveDimensionsProfile,
+    formatDimensionsProfile,
+    formatRefinements,
+    refineDimensionsByEvaluation,
+} from "../../../src/core/pedagogical-dimensions";
+import {
+    evaluateSessionOutcome,
+    type SessionSkillHistoryEntry,
+} from "../../../src/core/pedagogical-evaluation";
+import {
+    buildPedagogicalPlan,
+    type LessonPlanDraft,
+    type PedagogicalObjective,
+    type PedagogicalPlanBlock,
+    type PedagogicalPlanPackage,
+    type PlanningPhase,
+} from "../../../src/core/pedagogical-planning";
+import { buildPeriodizationContext } from "../../../src/core/periodization-context";
 import {
     buildLogFromCounts,
     countsFromLog,
@@ -29,21 +103,26 @@ import {
     getFocusSuggestion,
     getSkillMetrics,
     getTotalActions,
-    scoutingEnvioTooltip,
-    scoutingInitiationNote,
-    scoutingPriorityNote,
     scoutingSkillHelp,
     scoutingSkills,
+    type ScoutingCounts,
 } from "../../../src/core/scouting";
+import { createTrainingPlanVersion } from "../../../src/core/training-plan-factory";
+import { resolveActiveMethodology } from "../../../src/db/knowledge-base";
 import {
     getAttendanceByDate,
     getClassById,
+    getClassPlansByClass,
+    getKnowledgeRuleCitations,
+    getKnowledgeSources,
+    getLatestTrainingPlanByClass,
     getScoutingLogByDate,
     getSessionLogByDate,
     getStudentsByClass,
     getTrainingPlans,
     saveScoutingLog,
     saveSessionLog,
+    saveTrainingPlan,
 } from "../../../src/db/seed";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
@@ -53,24 +132,28 @@ import { SessionReportDocument } from "../../../src/pdf/session-report-document"
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
 import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { Button } from "../../../src/ui/Button";
-import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
+import { getClassPalette } from "../../../src/ui/class-colors";
+import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
+import { LocationBadge } from "../../../src/ui/LocationBadge";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
-import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { useSaveToast } from "../../../src/ui/save-toast";
-import { ShimmerBlock } from "../../../src/ui/Shimmer";
-import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { formatClock, formatDuration } from "../../../src/utils/format-time";
+import { normalizeDisplayText } from "../../../src/utils/text-normalization";
+import { calculateAdjacentClassDate } from "../../../src/utils/whatsapp-templates";
 
 const sessionTabs = [
-  { id: "treino", label: "Treino mais recente" },
-  { id: "relatório", label: "Fazer relatório" },
-  { id: "scouting", label: "Scouting" },
+  { id: "treino", label: ptBR.session.tabs.training },
+  { id: "relatório", label: ptBR.session.tabs.report },
+  { id: "scouting", label: ptBR.session.tabs.scouting },
 ] as const;
 
 type SessionTabId = (typeof sessionTabs)[number]["id"];
+type SessionBlockKey = "warmup" | "main" | "cooldown";
+type SessionPedagogicalApproach = NonNullable<TrainingPlanPedagogy["pedagogicalApproach"]>;
 const REPORT_REWRITE_MAX_CHARS = 1200;
 const REPORT_RELEVANT_MIN_CHARS = 24;
 const REPORT_RELEVANT_MIN_WORDS = 5;
@@ -114,12 +197,47 @@ const inferMimeTypeFromUri = (uri: string) => {
 };
 
 const isLocalImageUri = (uri: string) => /^file:|^content:/i.test(uri);
+
+const sanitizePlanDisplayItem = (value: string | null | undefined) => {
+  const raw = normalizeDisplayText(value).trim();
+  if (!raw) return "";
+  const withoutMinutes = raw.replace(/^\s*\d+\s*min(?:utos?)?\s*[-•:]?\s*/i, "").trim();
+  if (!withoutMinutes) return "";
+  if (/^[a-z0-9]+(?:_[a-z0-9]+){2,}$/i.test(withoutMinutes)) return "";
+  if (/(?:^|_)vwv(?:_|$)/i.test(withoutMinutes)) return "";
+  return withoutMinutes;
+};
+
 const summarizePlanItems = (items: string[] | undefined, limit = 2) =>
   (items ?? [])
-    .map((item) => String(item ?? "").trim())
+    .map((item) => sanitizePlanDisplayItem(item))
     .filter(Boolean)
     .slice(0, limit)
     .join(" / ");
+
+const dedupeByNormalizedText = (items: string[]) => {
+  const map = new Map<string, string>();
+  for (const raw of items) {
+    const cleaned = sanitizePlanDisplayItem(raw);
+    if (!cleaned) continue;
+    const key = normalizePedagogicalText(cleaned);
+    if (!key || map.has(key)) continue;
+    map.set(key, cleaned);
+  }
+  return Array.from(map.values());
+};
+
+const dedupeActivitiesForDisplay = (items: TrainingPlanActivity[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const name = sanitizePlanDisplayItem(item.name) || "atividade";
+    const desc = sanitizePlanDisplayItem(item.description ?? "");
+    const key = `${normalizePedagogicalText(name)}|${normalizePedagogicalText(desc)}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const buildSimpleActivityFromPlan = (plan: TrainingPlan | null) => {
   if (!plan) return "";
@@ -132,13 +250,1598 @@ const buildSimpleActivityFromPlan = (plan: TrainingPlan | null) => {
     title,
     warmup ? `Aquecimento: ${warmup}` : "",
     main ? `Principal: ${main}` : "",
-    cooldown ? `Volta a calma: ${cooldown}` : "",
+    cooldown ? `${ptBR.session.cooldown}: ${cooldown}` : "",
   ]
     .filter(Boolean)
     .join(". ");
 
   return parts.trim();
 };
+
+const formatShortDate = (value: string) => {
+  if (!value) return "";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${day}/${month}/${year}`;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("pt-BR");
+};
+
+const sessionWeekdays = [
+  { id: 1, label: "Seg" },
+  { id: 2, label: "Ter" },
+  { id: 3, label: "Qua" },
+  { id: 4, label: "Qui" },
+  { id: 5, label: "Sex" },
+  { id: 6, label: "Sab" },
+  { id: 7, label: "Dom" },
+];
+
+const formatSessionWeekdays = (days: number[] | undefined) => {
+  if (!days?.length) return "";
+  return days
+    .map((day) => sessionWeekdays.find((item) => item.id === day)?.label)
+    .filter(Boolean)
+    .join(", ");
+};
+
+const buildCompactTrainingPlanKey = (plan: TrainingPlan) => {
+  const parentPlanId = String(plan.parentPlanId ?? "").trim();
+  if (parentPlanId) return `parent:${parentPlanId}`;
+
+  const blocks = [plan.warmup ?? [], plan.main ?? [], plan.cooldown ?? []]
+    .map((items) =>
+      items
+        .map((item) => normalizePedagogicalText(sanitizePlanDisplayItem(item)))
+        .filter(Boolean)
+        .join("|")
+    )
+    .join("::");
+
+  return `content:${normalizePedagogicalText(plan.title)}::${blocks}`;
+};
+
+const compactTrainingPlans = (plans: TrainingPlan[], limit = 6) => {
+  const uniquePlans = new Map<string, TrainingPlan>();
+  for (const plan of plans) {
+    const key = buildCompactTrainingPlanKey(plan);
+    if (!uniquePlans.has(key)) {
+      uniquePlans.set(key, plan);
+    }
+  }
+  return Array.from(uniquePlans.values()).slice(0, limit);
+};
+
+const buildSavedPlanSummary = (plan: TrainingPlan) =>
+  dedupeByNormalizedText([...(plan.main ?? []), ...(plan.warmup ?? []), ...(plan.cooldown ?? [])])
+    .slice(0, 2)
+    .join(" / ");
+
+const buildSavedPlanMeta = (plan: TrainingPlan) => {
+  if (plan.applyDate) {
+    return `Último uso em ${formatShortDate(plan.applyDate)}`;
+  }
+  if (plan.applyDays?.length) {
+    return `Dias: ${formatSessionWeekdays(plan.applyDays)}`;
+  }
+  if (plan.createdAt) {
+    return `Salvo em ${formatShortDate(plan.createdAt)}`;
+  }
+  return "Plano salvo da turma";
+};
+
+const pedagogicalObjectiveLabels: Record<PedagogicalObjective, string> = {
+  controle_bola: "Controle de bola",
+  passe: "Passe",
+  resistencia: "Resistência",
+  jogo_reduzido: "Jogo reduzido",
+};
+
+const normalizePedagogicalText = (value: string) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const arePedagogicalTextsEquivalent = (
+  left: string | null | undefined,
+  right: string | null | undefined
+) => {
+  const normalizedLeft = normalizePedagogicalText(sanitizePlanDisplayItem(left));
+  const normalizedRight = normalizePedagogicalText(sanitizePlanDisplayItem(right));
+  if (!normalizedLeft || !normalizedRight) return false;
+  return (
+    normalizedLeft === normalizedRight ||
+    normalizedLeft.includes(normalizedRight) ||
+    normalizedRight.includes(normalizedLeft)
+  );
+};
+
+const buildActivityDescription = (
+  name: string,
+  blockKey: SessionBlockKey,
+  blockSummary?: string | null,
+  pedagogicalApproach?: SessionPedagogicalApproach | null,
+  focusSkill?: VolleyballSkill | null
+) => {
+  const activityName = sanitizePlanDisplayItem(name);
+  const summary = sanitizePlanDisplayItem(blockSummary ?? "");
+  const normalized = normalizePedagogicalText(activityName);
+
+  if (blockKey === "warmup") {
+    if (/aquec|ativ|mobil|estab|coord|desloc|prepar/.test(normalized)) {
+      return buildApproachAwareBlockDescription({
+        core: "mobilidade, coordenação e preparação para a parte principal",
+        blockKey,
+        pedagogicalApproach,
+        fallback: summary,
+        focusSkill,
+        detailText: activityName,
+      });
+    }
+    return buildApproachAwareBlockDescription({
+      core: summary || "preparação física e coordenativa",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill,
+      detailText: activityName,
+    });
+  }
+
+  if (blockKey === "cooldown") {
+    if (/feedback|retom|fech|reflex/.test(normalized)) {
+      return buildApproachAwareBlockDescription({
+        core: "retomada dos pontos-chave e organização final",
+        blockKey,
+        pedagogicalApproach,
+        fallback: summary,
+        focusSkill,
+        detailText: activityName,
+      });
+    }
+    if (/along|respir|recuper|volta/.test(normalized)) {
+      return buildApproachAwareBlockDescription({
+        core: "recuperação, controle respiratório e reorganização final",
+        blockKey,
+        pedagogicalApproach,
+        fallback: summary,
+        focusSkill,
+        detailText: activityName,
+      });
+    }
+    return buildApproachAwareBlockDescription({
+      core: summary || "recuperação e consolidação do conteúdo trabalhado",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill,
+      detailText: activityName,
+    });
+  }
+
+  if (normalized.includes("5x1")) {
+    return buildApproachAwareBlockDescription({
+      core: "organização posicional da equipe no sistema 5x1",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "levantamento",
+      detailText: activityName,
+    });
+  }
+  if (/rodizio|rotac/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "identificação das funções em cada rotação da jogada",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill,
+      detailText: activityName,
+    });
+  }
+  if (/infiltr|levantadora/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "entrada da levantadora para organizar o segundo toque",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "levantamento",
+      detailText: activityName,
+    });
+  }
+  if (/3 toques|tres toques|jogada|construc/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "continuidade da jogada em passe, levantamento e ataque",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill,
+      detailText: activityName,
+    });
+  }
+  if (/saque/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "lançamento, contato e direcionamento do saque",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "saque",
+      detailText: activityName,
+    });
+  }
+  if (/recepc|passe|manchete/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "qualidade do primeiro contato e direcionamento do passe",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "passe",
+      detailText: activityName,
+    });
+  }
+  if (/ataque|cortada|finaliz/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "tempo de bola, direção e finalização do ataque",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "ataque",
+      detailText: activityName,
+    });
+  }
+  if (/transic|contra-ataque/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "reorganização entre defesa e ataque para continuidade da jogada",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "transicao",
+      detailText: activityName,
+    });
+  }
+  if (/bloque/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "tempo de salto, fechamento do corredor e coordenação do bloqueio",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "bloqueio",
+      detailText: activityName,
+    });
+  }
+  if (/defes|cobertura/.test(normalized)) {
+    return buildApproachAwareBlockDescription({
+      core: "leitura defensiva, cobertura e resposta coordenada à jogada",
+      blockKey,
+      pedagogicalApproach,
+      fallback: summary,
+      focusSkill: focusSkill ?? "defesa",
+      detailText: activityName,
+    });
+  }
+
+  return buildApproachAwareBlockDescription({
+    core: summary || "compreensão da tarefa e tomada de decisão",
+    blockKey,
+    pedagogicalApproach,
+    fallback: summary,
+    focusSkill,
+    detailText: activityName,
+  });
+};
+
+const resolveActivityDescription = (options: {
+  name: string;
+  description?: string | null;
+  blockKey: SessionBlockKey;
+  blockSummary?: string | null;
+  pedagogicalApproach?: SessionPedagogicalApproach | null;
+  focusSkill?: VolleyballSkill | null;
+}) => {
+  const activityName = sanitizePlanDisplayItem(options.name);
+  const providedDescription = sanitizePlanDisplayItem(options.description ?? "");
+  const summary = sanitizePlanDisplayItem(options.blockSummary ?? "");
+
+  if (providedDescription && !arePedagogicalTextsEquivalent(providedDescription, activityName)) {
+    return providedDescription;
+  }
+
+  const generatedDescription = buildActivityDescription(
+    activityName,
+    options.blockKey,
+    summary,
+    options.pedagogicalApproach,
+    options.focusSkill
+  );
+
+  if (generatedDescription && !arePedagogicalTextsEquivalent(generatedDescription, activityName)) {
+    return generatedDescription;
+  }
+
+  if (summary && !arePedagogicalTextsEquivalent(summary, activityName)) {
+    return summary;
+  }
+
+  return "";
+};
+
+const pickPedagogicalObjectiveLabel = (value: string) => {
+  const normalized = normalizePedagogicalText(value);
+  if (!normalized) return pedagogicalObjectiveLabels.controle_bola;
+  if (normalized.includes("passe") || normalized.includes("recep")) {
+    return pedagogicalObjectiveLabels.passe;
+  }
+  if (normalized.includes("resist") || normalized.includes("condicion")) {
+    return pedagogicalObjectiveLabels.resistencia;
+  }
+  if (normalized.includes("jogo") || normalized.includes("reduz")) {
+    return pedagogicalObjectiveLabels.jogo_reduzido;
+  }
+  return pedagogicalObjectiveLabels.controle_bola;
+};
+
+const buildPedagogicalApproachInput = (
+  parts: Array<string | null | undefined>
+) => buildSessionPedagogicalApproachInput(parts);
+
+const detectSessionPedagogicalApproach = (
+  parts: Array<string | null | undefined>
+): SessionPedagogicalApproach => detectSessionPedagogicalApproachCore(parts);
+
+const buildApproachAwareGeneralObjective = (
+  targetSkill: VolleyballSkill,
+  approach: SessionPedagogicalApproach,
+  fallback: string
+) => buildSessionApproachAwareGeneralObjective(targetSkill, approach, fallback);
+
+const buildApproachGuideline = (approach: SessionPedagogicalApproach) =>
+  buildSessionApproachGuideline(approach);
+
+const buildApproachAwareBlockDescription = (options: {
+  core: string;
+  blockKey: SessionBlockKey;
+  pedagogicalApproach?: SessionPedagogicalApproach | null;
+  fallback?: string;
+  focusSkill?: VolleyballSkill | null;
+  detailText?: string;
+}) => buildSessionApproachAwareBlockDescription(options);
+
+const formatPedagogicalRiskLabel = (
+  value: SessionPedagogicalApproach["traditionalConductionRisk"] | undefined
+) => formatSessionPedagogicalRiskLabel(value);
+
+const formatMethodologyApproach = (value: string | undefined) =>
+  formatSessionMethodologyApproachLabel(value);
+
+const formatMethodologyScore = (score: number) =>
+  formatSessionMethodologyScoreSummary(score);
+
+const criterionTypeLabels: Record<TrainingPlanCriterion["type"], string> = {
+  consistencia: "Consistência",
+  precisao: "Precisão",
+  decisao: "Decisão",
+  eficiencia: "Eficiência",
+};
+
+const formatCriterionTypeLabel = (type: TrainingPlanCriterion["type"] | undefined) =>
+  (type ? criterionTypeLabels[type] : "Critério");
+
+const formatCriterionSummary = (criterion: TrainingPlanCriterion) => {
+  const typeLabel = formatCriterionTypeLabel(criterion.type);
+  if (typeof criterion.threshold === "number") {
+    return `${typeLabel} >= ${criterion.threshold}`;
+  }
+  return typeLabel;
+};
+
+const formatAdjustmentLabel = (value: "increase" | "maintain" | "regress") =>
+  formatSessionAdjustmentLabel(value);
+
+const decisionReasonTypeLabels: Record<"health" | "readiness" | "context" | "other", string> = {
+  health: formatSessionDecisionReasonTypeLabel("health"),
+  readiness: formatSessionDecisionReasonTypeLabel("readiness"),
+  context: formatSessionDecisionReasonTypeLabel("context"),
+  other: formatSessionDecisionReasonTypeLabel("other"),
+};
+
+const getActivityAiBadge = (activity: TrainingPlanActivity) => {
+  if (activity.source !== "ai") return null;
+  const score = typeof activity.confidence === "number" ? activity.confidence : 0;
+  if (score >= 0.84) return { label: "IA", tone: "strong" as const };
+  if (score >= 0.68) return { label: "IA*", tone: "soft" as const };
+  return null;
+};
+
+const buildHumanMethodologyExplanation = (
+  reasoning: MethodologyReasoning | undefined
+) => {
+  if (!reasoning) return "Entrou pelo padrão que mais encaixa na turma.";
+  const parts: string[] = [];
+  if (reasoning.matchedContext) parts.push("contexto do treino");
+  if (reasoning.matchedModality) parts.push("modalidade");
+  if (reasoning.matchedLevel) parts.push("nível da turma");
+  if (!parts.length) return "Entrou pelo padrão que mais encaixa na turma.";
+  return toVisibleCoachingText(`Entrou pela combinação de ${parts.join(", ")}.`);
+};
+
+type MethodologyReasoning = NonNullable<
+  NonNullable<NonNullable<TrainingPlan["pedagogy"]>["methodology"]>["reasoning"]
+>;
+
+const buildTrainingPlanDraftFromPlan = (plan: TrainingPlan) => ({
+  title: plan.title,
+  tags: plan.tags,
+  warmup: plan.warmup,
+  main: plan.main,
+  cooldown: plan.cooldown,
+  warmupTime: plan.warmupTime,
+  mainTime: plan.mainTime,
+  cooldownTime: plan.cooldownTime,
+});
+
+const splitMaterials = (value: string) =>
+  String(value ?? "")
+    .split(/[\n,;/|]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const parseAgeBandStart = (value: string) => {
+  const match = String(value ?? "").match(/(\d{1,2})/);
+  return match ? Number(match[1]) : null;
+};
+
+const pickDevelopmentStage = (classGroup: ClassGroup): NonNullable<TrainingPlanPedagogy["developmentStage"]> => {
+  const ageStart = parseAgeBandStart(classGroup.ageBand);
+  if (ageStart !== null && ageStart <= 11) return "fundamental";
+  if (ageStart !== null && ageStart <= 16) return "especializado";
+  return "aplicado";
+};
+
+const pickFocusSkill = (pkg: PedagogicalPlanPackage): VolleyballSkill => {
+  const text = normalizePedagogicalText(
+    [
+      pkg.input.objective,
+      ...pkg.final.main.activities.map((activity) => activity.name),
+      ...pkg.final.warmup.activities.map((activity) => activity.name),
+    ].join(" ")
+  );
+  if (text.includes("levant")) return "levantamento";
+  if (text.includes("ataq") || text.includes("cortada")) return "ataque";
+  if (text.includes("bloq")) return "bloqueio";
+  if (text.includes("defes") || text.includes("dig")) return "defesa";
+  if (text.includes("saque") || text.includes("serv") ) return "saque";
+  if (text.includes("trans") || text.includes("jogo")) return "transicao";
+  if (text.includes("passe") || text.includes("recep") || text.includes("manchete")) return "passe";
+  return "passe";
+};
+
+const pickProgressionDimension = (
+  pkg: PedagogicalPlanPackage
+): ProgressionDimension => {
+  if (pkg.generated.basePlanKind === "progression") return "transferencia_jogo";
+  if (pkg.analysis.heterogeneity === "alta") return "consistencia";
+  if (pkg.analysis.level === "baixo") return "precisao";
+  if (normalizePedagogicalText(pkg.input.objective).includes("jogo")) return "tomada_decisao";
+  if (pkg.analysis.level === "alto") return "oposicao";
+  return "pressao_tempo";
+};
+
+const pickObjectiveType = (
+  pkg: PedagogicalPlanPackage
+): NonNullable<TrainingPlanPedagogy["objective"]>["type"] => {
+  const objective = normalizePedagogicalText(pkg.input.objective);
+  if (objective.includes("resist") || objective.includes("condicion")) return "fisico";
+  if (objective.includes("jogo") || objective.includes("tomada") || objective.includes("decis")) return "tatico";
+  if (objective.includes("controle") || objective.includes("coord") || objective.includes("motor")) return "motor";
+  if (objective.includes("concent") || objective.includes("percepc")) return "cognitivo";
+  return "tecnico";
+};
+
+const buildPedagogicalObjectives = (
+  pkg: PedagogicalPlanPackage,
+  options?: { scoutingPrioritySkill?: VolleyballSkill | null }
+) => {
+  const focus = pickFocusSkill(pkg);
+  const progression = pickProgressionDimension(pkg);
+  const targetSkill = options?.scoutingPrioritySkill ?? focus;
+
+  const levelTargetsByLevel = {
+    baixo: { repsMin: 3, repsMax: 5, accuracyPct: 60 },
+    medio: { repsMin: 6, repsMax: 8, accuracyPct: 70 },
+    alto: { repsMin: 8, repsMax: 10, accuracyPct: 80 },
+  } as const;
+  const levelTargets = levelTargetsByLevel[pkg.analysis.level];
+  const repsMax = pkg.analysis.heterogeneity === "alta" ? levelTargets.repsMax - 1 : levelTargets.repsMax;
+  const repsRange = `${levelTargets.repsMin} a ${Math.max(levelTargets.repsMin, repsMax)}`;
+  const accuracyTarget = pkg.analysis.heterogeneity === "alta"
+    ? Math.max(55, levelTargets.accuracyPct - 5)
+    : levelTargets.accuracyPct;
+
+  const byFocus: Record<VolleyballSkill, { general: string; specific: string[]; success: string[] }> = {
+    passe: {
+      general: "Desenvolver controle de bola, precisão do passe e continuidade das trocas em situação de jogo.",
+      specific: [
+        "Executar plataforma estável e contato limpo no passe.",
+        "Ajustar direção do corpo para enviar a bola ao alvo definido.",
+        `Sustentar séries de ${repsRange} repetições corretas com regularidade.`,
+      ],
+      success: [
+        `Alcançar >= ${repsRange} passes corretos em sequência por dupla/trio.`,
+        `Atingir >= ${accuracyTarget}% de passes no alvo em blocos de 10 execuções.`,
+      ],
+    },
+    levantamento: {
+      general: "Aprimorar qualidade do levantamento para organizar a construção ofensiva.",
+      specific: [
+        "Estabilizar base e tempo de contato no levantamento.",
+        "Direcionar a bola para zona-alvo com trajetória consistente.",
+        "Tomar decisão de distribuição conforme leitura do contexto.",
+      ],
+      success: [
+        `Atingir >= ${accuracyTarget}% de levantamentos na zona-alvo em séries de 10 bolas.`,
+        `Manter continuidade ofensiva em >= ${Math.max(60, accuracyTarget - 5)}% das sequências de jogo reduzido.`,
+      ],
+    },
+    ataque: {
+      general: "Desenvolver eficiência do ataque com melhor tempo, direção e tomada de decisão.",
+      specific: [
+        "Sincronizar aproximação, salto e contato com a bola.",
+        "Variar direção do ataque para explorar espaços livres.",
+        "Escolher solução ofensiva adequada à configuração defensiva.",
+      ],
+      success: [
+        `Atingir >= ${accuracyTarget}% de ataques em alvo em séries de 10 tentativas.`,
+        `Reduzir para <= ${Math.max(10, 35 - Math.round(accuracyTarget / 4))}% os ataques sem controle sob pressão.`,
+      ],
+    },
+    bloqueio: {
+      general: "Melhorar leitura e coordenação do bloqueio para reduzir efetividade do ataque adversário.",
+      specific: [
+        "Ajustar deslocamento lateral e tempo de salto no bloqueio.",
+        "Alinhar mãos ao corredor de ataque com postura estável.",
+        "Coordenar bloqueio simples/duplo conforme leitura da jogada.",
+      ],
+      success: [
+        `Fechar corredor principal em >= ${Math.max(55, accuracyTarget - 10)}% das ações de bloqueio avaliadas.`,
+        `Reduzir atrasos de tempo para <= ${Math.max(10, 30 - Math.round(accuracyTarget / 5))}% das situações de transição defensiva.`,
+      ],
+    },
+    defesa: {
+      general: "Aprimorar organização defensiva para ampliar recuperação de bolas e transição.",
+      specific: [
+        "Manter base ativa e ajustes rápidos de posicionamento.",
+        "Controlar manchete defensiva com direção ao levantador.",
+        "Responder com decisão adequada em bolas de difícil leitura.",
+      ],
+      success: [
+        `Retornar >= ${accuracyTarget}% das bolas defendidas em condição jogável para levantamento.`,
+        `Reduzir erros de postura para <= ${Math.max(10, 35 - Math.round(accuracyTarget / 4))}% das ações defensivas.`,
+      ],
+    },
+    saque: {
+      general: "Desenvolver saque consistente e orientado por alvo para gerar vantagem inicial.",
+      specific: [
+        "Estabilizar rotina de preparação e contato no saque.",
+        "Direcionar bola para zonas estratégicas pré-definidas.",
+        "Regular força e margem de segurança conforme objetivo tático.",
+      ],
+      success: [
+        `Atingir a zona-alvo em >= ${accuracyTarget}% de séries com 10 saques.`,
+        `Manter erros diretos de saque em <= ${Math.max(10, 30 - Math.round(accuracyTarget / 5))}% das tentativas.`,
+      ],
+    },
+    transicao: {
+      general: "Qualificar transições entre defesa e ataque com maior velocidade e organização coletiva.",
+      specific: [
+        "Executar reposicionamento imediato após ação defensiva.",
+        "Manter comunicação para continuidade da jogada.",
+        "Escolher solução de transição adequada ao contexto do rally.",
+      ],
+      success: [
+        `Concluir >= ${Math.max(55, accuracyTarget - 10)}% das transições com ataque organizado.`,
+        `Reduzir perdas após primeira defesa para <= ${Math.max(10, 35 - Math.round(accuracyTarget / 4))}%.`,
+      ],
+    },
+  };
+
+  const focusObjective = byFocus[targetSkill] ?? byFocus.passe;
+  const pedagogicalApproach = detectSessionPedagogicalApproach([
+    pkg.input.objective,
+    focusObjective.general,
+    ...focusObjective.specific,
+  ]);
+  const progressionHint: Record<ProgressionDimension, string> = {
+    consistencia: "Priorizar repetibilidade técnica antes de aumentar complexidade.",
+    precisao: "Elevar exigência de alvo e qualidade de execução.",
+    pressao_tempo: "Reduzir tempo de decisão e execução progressivamente.",
+    oposicao: "Introduzir oposição gradual mantendo controle da tarefa.",
+    tomada_decisao: "Forçar leitura de jogo e escolha de solução eficiente.",
+    transferencia_jogo: "Transferir o padrão treinado para situação real de jogo.",
+  };
+
+  return {
+    general: buildApproachAwareGeneralObjective(
+      targetSkill,
+      pedagogicalApproach,
+      focusObjective.general
+    ),
+    specific: focusObjective.specific,
+    successCriteria: focusObjective.success,
+    pedagogicalGuidelines: [
+      progressionHint[progression],
+      buildApproachGuideline(pedagogicalApproach),
+    ],
+    pedagogicalApproach,
+  };
+};
+
+const getScoutingPrioritySkill = (
+  counts: ScoutingCounts
+): VolleyballSkill | null => {
+  const metrics = scoutingSkills.map((skill) => ({
+    id: skill.id,
+    goodPct: getSkillMetrics(counts[skill.id]).goodPct,
+  }));
+
+  const candidate = [...metrics].sort((a, b) => a.goodPct - b.goodPct)[0];
+  if (!candidate) return null;
+
+  const mapToSkill: Record<(typeof scoutingSkills)[number]["id"], VolleyballSkill> = {
+    serve: "saque",
+    receive: "passe",
+    set: "levantamento",
+    attack_send: "ataque",
+  };
+
+  return mapToSkill[candidate.id] ?? null;
+};
+
+const buildSkillHistoryBySkill = (plans: TrainingPlan[]) => {
+  const history: Partial<Record<VolleyballSkill, SessionSkillHistoryEntry[]>> = {};
+  for (const planItem of plans) {
+    const skill = planItem.pedagogy?.focus?.skill;
+    const performanceScore = planItem.pedagogy?.adaptation?.performanceScore;
+    if (!skill || typeof performanceScore !== "number" || !Number.isFinite(performanceScore)) {
+      continue;
+    }
+    if (!history[skill]) history[skill] = [];
+    history[skill]?.push({
+      date: planItem.applyDate || planItem.createdAt || "",
+      performanceScore,
+    });
+  }
+  return history;
+};
+
+const pickLoad = (
+  pkg: PedagogicalPlanPackage
+): NonNullable<TrainingPlanPedagogy["load"]> => {
+  const computedRpe = pkg.analysis.level === "alto" ? 7 : pkg.analysis.level === "medio" ? 6 : 4;
+  const durationBoost = pkg.input.duration >= 90 ? 1 : 0;
+  const intendedRPE = Math.min(10,
+    pkg.input.rpeTarget != null
+      ? pkg.input.rpeTarget
+      : computedRpe + durationBoost
+  );
+  const volume = pkg.input.duration >= 85 ? "alto" : pkg.input.duration >= 60 ? "moderado" : "baixo";
+  return { intendedRPE, volume };
+};
+
+const pickClassPlanForSessionDate = (plans: ClassPlan[], sessionDateValue: string) => {
+  if (!plans.length) return null;
+  const targetTime = Date.parse(`${sessionDateValue}T00:00:00`);
+  const sorted = [...plans].sort((a, b) => {
+    const aTime = Date.parse(`${a.startDate}T00:00:00`);
+    const bTime = Date.parse(`${b.startDate}T00:00:00`);
+    return aTime - bTime;
+  });
+  const candidate = [...sorted]
+    .reverse()
+    .find((plan) => Date.parse(`${plan.startDate}T00:00:00`) <= targetTime);
+  return candidate ?? sorted[0] ?? null;
+};
+
+const toStructuredActivities = (
+  block: PedagogicalPlanBlock,
+  sessionObjective: string,
+  progressionLabel: ProgressionDimension,
+  blockKey: SessionBlockKey,
+  blockSummary?: string,
+  pedagogicalApproach?: SessionPedagogicalApproach | null,
+  focusSkill?: VolleyballSkill | null
+): TrainingPlanActivity[] =>
+  block.activities.map((activity) => {
+    const text = String(activity.description || activity.name || "").trim();
+    const activityName = sanitizePlanDisplayItem(activity.name || text || "Atividade") || "Atividade";
+    const activityDescription = resolveActivityDescription({
+      name: activityName,
+      description: text,
+      blockKey,
+      blockSummary,
+      pedagogicalApproach,
+      focusSkill,
+    });
+
+    const inferCriterionType = (value: string): TrainingPlanCriterion["type"] => {
+      if (/erro|qualidade|precis|acert|controle/i.test(value)) return "precisao";
+      if (/decis|escolha|leitura|opcao|situacao/i.test(value)) return "decisao";
+      if (/tempo|execu|pontua|ritmo|veloc|cadenc/i.test(value)) return "eficiencia";
+      return "consistencia";
+    };
+
+    const extractCriterionThreshold = (value: string) => {
+      const explicitMatch = value.match(/(\d{1,3})(?:\s*(?:x(?!\s*\d)|vezes|execu(?:coes|ções)?|repet(?:icoes|ições)?|passes?|acertos?))/i);
+      if (explicitMatch) {
+        const parsed = Number(explicitMatch[1]);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      }
+
+      const percentMatch = value.match(/(\d{1,3})\s*%/);
+      if (percentMatch) {
+        const parsed = Number(percentMatch[1]);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      }
+
+      const fallbackMatch = value.match(/\b(\d{1,3})\b(?!\s*(?:x|vs|contra)\b)/i);
+      if (fallbackMatch) {
+        const parsed = Number(fallbackMatch[1]);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      }
+      return undefined;
+    };
+
+    const criteria: TrainingPlanCriterion[] = /(alcan|meta|criter|pontua|execu|erro|consist|acert|\d+\s*%|\d+\s*(?:x|vezes))/i.test(text)
+      ? [
+          {
+            type: inferCriterionType(text),
+            description: text,
+            threshold: extractCriterionThreshold(text),
+          },
+        ]
+      : [];
+
+    return {
+      name: activityName,
+      description: activityDescription,
+      objective: sessionObjective,
+      criteria,
+      source: "fallback",
+      confidence: 0,
+      progression: progressionLabel,
+    };
+  });
+
+const toStructuredActivitiesWithAiFallback = async (
+  block: PedagogicalPlanBlock,
+  sessionObjective: string,
+  progressionLabel: ProgressionDimension,
+  blockKey: SessionBlockKey,
+  blockSummary?: string,
+  pedagogicalApproach?: SessionPedagogicalApproach | null,
+  focusSkill?: VolleyballSkill | null,
+  aiCache?: {
+    organizationId?: string | null;
+    periodLabel?: string | null;
+    scope?: string | null;
+  }
+): Promise<TrainingPlanActivity[]> => {
+  const fallback = toStructuredActivities(
+    block,
+    sessionObjective,
+    progressionLabel,
+    blockKey,
+    blockSummary,
+    pedagogicalApproach,
+    focusSkill
+  );
+
+  const normalizeActivityKey = (value: string) =>
+    String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+
+  const tokenize = (value: string) =>
+    normalizeActivityKey(value)
+      .split(/[^a-z0-9]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const overlapScore = (left: string, right: string) => {
+    const leftTokens = tokenize(left);
+    const rightTokens = tokenize(right);
+    if (!leftTokens.length || !rightTokens.length) return 0;
+
+    const leftSet = new Set(leftTokens);
+    const rightSet = new Set(rightTokens);
+    const intersection = [...leftSet].filter((token) => rightSet.has(token)).length;
+    const union = new Set([...leftSet, ...rightSet]).size;
+    if (!union) return 0;
+    return intersection / union;
+  };
+
+  const rankMatchConfidence = (fallbackName: string, aiName: string) => {
+    const fallbackKey = normalizeActivityKey(fallbackName);
+    const aiKey = normalizeActivityKey(aiName);
+    if (!fallbackKey || !aiKey) return 0;
+    if (fallbackKey === aiKey) return 1;
+    if (fallbackKey.includes(aiKey) || aiKey.includes(fallbackKey)) return 0.84;
+    const tokenScore = overlapScore(fallbackName, aiName);
+    if (tokenScore >= 0.75) return 0.76;
+    if (tokenScore >= 0.55) return 0.68;
+    if (tokenScore >= 0.4) return 0.6;
+    return 0;
+  };
+
+  const scoreAiStructuredActivitySemanticQuality = (value: {
+    description: string;
+    objective: string;
+    criteria: Array<{ description: string }>;
+  }) => {
+    const descriptionLength = value.description.length;
+    const objectiveLength = value.objective.length;
+    const hasShortCriterion = value.criteria.some((criterion) => criterion.description.length < 6);
+
+    const baselineValid = descriptionLength >= 10 && objectiveLength >= 4 && !hasShortCriterion;
+    if (!baselineValid) {
+      return { score: 0.5, bucket: "poor" as const };
+    }
+
+    const richDescription = descriptionLength >= 24;
+    const richObjective = objectiveLength >= 12;
+    if (richDescription && richObjective) {
+      return { score: 1, bucket: "good" as const };
+    }
+
+    return { score: 0.75, bucket: "medium" as const };
+  };
+
+  try {
+    const response = await generateStructuredActivitiesWithAI(
+      {
+        objective: sessionObjective,
+        progression: progressionLabel,
+        activities: block.activities.map((activity) => ({
+          name: String(activity.name || "").trim(),
+          description: String(activity.description || "").trim(),
+        })),
+      },
+      {
+        cache: {
+          organizationId: aiCache?.organizationId ?? null,
+          periodLabel: aiCache?.periodLabel ?? null,
+          scope: aiCache?.scope ?? "session-structured-activities",
+        },
+      }
+    );
+
+    if (!response.activities.length) {
+      logAction("structuredActivities fallback", {
+        reason: "empty_ai_response",
+        activities: fallback.length,
+      });
+      return fallback;
+    }
+
+    const aiByName = new Map(
+      response.activities
+        .map((activity) => [normalizeActivityKey(activity.name), activity] as const)
+        .filter(([key]) => Boolean(key))
+    );
+
+    const aiCandidates = response.activities
+      .map((activity) => ({
+        key: normalizeActivityKey(activity.name),
+        activity,
+      }))
+      .filter((item) => Boolean(item.key));
+
+    const usedAiKeys = new Set<string>();
+
+    let aiAppliedCount = 0;
+    let exactMatchCount = 0;
+    let fuzzyMatchCount = 0;
+    let invalidAiContentCount = 0;
+    let goodSemanticCount = 0;
+    let mediumSemanticCount = 0;
+    let poorSemanticCount = 0;
+    let matchConfidenceSum = 0;
+    let semanticQualitySum = 0;
+    let finalConfidenceSum = 0;
+    const merged = fallback.map((fallbackActivity) => {
+      const key = normalizeActivityKey(fallbackActivity.name);
+      const exactMatch = key ? aiByName.get(key) : undefined;
+
+      let selectedActivity: (typeof response.activities)[number] | undefined = exactMatch;
+      let matchConfidence = exactMatch ? 1 : 0;
+      let selectedKey = exactMatch && key ? key : "";
+
+      if (!selectedActivity) {
+        let best: {
+          key: string;
+          activity: (typeof response.activities)[number];
+          confidence: number;
+        } | null = null;
+        for (const candidate of aiCandidates) {
+          if (usedAiKeys.has(candidate.key)) continue;
+          const confidence = rankMatchConfidence(fallbackActivity.name, candidate.activity.name);
+          if (confidence <= 0) continue;
+          if (!best || confidence > best.confidence) {
+            best = { key: candidate.key, activity: candidate.activity, confidence };
+          }
+        }
+        if (best) {
+          selectedActivity = best.activity;
+          matchConfidence = best.confidence;
+          selectedKey = best.key;
+        }
+      }
+
+      if (!selectedActivity) {
+        return {
+          ...fallbackActivity,
+          source: "fallback" as const,
+          confidence: 0,
+        };
+      }
+
+      if (selectedKey) {
+        usedAiKeys.add(selectedKey);
+      }
+
+      if (matchConfidence >= 0.99) {
+        exactMatchCount += 1;
+      } else {
+        fuzzyMatchCount += 1;
+      }
+
+      aiAppliedCount += 1;
+      const rawName = String(selectedActivity.name || fallbackActivity.name || "Atividade").trim();
+      const aiDescription = String(selectedActivity.description || "").trim();
+      const resolvedDescription = resolveActivityDescription({
+        name: rawName,
+        description: aiDescription || fallbackActivity.description,
+        blockKey,
+        blockSummary,
+        pedagogicalApproach,
+        focusSkill,
+      });
+      const aiObjective = String(selectedActivity.objective || "").trim();
+      const normalizedCriteria = Array.isArray(selectedActivity.criteria)
+        ? selectedActivity.criteria.map((criterion) => ({
+            type: criterion.type,
+            description:
+              String(criterion.description || "").trim() ||
+              resolvedDescription ||
+              rawName,
+            threshold:
+              typeof criterion.threshold === "number" && Number.isFinite(criterion.threshold)
+                ? criterion.threshold
+                : undefined,
+          }))
+        : [];
+      const semanticQualityResult = scoreAiStructuredActivitySemanticQuality({
+        description: aiDescription,
+        objective: aiObjective,
+        criteria: normalizedCriteria.map((criterion) => ({
+          description: criterion.description,
+        })),
+      });
+      if (semanticQualityResult.bucket === "good") {
+        goodSemanticCount += 1;
+      } else if (semanticQualityResult.bucket === "medium") {
+        mediumSemanticCount += 1;
+      } else {
+        poorSemanticCount += 1;
+        invalidAiContentCount += 1;
+      }
+
+      const semanticQuality = semanticQualityResult.score;
+      const finalConfidence = Number((matchConfidence * semanticQuality).toFixed(2));
+      matchConfidenceSum += matchConfidence;
+      semanticQualitySum += semanticQuality;
+      finalConfidenceSum += finalConfidence;
+
+      return {
+        name: rawName,
+        description: resolvedDescription,
+        objective: aiObjective || sessionObjective,
+        criteria: normalizedCriteria,
+        source: "ai" as const,
+        confidence: finalConfidence,
+        progression: progressionLabel,
+      };
+    });
+
+    const avgFinalConfidence = aiAppliedCount
+      ? Number((finalConfidenceSum / aiAppliedCount).toFixed(3))
+      : 0;
+    const invalidAiContentRatio = aiAppliedCount
+      ? Number((invalidAiContentCount / aiAppliedCount).toFixed(3))
+      : 0;
+    const reviewRecommended =
+      aiAppliedCount > 0 && (avgFinalConfidence < 0.7 || invalidAiContentRatio > 0.3);
+
+    logAction("structuredActivities ai used", {
+      total: merged.length,
+      aiApplied: aiAppliedCount,
+      fallbackUsed: merged.length - aiAppliedCount,
+      aiCoverage: merged.length ? Number((aiAppliedCount / merged.length).toFixed(3)) : 0,
+      exactMatches: exactMatchCount,
+      fuzzyMatches: fuzzyMatchCount,
+      invalidAiContent: invalidAiContentCount,
+      invalidAiContentRatio,
+      semanticGood: goodSemanticCount,
+      semanticMedium: mediumSemanticCount,
+      semanticPoor: poorSemanticCount,
+      avgMatchConfidence: aiAppliedCount
+        ? Number((matchConfidenceSum / aiAppliedCount).toFixed(3))
+        : 0,
+      avgSemanticQuality: aiAppliedCount
+        ? Number((semanticQualitySum / aiAppliedCount).toFixed(3))
+        : 0,
+      avgFinalConfidence,
+      reviewRecommended,
+    });
+
+    return merged;
+  } catch {
+    logAction("structuredActivities fallback", {
+      reason: "ai_error",
+      activities: fallback.length,
+    });
+    return fallback;
+  }
+};
+
+const buildAutoPlanPedagogy = (
+  pkg: PedagogicalPlanPackage,
+  methodology: TrainingPlanPedagogy["methodology"] | null,
+  classPlan?: ClassPlan | null,
+  structuredBlocks?: NonNullable<TrainingPlanPedagogy["blocks"]>,
+  pedagogicalConfig?: PedagogicalDimensionsConfig | null,
+  options?: {
+    sessionId?: string;
+    scoutingPrioritySkill?: VolleyballSkill | null;
+    scoutingCounts?: ScoutingCounts;
+    skillHistoryBySkill?: Partial<Record<VolleyballSkill, SessionSkillHistoryEntry[]>>;
+    decisionOverride?: {
+      appliedAdjustment: "increase" | "maintain" | "regress";
+      reasonType?: "health" | "readiness" | "context" | "other";
+      note?: string;
+    };
+  }
+): TrainingPlanPedagogy => {
+  const explicitObjectives = buildPedagogicalObjectives(pkg, options);
+  const pedagogicalApproach = explicitObjectives.pedagogicalApproach;
+  const resolvedFocusSkill = options?.scoutingPrioritySkill ?? pickFocusSkill(pkg);
+  const skillHistory = options?.skillHistoryBySkill?.[resolvedFocusSkill] ?? [];
+  const outcome = options?.scoutingCounts
+    ? evaluateSessionOutcome({
+        focusSkill: resolvedFocusSkill,
+        successCriteria: explicitObjectives.successCriteria ?? [],
+        scoutingCounts: options.scoutingCounts,
+        history: skillHistory,
+      })
+    : null;
+
+  // ========== PEDAGOGICAL DIMENSIONS INTEGRATION ==========
+  // Derive base dimensions profile from age, level, phase
+  let dimensionsResult = null;
+  if (pedagogicalConfig) {
+    try {
+      const ageBand = String(pkg.input.classGroup.ageBand ?? "");
+      const ageMatches = ageBand.match(/\d+/g)?.map(Number).filter(Number.isFinite) ?? [];
+      const studentAge = ageMatches.length ? ageMatches[ageMatches.length - 1] : 12;
+      const classLevel = pkg.input.classGroup.level;
+      const rawPhase = String(classPlan?.phase ?? "fundamentos").toLowerCase();
+      const periodizationPhase =
+        rawPhase === "consolidacao" || rawPhase === "consolidação"
+          ? "consolidacao"
+          : rawPhase === "especializacao" || rawPhase === "especialização"
+          ? "especializacao"
+          : rawPhase === "competicao" || rawPhase === "competição"
+          ? "competicao"
+          : "fundamentos";
+
+      const mappedGapLevel = outcome?.gap.level
+        ? outcome.gap.level
+        : undefined;
+
+      dimensionsResult = deriveDimensionsProfile(
+        {
+          studentAge,
+          classLevel,
+          periodizationPhase,
+          performanceState: outcome
+            ? {
+                gap: mappedGapLevel ? { level: mappedGapLevel } : undefined,
+                trend: outcome.skillLearningState?.trend,
+                consistencyScore: outcome.consistencyScore,
+                sampleConfidence: outcome.sampleConfidence,
+              }
+            : undefined,
+        },
+        pedagogicalConfig
+      );
+
+      // Refine profile based on evaluation
+      if (outcome) {
+        dimensionsResult.refinedProfile = refineDimensionsByEvaluation(
+          dimensionsResult.baseProfile,
+          outcome,
+          pedagogicalConfig
+        );
+      }
+
+      if (__DEV__) {
+        logAction("pedagogical dimensions derived", {
+          classId: pkg.input.classGroup.id,
+          base: formatDimensionsProfile(dimensionsResult.baseProfile),
+          refined: dimensionsResult.refinedProfile
+            ? formatDimensionsProfile(dimensionsResult.refinedProfile)
+            : "none",
+          adjustments: dimensionsResult.refinedProfile?.adjustments
+            ? formatRefinements(dimensionsResult.refinedProfile.adjustments)
+            : "none",
+        });
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn("Failed to derive pedagogical dimensions:", error);
+      }
+    }
+  }
+  // ========== END DIMENSIONS INTEGRATION ==========
+
+  const activeDimensionsProfile =
+    dimensionsResult?.refinedProfile ?? dimensionsResult?.baseProfile;
+  const dimensionGuidelines = activeDimensionsProfile
+    ? buildDimensionGuidelines(activeDimensionsProfile)
+    : [];
+  const capObjectives = activeDimensionsProfile
+    ? buildCAPFromDimensions(activeDimensionsProfile)
+    : { conceitual: [], procedimental: [], atitudinal: [] };
+
+  const learningObjectives = {
+    ...explicitObjectives,
+    specific: explicitObjectives.specific ?? [],
+    cap: {
+      conceitual: capObjectives.conceitual,
+      procedimental: capObjectives.procedimental,
+      atitudinal: capObjectives.atitudinal,
+    },
+    pedagogicalGuidelines: Array.from(
+      new Set([
+        ...(explicitObjectives.pedagogicalGuidelines ?? []),
+        ...dimensionGuidelines,
+        ...(outcome
+          ? [
+              `Ajuste sugerido: ${
+                outcome.adjustment === "increase"
+                  ? "aumentar"
+                  : outcome.adjustment === "regress"
+                  ? "regredir"
+                  : "manter"
+              } progressao no proximo treino.`,
+            ]
+          : []),
+      ])
+    ),
+  };
+
+  const periodizationContext = buildPeriodizationContext({
+    objective: explicitObjectives.general,
+    focus: resolvedFocusSkill,
+    classPlan,
+    constraints: [
+      ...(pkg.input.constraints ?? []),
+      ...(classPlan?.constraints ? [classPlan.constraints] : []),
+      ...(classPlan?.rpeTarget ? [`RPE alvo ${classPlan.rpeTarget}`] : []),
+    ],
+    pedagogicalIntent: explicitObjectives.general,
+    load: pickLoad(pkg),
+    planningMode: null,
+  });
+
+  const suggestedAdjustment = outcome?.adjustment;
+  const appliedAdjustment =
+    options?.decisionOverride?.appliedAdjustment ?? suggestedAdjustment;
+  const wasFollowed =
+    suggestedAdjustment !== undefined && appliedAdjustment !== undefined
+      ? suggestedAdjustment === appliedAdjustment
+      : true;
+  const decisionReason = !wasFollowed
+    ? {
+        type: options?.decisionOverride?.reasonType,
+        note: options?.decisionOverride?.note?.trim() || undefined,
+      }
+    : undefined;
+  const classId = pkg.input.classGroup.id;
+  const sessionId = options?.sessionId ?? `${classId}:${new Date().toISOString().slice(0, 10)}`;
+
+  return {
+    sessionObjective: explicitObjectives.general,
+    learningObjectives,
+    adaptation: outcome
+      ? {
+          achieved: outcome.achieved,
+          performanceScore: outcome.performanceScore,
+          targetScore: outcome.targetScore,
+          adjustment: outcome.adjustment,
+          evidence: outcome.evidence,
+          sampleConfidence: outcome.sampleConfidence,
+          learningVelocity: outcome.learningVelocity,
+          consistencyScore: outcome.consistencyScore,
+          deltaFromPrevious: outcome.deltaFromPrevious,
+          gap: outcome.gap,
+          telemetry: {
+            decisionId: `dec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            decision: {
+              suggested: outcome.adjustment,
+              applied: appliedAdjustment ?? outcome.adjustment,
+              wasFollowed,
+            },
+            context: {
+              gapLevel: outcome.gap.level,
+              trend: outcome.skillLearningState.trend,
+              sampleConfidence: outcome.sampleConfidence,
+              consistencyScore: outcome.consistencyScore,
+              learningVelocity: outcome.learningVelocity,
+            },
+            reason:
+              decisionReason && (decisionReason.type || decisionReason.note)
+                ? decisionReason
+                : undefined,
+            meta: {
+              sessionId,
+              classId,
+            },
+            timestamp: new Date().toISOString(),
+          },
+        }
+      : undefined,
+    skillLearningState: outcome?.skillLearningState,
+    blocks:
+      structuredBlocks ?? {
+        warmup: {
+          summary: pkg.final.warmup.summary,
+          activities: toStructuredActivities(
+            pkg.final.warmup,
+            explicitObjectives.general,
+            pickProgressionDimension(pkg),
+            "warmup",
+            pkg.final.warmup.summary,
+            pedagogicalApproach,
+            resolvedFocusSkill
+          ),
+        },
+        main: {
+          summary: pkg.final.main.summary,
+          activities: toStructuredActivities(
+            pkg.final.main,
+            explicitObjectives.general,
+            pickProgressionDimension(pkg),
+            "main",
+            pkg.final.main.summary,
+            pedagogicalApproach,
+            resolvedFocusSkill
+          ),
+        },
+        cooldown: {
+          summary: pkg.final.cooldown.summary,
+          activities: toStructuredActivities(
+            pkg.final.cooldown,
+            explicitObjectives.general,
+            pickProgressionDimension(pkg),
+            "cooldown",
+            pkg.final.cooldown.summary,
+            pedagogicalApproach,
+            resolvedFocusSkill
+          ),
+        },
+      },
+    periodizationContext,
+    periodization: classPlan
+      ? {
+          phase: classPlan.phase,
+          theme: classPlan.theme,
+          technicalFocus: classPlan.technicalFocus,
+          physicalFocus: classPlan.physicalFocus,
+          constraints: classPlan.constraints,
+          rpeTarget: classPlan.rpeTarget,
+          weekNumber: classPlan.weekNumber,
+          startDate: classPlan.startDate,
+        }
+      : undefined,
+    objective: {
+      type: pickObjectiveType(pkg),
+      description: explicitObjectives.general,
+    },
+    focus: {
+      skill: resolvedFocusSkill,
+    },
+    progression: {
+      dimension: pickProgressionDimension(pkg),
+    },
+    developmentStage: pickDevelopmentStage(pkg.input.classGroup),
+    load: pickLoad(pkg),
+    methodology: methodology ?? undefined,
+    pedagogicalApproach,
+    dimensions: dimensionsResult
+      ? {
+          base: dimensionsResult.baseProfile,
+          refined: dimensionsResult.refinedProfile,
+          derivedAt: dimensionsResult.derivedAt,
+          confidenceLevel: dimensionsResult.confidenceLevel,
+        }
+      : undefined,
+  };
+};
+
+const stableSerialize = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+      a.localeCompare(b)
+    );
+    return `{${entries
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableSerialize(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+};
+
+const normalizePlanningPhase = (phase?: string): PlanningPhase | undefined => {
+  if (!phase) return undefined;
+  const s = phase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (/competi/.test(s)) return /pre/.test(s) ? "pre_competitivo" : "competitivo";
+  if (/desenvolv|tatico|tecnico/.test(s)) return "desenvolvimento";
+  if (/base|fundament|coordenac|padroes|exploracao|ludic|consolidac/.test(s)) return "base";
+  return undefined;
+};
+
+const parseRpeTarget = (rpeTarget?: string): number | undefined => {
+  if (!rpeTarget) return undefined;
+  const match = rpeTarget.match(/(\d+)/);
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+};
+
+const toDimensionPhase = (
+  phase?: PlanningPhase
+): "fundamentos" | "consolidacao" | "especializacao" | "competicao" => {
+  if (phase === "competitivo") return "competicao";
+  if (phase === "pre_competitivo") return "especializacao";
+  if (phase === "desenvolvimento") return "consolidacao";
+  return "fundamentos";
+};
+
+const computeBaseDimensionGuidelines = (
+  classGroup: ClassGroup,
+  classPlan: ClassPlan | null | undefined,
+  pedagogicalConfig: PedagogicalDimensionsConfig | null | undefined
+): string[] => {
+  if (!pedagogicalConfig) return [];
+  try {
+    const ageBand = String(classGroup.ageBand ?? "");
+    const ageMatches = ageBand.match(/\d+/g)?.map(Number).filter(Number.isFinite) ?? [];
+    const studentAge = ageMatches.length ? ageMatches[ageMatches.length - 1] : 12;
+    const result = deriveDimensionsProfile(
+      {
+        studentAge,
+        classLevel: classGroup.level,
+        periodizationPhase: toDimensionPhase(normalizePlanningPhase(classPlan?.phase)),
+      },
+      pedagogicalConfig
+    );
+    return buildDimensionGuidelines(result.baseProfile);
+  } catch {
+    return [];
+  }
+};
+
+const buildPedagogicalInputHash = (pkg: PedagogicalPlanPackage) => {
+  const students = (pkg.input.students ?? []).map((student) => student.id);
+  const payload = {
+    classId: pkg.input.classGroup.id,
+    students: [...students].sort(),
+    objective: pkg.input.objective,
+    duration: pkg.input.duration,
+    materials: [...(pkg.input.materials ?? [])].map((item) => String(item ?? "").trim()),
+    constraints: [...(pkg.input.constraints ?? [])].map((item) => String(item ?? "").trim()),
+    context: pkg.input.context ?? "",
+    periodization: {
+      phase: pkg.input.periodizationPhase ?? null,
+      week: pkg.input.weekNumber ?? null,
+      rpeTarget: pkg.input.rpeTarget ?? null,
+    },
+    analysis: {
+      level: pkg.analysis.level,
+      heterogeneity: pkg.analysis.heterogeneity,
+    },
+    final: {
+      warmup: pkg.final.warmup.activities.map((activity) => activity.name),
+      main: pkg.final.main.activities.map((activity) => activity.name),
+      cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
+      warmupDuration: pkg.final.warmup.duration,
+      mainDuration: pkg.final.main.duration,
+      cooldownDuration: pkg.final.cooldown.duration,
+    },
+  };
+  return stableSerialize(payload);
+};
+
+const getLatestFinalPlanForSession = async (
+  organizationId: string | null,
+  classId: string,
+  sessionDateValue: string,
+  weekdayValue: number
+) => {
+  const baseQuery = {
+    organizationId,
+    classId,
+    status: "final" as const,
+    orderBy: "version_desc" as const,
+    limit: 1,
+  };
+  const byDate = await getTrainingPlans({
+    ...baseQuery,
+    applyDate: sessionDateValue,
+  });
+  if (byDate[0]) {
+    return byDate[0];
+  }
+  const byWeekday = await getTrainingPlans({
+    ...baseQuery,
+    applyWeekday: weekdayValue,
+  });
+  return byWeekday[0] ?? null;
+};
+
+const buildPedagogicalInput = (
+  classGroup: ClassGroup,
+  students: Student[],
+  classPlan?: ClassPlan | null,
+  variationSeed?: number,
+  dimensionGuidelines?: string[]
+) =>
+  buildPedagogicalPlan({
+    classGroup,
+    students,
+    objective:
+      classPlan?.technicalFocus ||
+      classPlan?.theme ||
+      classGroup.goal ||
+      classGroup.modality ||
+      "controle de bola",
+    context: "treinamento",
+    constraints: splitMaterials(
+      [
+        classGroup.goal,
+        classGroup.equipment,
+        classPlan?.constraints,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    ),
+    materials: splitMaterials(classGroup.equipment ?? ""),
+    duration: classGroup.durationMinutes || 60,
+    variationSeed,
+    periodizationPhase: normalizePlanningPhase(classPlan?.phase),
+    rpeTarget: parseRpeTarget(classPlan?.rpeTarget),
+    weekNumber: classPlan?.weekNumber,
+    dimensionGuidelines,
+  });
+
+const convertPedagogicalPlanToTrainingPlan = (
+  pkg: PedagogicalPlanPackage,
+  classId: string,
+  sessionDateValue: string,
+  existingPlan: TrainingPlan | null,
+  version: number,
+  pedagogy?: TrainingPlanPedagogy
+): TrainingPlan => {
+  const nowIso = new Date().toISOString();
+  const title = `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`;
+  return createTrainingPlanVersion({
+    classId,
+    version,
+    origin: "auto",
+    draft: {
+      title,
+      tags: [
+        `modo:${pkg.generated.basePlanKind}`,
+        `nivel:${pkg.analysis.level}`,
+        `heterogeneidade:${pkg.analysis.heterogeneity}`,
+        `contexto:${pkg.input.context ?? "treinamento"}`,
+      ],
+      warmup: pkg.final.warmup.activities.map((activity) => activity.name),
+      main: pkg.final.main.activities.map((activity) => activity.name),
+      cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
+      warmupTime: `${pkg.final.warmup.duration} min`,
+      mainTime: `${pkg.final.main.duration} min`,
+      cooldownTime: `${pkg.final.cooldown.duration} min`,
+    },
+    applyDays: existingPlan?.applyDays ?? [],
+    applyDate: existingPlan?.applyDate ?? sessionDateValue,
+    inputHash: buildPedagogicalInputHash(pkg),
+    nowIso,
+    idPrefix: "plan_pedagogical",
+    status: "final",
+    generatedAt: nowIso,
+    finalizedAt: nowIso,
+    pedagogy,
+  });
+};
+
+const pedagogicalPlanToAiDraft = (pkg: PedagogicalPlanPackage) => ({
+  title: `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`,
+  tags: [
+    `modo:${pkg.generated.basePlanKind}`,
+    `nivel:${pkg.analysis.level}`,
+    `heterogeneidade:${pkg.analysis.heterogeneity}`,
+    `contexto:${pkg.input.context ?? "treinamento"}`,
+  ],
+  warmup: pkg.final.warmup.activities.map((activity) => activity.name),
+  main: pkg.final.main.activities.map((activity) => activity.name),
+  cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
+  warmupTime: `${pkg.final.warmup.duration} min`,
+  mainTime: `${pkg.final.main.duration} min`,
+  cooldownTime: `${pkg.final.cooldown.duration} min`,
+});
+
+const buildPedagogicalAiDraft = (pkg: PedagogicalPlanPackage) =>
+  JSON.stringify(pedagogicalPlanToAiDraft(pkg));
+
+const applyEditedDraftToPackage = (
+  pkg: PedagogicalPlanPackage,
+  editedDraft?: LessonPlanDraft
+): PedagogicalPlanPackage => {
+  if (!editedDraft) return pkg;
+  return {
+    ...pkg,
+    final: {
+      ...pkg.final,
+      ...editedDraft,
+      edited: true,
+      finalizedAt: new Date().toISOString(),
+    },
+  };
+};
+
+  const buildSessionTrainingPlan = (
+  pkg: PedagogicalPlanPackage,
+  classId: string,
+  sessionDateValue: string,
+  existingPlan: TrainingPlan | null,
+  version: number,
+  pedagogy?: TrainingPlanPedagogy
+): TrainingPlan =>
+  convertPedagogicalPlanToTrainingPlan(
+    pkg,
+    classId,
+    sessionDateValue,
+    existingPlan,
+    version,
+    pedagogy
+  );
+
+const waitForInteractionIdle = () =>
+  new Promise<void>((resolve) => {
+    InteractionManager.runAfterInteractions(() => {
+      resolve();
+    });
+  });
 
 const blobToDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -169,6 +1872,13 @@ const convertWebImageUriForPdf = async (uri: string) => {
   }
 };
 
+const shiftIsoDate = (isoDate: string, deltaDays: number) => {
+  const base = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(base.getTime())) return isoDate;
+  base.setDate(base.getDate() + deltaDays);
+  return base.toISOString().slice(0, 10);
+};
+
 export default function SessionScreen() {
   const { id, date, tab } = useLocalSearchParams<{
     id: string;
@@ -176,11 +1886,14 @@ export default function SessionScreen() {
     tab?: string;
   }>();
   const router = useRouter();
+  const { config: pedagogicalConfig } = usePedagogicalConfig();
   const insets = useSafeAreaInsets();
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
+  const [savedClassPlans, setSavedClassPlans] = useState<TrainingPlan[]>([]);
+  const [sessionStudents, setSessionStudents] = useState<Student[]>([]);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [isLoadingSessionExtras, setIsLoadingSessionExtras] = useState(true);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
@@ -189,6 +1902,7 @@ export default function SessionScreen() {
   const [scoutingBaseline, setScoutingBaseline] = useState(createEmptyCounts());
   const [scoutingSaving, setScoutingSaving] = useState(false);
   const [scoutingMode, setScoutingMode] = useState<"treino" | "jogo">("treino");
+  const [showScoutingGuide, setShowScoutingGuide] = useState(false);
   const [studentsCount, setStudentsCount] = useState(0);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
   const sessionTabAnim = useRef<Record<SessionTabId, Animated.Value>>({
@@ -214,6 +1928,30 @@ export default function SessionScreen() {
   const [showPsePicker, setShowPsePicker] = useState(false);
   const [showTechniquePicker, setShowTechniquePicker] = useState(false);
   const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
+  const [showSavedClassPlans, setShowSavedClassPlans] = useState(false);
+  const [isApplyingSavedPlanId, setIsApplyingSavedPlanId] = useState<string | null>(null);
+  const planFabAnim = useRef(new Animated.Value(0)).current;
+  const [pedagogicalPlanPackage, setPedagogicalPlanPackage] = useState<PedagogicalPlanPackage | null>(null);
+  const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
+  const [isGeneratingPedagogicalPlan, setIsGeneratingPedagogicalPlan] = useState(false);
+  const [isSavingPedagogicalPlan, setIsSavingPedagogicalPlan] = useState(false);
+  const [selectedBlockKey, setSelectedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
+  const [isSavingBlockEdit, setIsSavingBlockEdit] = useState(false);
+  const [lastUpdatedBlockKey, setLastUpdatedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
+  const [methodologyEvidence, setMethodologyEvidence] = useState<SessionMethodologyEvidence | null>(null);
+  const [showPedagogicalPanel, setShowPedagogicalPanel] = useState(false);
+  const pedagogicalPanelCollapse = useCollapsibleAnimation(showPedagogicalPanel, {
+    translateY: -6,
+  });
+  const [showDecisionOverrideModal, setShowDecisionOverrideModal] = useState(false);
+  const [isApplyingDecisionOverride, setIsApplyingDecisionOverride] = useState(false);
+  const [decisionAppliedAdjustment, setDecisionAppliedAdjustment] = useState<
+    "increase" | "maintain" | "regress"
+  >("maintain");
+  const [decisionReasonType, setDecisionReasonType] = useState<
+    "health" | "readiness" | "context" | "other" | null
+  >(null);
+  const [decisionReasonNote, setDecisionReasonNote] = useState("");
   const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const [pseTriggerLayout, setPseTriggerLayout] = useState<{
     x: number;
@@ -247,11 +1985,12 @@ export default function SessionScreen() {
     useCollapsibleAnimation(showPsePicker, { translateY: -6 });
   const { animatedStyle: techniquePickerAnimStyle, isVisible: showTechniquePickerContent } =
     useCollapsibleAnimation(showTechniquePicker, { translateY: -6 });
+  const planFabBottom = Math.max(insets.bottom + 166, 182);
+  const planFabMenuBottom = planFabBottom + 74;
   const sessionDate =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
       : new Date().toISOString().slice(0, 10);
-  const [activeIndex, setActiveIndex] = useState(0);
   const parseTime = (value: string) => {
     const parts = value.split(":");
     const hour = Number(parts[0]);
@@ -275,6 +2014,14 @@ export default function SessionScreen() {
   }, [sessionDate]);
 
   useEffect(() => {
+    Animated.timing(planFabAnim, {
+      toValue: showPlanFabMenu ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [planFabAnim, showPlanFabMenu]);
+
+  useEffect(() => {
     setReportBaseline({
       PSE: 0,
       technique: "nenhum",
@@ -289,7 +2036,98 @@ export default function SessionScreen() {
     setConclusion("");
     setParticipantsCount("");
     setPhotos("");
+    setShowSavedClassPlans(false);
+    setIsApplyingSavedPlanId(null);
   }, [id, sessionDate]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCurrentClassPlan = async () => {
+      if (!cls) {
+        setCurrentClassPlan(null);
+        return;
+      }
+      try {
+        const plans = await getClassPlansByClass(cls.id, {
+          organizationId: cls.organizationId ?? null,
+        });
+        if (cancelled) return;
+        setCurrentClassPlan(pickClassPlanForSessionDate(plans, sessionDate));
+      } catch {
+        if (!cancelled) setCurrentClassPlan(null);
+      }
+    };
+
+    void loadCurrentClassPlan();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cls?.id, cls?.organizationId, sessionDate]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMethodologyEvidence = async () => {
+      const methodology = plan?.pedagogy?.methodology;
+      const kbRuleKey = methodology?.kbRuleKey?.trim();
+      const knowledgeBaseVersionId = methodology?.reasoning?.knowledgeBaseVersionId?.trim();
+      if (!kbRuleKey || !knowledgeBaseVersionId) {
+        setMethodologyEvidence(null);
+        return;
+      }
+
+      try {
+        const citations = await getKnowledgeRuleCitations({ knowledgeRuleId: kbRuleKey });
+        const sourceIds = citations
+          .map((citation) => citation.knowledgeSourceId ?? "")
+          .filter(Boolean);
+        if (!sourceIds.length) {
+          if (!cancelled) setMethodologyEvidence(null);
+          return;
+        }
+
+        const sources = await getKnowledgeSources({ knowledgeBaseVersionId });
+        const sourceById = new Map(sources.map((source) => [source.id, source] as const));
+        const firstSource = sourceIds
+          .map((sourceId) => sourceById.get(sourceId))
+          .find((source): source is KnowledgeSource => Boolean(source));
+        const firstCitation = citations.find((citation) => citation.knowledgeSourceId === firstSource?.id);
+
+        if (!cancelled) {
+          setMethodologyEvidence(
+            firstSource
+              ? {
+                  title: firstSource.title,
+                  authors: firstSource.authors,
+                  sourceYear: firstSource.sourceYear ?? null,
+                  citationText: firstCitation?.evidence || firstSource.citationText || firstSource.title,
+                  url: firstSource.sourceUrl,
+                }
+              : null
+          );
+        }
+      } catch {
+        if (!cancelled) setMethodologyEvidence(null);
+      }
+    };
+
+    void loadMethodologyEvidence();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    plan?.pedagogy?.methodology?.kbRuleKey,
+    plan?.pedagogy?.methodology?.reasoning?.knowledgeBaseVersionId,
+  ]);
+
+  useEffect(() => {
+    setShowDecisionOverrideModal(false);
+    setDecisionReasonType(null);
+    setDecisionReasonNote("");
+  }, [plan?.id]);
 
   const togglePicker = (target: "pse" | "technique") => {
     setShowPsePicker((prev) => (target === "pse" ? !prev : false));
@@ -428,7 +2266,7 @@ export default function SessionScreen() {
       applyPickedPhoto(photoUri, replaceIndex);
     } catch {
       showSaveToast({
-        message: "Não foi possível selecionar a foto.",
+        message: ptBR.session.errors.photoSelectFailed,
         variant: "error",
       });
     } finally {
@@ -529,7 +2367,7 @@ export default function SessionScreen() {
         nextText: rewrittenText,
       };
       showSaveToast({
-        message: "Texto melhorado e aplicado.",
+        message: ptBR.session.success.textImproved,
         variant: "success",
         actionLabel: "Desfazer",
         onAction: () => {
@@ -547,7 +2385,7 @@ export default function SessionScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       showSaveToast({
-        message: message || "Não foi possível melhorar o texto agora.",
+        message: message || ptBR.session.errors.textImproveFailed,
         variant: "error",
       });
       logAction("IA melhorar texto falha", {
@@ -593,21 +2431,31 @@ export default function SessionScreen() {
         const data = await getClassById(id);
         if (alive) setCls(data);
         if (data) {
-          const [classStudents, plans] = await Promise.all([
+          const [classStudents, currentPlan, classTrainingPlans] = await Promise.all([
             getStudentsByClass(data.id),
+            getLatestFinalPlanForSession(
+              data.organizationId ?? null,
+              data.id,
+              sessionDate,
+              weekdayId
+            ),
             getTrainingPlans({
               organizationId: data.organizationId ?? null,
               classId: data.id,
+              status: "final",
+              orderBy: "createdat_desc",
+              limit: 24,
             }),
           ]);
-          if (alive) setStudentsCount(classStudents.length);
-          const byClass = plans.filter((item) => item.classId === data.id);
-          const byDate = byClass.find((item) => item.applyDate === sessionDate);
-          const byWeekday = byClass.find((item) =>
-            (item.applyDays ?? []).includes(weekdayId)
-          );
-          if (alive) setPlan(byDate ?? byWeekday ?? null);
+          if (alive) {
+            setStudentsCount(classStudents.length);
+            setSessionStudents(classStudents);
+            setSavedClassPlans(compactTrainingPlans(classTrainingPlans));
+          }
+          if (alive) setPlan(currentPlan);
           if (!alive) return;
+        } else if (alive) {
+          setSavedClassPlans([]);
         }
         if (id) {
           const [log, scouting] = await Promise.all([
@@ -769,10 +2617,10 @@ export default function SessionScreen() {
   async function handleSaveReport() {
     try {
       await saveReport();
-      showSaveToast({ message: "Relatório salvo com sucesso.", variant: "success" });
+      showSaveToast({ message: ptBR.session.success.reportSaved, variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Não foi possível salvar o relatório.", variant: "error" });
-      Alert.alert("Falha ao salvar", "Tente novamente.");
+      showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
+      Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
     }
   }
 
@@ -781,29 +2629,30 @@ export default function SessionScreen() {
       await saveReport();
       await handleExportReportPdf();
     } catch (error) {
-      showSaveToast({ message: "Não foi possível salvar o relatório.", variant: "error" });
-      Alert.alert("Falha ao salvar", "Tente novamente.");
+      showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
+      Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
     }
   }
 
-  const title = plan ? "Treino mais recente" : "Aula do dia";
+  const title = ptBR.session.title;
   const block = plan?.title ?? "";
-  const warmup = plan?.warmup ?? [];
-  const main = plan?.main ?? [];
-  const cooldown = plan?.cooldown ?? [];
+  const warmup = (plan?.warmup ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
+  const main = (plan?.main ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
+  const cooldown = (plan?.cooldown ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
   const warmupLabel = plan?.warmupTime
-    ? "Aquecimento (" + formatDuration(plan.warmupTime) + ")"
-    : "Aquecimento (10 min)";
+    ? `${ptBR.session.warmup} • ` + formatDuration(plan.warmupTime)
+    : `${ptBR.session.warmup} • 10 min`;
   const mainLabel = plan?.mainTime
-    ? "Parte principal (" + formatClock(plan.mainTime) + ")"
-    : "Parte principal (45 min)";
+    ? `${ptBR.session.main} • ` + formatClock(plan.mainTime)
+    : `${ptBR.session.main} • 45 min`;
   const cooldownLabel = plan?.cooldownTime
-    ? "Volta a calma (" + formatDuration(plan.cooldownTime) + ")"
-    : "Volta a calma (5 min)";
+    ? `${ptBR.session.cooldown} • ` + formatDuration(plan.cooldownTime)
+    : `${ptBR.session.cooldown} • 5 min`;
   const showNoPlanNotice = !plan;
   const className = cls?.name ?? "";
   const classAgeBand = cls?.ageBand ?? "";
   const classGender = cls?.gender ?? "misto";
+  const classPalette = getClassPalette(cls?.colorKey ?? null, colors, cls?.unit ?? "");
   const dateLabel = sessionDate.split("-").reverse().join("/");
   const parsedStart = cls?.startTime ? parseTime(cls.startTime) : null;
   const timeLabel =
@@ -828,6 +2677,243 @@ export default function SessionScreen() {
   }, [plan]);
 
   const totalMinutes = durations.reduce((sum, value) => sum + value, 0);
+  const activeDimensions = plan?.pedagogy?.dimensions?.refined ?? plan?.pedagogy?.dimensions?.base ?? null;
+  const highlightedGuideline = plan?.pedagogy?.learningObjectives?.pedagogicalGuidelines?.[0] ?? "";
+  const sessionPedagogicalApproach = useMemo<PedagogicalApproachDetection | null>(() => {
+    if (plan?.pedagogy?.pedagogicalApproach) {
+      return plan.pedagogy.pedagogicalApproach;
+    }
+
+    const fallbackText = buildPedagogicalApproachInput([
+      plan?.pedagogy?.sessionObjective,
+      plan?.pedagogy?.learningObjectives?.general,
+      plan?.pedagogy?.objective?.description,
+      plan?.title,
+    ]);
+
+    return fallbackText ? detectSessionPedagogicalApproach([fallbackText]) : null;
+  }, [
+    plan?.pedagogy?.pedagogicalApproach,
+    plan?.pedagogy?.sessionObjective,
+    plan?.pedagogy?.learningObjectives?.general,
+    plan?.pedagogy?.objective?.description,
+    plan?.title,
+  ]);
+  const pedagogicalPanelSummary = sessionPedagogicalApproach
+    ? buildSessionPedagogicalPanelSummary(sessionPedagogicalApproach)
+    : "";
+  const pedagogicalPanelIntent = sessionPedagogicalApproach
+    ? buildSessionPedagogicalPanelIntent(sessionPedagogicalApproach)
+    : "";
+  const pedagogicalPanelSecondary = sessionPedagogicalApproach
+    ? buildSessionPedagogicalPanelSecondary(sessionPedagogicalApproach)
+    : "";
+  const pedagogicalPanelRisk = sessionPedagogicalApproach
+    ? buildSessionPedagogicalPanelRisk(sessionPedagogicalApproach)
+    : "";
+  const pedagogicalPanelSignals = sessionPedagogicalApproach
+    ? buildSessionPedagogicalPanelSignals(sessionPedagogicalApproach)
+    : "";
+  const pedagogicalFocusSkillLabel = formatSessionPedagogicalFocusSkill(
+    plan?.pedagogy?.focus?.skill ?? null
+  );
+  const progressionCriterionLabel = toVisibleCoachingText(
+    plan?.pedagogy?.learningObjectives?.successCriteria?.[0] ?? ""
+  );
+  const methodologyEvidenceSourceLabel = formatSessionMethodologyEvidenceSource(
+    methodologyEvidence
+  );
+  const methodologyEvidenceExcerptLabel = formatSessionMethodologyEvidenceExcerpt(
+    methodologyEvidence
+  );
+  const lastOverrideLabel = formatSessionOverrideSummary(plan?.pedagogy?.override);
+  const suggestedAdjustmentLabel = plan?.pedagogy?.adaptation
+    ? formatAdjustmentLabel(plan.pedagogy.adaptation.adjustment)
+    : "";
+  const suggestedDecisionAdjustmentLabel = plan?.pedagogy?.adaptation
+    ? formatAdjustmentLabel(
+        plan.pedagogy.adaptation.telemetry?.decision.suggested ??
+          plan.pedagogy.adaptation.adjustment
+      )
+    : "";
+
+  const blockTitleMap = {
+    warmup: ptBR.session.warmup,
+    main: ptBR.session.main,
+    cooldown: ptBR.session.cooldown,
+  } as const;
+
+  const getBlockActivities = (blockKey: SessionBlockKey) => {
+    if (!plan) return [];
+    if (blockKey === "warmup") return plan.warmup ?? [];
+    if (blockKey === "main") return plan.main ?? [];
+    return plan.cooldown ?? [];
+  };
+
+  const getStructuredBlockActivities = (blockKey: SessionBlockKey) => {
+    if (!plan?.pedagogy?.blocks) return [];
+    if (blockKey === "warmup") return plan.pedagogy.blocks.warmup?.activities ?? [];
+    if (blockKey === "main") return plan.pedagogy.blocks.main?.activities ?? [];
+    return plan.pedagogy.blocks.cooldown?.activities ?? [];
+  };
+
+  const getBlockDurationMinutes = (blockKey: SessionBlockKey) => {
+    if (!plan) return 0;
+    if (blockKey === "warmup") return parseMinutes(plan.warmupTime ?? "", 10);
+    if (blockKey === "main") return parseMinutes(plan.mainTime ?? "", 45);
+    return parseMinutes(plan.cooldownTime ?? "", 5);
+  };
+
+  const getBlockSummary = (blockKey: SessionBlockKey) => {
+    if (!plan) return "";
+    const pedagogySummary =
+      blockKey === "warmup"
+        ? plan.pedagogy?.blocks?.warmup?.summary
+        : blockKey === "main"
+          ? plan.pedagogy?.blocks?.main?.summary
+          : plan.pedagogy?.blocks?.cooldown?.summary;
+    return pedagogySummary ?? "";
+  };
+
+  const buildPdfBlockItems = (blockKey: SessionBlockKey) => {
+    const blockSummary = getBlockSummary(blockKey);
+    const structuredActivities = getStructuredBlockActivities(blockKey);
+    const sourceItems = structuredActivities.length
+      ? structuredActivities.map((activity) => ({
+          name: activity.name,
+          description: activity.description ?? "",
+        }))
+      : getBlockActivities(blockKey).map((name) => ({ name, description: "" }));
+
+    return sourceItems
+      .map((item) => {
+        const activityName = sanitizePlanDisplayItem(item.name);
+        if (!activityName) return null;
+        const manualDescription = String(item.description ?? "").trim();
+        return {
+          name: normalizeDisplayText(activityName),
+          notes: normalizeDisplayText(
+            manualDescription ||
+              resolveActivityDescription({
+                name: activityName,
+                description: "",
+                blockKey,
+                blockSummary,
+                pedagogicalApproach: sessionPedagogicalApproach,
+                focusSkill: plan?.pedagogy?.focus?.skill,
+              })
+          ),
+        };
+      })
+      .filter((item): item is { name: string; notes: string } => Boolean(item));
+  };
+
+  const buildEditableBlockActivities = (blockKey: SessionBlockKey): EditableBlockItem[] => {
+    const structuredActivities = getStructuredBlockActivities(blockKey);
+    const sourceItems = structuredActivities.length
+      ? structuredActivities.map((activity) => ({
+          name: activity.name,
+          description: activity.description ?? "",
+        }))
+      : getBlockActivities(blockKey).map((name) => ({ name, description: "" }));
+
+    return sourceItems
+      .map((item) => ({
+        name: sanitizePlanDisplayItem(item.name),
+        description: String(item.description ?? "").trim(),
+      }))
+      .filter((item) => item.name);
+  };
+
+  const selectedBlockData =
+    plan && selectedBlockKey
+      ? {
+          key: selectedBlockKey,
+          title: blockTitleMap[selectedBlockKey],
+          durationMinutes: getBlockDurationMinutes(selectedBlockKey),
+          summary: getBlockSummary(selectedBlockKey),
+          activities: buildEditableBlockActivities(selectedBlockKey),
+        }
+      : null;
+
+  const navigateSessionDate = (deltaDays: number) => {
+    if (!cls) return;
+    const adjacentClassDate = calculateAdjacentClassDate(
+      cls.daysOfWeek ?? [],
+      new Date(`${sessionDate}T00:00:00`),
+      deltaDays < 0 ? -1 : 1
+    );
+    const targetDate = adjacentClassDate
+      ? adjacentClassDate.toISOString().slice(0, 10)
+      : shiftIsoDate(sessionDate, deltaDays);
+    router.replace({
+      pathname: "/class/[id]/session",
+      params: {
+        id: cls.id,
+        date: targetDate,
+        tab: sessionTab,
+      },
+    });
+  };
+
+  const handleApplySavedPlan = async (savedPlan: TrainingPlan) => {
+    if (!cls) return;
+    setIsApplyingSavedPlanId(savedPlan.id);
+    try {
+      const nowIso = new Date().toISOString();
+      const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
+        organizationId: cls.organizationId ?? null,
+      });
+      const latestVersion = latestVersionPlan?.version ?? 0;
+      const updatedPlan = createTrainingPlanVersion({
+        classId: cls.id,
+        version: Math.max(savedPlan.version ?? 0, latestVersion) + 1,
+        origin: "manual",
+        draft: buildTrainingPlanDraftFromPlan(savedPlan),
+        applyDays: [],
+        applyDate: sessionDate,
+        inputHash: savedPlan.inputHash,
+        nowIso,
+        idPrefix: "plan_apply",
+        status: "final",
+        finalizedAt: nowIso,
+        parentPlanId: savedPlan.parentPlanId ?? savedPlan.id,
+        previousVersionId: savedPlan.id,
+        pedagogy: savedPlan.pedagogy,
+      });
+      await saveTrainingPlan(updatedPlan);
+      setPlan(updatedPlan);
+      setShowSavedClassPlans(false);
+      setAutoActivity(buildSimpleActivityFromPlan(updatedPlan));
+      showSaveToast({
+        message: "Treino aplicado para esta aula.",
+        variant: "success",
+      });
+      logAction("Aplicar treino salvo na aula do dia", {
+        classId: cls.id,
+        sourcePlanId: savedPlan.id,
+        appliedPlanId: updatedPlan.id,
+        applyDate: sessionDate,
+      });
+    } catch {
+      showSaveToast({
+        message: "Não foi possível aplicar este treino.",
+        variant: "error",
+      });
+    } finally {
+      setIsApplyingSavedPlanId((current) =>
+        current === savedPlan.id ? null : current
+      );
+    }
+  };
+
+  const handleBackToClass = () => {
+    if (!cls) return;
+    router.replace({
+      pathname: "/class/[id]",
+      params: { id: cls.id },
+    });
+  };
 
   const updateScoutingCount = (
     skillId: (typeof scoutingSkills)[number]["id"],
@@ -869,6 +2955,508 @@ export default function SessionScreen() {
     () => getFocusSuggestion(scoutingCounts, 10),
     [scoutingCounts]
   );
+
+  const studentsSignature = useMemo(
+    () => sessionStudents.map((student) => student.id).sort().join(","),
+    [sessionStudents]
+  );
+  const classPedagogicalSignature = useMemo(
+    () =>
+      cls
+        ? [
+            cls.id,
+            cls.goal,
+            cls.modality,
+            cls.equipment,
+            cls.durationMinutes,
+            currentClassPlan?.id,
+            currentClassPlan?.phase,
+            currentClassPlan?.theme,
+            currentClassPlan?.technicalFocus,
+            currentClassPlan?.physicalFocus,
+            currentClassPlan?.rpeTarget,
+          ].join("|")
+        : "",
+    [
+      cls?.id,
+      cls?.goal,
+      cls?.modality,
+      cls?.equipment,
+      cls?.durationMinutes,
+      currentClassPlan?.id,
+      currentClassPlan?.phase,
+      currentClassPlan?.theme,
+      currentClassPlan?.technicalFocus,
+      currentClassPlan?.physicalFocus,
+      currentClassPlan?.rpeTarget,
+    ]
+  );
+
+  const memoizedPedagogicalPackage = useMemo(() => {
+    if (!cls) return null;
+    const startedAt = Date.now();
+    const guidelines = computeBaseDimensionGuidelines(cls, currentClassPlan, pedagogicalConfig);
+    const pkg = buildPedagogicalInput(cls, sessionStudents, currentClassPlan, undefined, guidelines);
+    if (__DEV__) {
+      logAction("buildPedagogicalPlan memo", {
+        classId: cls.id,
+        students: sessionStudents.length,
+        guidelines: guidelines.length,
+        ms: Date.now() - startedAt,
+      });
+    }
+    return pkg;
+  }, [classPedagogicalSignature, studentsSignature, pedagogicalConfig]);
+
+  const buildFreshPedagogicalPackage = async (variationSeed?: number) => {
+    if (!cls) return null;
+    return measure("buildPedagogicalPlan", async () => {
+      const guidelines = computeBaseDimensionGuidelines(cls, currentClassPlan, pedagogicalConfig);
+      return buildPedagogicalInput(cls, sessionStudents, currentClassPlan, variationSeed, guidelines);
+    });
+  };
+
+  const persistPedagogicalPlanPackage = async (
+    packageToSave: PedagogicalPlanPackage,
+    editedDraft?: LessonPlanDraft,
+    options?: { successMessage?: string }
+  ) => {
+    if (!cls) return;
+    const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
+      organizationId: cls.organizationId ?? null,
+    });
+    const latestVersion = latestVersionPlan?.version ?? 0;
+    const latestPlan = plan;
+    const methodology = await resolveActiveMethodology({
+      organizationId: cls.organizationId ?? null,
+      classId: cls.id,
+      preferredDomains: ["youth_training", "general"],
+      context: packageToSave.input.context ?? "treinamento",
+    });
+    const scoutingPrioritySkill = getScoutingPrioritySkill(scoutingCounts);
+    const explicitObjectives = buildPedagogicalObjectives(packageToSave, {
+      scoutingPrioritySkill,
+    });
+    const sessionObjectiveLabel = explicitObjectives.general;
+    const progressionDimension = pickProgressionDimension(packageToSave);
+
+    const [warmupActivities, mainActivities, cooldownActivities] = await Promise.all([
+      toStructuredActivitiesWithAiFallback(
+        packageToSave.final.warmup,
+        sessionObjectiveLabel,
+        progressionDimension,
+        "warmup",
+        packageToSave.final.warmup.summary,
+        explicitObjectives.pedagogicalApproach,
+        scoutingPrioritySkill ?? pickFocusSkill(packageToSave),
+        {
+          organizationId: cls.organizationId ?? null,
+          periodLabel: sessionDate,
+          scope: `class:${cls.id}:warmup`,
+        }
+      ),
+      toStructuredActivitiesWithAiFallback(
+        packageToSave.final.main,
+        sessionObjectiveLabel,
+        progressionDimension,
+        "main",
+        packageToSave.final.main.summary,
+        explicitObjectives.pedagogicalApproach,
+        scoutingPrioritySkill ?? pickFocusSkill(packageToSave),
+        {
+          organizationId: cls.organizationId ?? null,
+          periodLabel: sessionDate,
+          scope: `class:${cls.id}:main`,
+        }
+      ),
+      toStructuredActivitiesWithAiFallback(
+        packageToSave.final.cooldown,
+        sessionObjectiveLabel,
+        progressionDimension,
+        "cooldown",
+        packageToSave.final.cooldown.summary,
+        explicitObjectives.pedagogicalApproach,
+        scoutingPrioritySkill ?? pickFocusSkill(packageToSave),
+        {
+          organizationId: cls.organizationId ?? null,
+          periodLabel: sessionDate,
+          scope: `class:${cls.id}:cooldown`,
+        }
+      ),
+    ]);
+
+    const structuredBlocks: NonNullable<TrainingPlanPedagogy["blocks"]> = {
+      warmup: {
+        summary: packageToSave.final.warmup.summary,
+        activities: warmupActivities,
+      },
+      main: {
+        summary: packageToSave.final.main.summary,
+        activities: mainActivities,
+      },
+      cooldown: {
+        summary: packageToSave.final.cooldown.summary,
+        activities: cooldownActivities,
+      },
+    };
+
+    const historicalPlans = await getTrainingPlans({
+      organizationId: cls.organizationId ?? null,
+      classId: cls.id,
+      status: "final",
+      orderBy: "createdat_desc",
+      limit: 12,
+    });
+    const skillHistoryBySkill = buildSkillHistoryBySkill(historicalPlans);
+
+    const nextPlan = buildSessionTrainingPlan(
+      packageToSave,
+      cls.id,
+      sessionDate,
+      latestPlan,
+      latestVersion + 1,
+      buildAutoPlanPedagogy(
+        packageToSave,
+        methodology,
+        currentClassPlan,
+        structuredBlocks,
+        pedagogicalConfig,
+        {
+          sessionId: `${cls.id}:${sessionDate}`,
+          scoutingPrioritySkill,
+          scoutingCounts,
+          skillHistoryBySkill,
+        }
+      )
+    );
+    const versionedPlan: TrainingPlan = nextPlan;
+    if (
+      latestPlan?.inputHash &&
+      versionedPlan.inputHash &&
+      latestPlan.inputHash === versionedPlan.inputHash
+    ) {
+      showSaveToast({
+        message:
+          "Sugestao do sistema mantida: os dados desta sessao indicam o mesmo plano como opcao principal.",
+        variant: "warning",
+      });
+      return;
+    }
+    await saveTrainingPlan(versionedPlan);
+    setPlan(versionedPlan);
+    if (editedDraft) {
+      setPedagogicalPlanPackage(packageToSave);
+    }
+    showSaveToast({
+      message:
+        options?.successMessage ??
+        (latestPlan ? ptBR.session.success.planVersionCreated : ptBR.session.success.planCreated),
+      variant: "success",
+    });
+  };
+
+  const generatePedagogicalPlanAndSave = async (variationSeed?: number) => {
+    if (!cls) return;
+    setShowPlanFabMenu(false);
+    setIsGeneratingPedagogicalPlan(true);
+    setIsSavingPedagogicalPlan(true);
+    try {
+      await waitForInteractionIdle();
+      const pkg = await buildFreshPedagogicalPackage(variationSeed);
+      if (!pkg) return;
+      setPedagogicalPlanPackage(pkg);
+      const successMessage =
+        plan && variationSeed
+          ? "Nova variação aplicada."
+          : undefined;
+      await persistPedagogicalPlanPackage(pkg, undefined, { successMessage });
+    } catch {
+      showSaveToast({ message: ptBR.session.errors.planGenerateFailed, variant: "error" });
+    } finally {
+      setIsSavingPedagogicalPlan(false);
+      setIsGeneratingPedagogicalPlan(false);
+    }
+  };
+
+  const handleGeneratePedagogicalPlan = () => {
+    void generatePedagogicalPlanAndSave();
+  };
+
+  const handleRegeneratePedagogicalPlan = (variationSeed: number) => {
+    void generatePedagogicalPlanAndSave(variationSeed);
+  };
+
+  const handleEditPedagogicalPlan = async () => {
+    if (!cls) return;
+    const pkg = pedagogicalPlanPackage ?? (await buildFreshPedagogicalPackage());
+    if (!pkg) return;
+    setPedagogicalPlanPackage(pkg);
+    router.push({
+      pathname: "/prof/planning",
+      params: {
+        targetClassId: cls.id,
+        targetDate: sessionDate,
+        openForm: "1",
+        aiDraft: buildPedagogicalAiDraft(pkg),
+      },
+    });
+  };
+
+  const handleSaveBlockEdit = async (payload: BlockEditPayload) => {
+    if (!plan || !cls || !selectedBlockKey) return false;
+    setIsSavingBlockEdit(true);
+    try {
+      const summaryValue = String(payload.summary ?? "").trim();
+      const safeDuration =
+        Number.isFinite(payload.durationMinutes) && payload.durationMinutes > 0
+          ? payload.durationMinutes
+          : getBlockDurationMinutes(selectedBlockKey);
+      const activities = (payload.activities ?? [])
+        .map((item) => ({
+          name: sanitizePlanDisplayItem(item?.name),
+          description: String(item?.description ?? "").trim(),
+        }))
+        .filter((item) => item.name);
+      const nextBlockSummary =
+        summaryValue || plan.pedagogy?.blocks?.[selectedBlockKey]?.summary || "";
+
+      const buildSavedActivities = (
+        blockKey: SessionBlockKey,
+        items: EditableBlockItem[],
+        blockSummary: string
+      ) =>
+        items.map((item) => ({
+          name: item.name,
+          description:
+            String(item.description ?? "").trim() ||
+            resolveActivityDescription({
+              name: item.name,
+              description: "",
+              blockKey,
+              blockSummary,
+              pedagogicalApproach: plan.pedagogy?.pedagogicalApproach,
+              focusSkill: plan.pedagogy?.focus?.skill,
+            }),
+        }));
+
+      const currentWarmupSummary =
+        selectedBlockKey === "warmup" ? nextBlockSummary : getBlockSummary("warmup");
+      const currentMainSummary =
+        selectedBlockKey === "main" ? nextBlockSummary : getBlockSummary("main");
+      const currentCooldownSummary =
+        selectedBlockKey === "cooldown" ? nextBlockSummary : getBlockSummary("cooldown");
+
+      const currentWarmupActivities =
+        selectedBlockKey === "warmup" ? activities : buildEditableBlockActivities("warmup");
+      const currentMainActivities =
+        selectedBlockKey === "main" ? activities : buildEditableBlockActivities("main");
+      const currentCooldownActivities =
+        selectedBlockKey === "cooldown" ? activities : buildEditableBlockActivities("cooldown");
+
+      const nextPedagogyBlocks = {
+        warmup: {
+          summary: currentWarmupSummary,
+          activities: buildSavedActivities("warmup", currentWarmupActivities, currentWarmupSummary),
+        },
+        main: {
+          summary: currentMainSummary,
+          activities: buildSavedActivities("main", currentMainActivities, currentMainSummary),
+        },
+        cooldown: {
+          summary: currentCooldownSummary,
+          activities: buildSavedActivities(
+            "cooldown",
+            currentCooldownActivities,
+            currentCooldownSummary
+          ),
+        },
+      };
+
+      const activityNames = activities.map((item) => item.name);
+
+      const nextPlan: TrainingPlan = {
+        ...plan,
+        warmup: selectedBlockKey === "warmup" ? activityNames : plan.warmup,
+        main: selectedBlockKey === "main" ? activityNames : plan.main,
+        cooldown: selectedBlockKey === "cooldown" ? activityNames : plan.cooldown,
+        warmupTime:
+          selectedBlockKey === "warmup"
+            ? `${safeDuration} min`
+            : plan.warmupTime,
+        mainTime:
+          selectedBlockKey === "main"
+            ? `${safeDuration} min`
+            : plan.mainTime,
+        cooldownTime:
+          selectedBlockKey === "cooldown"
+            ? `${safeDuration} min`
+            : plan.cooldownTime,
+        pedagogy: {
+          ...(plan.pedagogy ?? {}),
+          blocks: nextPedagogyBlocks,
+        },
+      };
+
+      const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
+        organizationId: cls.organizationId ?? null,
+      });
+      const latestVersion = latestVersionPlan?.version ?? 0;
+      const nowIso = new Date().toISOString();
+      const versionedPlan = createTrainingPlanVersion({
+        classId: nextPlan.classId,
+        version: Math.max(nextPlan.version ?? 0, latestVersion) + 1,
+        origin: "manual",
+        draft: buildTrainingPlanDraftFromPlan(nextPlan),
+        applyDays: nextPlan.applyDays ?? [],
+        applyDate: nextPlan.applyDate ?? sessionDate,
+        inputHash: nextPlan.inputHash,
+        nowIso,
+        idPrefix: "plan_manual",
+        status: "final",
+        generatedAt: nextPlan.generatedAt,
+        finalizedAt: nowIso,
+        parentPlanId: nextPlan.parentPlanId ?? nextPlan.id,
+        previousVersionId: nextPlan.id,
+        pedagogy: nextPlan.pedagogy,
+      });
+
+      await saveTrainingPlan(versionedPlan);
+      setPlan(versionedPlan);
+      setLastUpdatedBlockKey(selectedBlockKey);
+      setTimeout(() => {
+        setLastUpdatedBlockKey((current) =>
+          current === selectedBlockKey ? null : current
+        );
+      }, 2500);
+      showSaveToast({
+        message: ptBR.session.success.blockUpdated,
+        variant: "success",
+      });
+      return true;
+    } catch {
+      showSaveToast({
+        message: ptBR.session.errors.blockSaveFailed,
+        variant: "error",
+      });
+      return false;
+    } finally {
+      setIsSavingBlockEdit(false);
+    }
+  };
+
+  const openDecisionOverrideModal = () => {
+    const adaptation = plan?.pedagogy?.adaptation;
+    if (!adaptation) return;
+    const suggested = adaptation.telemetry?.decision.suggested ?? adaptation.adjustment;
+    const applied = adaptation.telemetry?.decision.applied ?? suggested;
+    setDecisionAppliedAdjustment(applied);
+    setDecisionReasonType(adaptation.telemetry?.reason?.type ?? null);
+    setDecisionReasonNote(adaptation.telemetry?.reason?.note ?? "");
+    setShowDecisionOverrideModal(true);
+  };
+
+  const handleApplyDecisionOverride = async () => {
+    if (!plan || !cls || !plan.pedagogy?.adaptation) return;
+
+    const adaptation = plan.pedagogy.adaptation;
+    const telemetry = adaptation.telemetry;
+    const suggested = telemetry?.decision.suggested ?? adaptation.adjustment;
+    const applied = decisionAppliedAdjustment;
+    const wasFollowed = suggested === applied;
+    const reasonType = wasFollowed ? undefined : decisionReasonType ?? undefined;
+    const reasonNote = wasFollowed ? undefined : decisionReasonNote.trim() || undefined;
+
+    setIsApplyingDecisionOverride(true);
+    try {
+      const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
+        organizationId: cls.organizationId ?? null,
+      });
+      const latestVersion = latestVersionPlan?.version ?? 0;
+      const nowIso = new Date().toISOString();
+      const sessionId = `${cls.id}:${sessionDate}`;
+
+      const updatedPedagogy: TrainingPlanPedagogy = {
+        ...(plan.pedagogy ?? {}),
+        adaptation: {
+          ...adaptation,
+          adjustment: applied,
+          telemetry: {
+            decisionId:
+              telemetry?.decisionId ??
+              `dec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            decision: {
+              suggested,
+              applied,
+              wasFollowed,
+            },
+            context: telemetry?.context ?? {
+              gapLevel: adaptation.gap?.level ?? "moderado",
+              trend: plan.pedagogy?.skillLearningState?.trend ?? "estagnado",
+              sampleConfidence: adaptation.sampleConfidence ?? "medio",
+              consistencyScore: adaptation.consistencyScore ?? 0,
+              learningVelocity: adaptation.learningVelocity ?? 0,
+            },
+            reason:
+              reasonType || reasonNote
+                ? {
+                    type: reasonType,
+                    note: reasonNote,
+                  }
+                : undefined,
+            meta: {
+              sessionId,
+              classId: cls.id,
+            },
+            timestamp: nowIso,
+          },
+        },
+      };
+
+      const nextPlan = createTrainingPlanVersion({
+        classId: plan.classId,
+        version: Math.max(plan.version ?? 0, latestVersion) + 1,
+        origin: "edited_auto",
+        draft: buildTrainingPlanDraftFromPlan(plan),
+        applyDays: plan.applyDays ?? [],
+        applyDate: plan.applyDate ?? "",
+        inputHash: plan.inputHash,
+        nowIso,
+        idPrefix: "plan_override",
+        status: "final",
+        generatedAt: plan.generatedAt,
+        finalizedAt: nowIso,
+        parentPlanId: plan.parentPlanId ?? plan.id,
+        previousVersionId: plan.id,
+        pedagogy: updatedPedagogy,
+      });
+
+      await saveTrainingPlan(nextPlan);
+      setPlan(nextPlan);
+      setShowDecisionOverrideModal(false);
+      showSaveToast({
+        message: wasFollowed
+          ? ptBR.session.success.decisionSaved
+          : ptBR.session.success.decisionAdjusted,
+        variant: "success",
+      });
+      logAction("pedagogical decision override applied", {
+        classId: cls.id,
+        sessionId,
+        suggested,
+        applied,
+        wasFollowed,
+        reasonType,
+      });
+    } catch {
+      showSaveToast({
+        message: ptBR.session.errors.decisionSaveFailed,
+        variant: "error",
+      });
+    } finally {
+      setIsApplyingDecisionOverride(false);
+    }
+  };
+
   const monthLabel = (value: string) => {
     const [year, month] = value.split("-");
     const names = [
@@ -899,28 +3487,42 @@ export default function SessionScreen() {
       month: "2-digit",
       year: "numeric",
     });
+    const safePlanTitle = normalizeDisplayText(plan.title);
+    const safeClassName = normalizeDisplayText(cls.name);
+    const safeAgeGroup = normalizeDisplayText(cls.ageBand);
+    const safeUnitLabel = normalizeDisplayText(cls.unit);
+    const genderLabel =
+      cls.gender === "masculino"
+        ? "Masculino"
+        : cls.gender === "feminino"
+          ? "Feminino"
+          : "Misto";
     const pdfData = {
-      className: cls.name,
-      ageGroup: cls.ageBand,
-      unitLabel: cls.unit,
+      className: safeClassName,
+      ageGroup: safeAgeGroup,
+      unitLabel: safeUnitLabel,
+      genderLabel,
       dateLabel: weekdayLabel,
-      title: plan.title,
+      title: safePlanTitle,
       totalTime: `${totalMinutes} min`,
       blocks: [
         {
-          title: "Aquecimento",
+          title: ptBR.session.warmup,
           time: plan.warmupTime ? formatDuration(plan.warmupTime) : `${durations[0]} min`,
-          items: warmup.map((name) => ({ name })),
+          summary: normalizeDisplayText(getBlockSummary("warmup")),
+          items: buildPdfBlockItems("warmup"),
         },
         {
-          title: "Parte principal",
+          title: ptBR.session.main,
           time: plan.mainTime ? formatClock(plan.mainTime) : `${durations[1]} min`,
-          items: main.map((name) => ({ name })),
+          summary: normalizeDisplayText(getBlockSummary("main")),
+          items: buildPdfBlockItems("main"),
         },
         {
-          title: "Volta a calma",
+          title: ptBR.session.cooldown,
           time: plan.cooldownTime ? formatDuration(plan.cooldownTime) : `${durations[2]} min`,
-          items: cooldown.map((name) => ({ name })),
+          summary: normalizeDisplayText(getBlockSummary("cooldown")),
+          items: buildPdfBlockItems("cooldown"),
         },
       ],
     };
@@ -940,10 +3542,10 @@ export default function SessionScreen() {
         })
       );
       logAction("Exportar PDF", { classId: cls.id, date: sessionDate });
-      showSaveToast({ message: "PDF gerado com sucesso.", variant: "success" });
+      showSaveToast({ message: ptBR.session.success.pdfGenerated, variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Não foi possível gerar o PDF.", variant: "error" });
-      Alert.alert("Falha ao exportar PDF", "Tente novamente.");
+      showSaveToast({ message: ptBR.session.errors.pdfGenerateFailed, variant: "error" });
+      Alert.alert(ptBR.session.alerts.exportPdfFailedTitle, ptBR.session.alerts.tryAgain);
     }
   };
 
@@ -966,14 +3568,17 @@ export default function SessionScreen() {
         ? sessionLog.participantsCount
         : estimatedParticipants || undefined;
     const photosForPdf = await serializePhotosForPdf(photos);
-    const activityValue =
-      activity.trim() || autoActivity.trim() || (sessionLog?.activity ?? "");
-    const conclusionValue = conclusion.trim() || (sessionLog?.conclusion ?? "");
+    const activityValue = normalizeDisplayText(
+      activity.trim() || autoActivity.trim() || (sessionLog?.activity ?? "")
+    );
+    const conclusionValue = normalizeDisplayText(
+      conclusion.trim() || (sessionLog?.conclusion ?? "")
+    );
     const reportData = {
       monthLabel: reportMonth,
       dateLabel,
-      className: cls.name,
-      unitLabel: cls.unit,
+      className: normalizeDisplayText(cls.name),
+      unitLabel: normalizeDisplayText(cls.unit),
       activity: activityValue,
       conclusion: conclusionValue,
       participantsCount: participantsForPdf ?? 0,
@@ -995,10 +3600,10 @@ export default function SessionScreen() {
         })
       );
       logAction("Exportar relatório PDF", { classId: cls.id, date: sessionDate });
-      showSaveToast({ message: "Relatório gerado com sucesso.", variant: "success" });
+      showSaveToast({ message: ptBR.session.success.reportGenerated, variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Não foi possível gerar o relatório.", variant: "error" });
-      Alert.alert("Falha ao exportar PDF", "Tente novamente.");
+      showSaveToast({ message: ptBR.session.errors.reportGenerateFailed, variant: "error" });
+      Alert.alert(ptBR.session.alerts.exportPdfFailedTitle, ptBR.session.alerts.tryAgain);
     }
   };
 
@@ -1023,10 +3628,10 @@ export default function SessionScreen() {
       const saved = await saveScoutingLog(payload);
       setScoutingLog(saved);
       setScoutingBaseline(countsFromLog(saved));
-      showSaveToast({ message: "Scouting salvo com sucesso.", variant: "success" });
+      showSaveToast({ message: ptBR.session.success.scoutingSaved, variant: "success" });
     } catch (error) {
-      showSaveToast({ message: "Não foi possível salvar o scouting.", variant: "error" });
-      Alert.alert("Falha ao salvar", "Tente novamente.");
+      showSaveToast({ message: ptBR.session.errors.scoutingSaveFailed, variant: "error" });
+      Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
     } finally {
       setScoutingSaving(false);
     }
@@ -1071,66 +3676,110 @@ export default function SessionScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
         >
-      <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
-      <ClassContextHeader
-        title={title}
-        className={className}
-        unit={cls?.unit}
-        ageBand={classAgeBand}
-        gender={classGender}
-        classColorKey={cls?.colorKey}
-        dateLabel={dateLabel}
-        timeLabel={timeLabel}
-        notice={showNoPlanNotice ? "Sem treino aplicado para esse dia" : undefined}
-      />
-
-      {plan ? (
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 20,
-            backgroundColor: colors.primaryBg,
-            marginBottom: 12,
-          }}
-        >
-          <Text style={{ color: colors.primaryText, fontSize: 14, opacity: 0.85 }}>
-            Ações rápidas
+      <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 10 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+        }}
+      >
+        <View style={{ flex: 1, gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            onPress={handleBackToClass}
+            style={{ flexDirection: "row", alignItems: "center" }}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </Pressable>
+          <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>
+            {title}
           </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/class/[id]/attendance",
-                  params: { id: cls.id, date: sessionDate },
-                })
-              }
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Fazer chamada
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={handleExportPdf}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text }}>
-                Exportar plano
-              </Text>
-            </Pressable>
+          </View>
+          {showNoPlanNotice ? (
+            <Text style={{ color: colors.warningText, fontSize: 12 }}>
+              {ptBR.session.noPlanNotice}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={{ alignItems: "flex-end", gap: 6, minWidth: 120 }}>
+          <LocationBadge
+            location={cls?.unit || "Unidade"}
+            palette={classPalette}
+            size="sm"
+            showIcon
+          />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              Turma {classAgeBand || "-"}
+            </Text>
+            <ClassGenderBadge gender={classGender} size="md" />
           </View>
         </View>
-      ) : null}
+      </View>
+
+      <View
+        style={{
+          padding: 16,
+          borderRadius: 20,
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+          marginBottom: 12,
+          gap: 12,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Pressable
+            onPress={() => navigateSessionDate(-1)}
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
+          </Pressable>
+
+          <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
+            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+              {dateLabel}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>
+              {timeLabel || "Horário não definido"}
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => navigateSessionDate(1)}
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="chevron-forward" size={18} color={colors.text} />
+          </Pressable>
+        </View>
+        {!plan ? (
+          <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
+            Ainda não há plano aplicado para este dia.
+          </Text>
+        ) : null}
+      </View>
 
       <View
         style={{
@@ -1212,88 +3861,272 @@ export default function SessionScreen() {
           closePickers();
           setShowPlanFabMenu(false);
         }}
-        onScroll={syncPickerLayouts}
-        scrollEventThrottle={16}
         scrollEnabled={!showPsePicker && !showTechniquePicker}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
       >
         {sessionTab === "treino" && plan ? (
-          [
-              { label: warmupLabel, items: warmup },
-              { label: mainLabel, items: main },
-              { label: cooldownLabel, items: cooldown },
-            ].map((section, index) => (
-              <View
-                key={section.label}
-                style={{
-                  padding: 14,
-                  borderRadius: 18,
-                  backgroundColor:
-                    index === activeIndex
-                      ? colors.secondaryBg
-                      : colors.card,
-                  borderWidth: 1,
-                  borderColor: index === activeIndex ? colors.primaryBg : colors.border,
-                  shadowColor: colors.background,
-                  shadowOpacity: 0.04,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 6 },
-                  elevation: 2,
-                }}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  {section.label}
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              gap: 6,
+            }}
+          >
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+              {ptBR.session.objective}
+            </Text>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              {plan.pedagogy?.sessionObjective || block || "Conduzir treino do dia"}
+            </Text>
+            {highlightedGuideline ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {highlightedGuideline}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        {sessionTab === "treino" && plan?.pedagogy ? (
+          <Pressable
+            onPress={() => setShowPedagogicalPanel((prev) => !prev)}
+            style={{
+              padding: 10,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+              {showPedagogicalPanel ? ptBR.session.hideSuggestionLogic : ptBR.session.viewSuggestionLogic}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={16}
+              color={colors.muted}
+              style={{ transform: [{ rotate: showPedagogicalPanel ? "180deg" : "0deg" }] }}
+            />
+          </Pressable>
+        ) : null}
+        {sessionTab === "treino" && plan?.pedagogy && pedagogicalPanelCollapse.isVisible ? (
+          <Animated.View
+            style={{
+              ...pedagogicalPanelCollapse.animatedStyle,
+              padding: 12,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              gap: 8,
+            }}
+          >
+            {plan.pedagogy?.methodology ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {ptBR.session.suggestionLogic.methodology}: {formatMethodologyApproach(plan.pedagogy.methodology.approach)}
+              </Text>
+            ) : null}
+            {plan.pedagogy?.methodology?.reasoning ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {ptBR.session.suggestionLogic.rationale}: {buildHumanMethodologyExplanation(plan.pedagogy.methodology.reasoning)}
+              </Text>
+            ) : null}
+            {methodologyEvidenceSourceLabel ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Base consultada: {methodologyEvidenceSourceLabel}
+              </Text>
+            ) : null}
+            {methodologyEvidenceExcerptLabel ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Trecho usado: {methodologyEvidenceExcerptLabel}
+              </Text>
+            ) : null}
+            {sessionPedagogicalApproach ? (
+              <>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Leitura pedagógica: {pedagogicalPanelSummary}
                 </Text>
-                <Text style={{ color: colors.text, marginTop: 4 }}>
-                  {"Tempo: " + durations[index] + " min"}
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Condução sugerida: {pedagogicalPanelIntent}
                 </Text>
-                    <View style={{ marginTop: 6, gap: 4 }}>
-                      {section.items.length ? (
-                        section.items.map((item, itemIndex) => {
-                          const trimmed = item.trim();
-                          const isMeta =
-                            trimmed.toLowerCase().startsWith("objetivo geral") ||
-                            trimmed.toLowerCase().startsWith("objetivo específico") ||
-                            trimmed.toLowerCase().startsWith("observações");
-                          return (
-                            <Text
-                              key={`${section.label}-${itemIndex}`}
-                              style={{
-                                color: isMeta ? colors.text : colors.muted,
-                                fontWeight: isMeta ? "600" : "400",
-                              }}
-                            >
-                              {isMeta ? trimmed : `- ${trimmed}`}
-                            </Text>
-                          );
-                        })
-                      ) : (
-                        <Text style={{ color: colors.muted }}>Sem itens</Text>
-                      )}
-                    </View>
+                {pedagogicalPanelSecondary ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Traços secundários: {pedagogicalPanelSecondary}
+                  </Text>
+                ) : null}
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Ponto de atenção: {pedagogicalPanelRisk || formatPedagogicalRiskLabel(sessionPedagogicalApproach.traditionalConductionRisk)}
+                </Text>
+                {pedagogicalPanelSignals ? (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Sinais lidos: {pedagogicalPanelSignals}
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {ptBR.session.suggestionLogic.sessionFocus}: {pedagogicalFocusSkillLabel || ptBR.session.suggestionLogic.noData}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {ptBR.session.suggestionLogic.progressionCriterion}: {progressionCriterionLabel || ptBR.session.suggestionLogic.noData}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {ptBR.session.suggestionLogic.adherenceScore}: {typeof plan.pedagogy?.methodology?.reasoning?.score === "number"
+                ? formatMethodologyScore(plan.pedagogy.methodology.reasoning.score)
+                : ptBR.session.suggestionLogic.noData}
+            </Text>
+            {plan.pedagogy?.override?.type ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {ptBR.session.suggestionLogic.lastOverride}: {lastOverrideLabel || ptBR.session.suggestionLogic.noData}
+              </Text>
+            ) : null}
+            {plan.pedagogy?.adaptation ? (
+              <>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Sugestão do sistema: {suggestedAdjustmentLabel}
+                </Text>
                 <Pressable
-                  onPress={() => setActiveIndex(index)}
+                  onPress={openDecisionOverrideModal}
                   style={{
-                    marginTop: 10,
                     alignSelf: "flex-start",
                     paddingVertical: 6,
                     paddingHorizontal: 10,
                     borderRadius: 999,
-                    backgroundColor: index === activeIndex ? colors.primaryBg : colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
                   }}
                 >
-                  <Text
-                    style={{
-                      color: index === activeIndex ? colors.primaryText : colors.text,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {index === activeIndex ? "Bloco atual" : "Usar bloco"}
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                    {ptBR.session.applyManualAdjustment}
                   </Text>
                 </Pressable>
+              </>
+            ) : null}
+            {activeDimensions ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Variabilidade: {activeDimensions.variability}</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Decisão: {activeDimensions.decisionMaking}</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Feedback: {activeDimensions.feedbackFrequency}</Text>
               </View>
-            ))
+            ) : null}
+          </Animated.View>
+        ) : null}
+        {sessionTab === "treino" && plan ? (
+          <>
+            {([
+              { key: "warmup", label: warmupLabel },
+              { key: "main", label: mainLabel },
+              { key: "cooldown", label: cooldownLabel },
+            ] as const).map((section) => {
+              const summary = getBlockSummary(section.key);
+              const summaryText = sanitizePlanDisplayItem(summary);
+              const durationMinutes = getBlockDurationMinutes(section.key);
+              const previewItems = dedupeByNormalizedText(getBlockActivities(section.key)).slice(0, 2);
+              const phaseMeta =
+                section.key === "warmup"
+                  ? { tint: colors.card, border: colors.warningText }
+                  : section.key === "main"
+                    ? { tint: colors.card, border: colors.primaryBg }
+                    : { tint: colors.card, border: colors.successText };
+              const hasSummaryDuplicate =
+                !!summaryText &&
+                previewItems.some(
+                  (item) => arePedagogicalTextsEquivalent(item, summaryText)
+                );
+              return (
+                <Pressable
+                  key={section.label}
+                  onPress={() => setSelectedBlockKey(section.key)}
+                  style={{
+                    padding: 14,
+                    borderRadius: 18,
+                    backgroundColor: phaseMeta.tint,
+                    borderWidth: 1,
+                    borderColor: phaseMeta.border,
+                    shadowColor: colors.background,
+                    shadowOpacity: 0.04,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 2,
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                        {section.label}
+                      </Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        <View
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 999,
+                            backgroundColor: colors.secondaryBg,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                            {durationMinutes} min
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 999,
+                            backgroundColor: colors.secondaryBg,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                            {previewItems.length} item{previewItems.length === 1 ? "" : "s"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {lastUpdatedBlockKey === section.key ? (
+                        <View
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 2,
+                            borderRadius: 999,
+                            backgroundColor: colors.successBg,
+                          }}
+                        >
+                          <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "700" }}>
+                            Atualizado
+                          </Text>
+                        </View>
+                      ) : null}
+                      <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                    </View>
+                  </View>
+                  {summaryText && !hasSummaryDuplicate ? (
+                    <Text style={{ color: colors.muted }}>{summaryText}</Text>
+                  ) : null}
+                  {previewItems.length ? (
+                    <View style={{ gap: 4 }}>
+                      {previewItems.map((item, index) => (
+                        <Text key={`${section.key}-preview-${index}`} style={{ color: colors.text, fontSize: 12 }}>
+                          • {item}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </>
         ) : null}
         {sessionTab === "treino" && !plan ? (
           <View
@@ -1312,23 +4145,14 @@ export default function SessionScreen() {
             }}
           >
             <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Sem plano aplicado
+              {ptBR.session.emptyPlan.title}
             </Text>
             <Text style={{ color: colors.muted }}>
-              Escolha um treino salvo ou crie um novo plano de aula.
+              {ptBR.session.emptyPlan.description}
             </Text>
             <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
               <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/prof/calendar",
-                    params: {
-                      targetClassId: cls?.id ?? "",
-                      targetDate: sessionDate,
-                      openApply: "1",
-                    },
-                  })
-                }
+                onPress={() => setShowSavedClassPlans((current) => !current)}
                 style={{
                   paddingVertical: 8,
                   paddingHorizontal: 12,
@@ -1337,20 +4161,11 @@ export default function SessionScreen() {
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  Aplicar treino
+                  {showSavedClassPlans ? "Ocultar planos" : ptBR.session.emptyPlan.applyTraining}
                 </Text>
               </Pressable>
               <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/prof/planning",
-                    params: {
-                      targetClassId: cls?.id ?? "",
-                      targetDate: sessionDate,
-                      openForm: "1",
-                    },
-                  })
-                }
+                onPress={handleGeneratePedagogicalPlan}
                 style={{
                   paddingVertical: 8,
                   paddingHorizontal: 12,
@@ -1359,10 +4174,104 @@ export default function SessionScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Criar plano
+                  {ptBR.session.emptyPlan.createPlan}
                 </Text>
               </Pressable>
             </View>
+            {showSavedClassPlans ? (
+              <View
+                style={{
+                  gap: 10,
+                  paddingTop: 4,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <View style={{ gap: 2 }}>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                    Planos salvos desta turma
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Escolha um plano já salvo para aplicar somente nesta aula.
+                  </Text>
+                </View>
+                {savedClassPlans.length ? (
+                  savedClassPlans.map((savedPlan) => {
+                    const preview = buildSavedPlanSummary(savedPlan);
+                    const isApplying = isApplyingSavedPlanId === savedPlan.id;
+                    return (
+                      <View
+                        key={savedPlan.id}
+                        style={{
+                          gap: 8,
+                          padding: 12,
+                          borderRadius: 14,
+                          backgroundColor: colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <View style={{ gap: 4 }}>
+                          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                            {savedPlan.title || "Plano salvo"}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>
+                            {buildSavedPlanMeta(savedPlan)}
+                            {typeof savedPlan.version === "number" ? ` • v${savedPlan.version}` : ""}
+                          </Text>
+                          {preview ? (
+                            <Text style={{ color: colors.text, fontSize: 12 }}>
+                              {preview}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                          <Text style={{ color: colors.muted, fontSize: 11, flex: 1 }}>
+                            Aplicação direta em {dateLabel}.
+                          </Text>
+                          <Pressable
+                            onPress={() => {
+                              void handleApplySavedPlan(savedPlan);
+                            }}
+                            disabled={isApplying}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 999,
+                              backgroundColor: isApplying ? colors.border : colors.primaryBg,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: isApplying ? colors.muted : colors.primaryText,
+                                fontSize: 12,
+                                fontWeight: "800",
+                              }}
+                            >
+                              {isApplying ? "Aplicando..." : "Aplicar neste dia"}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      Esta turma ainda não tem planos finais salvos para reutilizar aqui.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : null}
           </View>
         ) : null}
         {sessionTab === "scouting" ? (
@@ -1383,10 +4292,10 @@ export default function SessionScreen() {
         >
           <View style={{ gap: 4 }}>
             <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Scouting (0-1-2)
+              {ptBR.scouting.title}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Toque para somar, segure para remover.
+              {ptBR.scouting.operationHint}
             </Text>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
               {(["treino", "jogo"] as const).map((mode) => {
@@ -1411,50 +4320,57 @@ export default function SessionScreen() {
                         fontWeight: "700",
                       }}
                     >
-                      {mode === "treino" ? "Treino" : "Jogo"}
+                      {mode === "treino" ? ptBR.scouting.modeTrain : ptBR.scouting.modeMatch}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {scoutingInitiationNote}
+              {ptBR.scouting.totalActions}: {totalActions}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {scoutingPriorityNote}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {scoutingEnvioTooltip}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Total de ações: {totalActions}
-            </Text>
+            <Pressable
+              onPress={() => setShowScoutingGuide((prev) => !prev)}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" }}
+            >
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                {showScoutingGuide ? ptBR.scouting.hideGuide : ptBR.scouting.showGuide}
+              </Text>
+              <Ionicons
+                name="chevron-down"
+                size={14}
+                color={colors.muted}
+                style={{ transform: [{ rotate: showScoutingGuide ? "180deg" : "0deg" }] }}
+              />
+            </Pressable>
           </View>
-          <View
-            style={{
-              padding: 10,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              gap: 6,
-            }}
-          >
-            <Text style={{ fontWeight: "700", color: colors.text, fontSize: 12 }}>
-              Guia rápido (0/1/2)
-            </Text>
-            <FlatList
-              data={scoutingSkills}
-              keyExtractor={(skill) => skill.id}
-              scrollEnabled={false}
-              contentContainerStyle={{ gap: 2 }}
-              renderItem={({ item: skill }) => (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {skill.label}: {scoutingSkillHelp[skill.id].join(" | ")}
-                </Text>
-              )}
-            />
-          </View>
+          {showScoutingGuide ? (
+            <View
+              style={{
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontWeight: "700", color: colors.text, fontSize: 12 }}>
+                {ptBR.scouting.quickGuideTitle}
+              </Text>
+              <FlatList
+                data={scoutingSkills}
+                keyExtractor={(skill) => skill.id}
+                scrollEnabled={false}
+                contentContainerStyle={{ gap: 2 }}
+                renderItem={({ item: skill }) => (
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {skill.label}: {scoutingSkillHelp[skill.id].join(" | ")}
+                  </Text>
+                )}
+              />
+            </View>
+          ) : null}
           <View style={{ gap: 10 }}>
             <FlatList
               data={scoutingSkills}
@@ -1465,6 +4381,9 @@ export default function SessionScreen() {
                 const metrics = scoutingTotals[index];
                 const counts = scoutingCounts[skill.id];
                 const goodPct = Math.round(metrics.goodPct * 100);
+                const shortGuide = scoutingSkillHelp[skill.id]
+                  .map((line, idx) => `${idx} ${line}`)
+                  .join(" • ");
                 return (
                   <View
                     style={{
@@ -1481,9 +4400,10 @@ export default function SessionScreen() {
                         {skill.label}
                       </Text>
                       <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {metrics.total} ações | media {metrics.avg.toFixed(2)}
+                        {metrics.total} ações | {ptBR.scouting.averageLabel} {metrics.avg.toFixed(2)}
                       </Text>
                     </View>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>{shortGuide}</Text>
                     <View style={{ flexDirection: "row", gap: 8 }}>
                       {([0, 1, 2] as const).map((score) => {
                         const palette =
@@ -1523,7 +4443,7 @@ export default function SessionScreen() {
                       })}
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Boas (2): {goodPct}%
+                      {ptBR.scouting.goodRateLabel}: {goodPct}%
                     </Text>
                   </View>
                 );
@@ -1533,13 +4453,13 @@ export default function SessionScreen() {
           {focusSuggestion ? (
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Foco da próxima aula: {focusSuggestion.label}
+                {ptBR.scouting.nextSessionFocus}: {focusSuggestion.label}
               </Text>
               <Text style={{ color: colors.muted }}>{focusSuggestion.text}</Text>
             </View>
           ) : (
             <Text style={{ color: colors.muted }}>
-              Registre pelo menos 10 ações para sugerir o foco.
+              {ptBR.scouting.minimumActionsHint}
             </Text>
           )}
           <Pressable
@@ -1564,7 +4484,7 @@ export default function SessionScreen() {
                 fontWeight: "700",
               }}
             >
-              Salvar scouting
+              {ptBR.scouting.saveAction}
             </Text>
           </Pressable>
         </View>
@@ -1589,14 +4509,14 @@ export default function SessionScreen() {
           }}
         >
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Relatório da aula
+            {ptBR.session.report.title}
           </Text>
           <Text style={{ color: colors.muted }}>
             {sessionDate.split("-").reverse().join("/")}
           </Text>
           {!sessionLog ? (
             <Text style={{ color: colors.muted }}>
-              Nenhum relatório registrado ainda.
+              {ptBR.session.report.noReportYet}
             </Text>
           ) : null}
           {sessionLog ? (
@@ -1611,7 +4531,7 @@ export default function SessionScreen() {
               }}
             >
               <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
-                Editando relatório existente
+                {ptBR.session.report.editingExisting}
               </Text>
             </View>
           ) : null}
@@ -1619,7 +4539,7 @@ export default function SessionScreen() {
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                PSE (0-10)
+                {ptBR.session.report.pse}
               </Text>
               <View ref={pseTriggerRef}>
                 <Pressable
@@ -1650,7 +4570,7 @@ export default function SessionScreen() {
 
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Técnica geral
+                {ptBR.session.report.technique}
               </Text>
               <View ref={techniqueTriggerRef}>
                 <Pressable
@@ -1685,10 +4605,10 @@ export default function SessionScreen() {
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Número de participantes
+                {ptBR.session.report.participants}
               </Text>
                 <TextInput
-                  placeholder="Ex: 12"
+                  placeholder={ptBR.session.report.participantsPlaceholder}
                   value={participantsCount}
                   onChangeText={setParticipantsCount}
                   keyboardType="numeric"
@@ -1706,11 +4626,11 @@ export default function SessionScreen() {
 
               <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Atividade
+                {ptBR.session.report.activity}
               </Text>
               <View style={{ position: "relative" }}>
                 <TextInput
-                  placeholder="Resumo da atividade principal"
+                  placeholder={ptBR.session.report.activityPlaceholder}
                   value={activity}
                   onChangeText={(value) => {
                     setActivity(value);
@@ -1776,7 +4696,7 @@ export default function SessionScreen() {
                 >
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      Preview do treino aplicado
+                      {ptBR.session.report.previewAppliedTraining}
                     </Text>
                     <Pressable
                       onPress={handleApplyAutoActivity}
@@ -1820,7 +4740,7 @@ export default function SessionScreen() {
                 ) : null}
                 {!canApplyAutoActivity ? (
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Limpe o campo para aplicar do treino.
+                    {ptBR.session.report.clearToApplyHint}
                   </Text>
                 ) : null}
               </View>
@@ -1828,11 +4748,11 @@ export default function SessionScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Conclusão
+                {ptBR.session.report.conclusion}
               </Text>
               <View style={{ position: "relative" }}>
                 <TextInput
-                  placeholder="Observações finais da aula"
+                  placeholder={ptBR.session.report.conclusionPlaceholder}
                   value={conclusion}
                   onChangeText={(value) => {
                     setConclusion(value);
@@ -1881,7 +4801,7 @@ export default function SessionScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Fotos
+                {ptBR.session.report.photos}
               </Text>
               <View
                 style={{
@@ -1914,7 +4834,7 @@ export default function SessionScreen() {
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {isPickingPhoto ? "Abrindo..." : "Tirar foto"}
+                      {isPickingPhoto ? ptBR.session.actions.opening : ptBR.session.actions.takePhoto}
                     </Text>
                   </Pressable>
                   <Pressable
@@ -1937,7 +4857,7 @@ export default function SessionScreen() {
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      Galeria
+                      {ptBR.session.actions.gallery}
                     </Text>
                   </Pressable>
                 </View>
@@ -1995,13 +4915,13 @@ export default function SessionScreen() {
 
             <View style={{ gap: 8 }}>
               <Button
-                label={sessionLog ? "Salvar alterações" : "Salvar"}
+                label={sessionLog ? ptBR.session.actions.saveChanges : ptBR.session.actions.save}
                 variant="secondary"
                 onPress={handleSaveReport}
                 disabled={!reportHasChanges}
               />
               <Button
-                label="Gerar relatório"
+                label={ptBR.session.actions.generateReport}
                 onPress={handleSaveAndGenerateReport}
               />
             </View>
@@ -2016,11 +4936,6 @@ export default function SessionScreen() {
             maxHeight={220}
             nestedScrollEnabled
             onRequestClose={closePickers}
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
@@ -2051,11 +4966,6 @@ export default function SessionScreen() {
             maxHeight={160}
             nestedScrollEnabled
             onRequestClose={closePickers}
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
           >
             {(["nenhum", "boa", "ok", "ruim"] as const).map((value) => (
@@ -2096,10 +5006,10 @@ export default function SessionScreen() {
             }}
           >
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-              Foto do relatório
+              {ptBR.session.report.photoActionTitle}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 13 }}>
-              Escolha uma ação
+              {ptBR.session.report.photoActionSubtitle}
             </Text>
             <View style={{ gap: 8, marginTop: 6 }}>
               <Pressable
@@ -2118,7 +5028,7 @@ export default function SessionScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Substituir (câmera)
+                  {ptBR.session.actions.replaceCamera}
                 </Text>
               </Pressable>
               <Pressable
@@ -2137,7 +5047,7 @@ export default function SessionScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Substituir (galeria)
+                  {ptBR.session.actions.replaceGallery}
                 </Text>
               </Pressable>
               <Pressable
@@ -2156,7 +5066,7 @@ export default function SessionScreen() {
                 }}
               >
                 <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
-                  Remover
+                  {ptBR.session.actions.remove}
                 </Text>
               </Pressable>
               <Pressable
@@ -2171,7 +5081,7 @@ export default function SessionScreen() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Cancelar
+                  {ptBR.session.actions.cancel}
                 </Text>
               </Pressable>
             </View>
@@ -2179,6 +5089,153 @@ export default function SessionScreen() {
         </View>
         ) : null}
       </ScrollView>
+
+      <BlockEditModal
+        visible={!!selectedBlockData}
+        title={selectedBlockData?.title ?? ""}
+        durationMinutes={selectedBlockData?.durationMinutes ?? 0}
+        summary={selectedBlockData?.summary ?? ""}
+        activities={selectedBlockData?.activities ?? []}
+        saving={isSavingBlockEdit}
+        onClose={() => setSelectedBlockKey(null)}
+        onSave={handleSaveBlockEdit}
+      />
+
+      <ModalSheet
+        visible={showDecisionOverrideModal}
+        onClose={() => setShowDecisionOverrideModal(false)}
+        position="center"
+        overlayZIndex={30000}
+        backdropOpacity={0.7}
+        cardStyle={{
+          width: "100%",
+          maxWidth: 460,
+          borderRadius: 18,
+          backgroundColor: colors.background,
+          borderWidth: 1,
+          borderColor: colors.border,
+          padding: 16,
+          gap: 10,
+        }}
+      >
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+          {ptBR.session.decisionOverride.title}
+        </Text>
+        <Text style={{ color: colors.muted, fontSize: 13 }}>
+          {ptBR.session.decisionOverride.description}
+        </Text>
+        {suggestedDecisionAdjustmentLabel ? (
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Leitura do sistema para esta aula: {suggestedDecisionAdjustmentLabel}
+          </Text>
+        ) : null}
+
+        <View style={{ gap: 8, marginTop: 4 }}>
+          {(["increase", "maintain", "regress"] as const).map((value) => {
+            const selected = decisionAppliedAdjustment === value;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => setDecisionAppliedAdjustment(value)}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: selected ? colors.primaryBg : colors.border,
+                  backgroundColor: selected ? colors.secondaryBg : colors.card,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {formatAdjustmentLabel(value)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {plan?.pedagogy?.adaptation &&
+        decisionAppliedAdjustment !==
+          (plan.pedagogy.adaptation.telemetry?.decision.suggested ?? plan.pedagogy.adaptation.adjustment) ? (
+          <View style={{ gap: 8, marginTop: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+              {ptBR.session.decisionOverride.reason}
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {(["health", "readiness", "context", "other"] as const).map((item) => {
+                const selected = decisionReasonType === item;
+                return (
+                  <Pressable
+                    key={item}
+                    onPress={() => setDecisionReasonType(item)}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: selected ? colors.primaryBg : colors.border,
+                      backgroundColor: selected ? colors.secondaryBg : colors.card,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      {decisionReasonTypeLabels[item]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <TextInput
+              value={decisionReasonNote}
+              onChangeText={setDecisionReasonNote}
+              placeholder={ptBR.session.decisionOverride.optionalNote}
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                color: colors.inputText,
+              }}
+            />
+          </View>
+        ) : null}
+
+        <View style={{ gap: 8, marginTop: 6 }}>
+          <Pressable
+            onPress={() => void handleApplyDecisionOverride()}
+            disabled={isApplyingDecisionOverride}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.primaryBg,
+              backgroundColor: colors.primaryBg,
+              paddingVertical: 10,
+              alignItems: "center",
+              opacity: isApplyingDecisionOverride ? 0.65 : 1,
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+              {isApplyingDecisionOverride ? ptBR.session.actions.saving : ptBR.session.decisionOverride.saveFinalDecision}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setShowDecisionOverrideModal(false)}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              paddingVertical: 10,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              {ptBR.session.actions.cancel}
+            </Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
 
       {sessionTab === "treino" && showPlanFabMenu ? (
         <Pressable
@@ -2198,8 +5255,8 @@ export default function SessionScreen() {
         <View
           style={{
             ...(Platform.OS === "web"
-              ? ({ position: "fixed", right: 16, bottom: Math.max(insets.bottom + 234, 250) } as any)
-              : { position: "absolute" as const, right: 16, bottom: Math.max(insets.bottom + 234, 250) }),
+              ? ({ position: "fixed", right: 16, bottom: planFabMenuBottom } as any)
+              : { position: "absolute" as const, right: 16, bottom: planFabMenuBottom }),
             width: 210,
             borderRadius: 14,
             borderWidth: 1,
@@ -2210,6 +5267,114 @@ export default function SessionScreen() {
             zIndex: 3190,
           }}
         >
+          {plan ? (
+            <Pressable
+              onPress={() => {
+                setShowPlanFabMenu(false);
+                if (!cls) return;
+                router.push({
+                  pathname: "/class/[id]/attendance",
+                  params: { id: cls.id, date: sessionDate },
+                });
+              }}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Ionicons name="play-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                {ptBR.session.actions.startTraining}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {plan ? (
+            <Pressable
+              onPress={() => {
+                setShowPlanFabMenu(false);
+                handleExportPdf();
+              }}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Ionicons name="download-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                {ptBR.session.actions.export}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => {
+              setShowPlanFabMenu(false);
+              if (plan) {
+                handleRegeneratePedagogicalPlan(Date.now());
+                return;
+              }
+              handleGeneratePedagogicalPlan();
+            }}
+            disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.background,
+              borderRadius: 10,
+              paddingHorizontal: 10,
+              paddingVertical: 9,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan ? 0.65 : 1,
+            }}
+          >
+            <Ionicons name="sparkles-outline" size={16} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+              {plan ? ptBR.session.actions.generateAutomatic : ptBR.session.actions.generateAutomaticPlan}
+            </Text>
+          </Pressable>
+
+          {!plan ? (
+            <Pressable
+              onPress={() => {
+                setShowPlanFabMenu(false);
+                setShowSavedClassPlans(true);
+              }}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Ionicons name="calendar-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                {ptBR.session.actions.applySavedTraining}
+              </Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
             onPress={() => {
               setShowPlanFabMenu(false);
@@ -2237,7 +5402,7 @@ export default function SessionScreen() {
           >
             <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-              Importar plano
+              {ptBR.session.actions.importPlan}
             </Text>
           </Pressable>
         </View>
@@ -2248,11 +5413,11 @@ export default function SessionScreen() {
           onPress={() => setShowPlanFabMenu((current) => !current)}
           style={{
             ...(Platform.OS === "web"
-              ? ({ position: "fixed", right: 16, bottom: Math.max(insets.bottom + 166, 182) } as any)
-              : { position: "absolute" as const, right: 16, bottom: Math.max(insets.bottom + 166, 182) }),
-            width: 54,
-            height: 54,
-            borderRadius: 999,
+              ? ({ position: "fixed", right: 16, bottom: planFabBottom } as any)
+              : { position: "absolute" as const, right: 16, bottom: planFabBottom }),
+            width: 56,
+            height: 56,
+            borderRadius: 28,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: colors.primaryBg,
@@ -2266,11 +5431,26 @@ export default function SessionScreen() {
             elevation: 8,
           }}
         >
-          <Ionicons
-            name={showPlanFabMenu ? "close" : "add"}
-            size={24}
-            color={colors.primaryText}
-          />
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: planFabAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["0deg", "45deg"],
+                  }),
+                },
+                {
+                  scale: planFabAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.05],
+                  }),
+                },
+              ],
+            }}
+          >
+            <MaterialCommunityIcons name="plus" size={24} color={colors.primaryText} />
+          </Animated.View>
         </Pressable>
       ) : null}
         </KeyboardAvoidingView>

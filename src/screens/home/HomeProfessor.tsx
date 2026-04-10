@@ -24,8 +24,6 @@ import {
 } from "react";
 
 import {
-    Alert,
-
     Animated,
 
     Dimensions,
@@ -87,11 +85,10 @@ import { useOrganization } from "../../providers/OrganizationProvider";
 
 import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 
-import { FadeHorizontalScroll } from "../../ui/FadeHorizontalScroll";
 
-import { ShimmerBlock } from "../../ui/Shimmer";
 import { ScreenLoadingState } from "../../components/ui/ScreenLoadingState";
 import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
+import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
@@ -1121,10 +1118,10 @@ export function HomeProfessorScreen({
     }
 
     router.push({
-      pathname: "/prof/planning",
+      pathname: "/class/[id]/session",
       params: {
-        targetClassId: activeAttendanceTarget.classId,
-        targetDate: activeAttendanceTarget.date,
+        id: activeAttendanceTarget.classId,
+        date: activeAttendanceTarget.date,
       },
     });
   }, [activeAttendanceTarget, router, showSaveToast]);

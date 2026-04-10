@@ -1,13 +1,14 @@
 import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
 import {
-  Document,
-  Image,
-  Page,
-  StyleSheet,
-  Text,
-  View,
+    Document,
+    Image,
+    Page,
+    StyleSheet,
+    Text,
+    View,
 } from "@react-pdf/renderer/lib/react-pdf.browser";
+import { toPdfCoachingText, toPdfText } from "./pdf-coaching-text";
 import type { SessionReportPdfData } from "./templates/session-report";
 
 const styles = StyleSheet.create({
@@ -65,11 +66,9 @@ const styles = StyleSheet.create({
   },
 });
 
-const asText = (value: unknown) => {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return "";
-  return String(value);
-};
+const asText = (value: unknown) => toPdfText(value);
+
+const asCoachingText = (value: unknown) => toPdfCoachingText(value);
 
 const parsePhotoUris = (raw: string) => {
   const value = asText(raw).trim();
@@ -129,14 +128,14 @@ export function SessionReportDocument({ data }: { data: SessionReportPdfData }) 
         <View style={styles.row}>
           <View style={styles.cellWide}>
             <Text style={styles.label}>Atividade:</Text>
-            <Text>{asText(data?.activity) || "-"}</Text>
+            <Text>{asCoachingText(data?.activity) || "-"}</Text>
           </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.cellWide}>
             <Text style={styles.label}>Conclusão:</Text>
-            <Text>{asText(data?.conclusion) || "-"}</Text>
+            <Text>{asCoachingText(data?.conclusion) || "-"}</Text>
           </View>
         </View>
 

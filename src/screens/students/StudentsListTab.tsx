@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { memo, type ReactElement } from "react";
 import { Text, TextInput, View } from "react-native";
 import type { ClassGender } from "../../core/models";
@@ -81,7 +81,7 @@ export const StudentsListTab = memo(function StudentsListTab({
           borderColor: colors.border,
         }}
       >
-        <Ionicons name="search" size={16} color={colors.muted} />
+                <Ionicons name="search" size={16} color={colors.muted} />
         <TextInput
           placeholder="Buscar aluno, responsável, turma ou unidade"
           value={studentsSearch}
@@ -89,22 +89,22 @@ export const StudentsListTab = memo(function StudentsListTab({
           placeholderTextColor={colors.placeholder}
           style={{ flex: 1, color: colors.inputText, fontSize: 13 }}
         />
-        {studentsSearch ? (
-          <Pressable
-            onPress={() => setStudentsSearch("")}
-            onContextMenu={(event: any) => event.preventDefault()}
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="close" size={14} color={colors.muted} />
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={() => setStudentsSearch("")}
+          onContextMenu={(event: any) => event.preventDefault()}
+          disabled={!studentsSearch}
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            backgroundColor: colors.secondaryBg,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: studentsSearch ? 1 : 0,
+          }}
+        >
+          <Ionicons name="close" size={14} color={colors.muted} />
+        </Pressable>
       </View>
 
       <View style={{ gap: 8 }}>
@@ -361,3 +361,4 @@ export const StudentsListTab = memo(function StudentsListTab({
     </View>
   );
 });
+

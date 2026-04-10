@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getValidAccessToken } from "../auth/session";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 
@@ -132,6 +133,32 @@ export type RewriteReportTextInput = {
 
 export type RewriteReportTextResult = {
   rewrittenText: string;
+};
+
+export type StructuredActivityCriterion = {
+  type: "consistencia" | "precisao" | "decisao" | "eficiencia";
+  description: string;
+  threshold?: number;
+};
+
+export type StructuredActivity = {
+  name: string;
+  description: string;
+  objective?: string;
+  criteria: StructuredActivityCriterion[];
+};
+
+export type GenerateStructuredActivitiesInput = {
+  objective: string;
+  progression: string;
+  activities: Array<{
+    name: string;
+    description?: string;
+  }>;
+};
+
+export type GenerateStructuredActivitiesResult = {
+  activities: StructuredActivity[];
 };
 
 const assistantUrl = `${SUPABASE_URL}/functions/v1/assistant`;
@@ -359,6 +386,23 @@ const toFriendlyAssistantApiError = (value: string) => {
 
 const toStringArray = (value: unknown) =>
   Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : [];
+
+const structuredCriterionSchema = z.object({
+  type: z.enum(["consistencia", "precisao", "decisao", "eficiencia"]),
+  description: z.string().trim().min(1),
+  threshold: z.number().int().positive().max(999).optional(),
+});
+
+const structuredActivitySchema = z.object({
+  name: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+  objective: z.string().trim().min(1).optional(),
+  criteria: z.array(structuredCriterionSchema).default([]),
+});
+
+const structuredActivitiesEnvelopeSchema = z.object({
+  activities: z.array(structuredActivitySchema).default([]),
+});
 
 const postAssistant = async (messages: AssistantMessage[], classId?: string) => {
   const token = await getValidAccessToken();
@@ -607,5 +651,68 @@ export async function rewriteReportText(
     }
 
     return { rewrittenText };
+  });
+}
+
+export async function generateStructuredActivitiesWithAI(
+  input: GenerateStructuredActivitiesInput,
+  options?: AiRequestOptions
+): Promise<GenerateStructuredActivitiesResult> {
+  const normalizedActivities = Array.isArray(input.activities)
+    ? input.activities
+        .map((activity) => ({
+          name: String(activity?.name ?? "").trim(),
+          description: String(activity?.description ?? "").trim(),
+        }))
+        .filter((activity) => activity.name)
+    : [];
+
+  if (!normalizedActivities.length) {
+    return { activities: [] };
+  }
+
+  const payload = {
+    objective: String(input.objective ?? "").trim(),
+    progression: String(input.progression ?? "").trim(),
+    activities: normalizedActivities,
+  };
+
+  const cacheKey = buildAiCacheKey("generateStructuredActivitiesWithAI", payload, options?.cache);
+  const ttlMs = options?.cache?.ttlMs ?? DEFAULT_AI_CACHE_TTL_MS;
+
+  return withAiCache(cacheKey, ttlMs, async () => {
+    const prompt = buildStructuredPrompt(
+      [
+        "Converta a lista de atividades de treino para estrutura semântica de critérios.",
+        "Retorne SOMENTE JSON válido.",
+        "Não invente números de threshold.",
+        "Use criteria vazio quando não houver meta mensurável clara.",
+        "Tipos permitidos: consistencia, precisao, decisao, eficiencia.",
+        "threshold deve ser inteiro positivo quando existir.",
+      ].join(" "),
+      payload,
+      '{ "activities": [{ "name": string, "description": string, "objective": string, "criteria": [{ "type": "consistencia|precisao|decisao|eficiencia", "description": string, "threshold": number }] }] }'
+    );
+
+    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const json = extractJsonObject(response.reply) ?? {};
+    const parsed = structuredActivitiesEnvelopeSchema.safeParse(json);
+
+    if (!parsed.success) {
+      return { activities: [] };
+    }
+
+    return {
+      activities: parsed.data.activities.map((activity) => ({
+        name: activity.name,
+        description: activity.description,
+        objective: activity.objective,
+        criteria: activity.criteria.map((criterion) => ({
+          type: criterion.type,
+          description: criterion.description,
+          threshold: criterion.threshold,
+        })),
+      })),
+    };
   });
 }

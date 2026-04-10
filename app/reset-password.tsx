@@ -241,18 +241,25 @@ export default function ResetPasswordScreen() {
                     outlineWidth: 0,
                   }}
                 />
-                { password.length > 0 ? (
-                  <Pressable
-                    onPress={() => setShowPassword((prev) => !prev)}
-                    style={{ paddingLeft: 8, paddingVertical: 8 }}
-                  >
-                    <Ionicons
-                      name={showPassword ? "eye-off" : "eye"}
-                      size={18}
-                      color={colors.muted}
-                    />
-                  </Pressable>
-                ) : null}
+                <Pressable
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  disabled={password.length === 0}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    paddingLeft: 8,
+                    paddingVertical: 8,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: password.length > 0 ? 1 : 0,
+                  }}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={18}
+                    color={colors.muted}
+                  />
+                </Pressable>
               </View>
               { password.length > 0 ? (
                 <View style={{ gap: 8 }}>
@@ -360,18 +367,25 @@ export default function ResetPasswordScreen() {
                     outlineWidth: 0,
                   }}
                 />
-                { confirm.length > 0 ? (
-                  <Pressable
-                    onPress={() => setShowConfirm((prev) => !prev)}
-                    style={{ paddingLeft: 8, paddingVertical: 8 }}
-                  >
-                    <Ionicons
-                      name={showConfirm ? "eye-off" : "eye"}
-                      size={18}
-                      color={colors.muted}
-                    />
-                  </Pressable>
-                ) : null}
+                <Pressable
+                  onPress={() => setShowConfirm((prev) => !prev)}
+                  disabled={confirm.length === 0}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    paddingLeft: 8,
+                    paddingVertical: 8,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: confirm.length > 0 ? 1 : 0,
+                  }}
+                >
+                  <Ionicons
+                    name={showConfirm ? "eye-off" : "eye"}
+                    size={18}
+                    color={colors.muted}
+                  />
+                </Pressable>
               </View>
 
               { message ? (

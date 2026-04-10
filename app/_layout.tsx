@@ -31,6 +31,8 @@ import {
     trainerPermissionByPrefix,
 } from "../src/auth/route-permissions";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
+import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
+import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
@@ -42,7 +44,6 @@ import {
 } from "../src/push/notificationRuntime";
 import { attachPushListeners, ensurePushTokenRegistered } from "../src/push/pushClient";
 import { BiometricLockProvider, useBiometricLock } from "../src/security/biometric-lock";
-import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
@@ -71,8 +72,10 @@ function safeReplaceHistoryUrl(url: string) {
   if (Platform.OS !== "web") return;
   if (typeof window === "undefined") return;
   try {
-    // Preserve router-managed history state to avoid breaking React Navigation rehydration.
-    const currentState = window.history.state ?? null;
+    const currentState = window.history.state;
+    // React Navigation expects its own history payload shape on web.
+    // Replacing an undefined state with null can corrupt stack rehydration.
+    if (currentState === undefined || currentState === null) return;
     window.history.replaceState(currentState, "", url);
   } catch {
     // Non-blocking fallback for restrictive browser environments.
@@ -208,6 +211,7 @@ function RootLayoutContent() {
       (prefix) =>
         normalizedPathname === prefix || normalizedPathname.startsWith(`${prefix}/`)
     );
+
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (typeof document === "undefined") return;
@@ -549,6 +553,13 @@ input,
 textarea {
   -webkit-tap-highlight-color: transparent;
 }
+html,
+body,
+input,
+textarea,
+select {
+  color-scheme: dark;
+}
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
@@ -600,6 +611,24 @@ body.app-scrolling *::-webkit-scrollbar-thumb {
   opacity: 1;
 }
 body.app-scrolling *::-webkit-scrollbar-thumb:hover {
+  background-color: ${colors.muted};
+}
+body.dropdown-scrollbars {
+  scrollbar-width: thin;
+  scrollbar-color: ${colors.border} transparent;
+}
+body.dropdown-scrollbars *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+body.dropdown-scrollbars *::-webkit-scrollbar-track {
+  background: transparent;
+}
+body.dropdown-scrollbars *::-webkit-scrollbar-thumb {
+  background-color: ${colors.border};
+  opacity: 1;
+}
+body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
   background-color: ${colors.muted};
 }
 `;
@@ -879,6 +908,25 @@ function BootstrapAuthProviders() {
   );
 }
 
+function PedagogicalConfigBoundary({ children }: { children: React.ReactNode }) {
+  const { data: bootstrapData } = useBootstrap();
+  const pedagogicalConfig = bootstrapData?.pedagogicalConfig ?? null;
+  const isLoading = !bootstrapData;
+  const error = null;
+
+  return (
+    <PedagogicalConfigProvider
+      value={{
+        config: pedagogicalConfig,
+        isLoading,
+        error,
+      }}
+    >
+      {children}
+    </PedagogicalConfigProvider>
+  );
+}
+
 function BiometricAuthBoundary() {
   const { session, signOut } = useAuth();
   const router = useRouter();
@@ -890,8 +938,9 @@ function BiometricAuthBoundary() {
         router.replace("/welcome");
       }}
     >
-      <RoleProvider>
-        <OrganizationProvider>
+      <PedagogicalConfigBoundary>
+        <RoleProvider>
+          <OrganizationProvider>
           <WhatsAppSettingsProvider>
             <ConfirmDialogProvider>
               <ConfirmUndoProvider>
@@ -905,8 +954,9 @@ function BiometricAuthBoundary() {
               </ConfirmUndoProvider>
             </ConfirmDialogProvider>
           </WhatsAppSettingsProvider>
-        </OrganizationProvider>
-      </RoleProvider>
+          </OrganizationProvider>
+        </RoleProvider>
+      </PedagogicalConfigBoundary>
     </BiometricLockProvider>
   );
 }

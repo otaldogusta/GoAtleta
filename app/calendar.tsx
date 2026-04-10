@@ -1,28 +1,31 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
 } from "react";
 import {
-    Animated,
-    FlatList,
-    ScrollView,
-    Text,
-    View
+  Animated,
+  FlatList,
+  ScrollView,
+  Text,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
+import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup, TrainingPlan } from "../src/core/models";
+import { createTrainingPlanVersion } from "../src/core/training-plan-factory";
 import { normalizeUnitKey } from "../src/core/unit-key";
 import {
-    getClasses,
-    getTrainingPlans,
-    updateTrainingPlan,
+  getClasses,
+  getLatestTrainingPlanByClass,
+  getTrainingPlans,
+  saveTrainingPlan,
 } from "../src/db/seed";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
@@ -30,7 +33,6 @@ import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
-import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { usePersistedState } from "../src/ui/use-persisted-state";
@@ -527,21 +529,35 @@ export default function CalendarScreen() {
       });
       return;
     }
-    const updated: TrainingPlan = {
-      ...plan,
+    const latestVersionPlan = await getLatestTrainingPlanByClass(targetClassId);
+    const latestVersion = latestVersionPlan?.version ?? 0;
+    const updated: TrainingPlan = createTrainingPlanVersion({
       classId: targetClassId,
+      version: Math.max(plan.version ?? 0, latestVersion) + 1,
+      origin: "manual_apply",
+      draft: {
+        title: plan.title,
+        tags: plan.tags,
+        warmup: plan.warmup,
+        main: plan.main,
+        cooldown: plan.cooldown,
+        warmupTime: plan.warmupTime,
+        mainTime: plan.mainTime,
+        cooldownTime: plan.cooldownTime,
+      },
       applyDate: targetDate,
       applyDays: [],
-    };
-    await updateTrainingPlan(updated);
+      nowIso: new Date().toISOString(),
+      idPrefix: "plan_apply",
+      status: "final",
+      finalizedAt: new Date().toISOString(),
+      inputHash: plan.inputHash,
+      parentPlanId: plan.id,
+      previousVersionId: latestVersionPlan?.id,
+    });
+    await saveTrainingPlan(updated);
     setPlans((current) => {
-      const next = current.slice();
-      const index = next.findIndex((item) => item.id === updated.id);
-      if (index >= 0) {
-        next[index] = updated;
-      } else {
-        next.push(updated);
-      }
+      const next = [...current, updated];
       return next.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     });
     closeApplyPicker();

@@ -1,6 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
-import { RefObject } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 
 import {
     getDemandIndexForModel,
@@ -113,7 +121,8 @@ export type CyclePlanTableProps = {
   hasWeekPlans: boolean;
   weekPlans: WeekPlan[];
   currentWeek: number;
-  mesoWeekNumbers: number[];
+  selectedWeekNumber: number;
+  monthWeekNumbers: number[];
   monthSegments: Segment[];
   macroSegments: Segment[];
   mesoSegments: Segment[];
@@ -125,6 +134,7 @@ export type CyclePlanTableProps = {
   sportProfile: SportProfile;
 
   // actions
+  onSelectedWeekChange?: (week: number) => void;
   openWeekEditor: (week: number) => void;
 };
 
@@ -148,7 +158,8 @@ export function CyclePlanTable({
   hasWeekPlans,
   weekPlans,
   currentWeek,
-  mesoWeekNumbers,
+  selectedWeekNumber,
+  monthWeekNumbers,
   monthSegments,
   macroSegments,
   mesoSegments,
@@ -156,8 +167,108 @@ export function CyclePlanTable({
   weeklySessions,
   periodizationModel,
   sportProfile,
+  onSelectedWeekChange,
   openWeekEditor,
 }: CyclePlanTableProps) {
+  const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAppliedScrollXRef = useRef<number | null>(null);
+  const cycleSnapInterval = useMemo(
+    () => cyclePanelCellWidth + cyclePanelCellGap,
+    [cyclePanelCellGap, cyclePanelCellWidth]
+  );
+
+  const clearScheduledSnap = useCallback(() => {
+    if (!snapTimeoutRef.current) return;
+    clearTimeout(snapTimeoutRef.current);
+    snapTimeoutRef.current = null;
+  }, []);
+
+  const snapToNearestWeek = useCallback(
+    (offsetX: number, animated: boolean) => {
+      if (!hasWeekPlans || !weekPlans.length) return;
+
+      const snappedIndex = Math.round(offsetX / cycleSnapInterval);
+      const clampedIndex = Math.max(0, Math.min(snappedIndex, weekPlans.length - 1));
+      const nextOffsetX = clampedIndex * cycleSnapInterval;
+      const nextWeekNumber = weekPlans[clampedIndex]?.week ?? clampedIndex + 1;
+
+      onSelectedWeekChange?.(nextWeekNumber);
+
+      if (Math.abs(nextOffsetX - offsetX) < 1) {
+        lastAppliedScrollXRef.current = nextOffsetX;
+        return;
+      }
+      lastAppliedScrollXRef.current = nextOffsetX;
+      cyclePanelScrollRef.current?.scrollTo({ x: nextOffsetX, animated });
+    },
+    [
+      cyclePanelScrollRef,
+      cycleSnapInterval,
+      hasWeekPlans,
+      onSelectedWeekChange,
+      weekPlans,
+      weekPlans.length,
+    ]
+  );
+
+  const handleCycleSnapEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      clearScheduledSnap();
+      snapToNearestWeek(event.nativeEvent.contentOffset.x, false);
+    },
+    [clearScheduledSnap, snapToNearestWeek]
+  );
+
+  const handleCycleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (Platform.OS !== "web") return;
+      clearScheduledSnap();
+
+      const offsetX = event.nativeEvent.contentOffset.x;
+      snapTimeoutRef.current = setTimeout(() => {
+        snapTimeoutRef.current = null;
+        snapToNearestWeek(offsetX, true);
+      }, 96);
+    },
+    [clearScheduledSnap, snapToNearestWeek]
+  );
+
+  useEffect(() => {
+    if (!hasWeekPlans || !weekPlans.length) return;
+
+    const targetWeek = selectedWeekNumber || currentWeek;
+    const clampedWeek = Math.max(1, Math.min(targetWeek, weekPlans.length));
+    const scrollToX = Math.max(
+      0,
+      (clampedWeek - 1) * (cyclePanelCellWidth + cyclePanelCellGap)
+    );
+
+    if (Math.abs((lastAppliedScrollXRef.current ?? -999999) - scrollToX) < 1) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      lastAppliedScrollXRef.current = scrollToX;
+      cyclePanelScrollRef.current?.scrollTo({ x: scrollToX, animated: false });
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [
+    cyclePanelCellGap,
+    cyclePanelCellWidth,
+    cyclePanelScrollRef,
+    hasWeekPlans,
+    selectedWeekNumber,
+    weekPlans.length,
+    currentWeek,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      clearScheduledSnap();
+    };
+  }, [clearScheduledSnap]);
+
   return (
     <View
       style={[
@@ -258,6 +369,14 @@ export function CyclePlanTable({
           <ScrollView
             ref={cyclePanelScrollRef}
             horizontal
+            decelerationRate="fast"
+            disableIntervalMomentum={Platform.OS !== "web"}
+            snapToAlignment={Platform.OS !== "web" ? "start" : undefined}
+            snapToInterval={Platform.OS !== "web" ? cycleSnapInterval : undefined}
+            onScroll={handleCycleScroll}
+            onMomentumScrollEnd={handleCycleSnapEnd}
+            onScrollEndDrag={handleCycleSnapEnd}
+            scrollEventThrottle={16}
             showsHorizontalScrollIndicator={false}
             style={{ flex: 1 }}
           >
@@ -289,13 +408,16 @@ export function CyclePlanTable({
               {/* Linha de semanas */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
                 {weekPlans.map((week, weekIdx) => {
-                  const isActive = week.week === currentWeek;
+                  const isActive = week.week === selectedWeekNumber;
                   const isPast = week.week < currentWeek;
-                  const mesoNum = mesoWeekNumbers[weekIdx] ?? week.week;
+                  const monthWeekNumber = monthWeekNumbers[weekIdx] ?? week.week;
                   return (
                     <Pressable
                       key={`head-${week.week}`}
-                      onPress={() => openWeekEditor(week.week)}
+                      onPress={() => {
+                        onSelectedWeekChange?.(week.week);
+                        openWeekEditor(week.week);
+                      }}
                       style={{
                         width: cyclePanelCellWidth,
                         height: cyclePanelRowHeight,
@@ -310,7 +432,7 @@ export function CyclePlanTable({
                       }}
                     >
                       <Text style={{ color: colors.text, fontSize: 11, fontWeight: isActive ? "700" : "400" }}>
-                        {`${mesoNum}`}
+                        {`${monthWeekNumber}`}
                       </Text>
                       {isActive ? (
                         <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.text }} />

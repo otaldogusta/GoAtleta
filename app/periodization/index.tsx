@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import * as XLSX from "xlsx";
 import * as cptable from "xlsx/dist/cpexcel.js";
 
@@ -16,46 +17,47 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { useCopilotActions, useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { normalizeAgeBand, parseAgeBandRange } from "../../src/core/age-band";
-import {
-  buildCompetitiveClassPlan,
-  buildCompetitiveWeekMeta,
-  isCompetitivePlanningMode,
-  toCompetitiveClassPlans,
-} from "../../src/core/competitive-periodization";
 import { resolveWeeklyAutopilotKnowledgeDomain } from "../../src/core/autopilot/weekly-autopilot";
 import {
-  buildPlanDiff,
-  buildPlanReviewSummary,
-  toPlanningGraphFromClassPlans,
-} from "../../src/core/plan-engine";
+    buildCompetitiveClassPlan,
+    buildCompetitiveWeekMeta,
+    isCompetitivePlanningMode,
+    toCompetitiveClassPlans,
+} from "../../src/core/competitive-periodization";
 import {
-  ageBands,
-  cycleOptions,
-  dayLabels,
-  dayNumbersByLabelIndex,
-  getDemandIndexForModel,
-  getLoadLabelForModel,
-  getSportLabel,
-  type PeriodizationModel,
-  resolveSportProfile,
-  sessionsOptions,
-  splitSegmentLengths,
-  type SportProfile,
-  type VolumeLevel,
-  volumeOrder,
-  volumeToRatio,
-  weekAgendaDayOrder,
+    ageBands,
+    cycleOptions,
+    dayLabels,
+    dayNumbersByLabelIndex,
+    getDemandIndexForModel,
+    getLoadLabelForModel,
+    getSportLabel,
+    type PeriodizationModel,
+    resolveSportProfile,
+    sessionsOptions,
+    splitSegmentLengths,
+    type SportProfile,
+    type VolumeLevel,
+    volumeOrder,
+    volumeToRatio,
+    weekAgendaDayOrder,
 } from "../../src/core/periodization-basics";
+import { buildPeriodizationContext } from "../../src/core/periodization-context";
 import {
-  buildClassPlan,
-  getMvFormat,
-  getPhysicalFocus,
-  resolvePlanBand,
-  validateAcwrLimits
+    buildClassPlan,
+    getMvFormat,
+    getPhysicalFocus,
+    resolvePlanBand,
+    validateAcwrLimits
 } from "../../src/core/periodization-generator";
 import {
-  formatPlannedLoad,
+    formatPlannedLoad,
 } from "../../src/core/periodization-load";
+import {
+    buildPlanDiff,
+    buildPlanReviewSummary,
+    toPlanningGraphFromClassPlans,
+} from "../../src/core/plan-engine";
 import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState";
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
 import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
@@ -64,35 +66,37 @@ import { usePeriodizationCopilotActions } from "../../src/screens/periodization/
 import { usePickerLayout } from "../../src/screens/periodization/hooks/usePickerLayout";
 import { useSaveWeek } from "../../src/screens/periodization/hooks/useSaveWeek";
 import { useWeekEditor } from "../../src/screens/periodization/hooks/useWeekEditor";
-import { useWeekPlans } from "../../src/screens/periodization/hooks/useWeekPlans";
+import { getPlansWithinCycle, useWeekPlans } from "../../src/screens/periodization/hooks/useWeekPlans";
+import { buildMonthSegments, buildMonthWeekNumbers } from "../../src/screens/periodization/month-segments";
 
 import type {
-  ClassCalendarException,
-  ClassCompetitiveProfile,
-  ClassGroup,
-  ClassPlan,
-  WeeklyAutopilotPlanReview,
-  WeeklyAutopilotKnowledgeContext,
+    ClassCalendarException,
+    ClassCompetitiveProfile,
+    ClassGroup,
+    ClassPlan,
+    PeriodizationContext,
+    WeeklyAutopilotKnowledgeContext,
+    WeeklyAutopilotPlanReview,
 } from "../../src/core/models";
 
 import { normalizeUnitKey } from "../../src/core/unit-key";
 
 import {
-  deleteClassCalendarException,
-  deleteClassCompetitiveProfile,
-  getClassCalendarExceptions,
-  getClassCompetitiveProfile,
-  getClasses,
+    deleteClassCalendarException,
+    deleteClassCompetitiveProfile,
+    getClassCalendarExceptions,
+    getClassCompetitiveProfile,
+    getClasses,
 
-  getClassPlansByClass,
-  getKnowledgeBaseSnapshot,
+    getClassPlansByClass,
+    getKnowledgeBaseSnapshot,
 
-  saveClassCalendarException,
-  saveClassCompetitiveProfile,
-  saveClassPlans,
-  updateClassAcwrLimits,
+    saveClassCalendarException,
+    saveClassCompetitiveProfile,
+    saveClassPlans,
+    updateClassAcwrLimits,
 
-  updateClassPlan
+    updateClassPlan
 } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 
@@ -124,16 +128,16 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
-import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 import { CompetitiveAgendaCard } from "../../src/screens/periodization/CompetitiveAgendaCard";
-import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { DayModal } from "../../src/screens/periodization/modals/DayModal";
 import { GenerateModal } from "../../src/screens/periodization/modals/GenerateModal";
 import { PlanActionsModal } from "../../src/screens/periodization/modals/PlanActionsModal";
 import { WeekEditorModal } from "../../src/screens/periodization/modals/WeekEditorModal";
 import { OverviewTab } from "../../src/screens/periodization/OverviewTab";
+import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 
 type WeekPlan = {
 
@@ -237,6 +241,40 @@ const formatPlanReviewValue = (value: unknown) => {
     }
   }
   return normalizeText(String(value)) || "Sem valor";
+};
+
+const formatPeriodizationContextModel = (
+  value: PeriodizationContext["model"]
+) => {
+  if (value === "rendimento") return "Rendimento";
+  if (value === "hibrido") return "Híbrido";
+  return "Formação";
+};
+
+const formatPeriodizationContextLoad = (context: PeriodizationContext) => {
+  if (!context.load) return null;
+  const levelLabel =
+    context.load.level === "alto"
+      ? "Alta"
+      : context.load.level === "medio"
+        ? "Média"
+        : "Baixa";
+  const trendLabel =
+    context.load.trend === "subindo"
+      ? "subindo"
+      : context.load.trend === "descendo"
+        ? "descendo"
+        : context.load.trend === "estavel"
+          ? "estável"
+          : "";
+  return trendLabel ? `${levelLabel} (${trendLabel})` : levelLabel;
+};
+
+const parsePseTarget = (value: string | undefined) => {
+  const match = String(value ?? "").match(/\d+/);
+  if (!match) return 0;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 
@@ -1119,6 +1157,10 @@ export default function PeriodizationScreen() {
     const classDays = selectedClass?.daysOfWeek?.length ?? 0;
     return Math.max(1, classDays || sessionsPerWeek || 2);
   }, [selectedClass, sessionsPerWeek]);
+  const visibleClassPlans = useMemo(
+    () => getPlansWithinCycle(classPlans, cycleLength),
+    [classPlans, cycleLength]
+  );
 
   const periodizationKnowledgeGraph = useMemo(() => {
     if (!selectedClass || !periodizationKnowledgeSnapshot) return null;
@@ -1126,12 +1168,12 @@ export default function PeriodizationScreen() {
       classId: selectedClass.id,
       organizationId: selectedClass.organizationId,
       cycleStartDate: activeCycleStartDate,
-      classPlans,
+      classPlans: visibleClassPlans,
       knowledgeSnapshot: periodizationKnowledgeSnapshot,
     });
   }, [
     activeCycleStartDate,
-    classPlans,
+    visibleClassPlans,
     periodizationKnowledgeSnapshot,
     selectedClass,
   ]);
@@ -1142,10 +1184,10 @@ export default function PeriodizationScreen() {
       classId: selectedClass.id,
       organizationId: selectedClass.organizationId,
       cycleStartDate: activeCycleStartDate,
-      classPlans,
+      classPlans: visibleClassPlans,
       knowledgeSnapshot: null,
     });
-  }, [activeCycleStartDate, classPlans, selectedClass]);
+  }, [activeCycleStartDate, selectedClass, visibleClassPlans]);
 
   const periodizationPlanReview = useMemo(() => {
     if (!periodizationKnowledgeGraph || !periodizationKnowledgeSnapshot || !periodizationKnowledgeBaselineGraph) {
@@ -1570,6 +1612,11 @@ export default function PeriodizationScreen() {
     weeklySessions,
   });
 
+  const visibleCompetitivePreviewPlans = useMemo(
+    () => getPlansWithinCycle(competitivePreviewPlans, cycleLength),
+    [competitivePreviewPlans, cycleLength]
+  );
+
 
   const filteredWeekPlans = useMemo(() => {
 
@@ -1585,59 +1632,61 @@ export default function PeriodizationScreen() {
   const periodizationRows = useMemo(() => {
     if (!selectedClass) return [];
 
-    const sourcePlans = classPlans.length ? classPlans : competitivePreviewPlans;
+    const sourcePlans = visibleClassPlans.length ? visibleClassPlans : visibleCompetitivePreviewPlans;
+    const sourcePlansByWeek = new Map(sourcePlans.map((plan) => [plan.weekNumber, plan]));
 
-    if (sourcePlans.length) {
-      return [...sourcePlans]
-        .sort((a, b) => a.weekNumber - b.weekNumber)
-        .map((plan) => {
-          const meta = isCompetitiveMode
-            ? buildCompetitiveWeekMeta({
-                weekNumber: plan.weekNumber,
-                cycleStartDate: activeCycleStartDate,
-                daysOfWeek: selectedClass.daysOfWeek,
-                exceptions: calendarExceptions,
-              })
-            : null;
-          return {
-            week: plan.weekNumber,
-            dateRange: meta?.dateRangeLabel ?? "",
-            sessionDates: meta?.sessionDatesLabel ?? "",
-            phase: normalizeText(plan.phase),
-            theme: normalizeText(plan.theme),
-            technicalFocus: normalizeText(plan.technicalFocus),
-            physicalFocus: normalizeText(plan.physicalFocus),
-            constraints: normalizeText(plan.constraints),
-            mvFormat: normalizeText(plan.mvFormat),
-            jumpTarget: normalizeText(plan.jumpTarget),
-            rpeTarget: normalizeText(plan.rpeTarget),
-            source: plan.source,
-          };
-        });
-    }
+    return weekPlans.map((week) => {
+      const plan = sourcePlansByWeek.get(week.week);
 
-    return weekPlans.map((week) => ({
-      week: week.week,
-      dateRange: week.dateRange ?? "",
-      sessionDates: week.sessionDatesLabel ?? "",
-      phase: normalizeText(week.title),
-      theme: normalizeText(week.focus),
-      technicalFocus: normalizeText(week.focus),
-      physicalFocus: normalizeText(getPhysicalFocus(ageBand)),
-      constraints: normalizeText(week.notes.join(" | ")),
-      mvFormat: normalizeText(getMvFormat(ageBand)),
-      jumpTarget: normalizeText(week.jumpTarget),
-      rpeTarget: normalizeText(week.PSETarget),
-      source: "AUTO",
-    }));
+      if (plan) {
+        const meta = isCompetitiveMode
+          ? buildCompetitiveWeekMeta({
+              weekNumber: week.week,
+              cycleStartDate: activeCycleStartDate,
+              daysOfWeek: selectedClass.daysOfWeek,
+              exceptions: calendarExceptions,
+            })
+          : null;
+
+        return {
+          week: week.week,
+          dateRange: meta?.dateRangeLabel ?? week.dateRange ?? "",
+          sessionDates: meta?.sessionDatesLabel ?? week.sessionDatesLabel ?? "",
+          phase: normalizeText(plan.phase),
+          theme: normalizeText(plan.theme),
+          technicalFocus: normalizeText(plan.technicalFocus),
+          physicalFocus: normalizeText(plan.physicalFocus),
+          constraints: normalizeText(plan.constraints),
+          mvFormat: normalizeText(plan.mvFormat),
+          jumpTarget: normalizeText(plan.jumpTarget),
+          rpeTarget: normalizeText(plan.rpeTarget),
+          source: plan.source,
+        };
+      }
+
+      return {
+        week: week.week,
+        dateRange: week.dateRange ?? "",
+        sessionDates: week.sessionDatesLabel ?? "",
+        phase: normalizeText(week.title),
+        theme: normalizeText(week.focus),
+        technicalFocus: normalizeText(week.focus),
+        physicalFocus: normalizeText(getPhysicalFocus(ageBand)),
+        constraints: normalizeText(week.notes.join(" | ")),
+        mvFormat: normalizeText(getMvFormat(ageBand)),
+        jumpTarget: normalizeText(week.jumpTarget),
+        rpeTarget: normalizeText(week.PSETarget),
+        source: week.source,
+      };
+    });
   }, [
     activeCycleStartDate,
     ageBand,
     calendarExceptions,
-    classPlans,
-    competitivePreviewPlans,
     isCompetitiveMode,
     selectedClass,
+    visibleClassPlans,
+    visibleCompetitivePreviewPlans,
     weekPlans,
   ]);
 
@@ -1700,7 +1749,7 @@ export default function PeriodizationScreen() {
 
     const start =
       parseIsoDate(activeCycleStartDate ?? "") ??
-      parseIsoDate(classPlans[0]?.startDate ?? "");
+      parseIsoDate(visibleClassPlans[0]?.startDate ?? "");
 
     if (!start || !weekPlans.length) return 1;
 
@@ -1710,7 +1759,74 @@ export default function PeriodizationScreen() {
 
     return Math.max(1, Math.min(week, weekPlans.length));
 
-  }, [activeCycleStartDate, classPlans, weekPlans.length]);
+  }, [activeCycleStartDate, visibleClassPlans, weekPlans.length]);
+
+  const currentClassPlanForContext = useMemo(
+    () =>
+      visibleClassPlans.find((plan) => plan.weekNumber === currentWeek) ??
+      visibleClassPlans[0] ??
+      null,
+    [currentWeek, visibleClassPlans]
+  );
+
+  const currentWeekPlanForContext = useMemo(
+    () => weekPlans.find((week) => week.week === currentWeek) ?? weekPlans[0] ?? null,
+    [currentWeek, weekPlans]
+  );
+
+  const periodizationContext = useMemo(
+    () =>
+      buildPeriodizationContext({
+        objective: normalizeText(
+          currentWeekPlanForContext?.title ||
+            currentClassPlanForContext?.theme ||
+            competitiveProfile?.targetCompetition ||
+            selectedClass?.goal ||
+            "Desenvolvimento da turma"
+        ),
+        focus: normalizeText(
+          currentWeekPlanForContext?.focus ||
+            currentClassPlanForContext?.technicalFocus ||
+            getPhysicalFocus(ageBand) ||
+            "Fundamentos"
+        ),
+        classPlan: currentClassPlanForContext,
+        constraints: [
+          ...((currentWeekPlanForContext?.notes ?? []).filter(Boolean)),
+          ...(currentClassPlanForContext?.constraints
+            ? [currentClassPlanForContext.constraints]
+            : []),
+        ],
+        pedagogicalIntent: normalizeText(
+          periodizationModel === "competitivo"
+            ? "Equilibrar exigência competitiva com controle de carga"
+            : periodizationModel === "formacao"
+              ? "Organizar progressão pedagógica da turma"
+              : "Conectar aprendizagem e exigência competitiva"
+        ),
+        load: currentWeekPlanForContext
+          ? {
+              intendedRPE: parsePseTarget(currentWeekPlanForContext.PSETarget),
+              volume:
+                currentWeekPlanForContext.volume === "médio"
+                  ? "moderado"
+                  : currentWeekPlanForContext.volume,
+            }
+          : null,
+        planningMode: competitiveProfile?.planningMode ?? null,
+        competitivePhase: competitiveProfile?.currentPhase ?? null,
+      }),
+    [
+      ageBand,
+      competitiveProfile?.currentPhase,
+      competitiveProfile?.planningMode,
+      competitiveProfile?.targetCompetition,
+      currentClassPlanForContext,
+      currentWeekPlanForContext,
+      periodizationModel,
+      selectedClass?.goal,
+    ]
+  );
 
   const hasWeekPlans = weekPlans.length > 0;
 
@@ -1724,30 +1840,15 @@ export default function PeriodizationScreen() {
   const weekSwitchOpacity = useRef(new Animated.Value(1)).current;
   const weekSwitchTranslateX = useRef(new Animated.Value(0)).current;
   const weekSwitchDirectionRef = useRef<-1 | 1>(1);
-
-  const MONTHS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const shouldRealignCurrentWeekRef = useRef(false);
 
   const monthSegments = useMemo(() => {
-    const start =
-      parseIsoDate(activeCycleStartDate ?? "") ??
-      parseIsoDate(classPlans[0]?.startDate ?? "");
-    if (!start || !weekPlans.length) {
-      return [{ label: "Ciclo", length: weekPlans.length }] as Array<{ label: string; length: number }>;
-    }
-    const segments: Array<{ label: string; length: number }> = [];
-    weekPlans.forEach((_, idx) => {
-      const d = new Date(start.getTime() + idx * 7 * 86400000);
-      const label = MONTHS_PT[d.getMonth()];
-      const last = segments[segments.length - 1];
-      if (last && last.label === label) {
-        last.length += 1;
-      } else {
-        segments.push({ label, length: 1 });
-      }
+    return buildMonthSegments({
+      weekCount: weekPlans.length,
+      cycleStartDate: activeCycleStartDate || visibleClassPlans[0]?.startDate || null,
+      plans: visibleClassPlans,
     });
-    return segments;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCycleStartDate, classPlans, weekPlans]);
+  }, [activeCycleStartDate, visibleClassPlans, weekPlans.length]);
 
   const macroSegments = useMemo(() => {
     if (!weekPlans.length) return [] as Array<{ label: string; length: number }>;
@@ -1790,15 +1891,13 @@ export default function PeriodizationScreen() {
     return segments;
   }, [weekPlans.length]);
 
-  const mesoWeekNumbers = useMemo(() => {
-    const result: number[] = [];
-    mesoSegments.forEach((seg) => {
-      for (let i = 1; i <= seg.length; i += 1) {
-        result.push(i);
-      }
+  const monthWeekNumbers = useMemo(() => {
+    return buildMonthWeekNumbers({
+      weekCount: weekPlans.length,
+      cycleStartDate: activeCycleStartDate || visibleClassPlans[0]?.startDate || null,
+      plans: visibleClassPlans,
     });
-    return result;
-  }, [mesoSegments]);
+  }, [activeCycleStartDate, visibleClassPlans, weekPlans.length]);
 
   const dominantBlockSegments = useMemo(() => {
     if (!weekPlans.length) return [] as Array<{ label: string; length: number }>;
@@ -1869,12 +1968,17 @@ export default function PeriodizationScreen() {
       nextPse: nextWeek ? normalizeText(nextWeek.PSETarget) : "sem meta",
       nextPlannedLoad: nextWeek ? formatPlannedLoad(nextWeek.plannedWeeklyLoad) : "sem carga",
       nextLoad: nextWeek ? getLoadLabelForModel(nextWeek.volume, periodizationModel) : "Baixa",
+      periodizationContext: {
+        ...periodizationContext,
+        constraints: periodizationContext.constraints ?? [],
+      },
     };
   }, [
     currentWeek,
     dominantBlockSegments,
     macroSegments,
     periodizationModel,
+    periodizationContext,
     selectedClass?.durationMinutes,
     selectedClass?.name,
     sportLabel,
@@ -1890,15 +1994,80 @@ export default function PeriodizationScreen() {
 
   useCopilotActions(periodizationCopilotActions);
 
+  const scrollCyclePanelToWeek = useCallback(
+    (weekNumber: number, animated = true) => {
+      if (!hasWeekPlans) return;
+      const clampedWeek = Math.max(1, Math.min(weekNumber, weekPlans.length));
+      const scrollToX = Math.max(
+        0,
+        (clampedWeek - 1) * (cyclePanelCellWidth + cyclePanelCellGap)
+      );
+      cyclePanelScrollRef.current?.scrollTo({ x: scrollToX, animated });
+    },
+    [
+      cyclePanelCellGap,
+      cyclePanelCellWidth,
+      hasWeekPlans,
+      weekPlans.length,
+    ]
+  );
+
+  const focusedWeekNumber = hasWeekPlans
+    ? Math.max(1, Math.min(agendaWeekNumber ?? currentWeek, weekPlans.length))
+    : currentWeek;
+
   useEffect(() => {
-    if (!hasWeekPlans || currentWeek <= 1) return;
-    const scrollToX = Math.max(0, (currentWeek - 1) * (cyclePanelCellWidth + cyclePanelCellGap) - cyclePanelCellWidth);
+    if (!hasWeekPlans) return;
     const timer = setTimeout(() => {
-      cyclePanelScrollRef.current?.scrollTo({ x: scrollToX, animated: true });
-    }, 400);
+      scrollCyclePanelToWeek(focusedWeekNumber, false);
+    }, 180);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasWeekPlans, currentWeek]);
+  }, [currentWeek, hasWeekPlans, scrollCyclePanelToWeek]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasWeekPlans) return undefined;
+
+      const fallbackWeek = Math.max(1, Math.min(currentWeek, weekPlans.length));
+      setAgendaWeekNumber(fallbackWeek);
+      shouldRealignCurrentWeekRef.current = true;
+
+      const timer = setTimeout(() => {
+        scrollCyclePanelToWeek(fallbackWeek, false);
+      }, 180);
+
+      return () => clearTimeout(timer);
+    }, [currentWeek, hasWeekPlans, scrollCyclePanelToWeek, weekPlans.length])
+  );
+
+  useEffect(() => {
+    if (!hasWeekPlans || activeTab !== "ciclo" || !shouldRealignCurrentWeekRef.current) return;
+
+    const fallbackWeek = Math.max(1, Math.min(agendaWeekNumber ?? currentWeek, weekPlans.length));
+    let innerTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const outerTimer = setTimeout(() => {
+      innerTimer = setTimeout(() => {
+        scrollCyclePanelToWeek(fallbackWeek, false);
+        shouldRealignCurrentWeekRef.current = false;
+      }, 60);
+    }, 0);
+
+    return () => {
+      clearTimeout(outerTimer);
+      if (innerTimer) clearTimeout(innerTimer);
+    };
+  }, [activeTab, agendaWeekNumber, currentWeek, hasWeekPlans, scrollCyclePanelToWeek, weekPlans.length]);
+
+  useEffect(() => {
+    if (!hasWeekPlans || activeTab !== "semana") return;
+    const fallbackWeek = Math.max(1, Math.min(currentWeek, weekPlans.length));
+    setAgendaWeekNumber((prev) => {
+      if (prev == null) return fallbackWeek;
+      return Math.max(1, Math.min(prev, weekPlans.length));
+    });
+  }, [activeTab, currentWeek, hasWeekPlans, weekPlans.length]);
 
   const activeWeekIndex = hasWeekPlans
     ? Math.max(
@@ -2017,7 +2186,9 @@ export default function PeriodizationScreen() {
 
     if (!selectedClass) return;
 
-    const existing = classPlans.find((plan) => plan.weekNumber === weekNumber);
+    setAgendaWeekNumber(weekNumber);
+
+    const existing = visibleClassPlans.find((plan) => plan.weekNumber === weekNumber);
     const plan =
       existing ??
       (isCompetitiveMode
@@ -2076,13 +2247,13 @@ export default function PeriodizationScreen() {
     activeCycleStartDate,
     ageBand,
     calendarExceptions,
-    classPlans,
     competitiveProfile,
     cycleLength,
     isCompetitiveMode,
     periodizationModel,
     sportProfile,
     selectedClass,
+    visibleClassPlans,
     weeklySessions,
   ]);
 
@@ -2396,13 +2567,13 @@ export default function PeriodizationScreen() {
   const weekEditorPlanReview = useMemo<WeeklyAutopilotPlanReview | null>(() => {
     if (!selectedClass || !periodizationKnowledgeSnapshot) return null;
 
-    const existing = classPlans.find((plan) => plan.weekNumber === editingWeek) ?? null;
+    const existing = visibleClassPlans.find((plan) => plan.weekNumber === editingWeek) ?? null;
     const draftPlan = buildManualPlanForWeek(editingWeek, existing);
     if (!draftPlan) return null;
 
-    const editedPlans = classPlans.some((plan) => plan.weekNumber === editingWeek)
-      ? classPlans.map((plan) => (plan.weekNumber === editingWeek ? draftPlan : plan))
-      : [...classPlans, draftPlan];
+    const editedPlans = visibleClassPlans.some((plan) => plan.weekNumber === editingWeek)
+      ? visibleClassPlans.map((plan) => (plan.weekNumber === editingWeek ? draftPlan : plan))
+      : [...visibleClassPlans, draftPlan];
 
     const draftGraph = toPlanningGraphFromClassPlans({
       classId: selectedClass.id,
@@ -2415,7 +2586,7 @@ export default function PeriodizationScreen() {
       classId: selectedClass.id,
       organizationId: selectedClass.organizationId,
       cycleStartDate: activeCycleStartDate,
-      classPlans,
+      classPlans: visibleClassPlans,
       knowledgeSnapshot: null,
     });
 
@@ -2438,10 +2609,10 @@ export default function PeriodizationScreen() {
   }, [
     activeCycleStartDate,
     buildManualPlanForWeek,
-    classPlans,
     editingWeek,
     periodizationKnowledgeSnapshot,
     selectedClass,
+    visibleClassPlans,
   ]);
 
 
@@ -2449,7 +2620,7 @@ export default function PeriodizationScreen() {
 
     if (!selectedClass) return;
 
-    const existing = classPlans.find((plan) => plan.weekNumber === editingWeek) ?? null;
+    const existing = visibleClassPlans.find((plan) => plan.weekNumber === editingWeek) ?? null;
 
     const plan = buildAutoPlanForWeek(editingWeek, existing);
 
@@ -2475,7 +2646,7 @@ export default function PeriodizationScreen() {
 
     setEditSource("AUTO");
 
-  }, [buildAutoPlanForWeek, classPlans, editingWeek, selectedClass]);
+  }, [buildAutoPlanForWeek, editingWeek, selectedClass, visibleClassPlans]);
 
 
   const { handleSaveWeek } = useSaveWeek({
@@ -2670,9 +2841,6 @@ export default function PeriodizationScreen() {
           <AnchoredDropdownOption
             active={active}
             onPress={() => onSelect(unit)}
-            activeBackgroundColor={palette.bg}
-            activeBorderColor={palette.bg}
-            inactiveBackgroundColor={colors.card}
           >
             <Text
 
@@ -3101,7 +3269,7 @@ export default function PeriodizationScreen() {
 
     ageGroup: normalizeText(selectedClass?.ageBand ?? ""),
 
-    cycleStart: activeCycleStartDate || classPlans[0]?.startDate || undefined,
+    cycleStart: activeCycleStartDate || visibleClassPlans[0]?.startDate || undefined,
 
     cycleLength: rows.length,
 
@@ -3116,6 +3284,16 @@ export default function PeriodizationScreen() {
     tacticalSystem: competitiveProfile?.tacticalSystem?.trim() || undefined,
 
     currentPhase: competitiveProfile?.currentPhase?.trim() || undefined,
+
+    contextModel: formatPeriodizationContextModel(periodizationContext.model),
+    contextObjective: normalizeText(periodizationContext.objective || ""),
+    contextFocus: normalizeText(periodizationContext.focus || ""),
+    contextCyclePhase: normalizeText(periodizationContext.cyclePhase || ""),
+    contextPedagogicalIntent: normalizeText(periodizationContext.pedagogicalIntent || ""),
+    contextLoad: normalizeText(formatPeriodizationContextLoad(periodizationContext) ?? ""),
+    contextConstraints: normalizeText(
+      (periodizationContext.constraints ?? []).join(" • ")
+    ),
 
     rows,
 
@@ -3416,10 +3594,6 @@ export default function PeriodizationScreen() {
           onScrollBeginDrag={() => {
             closeAllPickers();
           }}
-          onScroll={syncPickerLayouts}
-
-          scrollEventThrottle={16}
-
         >
 
         <View
@@ -3484,6 +3658,59 @@ export default function PeriodizationScreen() {
         />
 
   </View>
+
+        {selectedClass ? (
+          <View
+            style={[
+              getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
+              { gap: 8, marginBottom: 12 },
+            ]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="layers-outline" size={18} color={colors.primaryText} />
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                Contexto pedagógico
+              </Text>
+            </View>
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {normalizeText(
+                  `${formatPeriodizationContextModel(periodizationContext.model)} · ${
+                    periodizationContext.objective || "Sem objetivo definido"
+                  }`
+                )}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {normalizeText(
+                  `Foco: ${periodizationContext.focus || "Sem foco"}${
+                    periodizationContext.cyclePhase
+                      ? ` · Fase: ${periodizationContext.cyclePhase}`
+                      : ""
+                  }`
+                )}
+              </Text>
+              {periodizationContext.pedagogicalIntent ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {normalizeText(`Intenção: ${periodizationContext.pedagogicalIntent}`)}
+                </Text>
+              ) : null}
+              {formatPeriodizationContextLoad(periodizationContext) ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {normalizeText(
+                    `Carga: ${formatPeriodizationContextLoad(periodizationContext) ?? ""}`
+                  )}
+                </Text>
+              ) : null}
+              {periodizationContext.constraints?.length ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {normalizeText(
+                    `Restrições: ${periodizationContext.constraints.join(" • ")}`
+                  )}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
 
         {selectedClass ? (
           <View
@@ -3740,6 +3967,7 @@ export default function PeriodizationScreen() {
             router={router}
             classPlans={classPlans}
             isSavingPlans={isSavingPlans}
+            onCompleteMissingCoverage={() => handleGenerateAction("fill")}
             setShowGenerateModal={setShowGenerateModal}
             unitMismatchWarning={unitMismatchWarning}
           />
@@ -3765,7 +3993,8 @@ export default function PeriodizationScreen() {
           hasWeekPlans={hasWeekPlans}
           weekPlans={weekPlans}
           currentWeek={currentWeek}
-          mesoWeekNumbers={mesoWeekNumbers}
+          selectedWeekNumber={focusedWeekNumber}
+          monthWeekNumbers={monthWeekNumbers}
           monthSegments={monthSegments}
           macroSegments={macroSegments}
           mesoSegments={mesoSegments}
@@ -3773,6 +4002,7 @@ export default function PeriodizationScreen() {
           weeklySessions={weeklySessions}
           periodizationModel={periodizationModel}
           sportProfile={sportProfile}
+          onSelectedWeekChange={setAgendaWeekNumber}
           openWeekEditor={openWeekEditor}
           sectionOpen={sectionOpen}
           toggleSection={toggleSection}
@@ -3860,16 +4090,6 @@ export default function PeriodizationScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-
-          panelStyle={{
-
-            borderWidth: 1,
-
-            borderColor: colors.border,
-
-            backgroundColor: colors.card,
-
-          }}
 
           scrollContentStyle={{ padding: 8, gap: 6 }}
 
@@ -3965,16 +4185,6 @@ export default function PeriodizationScreen() {
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
 
-          panelStyle={{
-
-            borderWidth: 1,
-
-            borderColor: colors.border,
-
-            backgroundColor: colors.card,
-
-          }}
-
           scrollContentStyle={{ padding: 8, gap: 6 }}
 
         >
@@ -4030,16 +4240,6 @@ export default function PeriodizationScreen() {
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
 
-          panelStyle={{
-
-            borderWidth: 1,
-
-            borderColor: colors.border,
-
-            backgroundColor: colors.card,
-
-          }}
-
           scrollContentStyle={{ padding: 8, gap: 6 }}
 
         >
@@ -4080,16 +4280,6 @@ export default function PeriodizationScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-
-          panelStyle={{
-
-            borderWidth: 1,
-
-            borderColor: colors.border,
-
-            backgroundColor: colors.card,
-
-          }}
 
           scrollContentStyle={{ padding: 8, gap: 6 }}
 
@@ -4156,6 +4346,7 @@ export default function PeriodizationScreen() {
         modalCardStyle={modalCardStyle}
         colors={colors}
         isSavingPlans={isSavingPlans}
+        cycleLength={cycleLength}
         onGenerateAction={handleGenerateAction}
       />
 

@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -39,6 +39,7 @@ import {
 } from "../../src/core/class-schedule-sort";
 import { getClassModalityLabel } from "../../src/core/class-modality";
 import { useEffectiveProfile } from "../../src/core/effective-profile";
+import { deriveStudentHealthAssessment } from "../../src/core/student-health";
 import type { ClassGroup, Student, StudentPreRegistration } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
@@ -86,6 +87,7 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
+import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -277,7 +279,7 @@ export default function StudentsScreen() {
     formError: studentFormError, documentsError: studentDocumentsError, editSnapshot,
   } = form;
 
-  // --- Pré-cadastro (useReducer) ---
+  // --- Pr?-cadastro (useReducer) ---
   const {
     preForm,
     setEditingPreId, setPreChildName, setPreGuardianName, setPreGuardianPhone,
@@ -310,7 +312,7 @@ export default function StudentsScreen() {
     showTemplateList, whatsappContainerWindow, templateTriggerLayout,
   } = waModal;
 
-  // --- Estados de UI que permanecem locais (não pertencem ao formulário) ---
+  // --- Estados de UI que permanecem locais (não pertencem ao Formulário) ---
   const [showCalendar, setShowCalendar] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
@@ -372,7 +374,21 @@ export default function StudentsScreen() {
     width: number;
     height: number;
   } | null>(null);
-  const [editContainerWindow, setEditContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const [editContainerWindow, _setEditContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const setEditContainerWindow = useCallback((value: { x: number; y: number } | null) => {
+    _setEditContainerWindow((current) => {
+      if (
+        current &&
+        value &&
+        current.x === value.x &&
+        current.y === value.y
+      ) {
+        return current;
+      }
+      if (!current && !value) return current;
+      return value;
+    });
+  }, []);
   const [editUnitTriggerLayout, setEditUnitTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -617,15 +633,15 @@ export default function StudentsScreen() {
 
   const toggleCreateSection = useCallback(
     (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian") => {
-      setOpenCreateSection(openCreateSection === section ? null : section);
+      setOpenCreateSection((current) => (current === section ? null : section));
     },
-    [openCreateSection, setOpenCreateSection]
+    [setOpenCreateSection]
   );
   const toggleEditSection = useCallback(
     (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian" | "links") => {
-      setOpenEditSection(openEditSection === section ? null : section);
+      setOpenEditSection((current) => (current === section ? null : section));
     },
-    [openEditSection, setOpenEditSection]
+    [setOpenEditSection]
   );
 
   const handleSelectUnit = useCallback((value: string) => {
@@ -853,13 +869,13 @@ export default function StudentsScreen() {
         return;
       }
       if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("Câmera indisponível", "Use a Galeria no navegador.");
+        Alert.alert("Câmera indispoNível", "Use a Galeria no navegador.");
         return;
       }
       if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
+          Alert.alert("Permissão necessária", "Ative a Câmera para tirar a foto.");
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -919,7 +935,7 @@ export default function StudentsScreen() {
       return false;
     }
     if (!isOnline) {
-      setStudentFormError("Conecte-se à internet para salvar o aluno.");
+      setStudentFormError("Conecte-se ? internet para salvar o aluno.");
       return false;
     }
     setStudentFormError("");
@@ -1007,7 +1023,7 @@ export default function StudentsScreen() {
 
       doResetForm();
       await reload();
-      showSaveNotice(wasEditing ? "Alterações salvas." : "Aluno cadastrado.");
+      showSaveNotice(wasEditing ? "alterações salvas." : "Aluno cadastrado.");
       if (!wasEditing) {
         showSaveToast({
           message: `${name.trim()} foi cadastrado com sucesso.`,
@@ -1122,7 +1138,7 @@ export default function StudentsScreen() {
     unit,
   ]);
 
-  // Wrappers que combinam reset do formulário (hook) com efeitos de UI locais
+  // Wrappers que combinam reset do Formulário (hook) com efeitos de UI locais
   const doResetForm = useCallback(() => {
     closeAllPickers();
     setShowForm(false);
@@ -1174,7 +1190,7 @@ export default function StudentsScreen() {
       if (!targetClass) {
         Alert.alert(
           "Experimentais",
-          "Defina uma turma válida no pré-cadastro antes de converter."
+          "Defina uma turma válida no Pré-cadastro antes de converter."
         );
         return;
       }
@@ -1375,7 +1391,7 @@ export default function StudentsScreen() {
       setIsCpfVisible(true);
     } catch (error) {
       const detail =
-        error instanceof Error ? error.message : "Não foi possível revelar o CPF.";
+        error instanceof Error ? error.message : "não foi possível revelar o CPF.";
       if (detail.toLowerCase().includes("indisponivel")) {
         setCpfRevealUnavailable(true);
       }
@@ -1423,34 +1439,37 @@ export default function StudentsScreen() {
       cpfDisplay ? "CPF cadastrado" : "CPF não informado",
       rgDocument ? "RG cadastrado" : "RG não informado",
     ];
-    return parts.join(" ⬢ ");
+    return parts.join(" • ");
   }, [cpfDisplay, rgDocument]);
   const editAcademicSummary = useMemo(() => {
     const raLabel = ra.trim() ? `RA ${ra}` : "RA não informado";
     const courseLabel = collegeCourse.trim() ? collegeCourse : "Curso não informado";
-    return `${raLabel} ⬢ ${courseLabel}`;
+    return `${raLabel} • ${courseLabel}`;
   }, [collegeCourse, ra]);
   const editSportSummary = useMemo(() => {
     const primaryLabel = positionPrimary.trim() || "indefinido";
     const secondaryLabel = positionSecondary.trim() || "indefinido";
-    return `${primaryLabel} ⬢ ${secondaryLabel}`;
+    return `${primaryLabel} • ${secondaryLabel}`;
   }, [positionPrimary, positionSecondary]);
   const editHealthSummary = useMemo(() => {
-    if (!healthIssue && !medicationUse && !healthObservations.trim()) {
-      return "Sem restrições informadas";
-    }
-    return "Informações de saúde registradas";
-  }, [healthIssue, healthObservations, medicationUse]);
+    return deriveStudentHealthAssessment({
+      healthIssue,
+      healthIssueNotes,
+      medicationUse,
+      medicationNotes,
+      healthObservations,
+    }).summary;
+  }, [healthIssue, healthIssueNotes, healthObservations, medicationNotes, medicationUse]);
   const editGuardianSummary = useMemo(() => {
     const nameLabel = guardianName.trim() || "Responsável não informado";
     const phoneLabel = guardianPhone.trim() || "Sem telefone";
-    return `${nameLabel} ⬢ ${phoneLabel}`;
+    return `${nameLabel} • ${phoneLabel}`;
   }, [guardianName, guardianPhone]);
   const editLinksSummary = useMemo(() => {
     const classLabel = selectedClassLabel || "Sem turma";
     const unitLabel = unit || "Sem unidade";
     const modalityLabel = selectedClassModalityLabel || "Modalidade não informada";
-    return `${classLabel} ⬢ ${unitLabel} ⬢ ${modalityLabel}`;
+    return `${classLabel} • ${unitLabel} • ${modalityLabel}`;
   }, [selectedClassLabel, selectedClassModalityLabel, unit]);
 
   const formatShortDate = (value: string) => {
@@ -1615,7 +1634,7 @@ export default function StudentsScreen() {
       if (contact.status === "missing") {
         Alert.alert(
           "Sem telefone",
-          "Adicione o telefone do aluno ou responsável para usar o WhatsApp."
+          "Adicione o telefone do aluno ou Responsável para usar o WhatsApp."
         );
         return;
       }
@@ -1773,7 +1792,7 @@ export default function StudentsScreen() {
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted }}>Turma</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Nenhuma turma disponível para essa unidade.
+            Nenhuma turma dispoNível para essa unidade.
           </Text>
         </View>
       );
@@ -2124,6 +2143,7 @@ export default function StudentsScreen() {
         className,
         unitName,
         classPalette,
+        healthAssessment,
       }: {
         item: Student;
         onPress: (student: Student) => void;
@@ -2133,6 +2153,7 @@ export default function StudentsScreen() {
         className: string;
         unitName: string;
         classPalette: { bg: string; text: string };
+        healthAssessment: ReturnType<typeof deriveStudentHealthAssessment>;
       }) {
         const contact = getContactPhone(item);
         const disabled = contact.status === "missing";
@@ -2231,9 +2252,40 @@ export default function StudentsScreen() {
                         paddingHorizontal: 8,
                         paddingVertical: 2,
                       }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                          Experimental
+                        </Text>
+                      </View>
+                  ) : null}
+                  {healthAssessment.level !== "apto" ? (
+                    <View
+                      style={{
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor:
+                          healthAssessment.level === "revisar"
+                            ? colors.dangerBorder
+                            : colors.warningBg,
+                        backgroundColor:
+                          healthAssessment.level === "revisar"
+                            ? colors.dangerBg
+                            : colors.warningBg,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                      }}
                     >
-                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
-                        Experimental
+                      <Text
+                        style={{
+                          color:
+                            healthAssessment.level === "revisar"
+                              ? colors.dangerText
+                              : colors.warningText,
+                          fontSize: 10,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {healthAssessment.label}
                       </Text>
                     </View>
                   ) : null}
@@ -2373,6 +2425,7 @@ export default function StudentsScreen() {
               bg: colors.primaryBg,
               text: colors.primaryText,
             });
+      const healthAssessment = deriveStudentHealthAssessment(item);
         return (
           <StudentRow
             item={item}
@@ -2383,6 +2436,7 @@ export default function StudentsScreen() {
             className={classNameOverride}
             unitName={unitName}
             classPalette={classPalette}
+            healthAssessment={healthAssessment}
           />
         );
     },
@@ -2444,16 +2498,11 @@ export default function StudentsScreen() {
           />
         }
       >
-        <View
+        <ScreenTopChrome
           style={{
             gap: 16,
-            backgroundColor: colors.background,
             paddingTop: 16,
             paddingBottom: 10,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.background,
-            position: "relative",
-            zIndex: 20,
           }}
         >
           <Pressable
@@ -2470,7 +2519,7 @@ export default function StudentsScreen() {
             activeTab={studentsTab}
             onChange={requestSwitchStudentsTab}
           />
-        </View>
+        </ScreenTopChrome>
 
         <ConfirmCloseOverlay
           visible={showStudentsTabConfirm}
@@ -2778,11 +2827,6 @@ export default function StudentsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           { unitOptions.length ? (
@@ -2812,11 +2856,6 @@ export default function StudentsScreen() {
           maxHeight={240}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {classOptions.length ? (
@@ -2858,11 +2897,6 @@ export default function StudentsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {guardianRelationOptions.map((item, index) => (
@@ -2885,11 +2919,6 @@ export default function StudentsScreen() {
           maxHeight={120}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
-          panelStyle={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-          }}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {([{ label: "Aluno regular", value: "regular" }, { label: "Experimental", value: "experimental" }] as const).map((item, index) => (
@@ -3230,4 +3259,7 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
+
+
+
 

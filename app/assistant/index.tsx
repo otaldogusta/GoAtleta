@@ -11,7 +11,6 @@ import {
 import {
     Alert,
     Animated,
-    FlatList,
     Keyboard,
     Linking,
     Platform,
@@ -2002,13 +2001,10 @@ export default function AssistantScreen() {
                 <Text style={{ fontWeight: "700", color: colors.text }}>
                   Referências científicas
                 </Text>
-                <FlatList
-                  data={scientificReferences}
-                  keyExtractor={(reference) => reference.id}
-                  scrollEnabled={false}
-                  contentContainerStyle={{ gap: 8 }}
-                  renderItem={({ item: reference }) => (
+                <View style={{ gap: 8 }}>
+                  {scientificReferences.map((reference) => (
                     <Pressable
+                      key={reference.id}
                       onPress={() => {
                         void openReferenceLink(reference.url);
                       }}
@@ -2050,8 +2046,8 @@ export default function AssistantScreen() {
                         </Text>
                       ) : null}
                     </Pressable>
-                  )}
-                />
+                  ))}
+                </View>
               </View>
             ) : null}
 
@@ -2075,49 +2071,37 @@ export default function AssistantScreen() {
                 {citations.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Evidências</Text>
-                    <FlatList
-                      data={citations}
-                      keyExtractor={(_, index) => `citation-${index}`}
-                      scrollEnabled={false}
-                      contentContainerStyle={{ gap: 6 }}
-                      renderItem={({ item }) => (
-                        <Text style={{ color: colors.muted }}>
+                    <View style={{ gap: 6 }}>
+                      {citations.map((item, index) => (
+                        <Text key={`citation-${index}`} style={{ color: colors.muted }}>
                           - {item.sourceTitle}: {item.evidence}
                         </Text>
-                      )}
-                    />
+                      ))}
+                    </View>
                   </View>
                 ) : null}
                 {assumptions.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Premissas</Text>
-                    <FlatList
-                      data={assumptions}
-                      keyExtractor={(_, index) => `assumption-${index}`}
-                      scrollEnabled={false}
-                      contentContainerStyle={{ gap: 6 }}
-                      renderItem={({ item }) => (
-                        <Text style={{ color: colors.muted }}>
+                    <View style={{ gap: 6 }}>
+                      {assumptions.map((item, index) => (
+                        <Text key={`assumption-${index}`} style={{ color: colors.muted }}>
                           - {item}
                         </Text>
-                      )}
-                    />
+                      ))}
+                    </View>
                   </View>
                 ) : null}
                 {missingData.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Dados faltantes</Text>
-                    <FlatList
-                      data={missingData}
-                      keyExtractor={(_, index) => `missing-${index}`}
-                      scrollEnabled={false}
-                      contentContainerStyle={{ gap: 6 }}
-                      renderItem={({ item }) => (
-                        <Text style={{ color: colors.muted }}>
+                    <View style={{ gap: 6 }}>
+                      {missingData.map((item, index) => (
+                        <Text key={`missing-${index}`} style={{ color: colors.muted }}>
                           - {item}
                         </Text>
-                      )}
-                    />
+                      ))}
+                    </View>
                   </View>
                 ) : null}
               </View>
@@ -2135,13 +2119,9 @@ export default function AssistantScreen() {
                 }}
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>Auto-fix sugerido</Text>
-                <FlatList
-                  data={autoFixSuggestions}
-                  keyExtractor={(suggestion) => suggestion.id}
-                  scrollEnabled={false}
-                  contentContainerStyle={{ gap: 10 }}
-                  renderItem={({ item: suggestion }) => (
-                    <View style={{ gap: 6 }}>
+                <View style={{ gap: 10 }}>
+                  {autoFixSuggestions.map((suggestion) => (
+                    <View key={suggestion.id} style={{ gap: 6 }}>
                       <Text style={{ color: colors.text, fontWeight: "700" }}>{suggestion.title}</Text>
                       <Text style={{ color: colors.muted }}>{suggestion.rationale}</Text>
                       <Pressable
@@ -2159,8 +2139,8 @@ export default function AssistantScreen() {
                         <Text style={{ color: colors.text, fontWeight: "700" }}>Aplicar</Text>
                       </Pressable>
                     </View>
-                  )}
-                />
+                  ))}
+                </View>
               </View>
             ) : null}
 
@@ -2183,32 +2163,24 @@ export default function AssistantScreen() {
                 {nextClassSuggestion.alerts.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Alertas</Text>
-                    <FlatList
-                      data={nextClassSuggestion.alerts}
-                      keyExtractor={(_, index) => `radar-alert-${index}`}
-                      scrollEnabled={false}
-                      contentContainerStyle={{ gap: 6 }}
-                      renderItem={({ item }) => (
-                        <Text style={{ color: colors.muted }}>
+                    <View style={{ gap: 6 }}>
+                      {nextClassSuggestion.alerts.map((item, index) => (
+                        <Text key={`radar-alert-${index}`} style={{ color: colors.muted }}>
                           - {item}
                         </Text>
-                      )}
-                    />
+                      ))}
+                    </View>
                   </View>
                 ) : null}
                 <View style={{ gap: 6 }}>
                   <Text style={{ color: colors.text, fontWeight: "700" }}>Ações sugeridas</Text>
-                  <FlatList
-                    data={nextClassSuggestion.actions}
-                    keyExtractor={(_, index) => `radar-action-${index}`}
-                    scrollEnabled={false}
-                    contentContainerStyle={{ gap: 6 }}
-                    renderItem={({ item }) => (
-                      <Text style={{ color: colors.muted }}>
+                  <View style={{ gap: 6 }}>
+                    {nextClassSuggestion.actions.map((item, index) => (
+                      <Text key={`radar-action-${index}`} style={{ color: colors.muted }}>
                         - {item}
                       </Text>
-                    )}
-                  />
+                    ))}
+                  </View>
                 </View>
                 <Pressable
                   disabled={Boolean(autopilotProposal && autopilotProposal.status !== "approved")}
@@ -2390,17 +2362,13 @@ export default function AssistantScreen() {
                 <Text style={{ color: colors.muted }}>
                   Baseline: {(simulationResult.baselineScore * 100).toFixed(0)}% . Horizonte: {simulationResult.horizonWeeks} semanas
                 </Text>
-                <FlatList
-                  data={simulationResult.points.slice(0, 4)}
-                  keyExtractor={(point) => `sim-point-${point.week}`}
-                  scrollEnabled={false}
-                  contentContainerStyle={{ gap: 6 }}
-                  renderItem={({ item: point }) => (
-                    <Text style={{ color: colors.muted }}>
+                <View style={{ gap: 6 }}>
+                  {simulationResult.points.slice(0, 4).map((point) => (
+                    <Text key={`sim-point-${point.week}`} style={{ color: colors.muted }}>
                       - Semana {point.week}: {(point.projectedScore * 100).toFixed(0)}% ({point.focus})
                     </Text>
-                  )}
-                />
+                  ))}
+                </View>
               </View>
             ) : null}
 
@@ -2416,17 +2384,13 @@ export default function AssistantScreen() {
                 }}
               >
                 <Text style={{ fontWeight: "700", color: colors.text }}>Memória de contexto</Text>
-                <FlatList
-                  data={memoryContextHints.slice(0, 3)}
-                  keyExtractor={(_, index) => `memory-hint-${index}`}
-                  scrollEnabled={false}
-                  contentContainerStyle={{ gap: 6 }}
-                  renderItem={({ item }) => (
-                    <Text style={{ color: colors.muted }}>
+                <View style={{ gap: 6 }}>
+                  {memoryContextHints.slice(0, 3).map((item, index) => (
+                    <Text key={`memory-hint-${index}`} style={{ color: colors.muted }}>
                       - {item}
                     </Text>
-                  )}
-                />
+                  ))}
+                </View>
               </View>
             ) : null}
           </ScrollView>

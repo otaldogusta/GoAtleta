@@ -1,6 +1,7 @@
 ﻿import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import type { RefObject } from "react";
+import { useMemo } from "react";
 import {
     Animated,
     Text,
@@ -8,6 +9,7 @@ import {
     View,
 } from "react-native";
 import type { Student } from "../../core/models";
+import { deriveStudentHealthAssessment } from "../../core/student-health";
 import { normalizeRaDigits } from "../../utils/student-ra";
 import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
@@ -254,6 +256,18 @@ export function StudentRegistrationTab({
     doResetForm,
     confirmDialog,
 }: StudentRegistrationTabProps) {
+    const createHealthAssessment = useMemo(
+        () =>
+            deriveStudentHealthAssessment({
+                healthIssue,
+                healthIssueNotes,
+                medicationUse,
+                medicationNotes,
+                healthObservations,
+            }),
+        [healthIssue, healthIssueNotes, healthObservations, medicationNotes, medicationUse]
+    );
+
     return (
         <View style={{ gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -425,8 +439,41 @@ export function StudentRegistrationTab({
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable onPress={() => toggleCreateSection("health")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{healthIssue || medicationUse ? "Informações registradas" : "Observações de saúde..."}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
+                    {createHealthAssessment.level !== "apto" ? (
+                      <View
+                        style={{
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor:
+                            createHealthAssessment.level === "revisar"
+                              ? colors.dangerBorder
+                              : colors.warningBg,
+                          backgroundColor:
+                            createHealthAssessment.level === "revisar"
+                              ? colors.dangerBg
+                              : colors.warningBg,
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              createHealthAssessment.level === "revisar"
+                                ? colors.dangerText
+                                : colors.warningText,
+                            fontSize: 10,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {createHealthAssessment.label}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createHealthAssessment.summary}</Text>
                 </View>
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
               </Pressable>

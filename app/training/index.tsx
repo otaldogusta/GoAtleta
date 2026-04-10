@@ -1,4 +1,4 @@
-﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -25,9 +25,10 @@ import {
     View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Pressable } from "../../src/ui/Pressable";
 import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
+import { Pressable } from "../../src/ui/Pressable";
 
+import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
 import { normalizeAgeBand, sortAgeBandList } from "../../src/core/age-band";
 import { translateMethodology } from "../../src/core/methodology/methodology-translator";
 import type {
@@ -36,24 +37,26 @@ import type {
     TrainingPlan,
     TrainingTemplate,
 } from "../../src/core/models";
+import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import { trainingTemplates } from "../../src/core/trainingTemplates";
 import {
     deleteTrainingPlan,
     deleteTrainingTemplate,
     getClasses,
     getHiddenTemplates,
+    getLatestTrainingPlanByClass,
     getTrainingPlans,
     getTrainingTemplates,
     hideTrainingTemplate,
     saveTrainingPlan,
     saveTrainingTemplate,
-    updateTrainingPlan,
     updateTrainingTemplate,
     upsertTrainingSession,
 } from "../../src/db/seed";
 import { notifyTrainingSaved } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
+import { TrainingAnchoredDropdownOption } from "../../src/screens/training/components/TrainingAnchoredDropdownOption";
 import { TrainingFabMenu } from "../../src/screens/training/components/TrainingFabMenu";
 import { useTemplateEditorForm } from "../../src/screens/training/hooks/useTemplateEditorForm";
 import { useTrainingPlanForm } from "../../src/screens/training/hooks/useTrainingPlanForm";
@@ -65,7 +68,6 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
-import { DateInput } from "../../src/ui/DateInput";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
@@ -75,8 +77,6 @@ import { TimeInput } from "../../src/ui/TimeInput";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
-import { TrainingAnchoredDropdownOption } from "../../src/screens/training/components/TrainingAnchoredDropdownOption";
-import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
 
 const TemplateEditorModalContent = lazy(() =>
@@ -225,6 +225,8 @@ export default function TrainingList() {
     typeof params.targetClassId === "string" ? params.targetClassId : "";
   const targetDateRaw =
     typeof params.targetDate === "string" ? params.targetDate : "";
+  const initialTabRaw =
+    typeof params.tab === "string" ? params.tab : "";
   const openForm =
     typeof params.openForm === "string" ? params.openForm === "1" : false;
   const aiDraftRaw =
@@ -244,6 +246,12 @@ export default function TrainingList() {
   const targetDate =
     targetDateRaw && !Number.isNaN(new Date(targetDateRaw).getTime())
       ? targetDateRaw
+      : "";
+  const initialTab =
+    initialTabRaw === "formulario" ||
+    initialTabRaw === "salvos" ||
+    initialTabRaw === "modelos"
+      ? initialTabRaw
       : "";
   const {
     planForm,
@@ -1394,27 +1402,39 @@ export default function TrainingList() {
   const savePlan = async () => {
     if (!classId) return;
     const nowIso = new Date().toISOString();
-    const plan: TrainingPlan = {
-      id: editingId ?? "t_" + Date.now(),
+    const latestVersionPlan = await getLatestTrainingPlanByClass(classId);
+    const latestVersion = latestVersionPlan?.version ?? 0;
+    const basePlan = editingId
+      ? items.find((item) => item.id === editingId) ?? null
+      : null;
+    const plan: TrainingPlan = createTrainingPlanVersion({
       classId,
-      title: title.trim() || "Planejamento sem título",
-      tags: tagsText
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      warmup: toLines(warmup),
-      main: toLines(main),
-      cooldown: toLines(cooldown),
-      warmupTime: warmupTime.trim(),
-      mainTime: mainTime.trim(),
-      cooldownTime: cooldownTime.trim(),
-      applyDays: [],
-      applyDate: "",
-      createdAt: editingCreatedAt ?? nowIso,
-    };
+      version: Math.max(basePlan?.version ?? 0, latestVersion) + 1,
+      origin: editingId ? "edited_auto" : "manual",
+      draft: {
+        title: title.trim() || "Planejamento sem título",
+        tags: tagsText
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        warmup: toLines(warmup),
+        main: toLines(main),
+        cooldown: toLines(cooldown),
+        warmupTime: warmupTime.trim(),
+        mainTime: mainTime.trim(),
+        cooldownTime: cooldownTime.trim(),
+      },
+      applyDays: basePlan?.applyDays ?? [],
+      applyDate: basePlan?.applyDate ?? "",
+      inputHash: basePlan?.inputHash,
+      nowIso,
+      idPrefix: "t",
+      status: "final",
+      finalizedAt: nowIso,
+    });
 
     if (editingId) {
-      await measure("updateTrainingPlan", () => updateTrainingPlan(plan));
+      await measure("saveTrainingPlanVersion", () => saveTrainingPlan(plan));
     } else {
       await measure("saveTrainingPlan", () => saveTrainingPlan(plan));
       setLastCreatedPlanId(plan.id);
@@ -1711,13 +1731,32 @@ export default function TrainingList() {
       });
       return;
     }
-    const updated: TrainingPlan = {
-      ...applyPlan,
+    const nowIso = new Date().toISOString();
+    const latestVersionPlan = await getLatestTrainingPlanByClass(applyClassId);
+    const latestVersion = latestVersionPlan?.version ?? 0;
+    const updated: TrainingPlan = createTrainingPlanVersion({
       classId: applyClassId,
+      version: Math.max(applyPlan.version ?? 0, latestVersion) + 1,
+      origin: "manual",
+      draft: {
+        title: applyPlan.title,
+        tags: applyPlan.tags,
+        warmup: applyPlan.warmup,
+        main: applyPlan.main,
+        cooldown: applyPlan.cooldown,
+        warmupTime: applyPlan.warmupTime,
+        mainTime: applyPlan.mainTime,
+        cooldownTime: applyPlan.cooldownTime,
+      },
       applyDays,
       applyDate,
-    };
-    await measure("applyTrainingPlan", () => updateTrainingPlan(updated));
+      nowIso,
+      idPrefix: "t",
+      status: "final",
+      finalizedAt: nowIso,
+      inputHash: applyPlan.inputHash,
+    });
+    await measure("applyTrainingPlan", () => saveTrainingPlan(updated));
     await createCalendarEvent(updated);
     await reload();
     closeApplyModal();
@@ -1894,7 +1933,6 @@ export default function TrainingList() {
   };
 
   const toggleFormPicker = (target: "unit" | "class") => {
-    requestAnimationFrame(() => syncFormPickerLayouts());
     setShowFormUnitPicker((prev) => (target === "unit" ? !prev : false));
     setShowFormClassPicker((prev) => (target === "class" ? !prev : false));
   };
@@ -2168,6 +2206,19 @@ export default function TrainingList() {
   }, [formY, scrollRequested]);
 
   useEffect(() => {
+    if (!initialTab) return;
+    setPlanningTab(initialTab);
+    if (initialTab === "salvos") {
+      setShowSavedPlans(true);
+    }
+  }, [initialTab, setShowSavedPlans]);
+
+  useEffect(() => {
+    if (!targetClassId) return;
+    setClassId(targetClassId);
+  }, [targetClassId]);
+
+  useEffect(() => {
     if (!openForm) return;
     const shouldApplyAiDraft = parsedAiDraft && aiDraftRaw !== handledAiDraftRaw;
     setEditingId(null);
@@ -2376,8 +2427,6 @@ export default function TrainingList() {
             closeFormPickers();
             setShowTrainingFabMenu(false);
           }}
-          onScroll={syncFormPickerLayouts}
-          scrollEventThrottle={16}
         >
         {planningTab === "formulario" && (
         <>
@@ -2475,14 +2524,8 @@ export default function TrainingList() {
             zIndex={410}
             maxHeight={220}
             nestedScrollEnabled
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={closeFormPickers}
-            dismissOnBackdropPress
           >
             {[
               { label: "Selecione uma unidade", value: "" },
@@ -2521,14 +2564,8 @@ export default function TrainingList() {
             zIndex={410}
             maxHeight={240}
             nestedScrollEnabled
-            panelStyle={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={closeFormPickers}
-            dismissOnBackdropPress
           >
             { classOptionsForForm.length ? (
               classOptionsForForm.map((item) => {
@@ -2643,9 +2680,32 @@ export default function TrainingList() {
                     Dicas da faixa etária
                   </Text>
                   {methodologyTranslation ? (
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>
-                      Modo: {methodologyTranslation.mode} • Temp pedagógica: {methodologyTranslation.pedagogicalTemperature}
-                    </Text>
+                    <>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        Modo: {methodologyTranslation.mode} • Temp pedagógica: {methodologyTranslation.pedagogicalTemperature}
+                      </Text>
+                      {methodologyTranslation.detectedApproach.hasObjectiveText ? (
+                        <>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            {methodologyTranslation.detectedApproach.profileLabel} • {methodologyTranslation.detectedApproach.predominanceLabel}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Papel do aluno: {methodologyTranslation.detectedApproach.learnerRoleLabel} • Intenção: {methodologyTranslation.detectedApproach.primaryIntentLabel}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            {methodologyTranslation.detectedApproach.summary}
+                          </Text>
+                          {methodologyTranslation.detectedApproach.secondaryLabels.length ? (
+                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                              Traços secundários: {methodologyTranslation.detectedApproach.secondaryLabels.join(", ")}
+                            </Text>
+                          ) : null}
+                          <Text style={{ color: colors.muted, fontSize: 11 }}>
+                            Risco de condução tradicional: {methodologyTranslation.detectedApproach.traditionalConductionRisk}
+                          </Text>
+                        </>
+                      ) : null}
+                    </>
                   ) : null}
                   {tips.map((tip) => (
                     <Text key={tip} style={{ color: colors.muted, fontSize: 12 }}>
