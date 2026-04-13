@@ -1,27 +1,27 @@
 import { useCallback } from "react";
 
 import {
-  toCompetitiveClassPlans,
+    toCompetitiveClassPlans,
 } from "../../../core/competitive-periodization";
 import type {
-  ClassCalendarException,
-  ClassCompetitiveProfile,
-  ClassGroup,
-  ClassPlan,
+    ClassCalendarException,
+    ClassCompetitiveProfile,
+    ClassGroup,
+    ClassPlan,
 } from "../../../core/models";
 import type { PeriodizationModel, SportProfile } from "../../../core/periodization-basics";
 import {
-  isAnnualCycle,
+    isAnnualCycle,
 } from "../../../core/periodization-basics";
 import {
-  toAnnualClassPlans,
-  toClassPlans,
+    toAnnualClassPlans,
+    toClassPlans,
 } from "../../../core/periodization-generator";
 import {
-  deleteClassPlansByClass,
-  getClassPlansByClass,
-  saveClassPlans,
-  updateClassPlan,
+    deleteClassPlansByClass,
+    getClassPlansByClass,
+    saveClassPlans,
+    updateClassPlan,
 } from "../../../db/seed";
 import { logAction } from "../../../observability/breadcrumbs";
 import { measure } from "../../../observability/perf";
@@ -45,7 +45,6 @@ export type UseGeneratePlansModeParams = {
   refreshPlans: () => Promise<void>;
   setClassPlans: (plans: ClassPlan[]) => void;
   setIsSavingPlans: (value: boolean) => void;
-  setShowGenerateModal: (value: boolean) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -67,7 +66,6 @@ export function useGeneratePlansMode({
   refreshPlans,
   setClassPlans,
   setIsSavingPlans,
-  setShowGenerateModal,
 }: UseGeneratePlansModeParams) {
   const handleGenerateMode = useCallback(
     async (mode: "fill" | "auto" | "all") => {
@@ -168,8 +166,6 @@ export function useGeneratePlansMode({
         await refreshPlans();
       } finally {
         setIsSavingPlans(false);
-
-        setShowGenerateModal(false);
       }
     },
     [
@@ -187,7 +183,6 @@ export function useGeneratePlansMode({
       weeklySessions,
       setClassPlans,
       setIsSavingPlans,
-      setShowGenerateModal,
     ]
   );
 

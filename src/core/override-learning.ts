@@ -19,6 +19,19 @@ export type RankedRule = {
   approach?: string;
 };
 
+export function getConservativeOverrideBonus(
+  occurrenceCount: number,
+  threshold: number = 2,
+  pointsPerOccurrence: number = 5,
+  maxBonus: number = 30
+): number {
+  if (!Number.isFinite(occurrenceCount) || occurrenceCount < threshold) {
+    return 0;
+  }
+
+  return Math.min(occurrenceCount * pointsPerOccurrence, maxBonus);
+}
+
 /**
  * Adjust methodology scores based on teacher override patterns.
  *
@@ -49,11 +62,7 @@ export function applyOverrideLearning(
       for (const fromRuleId in overrideStats) {
         const overridesFromRule = overrideStats[fromRuleId];
         const overrideCount = overridesFromRule[rule.ruleId] ?? 0;
-
-        if (overrideCount >= threshold) {
-          // Bonus: 5 points per override, capped at 30
-          bonus += Math.min(overrideCount * 5, 30);
-        }
+        bonus += getConservativeOverrideBonus(overrideCount, threshold);
       }
 
       if (bonus === 0) {

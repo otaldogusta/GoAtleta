@@ -14,22 +14,23 @@ import {
     View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
-import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 
+import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
-import { resolveClassModality } from "../../src/core/class-modality";
+import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
-import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
 import type { ClassGroup, TrainingSessionIntegrationRule } from "../../src/core/models";
+import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
-  deleteClassCascade,
-  getClasses,
-  getTrainingIntegrationRules,
-  saveClass,
-  updateClass,
+    deleteClassCascade,
+    getClasses,
+    getTrainingIntegrationRules,
+    saveClass,
+    updateClass,
 } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
@@ -45,13 +46,11 @@ import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
-import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
 const ClassEditModalBody = lazy(() =>
@@ -106,6 +105,14 @@ export default function ClassesScreen() {
     return `${y}-${m}-${d}`;
   };
 
+  const formatAnnualCycleLabel = (weeks: number) => {
+    const months = Math.round((weeks / 52) * 12);
+    const monthLabel = `${months} ${months === 1 ? "mês" : "meses"}`;
+    return `${weeks} semanas (${monthLabel})`;
+  };
+
+  const DEFAULT_CLASS_CYCLE_LENGTH_WEEKS = annualCycleOptions[annualCycleOptions.length - 1];
+
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");
   const [newModality, setNewModality] = useState<ClassGroup["modality"] | "">("");
@@ -113,11 +120,12 @@ export default function ClassesScreen() {
   const [newGender, setNewGender] = useState<ClassGroup["gender"] | "">("");
   const [newGoal, setNewGoal] = useState<ClassGroup["goal"] | "">("Fundamentos");
   const [newStartTime, setNewStartTime] = useState("");
+  const [newEndTime, setNewEndTime] = useState("");
   const [newDuration, setNewDuration] = useState("");
   const [newDays, setNewDays] = useState<number[]>([]);
   const [newMvLevel, setNewMvLevel] = useState("");
   const [newCycleStartDate, setNewCycleStartDate] = useState("");
-  const [newCycleLengthWeeks, setNewCycleLengthWeeks] = useState(0);
+  const [newCycleLengthWeeks, setNewCycleLengthWeeks] = useState(DEFAULT_CLASS_CYCLE_LENGTH_WEEKS);
   const [newColorKey, setNewColorKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -134,11 +142,12 @@ export default function ClassesScreen() {
   const [editGender, setEditGender] = useState<ClassGroup["gender"]>("misto");
   const [editGoal, setEditGoal] = useState<ClassGroup["goal"]>("Fundamentos");
   const [editStartTime, setEditStartTime] = useState("14:00");
+  const [editEndTime, setEditEndTime] = useState("15:00");
   const [editDuration, setEditDuration] = useState("60");
   const [editDays, setEditDays] = useState<number[]>([]);
   const [editMvLevel, setEditMvLevel] = useState("MV1");
   const [editCycleStartDate, setEditCycleStartDate] = useState("");
-  const [editCycleLengthWeeks, setEditCycleLengthWeeks] = useState(12);
+  const [editCycleLengthWeeks, setEditCycleLengthWeeks] = useState(DEFAULT_CLASS_CYCLE_LENGTH_WEEKS);
   const [editColorKey, setEditColorKey] = useState<string | null>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -152,24 +161,16 @@ export default function ClassesScreen() {
   }).current;
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
-  const [editShowCustomDuration, setEditShowCustomDuration] = useState(false);
   const [editShowCustomAgeBand, setEditShowCustomAgeBand] = useState(false);
   const [editCustomAgeBand, setEditCustomAgeBand] = useState("");
   const [editShowCustomGoal, setEditShowCustomGoal] = useState(false);
   const [editCustomGoal, setEditCustomGoal] = useState("");
-  const [showEditDurationPicker, setShowEditDurationPicker] = useState(false);
   const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
   const [showEditMvLevelPicker, setShowEditMvLevelPicker] = useState(false);
   const [showEditAgeBandPicker, setShowEditAgeBandPicker] = useState(false);
   const [showEditGenderPicker, setShowEditGenderPicker] = useState(false);
   const [showEditModalityPicker, setShowEditModalityPicker] = useState(false);
   const [showEditGoalPicker, setShowEditGoalPicker] = useState(false);
-  const [editDurationTriggerLayout, setEditDurationTriggerLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const [editCycleLengthTriggerLayout, setEditCycleLengthTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -206,7 +207,6 @@ export default function ClassesScreen() {
     width: number;
     height: number;
   } | null>(null);
-  const editDurationTriggerRef = useRef<View>(null);
   const editCycleLengthTriggerRef = useRef<View>(null);
   const editMvLevelTriggerRef = useRef<View>(null);
   const editAgeBandTriggerRef = useRef<View>(null);
@@ -221,14 +221,6 @@ export default function ClassesScreen() {
   const editModalCardStyle = useModalCardStyle({
     maxHeight: "92%",
   });
-  const [showCustomDuration, setShowCustomDuration] = usePersistedState<boolean>(
-    "classes_show_custom_duration_v1",
-    false
-  );
-  const {
-    animatedStyle: customDurationAnimStyle,
-    isVisible: showCustomDurationContent,
-  } = useCollapsibleAnimation(showCustomDuration, { translateY: -6 });
   const [showAllGoals, setShowAllGoals] = usePersistedState<boolean>(
     "classes_show_all_goals_v1",
     false
@@ -268,23 +260,21 @@ export default function ClassesScreen() {
     "Força+Potência",
     "Velocidade",
     "Agilidade",
-    "Resistencia",
+    "Resistência",
     "Potência",
     "Mobilidade",
-    "Coordena??o",
-    "Prevencao de lesoes",
+    "Coordenação",
+    "Prevenção de lesões",
   ];
-  const durationOptions = ["60", "75", "90"];
-  const cycleLengthOptions = [2, 3, 4, 5, 6, 8, 10, 12];
+  const cycleLengthOptions = [...annualCycleOptions];
   const mvLevelOptions = [
     { value: "MV1", label: "Iniciante" },
-    { value: "MV2", label: "Intermediario" },
-    { value: "MV3", label: "Avancado" },
+    { value: "MV2", label: "Intermediário" },
+    { value: "MV3", label: "Avançado" },
   ];
   const [showNewCycleCalendar, setShowNewCycleCalendar] = useState(false);
   const [showEditCycleCalendar, setShowEditCycleCalendar] = useState(false);
   const [showUnitFilterPicker, setShowUnitFilterPicker] = useState(false);
-  const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [showCycleLengthPicker, setShowCycleLengthPicker] = useState(false);
   const [showMvLevelPicker, setShowMvLevelPicker] = useState(false);
   const [showAgeBandPicker, setShowAgeBandPicker] = useState(false);
@@ -304,12 +294,6 @@ export default function ClassesScreen() {
     [colors, editUnit, editingClass]
   );
   const [unitFilterLayout, setUnitFilterLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const [durationTriggerLayout, setDurationTriggerLayout] = useState<{
     x: number;
     y: number;
     width: number;
@@ -354,7 +338,6 @@ export default function ClassesScreen() {
   const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<View>(null);
   const unitFilterTriggerRef = useRef<View>(null);
-  const durationTriggerRef = useRef<View>(null);
   const cycleLengthTriggerRef = useRef<View>(null);
   const mvLevelTriggerRef = useRef<View>(null);
   const ageBandTriggerRef = useRef<View>(null);
@@ -365,8 +348,6 @@ export default function ClassesScreen() {
     animatedStyle: unitFilterAnimStyle,
     isVisible: showUnitFilterPickerContent,
   } = useCollapsibleAnimation(showUnitFilterPicker);
-  const { animatedStyle: durationPickerAnimStyle, isVisible: showDurationPickerContent } =
-    useCollapsibleAnimation(showDurationPicker);
   const { animatedStyle: cycleLengthPickerAnimStyle, isVisible: showCycleLengthPickerContent } =
     useCollapsibleAnimation(showCycleLengthPicker);
   const { animatedStyle: mvLevelPickerAnimStyle, isVisible: showMvLevelPickerContent } =
@@ -379,8 +360,6 @@ export default function ClassesScreen() {
     useCollapsibleAnimation(showModalityPicker);
   const { animatedStyle: goalPickerAnimStyle, isVisible: showGoalPickerContent } =
     useCollapsibleAnimation(showGoalPicker);
-  const { animatedStyle: editDurationPickerAnimStyle, isVisible: showEditDurationPickerContent } =
-    useCollapsibleAnimation(showEditDurationPicker);
   const { animatedStyle: editCycleLengthPickerAnimStyle, isVisible: showEditCycleLengthPickerContent } =
     useCollapsibleAnimation(showEditCycleLengthPicker);
   const { animatedStyle: editMvLevelPickerAnimStyle, isVisible: showEditMvLevelPickerContent } =
@@ -512,15 +491,28 @@ export default function ClassesScreen() {
     return h * 60 + m;
   };
 
-  const parseDuration = (value: string) => {
-    const minutes = Number(value);
-    if (!Number.isFinite(minutes)) return null;
-    return minutes >= 30 && minutes <= 180 ? minutes : null;
-  };
-
   const parseCycleLength = (value: number) => {
     if (!Number.isFinite(value)) return null;
-    return value >= 2 && value <= 12 ? value : null;
+    if (!Number.isInteger(value)) return null;
+    return annualCycleOptions.includes(value as (typeof annualCycleOptions)[number]) ? value : null;
+  };
+
+  const computeEndTimeFromDuration = (startTime: string, durationMinutes: number) => {
+    const start = toMinutes(startTime.trim());
+    if (start === null) return "";
+    const total = start + durationMinutes;
+    const endHour = Math.floor(total / 60) % 24;
+    const endMinute = total % 60;
+    return `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
+  };
+
+  const parseDurationFromTimeRange = (startTime: string, endTime: string) => {
+    const start = toMinutes(startTime.trim());
+    const end = toMinutes(endTime.trim());
+    if (start === null || end === null) return null;
+    const durationMinutes = end - start;
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
+    return durationMinutes;
   };
 
   const parseTime = (value: string) => {
@@ -537,6 +529,16 @@ export default function ClassesScreen() {
     const pad = (val: number) => String(val).padStart(2, "0");
     return `${pad(hour)}:${pad(minute)} - ${pad(endHour)}:${pad(endMinute)}`;
   };
+
+  useEffect(() => {
+    const durationMinutes = parseDurationFromTimeRange(newStartTime, newEndTime);
+    setNewDuration(durationMinutes ? String(durationMinutes) : "");
+  }, [newEndTime, newStartTime]);
+
+  useEffect(() => {
+    const durationMinutes = parseDurationFromTimeRange(editStartTime, editEndTime);
+    setEditDuration(durationMinutes ? String(durationMinutes) : "");
+  }, [editEndTime, editStartTime]);
 
   const isComplementaryGenderPair = useCallback(
     (a: ClassGroup["gender"], b: ClassGroup["gender"]) => {
@@ -762,15 +764,26 @@ export default function ClassesScreen() {
       Vibration.vibrate(40);
       return;
     }
-    const durationValue = parseDuration(newDuration.trim());
+    const endTimeValue = newEndTime.trim();
+    if (!isValidTime(endTimeValue)) {
+      setFormError("Horário de término inválido. Use HH:MM.");
+      Vibration.vibrate(40);
+      return;
+    }
+    const durationValue = parseDurationFromTimeRange(timeValue, endTimeValue);
     if (!durationValue) {
-      setFormError("Duração inválida. Use minutos entre 30 e 180.");
+      setFormError("O horário de término deve ser maior que o horário de início.");
+      Vibration.vibrate(40);
+      return;
+    }
+    if (durationValue < 30 || durationValue > 180) {
+      setFormError("A duração calculada deve ficar entre 30 e 180 minutos.");
       Vibration.vibrate(40);
       return;
     }
     const cycleValue = parseCycleLength(newCycleLengthWeeks);
     if (!cycleValue) {
-      setFormError("Ciclo inválido. Use entre 2 e 12 semanas.");
+      setFormError("Macrociclo inválido. Selecione 36, 40, 44, 48 ou 52 semanas.");
       Vibration.vibrate(40);
       return;
     }
@@ -851,7 +864,7 @@ export default function ClassesScreen() {
       newGender !== "" ||
       newGoal.trim() !== "Fundamentos" ||
       newStartTime.trim() !== "" ||
-      newDuration.trim() !== "" ||
+      newEndTime.trim() !== "" ||
       newDays.length > 0 ||
       newMvLevel !== "" ||
       newCycleStartDate.trim() !== "" ||
@@ -866,7 +879,7 @@ export default function ClassesScreen() {
     newGender,
     newGoal,
     newStartTime,
-    newDuration,
+    newEndTime,
     newDays,
     newMvLevel,
     newCycleStartDate,
@@ -882,23 +895,22 @@ export default function ClassesScreen() {
     setNewGender("");
     setNewGoal("Fundamentos");
     setNewStartTime("");
+    setNewEndTime("");
     setNewDuration("");
     setNewDays([]);
     setNewMvLevel("");
     setNewCycleStartDate("");
-    setNewCycleLengthWeeks(0);
+    setNewCycleLengthWeeks(DEFAULT_CLASS_CYCLE_LENGTH_WEEKS);
     setFormError("");
-    setShowCustomDuration(false);
     setShowAllAges(false);
     setShowAllGoals(false);
-    setShowDurationPicker(false);
     setShowCycleLengthPicker(false);
     setShowMvLevelPicker(false);
     setShowAgeBandPicker(false);
     setShowGenderPicker(false);
     setShowModalityPicker(false);
     setShowGoalPicker(false);
-  }, []);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS]);
 
   const requestSwitchMainTab = useCallback(
     (nextTab: "lista" | "criar") => {
@@ -948,15 +960,19 @@ export default function ClassesScreen() {
     setEditShowCustomGoal(!isGoalInList && Boolean(goalValue));
     setEditCustomGoal(!isGoalInList ? goalValue : "");
     setEditStartTime(item.startTime ?? "14:00");
+    setEditEndTime(
+      item.endTime ?? computeEndTimeFromDuration(item.startTime ?? "14:00", item.durationMinutes ?? 60)
+    );
     setEditDuration(String(item.durationMinutes ?? 60));
     setEditDays(item.daysOfWeek ?? []);
     setEditMvLevel(item.mvLevel ?? "MV1");
     setEditCycleStartDate(item.cycleStartDate ?? "");
-    setEditCycleLengthWeeks(item.cycleLengthWeeks ?? 12);
+    setEditCycleLengthWeeks(
+      parseCycleLength(item.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
+    );
     setEditFormError("");
-    setEditShowCustomDuration(false);
     setShowEditModal(true);
-  }, [ageBandOptions, goalOptions]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, goalOptions]);
 
   useEffect(() => {
     if (tabParam !== "criar") return;
@@ -992,11 +1008,12 @@ export default function ClassesScreen() {
       (editingClass.gender ?? "misto") !== editGender ||
       (editingClass.goal ?? "Fundamentos") !== goalValue ||
       (editingClass.startTime ?? "14:00") !== editStartTime ||
+      (editingClass.endTime ?? computeEndTimeFromDuration(editingClass.startTime ?? "14:00", editingClass.durationMinutes ?? 60)) !== editEndTime ||
       String(editingClass.durationMinutes ?? 60) !== editDuration ||
       JSON.stringify(editingClass.daysOfWeek ?? []) !== JSON.stringify(editDays) ||
       (editingClass.mvLevel ?? "MV1") !== editMvLevel ||
       (editingClass.cycleStartDate ?? "") !== editCycleStartDate ||
-      (editingClass.cycleLengthWeeks ?? 12) !== editCycleLengthWeeks
+      (editingClass.cycleLengthWeeks ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS) !== editCycleLengthWeeks
     );
   }, [
     editingClass,
@@ -1010,6 +1027,7 @@ export default function ClassesScreen() {
     editShowCustomGoal,
     editCustomGoal,
     editStartTime,
+    editEndTime,
     editDuration,
     editDays,
     editMvLevel,
@@ -1077,15 +1095,26 @@ export default function ClassesScreen() {
       Vibration.vibrate(40);
       return;
     }
-    const durationValue = parseDuration(editDuration.trim());
+    const endTimeValue = editEndTime.trim();
+    if (!isValidTime(endTimeValue)) {
+      setEditFormError("Horário de término inválido. Use HH:MM.");
+      Vibration.vibrate(40);
+      return;
+    }
+    const durationValue = parseDurationFromTimeRange(timeValue, endTimeValue);
     if (!durationValue) {
-      setEditFormError("Duração inválida. Use minutos entre 30 e 180.");
+      setEditFormError("O horário de término deve ser maior que o horário de início.");
+      Vibration.vibrate(40);
+      return;
+    }
+    if (durationValue < 30 || durationValue > 180) {
+      setEditFormError("A duração calculada deve ficar entre 30 e 180 minutos.");
       Vibration.vibrate(40);
       return;
     }
     const cycleValue = parseCycleLength(editCycleLengthWeeks);
     if (!cycleValue) {
-      setEditFormError("Ciclo inválido. Use entre 2 e 12 semanas.");
+      setEditFormError("Macrociclo inválido. Selecione 36, 40, 44, 48 ou 52 semanas.");
       Vibration.vibrate(40);
       return;
     }
@@ -1176,14 +1205,12 @@ export default function ClassesScreen() {
 
   const closeAllPickers = useCallback(() => {
     setShowUnitFilterPicker(false);
-    setShowDurationPicker(false);
     setShowCycleLengthPicker(false);
     setShowMvLevelPicker(false);
     setShowAgeBandPicker(false);
     setShowGenderPicker(false);
     setShowModalityPicker(false);
     setShowGoalPicker(false);
-    setShowEditDurationPicker(false);
     setShowEditCycleLengthPicker(false);
     setShowEditMvLevelPicker(false);
     setShowEditAgeBandPicker(false);
@@ -1193,7 +1220,6 @@ export default function ClassesScreen() {
   }, []);
 
   const toggleUnitFilter = useCallback(() => {
-    setShowDurationPicker(false);
     setShowCycleLengthPicker(false);
     setShowMvLevelPicker(false);
     setShowAgeBandPicker(false);
@@ -1206,7 +1232,6 @@ export default function ClassesScreen() {
   const toggleNewPicker = useCallback(
     (
       target:
-        | "duration"
         | "cycle"
         | "level"
         | "age"
@@ -1215,7 +1240,6 @@ export default function ClassesScreen() {
         | "goal"
     ) => {
       setShowUnitFilterPicker(false);
-      setShowDurationPicker((prev) => (target === "duration" ? !prev : false));
       setShowCycleLengthPicker((prev) => (target === "cycle" ? !prev : false));
       setShowMvLevelPicker((prev) => (target === "level" ? !prev : false));
       setShowAgeBandPicker((prev) => (target === "age" ? !prev : false));
@@ -1231,27 +1255,10 @@ export default function ClassesScreen() {
     setShowUnitFilterPicker(false);
   }, []);
 
-  const handleSelectDuration = useCallback(
-    (value: SelectOptionValue) => {
-      if (value === customOptionLabel) {
-        animateLayout();
-        setShowCustomDuration(true);
-        setShowDurationPicker(false);
-        return;
-      }
-      if (showCustomDuration) {
-        animateLayout();
-        setShowCustomDuration(false);
-      }
-      setNewDuration(String(value));
-      setShowDurationPicker(false);
-    },
-    [customOptionLabel, showCustomDuration]
-  );
-
   const handleSelectCycleLength = useCallback((value: SelectOptionValue) => {
     const parsed = typeof value === "number" ? value : Number(value);
-    if (Number.isFinite(parsed)) setNewCycleLengthWeeks(parsed);
+    const cycleLength = parseCycleLength(parsed);
+    if (cycleLength) setNewCycleLengthWeeks(cycleLength);
     setShowCycleLengthPicker(false);
   }, []);
 
@@ -1309,7 +1316,6 @@ export default function ClassesScreen() {
   const toggleEditPicker = useCallback(
     (
       target:
-        | "duration"
         | "cycle"
         | "level"
         | "age"
@@ -1317,7 +1323,6 @@ export default function ClassesScreen() {
         | "modality"
         | "goal"
     ) => {
-      setShowEditDurationPicker((prev) => (target === "duration" ? !prev : false));
       setShowEditCycleLengthPicker((prev) => (target === "cycle" ? !prev : false));
       setShowEditMvLevelPicker((prev) => (target === "level" ? !prev : false));
       setShowEditAgeBandPicker((prev) => (target === "age" ? !prev : false));
@@ -1328,27 +1333,10 @@ export default function ClassesScreen() {
     []
   );
 
-  const handleEditSelectDuration = useCallback(
-    (value: SelectOptionValue) => {
-      if (value === customOptionLabel) {
-        animateLayout();
-        setEditShowCustomDuration(true);
-        setShowEditDurationPicker(false);
-        return;
-      }
-      if (editShowCustomDuration) {
-        animateLayout();
-        setEditShowCustomDuration(false);
-      }
-      setEditDuration(String(value));
-      setShowEditDurationPicker(false);
-    },
-    [customOptionLabel, editShowCustomDuration]
-  );
-
   const handleEditSelectCycleLength = useCallback((value: SelectOptionValue) => {
     const parsed = typeof value === "number" ? value : Number(value);
-    if (Number.isFinite(parsed)) setEditCycleLengthWeeks(parsed);
+    const cycleLength = parseCycleLength(parsed);
+    if (cycleLength) setEditCycleLengthWeeks(cycleLength);
     setShowEditCycleLengthPicker(false);
   }, []);
 
@@ -1409,7 +1397,6 @@ export default function ClassesScreen() {
 
   const syncEditPickerLayouts = useCallback(() => {
     const hasPickerOpen =
-      showEditDurationPicker ||
       showEditCycleLengthPicker ||
       showEditMvLevelPicker ||
       showEditAgeBandPicker ||
@@ -1418,11 +1405,6 @@ export default function ClassesScreen() {
       showEditGoalPicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
-      if (showEditDurationPicker) {
-        editDurationTriggerRef.current?.measureInWindow((x, y, width, height) => {
-          setEditDurationTriggerLayout({ x, y, width, height });
-        });
-      }
       if (showEditCycleLengthPicker) {
         editCycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditCycleLengthTriggerLayout({ x, y, width, height });
@@ -1458,7 +1440,6 @@ export default function ClassesScreen() {
       });
     });
   }, [
-    showEditDurationPicker,
     showEditCycleLengthPicker,
     showEditMvLevelPicker,
     showEditAgeBandPicker,
@@ -1470,7 +1451,6 @@ export default function ClassesScreen() {
   useEffect(() => {
     syncEditPickerLayouts();
   }, [
-    showEditDurationPicker,
     showEditCycleLengthPicker,
     showEditMvLevelPicker,
     showEditAgeBandPicker,
@@ -1483,7 +1463,6 @@ export default function ClassesScreen() {
   const syncPickerLayouts = useCallback(() => {
     const hasPickerOpen =
       showUnitFilterPicker ||
-      showDurationPicker ||
       showCycleLengthPicker ||
       showMvLevelPicker ||
       showAgeBandPicker ||
@@ -1495,11 +1474,6 @@ export default function ClassesScreen() {
       if (showUnitFilterPicker) {
         unitFilterTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setUnitFilterLayout({ x, y, width, height });
-        });
-      }
-      if (showDurationPicker) {
-        durationTriggerRef.current?.measureInWindow((x, y, width, height) => {
-          setDurationTriggerLayout({ x, y, width, height });
         });
       }
       if (showCycleLengthPicker) {
@@ -1538,7 +1512,6 @@ export default function ClassesScreen() {
     });
   }, [
     showUnitFilterPicker,
-    showDurationPicker,
     showCycleLengthPicker,
     showMvLevelPicker,
     showAgeBandPicker,
@@ -1551,7 +1524,6 @@ export default function ClassesScreen() {
     syncPickerLayouts();
   }, [
     showUnitFilterPicker,
-    showDurationPicker,
     showCycleLengthPicker,
     showMvLevelPicker,
     showAgeBandPicker,
@@ -1692,14 +1664,14 @@ export default function ClassesScreen() {
       newUnit.trim() ||
     newModality !== "" ||
       newStartTime.trim() !== "14:00" ||
-      newDuration.trim() !== "60" ||
+      newEndTime.trim() !== "15:00" ||
       newAgeBand.trim() !== "08-09" ||
     newMvLevel.trim() !== "MV1" ||
     newGender !== "misto" ||
     newGoal.trim() !== "Fundamentos" ||
     newDays.length > 0 ||
     newCycleStartDate.trim() ||
-    newCycleLengthWeeks !== 12;
+    newCycleLengthWeeks !== DEFAULT_CLASS_CYCLE_LENGTH_WEEKS;
 
   if (loading && !classes.length) {
     return (
@@ -1906,7 +1878,7 @@ export default function ClassesScreen() {
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>gênero</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
               <View ref={genderTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("gender")}
@@ -2055,45 +2027,26 @@ export default function ClassesScreen() {
               />
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Dura??o</Text>
-              <View ref={durationTriggerRef}>
-                <Pressable
-                  onPress={() => toggleNewPicker("duration")}
-                  style={selectFieldStyle}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {newDuration ? `${newDuration} min` : "Selecione"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showDurationPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
-              </View>
-              { showCustomDuration ? (
-                <TextInput
-                  placeholder="Dura??o (min)"
-                  value={newDuration}
-                  onChangeText={setNewDuration}
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
-              ) : null}
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Horário de término</Text>
+              <TextInput
+                placeholder="HH:MM"
+                value={newEndTime}
+                onChangeText={(value) => setNewEndTime(normalizeTimeInput(value))}
+                keyboardType="numeric"
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 10,
+                  fontSize: 13,
+                  color: colors.text,
+                }}
+              />
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {newDuration ? `Duração automática: ${newDuration} min` : "A duração será calculada automaticamente."}
+              </Text>
             </View>
           </View>
           <View style={{ gap: 4 }}>
@@ -2138,7 +2091,7 @@ export default function ClassesScreen() {
               </View>
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Dura??o do ciclo</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Macrociclo anual</Text>
               <View ref={cycleLengthTriggerRef}>
                 <Pressable
                   onPress={() => toggleNewPicker("cycle")}
@@ -2146,7 +2099,7 @@ export default function ClassesScreen() {
                 >
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {newCycleLengthWeeks
-                      ? `${newCycleLengthWeeks} semanas`
+                      ? formatAnnualCycleLabel(newCycleLengthWeeks)
                       : "Selecione"}
                   </Text>
                   <Ionicons
@@ -2164,7 +2117,7 @@ export default function ClassesScreen() {
             </View>
           </View>
           <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>Inicio do ciclo</Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Início do ciclo</Text>
             <DateInput
               value={newCycleStartDate}
               onChange={setNewCycleStartDate}
@@ -2218,35 +2171,6 @@ export default function ClassesScreen() {
         </AnchoredDropdown>
 
         <AnchoredDropdown
-          visible={showDurationPickerContent}
-          layout={durationTriggerLayout}
-          container={containerWindow}
-          animationStyle={durationPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {durationOptions.map((value, index) => (
-            <SelectOption
-              key={value}
-              label={`${value} min`}
-              value={value}
-              active={newDuration === value}
-              onSelect={handleSelectDuration}
-              isFirst={index === 0}
-            />
-          ))}
-          <SelectOption
-            label={customOptionLabel}
-            value={customOptionLabel}
-            active={showCustomDuration}
-            onSelect={handleSelectDuration}
-          />
-        </AnchoredDropdown>
-
-        <AnchoredDropdown
           visible={showCycleLengthPickerContent}
           layout={cycleLengthTriggerLayout}
           container={containerWindow}
@@ -2260,7 +2184,7 @@ export default function ClassesScreen() {
           {cycleLengthOptions.map((value, index) => (
             <SelectOption
               key={value}
-              label={`${value} semanas`}
+              label={formatAnnualCycleLabel(value)}
               value={value}
               active={newCycleLengthWeeks === value}
               onSelect={handleSelectCycleLength}
@@ -2458,7 +2382,6 @@ export default function ClassesScreen() {
           <ClassEditModalBody
             refs={{
               editContainerRef,
-              editDurationTriggerRef,
               editCycleLengthTriggerRef,
               editMvLevelTriggerRef,
               editAgeBandTriggerRef,
@@ -2468,7 +2391,6 @@ export default function ClassesScreen() {
             }}
             layouts={{
               editContainerWindow,
-              editDurationTriggerLayout,
               editCycleLengthTriggerLayout,
               editMvLevelTriggerLayout,
               editAgeBandTriggerLayout,
@@ -2477,21 +2399,18 @@ export default function ClassesScreen() {
               editGoalTriggerLayout,
             }}
             pickers={{
-              showEditDurationPicker,
               showEditCycleLengthPicker,
               showEditMvLevelPicker,
               showEditAgeBandPicker,
               showEditGenderPicker,
               showEditModalityPicker,
               showEditGoalPicker,
-              showEditDurationPickerContent,
               showEditCycleLengthPickerContent,
               showEditMvLevelPickerContent,
               showEditAgeBandPickerContent,
               showEditGenderPickerContent,
               showEditModalityPickerContent,
               showEditGoalPickerContent,
-              editDurationPickerAnimStyle,
               editCycleLengthPickerAnimStyle,
               editMvLevelPickerAnimStyle,
               editAgeBandPickerAnimStyle,
@@ -2511,9 +2430,9 @@ export default function ClassesScreen() {
               editStartTime,
               setEditStartTime,
               normalizeTimeInput,
+              editEndTime,
+              setEditEndTime,
               editDuration,
-              setEditDuration,
-              editShowCustomDuration,
               editCycleStartDate,
               setEditCycleStartDate,
               editCycleLengthWeeks,
@@ -2537,7 +2456,6 @@ export default function ClassesScreen() {
             }}
             options={{
               dayNames,
-              durationOptions,
               cycleLengthOptions,
               ageBandOptions,
               genderOptions,
@@ -2549,7 +2467,6 @@ export default function ClassesScreen() {
             actions={{
               closeAllPickers,
               toggleEditPicker,
-              handleEditSelectDuration,
               handleEditSelectCycleLength,
               handleEditSelectMvLevel,
               handleEditSelectAgeBand,

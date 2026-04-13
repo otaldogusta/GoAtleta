@@ -721,3 +721,22 @@ export async function getTrainingSessionAttendanceBySessionId(
     throw error;
   }
 }
+
+export async function getTrainingSessionEvidenceByClass(
+  classId: string,
+  options: { organizationId?: string | null } = {}
+): Promise<{ sessions: TrainingSession[]; attendance: TrainingSessionAttendance[] }> {
+  const sessions = await getTrainingSessionsByClass(classId, options);
+  if (!sessions.length) {
+    return { sessions, attendance: [] };
+  }
+
+  const attendanceGroups = await Promise.all(
+    sessions.map((session) => getTrainingSessionAttendanceBySessionId(session.id, options))
+  );
+
+  return {
+    sessions,
+    attendance: attendanceGroups.flat(),
+  };
+}

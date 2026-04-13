@@ -172,6 +172,7 @@ export function CyclePlanTable({
 }: CyclePlanTableProps) {
   const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAppliedScrollXRef = useRef<number | null>(null);
+  const isFirstScrollSyncRef = useRef(true);
   const cycleSnapInterval = useMemo(
     () => cyclePanelCellWidth + cyclePanelCellGap,
     [cyclePanelCellGap, cyclePanelCellWidth]
@@ -249,7 +250,9 @@ export function CyclePlanTable({
 
     const timer = setTimeout(() => {
       lastAppliedScrollXRef.current = scrollToX;
-      cyclePanelScrollRef.current?.scrollTo({ x: scrollToX, animated: false });
+      const shouldAnimate = !isFirstScrollSyncRef.current;
+      cyclePanelScrollRef.current?.scrollTo({ x: scrollToX, animated: shouldAnimate });
+      isFirstScrollSyncRef.current = false;
     }, 0);
 
     return () => clearTimeout(timer);
@@ -329,7 +332,7 @@ export function CyclePlanTable({
               </Pressable>
             </View>
           </View>
-        ) : (
+        ) : hasWeekPlans ? (
           <Pressable
             onPress={openCycleTitleEditor}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" }}
@@ -339,6 +342,10 @@ export function CyclePlanTable({
             </Text>
             <Ionicons name="create-outline" size={14} color={colors.muted} />
           </Pressable>
+        ) : (
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            {normalizeText(cyclePanelTitle)}
+          </Text>
         )}
       </View>
 

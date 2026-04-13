@@ -17,7 +17,7 @@ export const cycleOptions = [2, 3, 4, 5, 6, 8, 10, 12, 18, 36, 40, 44, 48, 52] a
 export const isAnnualCycle = (weeks: number) => weeks >= 36;
 
 export const sessionsOptions = [
-  2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
 ] as const;
 
 export const volumeOrder: VolumeLevel[] = ["baixo", "médio", "alto"];

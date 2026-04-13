@@ -1,9 +1,8 @@
 import { Text, View } from "react-native";
 
-import type { InsightsView } from "../CopilotProvider";
-import type { CopilotAction } from "../hooks/useRegistryManager";
 import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import { Pressable } from "../../ui/Pressable";
+import type { CopilotAction, InsightsView } from "../types";
 
 type Colors = {
   border: string;

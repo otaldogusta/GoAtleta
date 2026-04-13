@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import type { VolumeLevel } from "../../../core/periodization-basics";
@@ -6,6 +7,7 @@ import type { ThemeColors } from "../../../ui/app-theme";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 import { getSectionCardStyle } from "../../../ui/section-styles";
+import type { PeriodizationDebugSignals } from "../application/build-auto-plan-for-cycle-day";
 
 type WeekPlan = {
   title: string;
@@ -17,6 +19,19 @@ type WeekPlan = {
 
 type DayItem = {
   label: string;
+  session?: string;
+  summary?: string;
+  sessionIndexInWeek?: number;
+  autoPlan?: {
+    historicalConfidence?: "none" | "low" | "medium" | "high";
+    historyMode?: "bootstrap" | "partial_history" | "strong_history";
+    primarySkillLabel: string;
+    progressionLabel: string;
+    pedagogicalIntentLabel: string;
+    drillFamiliesLabel: string;
+    coachSummary: string;
+    debugSignals?: PeriodizationDebugSignals;
+  } | null;
 };
 
 type ClassGroup = {
@@ -42,6 +57,38 @@ type Props = {
   normalizeText: (value: string) => string;
 };
 
+const formatDebugValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value.length ? value.join(", ") : "-";
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+
+  return String(value);
+};
+
+type DebugRowProps = {
+  label: string;
+  value: unknown;
+  colors: ThemeColors;
+  normalizeText: (value: string) => string;
+};
+
+function DebugRow({ label, value, colors, normalizeText }: DebugRowProps) {
+  return (
+    <View style={{ gap: 2 }}>
+      <Text style={{ color: colors.muted, fontSize: 11 }}>{normalizeText(label)}</Text>
+      <Text style={{ color: colors.text, fontSize: 12 }}>{normalizeText(formatDebugValue(value))}</Text>
+    </View>
+  );
+}
+
 export function DayModal({
   visible,
   onClose,
@@ -59,6 +106,17 @@ export function DayModal({
   normalizeText,
 }: Props) {
   const router = useRouter();
+  const [showDebugSignals, setShowDebugSignals] = useState(false);
+  const historyModeLabel =
+    selectedDay?.autoPlan?.historyMode === "bootstrap"
+      ? "Bootstrap do ciclo"
+      : selectedDay?.autoPlan?.historyMode === "strong_history"
+        ? "Historico forte"
+        : selectedDay?.autoPlan?.historyMode === "partial_history"
+          ? "Historico parcial"
+          : "";
+  const debugSignals = selectedDay?.autoPlan?.debugSignals;
+  const shouldShowDebugSignals = __DEV__ && !isSelectedDayRest && !!debugSignals;
 
   return (
     <ModalDialogFrame
@@ -80,11 +138,12 @@ export function DayModal({
           onPress={() => {
             if (!selectedClass || !selectedDayDate || isSelectedDayRest) return;
             router.push({
-              pathname: "/prof/planning",
+              pathname: "/class/[id]/session",
               params: {
-                targetClassId: selectedClass.id,
-                targetDate: formatIsoDate(selectedDayDate),
-                openForm: "1",
+                id: selectedClass.id,
+                date: formatIsoDate(selectedDayDate),
+                autogenerate: selectedDay?.autoPlan ? "1" : "0",
+                source: "periodization",
               },
             });
             onClose();
@@ -106,7 +165,7 @@ export function DayModal({
               fontWeight: "700",
             }}
           >
-            {isSelectedDayRest ? "Dia de descanso" : "Criar plano de aula"}
+            {isSelectedDayRest ? "Dia de descanso" : "Abrir Aula do Dia"}
           </Text>
         </Pressable>
       }
@@ -145,8 +204,208 @@ export function DayModal({
             <>
               <Text style={{ color: colors.text, fontWeight: "700" }}>{normalizeText(activeWeek.title)}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {normalizeText(`Foco: ${activeWeek.focus}`)}
+                {normalizeText(
+                  `Foco: ${selectedDay?.autoPlan?.primarySkillLabel ?? activeWeek.focus}`
+                )}
               </Text>
+
+              {selectedDay?.autoPlan ? (
+                <View style={{ gap: 4, marginTop: 8 }}>
+                  {historyModeLabel ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {normalizeText(
+                        `${historyModeLabel} · confiança ${selectedDay.autoPlan.historicalConfidence ?? "-"}`
+                      )}
+                    </Text>
+                  ) : null}
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                    {normalizeText(
+                      `Sessão ${selectedDay.sessionIndexInWeek ?? "-"}: ${selectedDay.session ?? ""}`
+                    )}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {normalizeText(
+                      `Intenção: ${selectedDay.autoPlan.pedagogicalIntentLabel}`
+                    )}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {normalizeText(
+                      `Famílias: ${selectedDay.autoPlan.drillFamiliesLabel || "-"}`
+                    )}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {normalizeText(selectedDay.autoPlan.coachSummary)}
+                  </Text>
+
+                  {shouldShowDebugSignals ? (
+                    <View
+                      style={{
+                        marginTop: 8,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.card,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <Pressable
+                        onPress={() => setShowDebugSignals((current) => !current)}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          backgroundColor: colors.secondaryBg,
+                          borderBottomWidth: showDebugSignals ? 1 : 0,
+                          borderBottomColor: colors.border,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                          {normalizeText(
+                            showDebugSignals
+                              ? "Debug da periodização: ocultar"
+                              : "Debug da periodização: mostrar"
+                          )}
+                        </Text>
+                      </Pressable>
+
+                      {showDebugSignals ? (
+                        <View style={{ gap: 10, padding: 10 }}>
+                          <View style={{ gap: 8 }}>
+                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                              {normalizeText("Entrada do adapter")}
+                            </Text>
+                            <DebugRow
+                              label="Turma"
+                              value={debugSignals.adapterInput.className}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Objetivo"
+                              value={debugSignals.adapterInput.goal}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Faixa etária"
+                              value={debugSignals.adapterInput.ageBand}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Sessões por semana"
+                              value={debugSignals.adapterInput.weeklySessions}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Semana e volume"
+                              value={`Semana ${debugSignals.adapterInput.week} · ${debugSignals.adapterInput.volume}`}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Carga planejada"
+                              value={`${debugSignals.adapterInput.plannedSessionLoad} / ${debugSignals.adapterInput.plannedWeeklyLoad}`}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                          </View>
+
+                          <View style={{ gap: 8 }}>
+                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                              {normalizeText("Contexto do ciclo")}
+                            </Text>
+                            <DebugRow
+                              label="Goal mapeado"
+                              value={debugSignals.cycleContext.classGoal}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Fase e intenção"
+                              value={`${debugSignals.cycleContext.planningPhase ?? "-"} · ${debugSignals.cycleContext.phaseIntent}`}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Estágio"
+                              value={debugSignals.cycleContext.developmentStage}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Carga semanal"
+                              value={debugSignals.cycleContext.weeklyLoadIntent}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Intenção pedagógica"
+                              value={debugSignals.cycleContext.pedagogicalIntent}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Evitar repetir"
+                              value={debugSignals.cycleContext.mustAvoidRepeating}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Restrições"
+                              value={debugSignals.cycleContext.constraints}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                          </View>
+
+                          <View style={{ gap: 8 }}>
+                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                              {normalizeText("Estratégia final")}
+                            </Text>
+                            <DebugRow
+                              label="Habilidade primária"
+                              value={debugSignals.strategy.primarySkill}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Habilidade secundária"
+                              value={debugSignals.strategy.secondarySkill}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Progressão"
+                              value={debugSignals.strategy.progressionDimension}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Carga"
+                              value={debugSignals.strategy.loadIntent}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Famílias"
+                              value={debugSignals.strategy.drillFamilies}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                            <DebugRow
+                              label="Famílias proibidas"
+                              value={debugSignals.strategy.forbiddenDrillFamilies}
+                              colors={colors}
+                              normalizeText={normalizeText}
+                            />
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
 
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
                 {(() => {

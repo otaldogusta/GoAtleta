@@ -12,7 +12,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
-import { useOrganization } from "../../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { FabRadialMenu } from "./FabRadialMenu";
@@ -28,7 +28,9 @@ export function AnimatedBottomTabs({
   navigation,
 }: AnimatedBottomTabsProps) {
   const { colors } = useAppTheme();
-  const { activeOrganization, memberPermissions } = useOrganization();
+  const organization = useOptionalOrganization();
+  const activeOrganization = organization?.activeOrganization ?? null;
+  const memberPermissions = organization?.memberPermissions ?? {};
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();

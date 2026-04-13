@@ -2,34 +2,38 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Easing,
-    FlatList,
-    Image,
-    InteractionManager,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Animated,
+  Easing,
+  FlatList,
+  Image,
+  InteractionManager,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenBackdrop } from "../../../src/components/ui/ScreenBackdrop";
 import {
-    BlockEditModal,
-    type BlockEditPayload,
-    type EditableBlockItem,
+  buildAutoPlanForCycleDay,
+  type AutoPlanForCycleDayResult,
+} from "../../../src/screens/session/application/build-auto-plan-for-cycle-day";
+import {
+  BlockEditModal,
+  type BlockEditPayload,
+  type EditableBlockItem,
 } from "../../../src/screens/session/components/BlockEditModal";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import {
-    generateStructuredActivitiesWithAI,
-    rewriteReportText,
-    type ReportRewriteField,
+  generateStructuredActivitiesWithAI,
+  rewriteReportText,
+  type ReportRewriteField,
 } from "../../../src/api/ai";
 import { usePedagogicalConfig } from "../../../src/bootstrap/pedagogical-config-context";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
@@ -38,93 +42,94 @@ import { ptBR } from "../../../src/constants/copy/pt-br";
 import { toVisibleCoachingText } from "../../../src/core/methodology/coaching-lexicon";
 import type { PedagogicalApproachDetection } from "../../../src/core/methodology/pedagogical-approach-detector";
 import {
-    buildSessionApproachAwareBlockDescription,
-    buildSessionApproachAwareGeneralObjective,
-    buildSessionApproachGuideline,
-    buildSessionPedagogicalApproachInput,
-    detectSessionPedagogicalApproach as detectSessionPedagogicalApproachCore,
-    formatSessionPedagogicalRiskLabel,
+  buildSessionApproachAwareBlockDescription,
+  buildSessionApproachAwareGeneralObjective,
+  buildSessionApproachGuideline,
+  buildSessionPedagogicalApproachInput,
+  detectSessionPedagogicalApproach as detectSessionPedagogicalApproachCore,
+  formatSessionPedagogicalRiskLabel,
 } from "../../../src/core/methodology/session-pedagogical-language";
 import {
-    buildSessionPedagogicalPanelIntent,
-    buildSessionPedagogicalPanelRisk,
-    buildSessionPedagogicalPanelSecondary,
-    buildSessionPedagogicalPanelSignals,
-    buildSessionPedagogicalPanelSummary,
-    formatSessionAdjustmentLabel,
-    formatSessionDecisionReasonTypeLabel,
-    formatSessionMethodologyApproachLabel,
-    formatSessionMethodologyEvidenceExcerpt,
-    formatSessionMethodologyEvidenceSource,
-    formatSessionMethodologyScoreSummary,
-    formatSessionOverrideSummary,
-    formatSessionPedagogicalFocusSkill,
-    type SessionMethodologyEvidence,
+  buildSessionPedagogicalPanelIntent,
+  buildSessionPedagogicalPanelRisk,
+  buildSessionPedagogicalPanelSecondary,
+  buildSessionPedagogicalPanelSignals,
+  buildSessionPedagogicalPanelSummary,
+  formatSessionAdjustmentLabel,
+  formatSessionDecisionReasonTypeLabel,
+  formatSessionMethodologyApproachLabel,
+  formatSessionMethodologyEvidenceExcerpt,
+  formatSessionMethodologyEvidenceSource,
+  formatSessionMethodologyScoreSummary,
+  formatSessionOverrideSummary,
+  formatSessionPedagogicalFocusSkill,
+  type SessionMethodologyEvidence,
 } from "../../../src/core/methodology/session-pedagogical-panel-language";
 import type {
-    ClassGroup,
-    ClassPlan,
-    KnowledgeSource,
-    ProgressionDimension,
-    ScoutingLog,
-    SessionLog,
-    Student,
-    TrainingPlan,
-    TrainingPlanActivity,
-    TrainingPlanCriterion,
-    TrainingPlanPedagogy,
-    VolleyballSkill,
+  ClassGroup,
+  ClassPlan,
+  KnowledgeSource,
+  ProgressionDimension,
+  ScoutingLog,
+  SessionLog,
+  Student,
+  TrainingPlan,
+  TrainingPlanActivity,
+  TrainingPlanCriterion,
+  TrainingPlanPedagogy,
+  TrainingPlanPlanningBasis,
+  VolleyballSkill,
 } from "../../../src/core/models";
 import {
-    buildCAPFromDimensions,
-    buildDimensionGuidelines,
-    deriveDimensionsProfile,
-    formatDimensionsProfile,
-    formatRefinements,
-    refineDimensionsByEvaluation,
+  buildCAPFromDimensions,
+  buildDimensionGuidelines,
+  deriveDimensionsProfile,
+  formatDimensionsProfile,
+  formatRefinements,
+  refineDimensionsByEvaluation,
 } from "../../../src/core/pedagogical-dimensions";
 import {
-    evaluateSessionOutcome,
-    type SessionSkillHistoryEntry,
+  evaluateSessionOutcome,
+  type SessionSkillHistoryEntry,
 } from "../../../src/core/pedagogical-evaluation";
 import {
-    buildPedagogicalPlan,
-    type LessonPlanDraft,
-    type PedagogicalObjective,
-    type PedagogicalPlanBlock,
-    type PedagogicalPlanPackage,
-    type PlanningPhase,
+  type LessonPlanDraft,
+  type PedagogicalObjective,
+  type PedagogicalPlanBlock,
+  type PedagogicalPlanPackage,
+  type PlanningPhase,
 } from "../../../src/core/pedagogical-planning";
 import { buildPeriodizationContext } from "../../../src/core/periodization-context";
 import {
-    buildLogFromCounts,
-    countsFromLog,
-    createEmptyCounts,
-    getFocusSuggestion,
-    getSkillMetrics,
-    getTotalActions,
-    scoutingSkillHelp,
-    scoutingSkills,
-    type ScoutingCounts,
+  buildLogFromCounts,
+  countsFromLog,
+  createEmptyCounts,
+  getFocusSuggestion,
+  getSkillMetrics,
+  getTotalActions,
+  scoutingSkillHelp,
+  scoutingSkills,
+  type ScoutingCounts,
 } from "../../../src/core/scouting";
 import { createTrainingPlanVersion } from "../../../src/core/training-plan-factory";
 import { resolveActiveMethodology } from "../../../src/db/knowledge-base";
 import {
-    getAttendanceByDate,
-    getClassById,
-    getClassPlansByClass,
-    getKnowledgeRuleCitations,
-    getKnowledgeSources,
-    getLatestTrainingPlanByClass,
-    getScoutingLogByDate,
-    getSessionLogByDate,
-    getStudentsByClass,
-    getTrainingPlans,
-    saveScoutingLog,
-    saveSessionLog,
-    saveTrainingPlan,
+  deleteTrainingPlansByClassAndDate,
+  getAttendanceByDate,
+  getClassById,
+  getClassPlansByClass,
+  getKnowledgeRuleCitations,
+  getKnowledgeSources,
+  getLatestTrainingPlanByClass,
+  getScoutingLogByDate,
+  getSessionLogByDate,
+  getStudentsByClass,
+  getTrainingPlans,
+  saveScoutingLog,
+  saveSessionLog,
+  saveTrainingPlan,
 } from "../../../src/db/seed";
-import { logAction } from "../../../src/observability/breadcrumbs";
+import { logAction, logPlanGenerationDecision } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
 import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
@@ -137,6 +142,7 @@ import { useAppTheme } from "../../../src/ui/app-theme";
 import { Button } from "../../../src/ui/Button";
 import { getClassPalette } from "../../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
+import { useConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { LocationBadge } from "../../../src/ui/LocationBadge";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { useSaveToast } from "../../../src/ui/save-toast";
@@ -946,6 +952,29 @@ const pickClassPlanForSessionDate = (plans: ClassPlan[], sessionDateValue: strin
   return candidate ?? sorted[0] ?? null;
 };
 
+const hasMeaningfulText = (value?: string | null) => String(value ?? "").trim().length > 0;
+
+const hasUsablePeriodization = (classPlan?: ClassPlan | null) => {
+  if (!classPlan) return false;
+
+  const hasWeekContext =
+    Number.isFinite(classPlan.weekNumber) && Number(classPlan.weekNumber) > 0;
+  const hasCycleSignal =
+    hasWeekContext ||
+    hasMeaningfulText(classPlan.startDate) ||
+    hasMeaningfulText(classPlan.phase) ||
+    hasMeaningfulText(classPlan.rpeTarget);
+  const hasFocusSignal =
+    hasMeaningfulText(classPlan.theme) ||
+    hasMeaningfulText(classPlan.technicalFocus) ||
+    hasMeaningfulText(classPlan.physicalFocus);
+
+  return hasCycleSignal && hasFocusSignal;
+};
+
+const toGenerationMode = (planningBasis: TrainingPlanPlanningBasis) =>
+  planningBasis === "cycle_based" ? "periodized" : "class_bootstrap";
+
 const toStructuredActivities = (
   block: PedagogicalPlanBlock,
   sessionObjective: string,
@@ -1311,6 +1340,7 @@ const buildAutoPlanPedagogy = (
     scoutingPrioritySkill?: VolleyballSkill | null;
     scoutingCounts?: ScoutingCounts;
     skillHistoryBySkill?: Partial<Record<VolleyballSkill, SessionSkillHistoryEntry[]>>;
+    generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
     decisionOverride?: {
       appliedAdjustment: "increase" | "maintain" | "regress";
       reasonType?: "health" | "readiness" | "context" | "other";
@@ -1467,6 +1497,7 @@ const buildAutoPlanPedagogy = (
   const sessionId = options?.sessionId ?? `${classId}:${new Date().toISOString().slice(0, 10)}`;
 
   return {
+    generationExplanation: options?.generationExplanation,
     sessionObjective: explicitObjectives.general,
     learningObjectives,
     adaptation: outcome
@@ -1708,41 +1739,6 @@ const getLatestFinalPlanForSession = async (
   return byWeekday[0] ?? null;
 };
 
-const buildPedagogicalInput = (
-  classGroup: ClassGroup,
-  students: Student[],
-  classPlan?: ClassPlan | null,
-  variationSeed?: number,
-  dimensionGuidelines?: string[]
-) =>
-  buildPedagogicalPlan({
-    classGroup,
-    students,
-    objective:
-      classPlan?.technicalFocus ||
-      classPlan?.theme ||
-      classGroup.goal ||
-      classGroup.modality ||
-      "controle de bola",
-    context: "treinamento",
-    constraints: splitMaterials(
-      [
-        classGroup.goal,
-        classGroup.equipment,
-        classPlan?.constraints,
-      ]
-        .filter(Boolean)
-        .join(", ")
-    ),
-    materials: splitMaterials(classGroup.equipment ?? ""),
-    duration: classGroup.durationMinutes || 60,
-    variationSeed,
-    periodizationPhase: normalizePlanningPhase(classPlan?.phase),
-    rpeTarget: parseRpeTarget(classPlan?.rpeTarget),
-    weekNumber: classPlan?.weekNumber,
-    dimensionGuidelines,
-  });
-
 const convertPedagogicalPlanToTrainingPlan = (
   pkg: PedagogicalPlanPackage,
   classId: string,
@@ -1836,10 +1832,30 @@ const applyEditedDraftToPackage = (
     pedagogy
   );
 
+const toPersistedGenerationExplanation = (
+  explanation: AutoPlanForCycleDayResult["explanation"],
+  planningBasis: TrainingPlanPlanningBasis
+): NonNullable<TrainingPlanPedagogy["generationExplanation"]> => ({
+  historyMode: explanation.historyMode,
+  summary: explanation.summary,
+  coachSummary: explanation.coachSummary,
+  planningBasis,
+  generationMode: toGenerationMode(planningBasis),
+});
+
 const waitForInteractionIdle = () =>
   new Promise<void>((resolve) => {
     InteractionManager.runAfterInteractions(() => {
       resolve();
+    });
+  });
+
+const waitForNextPaint = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        resolve();
+      });
     });
   });
 
@@ -1880,15 +1896,18 @@ const shiftIsoDate = (isoDate: string, deltaDays: number) => {
 };
 
 export default function SessionScreen() {
-  const { id, date, tab } = useLocalSearchParams<{
+  const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
     id: string;
     date?: string;
     tab?: string;
+    autogenerate?: string;
+    source?: string;
   }>();
   const router = useRouter();
   const { config: pedagogicalConfig } = usePedagogicalConfig();
   const insets = useSafeAreaInsets();
   const { colors, mode } = useAppTheme();
+  const { confirm } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
@@ -1930,11 +1949,16 @@ export default function SessionScreen() {
   const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
   const [showSavedClassPlans, setShowSavedClassPlans] = useState(false);
   const [isApplyingSavedPlanId, setIsApplyingSavedPlanId] = useState<string | null>(null);
+  const [isRemovingAppliedPlan, setIsRemovingAppliedPlan] = useState(false);
   const planFabAnim = useRef(new Animated.Value(0)).current;
+  const planGenerationAnim = useRef(new Animated.Value(0)).current;
+  const planGenerationLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const [pedagogicalPlanPackage, setPedagogicalPlanPackage] = useState<PedagogicalPlanPackage | null>(null);
   const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
-  const [isGeneratingPedagogicalPlan, setIsGeneratingPedagogicalPlan] = useState(false);
-  const [isSavingPedagogicalPlan, setIsSavingPedagogicalPlan] = useState(false);
+  const [isResolvingCurrentClassPlan, setIsResolvingCurrentClassPlan] = useState(false);
+  const [planGenerationPhase, setPlanGenerationPhase] = useState<
+    "idle" | "generating" | "saving" | "settling"
+  >("idle");
   const [selectedBlockKey, setSelectedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
   const [isSavingBlockEdit, setIsSavingBlockEdit] = useState(false);
   const [lastUpdatedBlockKey, setLastUpdatedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
@@ -1944,6 +1968,11 @@ export default function SessionScreen() {
     translateY: -6,
   });
   const [showDecisionOverrideModal, setShowDecisionOverrideModal] = useState(false);
+  const [showMissingPeriodizationModal, setShowMissingPeriodizationModal] = useState(false);
+  const hasUsableCurrentClassPlan = useMemo(
+    () => hasUsablePeriodization(currentClassPlan),
+    [currentClassPlan]
+  );
   const [isApplyingDecisionOverride, setIsApplyingDecisionOverride] = useState(false);
   const [decisionAppliedAdjustment, setDecisionAppliedAdjustment] = useState<
     "increase" | "maintain" | "regress"
@@ -1981,6 +2010,7 @@ export default function SessionScreen() {
     previousText: string;
     nextText: string;
   } | null>(null);
+  const periodizationAutoGenerateKeyRef = useRef<string | null>(null);
   const { animatedStyle: psePickerAnimStyle, isVisible: showPsePickerContent } =
     useCollapsibleAnimation(showPsePicker, { translateY: -6 });
   const { animatedStyle: techniquePickerAnimStyle, isVisible: showTechniquePickerContent } =
@@ -1991,6 +2021,8 @@ export default function SessionScreen() {
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
       : new Date().toISOString().slice(0, 10);
+  const shouldAutoGenerateFromPeriodization =
+    autogenerate === "1" && source === "periodization";
   const parseTime = (value: string) => {
     const parts = value.split(":");
     const hour = Number(parts[0]);
@@ -2012,6 +2044,59 @@ export default function SessionScreen() {
     const day = dateObj.getDay();
     return day === 0 ? 7 : day;
   }, [sessionDate]);
+  const isGeneratingPedagogicalPlan = planGenerationPhase === "generating";
+  const isSavingPedagogicalPlan =
+    planGenerationPhase === "saving" || planGenerationPhase === "settling";
+  const isPlanGenerationBusy = planGenerationPhase !== "idle";
+  const planGenerationLabel = planGenerationPhase === "generating"
+    ? "Gerando plano"
+    : "Salvando plano";
+  const planGenerationSubtitle = planGenerationPhase === "settling"
+    ? "Atualizando a aula do dia com o novo treino."
+    : planGenerationPhase === "saving"
+      ? "Aplicando o treino na aula do dia."
+      : "Montando os blocos da sessao para esta turma.";
+  const generationExplanation = plan?.pedagogy?.generationExplanation;
+  const generationHistoryLabel =
+    generationExplanation?.historyMode === "bootstrap"
+      ? "Bootstrap do ciclo"
+      : generationExplanation?.historyMode === "strong_history"
+        ? "Historico forte"
+        : generationExplanation?.historyMode === "partial_history"
+          ? "Historico parcial"
+          : null;
+  const planGenerationPulse = useMemo(
+    () =>
+      planGenerationAnim.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: [0.38, 1, 0.38],
+      }),
+    [planGenerationAnim]
+  );
+  const planGenerationDotOne = useMemo(
+    () =>
+      planGenerationAnim.interpolate({
+        inputRange: [0, 0.2, 1],
+        outputRange: [0.3, 1, 0.3],
+      }),
+    [planGenerationAnim]
+  );
+  const planGenerationDotTwo = useMemo(
+    () =>
+      planGenerationAnim.interpolate({
+        inputRange: [0, 0.18, 0.38, 1],
+        outputRange: [0.3, 0.3, 1, 0.3],
+      }),
+    [planGenerationAnim]
+  );
+  const planGenerationDotThree = useMemo(
+    () =>
+      planGenerationAnim.interpolate({
+        inputRange: [0, 0.36, 0.56, 1],
+        outputRange: [0.3, 0.3, 1, 0.3],
+      }),
+    [planGenerationAnim]
+  );
 
   useEffect(() => {
     Animated.timing(planFabAnim, {
@@ -2020,6 +2105,38 @@ export default function SessionScreen() {
       useNativeDriver: true,
     }).start();
   }, [planFabAnim, showPlanFabMenu]);
+
+  useEffect(() => {
+    if (!isPlanGenerationBusy) {
+      planGenerationLoopRef.current?.stop();
+      planGenerationLoopRef.current = null;
+      planGenerationAnim.stopAnimation();
+      planGenerationAnim.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(planGenerationAnim, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+
+    planGenerationAnim.setValue(0);
+    planGenerationLoopRef.current = animation;
+    animation.start();
+
+    return () => {
+      animation.stop();
+      if (planGenerationLoopRef.current === animation) {
+        planGenerationLoopRef.current = null;
+      }
+      planGenerationAnim.stopAnimation();
+      planGenerationAnim.setValue(0);
+    };
+  }, [isPlanGenerationBusy, planGenerationAnim]);
 
   useEffect(() => {
     setReportBaseline({
@@ -2046,8 +2163,10 @@ export default function SessionScreen() {
     const loadCurrentClassPlan = async () => {
       if (!cls) {
         setCurrentClassPlan(null);
+        setIsResolvingCurrentClassPlan(false);
         return;
       }
+      setIsResolvingCurrentClassPlan(true);
       try {
         const plans = await getClassPlansByClass(cls.id, {
           organizationId: cls.organizationId ?? null,
@@ -2056,6 +2175,8 @@ export default function SessionScreen() {
         setCurrentClassPlan(pickClassPlanForSessionDate(plans, sessionDate));
       } catch {
         if (!cancelled) setCurrentClassPlan(null);
+      } finally {
+        if (!cancelled) setIsResolvingCurrentClassPlan(false);
       }
     };
 
@@ -2065,6 +2186,10 @@ export default function SessionScreen() {
       cancelled = true;
     };
   }, [cls?.id, cls?.organizationId, sessionDate]);
+
+  useEffect(() => {
+    periodizationAutoGenerateKeyRef.current = null;
+  }, [id, sessionDate, shouldAutoGenerateFromPeriodization]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2907,6 +3032,58 @@ export default function SessionScreen() {
     }
   };
 
+  const handleRemoveAppliedPlan = () => {
+    if (!cls || !plan || isRemovingAppliedPlan) return;
+    confirm({
+      title: "Remover plano deste dia?",
+      message: `Isso remove o treino aplicado em ${dateLabel} e a aula volta para sem plano aplicado.`,
+      confirmLabel: "Remover",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        setIsRemovingAppliedPlan(true);
+        try {
+          await measure("deleteTrainingPlansByClassAndDate", () =>
+            deleteTrainingPlansByClassAndDate(cls.id, sessionDate, {
+              organizationId: cls.organizationId ?? null,
+            })
+          );
+          const remainingClassPlans = await getTrainingPlans({
+            organizationId: cls.organizationId ?? null,
+            classId: cls.id,
+            status: "final",
+            orderBy: "createdat_desc",
+            limit: 24,
+          });
+          setPlan(null);
+          setSavedClassPlans(compactTrainingPlans(remainingClassPlans));
+          setAutoActivity("");
+          setShowPedagogicalPanel(false);
+          setShowSavedClassPlans(false);
+          setSelectedBlockKey(null);
+          setLastUpdatedBlockKey(null);
+          setPedagogicalPlanPackage(null);
+          showSaveToast({
+            message: "Plano removido desta aula.",
+            variant: "success",
+          });
+          logAction("Remover plano da aula do dia", {
+            classId: cls.id,
+            planId: plan.id,
+            applyDate: sessionDate,
+          });
+        } catch {
+          showSaveToast({
+            message: "Não foi possível remover o plano desta aula.",
+            variant: "error",
+          });
+        } finally {
+          setIsRemovingAppliedPlan(false);
+        }
+      },
+    });
+  };
+
   const handleBackToClass = () => {
     if (!cls) return;
     router.replace({
@@ -2960,6 +3137,21 @@ export default function SessionScreen() {
     () => sessionStudents.map((student) => student.id).sort().join(","),
     [sessionStudents]
   );
+  const scoutingSignature = useMemo(() => JSON.stringify(scoutingCounts), [scoutingCounts]);
+  const recentPlansSignature = useMemo(
+    () =>
+      savedClassPlans
+        .slice(0, 5)
+        .map((item) => [
+          item.id,
+          item.inputHash ?? "",
+          item.pedagogy?.focus?.skill ?? "",
+          item.pedagogy?.progression?.dimension ?? "",
+          item.pedagogy?.sessionObjective ?? "",
+        ].join("|"))
+        .join("||"),
+    [savedClassPlans]
+  );
   const classPedagogicalSignature = useMemo(
     () =>
       cls
@@ -2992,11 +3184,34 @@ export default function SessionScreen() {
     ]
   );
 
+  const buildAutoPlanResultFromSessionContext = useCallback(
+    (variationSeed?: number, dimensionGuidelines?: string[]): AutoPlanForCycleDayResult | null => {
+      if (!cls) return null;
+      return buildAutoPlanForCycleDay({
+        classGroup: cls,
+        classPlan: currentClassPlan,
+        students: sessionStudents,
+        sessionDate,
+        scoutingCounts,
+        recentPlans: savedClassPlans,
+        variationSeed,
+        dimensionGuidelines,
+      });
+    },
+    [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents]
+  );
+
+  const buildPedagogicalPackageFromSessionContext = useCallback(
+    (variationSeed?: number, dimensionGuidelines?: string[]) =>
+      buildAutoPlanResultFromSessionContext(variationSeed, dimensionGuidelines)?.package ?? null,
+    [buildAutoPlanResultFromSessionContext]
+  );
+
   const memoizedPedagogicalPackage = useMemo(() => {
     if (!cls) return null;
     const startedAt = Date.now();
     const guidelines = computeBaseDimensionGuidelines(cls, currentClassPlan, pedagogicalConfig);
-    const pkg = buildPedagogicalInput(cls, sessionStudents, currentClassPlan, undefined, guidelines);
+    const pkg = buildPedagogicalPackageFromSessionContext(undefined, guidelines);
     if (__DEV__) {
       logAction("buildPedagogicalPlan memo", {
         classId: cls.id,
@@ -3006,20 +3221,66 @@ export default function SessionScreen() {
       });
     }
     return pkg;
-  }, [classPedagogicalSignature, studentsSignature, pedagogicalConfig]);
+  }, [
+    buildPedagogicalPackageFromSessionContext,
+    classPedagogicalSignature,
+    pedagogicalConfig,
+    recentPlansSignature,
+    scoutingSignature,
+    studentsSignature,
+  ]);
 
-  const buildFreshPedagogicalPackage = async (variationSeed?: number) => {
+  const buildFreshAutoPlanResult = async (
+    variationSeed?: number,
+    planningBasis: TrainingPlanPlanningBasis = "cycle_based"
+  ) => {
     if (!cls) return null;
-    return measure("buildPedagogicalPlan", async () => {
-      const guidelines = computeBaseDimensionGuidelines(cls, currentClassPlan, pedagogicalConfig);
-      return buildPedagogicalInput(cls, sessionStudents, currentClassPlan, variationSeed, guidelines);
-    });
+    return measure(
+      "buildPedagogicalPlan",
+      async () => {
+        const guidelines = computeBaseDimensionGuidelines(
+          cls,
+          currentClassPlan,
+          pedagogicalConfig
+        );
+        const autoPlanResult = buildAutoPlanResultFromSessionContext(variationSeed, guidelines);
+        if (!autoPlanResult) return null;
+        logPlanGenerationDecision({
+          classId: cls.id,
+          sessionDate,
+          variationSeed,
+          explanation: autoPlanResult.explanation,
+          planningBasis,
+          generationMode: toGenerationMode(planningBasis),
+        });
+        return autoPlanResult;
+      },
+      {
+        classId: cls.id,
+        sessionDate,
+        variationSeed: variationSeed ?? null,
+        hasExistingPlan: Boolean(plan),
+        recentPlans: savedClassPlans.length,
+        students: sessionStudents.length,
+      }
+    );
+  };
+
+  const buildFreshPedagogicalPackage = async (
+    variationSeed?: number,
+    planningBasis: TrainingPlanPlanningBasis = "cycle_based"
+  ) => {
+    const autoPlanResult = await buildFreshAutoPlanResult(variationSeed, planningBasis);
+    return autoPlanResult?.package ?? null;
   };
 
   const persistPedagogicalPlanPackage = async (
     packageToSave: PedagogicalPlanPackage,
     editedDraft?: LessonPlanDraft,
-    options?: { successMessage?: string }
+    options?: {
+      successMessage?: string;
+      generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+    }
   ) => {
     if (!cls) return;
     const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
@@ -3126,6 +3387,7 @@ export default function SessionScreen() {
           scoutingPrioritySkill,
           scoutingCounts,
           skillHistoryBySkill,
+          generationExplanation: options?.generationExplanation,
         }
       )
     );
@@ -3155,40 +3417,80 @@ export default function SessionScreen() {
     });
   };
 
-  const generatePedagogicalPlanAndSave = async (variationSeed?: number) => {
+  const generatePedagogicalPlanAndSave = async (
+    variationSeed?: number,
+    planningBasis: TrainingPlanPlanningBasis = "cycle_based"
+  ) => {
     if (!cls) return;
     setShowPlanFabMenu(false);
-    setIsGeneratingPedagogicalPlan(true);
-    setIsSavingPedagogicalPlan(true);
+    setPlanGenerationPhase("generating");
     try {
       await waitForInteractionIdle();
-      const pkg = await buildFreshPedagogicalPackage(variationSeed);
-      if (!pkg) return;
-      setPedagogicalPlanPackage(pkg);
+      const autoPlanResult = await buildFreshAutoPlanResult(variationSeed, planningBasis);
+      if (!autoPlanResult) return;
+      setPedagogicalPlanPackage(autoPlanResult.package);
+      setPlanGenerationPhase("saving");
       const successMessage =
         plan && variationSeed
           ? "Nova variação aplicada."
           : undefined;
-      await persistPedagogicalPlanPackage(pkg, undefined, { successMessage });
+      await persistPedagogicalPlanPackage(autoPlanResult.package, undefined, {
+        successMessage,
+        generationExplanation: toPersistedGenerationExplanation(
+          autoPlanResult.explanation,
+          planningBasis
+        ),
+      });
+      setPlanGenerationPhase("settling");
+      await waitForInteractionIdle();
+      await waitForNextPaint();
     } catch {
+      logAction("buildPedagogicalPlan failed", {
+        classId: cls.id,
+        sessionDate,
+        variationSeed: variationSeed ?? null,
+      });
       showSaveToast({ message: ptBR.session.errors.planGenerateFailed, variant: "error" });
     } finally {
-      setIsSavingPedagogicalPlan(false);
-      setIsGeneratingPedagogicalPlan(false);
+      setPlanGenerationPhase("idle");
     }
   };
 
   const handleGeneratePedagogicalPlan = () => {
-    void generatePedagogicalPlanAndSave();
+    if (!isResolvingCurrentClassPlan && !hasUsableCurrentClassPlan) {
+      setShowMissingPeriodizationModal(true);
+      return;
+    }
+    void generatePedagogicalPlanAndSave(undefined, "cycle_based");
   };
 
-  const handleRegeneratePedagogicalPlan = (variationSeed: number) => {
-    void generatePedagogicalPlanAndSave(variationSeed);
-  };
+  useEffect(() => {
+    if (!shouldAutoGenerateFromPeriodization) return;
+    if (!cls || isLoadingSession || isResolvingCurrentClassPlan) return;
+    if (!hasUsableCurrentClassPlan) return;
+    if (plan || isPlanGenerationBusy) return;
+
+    const generationKey = `${cls.id}:${sessionDate}`;
+    if (periodizationAutoGenerateKeyRef.current === generationKey) return;
+    periodizationAutoGenerateKeyRef.current = generationKey;
+
+    void generatePedagogicalPlanAndSave(undefined, "cycle_based");
+  }, [
+    cls,
+    generatePedagogicalPlanAndSave,
+    hasUsableCurrentClassPlan,
+    isLoadingSession,
+    isPlanGenerationBusy,
+    isResolvingCurrentClassPlan,
+    plan,
+    sessionDate,
+    shouldAutoGenerateFromPeriodization,
+  ]);
 
   const handleEditPedagogicalPlan = async () => {
     if (!cls) return;
-    const pkg = pedagogicalPlanPackage ?? (await buildFreshPedagogicalPackage());
+    const pkg =
+      pedagogicalPlanPackage ?? (await buildFreshPedagogicalPackage(undefined, "cycle_based"));
     if (!pkg) return;
     setPedagogicalPlanPackage(pkg);
     router.push({
@@ -3889,6 +4191,209 @@ export default function SessionScreen() {
             ) : null}
           </View>
         ) : null}
+        {sessionTab === "treino" && generationExplanation?.coachSummary ? (
+          <View
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              gap: 8,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                LEITURA DO SISTEMA
+              </Text>
+              {generationHistoryLabel ? (
+                <View
+                  style={{
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                    {generationHistoryLabel}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={{ color: colors.text, fontSize: 13, lineHeight: 19, fontWeight: "600" }}>
+              {generationExplanation.coachSummary}
+            </Text>
+          </View>
+        ) : null}
+        {sessionTab === "treino" && isPlanGenerationBusy && plan ? (
+          <View
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              gap: 6,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                {planGenerationLabel}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                {[planGenerationDotOne, planGenerationDotTwo, planGenerationDotThree].map(
+                  (dotOpacity, index) => (
+                    <Animated.View
+                      key={`plan-generation-dot-${index}`}
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 3,
+                        backgroundColor: colors.primaryBg,
+                        opacity: dotOpacity,
+                      }}
+                    />
+                  )
+                )}
+              </View>
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {planGenerationSubtitle}
+            </Text>
+          </View>
+        ) : null}
+        {sessionTab === "treino" && isPlanGenerationBusy && !plan ? (
+          <>
+            <View
+              style={{
+                padding: 14,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                gap: 8,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                  {planGenerationLabel}
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  {[planGenerationDotOne, planGenerationDotTwo, planGenerationDotThree].map(
+                    (dotOpacity, index) => (
+                      <Animated.View
+                        key={`plan-generation-empty-dot-${index}`}
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          backgroundColor: colors.primaryBg,
+                          opacity: dotOpacity,
+                        }}
+                      />
+                    )
+                  )}
+                </View>
+              </View>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {planGenerationSubtitle}
+              </Text>
+            </View>
+
+            {([
+              { key: "warmup", label: "Aquecimento", accent: colors.warningText, width: "52%" },
+              { key: "main", label: "Parte principal", accent: colors.primaryBg, width: "68%" },
+              { key: "cooldown", label: "Volta a calma", accent: colors.successText, width: "46%" },
+            ] as const).map((section, index) => (
+              <Animated.View
+                key={section.key}
+                style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: section.accent,
+                  gap: 10,
+                  opacity: planGenerationPulse,
+                  transform: [
+                    {
+                      translateY: planGenerationAnim.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0, index % 2 === 0 ? -2 : 2, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                    {section.label}
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <View
+                      style={{
+                        width: 54,
+                        height: 24,
+                        borderRadius: 999,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    />
+                    <View
+                      style={{
+                        width: 68,
+                        height: 24,
+                        borderRadius: 999,
+                        backgroundColor: colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    />
+                  </View>
+                </View>
+                <View
+                  style={{
+                    width: section.width,
+                    height: 12,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                />
+                <View style={{ gap: 6 }}>
+                  <View
+                    style={{
+                      width: "82%",
+                      height: 10,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  />
+                  <View
+                    style={{
+                      width: "61%",
+                      height: 10,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  />
+                </View>
+              </Animated.View>
+            ))}
+          </>
+        ) : null}
         {sessionTab === "treino" && plan?.pedagogy ? (
           <Pressable
             onPress={() => setShowPedagogicalPanel((prev) => !prev)}
@@ -4126,9 +4631,36 @@ export default function SessionScreen() {
                 </Pressable>
               );
             })}
+            <Pressable
+              onPress={handleRemoveAppliedPlan}
+              disabled={isRemovingAppliedPlan}
+              style={{
+                alignSelf: "flex-start",
+                marginTop: 4,
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: isRemovingAppliedPlan
+                  ? colors.secondaryBg
+                  : colors.dangerSolidBg,
+                opacity: isRemovingAppliedPlan ? 0.75 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  color: isRemovingAppliedPlan
+                    ? colors.muted
+                    : colors.dangerSolidText,
+                  fontSize: 12,
+                  fontWeight: "800",
+                }}
+              >
+                {isRemovingAppliedPlan ? "Removendo..." : "Remover plano do dia"}
+              </Text>
+            </Pressable>
           </>
         ) : null}
-        {sessionTab === "treino" && !plan ? (
+        {sessionTab === "treino" && !plan && !isPlanGenerationBusy ? (
           <View
             style={{
               padding: 14,
@@ -4166,15 +4698,21 @@ export default function SessionScreen() {
               </Pressable>
               <Pressable
                 onPress={handleGeneratePedagogicalPlan}
+                disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan}
                 style={{
                   paddingVertical: 8,
                   paddingHorizontal: 12,
                   borderRadius: 999,
                   backgroundColor: colors.secondaryBg,
+                  opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan ? 0.65 : 1,
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {ptBR.session.emptyPlan.createPlan}
+                  {isSavingPedagogicalPlan
+                    ? "Salvando plano..."
+                    : isGeneratingPedagogicalPlan
+                      ? "Gerando plano..."
+                      : ptBR.session.actions.generateAutomaticPlan}
                 </Text>
               </Pressable>
             </View>
@@ -5324,60 +5862,6 @@ export default function SessionScreen() {
           <Pressable
             onPress={() => {
               setShowPlanFabMenu(false);
-              if (plan) {
-                handleRegeneratePedagogicalPlan(Date.now());
-                return;
-              }
-              handleGeneratePedagogicalPlan();
-            }}
-            disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.background,
-              borderRadius: 10,
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan ? 0.65 : 1,
-            }}
-          >
-            <Ionicons name="sparkles-outline" size={16} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-              {plan ? ptBR.session.actions.generateAutomatic : ptBR.session.actions.generateAutomaticPlan}
-            </Text>
-          </Pressable>
-
-          {!plan ? (
-            <Pressable
-              onPress={() => {
-                setShowPlanFabMenu(false);
-                setShowSavedClassPlans(true);
-              }}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-                borderRadius: 10,
-                paddingHorizontal: 10,
-                paddingVertical: 9,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <Ionicons name="calendar-outline" size={16} color={colors.text} />
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                {ptBR.session.actions.applySavedTraining}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          <Pressable
-            onPress={() => {
-              setShowPlanFabMenu(false);
               router.push({
                 pathname: "/prof/planning",
                 params: {
@@ -5453,6 +5937,89 @@ export default function SessionScreen() {
           </Animated.View>
         </Pressable>
       ) : null}
+
+      <ModalSheet
+        visible={showMissingPeriodizationModal}
+        onClose={() => setShowMissingPeriodizationModal(false)}
+        position="center"
+        overlayZIndex={30000}
+        backdropOpacity={0.7}
+        cardStyle={{
+          width: "100%",
+          maxWidth: 440,
+          borderRadius: 18,
+          backgroundColor: colors.background,
+          borderWidth: 1,
+          borderColor: colors.border,
+          padding: 20,
+          gap: 14,
+        }}
+      >
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            {currentClassPlan
+              ? "A periodização desta turma ainda não está pronta para servir de base"
+              : "Esta turma ainda não tem periodização gerada"}
+          </Text>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            {currentClassPlan
+              ? "Você pode completar ou gerar a periodização primeiro para usar a progressão semanal do ciclo como base, ou gerar a aula agora com base apenas no perfil da turma e no histórico disponível."
+              : "Você pode gerar a periodização primeiro para usar a progressão semanal do ciclo como base, ou gerar a aula agora com base apenas no perfil da turma e no histórico disponível."}
+          </Text>
+        </View>
+        <View style={{ gap: 8 }}>
+          <Pressable
+            onPress={() => {
+              setShowMissingPeriodizationModal(false);
+              if (!cls) return;
+              router.push({
+                pathname: "/prof/periodization",
+                params: { classId: cls.id, unit: cls.unit ?? "" },
+              });
+            }}
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+              borderRadius: 12,
+              backgroundColor: colors.primaryBg,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+              Gerar periodização
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setShowMissingPeriodizationModal(false);
+              void generatePedagogicalPlanAndSave(undefined, "class_based_bootstrap");
+            }}
+            style={{
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+              borderRadius: 12,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Gerar aula agora
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setShowMissingPeriodizationModal(false)}
+            style={{
+              paddingVertical: 10,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.muted, fontWeight: "600" }}>Cancelar</Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
+
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>

@@ -468,3 +468,51 @@ export async function getSessionLogsByRange(
   });
   return mapped;
 }
+
+export async function getSessionLogsByClass(
+  classId: string,
+  options: {
+    organizationId?: string | null;
+    startIso?: string | null;
+    endIso?: string | null;
+    limit?: number;
+  } = {}
+): Promise<SessionLog[]> {
+  try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+    const query = [
+      "select=*",
+      `classid=eq.${encodeURIComponent(classId)}`,
+      organizationId ? `organization_id=eq.${encodeURIComponent(organizationId)}` : "",
+      options.startIso ? `createdat=gte.${encodeURIComponent(options.startIso)}` : "",
+      options.endIso ? `createdat=lt.${encodeURIComponent(options.endIso)}` : "",
+      "order=createdat.desc",
+      typeof options.limit === "number" && options.limit > 0
+        ? `limit=${Math.floor(options.limit)}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+    const rows = await supabaseGet<SessionLogRow[]>(`/session_logs?${query}`);
+    return rows.map((row) => ({
+      id: row.id,
+      clientId: row.client_id ?? row.id,
+      classId: row.classid,
+      PSE: row.rpe,
+      technique: (["boa", "ok", "ruim", "nenhum"].includes(row.technique ?? "")
+        ? row.technique
+        : "boa") as "boa" | "ok" | "ruim" | "nenhum",
+      attendance: row.attendance,
+      activity: row.activity ?? "",
+      conclusion: row.conclusion ?? "",
+      participantsCount: row.participants_count ?? 0,
+      photos: row.photos ?? "",
+      painScore: row.pain_score ?? 0,
+      createdAt: row.createdat,
+    }));
+  } catch (error) {
+    if (isMissingRelation(error, "session_logs")) return [];
+    if (isAuthError(error) || isNetworkError(error)) return [];
+    throw error;
+  }
+}

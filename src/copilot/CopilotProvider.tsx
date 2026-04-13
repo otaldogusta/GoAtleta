@@ -1,22 +1,17 @@
-import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 import {
-    Animated,
-    Platform,
-    StyleSheet,
-    useWindowDimensions,
+  Animated,
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 
-import type { Signal as CopilotSignal } from "../ai/signal-engine";
 import {
-    type RegulationRuleSet,
-} from "../api/regulation-rule-sets";
-import {
-    markRegulationUpdateRead,
-    type RegulationUpdate,
+  markRegulationUpdateRead,
+  type RegulationUpdate,
 } from "../api/regulation-updates";
 import { useAuth } from "../auth/auth";
 import { getClasses } from "../db/seed";
@@ -24,85 +19,44 @@ import { getScopedAssistantPath, isAssistantRoutePath } from "../navigation/prof
 import { markRender, measureAsync } from "../observability/perf";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { useAppTheme } from "../ui/app-theme";
-import {
-    buildOperationalContext,
-    type OperationalContextResult,
-} from "./operational-context";
-import {
-    getRecommendedSignalActions,
-    isValidCopilotSignal,
-    sortCopilotSignals,
-} from "./signal-utils";
-import {
-    buildCentralSnapshot,
-    countUnreadFromSnapshot,
-    hasSnapshotChanged,
-    type CentralSnapshot,
-} from "./updates-utils";
-import { useRegistryManager } from "./hooks/useRegistryManager";
-import { useRegulationUpdates } from "./hooks/useRegulationUpdates";
 import { CopilotFab } from "./components/CopilotFab";
 import { CopilotModal } from "./components/CopilotModal";
-
-type CopilotContextData = {
-  screen: string;
-  title?: string;
-  subtitle?: string;
-  activeSignal?: CopilotSignal;
-};
-
-type CopilotActionResult = {
-  message: string;
-  citationsCount?: number;
-  confidence?: number;
-};
-
-type CopilotAction = {
-  id: string;
-  title: string;
-  description?: string;
-  requires?: (ctx: CopilotContextData | null) => string | null;
-  run: (ctx: CopilotContextData | null) => Promise<CopilotActionResult | string | void> | CopilotActionResult | string | void;
-};
-
-type CopilotHistoryItem = {
-  id: string;
-  actionTitle: string;
-  message: string;
-  createdAt: string;
-  status: "success" | "error";
-  citationsCount?: number;
-  confidence?: number;
-};
-
-type InsightsCategory =
-  | "reports"
-  | "absences"
-  | "nfc"
-  | "attendance"
-  | "engagement"
-  | "regulation";
-
-type SignalInsightsCategory = Exclude<InsightsCategory, "regulation">;
-
-type InsightsView =
-  | { mode: "root" }
-  | { mode: "category"; category: InsightsCategory }
-  | { mode: "detail"; category: InsightsCategory; itemId: string };
-
-type CopilotState = {
-  context: CopilotContextData | null;
-  actions: CopilotAction[];
-  signals: CopilotSignal[];
-  regulationUpdates: RegulationUpdate[];
-  regulationRuleSets: RegulationRuleSet[];
-  selectedSignalId: string | null;
-  open: boolean;
-  runningActionId: string | null;
-  history: CopilotHistoryItem[];
-  hasUnreadUpdates: boolean;
-  unreadCount: number;
-};
+import {
+  buildDefaultContextReply,
+  buildNfcQuickActionReply,
+  resolveComposerSubmission,
+} from "./context-replies";
+import {
+  resolveCopilotFabHint,
+  resolveUnreadState,
+  shouldPulseCopilotFab,
+} from "./fab-selectors";
+import { useRegistryManager } from "./hooks/useRegistryManager";
+import { useRegulationUpdates } from "./hooks/useRegulationUpdates";
+import {
+  buildOperationalContext,
+  type OperationalContextResult,
+} from "./operational-context";
+import {
+  getRecommendedSignalActions,
+  isValidCopilotSignal,
+  sortCopilotSignals,
+} from "./signal-utils";
+import type {
+  CopilotAction,
+  CopilotActionResult,
+  CopilotContextData,
+  CopilotHistoryItem,
+  CopilotSignal,
+  CopilotState,
+  InsightsCategory,
+  InsightsView,
+  SignalInsightsCategory,
+} from "./types";
+import {
+  buildCentralSnapshot,
+  type CentralSnapshot,
+} from "./updates-utils";
 
 type CopilotDataContextValue = {
   state: CopilotState;
@@ -238,236 +192,6 @@ const buildHistoryItem = (params: {
   confidence: params.result.confidence,
 });
 
-const resolveContextActionIcon = (action: CopilotAction): keyof typeof Ionicons.glyphMap => {
-  const key = normalizeComposerText(`${action.id} ${action.title}`);
-  if (key.includes("treino")) return "sparkles-outline";
-  if (key.includes("resumo")) return "document-text-outline";
-  if (key.includes("engaj") || key.includes("risco")) return "pulse-outline";
-  if (key.includes("pesquisa") || key.includes("cient")) return "search-outline";
-  if (key.includes("mensagem") || key.includes("whatsapp")) return "chatbubble-outline";
-  if (key.includes("checklist")) return "checkmark-done-outline";
-  if (key.includes("regul")) return "shield-checkmark-outline";
-  if (key.includes("duplic")) return "copy-outline";
-  if (key.includes("nfc") || key.includes("presenca")) return "radio-outline";
-  return "flash-outline";
-};
-
-const normalizeComposerText = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-
-const hasAnyKeyword = (input: string, keywords: string[]) =>
-  keywords.some((keyword) => input.includes(keyword));
-
-const buildContextualComposerReply = (params: {
-  prompt: string;
-  screen: string | null | undefined;
-  panel: OperationalContextResult["panel"];
-  actions: CopilotAction[];
-}) => {
-  const normalizedPrompt = normalizeComposerText(params.prompt);
-  if (!normalizedPrompt) return null;
-
-  const globalIntentKeywords = [
-    "todas as turmas",
-    "organizacao inteira",
-    "organizacao geral",
-    "fora dessa tela",
-    "fora desta tela",
-    "assistente geral",
-    "chat geral",
-    "pesquisa cientifica",
-    "artigo cientifico",
-    "benchmark",
-  ];
-  if (hasAnyKeyword(normalizedPrompt, globalIntentKeywords)) return null;
-
-  const screen = String(params.screen ?? "").toLowerCase();
-  const screenKeywordsByPrefix: Record<string, string[]> = {
-    nfc: ["nfc", "tag", "duplicad", "presenca", "checkin", "sincron"],
-    class: ["turma", "aluno", "falta", "engajamento", "presenca", "relatorio"],
-    classes: ["turma", "aluno", "falta", "engajamento", "presenca", "relatorio"],
-    coordination: ["coordenacao", "relatorio", "pendencia", "engajamento", "organizacao"],
-    events: ["torneio", "regulamento", "chaveamento", "evento", "regras"],
-    periodization: ["periodizacao", "microciclo", "treino", "carga"],
-  };
-  const matchingScreenKey =
-    Object.keys(screenKeywordsByPrefix).find((key) => screen.startsWith(key)) ?? null;
-  const screenKeywords = matchingScreenKey ? screenKeywordsByPrefix[matchingScreenKey] : [];
-  const genericContextKeywords = ["aqui", "dessa tela", "desta tela", "neste contexto", "agora", "pendencia", "alerta"];
-
-  const hasContextHint =
-    hasAnyKeyword(normalizedPrompt, screenKeywords) ||
-    hasAnyKeyword(normalizedPrompt, genericContextKeywords);
-
-  if (!hasContextHint) return null;
-
-  const attentionSignals = params.panel.attentionSignals.slice(0, 2);
-  const quickActions = params.actions.slice(0, 3).map((item) => item.title);
-  const hasAlerts = attentionSignals.length > 0;
-  const topAlerts = attentionSignals.map((item) => item.title).join(" | ");
-  const contextNameByScreen: Record<string, string> = {
-    nfc: "NFC",
-    class: "turma atual",
-    classes: "lista de turmas",
-    coordination: "coordenacao",
-    events: "eventos e torneios",
-    periodization: "periodizacao",
-  };
-  const contextName = matchingScreenKey ? contextNameByScreen[matchingScreenKey] : "tela atual";
-
-  const wantsSummary = hasAnyKeyword(normalizedPrompt, [
-    "resumo",
-    "status",
-    "situacao",
-    "como ta",
-    "como esta",
-  ]);
-  const wantsActions = hasAnyKeyword(normalizedPrompt, [
-    "proxima",
-    "proximas",
-    "passos",
-    "acao",
-    "acoes",
-    "o que fazer",
-  ]);
-  const wantsDuplicates = hasAnyKeyword(normalizedPrompt, [
-    "duplicad",
-    "duplo",
-    "repetid",
-  ]);
-  const wantsRegulation = hasAnyKeyword(normalizedPrompt, [
-    "regra",
-    "regras",
-    "regulamento",
-    "vigencia",
-    "vigencia",
-    "pendente",
-    "pending",
-  ]);
-
-  if (matchingScreenKey === "nfc" && wantsDuplicates) {
-    const duplicateSignal = attentionSignals.find((item) =>
-      normalizeComposerText(`${item.title} ${item.summary}`).includes("duplicad")
-    );
-    if (!duplicateSignal) {
-      return "No NFC atual, nao encontrei padrao forte de duplicidade.";
-    }
-    return `No NFC atual, duplicidades em foco: ${duplicateSignal.summary}`;
-  }
-
-  if (matchingScreenKey === "events" && wantsRegulation) {
-    let message = `Regulamento ativo: ${params.panel.activeRuleSetLabel}.`;
-    if (params.panel.pendingRuleSetLabel) {
-      message += ` Proximo ciclo: ${params.panel.pendingRuleSetLabel}.`;
-    }
-    if (params.panel.unreadRegulationCount > 0) {
-      message += ` Ha ${params.panel.unreadRegulationCount} atualizacao(oes) pendente(s).`;
-    }
-    return message;
-  }
-
-  if (wantsActions) {
-    if (!quickActions.length) {
-      return `Neste contexto (${contextName}), nao ha acoes recomendadas agora.`;
-    }
-    return `Proximos passos para ${contextName}: ${quickActions.join(", ")}.`;
-  }
-
-  if (!hasAlerts) {
-    let message = `Tudo em ordem em ${contextName}.`;
-    if (params.panel.unreadRegulationCount > 0) {
-      message += ` Ha ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
-    }
-    if (quickActions.length) {
-      message += ` Se quiser, sigo com: ${quickActions.join(", ")}.`;
-    }
-    return message;
-  }
-
-  if (wantsSummary || hasAnyKeyword(normalizedPrompt, ["alerta", "pendencia", "pendencias"])) {
-    return `Resumo de ${contextName}: ${topAlerts}.`;
-  }
-
-  let message = `Ponto principal em ${contextName}: ${topAlerts}.`;
-  if (quickActions.length) {
-    message += ` Posso executar: ${quickActions.join(", ")}.`;
-  }
-  return message;
-};
-
-const buildDefaultContextReply = (params: {
-  screen: string | null | undefined;
-  panel: OperationalContextResult["panel"];
-  actions: CopilotAction[];
-}) => {
-  const screen = String(params.screen ?? "").toLowerCase();
-  const contextNameByScreen: Record<string, string> = {
-    nfc: "NFC",
-    class: "turma atual",
-    classes: "lista de turmas",
-    coordination: "coordenacao",
-    events: "eventos e torneios",
-    periodization: "periodizacao",
-  };
-  const matchingScreenKey =
-    Object.keys(contextNameByScreen).find((key) => screen.startsWith(key)) ?? null;
-  const contextName = matchingScreenKey ? contextNameByScreen[matchingScreenKey] : "tela atual";
-  const quickActions = params.actions.slice(0, 3).map((item) => item.title);
-  const attentionSignals = params.panel.attentionSignals.slice(0, 2);
-
-  if (attentionSignals.length) {
-    let message = `Atencao em ${contextName}: ${attentionSignals.map((item) => item.title).join(" | ")}.`;
-    if (quickActions.length) {
-      message += ` Posso seguir com: ${quickActions.join(", ")}.`;
-    }
-    return message;
-  }
-
-  let message = `Tudo em ordem em ${contextName}.`;
-  if (params.panel.unreadRegulationCount > 0) {
-    message += ` Ha ${params.panel.unreadRegulationCount} atualizacao(oes) de regulamento pendente(s).`;
-  }
-  if (quickActions.length) {
-    message += ` Se quiser, posso te ajudar com: ${quickActions.join(", ")}.`;
-  }
-  return message;
-};
-
-const buildNfcQuickActionReply = (actionId: string, state: CopilotState) => {
-  const screen = String(state.context?.screen ?? "").toLowerCase();
-  if (!screen.startsWith("nfc")) return null;
-
-  const nfcSignals = state.signals.filter((item) => item.type === "unusual_presence_pattern");
-  const repeatedAbsenceSignals = state.signals.filter((item) => item.type === "repeated_absence");
-
-  if (actionId === "nfc_summary") {
-    if (!nfcSignals.length && !repeatedAbsenceSignals.length) {
-      return "No contexto NFC atual, não há alerta urgente.";
-    }
-    return `No contexto NFC atual: ${nfcSignals.length} alerta(s) de presença incomum e ${repeatedAbsenceSignals.length} alerta(s) de ausência recorrente.`;
-  }
-
-  if (actionId === "nfc_actions") {
-    if (nfcSignals.length > 0) {
-      return "Próximos passos: revisar tags com leitura duplicada, validar vínculo da turma ativa e sincronizar pendências.";
-    }
-    return "Próximos passos: manter leitura ativa, revisar vínculos de tag e confirmar sincronização ao final da sessão.";
-  }
-
-  if (actionId === "nfc_duplicates") {
-    if (nfcSignals.length > 0) {
-      return `Duplicidades em foco: ${nfcSignals[0].summary}`;
-    }
-    return "Sem padrão forte de duplicidade no contexto NFC atual.";
-  }
-
-  return null;
-};
-
 const buildContextSignature = (input: CopilotContextData | null) => {
   if (!input) return "__none__";
   const signal = input.activeSignal;
@@ -541,6 +265,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [contextPreview, setContextPreview] = useState<{ actionTitle: string; message: string } | null>(null);
   const stateRef = useRef(state);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useRenderDiagnostic("CopilotProvider", {
@@ -797,32 +522,30 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const previousSnapshot = lastComputedSnapshotRef.current;
-    const changed = hasSnapshotChanged(previousSnapshot, currentSnapshot);
     lastComputedSnapshotRef.current = currentSnapshot;
 
-    if (state.open) {
-      lastSeenSnapshotRef.current = currentSnapshot;
-      if (state.hasUnreadUpdates || state.unreadCount > 0) {
-        setState((prev) => ({
-          ...prev,
-          hasUnreadUpdates: false,
-          unreadCount: 0,
-        }));
-      }
-      return;
-    }
+    const unreadResolution = resolveUnreadState({
+      previousSnapshot,
+      currentSnapshot,
+      lastSeenSnapshot: lastSeenSnapshotRef.current,
+      isOpen: state.open,
+      hasUnreadUpdates: state.hasUnreadUpdates,
+      unreadCount: state.unreadCount,
+    });
 
-    if (!changed) return;
-    const unread = countUnreadFromSnapshot(lastSeenSnapshotRef.current, currentSnapshot);
-    if (unread <= 0) return;
+    lastSeenSnapshotRef.current = unreadResolution.nextSeenSnapshot;
+    if (!unreadResolution.statePatch) return;
 
     setState((prev) => {
-      if (prev.open) return prev;
-      if (prev.hasUnreadUpdates && prev.unreadCount === unread) return prev;
+      if (
+        prev.hasUnreadUpdates === unreadResolution.statePatch?.hasUnreadUpdates &&
+        prev.unreadCount === unreadResolution.statePatch?.unreadCount
+      ) {
+        return prev;
+      }
       return {
         ...prev,
-        hasUnreadUpdates: true,
-        unreadCount: unread,
+        ...unreadResolution.statePatch,
       };
     });
   }, [currentSnapshot, state.hasUnreadUpdates, state.open, state.unreadCount]);
@@ -844,7 +567,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const nfcQuickReply = buildNfcQuickActionReply(action.id, currentState);
+    const nfcQuickReply = buildNfcQuickActionReply({
+      actionId: action.id,
+      screen: currentState.context?.screen ?? null,
+      signals: currentState.signals,
+    });
     if (nfcQuickReply) {
       enqueueContextReply(action.title, { message: nfcQuickReply }, "success");
       return;
@@ -1107,6 +834,26 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     normalizedPath !== "/coord/dashboard" &&
     !normalizedPath.startsWith("/home") &&
     !normalizedPath.startsWith("/invite");
+  const fabHint = useMemo(() => {
+    return resolveCopilotFabHint({
+      showFab,
+      panel: operationalContext.panel,
+    });
+  }, [
+    operationalContext.panel.attentionSignals,
+    operationalContext.panel.topImpactAreas,
+    operationalContext.panel.unreadRegulationCount,
+    showFab,
+  ]);
+  const shouldPulseFab = useMemo(
+    () =>
+      shouldPulseCopilotFab({
+        fabHint,
+        hasUnreadUpdates: state.hasUnreadUpdates,
+        isOpen: state.open,
+      }),
+    [fabHint, state.hasUnreadUpdates, state.open]
+  );
 
   useEffect(() => {
     const mustHideCopilot =
@@ -1130,18 +877,16 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const isWebModal = Platform.OS === "web";
 
   useEffect(() => {
-    if (Platform.OS === "web") {
+    pulseLoopRef.current?.stop();
+    pulseLoopRef.current = null;
+
+    if (Platform.OS === "web" || !shouldPulseFab) {
       pulseAnim.stopAnimation();
       pulseAnim.setValue(0);
       return;
     }
 
-    if (!(showFab && !state.open && state.hasUnreadUpdates)) {
-      pulseAnim.stopAnimation();
-      pulseAnim.setValue(0);
-      return;
-    }
-
+    pulseAnim.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -1156,20 +901,24 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         }),
       ])
     );
+    pulseLoopRef.current = loop;
     loop.start();
 
     return () => {
-      loop.stop();
+      if (pulseLoopRef.current === loop) {
+        pulseLoopRef.current.stop();
+        pulseLoopRef.current = null;
+      }
       pulseAnim.stopAnimation();
       pulseAnim.setValue(0);
     };
-  }, [pulseAnim, showFab, state.hasUnreadUpdates, state.open]);
+  }, [pulseAnim, shouldPulseFab]);
 
   const submitComposer = useCallback(() => {
     const prompt = composerValue.trim();
     if (!prompt) return;
 
-    const contextualReply = buildContextualComposerReply({
+    const composerResolution = resolveComposerSubmission({
       prompt,
       screen: state.context?.screen ?? null,
       panel: operationalContext.panel,
@@ -1179,10 +928,10 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     setComposerValue("");
     setComposerInputHeight(CONTEXT_COMPOSER_MIN_HEIGHT);
 
-    if (contextualReply) {
+    if (composerResolution.mode === "context_reply") {
       enqueueContextReply(
         "",
-        { message: contextualReply },
+        { message: composerResolution.message },
         "success"
       );
       return;
@@ -1217,10 +966,11 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       {children}
       {showFab && !state.open ? (
         <CopilotFab
-          hasUnreadUpdates={state.hasUnreadUpdates}
+          showPulse={shouldPulseFab}
           pulseAnim={pulseAnim}
           primaryBgColor={colors.primaryBg}
           fabBottomOffset={fabBottomOffset}
+          hintMessage={fabHint?.message ?? null}
           onPress={open}
         />
       ) : null}
@@ -1335,11 +1085,6 @@ export function useOptionalCopilot() {
 
 export function useCopilotContext(input: CopilotContextData | null) {
   const context = useContext(CopilotActionsContext);
-  if (!context) {
-    throw new Error("useCopilotContext must be used within CopilotProvider");
-  }
-  const { setContext, clearContext } = context;
-
   const ownerIdRef = useRef(`copilot_ctx_${Math.random().toString(36).slice(2, 10)}`);
   const contextSignature = useMemo(() => buildContextSignature(input), [input]);
   const payload = useMemo<CopilotContextData | null>(() => {
@@ -1353,44 +1098,37 @@ export function useCopilotContext(input: CopilotContextData | null) {
   }, [contextSignature]);
 
   useEffect(() => {
+    if (!context) return;
     const ownerId = ownerIdRef.current;
-    setContext(ownerId, payload);
-  }, [payload, setContext]);
+    context.setContext(ownerId, payload);
+  }, [context, payload]);
 
   useEffect(
     () => () => {
-      clearContext(ownerIdRef.current);
+      if (!context) return;
+      context.clearContext(ownerIdRef.current);
     },
-    [clearContext]
+    [context]
   );
 }
 
 export function useCopilotActions(actions: CopilotAction[]) {
   const context = useContext(CopilotActionsContext);
-  if (!context) {
-    throw new Error("useCopilotActions must be used within CopilotProvider");
-  }
-  const { setActions, clearActions } = context;
-
   const ownerIdRef = useRef(`copilot_actions_${Math.random().toString(36).slice(2, 10)}`);
   const stableActions = useMemo(() => actions, [actions]);
 
   useEffect(() => {
+    if (!context) return;
     const ownerId = ownerIdRef.current;
-    setActions(ownerId, stableActions);
+    context.setActions(ownerId, stableActions);
     return () => {
-      clearActions(ownerId);
+      context.clearActions(ownerId);
     };
-  }, [clearActions, setActions, stableActions]);
+  }, [context, stableActions]);
 }
 
 export function useCopilotSignals(signals: CopilotSignal[]) {
   const context = useContext(CopilotActionsContext);
-  if (!context) {
-    throw new Error("useCopilotSignals must be used within CopilotProvider");
-  }
-  const { setSignals, clearSignals } = context;
-
   const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
   const signalsSignature = useMemo(() => buildSignalsSignature(signals), [signals]);
   const stableSignals = useMemo(
@@ -1399,12 +1137,13 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
   );
 
   useEffect(() => {
+    if (!context) return;
     const ownerId = ownerIdRef.current;
-    setSignals(ownerId, stableSignals);
+    context.setSignals(ownerId, stableSignals);
     return () => {
-      clearSignals(ownerId);
+      context.clearSignals(ownerId);
     };
-  }, [clearSignals, setSignals, stableSignals]);
+  }, [context, stableSignals]);
 }
 
 const styles = StyleSheet.create({
@@ -1425,4 +1164,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal, InsightsCategory, InsightsView };
+export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal, InsightsCategory, InsightsView } from "./types";
+

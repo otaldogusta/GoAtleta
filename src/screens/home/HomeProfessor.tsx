@@ -927,9 +927,9 @@ export function HomeProfessorScreen({
 
   const agendaCardWidth = useMemo(() => {
 
-    if (!agendaWidth) return 240;
+    if (!agendaWidth) return 210;
 
-    const target = Math.max(180, Math.min(agendaWidth * 0.72, 260));
+    const target = Math.max(160, Math.min(agendaWidth * 0.62, 220));
 
     return Math.round(target);
 
@@ -1409,6 +1409,7 @@ export function HomeProfessorScreen({
     >
 
       <ScrollView
+        style={Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined}
 
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 220 }}
 
@@ -1791,16 +1792,15 @@ export function HomeProfessorScreen({
             style={{
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "space-between",
               gap: 10,
             }}
           >
-            <View style={{ flex: 1, flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+            <View style={{ flex: 1, flexDirection: "row", gap: 10 }}>
               <Pressable
                 onPress={handleOpenPlanningForActiveClass}
                 style={{
                   flex: 1,
-                  minWidth: 120,
+                  minWidth: 0,
                   paddingVertical: 12,
                   borderRadius: 999,
                   borderWidth: 1,
@@ -1809,13 +1809,13 @@ export function HomeProfessorScreen({
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Planejamento</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Planejamento</Text>
               </Pressable>
               <Pressable
                 onPress={handleOpenAttendanceForActiveClass}
                 style={{
                   flex: 1,
-                  minWidth: 120,
+                  minWidth: 0,
                   paddingVertical: 12,
                   borderRadius: 999,
                   borderWidth: 1,
@@ -1824,13 +1824,13 @@ export function HomeProfessorScreen({
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Chamada</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Chamada</Text>
               </Pressable>
               <Pressable
                 onPress={handleOpenReportsForActiveClass}
                 style={{
                   flex: 1,
-                  minWidth: 120,
+                  minWidth: 0,
                   paddingVertical: 12,
                   borderRadius: 999,
                   borderWidth: 1,
@@ -1839,86 +1839,11 @@ export function HomeProfessorScreen({
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>Relatórios</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Relatórios</Text>
               </Pressable>
             </View>
-            <Pressable
-              onPress={() => router.push("/agenda")}
-              accessibilityLabel="Ver mais aulas"
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 999,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.primaryBg,
-                flexShrink: 0,
-              }}
-            >
-              <Text style={{ color: colors.primaryText, fontSize: 20, fontWeight: "800" }}>
-                +
-              </Text>
-            </Pressable>
           </View>
 
-          <View
-            style={{
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: 16,
-              gap: 14,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                Próximos 7 dias
-              </Text>
-              <Pressable onPress={() => router.push("/agenda")}>
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                  Ver tudo
-                </Text>
-              </Pressable>
-            </View>
-
-            {upcomingEvents.length === 0 ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Nenhum evento cadastrado para os próximos dias.
-              </Text>
-            ) : (
-              <FlatList
-                data={upcomingEvents.slice(0, 4)}
-                keyExtractor={(event) => event.id}
-                scrollEnabled={false}
-                contentContainerStyle={{ gap: 10 }}
-                renderItem={({ item: event }) => (
-                  <Pressable
-                    onPress={() => router.push({ pathname: "/events/[id]", params: { id: event.id } })}
-                    style={{
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      gap: 2,
-                    }}
-                  >
-                    <Text
-                      style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}
-                      numberOfLines={1}
-                    >
-                      {event.title}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
-                      {new Date(event.startsAt).toLocaleDateString("pt-BR")} • {event.eventType}
-                    </Text>
-                  </Pressable>
-                )}
-              />
-            )}
-          </View>
         </View>
         ) : null}
 

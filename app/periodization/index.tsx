@@ -26,9 +26,8 @@ import {
 } from "../../src/core/competitive-periodization";
 import {
     ageBands,
+    annualCycleOptions,
     cycleOptions,
-    dayLabels,
-    dayNumbersByLabelIndex,
     getDemandIndexForModel,
     getLoadLabelForModel,
     getSportLabel,
@@ -38,11 +37,8 @@ import {
     splitSegmentLengths,
     type SportProfile,
     type VolumeLevel,
-    volumeOrder,
-    volumeToRatio,
-    weekAgendaDayOrder,
+    volumeToRatio
 } from "../../src/core/periodization-basics";
-import { buildPeriodizationContext } from "../../src/core/periodization-context";
 import {
     buildClassPlan,
     getMvFormat,
@@ -58,6 +54,7 @@ import {
     buildPlanReviewSummary,
     toPlanningGraphFromClassPlans,
 } from "../../src/core/plan-engine";
+import { buildPeriodizationWeekSchedule } from "../../src/screens/periodization/application/build-auto-plan-for-cycle-day";
 import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState";
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
 import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
@@ -68,6 +65,9 @@ import { useSaveWeek } from "../../src/screens/periodization/hooks/useSaveWeek";
 import { useWeekEditor } from "../../src/screens/periodization/hooks/useWeekEditor";
 import { getPlansWithinCycle, useWeekPlans } from "../../src/screens/periodization/hooks/useWeekPlans";
 import { buildMonthSegments, buildMonthWeekNumbers } from "../../src/screens/periodization/month-segments";
+import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
+
+  const DEFAULT_ANNUAL_CYCLE_LENGTH = annualCycleOptions[annualCycleOptions.length - 1];
 
 import type {
     ClassCalendarException,
@@ -75,6 +75,7 @@ import type {
     ClassGroup,
     ClassPlan,
     PeriodizationContext,
+    RecentSessionSummary,
     WeeklyAutopilotKnowledgeContext,
     WeeklyAutopilotPlanReview,
 } from "../../src/core/models";
@@ -84,12 +85,16 @@ import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     deleteClassCalendarException,
     deleteClassCompetitiveProfile,
+    deleteClassPlansByClass,
     getClassCalendarExceptions,
     getClassCompetitiveProfile,
     getClasses,
 
     getClassPlansByClass,
     getKnowledgeBaseSnapshot,
+    getSessionLogsByClass,
+    getTrainingPlans,
+    getTrainingSessionEvidenceByClass,
 
     saveClassCalendarException,
     saveClassCompetitiveProfile,
@@ -98,7 +103,7 @@ import {
 
     updateClassPlan
 } from "../../src/db/seed";
-import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 
 import { logAction } from "../../src/observability/breadcrumbs";
 
@@ -131,12 +136,12 @@ import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
+import { buildAutoWeekPlan } from "../../src/screens/periodization/build-auto-week-plan";
 import { CompetitiveAgendaCard } from "../../src/screens/periodization/CompetitiveAgendaCard";
 import { DayModal } from "../../src/screens/periodization/modals/DayModal";
-import { GenerateModal } from "../../src/screens/periodization/modals/GenerateModal";
-import { PlanActionsModal } from "../../src/screens/periodization/modals/PlanActionsModal";
 import { WeekEditorModal } from "../../src/screens/periodization/modals/WeekEditorModal";
 import { OverviewTab } from "../../src/screens/periodization/OverviewTab";
+import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 
 type WeekPlan = {
@@ -508,7 +513,8 @@ export default function PeriodizationScreen() {
     typeof initialClassId === "string" && initialClassId.trim().length > 0;
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { activeOrganization } = useOrganization();
+  const organization = useOptionalOrganization();
+  const activeOrganization = organization?.activeOrganization ?? null;
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -561,7 +567,7 @@ export default function PeriodizationScreen() {
 
   const [ageBand, setAgeBand] = useState<(typeof ageBands)[number]>("09-11");
 
-  const [cycleLength, setCycleLength] = useState<(typeof cycleOptions)[number]>(12);
+  const [cycleLength, setCycleLength] = useState<(typeof cycleOptions)[number]>(DEFAULT_ANNUAL_CYCLE_LENGTH);
 
   const [sessionsPerWeek, setSessionsPerWeek] = useState<(typeof sessionsOptions)[number]>(2);
 
@@ -593,13 +599,12 @@ export default function PeriodizationScreen() {
   const [showDayModal, setShowDayModal] = useState(false);
 
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
+  const [recentSessionSummaries, setRecentSessionSummaries] = useState<RecentSessionSummary[]>([]);
   const [periodizationKnowledgeSnapshot, setPeriodizationKnowledgeSnapshot] =
     useState<WeeklyAutopilotKnowledgeContext | null>(null);
   const [isLoadingPeriodizationKnowledge, setIsLoadingPeriodizationKnowledge] = useState(false);
 
   const [isSavingPlans, setIsSavingPlans] = useState(false);
-
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   const [showWeekEditor, setShowWeekEditor] = useState(false);
   const [agendaWeekNumber, setAgendaWeekNumber] = useState<number | null>(null);
@@ -685,7 +690,8 @@ export default function PeriodizationScreen() {
     containerWindow,
   } = pickers;
   const [isImportingPlansFile, setIsImportingPlansFile] = useState(false);
-  const [showPlanActionsModal, setShowPlanActionsModal] = useState(false);
+  const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
+  const planFabAnim = useRef(new Animated.Value(0)).current;
 
   const containerRef = useRef<View>(null);
 
@@ -1133,11 +1139,24 @@ export default function PeriodizationScreen() {
 
   const chatbotConflictBottom = Math.max(insets.bottom + 92, 108);
   const plansFabBottom = Math.max(insets.bottom + 166, 182);
+  const plansFabMenuBottom = plansFabBottom + 74;
   const plansFabRight = 16;
   const plansFabPositionStyle =
     Platform.OS === "web"
       ? ({ position: "fixed", right: plansFabRight, bottom: plansFabBottom } as any)
       : { position: "absolute" as const, right: plansFabRight, bottom: plansFabBottom };
+  const plansFabMenuPositionStyle =
+    Platform.OS === "web"
+      ? ({ position: "fixed", right: plansFabRight, bottom: plansFabMenuBottom } as any)
+      : { position: "absolute" as const, right: plansFabRight, bottom: plansFabMenuBottom };
+
+  useEffect(() => {
+    Animated.timing(planFabAnim, {
+      toValue: showPlanFabMenu ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [planFabAnim, showPlanFabMenu]);
 
   const classNameLabel = normalizeText(selectedClass?.name ?? "Turma");
   const classUnitLabel = normalizeText(
@@ -1328,6 +1347,60 @@ export default function PeriodizationScreen() {
   }, [competitiveProfile?.cycleStartDate, competitiveProfile?.targetDate, selectedClass]);
 
   useEffect(() => {
+    if (!selectedClass) {
+      setRecentSessionSummaries([]);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const [plans, sessionEvidence, sessionLogs] = await Promise.all([
+          getTrainingPlans({
+            organizationId: selectedClass.organizationId ?? activeOrganization?.id ?? null,
+            classId: selectedClass.id,
+            status: "final",
+            orderBy: "createdat_desc",
+            limit: 24,
+          }),
+          getTrainingSessionEvidenceByClass(selectedClass.id, {
+            organizationId: selectedClass.organizationId ?? activeOrganization?.id ?? null,
+          }),
+          getSessionLogsByClass(selectedClass.id, {
+            organizationId: selectedClass.organizationId ?? activeOrganization?.id ?? null,
+            limit: 24,
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        setRecentSessionSummaries(
+          buildRecentSessionSummary({
+            classId: selectedClass.id,
+            plans,
+            sessions: sessionEvidence.sessions,
+            attendance: sessionEvidence.attendance,
+            sessionLogs,
+            limit: 6,
+          })
+        );
+      } catch (error) {
+        if (cancelled) return;
+        setRecentSessionSummaries([]);
+        logAction("periodization_recent_history_load_failed", {
+          classId: selectedClass.id,
+          organizationId: selectedClass.organizationId ?? activeOrganization?.id ?? null,
+          error: String(error),
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrganization?.id, selectedClass]);
+
+  useEffect(() => {
 
     if (hasInitialClass) return;
 
@@ -1411,11 +1484,19 @@ export default function PeriodizationScreen() {
 
       const cycleValue = selectedClass.cycleLengthWeeks as (typeof cycleOptions)[number];
 
-      if (cycleOptions.includes(cycleValue)) {
+      if (annualCycleOptions.includes(cycleValue as (typeof annualCycleOptions)[number])) {
 
         setCycleLength(cycleValue);
 
+      } else {
+
+        setCycleLength(DEFAULT_ANNUAL_CYCLE_LENGTH);
+
       }
+
+    } else {
+
+      setCycleLength(DEFAULT_ANNUAL_CYCLE_LENGTH);
 
     }
 
@@ -1617,8 +1698,15 @@ export default function PeriodizationScreen() {
     [competitivePreviewPlans, cycleLength]
   );
 
+  const hasWeekPlans = visibleClassPlans.length > 0;
+  const displayedCyclePanelTitle = hasWeekPlans
+    ? cyclePanelTitle
+    : normalizeText("Painel do ciclo");
+
 
   const filteredWeekPlans = useMemo(() => {
+
+    if (!hasWeekPlans) return [];
 
     if (cycleFilter === "all") return weekPlans;
 
@@ -1626,7 +1714,7 @@ export default function PeriodizationScreen() {
 
     return weekPlans.filter((week) => week.source === target);
 
-  }, [cycleFilter, weekPlans]);
+  }, [cycleFilter, hasWeekPlans, weekPlans]);
 
 
   const periodizationRows = useMemo(() => {
@@ -1690,6 +1778,9 @@ export default function PeriodizationScreen() {
     weekPlans,
   ]);
 
+  const hasPeriodizationRows = periodizationRows.length > 0;
+  const canExportPlans = Boolean(selectedClass) && hasPeriodizationRows && hasWeekPlans;
+
 
   const summary = useMemo(() => {
     if (isCompetitiveMode) {
@@ -1745,90 +1836,34 @@ export default function PeriodizationScreen() {
 
   const progressBars = weekPlans.map((week) => volumeToRatio[week.volume]);
 
-  const currentWeek = useMemo(() => {
-
-    const start =
-      parseIsoDate(activeCycleStartDate ?? "") ??
-      parseIsoDate(visibleClassPlans[0]?.startDate ?? "");
-
-    if (!start || !weekPlans.length) return 1;
-
-    const diffDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
-
-    const week = Math.floor(diffDays / 7) + 1;
-
-    return Math.max(1, Math.min(week, weekPlans.length));
-
-  }, [activeCycleStartDate, visibleClassPlans, weekPlans.length]);
-
-  const currentClassPlanForContext = useMemo(
+  const {
+    currentWeek,
+    currentClassPlanForContext,
+    currentWeekPlanForContext,
+    periodizationContext,
+  } = useMemo(
     () =>
-      visibleClassPlans.find((plan) => plan.weekNumber === currentWeek) ??
-      visibleClassPlans[0] ??
-      null,
-    [currentWeek, visibleClassPlans]
-  );
-
-  const currentWeekPlanForContext = useMemo(
-    () => weekPlans.find((week) => week.week === currentWeek) ?? weekPlans[0] ?? null,
-    [currentWeek, weekPlans]
-  );
-
-  const periodizationContext = useMemo(
-    () =>
-      buildPeriodizationContext({
-        objective: normalizeText(
-          currentWeekPlanForContext?.title ||
-            currentClassPlanForContext?.theme ||
-            competitiveProfile?.targetCompetition ||
-            selectedClass?.goal ||
-            "Desenvolvimento da turma"
-        ),
-        focus: normalizeText(
-          currentWeekPlanForContext?.focus ||
-            currentClassPlanForContext?.technicalFocus ||
-            getPhysicalFocus(ageBand) ||
-            "Fundamentos"
-        ),
-        classPlan: currentClassPlanForContext,
-        constraints: [
-          ...((currentWeekPlanForContext?.notes ?? []).filter(Boolean)),
-          ...(currentClassPlanForContext?.constraints
-            ? [currentClassPlanForContext.constraints]
-            : []),
-        ],
-        pedagogicalIntent: normalizeText(
-          periodizationModel === "competitivo"
-            ? "Equilibrar exigência competitiva com controle de carga"
-            : periodizationModel === "formacao"
-              ? "Organizar progressão pedagógica da turma"
-              : "Conectar aprendizagem e exigência competitiva"
-        ),
-        load: currentWeekPlanForContext
-          ? {
-              intendedRPE: parsePseTarget(currentWeekPlanForContext.PSETarget),
-              volume:
-                currentWeekPlanForContext.volume === "médio"
-                  ? "moderado"
-                  : currentWeekPlanForContext.volume,
-            }
-          : null,
-        planningMode: competitiveProfile?.planningMode ?? null,
-        competitivePhase: competitiveProfile?.currentPhase ?? null,
+      resolvePeriodizationScreenContext({
+        activeCycleStartDate,
+        visibleClassPlans,
+        weekPlans,
+        competitiveProfile,
+        periodizationModel,
+        ageBand,
+        selectedClassGoal: selectedClass?.goal ?? null,
+        normalizeText,
+        parsePseTarget,
       }),
     [
+      activeCycleStartDate,
       ageBand,
-      competitiveProfile?.currentPhase,
-      competitiveProfile?.planningMode,
-      competitiveProfile?.targetCompetition,
-      currentClassPlanForContext,
-      currentWeekPlanForContext,
+      competitiveProfile,
       periodizationModel,
       selectedClass?.goal,
+      visibleClassPlans,
+      weekPlans,
     ]
   );
-
-  const hasWeekPlans = weekPlans.length > 0;
 
   const cyclePanelCellWidth = 64;
   const cyclePanelCellGap = 6;
@@ -2080,6 +2115,31 @@ export default function PeriodizationScreen() {
     : 0;
 
   const activeWeek = hasWeekPlans ? weekPlans[activeWeekIndex] : emptyWeek;
+  const activeClassPlan = hasWeekPlans
+    ? visibleClassPlans.find((plan) => plan.weekNumber === activeWeek.week) ?? null
+    : null;
+
+  const resolveSegmentLabelForWeek = useCallback(
+    (segments: Array<{ label: string; length: number }>, weekNumber: number) => {
+      let cursor = 0;
+      for (const segment of segments) {
+        cursor += segment.length;
+        if (weekNumber <= cursor) return segment.label;
+      }
+      return segments[segments.length - 1]?.label ?? "";
+    },
+    []
+  );
+
+  const activeMacroLabel = hasWeekPlans
+    ? resolveSegmentLabelForWeek(macroSegments, activeWeek.week)
+    : "";
+  const activeMesoLabel = hasWeekPlans
+    ? resolveSegmentLabelForWeek(mesoSegments, activeWeek.week)
+    : "";
+  const activeDominantBlockLabel = hasWeekPlans
+    ? resolveSegmentLabelForWeek(dominantBlockSegments, activeWeek.week)
+    : "";
 
   useEffect(() => {
     if (!hasWeekPlans) {
@@ -2508,43 +2568,20 @@ export default function PeriodizationScreen() {
 
     (weekNumber: number, existing: ClassPlan | null = null) => {
 
-      if (!selectedClass) return null;
-
-      const plan = isCompetitiveMode
-        ? buildCompetitiveClassPlan({
-            classId: selectedClass.id,
-            weekNumber,
-            cycleLength,
-            cycleStartDate: activeCycleStartDate,
-            daysOfWeek: selectedClass.daysOfWeek ?? [],
-            exceptions: calendarExceptions,
-            profile: competitiveProfile,
-            source: "AUTO",
-            existingId: existing?.id,
-            existingCreatedAt: existing?.createdAt,
-          })
-        : buildClassPlan({
-            classId: selectedClass.id,
-            ageBand,
-            startDate: activeCycleStartDate,
-            weekNumber,
-            source: "AUTO",
-            mvLevel: selectedClass.mvLevel,
-            cycleLength,
-            model: periodizationModel,
-            sessionsPerWeek: weeklySessions,
-            sport: sportProfile,
-          });
-
-      if (existing) {
-
-        plan.id = existing.id;
-
-        plan.createdAt = existing.createdAt;
-
-      }
-
-      return plan;
+      return buildAutoWeekPlan({
+        selectedClass,
+        weekNumber,
+        existing,
+        cycleLength,
+        activeCycleStartDate,
+        isCompetitiveMode,
+        calendarExceptions,
+        competitiveProfile,
+        ageBand,
+        periodizationModel,
+        weeklySessions,
+        sportProfile,
+      });
 
     },
 
@@ -3066,7 +3103,6 @@ export default function PeriodizationScreen() {
     refreshPlans,
     setClassPlans,
     setIsSavingPlans,
-    setShowGenerateModal,
   });
 
   const handleGenerateAction = useCallback(
@@ -3105,12 +3141,38 @@ export default function PeriodizationScreen() {
 
   );
 
+  const handleGenerateCycle = useCallback(() => {
+    handleGenerateAction("all");
+  }, [handleGenerateAction]);
+
+  const handleRemoveCycle = useCallback(() => {
+    if (!selectedClass || isSavingPlans) return;
+
+    confirmDialog({
+      title: "Remover ciclo?",
+      message: "Isso vai apagar todo o planejamento da turma atual.",
+      confirmLabel: "Remover ciclo",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        setIsSavingPlans(true);
+        try {
+          await measure("deleteClassPlansByClass", () => deleteClassPlansByClass(selectedClass.id));
+          await refreshPlans();
+          setActiveTab("geral");
+          Alert.alert("Ciclo removido", "O planejamento da turma foi removido com sucesso.");
+        } finally {
+          setIsSavingPlans(false);
+        }
+      },
+    });
+  }, [confirmDialog, isSavingPlans, refreshPlans, selectedClass]);
+
 
   const getWeekSchedule = (week: WeekPlan | undefined, sessions: number) => {
+    if (!week) return [];
 
-    const base = (week?.focus ?? week?.title ?? "").split(",")[0] || "";
-
-    if (isCompetitiveMode && week?.week) {
+    if (isCompetitiveMode && week.week) {
       const meta = buildCompetitiveWeekMeta({
         weekNumber: week.week,
         cycleStartDate: activeCycleStartDate,
@@ -3124,67 +3186,57 @@ export default function PeriodizationScreen() {
         sessionDateByDayNumber.set(parsed.getDay(), sessionDate);
       });
 
-      return weekAgendaDayOrder.map((dayNumber) => {
-        const labelIndex = dayNumbersByLabelIndex.indexOf(dayNumber);
-        const label = labelIndex >= 0 ? dayLabels[labelIndex] : "--";
-        const date = sessionDateByDayNumber.get(dayNumber) ?? formatIsoDate(nextDateForDayNumber(dayNumber));
-        return {
-          label,
-          dayNumber,
-          session: sessionDateByDayNumber.has(dayNumber) ? base : "",
-          date,
-        };
-      });
+      return buildPeriodizationWeekSchedule({
+        classGroup: selectedClass,
+        classPlan: activeClassPlan,
+        weekPlan: week,
+        cycleStartDate: activeCycleStartDate,
+        periodizationModel,
+        sportProfile,
+        weeklySessions: sessions,
+        dominantBlock: activeDominantBlockLabel,
+        macroLabel: activeMacroLabel,
+        mesoLabel: activeMesoLabel,
+        recentSessions: recentSessionSummaries,
+      }).map((item) => ({
+        ...item,
+        date: sessionDateByDayNumber.get(item.dayNumber) ?? item.date,
+      }));
     }
 
-    const classDays = selectedClass?.daysOfWeek ?? [];
-
-    const template: Record<number, number[]> = {
-
-      2: [0, 2],
-
-      3: [0, 2, 4],
-
-      4: [0, 1, 3, 5],
-
-      5: [0, 1, 2, 4, 5],
-
-      6: [0, 1, 2, 3, 4, 5],
-
-      7: [0, 1, 2, 3, 4, 5, 6],
-
-    };
-
-    const orderedClassDays = dayLabels
-
-      .map((_, idx) => idx)
-
-      .filter((idx) => classDays.includes(dayNumbersByLabelIndex[idx]));
-
-    const targetCount = Math.min(sessions, 7);
-
-    const dayIndexes = orderedClassDays.length
-      ? orderedClassDays.slice(0, Math.min(targetCount, orderedClassDays.length))
-      : template[targetCount]
-        ? template[targetCount]
-        : template[2];
-
-    const selectedDayNumbers = dayIndexes.map((idx) => dayNumbersByLabelIndex[idx]);
-
-    return weekAgendaDayOrder.map((dayNumber) => {
-      const labelIndex = dayNumbersByLabelIndex.indexOf(dayNumber);
-      const label = labelIndex >= 0 ? dayLabels[labelIndex] : "--";
-      return {
-        label,
-        dayNumber,
-        date: formatIsoDate(nextDateForDayNumber(dayNumber)),
-        session: selectedDayNumbers.includes(dayNumber) ? base : "",
-      };
+    return buildPeriodizationWeekSchedule({
+      classGroup: selectedClass,
+      classPlan: activeClassPlan,
+      weekPlan: week,
+      cycleStartDate: activeCycleStartDate,
+      periodizationModel,
+      sportProfile,
+      weeklySessions: sessions,
+      dominantBlock: activeDominantBlockLabel,
+      macroLabel: activeMacroLabel,
+      mesoLabel: activeMesoLabel,
+      recentSessions: recentSessionSummaries,
     });
-
   };
 
-  const weekSchedule = getWeekSchedule(activeWeek, sessionsPerWeek);
+  const weekSchedule = useMemo(
+    () => getWeekSchedule(activeWeek, sessionsPerWeek),
+    [
+      activeClassPlan,
+      activeCycleStartDate,
+      activeDominantBlockLabel,
+      activeMacroLabel,
+      activeMesoLabel,
+      activeWeek,
+      calendarExceptions,
+      isCompetitiveMode,
+      periodizationModel,
+      recentSessionSummaries,
+      selectedClass,
+      sessionsPerWeek,
+      sportProfile,
+    ]
+  );
 
 
   const selectedDay = selectedDayIndex !== null ? weekSchedule[selectedDayIndex] : null;
@@ -3659,7 +3711,45 @@ export default function PeriodizationScreen() {
 
   </View>
 
-        {selectedClass ? (
+        { activeTab === "geral" ? (
+          <OverviewTab
+            colors={colors}
+            normalizeText={normalizeText}
+            formatShortDate={formatShortDate}
+            nextSessionDate={nextSessionDate}
+            classStartTimeLabel={classStartTimeLabel}
+            hasInitialClass={hasInitialClass}
+            showClassPicker={showClassPicker}
+            classTriggerRef={classTriggerRef}
+            hasUnitSelected={hasUnitSelected}
+            togglePicker={togglePicker}
+            setClassPickerTop={setClassPickerTop}
+            selectedClass={selectedClass}
+            showUnitPicker={showUnitPicker}
+            unitTriggerRef={unitTriggerRef}
+            setUnitPickerTop={setUnitPickerTop}
+            selectedUnit={selectedUnit}
+            mesoTriggerRef={mesoTriggerRef}
+            showMesoPicker={showMesoPicker}
+            cycleLength={cycleLength}
+            microTriggerRef={microTriggerRef}
+            showMicroPicker={showMicroPicker}
+            sessionsPerWeek={sessionsPerWeek}
+            painAlert={painAlert}
+            painAlertDates={painAlertDates}
+            isOrgAdmin={isOrgAdmin}
+            router={router}
+            classPlans={classPlans}
+            hasWeekPlans={hasWeekPlans}
+            isSavingPlans={isSavingPlans}
+            onCompleteMissingCoverage={() => handleGenerateAction("fill")}
+            onGenerateCycle={handleGenerateCycle}
+            onRemoveCycle={handleRemoveCycle}
+            unitMismatchWarning={unitMismatchWarning}
+          />
+        ) : null}
+
+        {activeTab === "geral" && selectedClass ? (
           <View
             style={[
               getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
@@ -3672,7 +3762,7 @@ export default function PeriodizationScreen() {
                 Contexto pedagógico
               </Text>
             </View>
-            <View style={{ gap: 6 }}>
+            <View style={{ gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {normalizeText(
                   `${formatPeriodizationContextModel(periodizationContext.model)} · ${
@@ -3682,29 +3772,21 @@ export default function PeriodizationScreen() {
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {normalizeText(
-                  `Foco: ${periodizationContext.focus || "Sem foco"}${
+                  `${periodizationContext.focus || "Sem foco"}${
+                    formatPeriodizationContextLoad(periodizationContext)
+                      ? ` · ${formatPeriodizationContextLoad(periodizationContext)}`
+                      : ""
+                  }${
                     periodizationContext.cyclePhase
-                      ? ` · Fase: ${periodizationContext.cyclePhase}`
+                      ? ` · ${periodizationContext.cyclePhase}`
                       : ""
                   }`
                 )}
               </Text>
-              {periodizationContext.pedagogicalIntent ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {normalizeText(`Intenção: ${periodizationContext.pedagogicalIntent}`)}
-                </Text>
-              ) : null}
-              {formatPeriodizationContextLoad(periodizationContext) ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {normalizeText(
-                    `Carga: ${formatPeriodizationContextLoad(periodizationContext) ?? ""}`
-                  )}
-                </Text>
-              ) : null}
               {periodizationContext.constraints?.length ? (
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   {normalizeText(
-                    `Restrições: ${periodizationContext.constraints.join(" • ")}`
+                    `${periodizationContext.constraints.length} restrição(ões) ativas no momento`
                   )}
                 </Text>
               ) : null}
@@ -3712,7 +3794,7 @@ export default function PeriodizationScreen() {
           </View>
         ) : null}
 
-        {selectedClass ? (
+        {activeTab === "geral" && selectedClass ? (
           <View
             style={[
               getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
@@ -3782,195 +3864,22 @@ export default function PeriodizationScreen() {
                     `Base ${periodizationKnowledgeSnapshot.versionLabel} · ${periodizationKnowledgeSnapshot.domain}`
                   )}
                 </Text>
-
-                {periodizationKnowledgeSnapshot.ruleHighlights.length ? (
-                  <View style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                      Diretrizes ativas
-                    </Text>
-                    <FlatList
-                      data={periodizationKnowledgeSnapshot.ruleHighlights.slice(0, 3)}
-                      keyExtractor={(item) => item}
-                      scrollEnabled={false}
-                      contentContainerStyle={{ gap: 6 }}
-                      renderItem={({ item }) => (
-                        <View
-                          style={{
-                            paddingHorizontal: 10,
-                            paddingVertical: 8,
-                            borderRadius: 12,
-                            backgroundColor: colors.background,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Text style={{ color: colors.text, fontSize: 12 }}>{normalizeText(item)}</Text>
-                        </View>
-                      )}
-                    />
-                  </View>
-                ) : null}
-
-                {periodizationKnowledgeSnapshot.references.length ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {normalizeText(
-                      `Referências: ${periodizationKnowledgeSnapshot.references
-                        .slice(0, 2)
-                        .map((item) => {
-                          const year = item.sourceYear ? ` (${item.sourceYear})` : "";
-                          return `${normalizeText(item.title)}${year}`;
-                        })
-                        .join(" • ")}`
-                    )}
-                  </Text>
-                ) : null}
-
-                {periodizationPlanReview ? (
-                  <>
-                    {periodizationPlanReview.diffs.length ? (
-                      <View style={{ gap: 8 }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                          Efeito da base
-                        </Text>
-                        <FlatList
-                          data={periodizationPlanReview.diffs}
-                          keyExtractor={(diff) => diff.weekStart}
-                          scrollEnabled={false}
-                          contentContainerStyle={{ gap: 8 }}
-                          renderItem={({ item: diff }) => {
-                            const week = periodizationKnowledgeGraph?.weeks.find(
-                              (item) => item.weekStart === diff.weekStart
-                            );
-                            return (
-                              <View
-                                style={{
-                                  gap: 6,
-                                  padding: 10,
-                                  borderRadius: 12,
-                                  backgroundColor: colors.background,
-                                  borderWidth: 1,
-                                  borderColor: colors.border,
-                                }}
-                              >
-                                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                                  Semana {week?.weekNumber ?? "?"}
-                                </Text>
-                                <FlatList
-                                  data={diff.changes.slice(0, 2)}
-                                  keyExtractor={(change) => `${diff.weekStart}_${change.field}`}
-                                  scrollEnabled={false}
-                                  contentContainerStyle={{ gap: 4 }}
-                                  renderItem={({ item: change }) => (
-                                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                      {normalizeText(
-                                        `${planReviewFieldLabels[change.field] ?? change.field}: ${formatPlanReviewValue(
-                                          change.before
-                                        )} → ${formatPlanReviewValue(change.after)}`
-                                      )}
-                                    </Text>
-                                  )}
-                                />
-                              </View>
-                            );
-                          }}
-                        />
-                      </View>
-                    ) : null}
-
-                    {periodizationPlanReview.issues.length ? (
-                      <View style={{ gap: 6 }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                          Alertas
-                        </Text>
-                        <FlatList
-                          data={periodizationPlanReview.issues.slice(0, 3)}
-                          keyExtractor={(issue) => `${issue.weekStart}_${issue.code}`}
-                          scrollEnabled={false}
-                          contentContainerStyle={{ gap: 6 }}
-                          renderItem={({ item: issue }) => (
-                            <View
-                              style={{
-                                paddingHorizontal: 10,
-                                paddingVertical: 8,
-                                borderRadius: 12,
-                                backgroundColor: colors.background,
-                                borderWidth: 1,
-                                borderColor:
-                                  issue.severity === "error"
-                                    ? colors.dangerBorder
-                                    : issue.severity === "warning"
-                                      ? colors.warningBg
-                                      : colors.border,
-                              }}
-                            >
-                              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
-                                Semana{" "}
-                                {periodizationKnowledgeGraph?.weeks.find(
-                                  (item) => item.weekStart === issue.weekStart
-                                )?.weekNumber ?? "?"}
-                              </Text>
-                              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                {normalizeText(issue.message)}
-                              </Text>
-                            </View>
-                          )}
-                        />
-                      </View>
-                    ) : (
-                      <Text style={{ color: colors.successText, fontSize: 12, fontWeight: "600" }}>
-                        Plano validado sem alertas na base científica ativa.
-                      </Text>
-                    )}
-                  </>
-                ) : null}
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {periodizationPlanReview
+                    ? normalizeText(
+                        periodizationPlanReview.issues.length
+                          ? `${periodizationPlanReview.issues.length} alerta(s) para revisar antes de fechar o ciclo.`
+                          : "Plano alinhado com a base científica ativa."
+                      )
+                    : normalizeText("Base ativa, sem resumo de revisão disponível neste momento.")}
+                </Text>
               </>
             ) : (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Base científica ativa nao encontrada para esta turma.
+                Nenhuma base científica ativa para esta turma.
               </Text>
             )}
           </View>
-        ) : null}
-
-        { activeTab === "geral" ? (
-          <OverviewTab
-            colors={colors}
-            normalizeText={normalizeText}
-            formatShortDate={formatShortDate}
-            nextSessionDate={nextSessionDate}
-            classStartTimeLabel={classStartTimeLabel}
-            hasInitialClass={hasInitialClass}
-            showClassPicker={showClassPicker}
-            classTriggerRef={classTriggerRef}
-            hasUnitSelected={hasUnitSelected}
-            togglePicker={togglePicker}
-            setClassPickerTop={setClassPickerTop}
-            selectedClass={selectedClass}
-            showUnitPicker={showUnitPicker}
-            unitTriggerRef={unitTriggerRef}
-            setUnitPickerTop={setUnitPickerTop}
-            selectedUnit={selectedUnit}
-            mesoTriggerRef={mesoTriggerRef}
-            showMesoPicker={showMesoPicker}
-            cycleLength={cycleLength}
-            microTriggerRef={microTriggerRef}
-            showMicroPicker={showMicroPicker}
-            sessionsPerWeek={sessionsPerWeek}
-            volumeOrder={volumeOrder}
-            getVolumePalette={getVolumePalette}
-            volumeCounts={volumeCounts}
-            progressBars={progressBars}
-            weekPlans={weekPlans}
-            painAlert={painAlert}
-            painAlertDates={painAlertDates}
-            isOrgAdmin={isOrgAdmin}
-            router={router}
-            classPlans={classPlans}
-            isSavingPlans={isSavingPlans}
-            onCompleteMissingCoverage={() => handleGenerateAction("fill")}
-            setShowGenerateModal={setShowGenerateModal}
-            unitMismatchWarning={unitMismatchWarning}
-          />
         ) : null}
 
 
@@ -3989,7 +3898,7 @@ export default function PeriodizationScreen() {
           saveCycleTitleEditor={saveCycleTitleEditor}
           cancelCycleTitleEditor={cancelCycleTitleEditor}
           openCycleTitleEditor={openCycleTitleEditor}
-          cyclePanelTitle={cyclePanelTitle}
+          cyclePanelTitle={displayedCyclePanelTitle}
           hasWeekPlans={hasWeekPlans}
           weekPlans={weekPlans}
           currentWeek={currentWeek}
@@ -4047,9 +3956,131 @@ export default function PeriodizationScreen() {
 
         </ScrollView>
 
+        {showPlanFabMenu ? (
+          <Pressable
+            onPress={() => setShowPlanFabMenu(false)}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              zIndex: 6180,
+            }}
+          />
+        ) : null}
+
+        {showPlanFabMenu ? (
+          <Animated.View
+            style={[
+              plansFabMenuPositionStyle,
+              {
+                width: 220,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                padding: 8,
+                gap: 8,
+                zIndex: 6190,
+                opacity: planFabAnim,
+                transform: [
+                  {
+                    translateY: planFabAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [8, 0],
+                    }),
+                  },
+                  {
+                    scale: planFabAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.96, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => {
+                setShowPlanFabMenu(false);
+                void handleExportWeek();
+              }}
+              disabled={!canExportPlans}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                opacity: canExportPlans ? 1 : 0.65,
+              }}
+            >
+              <Ionicons name="document-text-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                Exportar semana
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setShowPlanFabMenu(false);
+                void handleExportCycle();
+              }}
+              disabled={!canExportPlans}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                opacity: canExportPlans ? 1 : 0.65,
+              }}
+            >
+              <Ionicons name="download-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                Exportar ciclo
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                setShowPlanFabMenu(false);
+                void handleImportPlansFile();
+              }}
+              disabled={!selectedClass || isImportingPlansFile}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                opacity: !selectedClass || isImportingPlansFile ? 0.65 : 1,
+              }}
+            >
+              <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                {isImportingPlansFile ? "Importando..." : "Importar planejamento"}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        ) : null}
+
         <Pressable
-          onPress={() => setShowPlanActionsModal(true)}
-          disabled={!selectedClass || isImportingPlansFile}
+          onPress={() => setShowPlanFabMenu((current) => !current)}
+          disabled={!selectedClass && !showPlanFabMenu}
           style={[
             plansFabPositionStyle,
             {
@@ -4060,18 +4091,37 @@ export default function PeriodizationScreen() {
               justifyContent: "center",
               backgroundColor: colors.primaryBg,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.primaryBg,
               zIndex: 6200,
               shadowColor: "#000",
               shadowOpacity: 0.2,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 12,
-              opacity: !selectedClass || isImportingPlansFile ? 0.7 : 1,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 8,
+              opacity: !selectedClass && !showPlanFabMenu ? 0.7 : 1,
             },
           ]}
         >
-          <Ionicons name="add" size={24} color={colors.primaryText} />
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: planFabAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["0deg", "45deg"],
+                  }),
+                },
+                {
+                  scale: planFabAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.05],
+                  }),
+                },
+              ],
+            }}
+          >
+            <Ionicons name="add" size={24} color={colors.primaryText} />
+          </Animated.View>
         </Pressable>
 
 
@@ -4307,21 +4357,6 @@ export default function PeriodizationScreen() {
 
       </View>
 
-
-      <PlanActionsModal
-        visible={showPlanActionsModal}
-        onClose={() => setShowPlanActionsModal(false)}
-        modalCardStyle={modalCardStyle}
-        colors={colors}
-        selectedClass={selectedClass}
-        isImportingPlansFile={isImportingPlansFile}
-        hasWeekPlans={hasWeekPlans}
-        periodizationRowsLength={periodizationRows.length}
-        onImportPlans={() => { setShowPlanActionsModal(false); void handleImportPlansFile(); }}
-        onExportWeek={() => { setShowPlanActionsModal(false); void handleExportWeek(); }}
-        onExportCycle={() => { setShowPlanActionsModal(false); void handleExportCycle(); }}
-      />
-
       <DayModal
         visible={showDayModal}
         onClose={() => setShowDayModal(false)}
@@ -4338,18 +4373,6 @@ export default function PeriodizationScreen() {
         volumeToPSE={volumeToPSE}
         normalizeText={normalizeText}
       />
-
-
-      <GenerateModal
-        visible={showGenerateModal}
-        onClose={() => setShowGenerateModal(false)}
-        modalCardStyle={modalCardStyle}
-        colors={colors}
-        isSavingPlans={isSavingPlans}
-        cycleLength={cycleLength}
-        onGenerateAction={handleGenerateAction}
-      />
-
 
       <WeekEditorModal
         visible={showWeekEditor}

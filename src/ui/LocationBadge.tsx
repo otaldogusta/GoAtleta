@@ -33,6 +33,7 @@ export function LocationBadge({
         paddingHorizontal: padding + 4,
         borderRadius: 999,
         backgroundColor: palette?.bg ?? "#f0f0f0",
+        maxWidth: "100%",
       }}
     >
       {showIcon ? (
@@ -43,10 +44,13 @@ export function LocationBadge({
         />
       ) : null}
       <Text
+        numberOfLines={1}
+        ellipsizeMode="tail"
         style={{
           color: palette?.text ?? "#333",
           fontWeight: "600",
           fontSize,
+          flexShrink: 1,
         }}
       >
         {label}

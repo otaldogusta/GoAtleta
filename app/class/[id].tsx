@@ -17,15 +17,17 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../../src/ui/Pressable";
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
+import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import type { ClassGroup, ScoutingLog, Student, TrainingPlan } from "../../src/core/models";
 import {
-  buildRosterFundamentalsByDay,
-  buildRosterMonthEntries,
-  getBlockForToday,
-  getSuggestedFundamentalsForClass,
-  ROSTER_FUNDAMENTALS,
-  type RosterFundamental,
+    ROSTER_FUNDAMENTALS,
+    buildRosterFundamentalsByDay,
+    buildRosterMonthEntries,
+    getBlockForToday,
+    getSuggestedFundamentalsForClass,
+    type RosterFundamental,
 } from "../../src/core/periodization";
 import {
     countsFromLog,
@@ -34,46 +36,40 @@ import {
     scoutingSkills,
 } from "../../src/core/scouting";
 import {
-  deleteClassCascade,
-  duplicateClass,
-  getAttendanceByClass,
-  getClassById,
-  getClasses,
-  getLatestScoutingLog,
-  getTrainingPlans,
-  getStudentsByClass,
-  updateClass,
-  updateClassColor,
+    deleteClassCascade,
+    duplicateClass,
+    getAttendanceByClass,
+    getClassById,
+    getClasses,
+    getLatestScoutingLog,
+    getStudentsByClass,
+    getTrainingPlans,
+    updateClass,
+    updateClassColor,
 } from "../../src/db/seed";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
-import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
-import { Button } from "../../src/ui/Button";
+import {
+    ClassEditModalBody,
+    ClassEditModalPickers,
+} from "../../src/screens/classes/components/ClassEditModalBody";
+import { useAppTheme } from "../../src/ui/app-theme";
+import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
-import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
-import { ShimmerBlock } from "../../src/ui/Shimmer";
-import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
-import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
-import { useAppTheme } from "../../src/ui/app-theme";
-import { useConfirmDialog } from "../../src/ui/confirm-dialog";
-import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
-import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette, toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
-import {
-  ClassEditModalBody,
-  ClassEditModalPickers,
-} from "../../src/screens/classes/components/ClassEditModalBody";
 import {
     buildWaMeLink,
     getContactPhone,
@@ -278,22 +274,14 @@ export default function ClassDetails() {
   const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
-  const [showEditDurationPicker, setShowEditDurationPicker] = useState(false);
   const [showEditAgeBandPicker, setShowEditAgeBandPicker] = useState(false);
   const [showEditGenderPicker, setShowEditGenderPicker] = useState(false);
   const [showEditGoalPicker, setShowEditGoalPicker] = useState(false);
-  const [showCustomDuration, setShowCustomDuration] = useState(false);
   const [editContainerWindow, setEditContainerWindow] = useState<{
     x: number;
     y: number;
   } | null>(null);
   const editScrollRef = useRef<ScrollView | null>(null);
-  const [editDurationTriggerLayout, setEditDurationTriggerLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const [editAgeBandTriggerLayout, setEditAgeBandTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -313,7 +301,6 @@ export default function ClassDetails() {
     height: number;
   } | null>(null);
   const editContainerRef = useRef<View>(null);
-  const editDurationTriggerRef = useRef<View>(null);
   const editAgeBandTriggerRef = useRef<View>(null);
   const editGenderTriggerRef = useRef<View>(null);
   const editGoalTriggerRef = useRef<View>(null);
@@ -341,6 +328,7 @@ export default function ClassDetails() {
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [gender, setGender] = useState<ClassGroup["gender"]>("misto");
   const [startTime, setStartTime] = useState("14:00");
+  const [endTime, setEndTime] = useState("15:00");
   const [duration, setDuration] = useState("60");
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
   const [latestScouting, setLatestScouting] = useState<ScoutingLog | null>(null);
@@ -357,10 +345,6 @@ export default function ClassDetails() {
   }
   const classFabBottom = Math.max(insets.bottom + 166, 182);
   const classFabMenuBottom = classFabBottom + 74;
-  const {
-    animatedStyle: editDurationPickerAnimStyle,
-    isVisible: showEditDurationPickerContent,
-  } = useCollapsibleAnimation(showEditDurationPicker, { translateY: -6 });
   const {
     animatedStyle: editAgeBandPickerAnimStyle,
     isVisible: showEditAgeBandPickerContent,
@@ -405,14 +389,13 @@ export default function ClassDetails() {
     "Força+Potência",
     "Velocidade",
     "Agilidade",
-    "Resistencia",
+    "Resistência",
     "Potência",
     "Mobilidade",
-    "Coordenacao",
-    "Prevencao de lesoes",
+    "Coordenação",
+    "Prevenção de lesões",
   ];
   const genderOptions: ClassGroup["gender"][] = ["feminino", "masculino", "misto"];
-  const durationOptions = ["60", "75", "90"];
   const formatDays = (days: number[]) =>
     days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
   const chipBaseStyle = useMemo(
@@ -558,6 +541,28 @@ export default function ClassDetails() {
     const [hour, minute] = value.split(":").map(Number);
     return hour * 60 + minute;
   };
+  const computeEndTimeFromDuration = (value: string, durationMinutes: number) => {
+    const start = toMinutes(value.trim());
+    if (start === null) return "";
+    const total = start + durationMinutes;
+    const endHour = Math.floor(total / 60) % 24;
+    const endMinute = total % 60;
+    return `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
+  };
+  const parseDurationFromTimeRange = (startValue: string, endValue: string) => {
+    const start = toMinutes(startValue.trim());
+    const end = toMinutes(endValue.trim());
+    if (start === null || end === null) return null;
+    const durationMinutes = end - start;
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
+    return durationMinutes;
+  };
+
+  useEffect(() => {
+    const durationMinutes = parseDurationFromTimeRange(startTime, endTime);
+    setDuration(durationMinutes ? String(durationMinutes) : "");
+  }, [endTime, startTime]);
+
   const rosterMonthEntries = useMemo(
     () => (cls ? buildRosterMonthEntries(rosterMonthValue, cls.daysOfWeek) : []),
     [cls, rosterMonthValue]
@@ -631,7 +636,7 @@ export default function ClassDetails() {
   const conflictSummary = useMemo(() => {
     if (!clsId) return [];
     const start = toMinutes(startTime.trim());
-    const durationValue = parseDuration(duration.trim());
+    const durationValue = parseDurationFromTimeRange(startTime, endTime);
     if (start === null || !durationValue) return [];
     const end = start + durationValue;
     return allClasses
@@ -650,7 +655,7 @@ export default function ClassDetails() {
         );
         return `${item.name} (${sharedDays.map((day) => dayNames[day]).join(", ")})`;
       });
-  }, [allClasses, clsId, currentUnit, daysOfWeek, duration, startTime]);
+  }, [allClasses, clsId, currentUnit, daysOfWeek, endTime, startTime]);
   const goalSuggestions = useMemo(() => {
     if (!clsUnit) return [];
     const matches = allClasses.filter((item) => item.unit === clsUnit);
@@ -698,6 +703,9 @@ export default function ClassDetails() {
           setAgeBand(data?.ageBand ?? "08-09");
           setGender(data?.gender ?? "misto");
           setStartTime(data?.startTime ?? "14:00");
+          setEndTime(
+            data?.endTime ?? computeEndTimeFromDuration(data?.startTime ?? "14:00", data?.durationMinutes ?? 60)
+          );
           setDuration(String(data?.durationMinutes ?? 60));
           setDaysOfWeek(data?.daysOfWeek ?? []);
           setGoal(data?.goal ?? "Fundamentos");
@@ -776,6 +784,9 @@ export default function ClassDetails() {
     setAgeBand(cls.ageBand ?? "08-09");
     setGender(cls.gender ?? "misto");
     setStartTime(cls.startTime ?? "14:00");
+    setEndTime(
+      cls.endTime ?? computeEndTimeFromDuration(cls.startTime ?? "14:00", cls.durationMinutes ?? 60)
+    );
     setDuration(String(cls.durationMinutes ?? 60));
     setDaysOfWeek(cls.daysOfWeek ?? []);
     const nextAgeBand = cls.ageBand ?? "08-09";
@@ -792,33 +803,27 @@ export default function ClassDetails() {
   }, [ageBandOptions, classCoachName, cls, goalOptions]);
 
   const closeEditPickers = useCallback(() => {
-    setShowEditDurationPicker(false);
     setShowEditAgeBandPicker(false);
     setShowEditGenderPicker(false);
     setShowEditGoalPicker(false);
   }, []);
 
   const openEditPicker = useCallback(
-    (target: "duration" | "age" | "gender" | "goal") => {
+    (target: "age" | "gender" | "goal") => {
       closeEditPickers();
 
       const measureAndOpen = (attempt = 0) => {
         const measureRef =
-          target === "duration"
-            ? editDurationTriggerRef.current
-            : target === "age"
-              ? editAgeBandTriggerRef.current
-              : target === "gender"
-                ? editGenderTriggerRef.current
-                : editGoalTriggerRef.current;
+          target === "age"
+            ? editAgeBandTriggerRef.current
+            : target === "gender"
+              ? editGenderTriggerRef.current
+              : editGoalTriggerRef.current;
 
         measureRef?.measureInWindow((x, y, width, height) => {
           const isReady = width > 0 && height > 0;
           if (isReady) {
-            if (target === "duration") {
-              setEditDurationTriggerLayout({ x, y, width, height });
-              setShowEditDurationPicker(true);
-            } else if (target === "age") {
+            if (target === "age") {
               setEditAgeBandTriggerLayout({ x, y, width, height });
               setShowEditAgeBandPicker(true);
             } else if (target === "gender") {
@@ -842,16 +847,14 @@ export default function ClassDetails() {
     [
       closeEditPickers,
       editAgeBandTriggerRef,
-      editDurationTriggerRef,
       editGenderTriggerRef,
       editGoalTriggerRef,
     ]
   );
 
   const toggleEditPicker = useCallback(
-    (target: "duration" | "age" | "gender" | "goal") => {
+    (target: "age" | "gender" | "goal") => {
       const isOpen =
-        (target === "duration" && showEditDurationPicker) ||
         (target === "age" && showEditAgeBandPicker) ||
         (target === "gender" && showEditGenderPicker) ||
         (target === "goal" && showEditGoalPicker);
@@ -867,7 +870,6 @@ export default function ClassDetails() {
       closeEditPickers,
       openEditPicker,
       showEditAgeBandPicker,
-      showEditDurationPicker,
       showEditGenderPicker,
       showEditGoalPicker,
     ]
@@ -882,11 +884,12 @@ export default function ClassDetails() {
       (cls.ageBand ?? "08-09") !== ageBand ||
       (cls.gender ?? "misto") !== gender ||
       (cls.startTime ?? "14:00") !== startTime ||
+      (cls.endTime ?? computeEndTimeFromDuration(cls.startTime ?? "14:00", cls.durationMinutes ?? 60)) !== endTime ||
       String(cls.durationMinutes ?? 60) !== duration ||
       JSON.stringify(cls.daysOfWeek ?? []) !== JSON.stringify(daysOfWeek) ||
       (cls.goal ?? "Fundamentos") !== goal
     );
-  }, [ageBand, classCoachName, cls, coachNameOverride, daysOfWeek, duration, gender, goal, name, startTime, unit]);
+  }, [ageBand, classCoachName, cls, coachNameOverride, daysOfWeek, duration, endTime, gender, goal, name, startTime, unit]);
 
   useEffect(() => {
     if (!showEditModal) return;
@@ -894,11 +897,6 @@ export default function ClassDetails() {
       if (editContainerRef.current) {
         editContainerRef.current.measureInWindow((x, y) => {
           setEditContainerWindow({ x, y });
-        });
-      }
-      if (editDurationTriggerRef.current) {
-        editDurationTriggerRef.current.measureInWindow((x, y, width, height) => {
-          setEditDurationTriggerLayout({ x, y, width, height });
         });
       }
       if (editAgeBandTriggerRef.current) {
@@ -987,9 +985,20 @@ export default function ClassDetails() {
       Vibration.vibrate(40);
       return false;
     }
-    const durationValue = parseDuration(duration.trim());
+    const endTimeValue = endTime.trim();
+    if (!isValidTime(endTimeValue)) {
+      setFormError("Horário de término inválido. Use HH:MM.");
+      Vibration.vibrate(40);
+      return false;
+    }
+    const durationValue = parseDurationFromTimeRange(timeValue, endTimeValue);
     if (!durationValue) {
-      setFormError("Duração inválida. Use minutos entre 30 e 180.");
+      setFormError("O horário de término deve ser maior que o horário de início.");
+      Vibration.vibrate(40);
+      return false;
+    }
+    if (durationValue < 30 || durationValue > 180) {
+      setFormError("A duração calculada deve ficar entre 30 e 180 minutos.");
       Vibration.vibrate(40);
       return false;
     }
@@ -1021,7 +1030,6 @@ export default function ClassDetails() {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
     closeEditPickers();
-    setShowCustomDuration(false);
     setShowEditCustomAgeBand(false);
     setEditCustomAgeBand("");
     setShowEditCustomGoal(false);
@@ -1544,7 +1552,7 @@ export default function ClassDetails() {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        
+
         <View
           style={[
             getSectionCardStyle(colors, "primary", { radius: 18 }),
@@ -1922,28 +1930,23 @@ export default function ClassDetails() {
                 renderPickers={false}
               refs={{
                 editContainerRef,
-                editDurationTriggerRef,
                 editAgeBandTriggerRef,
                 editGenderTriggerRef,
                 editGoalTriggerRef,
               }}
               layouts={{
                 editContainerWindow,
-                editDurationTriggerLayout,
                 editAgeBandTriggerLayout,
                 editGenderTriggerLayout,
                 editGoalTriggerLayout,
               }}
               pickers={{
-                showEditDurationPicker,
                 showEditAgeBandPicker,
                 showEditGenderPicker,
                 showEditGoalPicker,
-                showEditDurationPickerContent,
                 showEditAgeBandPickerContent,
                 showEditGenderPickerContent,
                 showEditGoalPickerContent,
-                editDurationPickerAnimStyle,
                 editAgeBandPickerAnimStyle,
                 editGenderPickerAnimStyle,
                 editGoalPickerAnimStyle,
@@ -1959,9 +1962,9 @@ export default function ClassDetails() {
                 editStartTime: startTime,
                 setEditStartTime: setStartTime,
                 normalizeTimeInput,
+                editEndTime: endTime,
+                setEditEndTime: setEndTime,
                 editDuration: duration,
-                setEditDuration: setDuration,
-                editShowCustomDuration: showCustomDuration,
                 editAgeBand: ageBand,
                 setEditAgeBand: setAgeBand,
                 editShowCustomAgeBand: showEditCustomAgeBand,
@@ -1981,7 +1984,6 @@ export default function ClassDetails() {
               }}
               options={{
                 dayNames,
-                durationOptions,
                 ageBandOptions,
                 genderOptions: genderOptions.map((value) => ({
                   value,
@@ -1993,9 +1995,8 @@ export default function ClassDetails() {
               actions={{
                 closeAllPickers: closeEditPickers,
                 toggleEditPicker: (target) => {
-                  if (target === "duration" || target === "age" || target === "gender" || target === "goal") {
+                  if (target === "age" || target === "gender" || target === "goal") {
                     const isOpen =
-                      (target === "duration" && showEditDurationPicker) ||
                       (target === "age" && showEditAgeBandPicker) ||
                       (target === "gender" && showEditGenderPicker) ||
                       (target === "goal" && showEditGoalPicker);
@@ -2005,19 +2006,6 @@ export default function ClassDetails() {
                     }
                     toggleEditPicker(target);
                     return;
-                  }
-                  closeEditPickers();
-                },
-                handleEditSelectDuration: (value) => {
-                  const selected = String(value);
-                  if (selected === 'Personalizar') {
-                    setShowCustomDuration(true);
-                    if (!durationOptions.includes(duration)) {
-                      setDuration('');
-                    }
-                  } else {
-                    setShowCustomDuration(false);
-                    setDuration(selected);
                   }
                   closeEditPickers();
                 },
@@ -2093,28 +2081,23 @@ export default function ClassDetails() {
           <ClassEditModalPickers
             refs={{
               editContainerRef,
-              editDurationTriggerRef,
               editAgeBandTriggerRef,
               editGenderTriggerRef,
               editGoalTriggerRef,
             }}
             layouts={{
               editContainerWindow,
-              editDurationTriggerLayout,
               editAgeBandTriggerLayout,
               editGenderTriggerLayout,
               editGoalTriggerLayout,
             }}
             pickers={{
-              showEditDurationPicker,
               showEditAgeBandPicker,
               showEditGenderPicker,
               showEditGoalPicker,
-              showEditDurationPickerContent,
               showEditAgeBandPickerContent,
               showEditGenderPickerContent,
               showEditGoalPickerContent,
-              editDurationPickerAnimStyle,
               editAgeBandPickerAnimStyle,
               editGenderPickerAnimStyle,
               editGoalPickerAnimStyle,
@@ -2130,9 +2113,9 @@ export default function ClassDetails() {
               editStartTime: startTime,
               setEditStartTime: setStartTime,
               normalizeTimeInput,
+              editEndTime: endTime,
+              setEditEndTime: setEndTime,
               editDuration: duration,
-              setEditDuration: setDuration,
-              editShowCustomDuration: showCustomDuration,
               editAgeBand: ageBand,
               setEditAgeBand: setAgeBand,
               editShowCustomAgeBand: showEditCustomAgeBand,
@@ -2152,7 +2135,6 @@ export default function ClassDetails() {
             }}
             options={{
               dayNames,
-              durationOptions,
               ageBandOptions,
               genderOptions: genderOptions.map((value) => ({
                 value,
@@ -2163,26 +2145,7 @@ export default function ClassDetails() {
             }}
             actions={{
               closeAllPickers: closeEditPickers,
-              toggleEditPicker: (target) => {
-                if (target === "duration" || target === "age" || target === "gender" || target === "goal") {
-                  toggleEditPicker(target);
-                  return;
-                }
-                closeEditPickers();
-              },
-              handleEditSelectDuration: (value) => {
-                const selected = String(value);
-                if (selected === "Personalizar") {
-                  setShowCustomDuration(true);
-                  if (!durationOptions.includes(duration)) {
-                    setDuration("");
-                  }
-                } else {
-                  setShowCustomDuration(false);
-                  setDuration(selected);
-                }
-                closeEditPickers();
-              },
+              toggleEditPicker,
               handleEditSelectAgeBand: (value) => {
                 const selected = String(value);
                 if (selected === "Personalizar") {

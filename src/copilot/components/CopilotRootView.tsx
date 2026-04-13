@@ -1,12 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Linking, Text, View } from "react-native";
 
-import type { InsightsView } from "../CopilotProvider";
-import type { OperationalContextResult } from "../operational-context";
-import type { CopilotAction } from "../hooks/useRegistryManager";
 import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import { Pressable } from "../../ui/Pressable";
-import type { InsightsCategory } from "../CopilotProvider";
+import type { OperationalContextResult } from "../operational-context";
+import type { CopilotAction, InsightsCategory, InsightsView } from "../types";
 
 type SignalInsightsCategory = Exclude<InsightsCategory, "regulation">;
 

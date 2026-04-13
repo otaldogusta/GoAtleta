@@ -36,8 +36,11 @@ export const measureAsync = async <T>(
   }
 };
 
-export const measure = async <T>(name: string, fn: () => Promise<T>) =>
-  measureAsync(name, fn);
+export const measure = async <T>(
+  name: string,
+  fn: () => Promise<T>,
+  data?: Record<string, unknown>
+) => measureAsync(name, fn, data);
 
 export const markRender = (name: string, data?: Record<string, unknown>) => {
   if (!__DEV__) return;

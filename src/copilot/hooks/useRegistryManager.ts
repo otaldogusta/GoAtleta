@@ -1,37 +1,12 @@
 import { Dispatch, MutableRefObject, SetStateAction, useCallback, useRef } from "react";
 
-import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import { isValidCopilotSignal, sortCopilotSignals } from "../signal-utils";
-
-// Local copies of the types that this hook works with — kept in sync with CopilotProvider.tsx
-export type CopilotContextData = {
-  screen: string;
-  title?: string;
-  subtitle?: string;
-  activeSignal?: CopilotSignal;
-};
-
-type CopilotActionResult = {
-  message: string;
-  citationsCount?: number;
-  confidence?: number;
-};
-
-export type CopilotAction = {
-  id: string;
-  title: string;
-  description?: string;
-  requires?: (ctx: CopilotContextData | null) => string | null;
-  run: (ctx: CopilotContextData | null) => Promise<CopilotActionResult | string | void> | CopilotActionResult | string | void;
-};
-
-// Minimal shape of the parent state that this hook reads/writes
-type RegistryStatePatch = {
-  context: CopilotContextData | null;
-  actions: CopilotAction[];
-  signals: CopilotSignal[];
-  selectedSignalId: string | null;
-};
+import type {
+    CopilotAction,
+    CopilotContextData,
+    CopilotSignal,
+    RegistryStatePatch,
+} from "../types";
 
 export type RegistryManager = {
   contextRegistryRef: MutableRefObject<Map<string, CopilotContextData | null>>;

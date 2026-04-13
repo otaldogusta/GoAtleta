@@ -53,6 +53,9 @@ export const AgendaCard = memo(function AgendaCard({
   markRender("screen.home.render.agendaCard", { classId: item.classId, index });
 
   const handlePress = useCallback(() => onCardPress(index), [index, onCardPress]);
+  const badgeLabel = useMemo(() => item.timeLabel, [item.timeLabel]);
+  const isCompactCard = agendaCardWidth <= 260;
+  const isVeryCompactCard = agendaCardWidth <= 200;
 
   const containerStyle = useMemo(
     () => [
@@ -96,8 +99,47 @@ export const AgendaCard = memo(function AgendaCard({
           ]}
         >
           <View
+            pointerEvents="none"
+            style={[styles.statusBadgeSlot, Platform.OS === "web" ? styles.webOpticalShift : null]}
+          >
+            <View
+              style={[
+                styles.statusBadge,
+                isCompactCard ? styles.statusBadgeCompact : null,
+                {
+                  backgroundColor: mode === "dark" ? colors.secondaryBg : colors.primaryBg,
+                  borderColor: isActive ? activeBorderColor : colors.border,
+                  opacity: isPast ? 0.72 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusBadgeText,
+                  isVeryCompactCard
+                    ? styles.statusBadgeTextVeryCompact
+                    : isCompactCard
+                      ? styles.statusBadgeTextCompact
+                      : null,
+                  {
+                    color:
+                      mode === "dark"
+                        ? colors.text
+                        : isActive
+                          ? colors.primaryText
+                          : colors.primaryText,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {badgeLabel}
+              </Text>
+            </View>
+          </View>
+          <View
             style={[
               styles.innerCard,
+              isCompactCard ? styles.innerCardCompact : null,
               {
                 backgroundColor: colors.card,
                 borderColor: isActive ? activeBorderColor : colors.border,
@@ -105,36 +147,33 @@ export const AgendaCard = memo(function AgendaCard({
               },
             ]}
           >
-            <View style={styles.content}>
-              <View style={styles.statusRow}>
-                <View
-                  style={[
-                    styles.statusPill,
-                    { backgroundColor: colors.secondaryBg, borderColor: colors.border },
-                  ]}
+            <View style={[styles.content, Platform.OS === "web" ? styles.webOpticalShift : null]}>
+              <View style={styles.headerRow}>
+                <Text
+                  style={[styles.dateText, isCompactCard ? styles.dateTextCompact : null, { color: colors.muted }]}
+                  numberOfLines={1}
                 >
-                  <Text style={[styles.statusText, { color: colors.text }]}>{label}</Text>
-                </View>
-                <Text style={[styles.dateText, { color: colors.muted }]} numberOfLines={1}>
                   {item.dateLabel}
                 </Text>
               </View>
 
-              <View style={styles.classRow}>
-                <Text style={[styles.className, { color: colors.text }]} numberOfLines={1}>
+              <View style={[styles.classRow, isCompactCard ? styles.classRowCompact : null]}>
+                <Text
+                  style={[styles.className, isCompactCard ? styles.classNameCompact : null, { color: colors.text }]}
+                  numberOfLines={1}
+                >
                   {item.className}
                 </Text>
+                {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
+              </View>
+
+              <View style={styles.locationRow}>
                 <LocationBadge
                   location={item.unit ?? ""}
                   palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
                   size="sm"
                   showIcon={true}
                 />
-              </View>
-
-              <View style={styles.metaRow}>
-                {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
-                <Text style={[styles.timeText, { color: colors.muted }]}>{item.timeLabel}</Text>
               </View>
             </View>
           </View>
@@ -159,53 +198,108 @@ const styles = StyleSheet.create({
   outerCard: {
     borderRadius: 14,
     backgroundColor: "transparent",
+    paddingTop: 14,
   },
   innerCard: {
-    padding: 10,
+    paddingTop: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
   },
-  content: {
-    gap: 6,
+  innerCardCompact: {
+    paddingTop: 14,
+    paddingHorizontal: 10,
+    paddingBottom: 12,
   },
-  statusRow: {
+  statusBadge: {
+    position: "relative",
+    minWidth: 100,
+    maxWidth: "92%",
+    height: 28,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    zIndex: 2,
+    overflow: "hidden",
+  },
+  statusBadgeCompact: {
+    minWidth: 0,
+    maxWidth: "88%",
+    height: 26,
+    paddingHorizontal: 8,
+  },
+  statusBadgeSlot: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 2,
+  },
+  webOpticalShift: {
+    transform: [{ translateX: 2 }],
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0,
+    textAlign: "center",
+  },
+  statusBadgeTextCompact: {
+    fontSize: 10,
+  },
+  statusBadgeTextVeryCompact: {
+    fontSize: 9,
+  },
+  content: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 6,
-  },
-  statusPill: {
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "700",
+    justifyContent: "center",
+    width: "100%",
+    marginBottom: 1,
   },
   dateText: {
+    fontSize: 12,
+    flexShrink: 1,
+    textAlign: "center",
+  },
+  dateTextCompact: {
     fontSize: 11,
+  },
+  className: {
+    fontSize: 16,
+    fontWeight: "800",
+    textAlign: "center",
+    flexShrink: 1,
+  },
+  classNameCompact: {
+    fontSize: 14,
   },
   classRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    justifyContent: "center",
+    flexWrap: "wrap",
+    width: "100%",
+    gap: 6,
+    marginBottom: 1,
   },
-  className: {
-    fontSize: 14,
-    fontWeight: "800",
-    flex: 1,
+  classRowCompact: {
+    gap: 3,
   },
-  metaRow: {
-    flexDirection: "row",
+  locationRow: {
+    width: "100%",
     alignItems: "center",
-    gap: 8,
-  },
-  timeText: {
-    fontSize: 11,
-    fontWeight: "600",
+    marginTop: 0,
   },
 });

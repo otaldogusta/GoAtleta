@@ -215,6 +215,18 @@ export function CycleTab({
         openWeekEditor={openWeekEditor}
       />
 
+      {!hasWeekPlans ? (
+        <View style={getSectionCardStyle(colors, "neutral")}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+            {normalizeText("Nenhum ciclo salvo para esta turma.")}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            {normalizeText("Use a visão geral para gerar um novo ciclo.")}
+          </Text>
+        </View>
+      ) : (
+        <>
+
         <View
           style={[
             getSectionCardStyle(colors, "primary"),
@@ -467,102 +479,6 @@ export function CycleTab({
         ) : null}
 
         </View>
-
-
-      <Pressable
-
-        onPress={() => toggleSection("guides")}
-
-        style={[
-
-          getSectionCardStyle(colors, "neutral"),
-
-          {
-
-            flexDirection: "row",
-
-            alignItems: "center",
-
-            gap: 10,
-
-            paddingVertical: 10,
-
-          },
-
-        ]}
-
-      >
-
-        <View
-
-          style={{
-
-            width: 26,
-
-            height: 26,
-
-            borderRadius: 13,
-
-            alignItems: "center",
-
-            justifyContent: "center",
-
-            backgroundColor: colors.secondaryBg,
-
-          }}
-
-        >
-
-          <Ionicons name="information" size={16} color={colors.text} />
-
-        </View>
-
-        <View style={{ flex: 1 }}>
-
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-
-            Diretrizes da faixa
-
-          </Text>
-
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-            {normalizeText("Toque para ver as recomendações")}
-
-          </Text>
-
-        </View>
-
-        <Ionicons
-
-          name={sectionOpen.guides ? "chevron-up" : "chevron-down"}
-
-          size={18}
-
-          color={colors.muted}
-
-        />
-
-      </Pressable>
-
-      { showGuideContent ? (
-
-        <Animated.View style={[{ gap: 6 }, guideAnimStyle]}>
-
-          {summary.map((item) => (
-
-            <Text key={item} style={{ color: colors.muted, fontSize: 12 }}>
-
-              {"- " + item}
-
-            </Text>
-
-          ))}
-
-        </Animated.View>
-
-      ) : null}
-
 
         <View
           style={[
@@ -869,6 +785,9 @@ export function CycleTab({
         ) : null}
 
       </View>
+
+        </>
+      )}
 
     </>
   );

@@ -47,19 +47,16 @@ type OverviewTabProps = {
   microTriggerRef: React.RefObject<View | null>;
   showMicroPicker: boolean;
   sessionsPerWeek: number;
-  volumeOrder: readonly VolumeLevel[];
-  getVolumePalette: (level: VolumeLevel, colors: ThemeColors) => { bg: string; text: string; border: string };
-  volumeCounts: Record<VolumeLevel, number>;
-  progressBars: number[];
-  weekPlans: WeekPlan[];
   painAlert: string | null;
   painAlertDates: string[];
   isOrgAdmin: boolean;
   router: { push: (params: any) => void };
   classPlans: ClassPlan[];
+  hasWeekPlans: boolean;
   isSavingPlans: boolean;
   onCompleteMissingCoverage: () => void;
-  setShowGenerateModal: (value: boolean) => void;
+  onGenerateCycle: () => void;
+  onRemoveCycle: () => void;
   unitMismatchWarning: string;
 };
 
@@ -86,19 +83,16 @@ export function OverviewTab({
   microTriggerRef,
   showMicroPicker,
   sessionsPerWeek,
-  volumeOrder,
-  getVolumePalette,
-  volumeCounts,
-  progressBars,
-  weekPlans,
   painAlert,
   painAlertDates,
   isOrgAdmin,
   router,
   classPlans,
+  hasWeekPlans,
   isSavingPlans,
   onCompleteMissingCoverage,
-  setShowGenerateModal,
+  onGenerateCycle,
+  onRemoveCycle,
   unitMismatchWarning,
 }: OverviewTabProps) {
   const coveredWeeks = new Set(
@@ -124,12 +118,6 @@ export function OverviewTab({
         <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
 
           {normalizeText("Visão geral")}
-
-        </Text>
-
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-            {normalizeText("Panorama rápido do ciclo e da turma atual")}
 
         </Text>
 
@@ -561,7 +549,7 @@ export function OverviewTab({
 
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
 
-                    {sessionsPerWeek} dias
+                    {sessionsPerWeek === 1 ? "1 dia" : `${sessionsPerWeek} dias`}
 
                   </Text>
 
@@ -584,118 +572,6 @@ export function OverviewTab({
               </Pressable>
 
             </View>
-
-          </View>
-
-        </View>
-
-        <View style={{ marginTop: 8, gap: 8 }}>
-
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {normalizeText("Distribuição de carga")}
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
-
-            {volumeOrder.map((level) => {
-
-              const palette = getVolumePalette(level, colors);
-
-              const count = volumeCounts[level];
-
-              const height = 20 + count * 10;
-
-              return (
-
-                <View key={level} style={{ alignItems: "center", gap: 4 }}>
-
-                  <View
-
-                    style={{
-
-                      width: 28,
-
-                      height,
-
-                      borderRadius: 10,
-
-                      backgroundColor: palette.bg,
-
-                      opacity: 0.9,
-
-                    }}
-
-                  />
-
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-
-                    {level} ({count})
-
-                  </Text>
-
-                </View>
-
-              );
-
-            })}
-
-          </View>
-
-        </View>
-
-        <View style={{ marginTop: 8, gap: 8 }}>
-
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {normalizeText("Tendência de carga")}
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-
-            {progressBars.map((ratio, index) => {
-
-              const level = weekPlans[index]?.volume ?? "médio";
-
-              const palette = getVolumePalette(level, colors);
-
-              const size = 28;
-
-              return (
-
-                <View
-
-                  key={`trend-${index}`}
-
-                  style={{
-
-                    width: size,
-
-                    height: size,
-
-                    borderRadius: 8,
-
-                    backgroundColor: palette.bg,
-
-                    opacity: ratio,
-
-                    alignItems: "center",
-
-                    justifyContent: "center",
-
-                  }}
-
-                >
-
-                  <Text style={{ color: palette.text, fontSize: 11, fontWeight: "700" }}>
-
-                    {index + 1}
-
-                  </Text>
-
-                </View>
-
-              );
-
-            })}
 
           </View>
 
@@ -788,23 +664,13 @@ export function OverviewTab({
 
         </Text>
 
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-          {classPlans.length
-
-            ? "Planejamento salvo para esta turma."
-
-            : "Gere o planejamento semanal para esta turma."}
-
-        </Text>
-
         <Pressable
 
           onPress={() => {
 
             if (!selectedClass || isSavingPlans) return;
 
-            setShowGenerateModal(true);
+            onGenerateCycle();
 
           }}
 
@@ -855,6 +721,28 @@ export function OverviewTab({
           </Text>
 
         </Pressable>
+
+        {hasWeekPlans ? (
+          <Pressable
+            onPress={() => {
+              if (!selectedClass || isSavingPlans) return;
+              onRemoveCycle();
+            }}
+            disabled={!selectedClass || isSavingPlans}
+            style={{
+              marginTop: 8,
+              paddingVertical: 10,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: colors.dangerSolidBg,
+              opacity: !selectedClass || isSavingPlans ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
+              {isSavingPlans ? "Removendo..." : "Remover ciclo"}
+            </Text>
+          </Pressable>
+        ) : null}
 
       </View>
 

@@ -1,3 +1,4 @@
+import { usePathname } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
     Animated,
@@ -48,6 +49,69 @@ export function AnchoredDropdown({
 }: AnchoredDropdownProps) {
   const { colors } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
+  const panelRef = useRef<View | null>(null);
+  const pathname = usePathname();
+  const previousPathnameRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      previousPathnameRef.current = pathname ?? null;
+      return;
+    }
+
+    if (
+      previousPathnameRef.current &&
+      pathname &&
+      previousPathnameRef.current !== pathname
+    ) {
+      onRequestClose?.();
+    }
+
+    previousPathnameRef.current = pathname ?? null;
+  }, [onRequestClose, pathname, visible]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible || typeof document === "undefined") return;
+
+    const isEventInsidePanel = (target: EventTarget | null) => {
+      const panelElement = panelRef.current as unknown as HTMLElement | null;
+      if (!panelElement || !(target instanceof Node)) return false;
+      return panelElement.contains(target);
+    };
+
+    const handleVisibilityOrBlur = () => {
+      onRequestClose?.();
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (isEventInsidePanel(event.target)) return;
+      onRequestClose?.();
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (isEventInsidePanel(event.target)) return;
+      onRequestClose?.();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      onRequestClose?.();
+    };
+
+    window.addEventListener("blur", handleVisibilityOrBlur);
+    document.addEventListener("visibilitychange", handleVisibilityOrBlur);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("blur", handleVisibilityOrBlur);
+      document.removeEventListener("visibilitychange", handleVisibilityOrBlur);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onRequestClose, visible]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || !visible || !layout) return;
@@ -143,6 +207,7 @@ export function AnchoredDropdown({
 
   const dropdown = (
     <Animated.View
+      ref={panelRef}
       style={[
         {
           position: Platform.OS === "web" ? "fixed" : "absolute",
@@ -165,13 +230,13 @@ export function AnchoredDropdown({
             borderRadius: 18,
             overflow: "hidden",
             borderWidth: 1,
-            borderColor: "rgba(255, 255, 255, 0.08)",
-            backgroundColor: "rgba(6, 10, 20, 0.98)",
+            borderColor: colors.border,
+            backgroundColor: colors.card,
             shadowColor: "#000",
-            shadowOpacity: 0.32,
-            shadowRadius: 20,
+            shadowOpacity: 0.16,
+            shadowRadius: 14,
             shadowOffset: { width: 0, height: 12 },
-            elevation: 20,
+            elevation: 14,
           },
         ]}
       >

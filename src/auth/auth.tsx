@@ -257,7 +257,7 @@ export function AuthProvider({
   initialSession,
 }: {
   children: React.ReactNode;
-  initialSession: AuthSession | null;
+  initialSession?: AuthSession | null;
 }) {
   const [session, setSession] = useState<AuthSession | null>(
     initialSession ?? null
@@ -269,6 +269,7 @@ export function AuthProvider({
   useEffect(() => {
     let alive = true;
     if (initialSession !== undefined) {
+      setSession(initialSession ?? null);
       setLoading(false);
       return () => {
         alive = false;

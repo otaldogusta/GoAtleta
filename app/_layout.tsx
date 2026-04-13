@@ -5,6 +5,7 @@ import {
     useRouter,
 } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as Updates from "expo-updates";
 import {
     useCallback,
     useEffect,
@@ -90,6 +91,34 @@ function RootErrorFallback({
   resetError: () => void;
 }) {
   const { colors } = useAppTheme();
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = useCallback(async () => {
+    if (isRetrying) return;
+    setIsRetrying(true);
+    try {
+      resetError();
+
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") {
+          window.location.reload();
+          return;
+        }
+        return;
+      }
+
+      await Updates.reloadAsync();
+    } catch {
+      resetError();
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [isRetrying, resetError]);
+
+  useEffect(() => {
+    console.error("Root error boundary caught", error);
+  }, [error]);
+
   return (
     <View
       style={{
@@ -116,20 +145,20 @@ function RootErrorFallback({
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700", marginBottom: 2 }}>
           Algo deu errado
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>
-          {error instanceof Error ? error.message : "Um erro inesperado ocorreu"}
-        </Text>
         <Pressable
-          onPress={resetError}
+          onPress={() => {
+            void handleRetry();
+          }}
           style={{
             paddingVertical: 12,
             paddingHorizontal: 24,
             borderRadius: 12,
             backgroundColor: colors.primaryBg,
+            opacity: isRetrying ? 0.72 : 1,
           }}
         >
           <Text style={{ color: colors.primaryText, fontWeight: "600" }}>
-            Tentar novamente
+            {isRetrying ? "Recarregando..." : "Tentar novamente"}
           </Text>
         </Pressable>
       </View>
@@ -584,8 +613,11 @@ textarea:-webkit-autofill:active {
   border-radius: 14px;
 }
 html, body {
-  scrollbar-width: none;
-  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+  scrollbar-color: ${colors.border} transparent;
+}
+* {
+  scrollbar-gutter: auto;
 }
 *::-webkit-scrollbar {
   width: 8px;
@@ -595,27 +627,21 @@ html, body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: rgba(0,0,0,0);
+  background-color: ${colors.border};
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
-  transition: background-color 240ms ease, opacity 240ms ease;
-  opacity: 0;
 }
-body.app-scrolling {
-  scrollbar-width: thin;
-  scrollbar-color: ${colors.border} transparent;
-}
-body.app-scrolling *::-webkit-scrollbar-thumb {
-  background-color: ${colors.border};
-  opacity: 1;
-}
-body.app-scrolling *::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
   background-color: ${colors.muted};
 }
 body.dropdown-scrollbars {
   scrollbar-width: thin;
   scrollbar-color: ${colors.border} transparent;
+}
+body.dropdown-scrollbars,
+body.dropdown-scrollbars * {
+  scrollbar-gutter: stable;
 }
 body.dropdown-scrollbars *::-webkit-scrollbar {
   width: 8px;
@@ -642,52 +668,6 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
       style.textContent = css;
     }
   }, [colors.inputBg, colors.inputText, colors.border, colors.muted]);
-
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    if (typeof document === "undefined") return;
-    let timeout: number | null = null;
-    let rafId: number | null = null;
-    let scrollingActive = false;
-
-    const activateScrolling = () => {
-      if (!scrollingActive) {
-        scrollingActive = true;
-        document.body.classList.add("app-scrolling");
-        document.documentElement.classList.add("app-scrolling");
-      }
-      if (timeout) window.clearTimeout(timeout);
-      timeout = window.setTimeout(() => {
-        scrollingActive = false;
-        document.body.classList.remove("app-scrolling");
-        document.documentElement.classList.remove("app-scrolling");
-      }, 450);
-    };
-
-    const handleScroll = () => {
-      if (rafId) return;
-      rafId = window.requestAnimationFrame(() => {
-        rafId = null;
-        activateScrolling();
-      });
-    };
-
-    const passiveOpts: AddEventListenerOptions = { passive: true };
-    window.addEventListener("scroll", handleScroll, passiveOpts);
-    document.addEventListener("wheel", handleScroll, passiveOpts);
-    document.addEventListener("touchmove", handleScroll, passiveOpts);
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      document.removeEventListener("wheel", handleScroll);
-      document.removeEventListener("touchmove", handleScroll);
-      if (rafId) window.cancelAnimationFrame(rafId);
-      if (timeout) window.clearTimeout(timeout);
-      if (scrollingActive) {
-        document.body.classList.remove("app-scrolling");
-        document.documentElement.classList.remove("app-scrolling");
-      }
-    };
-  }, []);
 
   if (bootstrapError) {
     return (
@@ -816,8 +796,8 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
         screenOptions={{
           headerShown: false,
           headerTitleAlign: "center",
-          contentStyle: { backgroundColor: "transparent" },
-          headerStyle: { backgroundColor: "transparent" },
+          contentStyle: { backgroundColor: colors.background },
+          headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}
       >
@@ -887,7 +867,7 @@ function RootLayout() {
         fallback={({ error, resetError }) => (
           <RootErrorFallback error={error} resetError={resetError} />
         )}
-        showDialog
+        showDialog={false}
       >
         <BootstrapProvider>
           <BootstrapAuthProviders />

@@ -246,6 +246,67 @@ export type PeriodizationContext = {
  */
 export type KnownMethodologyApproach = "analitico" | "global" | "jogo" | "hibrido";
 
+export type HistoricalConfidence = "none" | "low" | "medium" | "high";
+
+export type TrainingPlanGenerationHistoryMode =
+  | "bootstrap"
+  | "partial_history"
+  | "strong_history";
+
+export type TrainingPlanPlanningBasis = "cycle_based" | "class_based_bootstrap";
+
+export type TrainingPlanGenerationMode = "periodized" | "class_bootstrap";
+
+export type TrainingPlanGenerationExplanation = {
+  historyMode: TrainingPlanGenerationHistoryMode;
+  summary: string;
+  coachSummary: string;
+  planningBasis?: TrainingPlanPlanningBasis;
+  generationMode?: TrainingPlanGenerationMode;
+};
+
+export type SessionExecutionState =
+  | "planned_only"
+  | "applied_not_confirmed"
+  | "teacher_edited"
+  | "confirmed_executed"
+  | "skipped"
+  | "unknown";
+
+export type TeacherOverrideWeight = "none" | "soft" | "medium" | "strong";
+
+export type TeacherEditedField =
+  | "primarySkill"
+  | "progressionDimension"
+  | "methodologyApproach"
+  | "activityStructure"
+  | "loadProfile";
+
+export type PhaseIntent =
+  | "exploracao_fundamentos"
+  | "estabilizacao_tecnica"
+  | "aceleracao_decisao"
+  | "transferencia_jogo"
+  | "pressao_competitiva";
+
+export type WeeklyLoadIntent = "baixo" | "moderado" | "alto";
+
+export type PedagogicalIntent =
+  | "decision_making"
+  | "game_reading"
+  | "team_organization"
+  | "technical_adjustment"
+  | "pressure_adaptation";
+
+export type DominantGapType =
+  | "tecnica"
+  | "consistencia"
+  | "tomada_decisao"
+  | "organizacao"
+  | "pressao";
+
+export type StrategyLevel = "low" | "medium" | "high";
+
 export type TrainingPlanActivity = {
   name: string;
   description?: string;
@@ -269,6 +330,7 @@ export type TrainingPlanSessionBlock = {
 };
 
 export type TrainingPlanPedagogy = {
+  generationExplanation?: TrainingPlanGenerationExplanation;
   periodizationContext?: PeriodizationContext;
   periodization?: {
     phase: string;
@@ -458,6 +520,102 @@ export type TrainingPlan = {
   parentPlanId?: string;
   previousVersionId?: string;
   pedagogy?: TrainingPlanPedagogy;
+};
+
+export type RecentSessionSummary = {
+  sessionDate: string;
+  wasPlanned: boolean;
+  wasApplied: boolean;
+  wasEditedByTeacher: boolean;
+  wasConfirmedExecuted: boolean | null;
+  executionState: SessionExecutionState;
+  primarySkill?: VolleyballSkill;
+  secondarySkill?: VolleyballSkill;
+  progressionDimension?: ProgressionDimension;
+  dominantBlock?: string;
+  fingerprint?: string;
+  structuralFingerprint?: string;
+  methodologyApproach?: KnownMethodologyApproach | string;
+  teacherEditedFields?: TeacherEditedField[];
+  teacherOverrideWeight: TeacherOverrideWeight;
+};
+
+export type RepetitionRisk = "none" | "low" | "medium" | "high";
+
+export type RepetitionAdjustment = {
+  detected: boolean;
+  risk: RepetitionRisk;
+  reason: string | null;
+  changedFields: string[];
+};
+
+export type CycleDayPlanningContext = {
+  classId: string;
+  classGoal?: string;
+  sessionDate: string;
+  modality: Modality;
+  classLevel: ClassGroup["level"];
+  ageBand: AgeBand;
+  daysPerWeek: ClassGroup["daysPerWeek"];
+  developmentStage: TrainingPlanDevelopmentStage;
+  planningPhase?: "base" | "desenvolvimento" | "pre_competitivo" | "competitivo";
+  weekNumber?: number;
+  sessionIndexInWeek?: number;
+  historicalConfidence: HistoricalConfidence;
+  phaseIntent: PhaseIntent;
+  weeklyLoadIntent: WeeklyLoadIntent;
+  primarySkill: VolleyballSkill;
+  secondarySkill?: VolleyballSkill;
+  progressionDimensionTarget: ProgressionDimension;
+  pedagogicalIntent: PedagogicalIntent;
+  recentSessions: RecentSessionSummary[];
+  dominantGapSkill?: VolleyballSkill;
+  dominantGapType?: DominantGapType;
+  dominantBlock?: string;
+  targetPse?: number;
+  demandIndex?: number;
+  plannedSessionLoad?: number;
+  plannedWeeklyLoad?: number;
+  duration: number;
+  materials: string[];
+  constraints: string[];
+  mustAvoidRepeating: string[];
+  mustProgressFrom?: string;
+  allowedDrillFamilies: string[];
+  forbiddenDrillFamilies: string[];
+};
+
+export type SessionStrategy = {
+  primarySkill: VolleyballSkill;
+  secondarySkill?: VolleyballSkill;
+  progressionDimension: ProgressionDimension;
+  pedagogicalIntent: PedagogicalIntent;
+  loadIntent: WeeklyLoadIntent;
+  drillFamilies: string[];
+  forbiddenDrillFamilies: string[];
+  oppositionLevel: StrategyLevel;
+  timePressureLevel: StrategyLevel;
+  gameTransferLevel: StrategyLevel;
+};
+
+export type PlanFingerprint = {
+  primarySkill: VolleyballSkill;
+  secondarySkill?: VolleyballSkill;
+  progressionDimension: ProgressionDimension;
+  dominantBlock?: string;
+  periodizationPhase?: CycleDayPlanningContext["planningPhase"];
+  sessionIndexInWeek?: number;
+  pedagogicalIntent?: PedagogicalIntent;
+  drillFamilies: string[];
+  loadIntent: WeeklyLoadIntent;
+  oppositionLevel?: StrategyLevel;
+  timePressureLevel?: StrategyLevel;
+  gameTransferLevel?: StrategyLevel;
+};
+
+export type PlanFingerprintSet = {
+  exactFingerprint: string;
+  structuralFingerprint: string;
 };
 
 export type TrainingTemplate = {

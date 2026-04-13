@@ -1,24 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import {
-  Animated,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Animated,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
+import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import type { RegulationUpdate } from "../../api/regulation-updates";
-import type { OperationalContextResult } from "../operational-context";
-import type { CopilotAction } from "../hooks/useRegistryManager";
-import type { InsightsCategory, InsightsView } from "../CopilotProvider";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
-import type { Signal as CopilotSignal } from "../../ai/signal-engine";
-import { CopilotRootView } from "./CopilotRootView";
+import type { OperationalContextResult } from "../operational-context";
+import type { CopilotAction, InsightsCategory, InsightsView } from "../types";
 import { CopilotCategoryView } from "./CopilotCategoryView";
 import { CopilotRegulationDetailView } from "./CopilotRegulationDetailView";
+import { CopilotRootView } from "./CopilotRootView";
 import { CopilotSignalDetailView } from "./CopilotSignalDetailView";
 
 const CONTEXT_COMPOSER_MIN_HEIGHT = 40;

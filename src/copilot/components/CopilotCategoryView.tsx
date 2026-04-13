@@ -1,9 +1,9 @@
 import { Text, View } from "react-native";
 
-import type { InsightsView, InsightsCategory } from "../CopilotProvider";
 import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import type { RegulationUpdate } from "../../api/regulation-updates";
 import { Pressable } from "../../ui/Pressable";
+import type { InsightsCategory, InsightsView } from "../types";
 
 type SignalInsightsCategory = Exclude<InsightsCategory, "regulation">;
 

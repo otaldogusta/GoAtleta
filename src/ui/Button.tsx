@@ -1,7 +1,7 @@
 import {
-  ActivityIndicator,
-  Text,
-  View,
+    ActivityIndicator,
+    Text,
+    View,
 } from "react-native";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
@@ -72,9 +72,9 @@ export function Button({
   } as const;
   const selected = palette[variant];
   const isOutline = variant === "outline" || variant === "ghost";
-  const disabledBg = isOutline ? "transparent" : colors.primaryDisabledBg;
-  const disabledBorder = isOutline ? colors.border : colors.primaryDisabledBg;
-  const disabledText = colors.muted;
+  const disabledBg = isOutline ? "transparent" : colors.secondaryBg;
+  const disabledBorder = colors.border;
+  const disabledText = isOutline ? colors.muted : colors.secondaryText;
   const borderWidth =
     variant === "primary" || variant === "ghost" ? 0 : 1;
 

@@ -6,148 +6,50 @@
 export { clearLocalReadCaches } from "./client";
 
 export {
-  type NfcCheckinPendingPayload,
-  type PendingWriteDeadRow,
-  type PendingWritesDiagnostics,
-  type SyncHealthReport,
-  type PendingWriteFailureRow,
-  buildNfcCheckinPendingWriteDedupKey,
-  queueNfcCheckinWrite,
-  getPendingWritesCount,
-  getPendingWritesDiagnostics,
-  listPendingWriteFailures,
-  getPendingWritePayloadById,
-  reprocessPendingWriteById,
-  reprocessPendingWritesNetworkFailures,
-  listPendingWritesDeadLetter,
-  buildSyncHealthReport,
-  exportSyncHealthReportJson,
-  clearPendingWritesDeadLetterCandidates,
-  flushPendingWrites,
+    buildNfcCheckinPendingWriteDedupKey, buildSyncHealthReport, clearPendingWritesDeadLetterCandidates, exportSyncHealthReportJson, flushPendingWrites, getPendingWritePayloadById, getPendingWritesCount,
+    getPendingWritesDiagnostics,
+    listPendingWriteFailures, listPendingWritesDeadLetter, queueNfcCheckinWrite, reprocessPendingWriteById,
+    reprocessPendingWritesNetworkFailures, type NfcCheckinPendingPayload,
+    type PendingWriteDeadRow, type PendingWriteFailureRow, type PendingWritesDiagnostics,
+    type SyncHealthReport
 } from "./nfc-sync";
 
 export {
-  seedIfEmpty,
-  seedStudentsIfEmpty,
-  getClasses,
-  getClassById,
-  updateClass,
-  updateClassColor,
-  updateClassAcwrLimits,
-  saveClass,
-  duplicateClass,
-  deleteClass,
-  deleteClassCascade,
+    deleteClass,
+    deleteClassCascade, duplicateClass, getClassById, getClasses, saveClass, seedIfEmpty,
+    seedStudentsIfEmpty, updateClass, updateClassAcwrLimits, updateClassColor
 } from "./classes";
 
 export {
-  getScoutingLogByDate,
-  getLatestScoutingLog,
-  saveScoutingLog,
-  getStudentScoutingByRange,
-  getStudentScoutingByDate,
-  saveStudentScoutingLog,
-  saveSessionLog,
-  getSessionLogByDate,
-  getSessionLogsByRange,
+    getLatestScoutingLog, getScoutingLogByDate, getSessionLogByDate, getSessionLogsByClass, getSessionLogsByRange, getStudentScoutingByDate, getStudentScoutingByRange, saveScoutingLog, saveSessionLog, saveStudentScoutingLog
 } from "./session";
 
 export {
-  buildTrainingSessionId,
-  buildTrainingSessionWindow,
-  resolveTrainingPlanForDate,
-  getTrainingIntegrationRules,
-  syncTrainingIntegrationRuleFromSession,
-  deleteTrainingIntegrationRuleBySession,
-  syncTrainingSessionFromAttendance,
-  syncTrainingSessionFromReport,
-  getTrainingSessionByDate,
-  getTrainingSessionAttendanceBySessionId,
-  getTrainingSessionsByClass,
-  deleteTrainingSessionsByClass,
-  upsertTrainingSession,
+    buildTrainingSessionId,
+    buildTrainingSessionWindow, deleteTrainingIntegrationRuleBySession, deleteTrainingSessionsByClass, getTrainingIntegrationRules, getTrainingSessionAttendanceBySessionId, getTrainingSessionByDate, getTrainingSessionEvidenceByClass,
+    getTrainingSessionsByClass, resolveTrainingPlanForDate, syncTrainingIntegrationRuleFromSession, syncTrainingSessionFromAttendance,
+    syncTrainingSessionFromReport, upsertTrainingSession
 } from "./training-sessions";
 
 export {
-  getKnowledgeBaseVersions,
-  getActiveKnowledgeBaseVersion,
-  getKnowledgeBaseSnapshot,
-  upsertKnowledgeBaseVersion,
-  getKnowledgeSources,
-  upsertKnowledgeSource,
-  getKnowledgeRules,
-  upsertKnowledgeRule,
-  getKnowledgeRuleCitations,
-  upsertKnowledgeRuleCitation,
-  deleteKnowledgeBaseVersion,
-  deleteKnowledgeSource,
-  deleteKnowledgeRule,
-  deleteKnowledgeRuleCitation,
+    deleteKnowledgeBaseVersion, deleteKnowledgeRule,
+    deleteKnowledgeRuleCitation, deleteKnowledgeSource, getActiveKnowledgeBaseVersion,
+    getKnowledgeBaseSnapshot, getKnowledgeBaseVersions, getKnowledgeRuleCitations, getKnowledgeRules, getKnowledgeSources, upsertKnowledgeBaseVersion, upsertKnowledgeRule, upsertKnowledgeRuleCitation, upsertKnowledgeSource
 } from "./knowledge-base";
 
 export {
-  getTrainingPlans,
-  saveTrainingPlan,
-  updateTrainingPlan,
-  deleteTrainingPlan,
-  deleteTrainingPlansByClassAndDate,
-  getLatestTrainingPlanByClass,
-  getTrainingTemplates,
-  saveTrainingTemplate,
-  updateTrainingTemplate,
-  deleteTrainingTemplate,
-  getHiddenTemplates,
-  hideTrainingTemplate,
-  getExercises,
-  saveExercise,
-  updateExercise,
-  deleteExercise,
+    deleteExercise, deleteTrainingPlan,
+    deleteTrainingPlansByClassAndDate, deleteTrainingTemplate, getExercises, getHiddenTemplates, getLatestTrainingPlanByClass, getTrainingPlans, getTrainingTemplates, hideTrainingTemplate, saveExercise, saveTrainingPlan, saveTrainingTemplate, updateExercise, updateTrainingPlan, updateTrainingTemplate
 } from "./training";
 
 export {
-  getClassPlansByClass,
-  createClassPlan,
-  updateClassPlan,
-  saveClassPlans,
-  deleteClassPlansByClass,
-  getClassCompetitiveProfile,
-  saveClassCompetitiveProfile,
-  deleteClassCompetitiveProfile,
-  getClassCalendarExceptions,
-  saveClassCalendarException,
-  deleteClassCalendarException,
+    createClassPlan, deleteClassCalendarException, deleteClassCompetitiveProfile, deleteClassPlansByClass, getClassCalendarExceptions, getClassCompetitiveProfile, getClassPlansByClass, saveClassCalendarException, saveClassCompetitiveProfile, saveClassPlans, updateClassPlan
 } from "./periodization";
 
 export {
-  type SyncGoogleFormsAthleteIntakesResult,
-  type LinkExistingStudentByIdentityResult,
-  linkExistingStudentByIdentity,
-  getStudents,
-  getStudentsByClass,
-  getStudentById,
-  saveStudent,
-  updateStudent,
-  revealStudentCpf,
-  updateStudentPhoto,
-  deleteStudent,
-  deleteStudents,
-  moveStudentsToClass,
-  getStudentPreRegistrations,
-  saveStudentPreRegistration,
-  updateStudentPreRegistration,
-  deleteStudentPreRegistration,
-  convertStudentPreRegistration,
-  getAthleteIntakesByClass,
-  syncGoogleFormsAthleteIntakes,
-  saveAttendanceRecords,
-  getAttendanceByClass,
-  getAttendanceByDate,
-  getAttendanceByStudent,
-  getAttendanceAll,
-  getAbsenceNotices,
-  createAbsenceNotice,
-  updateAbsenceNoticeStatus,
-  listWeeklyAutopilotProposals,
-  saveWeeklyAutopilotProposal,
-  updateWeeklyAutopilotProposalStatus,
+    convertStudentPreRegistration, createAbsenceNotice, deleteStudent, deleteStudentPreRegistration, deleteStudents, getAbsenceNotices, getAthleteIntakesByClass, getAttendanceAll, getAttendanceByClass,
+    getAttendanceByDate,
+    getAttendanceByStudent, getStudentById, getStudentPreRegistrations, getStudents,
+    getStudentsByClass, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
 } from "./students";
+

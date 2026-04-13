@@ -31,7 +31,7 @@ export const buildMonthSegments = (options: {
   for (let weekNumber = 1; weekNumber <= weekCount; weekNumber += 1) {
     const planStart = parseIsoDate(plansByWeek.get(weekNumber)?.startDate);
     const derivedStart = baseStart ? addDays(baseStart, (weekNumber - 1) * 7) : null;
-    const weekStart = planStart ?? derivedStart;
+    const weekStart = derivedStart ?? planStart;
 
     if (!weekStart) {
       return [{ label: "Ciclo", length: weekCount }];
@@ -68,7 +68,7 @@ export const buildMonthWeekNumbers = (options: {
   for (let weekNumber = 1; weekNumber <= weekCount; weekNumber += 1) {
     const planStart = parseIsoDate(plansByWeek.get(weekNumber)?.startDate);
     const derivedStart = baseStart ? addDays(baseStart, (weekNumber - 1) * 7) : null;
-    const weekStart = planStart ?? derivedStart;
+    const weekStart = derivedStart ?? planStart;
 
     if (!weekStart) {
       return Array.from({ length: weekCount }, (_, index) => index + 1);

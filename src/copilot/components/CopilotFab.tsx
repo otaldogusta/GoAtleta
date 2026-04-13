@@ -1,26 +1,28 @@
 import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { Pressable } from "../../ui/Pressable";
 
 type CopilotFabProps = {
-  hasUnreadUpdates: boolean;
-  pulseAnim: any;
+  showPulse: boolean;
+  pulseAnim: Animated.Value;
   primaryBgColor: string;
   fabBottomOffset: number;
+  hintMessage: string | null;
   onPress: () => void;
 };
 
 export const CopilotFab = memo(function CopilotFab({
-  hasUnreadUpdates,
+  showPulse,
   pulseAnim,
   primaryBgColor,
   fabBottomOffset,
+  hintMessage,
   onPress,
 }: CopilotFabProps) {
-  useRenderDiagnostic("CopilotFab", { hasUnreadUpdates, fabBottomOffset, primaryBgColor });
+  useRenderDiagnostic("CopilotFab", { showPulse, fabBottomOffset, primaryBgColor, hasHintMessage: Boolean(hintMessage) });
   return (
     <View
       pointerEvents="box-none"
@@ -31,7 +33,25 @@ export const CopilotFab = memo(function CopilotFab({
         },
       ]}
     >
-      {hasUnreadUpdates ? (
+      {showPulse ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            bottom: 76,
+            maxWidth: 220,
+            borderRadius: 999,
+            backgroundColor: "rgba(17,17,17,0.92)",
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+        >
+          <Text numberOfLines={1} style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "700" }}>
+            {hintMessage ?? "Nova sugestão útil"}
+          </Text>
+        </View>
+      ) : null}
+      {showPulse ? (
         <Animated.View
           pointerEvents="none"
           style={[
@@ -58,6 +78,7 @@ export const CopilotFab = memo(function CopilotFab({
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel="Abrir chat"
+        accessibilityHint={hintMessage ?? "Abre o copiloto com o contexto da tela atual."}
         style={{
           borderRadius: 999,
           width: 58,
@@ -73,7 +94,7 @@ export const CopilotFab = memo(function CopilotFab({
         }}
       >
         <Ionicons name="chatbubble-ellipses-outline" size={24} color="#FFFFFF" />
-        {hasUnreadUpdates ? (
+        {showPulse ? (
           <View
             style={{
               position: "absolute",

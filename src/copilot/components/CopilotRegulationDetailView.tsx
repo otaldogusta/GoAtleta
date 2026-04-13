@@ -1,8 +1,8 @@
 import { Linking, Text, View } from "react-native";
 
-import type { InsightsView } from "../CopilotProvider";
 import type { RegulationUpdate } from "../../api/regulation-updates";
 import { Pressable } from "../../ui/Pressable";
+import type { InsightsView } from "../types";
 
 const regulationDateLabel = (value: string | null | undefined) => {
   if (!value) return "-";

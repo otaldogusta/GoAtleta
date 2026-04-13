@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react-native";
+import { loadSession, type AuthSession } from "../auth/session";
 import type { PedagogicalDimensionsConfig } from "../config/pedagogical-dimensions-config";
 import { smartSync } from "../core/smart-sync";
 import { flushPendingWrites } from "../db/seed";
@@ -6,19 +7,32 @@ import { initDb } from "../db/sqlite";
 import { loadPedagogicalConfig } from "./pedagogical-config-loader";
 
 export type BootstrapResult = {
-  session?: null;
+  session?: AuthSession | null;
   pedagogicalConfig?: PedagogicalDimensionsConfig | null;
 };
 
 export async function bootstrapApp(): Promise<BootstrapResult> {
   const timeoutMs = 12000;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error("Bootstrap timeout")), timeoutMs);
+    timeoutHandle = setTimeout(() => reject(new Error("Bootstrap timeout")), timeoutMs);
   });
 
   const started = Date.now();
   const result = await Promise.race([
     (async () => {
+      const sessionStart = Date.now();
+      const session = await loadSession();
+      const sessionMs = Date.now() - sessionStart;
+      if (__DEV__) {
+        console.log(`[bootstrap] loadSession: ${sessionMs}ms`);
+      }
+      Sentry.addBreadcrumb({
+        category: "bootstrap",
+        message: `loadSession: ${sessionMs}ms`,
+        level: "info",
+      });
+
       const dbStart = Date.now();
       await initDb();
       const dbMs = Date.now() - dbStart;
@@ -56,10 +70,15 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         }
       })();
 
-      return { pedagogicalConfig };
+      return { session, pedagogicalConfig };
     })(),
     timeout,
-  ]);
+  ]).finally(() => {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = null;
+    }
+  });
   const totalMs = Date.now() - started;
   if (__DEV__) {
     console.log(`[bootstrap] total: ${totalMs}ms`);
