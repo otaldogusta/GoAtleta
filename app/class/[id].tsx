@@ -2068,11 +2068,16 @@ export default function ClassDetails() {
                 justifyContent: "center",
                 minHeight: 48,
                 borderRadius: 14,
-                backgroundColor: !isEditDirty || saving ? colors.inputBg : colors.primaryBg,
-                opacity: !isEditDirty || saving ? 0.7 : 1,
+                backgroundColor: !isEditDirty || saving ? colors.primaryDisabledBg : colors.primaryBg,
               }}
             >
-              <Text style={{ color: colors.primaryText, fontSize: 16, fontWeight: "800" }}>
+              <Text
+                style={{
+                  color: !isEditDirty || saving ? colors.muted : colors.primaryText,
+                  fontSize: 16,
+                  fontWeight: "800",
+                }}
+              >
                 {saving ? "Salvando..." : "Salvar alterações"}
               </Text>
             </Pressable>

@@ -63,6 +63,7 @@ import {
 import { markRender, measureAsync } from "../src/observability/perf";
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
+import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
@@ -354,6 +355,7 @@ export default function CoordinationScreen() {
   markRender("screen.coordination.render.root");
 
   const router = useRouter();
+  const profilePath = getScopedProfilePath("/coordination");
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const { activeOrganization } = useOrganization();
@@ -1700,7 +1702,7 @@ export default function CoordinationScreen() {
                   syncClassifications={syncClassifications}
                   onResumePausedSync={handleResumePausedSync}
                   onGoLogin={() => router.push("/login")}
-                  onGoProfile={() => router.push("/profile")}
+                  onGoProfile={() => router.push(profilePath)}
                   onReprocessQueueNow={handleReprocessQueueNow}
                   onReprocessNetworkFailures={handleReprocessNetworkFailures}
                   onClearDeadLetterCandidates={handleClearDeadLetterCandidates}
@@ -1726,7 +1728,7 @@ export default function CoordinationScreen() {
                 syncClassifications={syncClassifications}
                 onResumePausedSync={handleResumePausedSync}
                 onGoLogin={() => router.push("/login")}
-                onGoProfile={() => router.push("/profile")}
+                onGoProfile={() => router.push(profilePath)}
                 onReprocessQueueNow={handleReprocessQueueNow}
                 onReprocessNetworkFailures={handleReprocessNetworkFailures}
                 onClearDeadLetterCandidates={handleClearDeadLetterCandidates}

@@ -66,26 +66,26 @@ const guardReasonLabel = {
 type KnownGuardReason = keyof typeof guardReasonLabel;
 
 const resolveGuardReasonLabel = (reason: RepetitionAdjustment["reason"]) => {
-  if (!reason) return "repeticao recente";
+  if (!reason) return "repetição recente";
   return reason in guardReasonLabel
     ? guardReasonLabel[reason as KnownGuardReason]
-    : "repeticao recente";
+    : "repetição recente";
 };
 
 const phaseIntentLabel: Record<CycleDayPlanningContext["phaseIntent"], string> = {
-  exploracao_fundamentos: "Exploracao de fundamentos",
-  estabilizacao_tecnica: "Estabilizacao tecnica",
-  aceleracao_decisao: "Aceleracao de decisao",
-  transferencia_jogo: "Transferencia para o jogo",
-  pressao_competitiva: "Pressao competitiva",
+  exploracao_fundamentos: "Exploração de fundamentos",
+  estabilizacao_tecnica: "Estabilização técnica",
+  aceleracao_decisao: "Aceleração de decisão",
+  transferencia_jogo: "Transferência para o jogo",
+  pressao_competitiva: "Pressão competitiva",
 };
 
 const pedagogicalIntentLabel: Record<SessionStrategy["pedagogicalIntent"], string> = {
-  decision_making: "tomada de decisao",
+  decision_making: "tomada de decisão",
   game_reading: "leitura de jogo",
-  team_organization: "organizacao coletiva",
-  technical_adjustment: "ajuste tecnico",
-  pressure_adaptation: "adaptacao a pressao",
+  team_organization: "organização coletiva",
+  technical_adjustment: "ajuste técnico",
+  pressure_adaptation: "adaptação à pressão",
 };
 
 const skillLabel: Record<SessionStrategy["primarySkill"], string> = {
@@ -95,13 +95,13 @@ const skillLabel: Record<SessionStrategy["primarySkill"], string> = {
   bloqueio: "Bloqueio",
   defesa: "Defesa",
   saque: "Saque",
-  transicao: "Transicao",
+  transicao: "Transição",
 };
 
 const overrideStrengthLabel: Record<TeacherOverrideInfluence["strength"], string> = {
   none: "sem sinal local",
   soft: "leve",
-  medium: "medio",
+  medium: "médio",
   strong: "forte",
 };
 
@@ -113,8 +113,8 @@ const resolveHistoryMode = (confidence: HistoricalConfidence): GenerationHistory
 
 const formatHistoryLabel = (historyMode: GenerationHistoryMode) => {
   if (historyMode === "bootstrap") return "Bootstrap";
-  if (historyMode === "strong_history") return "Historico forte";
-  return "Historico parcial";
+  if (historyMode === "strong_history") return "Histórico forte";
+  return "Histórico parcial";
 };
 
 const formatProgressionLabel = (value: SessionStrategy["progressionDimension"]) =>
@@ -126,7 +126,7 @@ const formatProgressionLabel = (value: SessionStrategy["progressionDimension"]) 
 const formatLoadLabel = (value: string) => value.replace(/^carga\s+/i, "");
 
 const buildFocusReason = (strategy: SessionStrategy) =>
-  `${pedagogicalIntentLabel[strategy.pedagogicalIntent]} com progressao em ${formatProgressionLabel(
+  `${pedagogicalIntentLabel[strategy.pedagogicalIntent]} com progressão em ${formatProgressionLabel(
     strategy.progressionDimension
   )}`;
 
@@ -145,13 +145,13 @@ const buildCoachSummary = (params: {
   repetitionAdjustment: RepetitionAdjustment;
 }) => {
   const sentences = [
-    `${formatHistoryLabel(params.historyMode)} na fase ${phaseIntentLabel[params.phaseIntent]}. Sessao ${params.sessionIndexInWeek}/${params.daysPerWeek} com foco em ${skillLabel[params.strategy.primarySkill]} para ${buildFocusReason(params.strategy)}.`,
+    `${formatHistoryLabel(params.historyMode)} na fase ${phaseIntentLabel[params.phaseIntent]}. Sessão ${params.sessionIndexInWeek}/${params.daysPerWeek} com foco em ${skillLabel[params.strategy.primarySkill]} para ${buildFocusReason(params.strategy)}.`,
   ];
 
   if (params.overrideAdjusted) {
     if (params.overrideInfluence.learningWindowGenerations > 0) {
       sentences.push(
-        `Aprendizado local do professor (${overrideStrengthLabel[params.overrideInfluence.strength]}) segue pelas proximas ${params.overrideInfluence.learningWindowGenerations} geracoes.`
+        `Aprendizado local do professor (${overrideStrengthLabel[params.overrideInfluence.strength]}) segue pelas próximas ${params.overrideInfluence.learningWindowGenerations} gerações.`
       );
     } else {
       sentences.push(
@@ -163,7 +163,7 @@ const buildCoachSummary = (params: {
     params.overrideInfluence.learningWindowGenerations > 0
   ) {
     sentences.push(
-      `Aprendizado local do professor observado para ${params.overrideInfluence.learningWindowGenerations} geracoes.`
+      `Aprendizado local do professor observado para ${params.overrideInfluence.learningWindowGenerations} gerações.`
     );
   }
 
@@ -180,7 +180,7 @@ const buildCoachSummary = (params: {
 
   if (params.repetitionAdjustment.detected) {
     const reasonLabel = resolveGuardReasonLabel(params.repetitionAdjustment.reason);
-    sentences.push(`Variacao anti-repeticao aplicada por ${reasonLabel}.`);
+    sentences.push(`Variação anti-repetição aplicada por ${reasonLabel}.`);
   }
 
   return sentences.join(" ");
@@ -209,7 +209,7 @@ export const formatGenerationExplanation = (params: {
   const daysPerWeek = Math.max(1, params.cycleContext.daysPerWeek || 1);
   const fragments = [
     `${formatHistoryLabel(historyMode)} na fase ${phaseIntentLabel[params.cycleContext.phaseIntent]}`,
-    `sessao ${sessionIndexInWeek}/${daysPerWeek}`,
+    `sessão ${sessionIndexInWeek}/${daysPerWeek}`,
     `foco em ${skillLabel[params.strategy.primarySkill]}`,
     `motivo ${buildFocusReason(params.strategy)}`,
   ];
@@ -228,7 +228,7 @@ export const formatGenerationExplanation = (params: {
     params.overrideInfluence.strength !== "none" &&
     params.overrideInfluence.learningWindowGenerations > 0
   ) {
-    fragments.push(`aprendizado local ${params.overrideInfluence.learningWindowGenerations} geracoes`);
+    fragments.push(`aprendizado local ${params.overrideInfluence.learningWindowGenerations} gerações`);
   }
 
   if (params.dominantBlockAdjusted && params.dominantBlockInfluence.label) {
@@ -242,7 +242,7 @@ export const formatGenerationExplanation = (params: {
 
   if (params.repetitionAdjustment.detected) {
     const reasonLabel = resolveGuardReasonLabel(params.repetitionAdjustment.reason);
-    fragments.push(`variacao anti-repeticao aplicada por ${reasonLabel}`);
+    fragments.push(`variação anti-repetição aplicada por ${reasonLabel}`);
   }
 
   const summary = fragments.join("; ");

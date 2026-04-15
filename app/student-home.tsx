@@ -7,8 +7,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
 import { setRoleOverride } from "../src/auth/role-override";
+import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup } from "../src/core/models";
 import { getClasses } from "../src/db/seed";
+import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import {
     AppNotification,
     getNotifications,
@@ -17,8 +19,6 @@ import {
 import { useAppTheme } from "../src/ui/app-theme";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { Pressable } from "../src/ui/Pressable";
-import { ShimmerBlock } from "../src/ui/Shimmer";
-import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { getUnitPalette } from "../src/ui/unit-colors";
 
 const parseTime = (value: string) => {
@@ -55,6 +55,7 @@ const formatShortDate = (iso: string) => {
 
 export default function StudentHome() {
   const router = useRouter();
+  const profilePath = getScopedProfilePath("/student/home");
   const { colors } = useAppTheme();
   const { student, refresh: refreshRole } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -357,7 +358,7 @@ export default function StudentHome() {
                   ) : null}
                 </View>
                 <Pressable
-                  onPress={() => router.push({ pathname: "/profile" })}
+                  onPress={() => router.push({ pathname: profilePath })}
                   style={{
                     width: 56,
                     height: 56,

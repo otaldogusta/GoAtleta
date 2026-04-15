@@ -33,7 +33,6 @@ export type UseSaveWeekParams = {
   editJumpTarget: string;
   editPSETarget: string;
   hasPlanChanges: (existing: ClassPlan | null, candidate: ClassPlan) => boolean;
-  applyDraftToWeeks: (weeks: number[]) => Promise<void>;
   setEditSource: (value: "AUTO" | "MANUAL") => void;
   setIsSavingWeek: (value: boolean) => void;
   setShowWeekEditor: (value: boolean) => void;
@@ -66,7 +65,6 @@ export function useSaveWeek({
   editJumpTarget,
   editPSETarget,
   hasPlanChanges,
-  applyDraftToWeeks,
   setEditSource,
   setIsSavingWeek,
   setShowWeekEditor,
@@ -161,14 +159,6 @@ export function useSaveWeek({
         source: plan.source,
       });
 
-      if (shouldPropagateForward) {
-        const forwardWeeks = Array.from(
-          { length: Math.max(0, cycleLength - editingWeek) },
-          (_, idx) => editingWeek + idx + 1
-        );
-        await applyDraftToWeeks(forwardWeeks);
-      }
-
       setShowWeekEditor(false);
       setEditingPlanId(null);
     } finally {
@@ -177,7 +167,6 @@ export function useSaveWeek({
   }, [
     activeCycleStartDate,
     ageBand,
-    applyDraftToWeeks,
     calendarExceptions,
     classPlans,
     competitiveProfile,

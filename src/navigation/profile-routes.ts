@@ -30,3 +30,9 @@ export const getScopedPlanningPath = (currentPath: string) => {
   if (path.startsWith("/prof") || path.startsWith("/coord")) return "/prof/planning";
   return "/training";
 };
+
+export const getScopedProfilePath = (currentPath: string) => {
+  const path = normalizePath(currentPath);
+  if (path.startsWith("/student")) return "/student/profile";
+  return "/profile";
+};

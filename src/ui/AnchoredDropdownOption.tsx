@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from "react";
-import { type StyleProp, type ViewStyle, View } from "react-native";
+import { View, type StyleProp, type ViewStyle } from "react-native";
 
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
@@ -22,8 +22,8 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
   style,
 }: Props) {
   const { colors } = useAppTheme();
-  const backgroundColor = active ? colors.secondaryBg : colors.card;
-  const borderColor = colors.border;
+  const backgroundColor = active ? colors.primaryBg : colors.card;
+  const borderColor = active ? colors.primaryBg : colors.border;
 
   return (
     <Pressable

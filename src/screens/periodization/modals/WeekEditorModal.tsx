@@ -1,8 +1,10 @@
-﻿import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+﻿import { KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
+import type { WeeklyAutopilotPlanReview } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../ui/confirm-dialog";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
+import type { WeekSessionPreview } from "../application/build-week-session-preview";
 
 type Props = {
   visible: boolean;
@@ -25,16 +27,14 @@ type Props = {
   setEditTechnicalFocus: (v: string) => void;
   editPhysicalFocus: string;
   setEditPhysicalFocus: (v: string) => void;
-  editSource: "AUTO" | "MANUAL";
-  setEditSource: (v: "AUTO" | "MANUAL") => void;
   editConstraints: string;
   setEditConstraints: (v: string) => void;
-  applyWeeks: number[];
-  setApplyWeeks: (v: number[]) => void;
+  daysOfWeek: number[];
+  weeklySessions: number;
+  weekSessions: WeekSessionPreview[];
   isSavingWeek: boolean;
   onSave: () => void;
   onResetToAuto: () => void;
-  onApplyDraftToWeeks: (weeks: number[]) => void;
   onConfirmDialog: (opts: ConfirmDialogOptions) => void;
   normalizeText: (value: string) => string;
   planReview?: WeeklyAutopilotPlanReview | null;
@@ -88,20 +88,22 @@ export function WeekEditorModal({
   setEditTechnicalFocus,
   editPhysicalFocus,
   setEditPhysicalFocus,
-  editSource,
-  setEditSource,
   editConstraints,
   setEditConstraints,
-  applyWeeks,
-  setApplyWeeks,
+  daysOfWeek,
+  weeklySessions,
+  weekSessions,
   isSavingWeek,
   onSave,
   onResetToAuto,
-  onApplyDraftToWeeks,
   onConfirmDialog,
   normalizeText,
   planReview,
 }: Props) {
+  const sessionCount = weekSessions.length || weeklySessions || daysOfWeek.length;
+  const sessionWord = sessionCount === 1 ? "treino" : "treinos";
+  const operationalSubtitle = `${normalizeText(selectedClassName)} · ${sessionCount} ${sessionWord}`;
+
   const inputStyle = {
     borderWidth: 1,
     borderColor: colors.border,
@@ -117,20 +119,20 @@ export function WeekEditorModal({
     <ModalDialogFrame
       visible={visible}
       onClose={onClose}
-      cardStyle={[
-        modalCardStyle,
-        {
-          paddingBottom: 0,
-          maxHeight: "92%",
-          height: "92%",
-          minHeight: 0,
-          overflow: "hidden",
-        },
-      ]}
+      cardStyle={modalCardStyle}
       position="center"
       colors={colors}
-      title={`Editar agenda da semana ${editingWeek}`}
-      subtitle={normalizeText(selectedClassName)}
+      title={`Planejamento da semana ${editingWeek}`}
+      subtitle={operationalSubtitle}
+      contentContainerStyle={{
+        gap: 12,
+        paddingBottom: 24,
+        paddingTop: 12,
+      }}
+      footerStyle={{
+        paddingTop: 10,
+        paddingBottom: 4,
+      }}
       footer={
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable
@@ -139,7 +141,7 @@ export function WeekEditorModal({
             style={{
               flex: 1,
               paddingVertical: 10,
-              borderRadius: 12,
+              borderRadius: 14,
               alignItems: "center",
               backgroundColor: isSavingWeek
                 ? colors.primaryDisabledBg
@@ -171,8 +173,8 @@ export function WeekEditorModal({
             style={{
               flex: 1,
               paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.background,
+              borderRadius: 14,
+              backgroundColor: colors.secondaryBg,
               borderWidth: 1,
               borderColor: colors.border,
               alignItems: "center",
@@ -183,24 +185,41 @@ export function WeekEditorModal({
         </View>
       }
     >
-      <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        <KeyboardAvoidingView
-          style={{ width: "100%", flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
-        >
-          <ScrollView
-            contentContainerStyle={{
-              gap: 12,
-              paddingBottom: 24,
-              paddingHorizontal: 12,
-              paddingTop: 16,
-            }}
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-        >
+      <KeyboardAvoidingView
+        style={{ width: "100%" }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+      >
+        <View style={{ gap: 12 }}>
+          {/* Cards de sessão com data real */}
+          {weekSessions.length > 0 ? (
+            <View style={{ gap: 4 }}>
+              {weekSessions.map((item) => (
+                <View
+                  key={item.date}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontSize: 11, width: 68 }}>
+                    Sessão {item.sessionIndex}/{sessionCount}
+                  </Text>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                    {item.weekdayLabel} · {item.dateLabel}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {planReview ? (
             <View
               style={{
@@ -313,7 +332,7 @@ export function WeekEditorModal({
           ) : null}
 
           {/* Planejamento da semana */}
-          <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
+          <View style={{ gap: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
             <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
                 {normalizeText("Planejamento da semana")}
               </Text>
@@ -376,7 +395,7 @@ export function WeekEditorModal({
             </View>
 
             {/* Parâmetros da sessão */}
-            <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
+            <View style={{ gap: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
               <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
                 {normalizeText("Parâmetros da sessão")}
               </Text>
@@ -409,33 +428,10 @@ export function WeekEditorModal({
                 </View>
               </View>
 
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {(["AUTO", "MANUAL"] as const).map((value) => {
-                  const active = editSource === value;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => setEditSource(value)}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 12,
-                        borderRadius: 999,
-                        backgroundColor: active ? colors.primaryBg : colors.background,
-                        borderWidth: 1,
-                        borderColor: active ? colors.primaryBg : colors.border,
-                      }}
-                    >
-                      <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "700" }}>
-                        {value}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
             </View>
 
             {/* Restrições */}
-            <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
+            <View style={{ gap: 6, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>
                 {normalizeText("Restrições")}
               </Text>
@@ -450,135 +446,11 @@ export function WeekEditorModal({
               />
             </View>
 
-            {/* Ações rápidas */}
-            <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                {normalizeText("Ações rápidas")}
-              </Text>
 
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                <Pressable
-                  onPress={() =>
-                    onConfirmDialog({
-                      title: normalizeText("Resetar para AUTO?"),
-                      message: normalizeText("O plano volta para o modelo automático desta semana."),
-                      confirmLabel: normalizeText("Resetar"),
-                      cancelLabel: normalizeText("Cancelar"),
-                      tone: "default",
-                      onConfirm: onResetToAuto,
-                    })
-                  }
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 12,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                    Resetar para AUTO
-                  </Text>
-                </Pressable>
 
-                <Pressable
-                  onPress={() => onApplyDraftToWeeks([editingWeek + 1])}
-                  disabled={editingWeek >= cycleLength}
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 12,
-                    borderRadius: 999,
-                    backgroundColor:
-                      editingWeek >= cycleLength ? colors.primaryDisabledBg : colors.primaryBg,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color:
-                        editingWeek >= cycleLength ? colors.secondaryText : colors.primaryText,
-                      fontSize: 12,
-                      fontWeight: "700",
-                    }}
-                  >
-                    Copiar para próxima
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Aplicar para outras semanas */}
-            <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }}>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                Aplicar estrutura para outras semanas
-              </Text>
-
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {Array.from({ length: cycleLength }, (_, index) => index + 1).map((week) => {
-                  const active = applyWeeks.includes(week);
-                  const disabled = week === editingWeek;
-                  return (
-                    <Pressable
-                      key={`apply-week-${week}`}
-                      onPress={() => {
-                        if (disabled) return;
-                        setApplyWeeks(
-                          applyWeeks.includes(week)
-                            ? applyWeeks.filter((item) => item !== week)
-                            : [...applyWeeks, week]
-                        );
-                      }}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: disabled
-                          ? colors.secondaryBg
-                          : active
-                            ? colors.primaryBg
-                            : colors.card,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        opacity: disabled ? 0.6 : 1,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: active ? colors.primaryText : colors.text,
-                          fontSize: 12,
-                          fontWeight: active ? "700" : "500",
-                        }}
-                      >
-                        {week}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <Pressable
-                onPress={() => onApplyDraftToWeeks(applyWeeks)}
-                disabled={!applyWeeks.length}
-                style={{
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  backgroundColor: applyWeeks.length ? colors.primaryBg : colors.primaryDisabledBg,
-                }}
-              >
-                <Text
-                  style={{
-                    color: applyWeeks.length ? colors.primaryText : colors.secondaryText,
-                    fontWeight: "700",
-                  }}
-                >
-                  Aplicar semanas selecionadas
-                </Text>
-              </Pressable>
-            </View>
-
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </ModalDialogFrame>
   );
 }
-import type { WeeklyAutopilotPlanReview } from "../../../core/models";
+

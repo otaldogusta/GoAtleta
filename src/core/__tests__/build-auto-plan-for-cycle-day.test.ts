@@ -174,6 +174,45 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.package.input.duration).toBe(90);
     expect(result.package.input.periodizationPhase).toBe("base");
     expect(result.package.final.main.activities.length).toBeGreaterThan(0);
+    expect(result.ageSanitizer.ageBand).toBe("13-15");
+    expect(result.ageSanitizer.developmentStage).toBe("especializado");
+    expect(result.pedagogyEnvelope.languageProfile).toBe("juvenil");
+    expect(result.pedagogyEnvelope.mainStyle.length).toBeLessThanOrEqual(3);
+    expect(result.pedagogyEnvelope.cooldownStyle.length).toBeLessThanOrEqual(2);
+  });
+
+  it("sanitizes adult warmup language for fundamental age bands", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "09-11",
+        goal: "Fundamentos + jogo reduzido",
+        level: 1,
+      }),
+      classPlan: buildClassPlan({
+        phase: "base",
+        theme: "Recepcao e movimento",
+        technicalFocus: "Passe",
+      }),
+      students: [buildStudent({ age: 10, birthDate: "2016-01-01" })],
+      sessionDate: "2026-04-07",
+      recentPlans: [],
+    });
+
+    expect(result.ageSanitizer.developmentStage).toBe("fundamental");
+    expect(result.ageSanitizer.ageBand).toBe("09-11");
+    expect(typeof result.ageSanitizer.warmupSummary).toBe("string");
+    expect(["engine", "age_sanitizer"]).toContain(result.ageSanitizer.warmupSource);
+    expect(Array.isArray(result.ageSanitizer.ageSanitizerReasons)).toBe(true);
+    expect(result.pedagogyEnvelope.languageProfile).toBe("infantil");
+    expect(["ludico", "guiado"]).toContain(result.pedagogyEnvelope.tone);
+    expect(result.pedagogyEnvelope.feedbackStyle).toBe("positivo_curto");
+    expect(result.pedagogyEnvelope.mainStyle.length).toBeLessThanOrEqual(3);
+    expect(result.pedagogyEnvelope.cooldownStyle.length).toBeLessThanOrEqual(2);
+    if (result.ageSanitizer.usedAgeSanitizer) {
+      expect(result.package.final.warmup.summary || "").not.toContain("sem dor reportada");
+      expect(result.ageSanitizer.warmupSource).toBe("age_sanitizer");
+      expect(result.ageSanitizer.ageSanitizerReasons).toContain("clinical_warmup_language");
+    }
   });
 
   it("uses the new context and strategy pipeline to shape the generated context", () => {
@@ -248,7 +287,7 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.explanation.debug.overrideStrength).toBe("strong");
     expect(result.explanation.debug.overrideLearningWindowGenerations).toBe(3);
     expect(result.explanation.coachSummary).toContain("Aprendizado local do professor (forte)");
-    expect(result.explanation.coachSummary).toContain("proximas 3 geracoes");
+    expect(result.explanation.coachSummary).toContain("próximas 3 gerações");
     expect(result.package.input.constraints).toContain("Skill principal: saque.");
     expect(result.package.input.periodizationPhase).toBe("base");
   });
@@ -322,7 +361,7 @@ describe("buildAutoPlanForCycleDay", () => {
 
     expect(result.repetitionAdjustment.detected).toBe(true);
     expect(result.repetitionAdjustment.changedFields.length).toBeGreaterThan(0);
-    expect(result.explanation.coachSummary).toContain("Variacao anti-repeticao aplicada");
+    expect(result.explanation.coachSummary).toContain("Variação anti-repetição aplicada");
   });
 
   it("closes the periodization to session learning loop after apply and teacher edit", () => {

@@ -1,4 +1,4 @@
-import { useReducer, useCallback } from "react";
+import { useCallback, useReducer } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,7 +17,6 @@ export type WeekEditorState = {
   editJumpTarget: string;
   editPSETarget: string;
   editSource: "AUTO" | "MANUAL";
-  applyWeeks: number[];
   isSavingWeek: boolean;
 };
 
@@ -48,7 +47,6 @@ const INITIAL_STATE: WeekEditorState = {
   editJumpTarget: "",
   editPSETarget: "",
   editSource: "AUTO",
-  applyWeeks: [],
   isSavingWeek: false,
 };
 
@@ -122,10 +120,6 @@ export function useWeekEditor() {
     (v: "AUTO" | "MANUAL") => dispatch({ type: "SET_FIELD", field: "editSource", value: v }),
     []
   );
-  const setApplyWeeks = useCallback(
-    (v: number[]) => dispatch({ type: "SET_FIELD", field: "applyWeeks", value: v }),
-    []
-  );
   const setIsSavingWeek = useCallback(
     (v: boolean) => dispatch({ type: "SET_FIELD", field: "isSavingWeek", value: v }),
     []
@@ -146,7 +140,6 @@ export function useWeekEditor() {
     setEditJumpTarget,
     setEditPSETarget,
     setEditSource,
-    setApplyWeeks,
     setIsSavingWeek,
     resetWeekEditor,
   };

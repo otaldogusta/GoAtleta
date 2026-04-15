@@ -32,6 +32,62 @@ type BuildAutoWeekPlanParams = {
 const uniqueStrings = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
+const buildWeeklyPhysicalFocus = (params: {
+  ageBand: BuildAutoWeekPlanParams["ageBand"];
+  volume: ReturnType<typeof getVolumeFromTargets>;
+}) => {
+  const byBand = {
+    "06-08": {
+      baixo: "Coordenação leve, mobilidade e recuperação ativa",
+      médio: "Coordenação, ritmo e deslocamento com bola",
+      alto: "Velocidade curta, reação e coordenação global",
+    },
+    "09-11": {
+      baixo: "Recuperação ativa, coordenação e mobilidade",
+      médio: "Coordenação, agilidade e ritmo específico",
+      alto: "Agilidade, reação e potência controlada",
+    },
+    "12-14": {
+      baixo: "Recuperação ativa, mobilidade e controle de carga",
+      médio: "Agilidade, potência controlada e ritmo específico",
+      alto: "Velocidade, potência controlada e tolerância ao esforço",
+    },
+  } as const;
+
+  return byBand[params.ageBand][params.volume];
+};
+
+const buildWeeklyTheme = (baseTheme: string, sessionLabels: string[]) =>
+  uniqueStrings([baseTheme, sessionLabels.join(" | ")])
+    .slice(0, 2)
+    .join(" · ");
+
+const buildWeeklyTechnicalFocus = (skillLabels: string[], progressionLabels: string[]) =>
+  uniqueStrings([
+    skillLabels.join(" / "),
+    progressionLabels.length ? `Progressão em ${progressionLabels.join(" / ")}` : null,
+  ])
+    .slice(0, 2)
+    .join(" · ");
+
+const buildWeeklyConstraints = (params: {
+  existingConstraints: string;
+  weekNumber: number;
+  classGoal: string;
+  sessionSummary: string;
+  volume: ReturnType<typeof getVolumeFromTargets>;
+  pseTarget: string;
+  demandIndex: number;
+}) =>
+  uniqueStrings([
+    params.existingConstraints,
+    params.sessionSummary ? `Semana ${params.weekNumber}: ${params.sessionSummary}` : null,
+    params.classGoal ? `Objetivo da turma: ${params.classGoal}` : null,
+    `Carga ${params.volume} · ${params.pseTarget} · Demanda ${params.demandIndex}/10`,
+  ])
+    .slice(0, 4)
+    .join(" | ");
+
 const buildWeekPlanMeta = (params: {
   plan: ClassPlan;
   weekNumber: number;
@@ -133,17 +189,22 @@ export const buildAutoWeekPlan = (
         .map((item) => `S${item.sessionIndexInWeek}: ${item.sessionLabel}`)
         .join(" | ");
 
-      plan.theme = sessionLabels.join(" / ") || plan.theme;
-      plan.technicalFocus = skillLabels.join(" / ") || plan.technicalFocus;
+      plan.theme = buildWeeklyTheme(plan.theme, sessionLabels) || plan.theme;
+      plan.technicalFocus = buildWeeklyTechnicalFocus(skillLabels, progressionLabels) || plan.technicalFocus;
+      plan.physicalFocus = buildWeeklyPhysicalFocus({
+        ageBand: params.ageBand,
+        volume: weekPlan.volume,
+      });
       plan.warmupProfile = autoPlans[0]?.pedagogicalIntentLabel || plan.warmupProfile;
-      plan.constraints = uniqueStrings([
-        plan.constraints,
-        progressionLabels.length ? `Progressao: ${progressionLabels.join(" / ")}` : null,
+      plan.constraints = buildWeeklyConstraints({
+        existingConstraints: plan.constraints,
+        weekNumber: params.weekNumber,
+        classGoal: selectedClass.goal,
         sessionSummary,
-        `Demanda ${demandIndex}/10`,
-      ])
-        .slice(0, 4)
-        .join(" | ");
+        volume: weekPlan.volume,
+        pseTarget: weekPlan.PSETarget,
+        demandIndex,
+      });
     }
   }
 

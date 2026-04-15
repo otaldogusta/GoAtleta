@@ -9,7 +9,7 @@ export const ptBR = {
     warmup: "Aquecimento",
     main: "Parte principal",
     cooldown: "Volta à calma",
-    noPlanNotice: "Sem treino aplicado para esse dia.",
+    noPlanNotice: "",
     emptyPlan: {
       title: "Sem plano aplicado",
       description: "Escolha um treino salvo ou crie um novo plano de aula.",

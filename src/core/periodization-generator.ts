@@ -1,11 +1,11 @@
 import { parseAgeBandRange } from "./age-band";
 import type { ClassPlan } from "./models";
 import {
-  ageBands,
-  isAnnualCycle,
-  type PeriodizationModel,
-  type SportProfile,
-  type VolumeLevel,
+    ageBands,
+    isAnnualCycle,
+    type PeriodizationModel,
+    type SportProfile,
+    type VolumeLevel,
 } from "./periodization-basics";
 
 // ---------------------------------------------------------------------------
@@ -465,6 +465,113 @@ const getAnnualPhaseForWeek = (options: {
   return fitted[fitted.length - 1] ?? null;
 };
 
+type AnnualPhasePlacement = {
+  phase: AnnualPhaseTemplate;
+  weekOffset: number;
+  durationWeeks: number;
+  stage: "entrada" | "progressao" | "aplicacao" | "consolidacao";
+};
+
+const getAnnualPhasePlacement = (options: {
+  ageBand: (typeof ageBands)[number];
+  cycleLength: number;
+  weekNumber: number;
+  model: PeriodizationModel;
+  sport: SportProfile;
+}): AnnualPhasePlacement | null => {
+  const template = resolveAnnualTemplate(options);
+  if (!template?.length) return null;
+  const fitted = fitTemplateToCycleLength(template, options.cycleLength);
+  let cursor = 0;
+  for (const phase of fitted) {
+    const startWeek = cursor + 1;
+    const endWeek = cursor + phase.durationWeeks;
+    if (options.weekNumber >= startWeek && options.weekNumber <= endWeek) {
+      const weekOffset = options.weekNumber - startWeek;
+      const progress = phase.durationWeeks <= 1 ? 1 : weekOffset / (phase.durationWeeks - 1);
+      const stage =
+        progress <= 0.24
+          ? "entrada"
+          : progress <= 0.59
+          ? "progressao"
+          : progress <= 0.84
+          ? "aplicacao"
+          : "consolidacao";
+      return {
+        phase,
+        weekOffset,
+        durationWeeks: phase.durationWeeks,
+        stage,
+      };
+    }
+    cursor = endWeek;
+  }
+  return null;
+};
+
+const annualStageLabel: Record<AnnualPhasePlacement["stage"], string> = {
+  entrada: "Entrada",
+  progressao: "Progressão",
+  aplicacao: "Aplicação",
+  consolidacao: "Consolidação",
+};
+
+const buildAnnualStageTechnicalFocus = (
+  focus: string,
+  stage: AnnualPhasePlacement["stage"]
+) => {
+  if (stage === "entrada") return `Introdução a ${focus.toLowerCase()}`;
+  if (stage === "progressao") return `Progressão de ${focus.toLowerCase()}`;
+  if (stage === "aplicacao") return `Aplicação de ${focus.toLowerCase()} em situações da semana`;
+  return `Consolidação de ${focus.toLowerCase()} com síntese do bloco`;
+};
+
+const buildAnnualStagePhysicalFocus = (
+  focus: string,
+  stage: AnnualPhasePlacement["stage"]
+) => {
+  if (stage === "entrada") return `${focus} com adaptação progressiva da carga`;
+  if (stage === "progressao") return `${focus} com aumento gradual de ritmo e exigência`;
+  if (stage === "aplicacao") return `${focus} com transferência para tarefas da sessão`;
+  return `${focus} com estabilização e recuperação orientada`;
+};
+
+const buildAnnualStageNotes = (
+  notes: string[],
+  placement: AnnualPhasePlacement
+) => {
+  const stageGuideline =
+    placement.stage === "entrada"
+      ? "Abrir o bloco com referência simples e meta clara da semana"
+      : placement.stage === "progressao"
+      ? "Aumentar desafio sem perder clareza do foco principal"
+      : placement.stage === "aplicacao"
+      ? "Transferir o conteúdo para tarefas mais próximas do jogo"
+      : "Fechar o bloco consolidando o que mais funcionou";
+
+  return [
+    ...notes,
+    `Microciclo ${placement.weekOffset + 1}/${placement.durationWeeks}`,
+    stageGuideline,
+  ];
+};
+
+const buildAnnualStageWarmupProfile = (
+  warmupProfile: string | undefined,
+  placement: AnnualPhasePlacement
+) => {
+  const base = String(warmupProfile ?? "").trim();
+  const suffix =
+    placement.stage === "entrada"
+      ? "entrada técnica"
+      : placement.stage === "progressao"
+      ? "progressão guiada"
+      : placement.stage === "aplicacao"
+      ? "ativação contextual"
+      : "recuperação ativa";
+  return [base, suffix].filter(Boolean).join(" · ");
+};
+
 // ---------------------------------------------------------------------------
 // Phase / PSE / Volume calculators
 // ---------------------------------------------------------------------------
@@ -663,7 +770,7 @@ export const buildClassPlan = (options: {
   const createdAt = new Date().toISOString();
 
   if (isAnnualCycle(options.cycleLength)) {
-    const annualPhase = getAnnualPhaseForWeek({
+    const annualPlacement = getAnnualPhasePlacement({
       ageBand: options.ageBand,
       cycleLength: options.cycleLength,
       weekNumber: options.weekNumber,
@@ -671,19 +778,29 @@ export const buildClassPlan = (options: {
       sport: options.sport,
     });
 
-    if (annualPhase) {
+    if (annualPlacement) {
+      const annualPhase = annualPlacement.phase;
       return {
         id: `cp_${options.classId}_${Date.now()}_${options.weekNumber}`,
         classId: options.classId,
         startDate,
         weekNumber: options.weekNumber,
         phase: annualPhase.phase,
-        theme: annualPhase.title,
-        technicalFocus: annualPhase.technicalFocus,
-        physicalFocus: annualPhase.physicalFocus,
-        constraints: annualPhase.notes.join(" | "),
+        theme: `${annualPhase.title} · ${annualStageLabel[annualPlacement.stage]}`,
+        technicalFocus: buildAnnualStageTechnicalFocus(
+          annualPhase.technicalFocus,
+          annualPlacement.stage
+        ),
+        physicalFocus: buildAnnualStagePhysicalFocus(
+          annualPhase.physicalFocus,
+          annualPlacement.stage
+        ),
+        constraints: buildAnnualStageNotes(annualPhase.notes, annualPlacement).join(" | "),
         mvFormat: getMvFormat(options.ageBand),
-        warmupProfile: annualPhase.warmupProfile ?? annualPhase.notes[0] ?? "",
+        warmupProfile: buildAnnualStageWarmupProfile(
+          annualPhase.warmupProfile ?? annualPhase.notes[0] ?? "",
+          annualPlacement
+        ),
         jumpTarget: annualPhase.jumpTarget ?? getJumpTarget(options.mvLevel, options.ageBand),
         rpeTarget: annualPhase.rpeTarget,
         source: options.source,

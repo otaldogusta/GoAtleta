@@ -4,36 +4,36 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Easing,
-  FlatList,
-  Image,
-  InteractionManager,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Animated,
+    Easing,
+    FlatList,
+    Image,
+    InteractionManager,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenBackdrop } from "../../../src/components/ui/ScreenBackdrop";
 import {
-  buildAutoPlanForCycleDay,
-  type AutoPlanForCycleDayResult,
+    buildAutoPlanForCycleDay,
+    type AutoPlanForCycleDayResult,
 } from "../../../src/screens/session/application/build-auto-plan-for-cycle-day";
 import {
-  BlockEditModal,
-  type BlockEditPayload,
-  type EditableBlockItem,
+    BlockEditModal,
+    type BlockEditPayload,
+    type EditableBlockItem,
 } from "../../../src/screens/session/components/BlockEditModal";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import {
-  generateStructuredActivitiesWithAI,
-  rewriteReportText,
-  type ReportRewriteField,
+    generateStructuredActivitiesWithAI,
+    rewriteReportText,
+    type ReportRewriteField,
 } from "../../../src/api/ai";
 import { usePedagogicalConfig } from "../../../src/bootstrap/pedagogical-config-context";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
@@ -42,92 +42,92 @@ import { ptBR } from "../../../src/constants/copy/pt-br";
 import { toVisibleCoachingText } from "../../../src/core/methodology/coaching-lexicon";
 import type { PedagogicalApproachDetection } from "../../../src/core/methodology/pedagogical-approach-detector";
 import {
-  buildSessionApproachAwareBlockDescription,
-  buildSessionApproachAwareGeneralObjective,
-  buildSessionApproachGuideline,
-  buildSessionPedagogicalApproachInput,
-  detectSessionPedagogicalApproach as detectSessionPedagogicalApproachCore,
-  formatSessionPedagogicalRiskLabel,
+    buildSessionApproachAwareBlockDescription,
+    buildSessionApproachAwareGeneralObjective,
+    buildSessionApproachGuideline,
+    buildSessionPedagogicalApproachInput,
+    detectSessionPedagogicalApproach as detectSessionPedagogicalApproachCore,
+    formatSessionPedagogicalRiskLabel,
 } from "../../../src/core/methodology/session-pedagogical-language";
 import {
-  buildSessionPedagogicalPanelIntent,
-  buildSessionPedagogicalPanelRisk,
-  buildSessionPedagogicalPanelSecondary,
-  buildSessionPedagogicalPanelSignals,
-  buildSessionPedagogicalPanelSummary,
-  formatSessionAdjustmentLabel,
-  formatSessionDecisionReasonTypeLabel,
-  formatSessionMethodologyApproachLabel,
-  formatSessionMethodologyEvidenceExcerpt,
-  formatSessionMethodologyEvidenceSource,
-  formatSessionMethodologyScoreSummary,
-  formatSessionOverrideSummary,
-  formatSessionPedagogicalFocusSkill,
-  type SessionMethodologyEvidence,
+    buildSessionPedagogicalPanelIntent,
+    buildSessionPedagogicalPanelRisk,
+    buildSessionPedagogicalPanelSecondary,
+    buildSessionPedagogicalPanelSignals,
+    buildSessionPedagogicalPanelSummary,
+    formatSessionAdjustmentLabel,
+    formatSessionDecisionReasonTypeLabel,
+    formatSessionMethodologyApproachLabel,
+    formatSessionMethodologyEvidenceExcerpt,
+    formatSessionMethodologyEvidenceSource,
+    formatSessionMethodologyScoreSummary,
+    formatSessionOverrideSummary,
+    formatSessionPedagogicalFocusSkill,
+    type SessionMethodologyEvidence,
 } from "../../../src/core/methodology/session-pedagogical-panel-language";
 import type {
-  ClassGroup,
-  ClassPlan,
-  KnowledgeSource,
-  ProgressionDimension,
-  ScoutingLog,
-  SessionLog,
-  Student,
-  TrainingPlan,
-  TrainingPlanActivity,
-  TrainingPlanCriterion,
-  TrainingPlanPedagogy,
-  TrainingPlanPlanningBasis,
-  VolleyballSkill,
+    ClassGroup,
+    ClassPlan,
+    KnowledgeSource,
+    ProgressionDimension,
+    ScoutingLog,
+    SessionLog,
+    Student,
+    TrainingPlan,
+    TrainingPlanActivity,
+    TrainingPlanCriterion,
+    TrainingPlanPedagogy,
+    TrainingPlanPlanningBasis,
+    VolleyballSkill,
 } from "../../../src/core/models";
 import {
-  buildCAPFromDimensions,
-  buildDimensionGuidelines,
-  deriveDimensionsProfile,
-  formatDimensionsProfile,
-  formatRefinements,
-  refineDimensionsByEvaluation,
+    buildCAPFromDimensions,
+    buildDimensionGuidelines,
+    deriveDimensionsProfile,
+    formatDimensionsProfile,
+    formatRefinements,
+    refineDimensionsByEvaluation,
 } from "../../../src/core/pedagogical-dimensions";
 import {
-  evaluateSessionOutcome,
-  type SessionSkillHistoryEntry,
+    evaluateSessionOutcome,
+    type SessionSkillHistoryEntry,
 } from "../../../src/core/pedagogical-evaluation";
 import {
-  type LessonPlanDraft,
-  type PedagogicalObjective,
-  type PedagogicalPlanBlock,
-  type PedagogicalPlanPackage,
-  type PlanningPhase,
+    type LessonPlanDraft,
+    type PedagogicalObjective,
+    type PedagogicalPlanBlock,
+    type PedagogicalPlanPackage,
+    type PlanningPhase,
 } from "../../../src/core/pedagogical-planning";
 import { buildPeriodizationContext } from "../../../src/core/periodization-context";
 import {
-  buildLogFromCounts,
-  countsFromLog,
-  createEmptyCounts,
-  getFocusSuggestion,
-  getSkillMetrics,
-  getTotalActions,
-  scoutingSkillHelp,
-  scoutingSkills,
-  type ScoutingCounts,
+    buildLogFromCounts,
+    countsFromLog,
+    createEmptyCounts,
+    getFocusSuggestion,
+    getSkillMetrics,
+    getTotalActions,
+    scoutingSkillHelp,
+    scoutingSkills,
+    type ScoutingCounts,
 } from "../../../src/core/scouting";
 import { createTrainingPlanVersion } from "../../../src/core/training-plan-factory";
 import { resolveActiveMethodology } from "../../../src/db/knowledge-base";
 import {
-  deleteTrainingPlansByClassAndDate,
-  getAttendanceByDate,
-  getClassById,
-  getClassPlansByClass,
-  getKnowledgeRuleCitations,
-  getKnowledgeSources,
-  getLatestTrainingPlanByClass,
-  getScoutingLogByDate,
-  getSessionLogByDate,
-  getStudentsByClass,
-  getTrainingPlans,
-  saveScoutingLog,
-  saveSessionLog,
-  saveTrainingPlan,
+    deleteTrainingPlansByClassAndDate,
+    getAttendanceByDate,
+    getClassById,
+    getClassPlansByClass,
+    getKnowledgeRuleCitations,
+    getKnowledgeSources,
+    getLatestTrainingPlanByClass,
+    getScoutingLogByDate,
+    getSessionLogByDate,
+    getStudentsByClass,
+    getTrainingPlans,
+    saveScoutingLog,
+    saveSessionLog,
+    saveTrainingPlan,
 } from "../../../src/db/seed";
 import { logAction, logPlanGenerationDecision } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
@@ -3252,6 +3252,17 @@ export default function SessionScreen() {
           explanation: autoPlanResult.explanation,
           planningBasis,
           generationMode: toGenerationMode(planningBasis),
+          ageBand: autoPlanResult.ageSanitizer.ageBand,
+          developmentStage: autoPlanResult.ageSanitizer.developmentStage,
+          warmupSummary: autoPlanResult.ageSanitizer.warmupSummary,
+          warmupSource: autoPlanResult.ageSanitizer.warmupSource,
+          usedAgeSanitizer: autoPlanResult.ageSanitizer.usedAgeSanitizer,
+          ageSanitizerReasons: autoPlanResult.ageSanitizer.ageSanitizerReasons,
+          pedagogyTone: autoPlanResult.pedagogyEnvelope.tone,
+          pedagogyLanguageProfile: autoPlanResult.pedagogyEnvelope.languageProfile,
+          pedagogyFeedbackStyle: autoPlanResult.pedagogyEnvelope.feedbackStyle,
+          pedagogyMainStyle: autoPlanResult.pedagogyEnvelope.mainStyle,
+          pedagogyCooldownStyle: autoPlanResult.pedagogyEnvelope.cooldownStyle,
         });
         return autoPlanResult;
       },
@@ -3280,6 +3291,8 @@ export default function SessionScreen() {
     options?: {
       successMessage?: string;
       generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+      targetPrimarySkill?: VolleyballSkill;
+      targetSecondarySkill?: VolleyballSkill;
     }
   ) => {
     if (!cls) return;
@@ -3294,12 +3307,27 @@ export default function SessionScreen() {
       preferredDomains: ["youth_training", "general"],
       context: packageToSave.input.context ?? "treinamento",
     });
-    const scoutingPrioritySkill = getScoutingPrioritySkill(scoutingCounts);
+    const inferredFocusSkill = pickFocusSkill(packageToSave);
+    const resolvedPrimarySkill =
+      options?.targetPrimarySkill ?? getScoutingPrioritySkill(scoutingCounts) ?? inferredFocusSkill;
+    const resolvedSecondarySkill = options?.targetSecondarySkill;
+
+    if (__DEV__) {
+      logAction("plan coherence anchor", {
+        classId: cls.id,
+        sessionDate,
+        inferredFocusSkill,
+        resolvedPrimarySkill,
+        resolvedSecondarySkill: resolvedSecondarySkill ?? null,
+      });
+    }
+
     const explicitObjectives = buildPedagogicalObjectives(packageToSave, {
-      scoutingPrioritySkill,
+      scoutingPrioritySkill: resolvedPrimarySkill,
     });
     const sessionObjectiveLabel = explicitObjectives.general;
     const progressionDimension = pickProgressionDimension(packageToSave);
+    const nonMainFocusSkill = resolvedSecondarySkill ?? resolvedPrimarySkill;
 
     const [warmupActivities, mainActivities, cooldownActivities] = await Promise.all([
       toStructuredActivitiesWithAiFallback(
@@ -3309,7 +3337,7 @@ export default function SessionScreen() {
         "warmup",
         packageToSave.final.warmup.summary,
         explicitObjectives.pedagogicalApproach,
-        scoutingPrioritySkill ?? pickFocusSkill(packageToSave),
+        nonMainFocusSkill,
         {
           organizationId: cls.organizationId ?? null,
           periodLabel: sessionDate,
@@ -3323,7 +3351,7 @@ export default function SessionScreen() {
         "main",
         packageToSave.final.main.summary,
         explicitObjectives.pedagogicalApproach,
-        scoutingPrioritySkill ?? pickFocusSkill(packageToSave),
+        resolvedPrimarySkill,
         {
           organizationId: cls.organizationId ?? null,
           periodLabel: sessionDate,
@@ -3337,7 +3365,7 @@ export default function SessionScreen() {
         "cooldown",
         packageToSave.final.cooldown.summary,
         explicitObjectives.pedagogicalApproach,
-        scoutingPrioritySkill ?? pickFocusSkill(packageToSave),
+        nonMainFocusSkill,
         {
           organizationId: cls.organizationId ?? null,
           periodLabel: sessionDate,
@@ -3384,7 +3412,7 @@ export default function SessionScreen() {
         pedagogicalConfig,
         {
           sessionId: `${cls.id}:${sessionDate}`,
-          scoutingPrioritySkill,
+          scoutingPrioritySkill: resolvedPrimarySkill,
           scoutingCounts,
           skillHistoryBySkill,
           generationExplanation: options?.generationExplanation,
@@ -3440,6 +3468,8 @@ export default function SessionScreen() {
           autoPlanResult.explanation,
           planningBasis
         ),
+        targetPrimarySkill: autoPlanResult.strategy.primarySkill,
+        targetSecondarySkill: autoPlanResult.strategy.secondarySkill,
       });
       setPlanGenerationPhase("settling");
       await waitForInteractionIdle();
@@ -4007,12 +4037,6 @@ export default function SessionScreen() {
         </View>
 
         <View style={{ alignItems: "flex-end", gap: 6, minWidth: 120 }}>
-          <LocationBadge
-            location={cls?.unit || "Unidade"}
-            palette={classPalette}
-            size="sm"
-            showIcon
-          />
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
@@ -4020,6 +4044,12 @@ export default function SessionScreen() {
             </Text>
             <ClassGenderBadge gender={classGender} size="md" />
           </View>
+          <LocationBadge
+            location={cls?.unit || "Unidade"}
+            palette={classPalette}
+            size="sm"
+            showIcon
+          />
         </View>
       </View>
 
@@ -4076,11 +4106,6 @@ export default function SessionScreen() {
             <Ionicons name="chevron-forward" size={18} color={colors.text} />
           </Pressable>
         </View>
-        {!plan ? (
-          <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
-            Ainda não há plano aplicado para este dia.
-          </Text>
-        ) : null}
       </View>
 
       <View

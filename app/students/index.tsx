@@ -33,14 +33,16 @@ import {
     uploadStudentPhoto,
 } from "../../src/api/student-photo-storage";
 import { useAuth } from "../../src/auth/auth";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
+import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
+import { getClassModalityLabel } from "../../src/core/class-modality";
 import {
     compareClassesBySchedule,
     sortClassesBySchedule,
 } from "../../src/core/class-schedule-sort";
-import { getClassModalityLabel } from "../../src/core/class-modality";
 import { useEffectiveProfile } from "../../src/core/effective-profile";
-import { deriveStudentHealthAssessment } from "../../src/core/student-health";
 import type { ClassGroup, Student, StudentPreRegistration } from "../../src/core/models";
+import { deriveStudentHealthAssessment } from "../../src/core/student-health";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     convertStudentPreRegistration,
@@ -53,11 +55,12 @@ import {
     updateStudent
 } from "../../src/db/seed";
 import { useIsOnline } from "../../src/hooks/use-is-online";
+import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
-import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
+import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
 import { useBuildStudentMessage } from "../../src/screens/students/hooks/useBuildStudentMessage";
@@ -75,9 +78,9 @@ import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/Ancho
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { Button } from "../../src/ui/Button";
 import { getClassPalette } from "../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
-import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
@@ -85,13 +88,11 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
+import { useSaveToast } from "../../src/ui/save-toast";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
-import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { useSaveToast } from "../../src/ui/save-toast";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
 import { normalizeRaDigits, validateStudentRa } from "../../src/utils/student-ra";
@@ -227,6 +228,7 @@ export default function StudentsScreen() {
     false
   );
   const [studentsTab, setStudentsTab] = usePersistedState<StudentsTab>("students_tab_v1", "alunos");
+  const isCadastroTab = studentsTab === "cadastro";
   const [showStudentsFabMenu, setShowStudentsFabMenu] = useState(false);
   const [showStudentsFormsSyncModal, setShowStudentsFormsSyncModal] = useState(false);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
@@ -594,6 +596,12 @@ export default function StudentsScreen() {
       useNativeDriver: true,
     }).start();
   }, [showStudentsFabMenu, studentsFabAnim]);
+
+  useEffect(() => {
+    if (studentsTab === "cadastro" && showStudentsFabMenu) {
+      setShowStudentsFabMenu(false);
+    }
+  }, [studentsTab, showStudentsFabMenu]);
 
   const unitLabel = useCallback(
     (value: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
@@ -2478,7 +2486,12 @@ export default function StudentsScreen() {
       >
       <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 0 }}
+        contentContainerStyle={{
+          paddingBottom: isCadastroTab ? Math.max(insets.bottom + 104, 120) : 24,
+          gap: 16,
+          paddingHorizontal: 16,
+          paddingTop: 0,
+        }}
         keyboardShouldPersistTaps="handled"
         stickyHeaderIndices={[0]}
         onScrollBeginDrag={closeAllPickers}
@@ -2500,17 +2513,17 @@ export default function StudentsScreen() {
       >
         <ScreenTopChrome
           style={{
-            gap: 16,
+            gap: 10,
             paddingTop: 16,
-            paddingBottom: 10,
+            paddingBottom: 6,
           }}
         >
           <Pressable
             onPress={goBackFromStudents}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
           >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
               Alunos
             </Text>
           </Pressable>
@@ -2518,6 +2531,7 @@ export default function StudentsScreen() {
             tabs={studentsTabMeta}
             activeTab={studentsTab}
             onChange={requestSwitchStudentsTab}
+            style={{ padding: 4, gap: 6 }}
           />
         </ScreenTopChrome>
 
@@ -2536,73 +2550,75 @@ export default function StudentsScreen() {
           }}
         />
 
-        <View
-          style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 12,
-            gap: 10,
-          }}
-        >
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-              Visão geral
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>
-              {activeOrganization?.name ?? "Sem organização"}
-            </Text>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <View
-              style={{
-                flex: 1,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                padding: 10,
-                gap: 2,
-              }}
-            >
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Alunos ativos</Text>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{students.length}</Text>
-            </View>
-            <View
-              style={{
-                flex: 1,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                padding: 10,
-                gap: 2,
-              }}
-            >
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Convites pendentes</Text>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                {pendingStudentInvites.length}
+        {studentsTab === "alunos" ? (
+          <View
+            style={{
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              padding: 12,
+              gap: 10,
+            }}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                Visão geral
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {activeOrganization?.name ?? "Sem organização"}
               </Text>
             </View>
-            <View
-              style={{
-                flex: 1,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                padding: 10,
-                gap: 2,
-              }}
-            >
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Aniversários hoje</Text>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                {birthdayTodayAll.length}
-              </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View
+                style={{
+                  flex: 1,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  padding: 10,
+                  gap: 2,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Alunos ativos</Text>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{students.length}</Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  padding: 10,
+                  gap: 2,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Convites pendentes</Text>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
+                  {pendingStudentInvites.length}
+                </Text>
+              </View>
+              <View
+                style={{
+                  flex: 1,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  padding: 10,
+                  gap: 2,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 11 }}>Aniversários hoje</Text>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
+                  {birthdayTodayAll.length}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        ) : null}
 
         <Suspense
           fallback={
@@ -2696,6 +2712,7 @@ export default function StudentsScreen() {
               guardianRelationTriggerRef={guardianRelationTriggerRef}
               canSaveStudent={canSaveStudent}
               onSave={onSave}
+              showInlineSaveButton={false}
               isFormDirty={isFormDirty}
               doResetForm={doResetForm}
               confirmDialog={confirmDialog}
@@ -2746,57 +2763,106 @@ export default function StudentsScreen() {
 
       </ScrollView>
 
-      <Pressable
-        onPress={() => setShowStudentsFabMenu((current) => !current)}
-        style={{
-          ...(Platform.OS === "web"
-            ? ({ position: "fixed", right: studentsFabRight, bottom: studentsFabBottom } as any)
-            : { position: "absolute" as const, right: studentsFabRight, bottom: studentsFabBottom }),
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.primaryBg,
-          borderWidth: 1,
-          borderColor: colors.border,
-          zIndex: 3200,
-          shadowColor: "#000",
-          shadowOpacity: 0.2,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 12,
-        }}
-      >
-        <Animated.View
+      {isCadastroTab ? (
+        <View
           style={{
-            transform: [{ rotate: studentsFabRotate }, { scale: studentsFabScale }],
+            ...(Platform.OS === "web"
+              ? ({
+                  position: "fixed",
+                  left: 12,
+                  right: 12,
+                  bottom: Math.max(insets.bottom + 10, 14),
+                } as any)
+              : {
+                  position: "absolute" as const,
+                  left: 12,
+                  right: 12,
+                  bottom: Math.max(insets.bottom + 10, 14),
+                }),
+            zIndex: 3150,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: Platform.OS === "web" ? "rgba(255,255,255,0.94)" : colors.card,
+            padding: 12,
+            ...(Platform.OS === "web"
+              ? {
+                  backdropFilter: "blur(18px) saturate(165%)",
+                  WebkitBackdropFilter: "blur(18px) saturate(165%)",
+                  backgroundImage:
+                    "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%)",
+                }
+              : {}),
+            shadowColor: "#000",
+            shadowOpacity: 0.1,
+            shadowRadius: 18,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: 10,
           }}
         >
-          <Ionicons name="add" size={24} color={colors.primaryText} />
-        </Animated.View>
-      </Pressable>
+          <Button
+            label={editingId ? "Salvar alterações" : "Adicionar aluno"}
+            onPress={onSave}
+            disabled={!canSaveStudent}
+          />
+        </View>
+      ) : null}
 
-      <StudentsFabMenu
-        visible={showStudentsFabMenu}
-        exportBusy={studentsExportBusy}
-        anchorRight={studentsFabRight}
-        anchorBottom={studentsFabBottom}
-        onClose={() => setShowStudentsFabMenu(false)}
-        onSyncFormsPress={() => {
-          setShowStudentsFabMenu(false);
-          setShowStudentsFormsSyncModal(true);
-        }}
-        onImportPress={() => {
-          setShowStudentsFabMenu(false);
-          setShowStudentsImportModal(true);
-        }}
-        onExportPress={() => {
-          void handleExportStudents().finally(() => {
-            setShowStudentsFabMenu(false);
-          });
-        }}
-      />
+      {!isCadastroTab ? (
+        <>
+          <Pressable
+            onPress={() => setShowStudentsFabMenu((current) => !current)}
+            style={{
+              ...(Platform.OS === "web"
+                ? ({ position: "fixed", right: studentsFabRight, bottom: studentsFabBottom } as any)
+                : { position: "absolute" as const, right: studentsFabRight, bottom: studentsFabBottom }),
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.primaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              zIndex: 3200,
+              shadowColor: "#000",
+              shadowOpacity: 0.2,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 12,
+            }}
+          >
+            <Animated.View
+              style={{
+                transform: [{ rotate: studentsFabRotate }, { scale: studentsFabScale }],
+              }}
+            >
+              <Ionicons name="add" size={24} color={colors.primaryText} />
+            </Animated.View>
+          </Pressable>
+
+          <StudentsFabMenu
+            visible={showStudentsFabMenu}
+            exportBusy={studentsExportBusy}
+            anchorRight={studentsFabRight}
+            anchorBottom={studentsFabBottom}
+            onClose={() => setShowStudentsFabMenu(false)}
+            onSyncFormsPress={() => {
+              setShowStudentsFabMenu(false);
+              setShowStudentsFormsSyncModal(true);
+            }}
+            onImportPress={() => {
+              setShowStudentsFabMenu(false);
+              setShowStudentsImportModal(true);
+            }}
+            onExportPress={() => {
+              void handleExportStudents().finally(() => {
+                setShowStudentsFabMenu(false);
+              });
+            }}
+          />
+        </>
+      ) : null}
 
       <StudentsFormsSyncModal
         visible={showStudentsFormsSyncModal}

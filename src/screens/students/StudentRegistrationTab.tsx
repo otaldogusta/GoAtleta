@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import type { Student } from "../../core/models";
 import { deriveStudentHealthAssessment } from "../../core/student-health";
-import { normalizeRaDigits } from "../../utils/student-ra";
 import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
@@ -165,6 +164,7 @@ export type StudentRegistrationTabProps = {
     // Actions
     canSaveStudent: boolean;
     onSave: () => void;
+    showInlineSaveButton?: boolean;
     isFormDirty: any;
     doResetForm: () => void;
     confirmDialog: (options: ConfirmDialogOptions) => void;
@@ -252,6 +252,7 @@ export function StudentRegistrationTab({
     guardianRelationTriggerRef,
     canSaveStudent,
     onSave,
+    showInlineSaveButton = true,
     isFormDirty,
     doResetForm,
     confirmDialog,
@@ -546,7 +547,9 @@ export function StudentRegistrationTab({
               ) : null}
             </View>
 
-            <Button label={editingId ? "Salvar alterações" : "Adicionar aluno"} onPress={onSave} disabled={!canSaveStudent} />
+            {showInlineSaveButton ? (
+              <Button label={editingId ? "Salvar alterações" : "Adicionar aluno"} onPress={onSave} disabled={!canSaveStudent} />
+            ) : null}
             {editingId ? (
               <Button
                 label="Cancelar edição"

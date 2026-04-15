@@ -27,6 +27,17 @@ export const logPlanGenerationDecision = (params: {
   explanation: CycleDayGenerationExplanation;
   planningBasis?: "cycle_based" | "class_based_bootstrap";
   generationMode?: "periodized" | "class_bootstrap";
+  ageBand?: string;
+  developmentStage?: string;
+  warmupSummary?: string;
+  warmupSource?: "engine" | "age_sanitizer";
+  usedAgeSanitizer?: boolean;
+  ageSanitizerReasons?: string[];
+  pedagogyTone?: "ludico" | "guiado" | "desafio_progressivo" | "jogo_aplicado";
+  pedagogyLanguageProfile?: "infantil" | "juvenil" | "tecnico";
+  pedagogyFeedbackStyle?: "positivo_curto" | "pergunta_guiada" | "reflexao_rapida";
+  pedagogyMainStyle?: string[];
+  pedagogyCooldownStyle?: string[];
 }) => {
   if (!params.explanation.summary) return;
   Sentry.addBreadcrumb({
@@ -40,6 +51,17 @@ export const logPlanGenerationDecision = (params: {
       historyMode: params.explanation.historyMode,
       planningBasis: params.planningBasis ?? null,
       generationMode: params.generationMode ?? null,
+      ageBand: params.ageBand ?? null,
+      developmentStage: params.developmentStage ?? null,
+      warmupSummary: params.warmupSummary ?? null,
+      warmupSource: params.warmupSource ?? null,
+      usedAgeSanitizer: params.usedAgeSanitizer ?? false,
+      ageSanitizerReasons: params.ageSanitizerReasons ?? [],
+      pedagogyTone: params.pedagogyTone ?? null,
+      pedagogyLanguageProfile: params.pedagogyLanguageProfile ?? null,
+      pedagogyFeedbackStyle: params.pedagogyFeedbackStyle ?? null,
+      pedagogyMainStyle: params.pedagogyMainStyle ?? [],
+      pedagogyCooldownStyle: params.pedagogyCooldownStyle ?? [],
       coachSummary: params.explanation.coachSummary,
     },
     level: "info",

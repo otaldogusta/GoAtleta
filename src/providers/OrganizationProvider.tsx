@@ -28,6 +28,103 @@ import {
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
+const createAbortError = () => {
+  const error = new Error("Aborted");
+  error.name = "AbortError";
+  return error;
+};
+
+const postSupabaseRpc = async ({
+  path,
+  token,
+  signal,
+  body,
+}: {
+  path: string;
+  token: string;
+  signal?: AbortSignal;
+  body?: string;
+}) => {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/${path}`;
+  const headers = {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+      signal,
+    });
+  } catch (error) {
+    const shouldFallbackToXhr =
+      Platform.OS === "web" &&
+      typeof XMLHttpRequest !== "undefined" &&
+      error instanceof TypeError;
+
+    if (!shouldFallbackToXhr) {
+      throw error;
+    }
+
+    return await new Promise<Response>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      const cleanup = () => {
+        if (signal) {
+          signal.removeEventListener("abort", handleAbort);
+        }
+      };
+
+      const handleAbort = () => {
+        cleanup();
+        xhr.abort();
+        reject(createAbortError());
+      };
+
+      xhr.open("POST", url, true);
+      Object.entries(headers).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value);
+      });
+
+      xhr.onload = () => {
+        cleanup();
+        resolve(
+          new Response(xhr.responseText, {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            headers: {
+              "Content-Type": xhr.getResponseHeader("content-type") || "application/json",
+            },
+          })
+        );
+      };
+
+      xhr.onerror = () => {
+        cleanup();
+        reject(new TypeError("Network request failed"));
+      };
+
+      xhr.onabort = () => {
+        cleanup();
+        reject(createAbortError());
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          handleAbort();
+          return;
+        }
+        signal.addEventListener("abort", handleAbort, { once: true });
+      }
+
+      xhr.send(body);
+    });
+  }
+};
+
 type Organization = {
   id: string;
   name: string;
@@ -198,15 +295,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     try {
       const fetchOrganizationsWithToken = async (token: string) =>
-        fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_organizations`, {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-      });
+        postSupabaseRpc({
+          path: "get_my_organizations",
+          token,
+          signal: controller.signal,
+        });
 
       let res = await fetchOrganizationsWithToken(accessToken);
       if (res.status === 401) {
@@ -280,13 +373,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     async (name: string): Promise<string> => {
       if (!session?.access_token) throw new Error("Not authenticated");
 
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_organization_with_admin`, {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${session.access_token}`,
-          "Content-Type": "application/json",
-        },
+      const res = await postSupabaseRpc({
+        path: "create_organization_with_admin",
+        token: session.access_token,
         body: JSON.stringify({ org_name: name }),
       });
 

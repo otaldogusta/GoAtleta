@@ -98,10 +98,7 @@ import {
 
     saveClassCalendarException,
     saveClassCompetitiveProfile,
-    saveClassPlans,
-    updateClassAcwrLimits,
-
-    updateClassPlan
+    updateClassAcwrLimits
 } from "../../src/db/seed";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 
@@ -136,6 +133,7 @@ import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
+import { buildWeekSessionPreview } from "../../src/screens/periodization/application/build-week-session-preview";
 import { buildAutoWeekPlan } from "../../src/screens/periodization/build-auto-week-plan";
 import { CompetitiveAgendaCard } from "../../src/screens/periodization/CompetitiveAgendaCard";
 import { DayModal } from "../../src/screens/periodization/modals/DayModal";
@@ -623,7 +621,6 @@ export default function PeriodizationScreen() {
     setEditJumpTarget,
     setEditPSETarget,
     setEditSource,
-    setApplyWeeks,
     setIsSavingWeek,
     resetWeekEditor,
   } = useWeekEditor();
@@ -640,7 +637,6 @@ export default function PeriodizationScreen() {
     editJumpTarget,
     editPSETarget,
     editSource,
-    applyWeeks,
     isSavingWeek,
   } = editor;
 
@@ -1176,10 +1172,29 @@ export default function PeriodizationScreen() {
     const classDays = selectedClass?.daysOfWeek?.length ?? 0;
     return Math.max(1, classDays || sessionsPerWeek || 2);
   }, [selectedClass, sessionsPerWeek]);
+
   const visibleClassPlans = useMemo(
     () => getPlansWithinCycle(classPlans, cycleLength),
     [classPlans, cycleLength]
   );
+
+  const weekSessions = useMemo(() => {
+    if (!editingWeek || !selectedClass || !activeCycleStartDate) return [];
+    const existingPlan = visibleClassPlans.find((p) => p.weekNumber === editingWeek);
+    const planStartDate = existingPlan?.startDate ?? (() => {
+      const base = new Date(`${activeCycleStartDate}T00:00:00`);
+      base.setDate(base.getDate() + (editingWeek - 1) * 7);
+      const y = base.getFullYear();
+      const m = String(base.getMonth() + 1).padStart(2, "0");
+      const d = String(base.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    })();
+    return buildWeekSessionPreview({
+      startDate: planStartDate,
+      daysOfWeek: selectedClass.daysOfWeek ?? [],
+      weeklySessions,
+    });
+  }, [activeCycleStartDate, editingWeek, selectedClass, visibleClassPlans, weeklySessions]);
 
   const periodizationKnowledgeGraph = useMemo(() => {
     if (!selectedClass || !periodizationKnowledgeSnapshot) return null;
@@ -2299,8 +2314,6 @@ export default function PeriodizationScreen() {
 
     setEditSource(existing ? plan.source : "AUTO");
 
-    setApplyWeeks([]);
-
     setShowWeekEditor(true);
 
   }, [
@@ -2480,90 +2493,6 @@ export default function PeriodizationScreen() {
   }, [selectedClass]);
 
 
-  const applyDraftToWeeks = useCallback(
-
-    async (weeks: number[]) => {
-
-      if (!selectedClass) return;
-
-      const targets = weeks.filter(
-
-        (week) => week >= 1 && week <= cycleLength && week !== editingWeek
-
-      );
-
-      if (!targets.length) return;
-
-      const byWeek = new Map(classPlans.map((plan) => [plan.weekNumber, plan]));
-
-      const toCreate: ClassPlan[] = [];
-
-      const toUpdate: ClassPlan[] = [];
-
-      targets.forEach((week) => {
-
-        const existing = byWeek.get(week) ?? null;
-
-        // Preserve manually curated weeks and only propagate to AUTO/missing slots.
-        if (existing?.source === "MANUAL") return;
-
-        const plan = buildManualPlanForWeek(week, existing);
-
-        if (!plan) return;
-
-        if (existing) {
-
-          toUpdate.push(plan);
-
-        } else {
-
-          toCreate.push(plan);
-
-        }
-
-      });
-
-      if (toCreate.length) {
-
-        await measure("saveClassPlans", () => saveClassPlans(toCreate));
-
-      }
-
-      if (toUpdate.length) {
-
-        await Promise.all(
-
-          toUpdate.map((plan) => measure("updateClassPlan", () => updateClassPlan(plan)))
-
-        );
-
-      }
-
-      await refreshPlans();
-
-      setApplyWeeks([]);
-
-    },
-
-    [
-
-      buildManualPlanForWeek,
-
-      classPlans,
-
-      cycleLength,
-
-      editingWeek,
-
-      refreshPlans,
-
-      selectedClass,
-
-    ]
-
-  );
-
-
   const buildAutoPlanForWeek = useCallback(
 
     (weekNumber: number, existing: ClassPlan | null = null) => {
@@ -2711,7 +2640,6 @@ export default function PeriodizationScreen() {
     editJumpTarget,
     editPSETarget,
     hasPlanChanges,
-    applyDraftToWeeks,
     setEditSource,
     setIsSavingWeek,
     setShowWeekEditor,
@@ -3592,7 +3520,7 @@ export default function PeriodizationScreen() {
 
     <SafeAreaView
 
-      style={{ flex: 1, padding: 16, backgroundColor: colors.background, overflow: "visible" }}
+      style={{ flex: 1, backgroundColor: colors.background, overflow: "visible" }}
 
     >
 
@@ -3638,7 +3566,7 @@ export default function PeriodizationScreen() {
 
         <ScrollView
 
-          contentContainerStyle={{ gap: 16, paddingBottom: 24 }}
+          contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}
 
           style={{ zIndex: 1, backgroundColor: colors.background }}
           stickyHeaderIndices={[0]}
@@ -4381,6 +4309,9 @@ export default function PeriodizationScreen() {
         colors={colors}
         editingWeek={editingWeek}
         selectedClassName={selectedClass?.name ?? "Turma"}
+        daysOfWeek={selectedClass?.daysOfWeek ?? []}
+        weeklySessions={weeklySessions}
+        weekSessions={weekSessions}
         cycleLength={cycleLength}
         editPhase={editPhase}
         setEditPhase={setEditPhase}
@@ -4394,16 +4325,11 @@ export default function PeriodizationScreen() {
         setEditTechnicalFocus={setEditTechnicalFocus}
         editPhysicalFocus={editPhysicalFocus}
         setEditPhysicalFocus={setEditPhysicalFocus}
-        editSource={editSource}
-        setEditSource={setEditSource}
         editConstraints={editConstraints}
         setEditConstraints={setEditConstraints}
-        applyWeeks={applyWeeks}
-        setApplyWeeks={setApplyWeeks}
         isSavingWeek={isSavingWeek}
         onSave={handleSaveWeek}
         onResetToAuto={resetWeekToAuto}
-      onApplyDraftToWeeks={applyDraftToWeeks}
       onConfirmDialog={confirmDialog}
       normalizeText={normalizeText}
       planReview={weekEditorPlanReview}

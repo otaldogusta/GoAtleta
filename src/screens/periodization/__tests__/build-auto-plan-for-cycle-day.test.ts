@@ -256,7 +256,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
 
     expect(result.repetitionAdjustment.detected).toBe(true);
     expect(result.fingerprint).not.toBe(baseline.fingerprint);
-    expect(result.coachSummary).toContain("Variacao anti-repeticao aplicada");
+    expect(result.coachSummary).toContain("Variação anti-repetição aplicada");
   });
 
   it("builds a day-by-day week schedule with real training sessions only on planned days", () => {

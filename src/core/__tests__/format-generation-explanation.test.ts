@@ -91,13 +91,13 @@ describe("formatGenerationExplanation", () => {
       },
     });
 
-    expect(result.coachSummary).toContain("Historico parcial na fase Estabilizacao tecnica.");
-    expect(result.coachSummary).toContain("Sessao 2/3 com foco em Saque");
-    expect(result.coachSummary).toContain("para ajuste tecnico com progressao em Precisao.");
-    expect(result.coachSummary).toContain("Aprendizado local do professor (forte) segue pelas proximas 3 geracoes.");
+    expect(result.coachSummary).toContain("Histórico parcial na fase Estabilização técnica.");
+    expect(result.coachSummary).toContain("Sessão 2/3 com foco em Saque");
+    expect(result.coachSummary).toContain("para ajuste técnico com progressão em Precisao.");
+    expect(result.coachSummary).toContain("Aprendizado local do professor (forte) segue pelas próximas 3 gerações.");
     expect(result.coachSummary).toContain("Bloco organizacao ofensiva priorizado.");
     expect(result.coachSummary).toContain("Carga intensiva aplicada.");
-    expect(result.coachSummary).toContain("Variacao anti-repeticao aplicada por clone recente.");
+    expect(result.coachSummary).toContain("Variação anti-repetição aplicada por clone recente.");
     expect(result.debug.overrideStrength).toBe("strong");
     expect(result.debug.historyMode).toBe("partial_history");
   });

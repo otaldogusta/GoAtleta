@@ -3,22 +3,33 @@ import { buildCycleDayPlanningContext } from "../../../core/cycle-day-planning/b
 import { formatGenerationExplanation, type CycleDayGenerationExplanation } from "../../../core/cycle-day-planning/format-generation-explanation";
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type { TeacherOverrideInfluence } from "../../../core/cycle-day-planning/resolve-teacher-override-weight";
+import { detectSessionPedagogicalApproach } from "../../../core/methodology/session-pedagogical-language";
 import type {
-  ClassGroup,
-  ClassPlan,
-  CycleDayPlanningContext,
-  ProgressionDimension,
-  RecentSessionSummary,
-  RepetitionAdjustment,
-  SessionLog,
-  SessionStrategy,
-  Student,
-  TrainingPlan,
-  TrainingSession,
-  TrainingSessionAttendance,
-  VolleyballSkill,
+    ClassGroup,
+    ClassPlan,
+    CycleDayPlanningContext,
+    ProgressionDimension,
+    RecentSessionSummary,
+    RepetitionAdjustment,
+    SessionLog,
+    SessionStrategy,
+    Student,
+    TrainingPlan,
+    TrainingSession,
+    TrainingSessionAttendance,
+    VolleyballSkill,
 } from "../../../core/models";
 import type { PedagogicalPlanPackage } from "../../../core/pedagogical-planning";
+import {
+    applySessionPedagogyEnvelope,
+    resolveSessionPedagogyEnvelope,
+    toSessionPedagogyEnvelopeDiagnostics,
+    type SessionPedagogyEnvelopeDiagnostics,
+} from "../../../core/resolve-session-pedagogy-envelope";
+import {
+    sanitizePlanForAgeBand,
+    type AgeSanitizerDiagnostics,
+} from "../../../core/sanitize-plan-for-age-band";
 import type { ScoutingCounts } from "../../../core/scouting";
 import type { ClassGenerationContext } from "./build-class-generation-context";
 import { buildPedagogicalInputFromContext } from "./build-pedagogical-input-from-context";
@@ -53,6 +64,8 @@ export type AutoPlanForCycleDayResult = {
   explanation: CycleDayGenerationExplanation;
   generationContext: ClassGenerationContext;
   package: PedagogicalPlanPackage;
+  ageSanitizer: AgeSanitizerDiagnostics;
+  pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
 };
 
 const uniqueStrings = (values: Array<string | null | undefined>) =>
@@ -163,6 +176,35 @@ export const buildAutoPlanForCycleDay = (
     variationSeed: params.variationSeed,
     dimensionGuidelines: params.dimensionGuidelines,
   });
+  const approach = detectSessionPedagogicalApproach([
+    pkg.input.objective,
+    pkg.final.main.summary,
+    ...pkg.final.main.activities.map((activity) => activity.name),
+    ...pkg.final.cooldown.activities.map((activity) => activity.description),
+  ]);
+  const envelope = resolveSessionPedagogyEnvelope({
+    ageBand: params.classGroup.ageBand,
+    developmentStage: generationContext.developmentStage,
+    pedagogicalApproach: approach,
+    objectiveType: "tecnico",
+    historyMode: cycleContext.historicalConfidence === "none"
+      ? "bootstrap"
+      : cycleContext.historicalConfidence === "high"
+      ? "strong_history"
+      : "partial_history",
+  });
+  const envelopedPlan = applySessionPedagogyEnvelope({
+    plan: pkg,
+    envelope,
+    primarySkill: strategy.primarySkill,
+    secondarySkill: strategy.secondarySkill,
+  });
+  const pedagogyEnvelope = toSessionPedagogyEnvelopeDiagnostics(envelope);
+  const sanitizedPlan = sanitizePlanForAgeBand(
+    envelopedPlan,
+    params.classGroup.ageBand,
+    generationContext.developmentStage
+  );
   const explanation = formatGenerationExplanation({
     cycleContext,
     baseStrategy: strategyDecision.baseStrategy,
@@ -190,6 +232,8 @@ export const buildAutoPlanForCycleDay = (
     repetitionAdjustment: guardResult.repetitionAdjustment,
     explanation,
     generationContext,
-    package: pkg,
+    package: sanitizedPlan.package,
+    ageSanitizer: sanitizedPlan.diagnostics,
+    pedagogyEnvelope,
   };
 };

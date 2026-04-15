@@ -94,6 +94,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 
 import { markRender, measureAsync } from "../../observability/perf";
+import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { useSaveToast } from "../../ui/save-toast";
 import { AgendaCard } from "./components/AgendaCard";
 const HomeProfessorBelowFold = lazy(() =>
@@ -130,6 +131,7 @@ export function HomeProfessorScreen({
   const { session } = useAuth();
 
   const { role } = useRole();
+  const profilePath = getScopedProfilePath(role === "student" ? "/student/home" : "/prof/home");
   const effectiveProfile = useEffectiveProfile();
 
   const {
@@ -1525,7 +1527,7 @@ export function HomeProfessorScreen({
             ) : null}
           </View>
 
-          <Link href="/profile" asChild>
+          <Link href={profilePath} asChild>
 
             <Pressable
 

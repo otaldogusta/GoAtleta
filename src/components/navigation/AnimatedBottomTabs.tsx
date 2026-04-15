@@ -24,7 +24,6 @@ type AnimatedBottomTabsProps = BottomTabBarProps & {
 
 export function AnimatedBottomTabs({
   role,
-  state,
   navigation,
 }: AnimatedBottomTabsProps) {
   const { colors } = useAppTheme();
@@ -180,9 +179,7 @@ export function AnimatedBottomTabs({
               key={tab.key}
               onPress={() => {
                 setMenuOpen(false);
-                // Navega via URL direta para evitar o bug onde state.routes
-                // não contém rotas não visitadas no web (routeIndex = -1).
-                router.navigate(`/${role}/${tab.routeName}` as Parameters<typeof router.navigate>[0]);
+                navigation.navigate(tab.routeName as never);
               }}
               style={{
                 flex: 1,
