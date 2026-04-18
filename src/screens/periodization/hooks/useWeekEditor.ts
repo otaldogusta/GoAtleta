@@ -9,6 +9,7 @@ export type WeekEditorState = {
   editingPlanId: string | null;
   editPhase: string;
   editTheme: string;
+  editPedagogicalRule: string;
   editTechnicalFocus: string;
   editPhysicalFocus: string;
   editConstraints: string;
@@ -39,6 +40,7 @@ const INITIAL_STATE: WeekEditorState = {
   editingPlanId: null,
   editPhase: "",
   editTheme: "",
+  editPedagogicalRule: "",
   editTechnicalFocus: "",
   editPhysicalFocus: "",
   editConstraints: "",
@@ -88,6 +90,10 @@ export function useWeekEditor() {
     (v: string) => dispatch({ type: "SET_FIELD", field: "editTheme", value: v }),
     []
   );
+  const setEditPedagogicalRule = useCallback(
+    (v: string) => dispatch({ type: "SET_FIELD", field: "editPedagogicalRule", value: v }),
+    []
+  );
   const setEditTechnicalFocus = useCallback(
     (v: string) => dispatch({ type: "SET_FIELD", field: "editTechnicalFocus", value: v }),
     []
@@ -132,6 +138,7 @@ export function useWeekEditor() {
     setEditingPlanId,
     setEditPhase,
     setEditTheme,
+    setEditPedagogicalRule,
     setEditTechnicalFocus,
     setEditPhysicalFocus,
     setEditConstraints,

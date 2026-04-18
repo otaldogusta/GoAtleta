@@ -1,16 +1,21 @@
+import type { LessonActivity, LessonBlock } from "../../core/models";
+import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
+import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
 import { toPdfCoachingText, toPdfText } from "../pdf-coaching-text";
 
-export type SessionBlock = {
-  title: string;
-  time: string;
+export type SessionPlanActivity = LessonActivity & {
+  description?: string;
+  // Legacy fallback for migration.
+  notes?: string;
+};
+
+export type SessionBlock = Partial<LessonBlock> & {
+  title?: string;
+  time?: string;
+  // Legacy fallback for migration.
   summary?: string;
-  items: {
-    name: string;
-    duration?: string;
-    reps?: string;
-    intensity?: string;
-    notes?: string;
-  }[];
+  activities?: SessionPlanActivity[];
+  items?: SessionPlanActivity[];
 };
 
 export type SessionPlanPdfData = {
@@ -19,8 +24,13 @@ export type SessionPlanPdfData = {
   unitLabel?: string;
   genderLabel?: string;
   dateLabel: string;
+  weekLabel?: string;
   title?: string;
   objective?: string;
+  generalObjective?: string;
+  specificObjective?: string;
+  weeklyFocus?: string;
+  pedagogicalRule?: string;
   totalTime?: string;
   plannedLoad?: string;
   materials?: string[];
@@ -36,19 +46,34 @@ const esc = (value: string) =>
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
 
-const asText = (value: unknown) => toPdfText(value);
+const asText = (value: unknown) => sanitizeVolleyballLanguage(toPdfText(value));
 
-const asCoachingText = (value: unknown) => toPdfCoachingText(value);
+const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoachingText(value));
 
 const nl2br = (value: unknown) => esc(asText(value)).replace(/\n/g, "<br/>");
 
 const buildOrderedLines = (rows: string[]) =>
   rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
 
+const getBlockLabel = (block: SessionBlock) => asText(block?.label || block?.title) || "-";
+
+const getBlockTime = (block: SessionBlock) => {
+  if (typeof block?.durationMinutes === "number" && Number.isFinite(block.durationMinutes)) {
+    return `${Math.max(0, Math.round(block.durationMinutes))} min`;
+  }
+  return asText(block?.time) || "-";
+};
+
+const getBlockActivities = (block: SessionBlock) => {
+  if (Array.isArray(block?.activities) && block.activities.length) return block.activities;
+  if (Array.isArray(block?.items) && block.items.length) return block.items;
+  return [];
+};
+
 const resolveBlockDescriptionLines = (block: SessionBlock) => {
-  const blockItems = Array.isArray(block?.items) ? block.items : [];
+  const blockItems = getBlockActivities(block);
   const descriptionRows = blockItems
-    .map((item) => asCoachingText(item?.notes).trim())
+    .map((item) => asCoachingText(item?.description || item?.notes).trim())
     .filter(Boolean);
 
   if (descriptionRows.length) return descriptionRows;
@@ -59,15 +84,28 @@ const resolveBlockDescriptionLines = (block: SessionBlock) => {
 
 export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const objective = asCoachingText(data?.objective);
+  const generalObjective = asCoachingText(data?.generalObjective);
+  const specificObjective = asCoachingText(data?.specificObjective);
+  const weeklyFocus = asCoachingText(data?.weeklyFocus);
   const title = asCoachingText(data?.title);
   const notes = asCoachingText(data?.notes);
   const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
+  const resolvedObjectives = resolveLearningObjectives({
+    generalObjective,
+    specificObjective: specificObjective || objective,
+    title,
+    weeklyFocus,
+    theme: weeklyFocus,
+    technicalFocus: weeklyFocus,
+  });
+  const resolvedGeneralObjective = sanitizeVolleyballLanguage(resolvedObjectives.generalObjective);
+  const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
 
   const blockRowsHtml = blocks
     .map((block) => {
-      const period = asText(block?.title) || "-";
-      const time = asText(block?.time) || "-";
-      const blockItems = Array.isArray(block?.items) ? block.items : [];
+      const period = getBlockLabel(block);
+      const time = getBlockTime(block);
+      const blockItems = getBlockActivities(block);
       const activities = buildOrderedLines(
         blockItems.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
       );
@@ -202,6 +240,10 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
               <span>${esc(asText(data?.dateLabel))}</span>
             </div>
             <div class="meta-item">
+              <span class="meta-label">Semana:</span>
+              <span>${esc(asText(data?.weekLabel) || "-")}</span>
+            </div>
+            <div class="meta-item">
               <span class="meta-label">Unidade:</span>
               <span>${esc(asText(data?.unitLabel) || "-")}</span>
             </div>
@@ -215,11 +257,20 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
 
       <table>
         <tr>
-          <td colspan="4"><strong>Tema/Atividade:</strong> ${esc(title || "-")}</td>
+          <td colspan="4"><strong>Tema/Atividade:</strong> ${esc(title || "")}</td>
         </tr>
+        ${
+          resolvedGeneralObjective
+            ? `<tr><td colspan="4"><strong>Objetivo geral:</strong> ${esc(resolvedGeneralObjective)}</td></tr>`
+            : ""
+        }
+        ${
+          resolvedSpecificObjective
+            ? `<tr><td colspan="4"><strong>Objetivo específico:</strong> ${esc(resolvedSpecificObjective)}</td></tr>`
+            : ""
+        }
         <tr>
-          <td colspan="3"><strong>Objetivo:</strong> ${esc(objective || "-")}</td>
-          <td><strong>Tempo total:</strong> ${esc(asText(data?.totalTime) || "-")}</td>
+          <td colspan="4"><strong>Tempo total:</strong> ${esc(asText(data?.totalTime) || "")}</td>
         </tr>
         <tr>
           <th>Per\u00edodo</th>

@@ -47,6 +47,14 @@ export {
 } from "./periodization";
 
 export {
+    getDailyLessonPlanByWeekAndDate,
+    listDailyLessonPlansByWeekIds,
+    listRecentDailyLessonPlansByClass,
+    markDailyLessonPlansOutOfSyncByWeek,
+    upsertDailyLessonPlan
+} from "./planning";
+
+export {
     convertStudentPreRegistration, createAbsenceNotice, deleteStudent, deleteStudentPreRegistration, deleteStudents, getAbsenceNotices, getAthleteIntakesByClass, getAttendanceAll, getAttendanceByClass,
     getAttendanceByDate,
     getAttendanceByStudent, getStudentById, getStudentPreRegistrations, getStudents,

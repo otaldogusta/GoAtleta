@@ -4,13 +4,14 @@ import { buildCompetitiveClassPlan } from "../../../core/competitive-periodizati
 import type { ClassCalendarException, ClassCompetitiveProfile, ClassGroup, ClassPlan } from "../../../core/models";
 import { ageBands, type PeriodizationModel, type SportProfile } from "../../../core/periodization-basics";
 import { buildClassPlan } from "../../../core/periodization-generator";
-import { createClassPlan, updateClassPlan } from "../../../db/seed";
+import { createClassPlan, markDailyLessonPlansOutOfSyncByWeek, updateClassPlan } from "../../../db/seed";
 import { logAction } from "../../../observability/breadcrumbs";
 import { measure } from "../../../observability/perf";
 
 export type UseSaveWeekParams = {
   selectedClass: ClassGroup | null;
   classPlans: ClassPlan[];
+  activeCycleId: string;
   editingPlanId: string | null;
   editingWeek: number;
   cycleLength: number;
@@ -25,6 +26,7 @@ export type UseSaveWeekParams = {
   sportProfile: SportProfile;
   editPhase: string;
   editTheme: string;
+  editPedagogicalRule: string;
   editTechnicalFocus: string;
   editPhysicalFocus: string;
   editConstraints: string;
@@ -43,6 +45,7 @@ export type UseSaveWeekParams = {
 export function useSaveWeek({
   selectedClass,
   classPlans,
+  activeCycleId,
   editingPlanId,
   editingWeek,
   cycleLength,
@@ -57,6 +60,7 @@ export function useSaveWeek({
   sportProfile,
   editPhase,
   editTheme,
+  editPedagogicalRule,
   editTechnicalFocus,
   editPhysicalFocus,
   editConstraints,
@@ -111,10 +115,12 @@ export function useSaveWeek({
     const plan: ClassPlan = {
       id: editingPlanId ?? `cp_${selectedClass.id}_${Date.now()}_${editingWeek}`,
       classId: selectedClass.id,
+      cycleId: activeCycleId,
       startDate: autoPlan.startDate,
       weekNumber: editingWeek,
       phase: editPhase.trim() || autoPlan.phase,
       theme: editTheme.trim() || autoPlan.theme,
+      pedagogicalRule: editPedagogicalRule.trim(),
       technicalFocus: editTechnicalFocus.trim() || editTheme.trim() || autoPlan.technicalFocus,
       physicalFocus: editPhysicalFocus.trim() || autoPlan.physicalFocus,
       constraints: editConstraints.trim(),
@@ -143,6 +149,9 @@ export function useSaveWeek({
     try {
       if (editingPlanId) {
         await measure("updateClassPlan", () => updateClassPlan(plan));
+        await markDailyLessonPlansOutOfSyncByWeek(plan.id).catch(() => {
+          // Daily planning is local-first; keep weekly save resilient if local sync marking fails.
+        });
         setClassPlans((prev) =>
           prev
             .map((item) => (item.id === editingPlanId ? plan : item))
@@ -150,6 +159,9 @@ export function useSaveWeek({
         );
       } else {
         await measure("createClassPlan", () => createClassPlan(plan));
+        await markDailyLessonPlansOutOfSyncByWeek(plan.id).catch(() => {
+          // Daily planning is local-first; keep weekly save resilient if local sync marking fails.
+        });
         setClassPlans((prev) => [...prev, plan].sort((a, b) => a.weekNumber - b.weekNumber));
       }
 
@@ -166,6 +178,7 @@ export function useSaveWeek({
     }
   }, [
     activeCycleStartDate,
+    activeCycleId,
     ageBand,
     calendarExceptions,
     classPlans,
@@ -175,6 +188,7 @@ export function useSaveWeek({
     editJumpTarget,
     editMvFormat,
     editPSETarget,
+    editPedagogicalRule,
     editPhase,
     editPhysicalFocus,
     editSource,

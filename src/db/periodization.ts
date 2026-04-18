@@ -3,30 +3,75 @@
 // ---------------------------------------------------------------------------
 
 import type {
-  ClassCalendarException,
-  ClassCalendarExceptionKind,
-  ClassCompetitiveProfile,
-  ClassPlan,
-  CompetitivePlanningMode,
+    ClassCalendarException,
+    ClassCalendarExceptionKind,
+    ClassCompetitiveProfile,
+    ClassPlan,
+    CompetitivePlanningMode,
 } from "../core/models";
 import {
-  CACHE_KEYS,
-  getActiveOrganizationId,
-  getScopedOrganizationId,
-  isMissingRelation,
-  isNetworkError,
-  readCache,
-  supabaseDelete,
-  supabaseGet,
-  supabasePatch,
-  supabasePost,
-  writeCache,
+    CACHE_KEYS,
+    getActiveOrganizationId,
+    getScopedOrganizationId,
+    isMissingRelation,
+    isNetworkError,
+    readCache,
+    supabaseDelete,
+    supabaseGet,
+    supabasePatch,
+    supabasePost,
+    writeCache,
 } from "./client";
 import type {
-  ClassCalendarExceptionRow,
-  ClassCompetitiveProfileRow,
-  ClassPlanRow,
+    ClassCalendarExceptionRow,
+    ClassCompetitiveProfileRow,
+    ClassPlanRow,
 } from "./row-types";
+
+const isCycleIdColumnError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.toLowerCase();
+  return normalized.includes("cycle_id") || normalized.includes("cycleid");
+};
+
+const isLegacyUniqueWeekConstraintError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("class_plans_unique_week") ||
+    (normalized.includes("23505") && normalized.includes("duplicate key value"))
+  );
+};
+
+const postClassPlansPayload = async (payload: Array<Record<string, unknown>>) => {
+  try {
+    await supabasePost("/class_plans", payload);
+  } catch (error) {
+    if (!isCycleIdColumnError(error)) throw error;
+    await supabasePost(
+      "/class_plans",
+      payload.map(({ cycle_id: _ignoredCycleId, ...legacyPayload }) => legacyPayload)
+    );
+  }
+};
+
+const getExistingClassPlanByLegacyWeek = async (params: {
+  classId: string;
+  weekNumber: number;
+  organizationId?: string | null;
+}) => {
+  const { classId, weekNumber, organizationId } = params;
+  const path = organizationId
+    ? `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&weeknumber=eq.${weekNumber}&organization_id=eq.${encodeURIComponent(organizationId)}&order=updatedat.desc.nullslast,createdat.desc.nullslast&limit=1`
+    : `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&weeknumber=eq.${weekNumber}&order=updatedat.desc.nullslast,createdat.desc.nullslast&limit=1`;
+  const rows = await supabaseGet<ClassPlanRow[]>(path);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    createdAt: row.created_at ?? row.createdat ?? new Date().toISOString(),
+  };
+};
 
 // ---------------------------------------------------------------------------
 // Row mappers
@@ -69,19 +114,25 @@ const mapClassCalendarExceptionRow = (
 
 export async function getClassPlansByClass(
   classId: string,
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; cycleId?: string | null; cycleYear?: number | null } = {}
 ): Promise<ClassPlan[]> {
   try {
     const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+    const cycleYear = typeof options.cycleYear === "number" ? options.cycleYear : null;
+    const yearFilter = cycleYear
+      ? "&startdate=gte." + encodeURIComponent(`${cycleYear}-01-01`) +
+        "&startdate=lte." + encodeURIComponent(`${cycleYear}-12-31`)
+      : "";
     const rows = await supabaseGet<ClassPlanRow[]>(
       organizationId
-        ? `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=weeknumber.asc`
-        : `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&order=weeknumber.asc`
+        ? `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}${yearFilter}&order=weeknumber.asc`
+        : `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}${yearFilter}&order=weeknumber.asc`
     );
     const mapped = rows.map((row) => ({
       source: (row.source === "MANUAL" ? "MANUAL" : "AUTO") as ClassPlan["source"],
       id: row.id,
       classId: row.classid,
+      cycleId: row.cycle_id ?? "",
       startDate: row.startdate,
       weekNumber: row.weeknumber,
       phase: row.phase,
@@ -101,10 +152,30 @@ export async function getClassPlansByClass(
         row.createdat ??
         new Date().toISOString(),
     }));
+    const normalizedCycleId = (options.cycleId ?? "").trim();
+    const filtered = normalizedCycleId
+      ? mapped
+          .filter((row) => {
+            if ((row.cycleId ?? "").trim() === normalizedCycleId) return true;
+            if (!cycleYear) return false;
+            const year = Number((row.startDate ?? "").slice(0, 4));
+            return Number.isFinite(year) && year === cycleYear;
+          })
+          .map((row) => {
+            if ((row.cycleId ?? "").trim()) return row;
+            if (!cycleYear) return row;
+            const year = Number((row.startDate ?? "").slice(0, 4));
+            if (!Number.isFinite(year) || year !== cycleYear) return row;
+            return {
+              ...row,
+              cycleId: normalizedCycleId,
+            };
+          })
+      : mapped;
     const cache = (await readCache<Record<string, ClassPlan[]>>(CACHE_KEYS.classPlans)) ?? {};
-    cache[classId] = mapped;
+    cache[classId] = filtered;
     await writeCache(CACHE_KEYS.classPlans, cache);
-    return mapped;
+    return filtered;
   } catch (error) {
     if (isMissingRelation(error, "class_plans")) return [];
     if (isNetworkError(error)) {
@@ -120,7 +191,10 @@ export async function createClassPlan(plan: ClassPlan) {
     await saveClassPlans([plan]);
   } catch (error) {
     if (error instanceof Error && error.message.includes("23505")) {
-      const existing = await getClassPlansByClass(plan.classId);
+      const existing = await getClassPlansByClass(plan.classId, {
+        cycleId: plan.cycleId ?? null,
+        cycleYear: Number(plan.startDate.slice(0, 4)) || null,
+      });
       const match = existing.find((item) => item.weekNumber === plan.weekNumber);
       if (match) {
         await updateClassPlan({ ...plan, id: match.id, createdAt: match.createdAt });
@@ -136,41 +210,48 @@ export async function updateClassPlan(
   options?: { organizationId?: string | null }
 ) {
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
-  await supabasePatch(
-    organizationId
-      ? "/class_plans?id=eq." +
-          encodeURIComponent(plan.id) +
-          "&organization_id=eq." +
-          encodeURIComponent(organizationId)
-      : "/class_plans?id=eq." + encodeURIComponent(plan.id),
-    {
-      classid: plan.classId,
-      startdate: plan.startDate,
-      weeknumber: plan.weekNumber,
-      phase: plan.phase,
-      theme: plan.theme,
-      technical_focus: plan.technicalFocus,
-      physical_focus: plan.physicalFocus,
-      constraints: plan.constraints,
-      ruleset: plan.constraints,
-      mv_format: plan.mvFormat,
-      warmupprofile: plan.warmupProfile,
-      source: plan.source,
-      organization_id: organizationId ?? undefined,
-      jump_target: plan.jumpTarget,
-      rpe_target: plan.rpeTarget,
-      created_at: plan.createdAt,
-      updated_at: plan.updatedAt ?? plan.createdAt,
-    }
-  );
+  const path = organizationId
+    ? "/class_plans?id=eq." +
+      encodeURIComponent(plan.id) +
+      "&organization_id=eq." +
+      encodeURIComponent(organizationId)
+    : "/class_plans?id=eq." + encodeURIComponent(plan.id);
+  const payload = {
+    classid: plan.classId,
+    cycle_id: plan.cycleId || null,
+    startdate: plan.startDate,
+    weeknumber: plan.weekNumber,
+    phase: plan.phase,
+    theme: plan.theme,
+    technical_focus: plan.technicalFocus,
+    physical_focus: plan.physicalFocus,
+    constraints: plan.constraints,
+    ruleset: plan.constraints,
+    mv_format: plan.mvFormat,
+    warmupprofile: plan.warmupProfile,
+    source: plan.source,
+    organization_id: organizationId ?? undefined,
+    jump_target: plan.jumpTarget,
+    rpe_target: plan.rpeTarget,
+    created_at: plan.createdAt,
+    updated_at: plan.updatedAt ?? plan.createdAt,
+  };
+  try {
+    await supabasePatch(path, payload);
+  } catch (error) {
+    if (!isCycleIdColumnError(error)) throw error;
+    const { cycle_id: _ignoredCycleId, ...legacyPayload } = payload;
+    await supabasePatch(path, legacyPayload);
+  }
 }
 
 export async function saveClassPlans(plans: ClassPlan[], options?: { organizationId?: string }) {
   if (!plans.length) return;
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
-  await supabasePost("/class_plans", plans.map((plan) => ({
+  const payload = plans.map((plan) => ({
     id: plan.id,
     classid: plan.classId,
+    cycle_id: plan.cycleId || null,
     organization_id: organizationId ?? undefined,
     startdate: plan.startDate,
     weeknumber: plan.weekNumber,
@@ -187,21 +268,69 @@ export async function saveClassPlans(plans: ClassPlan[], options?: { organizatio
     rpe_target: plan.rpeTarget,
     created_at: plan.createdAt,
     updated_at: plan.updatedAt ?? plan.createdAt,
-  })));
+  }));
+  try {
+    await postClassPlansPayload(payload);
+  } catch (error) {
+    if (!isLegacyUniqueWeekConstraintError(error)) throw error;
+
+    // Legacy backend fallback: class_plans_unique_week is scoped only by class+week.
+    // Upsert each plan by week number to avoid batch failure until remote index migration is applied.
+    for (const plan of plans) {
+      const existing = await getExistingClassPlanByLegacyWeek({
+        classId: plan.classId,
+        weekNumber: plan.weekNumber,
+        organizationId,
+      });
+
+      if (existing) {
+        await updateClassPlan(
+          { ...plan, id: existing.id, createdAt: existing.createdAt },
+          { organizationId }
+        );
+        continue;
+      }
+
+      const singlePayload = payload.find((row) => row.id === plan.id);
+      if (singlePayload) {
+        await postClassPlansPayload([singlePayload]);
+      }
+    }
+  }
 }
 
 export async function deleteClassPlansByClass(
   classId: string,
-  options?: { organizationId?: string | null }
+  options?: { organizationId?: string | null; cycleId?: string | null; cycleYear?: number | null }
 ) {
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
-  await supabaseDelete(
+  const cycleFilter = (options?.cycleId ?? "").trim();
+  const cycleYear = typeof options?.cycleYear === "number" ? options.cycleYear : null;
+  const yearPath = cycleYear
+    ? "&startdate=gte." + encodeURIComponent(`${cycleYear}-01-01`) +
+      "&startdate=lte." + encodeURIComponent(`${cycleYear}-12-31`)
+    : "";
+  const cyclePath = !yearPath && cycleFilter
+    ? "&cycle_id=eq." + encodeURIComponent(cycleFilter)
+    : "";
+  const basePath =
     "/class_plans?classid=eq." +
-      encodeURIComponent(classId) +
-      (organizationId
-        ? "&organization_id=eq." + encodeURIComponent(organizationId)
-        : "")
-  );
+    encodeURIComponent(classId) +
+    cyclePath +
+    yearPath +
+    (organizationId ? "&organization_id=eq." + encodeURIComponent(organizationId) : "");
+  try {
+    await supabaseDelete(basePath);
+  } catch (error) {
+    if (!cycleFilter || !isCycleIdColumnError(error)) throw error;
+    // Legacy fallback: backend without cycle_id column.
+    await supabaseDelete(
+      "/class_plans?classid=eq." +
+        encodeURIComponent(classId) +
+        yearPath +
+        (organizationId ? "&organization_id=eq." + encodeURIComponent(organizationId) : "")
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

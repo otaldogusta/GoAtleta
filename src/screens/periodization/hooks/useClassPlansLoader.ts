@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 
+import type { ClassGroup, ClassPlan, PlanningCycle } from "../../../core/models";
 import { cycleOptions } from "../../../core/periodization-basics";
 import { validateAcwrLimits } from "../../../core/periodization-generator";
-import type { ClassGroup, ClassPlan } from "../../../core/models";
 import { getClassPlansByClass, getSessionLogsByRange } from "../../../db/seed";
 import { measureAsync } from "../../../observability/perf";
 
@@ -13,6 +13,8 @@ import { measureAsync } from "../../../observability/perf";
 export type UseClassPlansLoaderParams = {
   selectedClassId: string;
   selectedClass: ClassGroup | null;
+  activeCycle: PlanningCycle | null;
+  activeCycleYear: number | null;
   acwrLimits: { high: string; low: string };
   setClassPlans: (plans: ClassPlan[]) => void;
   setCycleLength: (length: (typeof cycleOptions)[number]) => void;
@@ -45,7 +47,7 @@ const formatDisplayDate = (value: string | null) => {
 // ---------------------------------------------------------------------------
 
 function useClassPlansEffect(params: UseClassPlansLoaderParams) {
-  const { selectedClassId, setClassPlans, setCycleLength } = params;
+  const { selectedClassId, activeCycle, activeCycleYear, setClassPlans, setCycleLength } = params;
 
   useEffect(() => {
     let alive = true;
@@ -58,7 +60,11 @@ function useClassPlansEffect(params: UseClassPlansLoaderParams) {
     (async () => {
       const plans = await measureAsync(
         "screen.periodization.load.classPlans",
-        () => getClassPlansByClass(selectedClassId),
+        () =>
+          getClassPlansByClass(selectedClassId, {
+            cycleId: activeCycle?.id ?? null,
+            cycleYear: activeCycle?.year ?? activeCycleYear,
+          }),
         { screen: "periodization", classId: selectedClassId }
       );
 
@@ -75,7 +81,7 @@ function useClassPlansEffect(params: UseClassPlansLoaderParams) {
       alive = false;
     };
 
-  }, [selectedClassId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeCycle?.id, activeCycle?.year, activeCycleYear, selectedClassId]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // ---------------------------------------------------------------------------

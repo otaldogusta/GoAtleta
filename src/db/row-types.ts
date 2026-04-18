@@ -245,6 +245,7 @@ export type StudentScoutingRow = {
 export type ClassPlanRow = {
   id: string;
   classid: string;
+  cycle_id?: string | null;
   organization_id?: string | null;
   startdate: string;
   weeknumber: number;

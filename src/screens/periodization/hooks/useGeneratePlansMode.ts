@@ -32,6 +32,8 @@ import { measure } from "../../../observability/perf";
 
 export type UseGeneratePlansModeParams = {
   selectedClass: ClassGroup | null;
+  activeCycleId: string;
+  activeCycleYear: number | null;
   cycleLength: number;
   activeCycleStartDate: string;
   isCompetitiveMode: boolean;
@@ -53,6 +55,8 @@ export type UseGeneratePlansModeParams = {
 
 export function useGeneratePlansMode({
   selectedClass,
+  activeCycleId,
+  activeCycleYear,
   cycleLength,
   activeCycleStartDate,
   isCompetitiveMode,
@@ -74,7 +78,10 @@ export function useGeneratePlansMode({
       setIsSavingPlans(true);
 
       try {
-        const existing = await getClassPlansByClass(selectedClass.id);
+        const existing = await getClassPlansByClass(selectedClass.id, {
+          cycleId: activeCycleId || null,
+          cycleYear: activeCycleYear,
+        });
 
         const byWeek = new Map(existing.map((plan) => [plan.weekNumber, plan]));
 
@@ -112,16 +119,24 @@ export function useGeneratePlansMode({
               });
 
           await measure("deleteClassPlansByClass", () =>
-            deleteClassPlansByClass(selectedClass.id)
+            deleteClassPlansByClass(selectedClass.id, {
+              cycleId: activeCycleId || null,
+              cycleYear: activeCycleYear,
+            })
           );
 
-          await measure("saveClassPlans", () => saveClassPlans(plans));
+          const plansWithCycle = plans.map((plan) => ({
+            ...plan,
+            cycleId: activeCycleId,
+          }));
 
-          setClassPlans(plans);
+          await measure("saveClassPlans", () => saveClassPlans(plansWithCycle));
+
+          setClassPlans(plansWithCycle);
 
           logAction("Regerar planejamento", {
             classId: selectedClass.id,
-            weeks: plans.length,
+            weeks: plansWithCycle.length,
           });
 
           return;
@@ -137,7 +152,7 @@ export function useGeneratePlansMode({
           if (!existingPlan) {
             const plan = buildAutoPlanForWeek(week);
 
-            if (plan) toCreate.push(plan);
+            if (plan) toCreate.push({ ...plan, cycleId: activeCycleId });
 
             continue;
           }
@@ -146,6 +161,7 @@ export function useGeneratePlansMode({
             const plan = buildAutoPlanForWeek(week, existingPlan);
 
             if (plan) {
+              plan.cycleId = activeCycleId;
               plan.updatedAt = new Date().toISOString();
 
               toUpdate.push(plan);
@@ -170,6 +186,8 @@ export function useGeneratePlansMode({
     },
     [
       activeCycleStartDate,
+      activeCycleId,
+      activeCycleYear,
       ageBand,
       buildAutoPlanForWeek,
       calendarExceptions,

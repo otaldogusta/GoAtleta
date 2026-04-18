@@ -19,6 +19,8 @@ type Props = {
   setEditPhase: (v: string) => void;
   editTheme: string;
   setEditTheme: (v: string) => void;
+  editPedagogicalRule: string;
+  setEditPedagogicalRule: (v: string) => void;
   editJumpTarget: string;
   setEditJumpTarget: (v: string) => void;
   editPSETarget: string;
@@ -80,6 +82,8 @@ export function WeekEditorModal({
   setEditPhase,
   editTheme,
   setEditTheme,
+  editPedagogicalRule,
+  setEditPedagogicalRule,
   editJumpTarget,
   setEditJumpTarget,
   editPSETarget,
@@ -391,6 +395,19 @@ export function WeekEditorModal({
                     style={inputStyle}
                   />
                 </View>
+              </View>
+
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  {normalizeText("Regra pedagógica")}
+                </Text>
+                <TextInput
+                  placeholder={normalizeText("Ex: ponto só vale com 3 contatos")}
+                  value={editPedagogicalRule}
+                  onChangeText={setEditPedagogicalRule}
+                  placeholderTextColor={colors.placeholder}
+                  style={inputStyle}
+                />
               </View>
             </View>
 

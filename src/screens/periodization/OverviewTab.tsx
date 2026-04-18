@@ -6,7 +6,7 @@ import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
 import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
 
-import type { ClassGroup, ClassPlan } from "../../core/models";
+import type { ClassGroup, ClassPlan, PlanningCycle } from "../../core/models";
 import { isAnnualCycle, type VolumeLevel } from "../../core/periodization-basics";
 
 type WeekPlan = {
@@ -54,6 +54,8 @@ type OverviewTabProps = {
   classPlans: ClassPlan[];
   hasWeekPlans: boolean;
   isSavingPlans: boolean;
+  activeCycle: PlanningCycle | null;
+  historyCycles: PlanningCycle[];
   onCompleteMissingCoverage: () => void;
   onGenerateCycle: () => void;
   onRemoveCycle: () => void;
@@ -90,6 +92,8 @@ export function OverviewTab({
   classPlans,
   hasWeekPlans,
   isSavingPlans,
+  activeCycle,
+  historyCycles,
   onCompleteMissingCoverage,
   onGenerateCycle,
   onRemoveCycle,
@@ -120,6 +124,46 @@ export function OverviewTab({
           {normalizeText("Visão geral")}
 
         </Text>
+
+        {activeCycle ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              marginTop: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 999,
+                backgroundColor: colors.successBg,
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={12} color={colors.successText} />
+              <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
+                {normalizeText(`Ciclo ativo · ${activeCycle.title}`)}
+              </Text>
+            </View>
+            {historyCycles.length > 0 ? (
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {normalizeText(`${historyCycles.length} ciclo(s) no histórico`)}
+              </Text>
+            ) : null}
+          </View>
+        ) : selectedClass ? (
+          <View style={{ marginTop: 8 }}>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {normalizeText("Nenhum ciclo ativo. Gere o ciclo para criar um.")}
+            </Text>
+          </View>
+        ) : null}
 
         <View
 

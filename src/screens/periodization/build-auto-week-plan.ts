@@ -5,6 +5,18 @@ import type {
     ClassGroup,
     ClassPlan,
 } from "../../core/models";
+import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
+import {
+    renderGameFormLabel,
+    renderNextStepList,
+    renderPedagogicalObjective,
+    renderStageFocusSummary,
+} from "../../core/pedagogy/pedagogical-renderer";
+import {
+    normalizeAgeBandKey,
+    resolveNextPedagogicalStepFromPeriodization,
+} from "../../core/pedagogy/resolve-next-pedagogical-step-from-periodization";
+import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
 import type {
     PeriodizationModel,
     SportProfile,
@@ -116,6 +128,14 @@ const buildWeekPlanMeta = (params: {
   };
 };
 
+const resolveWeekMonthIndex = (cycleStartDate: string, weekNumber: number): number => {
+  const baseIso = /^\d{4}-\d{2}-\d{2}$/.test(cycleStartDate) ? cycleStartDate : "";
+  const base = baseIso ? new Date(`${baseIso}T00:00:00`) : new Date();
+  const safeWeek = Number.isFinite(weekNumber) ? Math.max(1, weekNumber) : 1;
+  const shifted = new Date(base.getTime() + (safeWeek - 1) * 7 * 24 * 60 * 60 * 1000);
+  return shifted.getMonth() + 1;
+};
+
 export const buildAutoWeekPlan = (
   params: BuildAutoWeekPlanParams
 ): ClassPlan | null => {
@@ -206,7 +226,51 @@ export const buildAutoWeekPlan = (
         demandIndex,
       });
     }
+
+    const ageBandKey = normalizeAgeBandKey(selectedClass.ageBand ?? "") ?? normalizeAgeBandKey(params.ageBand);
+    const monthIndex = resolveWeekMonthIndex(params.activeCycleStartDate, params.weekNumber);
+    const nextPedagogicalStep = ageBandKey
+      ? resolveNextPedagogicalStepFromPeriodization({ ageBand: ageBandKey, monthIndex })
+      : null;
+
+    if (nextPedagogicalStep) {
+      const stageSummary = sanitizeVolleyballLanguage(renderStageFocusSummary(nextPedagogicalStep));
+      const nextStepList = sanitizeVolleyballLanguage(renderNextStepList(nextPedagogicalStep).join(" / "));
+      const objective = sanitizeVolleyballLanguage(renderPedagogicalObjective(nextPedagogicalStep));
+      const gameFormLabel = sanitizeVolleyballLanguage(renderGameFormLabel(nextPedagogicalStep));
+
+      plan.theme = stageSummary || plan.theme;
+      plan.technicalFocus = nextStepList || plan.technicalFocus;
+      plan.pedagogicalRule = sanitizeVolleyballLanguage(`Forma de jogo da etapa: ${gameFormLabel}.`) || plan.pedagogicalRule;
+      plan.constraints = uniqueStrings([
+        plan.constraints,
+        `Etapa pedagógica: ${stageSummary}`,
+        `Próximo foco: ${nextStepList}`,
+      ])
+        .slice(0, 5)
+        .join(" | ");
+      plan.generalObjective = objective || plan.generalObjective;
+      plan.specificObjective = nextStepList || plan.specificObjective;
+    }
   }
+
+  const resolvedObjectives = resolveLearningObjectives({
+    generalObjective: plan.generalObjective,
+    specificObjective: plan.specificObjective || plan.technicalFocus,
+    title: plan.phase,
+    theme: plan.theme,
+    technicalFocus: plan.technicalFocus,
+    weeklyFocus: plan.theme || plan.technicalFocus,
+    pedagogicalRule: plan.pedagogicalRule,
+    ageBand: selectedClass.ageBand,
+    sportProfile: params.sportProfile,
+  });
+  plan.generalObjective = sanitizeVolleyballLanguage(resolvedObjectives.generalObjective);
+  plan.specificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
+  plan.theme = sanitizeVolleyballLanguage(plan.theme);
+  plan.technicalFocus = sanitizeVolleyballLanguage(plan.technicalFocus);
+  plan.constraints = sanitizeVolleyballLanguage(plan.constraints);
+  plan.pedagogicalRule = sanitizeVolleyballLanguage(plan.pedagogicalRule ?? "") || plan.pedagogicalRule;
 
   if (existing) {
     plan.id = existing.id;

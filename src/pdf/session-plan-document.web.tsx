@@ -7,6 +7,8 @@ import {
     Text,
     View,
 } from "@react-pdf/renderer/lib/react-pdf.browser";
+import { resolveLearningObjectives } from "../core/pedagogy/objective-language";
+import { sanitizeVolleyballLanguage } from "../core/pedagogy/volleyball-language-lexicon";
 import { toPdfCoachingText, toPdfText } from "./pdf-coaching-text";
 import type { SessionPlanPdfData } from "./templates/session-plan";
 
@@ -123,17 +125,33 @@ const styles = StyleSheet.create({
   },
 });
 
-const asText = (value: unknown) => toPdfText(value);
+const asText = (value: unknown) => sanitizeVolleyballLanguage(toPdfText(value));
 
-const asCoachingText = (value: unknown) => toPdfCoachingText(value);
+const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoachingText(value));
 
 const buildOrderedLines = (rows: string[]) =>
   rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
 
+const getBlockLabel = (block: SessionPlanPdfData["blocks"][number]) =>
+  asText(block?.label || block?.title) || "-";
+
+const getBlockTime = (block: SessionPlanPdfData["blocks"][number]) => {
+  if (typeof block?.durationMinutes === "number" && Number.isFinite(block.durationMinutes)) {
+    return `${Math.max(0, Math.round(block.durationMinutes))} min`;
+  }
+  return asText(block?.time) || "-";
+};
+
+const getBlockActivities = (block: SessionPlanPdfData["blocks"][number]) => {
+  if (Array.isArray(block?.activities) && block.activities.length) return block.activities;
+  if (Array.isArray(block?.items) && block.items.length) return block.items;
+  return [];
+};
+
 const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number]) => {
-  const items = Array.isArray(block?.items) ? block.items : [];
+  const items = getBlockActivities(block);
   const descriptionRows = items
-    .map((item) => asCoachingText(item?.notes).trim())
+    .map((item) => asCoachingText(item?.description || item?.notes).trim())
     .filter(Boolean);
 
   if (descriptionRows.length) return descriptionRows;
@@ -149,10 +167,23 @@ const LABEL_OBSERVACOES = "Observa\u00e7\u00f5es:";
 
 export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
   const objective = asCoachingText(data?.objective);
+  const generalObjective = asCoachingText(data?.generalObjective);
+  const specificObjective = asCoachingText(data?.specificObjective);
+  const weeklyFocus = asCoachingText(data?.weeklyFocus);
   const title = asCoachingText(data?.title);
   const notes = asCoachingText(data?.notes);
   const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
   const generatedAt = new Date().toLocaleDateString("pt-BR");
+  const resolvedObjectives = resolveLearningObjectives({
+    generalObjective,
+    specificObjective: specificObjective || objective,
+    title,
+    weeklyFocus,
+    theme: weeklyFocus,
+    technicalFocus: weeklyFocus,
+  });
+  const resolvedGeneralObjective = sanitizeVolleyballLanguage(resolvedObjectives.generalObjective);
+  const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
 
   return (
     <Document>
@@ -172,6 +203,10 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
               <Text style={styles.metaValue}>{asText(data?.dateLabel)}</Text>
             </View>
             <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Semana:</Text>
+              <Text style={styles.metaValue}>{asText(data?.weekLabel) || "-"}</Text>
+            </View>
+            <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>Unidade:</Text>
               <Text style={styles.metaValue}>{asText(data?.unitLabel) || "-"}</Text>
             </View>
@@ -187,22 +222,38 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             <View style={styles.cellSingle}>
               <Text style={styles.text}>
                 <Text style={styles.strong}>Tema/Atividade: </Text>
-                {title || "-"}
+                {title || ""}
               </Text>
             </View>
           </View>
 
-          <View style={styles.row}>
-            <View style={[styles.cell, styles.periodCell]}>
-              <Text style={styles.text}>
-                <Text style={styles.strong}>Objetivo: </Text>
-                {objective || "-"}
-              </Text>
+          {resolvedGeneralObjective ? (
+            <View style={styles.row}>
+              <View style={styles.cellSingle}>
+                <Text style={styles.text}>
+                  <Text style={styles.strong}>Objetivo geral: </Text>
+                  {resolvedGeneralObjective}
+                </Text>
+              </View>
             </View>
-            <View style={[styles.cell, styles.cellLast, styles.descriptionCell]}>
+          ) : null}
+
+          {resolvedSpecificObjective ? (
+            <View style={styles.row}>
+              <View style={styles.cellSingle}>
+                <Text style={styles.text}>
+                  <Text style={styles.strong}>Objetivo específico: </Text>
+                  {resolvedSpecificObjective}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.row}>
+            <View style={styles.cellSingle}>
               <Text style={styles.text}>
                 <Text style={styles.strong}>Tempo total: </Text>
-                {asText(data?.totalTime) || "-"}
+                  {asText(data?.totalTime) || ""}
               </Text>
             </View>
           </View>
@@ -223,9 +274,9 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
           </View>
 
           {blocks.map((block, blockIndex) => {
-            const period = asText(block?.title) || "-";
-            const time = asText(block?.time) || "-";
-            const items = Array.isArray(block?.items) ? block.items : [];
+            const period = getBlockLabel(block);
+            const time = getBlockTime(block);
+            const items = getBlockActivities(block);
             const activities = buildOrderedLines(
               items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
             );

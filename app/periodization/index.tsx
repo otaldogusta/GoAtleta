@@ -75,6 +75,7 @@ import type {
     ClassGroup,
     ClassPlan,
     PeriodizationContext,
+    PlanningCycle,
     RecentSessionSummary,
     WeeklyAutopilotKnowledgeContext,
     WeeklyAutopilotPlanReview,
@@ -101,6 +102,8 @@ import {
     updateClassAcwrLimits
 } from "../../src/db/seed";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
+
+import { ensureActiveCycleForYear, getPlanningCycles } from "../../src/db/cycles";
 
 import { logAction } from "../../src/observability/breadcrumbs";
 
@@ -597,6 +600,7 @@ export default function PeriodizationScreen() {
   const [showDayModal, setShowDayModal] = useState(false);
 
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
+  const [planningCycles, setPlanningCycles] = useState<PlanningCycle[]>([]);
   const [recentSessionSummaries, setRecentSessionSummaries] = useState<RecentSessionSummary[]>([]);
   const [periodizationKnowledgeSnapshot, setPeriodizationKnowledgeSnapshot] =
     useState<WeeklyAutopilotKnowledgeContext | null>(null);
@@ -613,6 +617,7 @@ export default function PeriodizationScreen() {
     setEditingPlanId,
     setEditPhase,
     setEditTheme,
+    setEditPedagogicalRule,
     setEditTechnicalFocus,
     setEditPhysicalFocus,
     setEditConstraints,
@@ -629,6 +634,7 @@ export default function PeriodizationScreen() {
     editingPlanId,
     editPhase,
     editTheme,
+    editPedagogicalRule,
     editTechnicalFocus,
     editPhysicalFocus,
     editConstraints,
@@ -967,6 +973,30 @@ export default function PeriodizationScreen() {
 
 
   useEffect(() => {
+    let alive = true;
+    const currentClass = classes.find((item) => item.id === selectedClassId) ?? null;
+    if (!currentClass?.id) {
+      setPlanningCycles([]);
+      return;
+    }
+    (async () => {
+      try {
+        const year = new Date().getFullYear();
+        const classStartDate = currentClass.cycleStartDate || currentClass.createdAt || null;
+        await ensureActiveCycleForYear(currentClass.id, year, classStartDate);
+      } catch {
+        // Non-blocking; we still load the current cycle list.
+      }
+
+      const cycles = await getPlanningCycles(currentClass.id);
+      if (!alive) return;
+      setPlanningCycles(cycles);
+    })();
+    return () => { alive = false; };
+  }, [classes, selectedClassId]);
+
+
+  useEffect(() => {
 
     if (didApplyParams) return;
 
@@ -1080,7 +1110,7 @@ export default function PeriodizationScreen() {
     ]
   );
   const isCompetitiveMode = isCompetitivePlanningMode(competitiveProfile?.planningMode);
-  const activeCycleStartDate =
+  const activeCycleStartDateCandidate =
     competitiveProfile?.cycleStartDate?.trim() ||
     selectedClass?.cycleStartDate ||
     formatIsoDate(new Date());
@@ -1173,9 +1203,45 @@ export default function PeriodizationScreen() {
     return Math.max(1, classDays || sessionsPerWeek || 2);
   }, [selectedClass, sessionsPerWeek]);
 
+  const activeCycle = useMemo(
+    () => planningCycles.find((c) => c.status === "active") ?? null,
+    [planningCycles]
+  );
+  const effectiveCycleLength = useMemo(() => {
+    const cycleStart = parseIsoDate(activeCycle?.startDate ?? null);
+    const cycleEnd = parseIsoDate(activeCycle?.endDate ?? null);
+
+    if (!cycleStart || !cycleEnd) return cycleLength;
+
+    const startUtc = Date.UTC(
+      cycleStart.getFullYear(),
+      cycleStart.getMonth(),
+      cycleStart.getDate()
+    );
+    const endUtc = Date.UTC(
+      cycleEnd.getFullYear(),
+      cycleEnd.getMonth(),
+      cycleEnd.getDate()
+    );
+
+    if (endUtc < startUtc) return cycleLength;
+
+    const daysInclusive = Math.floor((endUtc - startUtc) / (24 * 60 * 60 * 1000)) + 1;
+    const weeks = Math.round(daysInclusive / 7);
+    return Math.max(1, Math.min(52, weeks));
+  }, [activeCycle?.endDate, activeCycle?.startDate, cycleLength]);
+
   const visibleClassPlans = useMemo(
-    () => getPlansWithinCycle(classPlans, cycleLength),
-    [classPlans, cycleLength]
+    () => getPlansWithinCycle(classPlans, effectiveCycleLength),
+    [classPlans, effectiveCycleLength]
+  );
+
+  const activeCycleStartDate =
+    activeCycle?.startDate?.trim() ||
+    activeCycleStartDateCandidate;
+  const historyCycles = useMemo(
+    () => planningCycles.filter((c) => c.status === "archived"),
+    [planningCycles]
   );
 
   const weekSessions = useMemo(() => {
@@ -1660,6 +1726,8 @@ export default function PeriodizationScreen() {
   useClassPlansLoader({
     selectedClassId,
     selectedClass,
+    activeCycle,
+    activeCycleYear: activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
     acwrLimits,
     setClassPlans,
     setCycleLength,
@@ -1674,7 +1742,7 @@ export default function PeriodizationScreen() {
     if (!selectedClass || !isCompetitiveMode) return [];
     return toCompetitiveClassPlans({
       classId: selectedClass.id,
-      cycleLength,
+      cycleLength: effectiveCycleLength,
       cycleStartDate: activeCycleStartDate,
       daysOfWeek: selectedClass.daysOfWeek,
       exceptions: calendarExceptions,
@@ -1689,7 +1757,7 @@ export default function PeriodizationScreen() {
     calendarExceptions,
     competitiveProfile?.targetCompetition,
     competitiveProfile?.tacticalSystem,
-    cycleLength,
+    effectiveCycleLength,
     isCompetitiveMode,
     selectedClass,
   ]);
@@ -1700,7 +1768,7 @@ export default function PeriodizationScreen() {
     calendarExceptions,
     classPlans,
     competitivePreviewPlans,
-    cycleLength,
+    cycleLength: effectiveCycleLength,
     isCompetitiveMode,
     periodizationModel,
     sportProfile,
@@ -1709,8 +1777,8 @@ export default function PeriodizationScreen() {
   });
 
   const visibleCompetitivePreviewPlans = useMemo(
-    () => getPlansWithinCycle(competitivePreviewPlans, cycleLength),
-    [competitivePreviewPlans, cycleLength]
+    () => getPlansWithinCycle(competitivePreviewPlans, effectiveCycleLength),
+    [competitivePreviewPlans, effectiveCycleLength]
   );
 
   const hasWeekPlans = visibleClassPlans.length > 0;
@@ -2270,7 +2338,7 @@ export default function PeriodizationScreen() {
         ? buildCompetitiveClassPlan({
             classId: selectedClass.id,
             weekNumber,
-            cycleLength,
+            cycleLength: effectiveCycleLength,
             cycleStartDate: activeCycleStartDate,
             daysOfWeek: selectedClass.daysOfWeek ?? [],
             exceptions: calendarExceptions,
@@ -2284,7 +2352,7 @@ export default function PeriodizationScreen() {
             weekNumber,
             source: "AUTO",
             mvLevel: selectedClass.mvLevel,
-            cycleLength,
+            cycleLength: effectiveCycleLength,
             model: periodizationModel,
             sessionsPerWeek: weeklySessions,
             sport: sportProfile,
@@ -2297,6 +2365,8 @@ export default function PeriodizationScreen() {
     setEditPhase(normalizeText(plan.phase));
 
     setEditTheme(normalizeText(plan.theme));
+
+    setEditPedagogicalRule(normalizeText(plan.pedagogicalRule ?? ""));
 
     setEditTechnicalFocus(normalizeText(plan.technicalFocus));
 
@@ -2321,7 +2391,7 @@ export default function PeriodizationScreen() {
     ageBand,
     calendarExceptions,
     competitiveProfile,
-    cycleLength,
+    effectiveCycleLength,
     isCompetitiveMode,
     periodizationModel,
     sportProfile,
@@ -2341,7 +2411,7 @@ export default function PeriodizationScreen() {
         ? buildCompetitiveClassPlan({
             classId: selectedClass.id,
             weekNumber,
-            cycleLength,
+            cycleLength: effectiveCycleLength,
             cycleStartDate: activeCycleStartDate,
             daysOfWeek: selectedClass.daysOfWeek ?? [],
             exceptions: calendarExceptions,
@@ -2357,7 +2427,7 @@ export default function PeriodizationScreen() {
             weekNumber,
             source: existing?.source === "MANUAL" ? "MANUAL" : "AUTO",
             mvLevel: selectedClass.mvLevel,
-            cycleLength,
+            cycleLength: effectiveCycleLength,
             model: periodizationModel,
             sessionsPerWeek: weeklySessions,
             sport: sportProfile,
@@ -2377,6 +2447,8 @@ export default function PeriodizationScreen() {
         phase: editPhase.trim() || autoPlan.phase,
 
         theme: editTheme.trim() || autoPlan.theme,
+
+        pedagogicalRule: editPedagogicalRule.trim(),
 
         technicalFocus: editTechnicalFocus.trim() || editTheme.trim() || autoPlan.technicalFocus,
 
@@ -2410,7 +2482,7 @@ export default function PeriodizationScreen() {
 
       calendarExceptions,
 
-      cycleLength,
+      effectiveCycleLength,
 
       competitiveProfile,
 
@@ -2421,6 +2493,8 @@ export default function PeriodizationScreen() {
       editMvFormat,
 
       editPSETarget,
+
+      editPedagogicalRule,
 
       editPhase,
 
@@ -2459,6 +2533,8 @@ export default function PeriodizationScreen() {
 
         existing.theme !== draft.theme ||
 
+        (existing.pedagogicalRule ?? "") !== (draft.pedagogicalRule ?? "") ||
+
         existing.technicalFocus !== draft.technicalFocus ||
 
         existing.physicalFocus !== draft.physicalFocus ||
@@ -2486,11 +2562,14 @@ export default function PeriodizationScreen() {
 
     if (!selectedClass) return;
 
-    const plans = await getClassPlansByClass(selectedClass.id);
+    const plans = await getClassPlansByClass(selectedClass.id, {
+      cycleId: activeCycle?.id ?? null,
+      cycleYear: activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
+    });
 
     setClassPlans(plans);
 
-  }, [selectedClass]);
+  }, [activeCycle?.id, activeCycle?.year, activeCycleStartDate, selectedClass]);
 
 
   const buildAutoPlanForWeek = useCallback(
@@ -2501,7 +2580,7 @@ export default function PeriodizationScreen() {
         selectedClass,
         weekNumber,
         existing,
-        cycleLength,
+        cycleLength: effectiveCycleLength,
         activeCycleStartDate,
         isCompetitiveMode,
         calendarExceptions,
@@ -2519,7 +2598,7 @@ export default function PeriodizationScreen() {
       ageBand,
       calendarExceptions,
       competitiveProfile,
-      cycleLength,
+      effectiveCycleLength,
       isCompetitiveMode,
       periodizationModel,
       sportProfile,
@@ -2618,9 +2697,10 @@ export default function PeriodizationScreen() {
   const { handleSaveWeek } = useSaveWeek({
     selectedClass,
     classPlans,
+    activeCycleId: activeCycle?.id ?? "",
     editingPlanId,
     editingWeek,
-    cycleLength,
+    cycleLength: effectiveCycleLength,
     activeCycleStartDate,
     calendarExceptions,
     competitiveProfile,
@@ -2632,6 +2712,7 @@ export default function PeriodizationScreen() {
     sportProfile,
     editPhase,
     editTheme,
+    editPedagogicalRule,
     editTechnicalFocus,
     editPhysicalFocus,
     editConstraints,
@@ -3018,7 +3099,9 @@ export default function PeriodizationScreen() {
 
   const { handleGenerateMode } = useGeneratePlansMode({
     selectedClass,
-    cycleLength,
+    activeCycleId: activeCycle?.id ?? "",
+    activeCycleYear: activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
+    cycleLength: effectiveCycleLength,
     activeCycleStartDate,
     isCompetitiveMode,
     ageBand,
@@ -3069,9 +3152,20 @@ export default function PeriodizationScreen() {
 
   );
 
-  const handleGenerateCycle = useCallback(() => {
+  const handleGenerateCycle = useCallback(async () => {
+    if (selectedClass) {
+      const year = new Date().getFullYear();
+      const classStartDate = selectedClass.cycleStartDate || selectedClass.createdAt || null;
+      try {
+        await ensureActiveCycleForYear(selectedClass.id, year, classStartDate);
+        const cycles = await getPlanningCycles(selectedClass.id);
+        setPlanningCycles(cycles);
+      } catch {
+        // Non-blocking — cycle creation is best-effort
+      }
+    }
     handleGenerateAction("all");
-  }, [handleGenerateAction]);
+  }, [handleGenerateAction, selectedClass]);
 
   const handleRemoveCycle = useCallback(() => {
     if (!selectedClass || isSavingPlans) return;
@@ -3085,7 +3179,12 @@ export default function PeriodizationScreen() {
       onConfirm: async () => {
         setIsSavingPlans(true);
         try {
-          await measure("deleteClassPlansByClass", () => deleteClassPlansByClass(selectedClass.id));
+          await measure("deleteClassPlansByClass", () =>
+            deleteClassPlansByClass(selectedClass.id, {
+              cycleId: activeCycle?.id ?? null,
+              cycleYear: activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
+            })
+          );
           await refreshPlans();
           setActiveTab("geral");
           Alert.alert("Ciclo removido", "O planejamento da turma foi removido com sucesso.");
@@ -3094,7 +3193,7 @@ export default function PeriodizationScreen() {
         }
       },
     });
-  }, [confirmDialog, isSavingPlans, refreshPlans, selectedClass]);
+  }, [activeCycle?.id, activeCycle?.year, activeCycleStartDate, confirmDialog, isSavingPlans, refreshPlans, selectedClass]);
 
 
   const getWeekSchedule = (week: WeekPlan | undefined, sessions: number) => {
@@ -3659,7 +3758,7 @@ export default function PeriodizationScreen() {
             selectedUnit={selectedUnit}
             mesoTriggerRef={mesoTriggerRef}
             showMesoPicker={showMesoPicker}
-            cycleLength={cycleLength}
+            cycleLength={effectiveCycleLength}
             microTriggerRef={microTriggerRef}
             showMicroPicker={showMicroPicker}
             sessionsPerWeek={sessionsPerWeek}
@@ -3670,6 +3769,8 @@ export default function PeriodizationScreen() {
             classPlans={classPlans}
             hasWeekPlans={hasWeekPlans}
             isSavingPlans={isSavingPlans}
+            activeCycle={activeCycle}
+            historyCycles={historyCycles}
             onCompleteMissingCoverage={() => handleGenerateAction("fill")}
             onGenerateCycle={handleGenerateCycle}
             onRemoveCycle={handleRemoveCycle}
@@ -4312,11 +4413,13 @@ export default function PeriodizationScreen() {
         daysOfWeek={selectedClass?.daysOfWeek ?? []}
         weeklySessions={weeklySessions}
         weekSessions={weekSessions}
-        cycleLength={cycleLength}
+        cycleLength={effectiveCycleLength}
         editPhase={editPhase}
         setEditPhase={setEditPhase}
         editTheme={editTheme}
         setEditTheme={setEditTheme}
+        editPedagogicalRule={editPedagogicalRule}
+        setEditPedagogicalRule={setEditPedagogicalRule}
         editJumpTarget={editJumpTarget}
         setEditJumpTarget={setEditJumpTarget}
         editPSETarget={editPSETarget}
