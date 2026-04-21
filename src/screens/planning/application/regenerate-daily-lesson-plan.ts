@@ -1,6 +1,7 @@
 import type { ClassPlan, DailyLessonPlan } from "../../../core/models";
 import { checkLessonAlignmentWithPeriodization } from "../../../core/pedagogy/lesson-periodization-alignment";
 import {
+    renderBlockRecommendationSummary,
     renderGameFormLabel,
     renderPedagogicalObjective,
     renderStageFocusSummary,
@@ -12,8 +13,7 @@ import {
 } from "../../../core/pedagogy/resolve-next-pedagogical-step-from-periodization";
 import {
     FORBIDDEN_UI_TERMS,
-    getDisplayLabelForSkill,
-    sanitizeVolleyballLanguage,
+    sanitizeVolleyballLanguage
 } from "../../../core/pedagogy/volleyball-language-lexicon";
 import { summarizeLessonActivity } from "../../../pdf/summarize-lesson-activity";
 import { getLessonBlockTimes } from "../../../utils/lesson-block-times";
@@ -477,20 +477,65 @@ const buildCanonicalSectionText = (params: {
   step: NextPedagogicalStep;
 }): string => {
   const { section, step } = params;
-  const keys = step.blockRecommendations[section];
-  const labels = keys.slice(0, 3).map((key) => getDisplayLabelForSkill(key));
-  const listed = labels.length > 1 ? `${labels.slice(0, -1).join(", ")} e ${labels.slice(-1)}` : labels[0] ?? "fundamentos da etapa";
+  const listed = renderBlockRecommendationSummary(step, section);
   const gameForm = renderGameFormLabel(step);
 
   if (section === "warmup") {
-    return `Em duplas, os alunos iniciam com ${listed}, preparando a turma para ${gameForm}.`;
+    return `No aquecimento, a turma inicia com ${listed.replace(/[.]$/, "")}, preparando a turma para ${gameForm}.`;
   }
 
   if (section === "main") {
-    return `Na parte principal, a turma trabalha ${listed} em situação de ${gameForm}, com progressão simples e orientação direta do professor.`;
+    return `Na parte principal, a turma trabalha com ${listed.replace(/[.]$/, "")} em situação de ${gameForm}, com progressão simples e orientação direta do professor.`;
   }
 
-  return `No fechamento, a turma retoma ${listed} com ritmo leve, registra um ajuste e encerra com comunicação curta de quadra.`;
+  return `No fechamento, a turma faz ${listed.replace(/[.]$/, "")}, registra um ajuste e encerra com comunicação curta de quadra.`;
+};
+
+const extractRecentSignals = (plans: DailyLessonPlan[] | undefined) => {
+  const recentConfirmedSkills: string[] = [];
+  const recentContexts: string[] = [];
+
+  for (const plan of (plans ?? []).slice(0, 4)) {
+    try {
+      const parsed = JSON.parse(plan.generationContextSnapshotJson ?? "{}") as {
+        nextPedagogicalStep?: {
+          nextStep?: string[];
+          alreadyPracticedContexts?: string[];
+          blockRecommendations?: {
+            warmup?: { contexts?: string[] };
+            main?: { contexts?: string[] };
+            cooldown?: { contexts?: string[] };
+          };
+        };
+      };
+
+      for (const skill of parsed?.nextPedagogicalStep?.nextStep ?? []) {
+        if (!recentConfirmedSkills.includes(skill)) {
+          recentConfirmedSkills.push(skill);
+        }
+      }
+
+      for (const context of parsed?.nextPedagogicalStep?.alreadyPracticedContexts ?? []) {
+        if (!recentContexts.includes(context)) {
+          recentContexts.push(context);
+        }
+      }
+
+      for (const context of parsed?.nextPedagogicalStep?.blockRecommendations?.main?.contexts ?? []) {
+        if (!recentContexts.includes(context)) {
+          recentContexts.push(context);
+        }
+      }
+    } catch {
+      // Ignore malformed snapshots in legacy plans.
+    }
+  }
+
+  return {
+    recentConfirmedSkills,
+    recentContexts,
+    historicalConfidence: recentConfirmedSkills.length >= 2 || recentContexts.length >= 2 ? 0.8 : 0.5,
+  };
 };
 
 const buildFallbackSectionText = (params: {
@@ -891,7 +936,14 @@ export const buildAutoDailyLessonPlan = (
     const rawDate = session.date ?? "";
     const iso = /^\d{4}-\d{2}-\d{2}/.test(rawDate) ? rawDate.slice(0, 10) : "";
     const monthIndex = iso ? new Date(`${iso}T00:00:00`).getMonth() + 1 : new Date().getMonth() + 1;
-    return resolveNextPedagogicalStepFromPeriodization({ ageBand: ageBandKey, monthIndex });
+    const signals = extractRecentSignals(context?.recentPlans);
+    return resolveNextPedagogicalStepFromPeriodization({
+      ageBand: ageBandKey,
+      monthIndex,
+      recentConfirmedSkills: signals.recentConfirmedSkills,
+      recentContexts: signals.recentContexts,
+      historicalConfidence: signals.historicalConfidence,
+    });
   })();
   const decision = decidePedagogy({ weeklyPlan, session, context });
   const profile = inferLanguageProfile(context);

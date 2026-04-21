@@ -4,26 +4,26 @@
 
 import * as Sentry from "@sentry/react-native";
 import type { ScoutingLog, SessionLog, StudentScoutingLog } from "../core/models";
-import {
-  getActiveOrganizationId,
-  getScopedOrganizationId,
-  isAuthError,
-  isMissingRelation,
-  isNetworkError,
-  supabaseGet,
-  supabasePost,
-  supabasePatch,
-} from "./client";
 import { getClassById } from "./classes";
 import {
-  buildScoutingLogClientId,
-  buildSessionLogClientId,
-  buildStudentScoutingClientId,
-  enqueueWrite,
+    getActiveOrganizationId,
+    getScopedOrganizationId,
+    isAuthError,
+    isMissingRelation,
+    isNetworkError,
+    supabaseGet,
+    supabasePatch,
+    supabasePost,
+} from "./client";
+import {
+    buildScoutingLogClientId,
+    buildSessionLogClientId,
+    buildStudentScoutingClientId,
+    enqueueWrite,
 } from "./nfc-sync";
-import { resolveTrainingPlanForDate, syncTrainingSessionFromReport } from "./training-sessions";
-import { getTrainingPlans } from "./training";
 import type { ScoutingLogRow, SessionLogRow, StudentScoutingRow } from "./row-types";
+import { getTrainingPlans } from "./training";
+import { resolveTrainingPlanForDate, syncTrainingSessionFromReport } from "./training-sessions";
 
 // ---------------------------------------------------------------------------
 // Row mappers
@@ -95,6 +95,7 @@ export async function getScoutingLogByDate(
   } catch (error) {
     if (isMissingRelation(error, "scouting_logs")) return null;
     if (isAuthError(error)) return null;
+    if (isNetworkError(error)) return null;
     throw error;
   }
 }
@@ -405,31 +406,37 @@ export async function getSessionLogByDate(
   date: string,
   options: { organizationId?: string | null } = {}
 ): Promise<SessionLog | null> {
-  const start = `${date}T00:00:00.000Z`;
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-  const organizationId = options.organizationId ?? (await getActiveOrganizationId());
-  const rows = await supabaseGet<SessionLogRow[]>(
-    organizationId
-      ? `/session_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(start)}&createdat=lt.${encodeURIComponent(end.toISOString())}&order=client_id.desc.nullslast,createdat.desc&limit=1`
-      : `/session_logs?select=*&classid=eq.${encodeURIComponent(classId)}&createdat=gte.${encodeURIComponent(start)}&createdat=lt.${encodeURIComponent(end.toISOString())}&order=client_id.desc.nullslast,createdat.desc&limit=1`
-  );
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    id: row.id,
-    clientId: row.client_id ?? row.id,
-    classId: row.classid,
-    PSE: row.rpe,
-    technique: (["boa", "ok", "ruim", "nenhum"].includes(row.technique ?? "") ? row.technique : "boa") as "boa" | "ok" | "ruim" | "nenhum",
-    attendance: row.attendance,
-    activity: row.activity ?? "",
-    conclusion: row.conclusion ?? "",
-    participantsCount: row.participants_count ?? 0,
-    photos: row.photos ?? "",
-    painScore: row.pain_score ?? 0,
-    createdAt: row.createdat,
-  };
+  try {
+    const start = `${date}T00:00:00.000Z`;
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+    const rows = await supabaseGet<SessionLogRow[]>(
+      organizationId
+        ? `/session_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(start)}&createdat=lt.${encodeURIComponent(end.toISOString())}&order=client_id.desc.nullslast,createdat.desc&limit=1`
+        : `/session_logs?select=*&classid=eq.${encodeURIComponent(classId)}&createdat=gte.${encodeURIComponent(start)}&createdat=lt.${encodeURIComponent(end.toISOString())}&order=client_id.desc.nullslast,createdat.desc&limit=1`
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      clientId: row.client_id ?? row.id,
+      classId: row.classid,
+      PSE: row.rpe,
+      technique: (["boa", "ok", "ruim", "nenhum"].includes(row.technique ?? "") ? row.technique : "boa") as "boa" | "ok" | "ruim" | "nenhum",
+      attendance: row.attendance,
+      activity: row.activity ?? "",
+      conclusion: row.conclusion ?? "",
+      participantsCount: row.participants_count ?? 0,
+      photos: row.photos ?? "",
+      painScore: row.pain_score ?? 0,
+      createdAt: row.createdat,
+    };
+  } catch (error) {
+    if (isAuthError(error)) return null;
+    if (isNetworkError(error)) return null;
+    throw error;
+  }
 }
 
 export async function getSessionLogsByRange(

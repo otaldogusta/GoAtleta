@@ -282,8 +282,9 @@ describe("buildAutoPlanForCycleDay", () => {
     });
 
     expect(result.strategy.primarySkill).toBe("saque");
-    expect(result.strategy.progressionDimension).toBe("precisao");
+    expect(result.strategy.progressionDimension).toBe("consistencia");
     expect(result.overrideAdjusted).toBe(true);
+    expect(result.explanation.debug.operationalRulesApplied).toContain("recent_history_review_lock");
     expect(result.explanation.debug.overrideStrength).toBe("strong");
     expect(result.explanation.debug.overrideLearningWindowGenerations).toBe(3);
     expect(result.explanation.coachSummary).toContain("Aprendizado local do professor (forte)");

@@ -9,6 +9,9 @@
 
 import type {
     AgeBandKey,
+    BlockIntensity,
+    BlockOrganization,
+    BlockTaskStyle,
     CanonicalContextKey,
     CanonicalSkillKey,
     GameFormKey,
@@ -86,6 +89,28 @@ export const GAME_FORM_DISPLAY_LABELS: Record<GameFormKey, string> = {
   formal_6x6: "Vôlei 6x6",
 };
 
+export const BLOCK_ORGANIZATION_LABELS: Record<BlockOrganization, string> = {
+  individual: "individual",
+  dupla: "duplas",
+  trio: "trios",
+  equipes_reduzidas: "equipes reduzidas",
+  roda: "roda",
+};
+
+export const BLOCK_TASK_STYLE_LABELS: Record<BlockTaskStyle, string> = {
+  brincadeira: "brincadeira com bola",
+  desafio_curto: "desafio curto",
+  estacao: "estação orientada",
+  mini_jogo: "mini jogo orientado",
+  fechamento: "roda de fechamento",
+};
+
+export const BLOCK_INTENSITY_LABELS: Record<BlockIntensity, string> = {
+  leve: "leve",
+  moderada: "moderada",
+  moderada_alta: "moderada-alta",
+};
+
 export function getDisplayLabelForSkill(skill: CanonicalSkillKey): string {
   return SKILL_DISPLAY_LABELS[skill];
 }
@@ -96,6 +121,18 @@ export function getDisplayLabelForContext(context: CanonicalContextKey): string 
 
 export function getDisplayLabelForGameForm(gameForm: GameFormKey): string {
   return GAME_FORM_DISPLAY_LABELS[gameForm];
+}
+
+export function getDisplayLabelForOrganization(organization: BlockOrganization): string {
+  return BLOCK_ORGANIZATION_LABELS[organization];
+}
+
+export function getDisplayLabelForTaskStyle(taskStyle: BlockTaskStyle): string {
+  return BLOCK_TASK_STYLE_LABELS[taskStyle];
+}
+
+export function getDisplayLabelForIntensity(intensity: BlockIntensity): string {
+  return BLOCK_INTENSITY_LABELS[intensity];
 }
 
 // Remove termos proibidos de um texto antes de exibir ao professor

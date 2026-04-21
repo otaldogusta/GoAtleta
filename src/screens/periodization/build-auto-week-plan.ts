@@ -1,30 +1,35 @@
 import { buildCompetitiveClassPlan } from "../../core/competitive-periodization";
 import type {
-    ClassCalendarException,
-    ClassCompetitiveProfile,
-    ClassGroup,
-    ClassPlan,
+  ClassCalendarException,
+  ClassCompetitiveProfile,
+  ClassGroup,
+  ClassPlan,
+  DailyLessonPlan,
 } from "../../core/models";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
 import {
-    renderGameFormLabel,
-    renderNextStepList,
-    renderPedagogicalObjective,
-    renderStageFocusSummary,
+  renderGameFormLabel,
+  renderNextStepList,
+  renderPedagogicalObjective,
+  renderStageFocusSummary,
 } from "../../core/pedagogy/pedagogical-renderer";
 import {
-    normalizeAgeBandKey,
-    resolveNextPedagogicalStepFromPeriodization,
+  normalizeAgeBandKey,
+  resolveNextPedagogicalStepFromPeriodization,
 } from "../../core/pedagogy/resolve-next-pedagogical-step-from-periodization";
 import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
 import type {
-    PeriodizationModel,
-    SportProfile,
+  PeriodizationModel,
+  SportProfile,
 } from "../../core/periodization-basics";
 import { getDemandIndexForModel } from "../../core/periodization-basics";
 import { buildClassPlan, getVolumeFromTargets } from "../../core/periodization-generator";
 import { getPlannedLoads } from "../../core/periodization-load";
 import { buildPeriodizationWeekSchedule } from "./application/build-auto-plan-for-cycle-day";
+import {
+  resolveWeekStrategyFromCycleContext,
+  toWeeklyOperationalStrategySnapshot,
+} from "./application/resolve-week-strategy-from-cycle-context";
 
 type BuildAutoWeekPlanParams = {
   selectedClass: ClassGroup | null;
@@ -39,6 +44,7 @@ type BuildAutoWeekPlanParams = {
   periodizationModel: PeriodizationModel;
   weeklySessions: number;
   sportProfile: SportProfile;
+  recentDailyLessonPlans?: DailyLessonPlan[];
 };
 
 const uniqueStrings = (values: Array<string | null | undefined>) =>
@@ -136,6 +142,117 @@ const resolveWeekMonthIndex = (cycleStartDate: string, weekNumber: number): numb
   return shifted.getMonth() + 1;
 };
 
+const normalizeSignalText = (value: string | undefined) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const hasManualOverrideSignal = (plan: DailyLessonPlan) => {
+  try {
+    const parsed = JSON.parse(plan.manualOverrideMaskJson ?? "[]");
+    return Array.isArray(parsed) && parsed.length > 0;
+  } catch {
+    return false;
+  }
+};
+
+const extractWeeklyPedagogicalSignals = (plans: DailyLessonPlan[] | undefined) => {
+  const recentConfirmedSkills: string[] = [];
+  const recentContexts: string[] = [];
+  const recentTeacherOverrides: string[] = [];
+  const stageIds: string[] = [];
+
+  for (const plan of (plans ?? []).slice(0, 6)) {
+    try {
+      const parsed = JSON.parse(plan.generationContextSnapshotJson ?? "{}") as {
+        nextPedagogicalStep?: {
+          stageId?: string;
+          nextStep?: string[];
+          alreadyIntroduced?: string[];
+          alreadyPracticedContexts?: string[];
+          blockRecommendations?: {
+            main?: { contexts?: string[] };
+          };
+        };
+      };
+
+      const stageId = parsed?.nextPedagogicalStep?.stageId;
+      if (stageId) {
+        stageIds.push(stageId);
+      }
+
+      for (const skill of parsed?.nextPedagogicalStep?.nextStep ?? []) {
+        if (!recentConfirmedSkills.includes(skill)) {
+          recentConfirmedSkills.push(skill);
+        }
+      }
+
+      for (const skill of parsed?.nextPedagogicalStep?.alreadyIntroduced ?? []) {
+        if (!recentConfirmedSkills.includes(skill)) {
+          recentConfirmedSkills.push(skill);
+        }
+      }
+
+      for (const context of parsed?.nextPedagogicalStep?.alreadyPracticedContexts ?? []) {
+        if (!recentContexts.includes(context)) {
+          recentContexts.push(context);
+        }
+      }
+
+      for (const context of parsed?.nextPedagogicalStep?.blockRecommendations?.main?.contexts ?? []) {
+        if (!recentContexts.includes(context)) {
+          recentContexts.push(context);
+        }
+      }
+    } catch {
+      // Ignore malformed legacy snapshots.
+    }
+
+    const freeText = normalizeSignalText(
+      [plan.title, plan.warmup, plan.mainPart, plan.cooldown, plan.observations].join(" ")
+    );
+    if (/(revis|retom|segur|manter simples|base)/.test(freeText)) {
+      recentTeacherOverrides.push("revisar e consolidar fundamentos da turma");
+    }
+    if (/(avanc|progred|autonom|mais desafio|subir nivel)/.test(freeText)) {
+      recentTeacherOverrides.push("avançar com autonomia progressiva");
+    }
+    if (hasManualOverrideSignal(plan)) {
+      recentTeacherOverrides.push("ajustar progressão conforme intervenção docente recente");
+    }
+  }
+
+  const hasRepeatedStage = stageIds.length >= 2 && new Set(stageIds).size < stageIds.length;
+
+  let historicalConfidence = 0.5;
+  if (recentConfirmedSkills.length >= 2 || recentContexts.length >= 2) {
+    historicalConfidence = 0.7;
+  }
+  if (hasRepeatedStage) {
+    historicalConfidence = 0.85;
+  }
+  if (recentConfirmedSkills.length >= 4 || recentContexts.length >= 4) {
+    historicalConfidence = Math.max(historicalConfidence, 0.9);
+  }
+
+  return {
+    recentConfirmedSkills: recentConfirmedSkills.slice(0, 6),
+    recentContexts: recentContexts.slice(0, 6),
+    recentTeacherOverrides: uniqueStrings(recentTeacherOverrides).slice(0, 3),
+    historicalConfidence,
+  };
+};
+
+const parseSnapshot = (value: string | undefined) => {
+  try {
+    const parsed = JSON.parse(value ?? "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 export const buildAutoWeekPlan = (
   params: BuildAutoWeekPlanParams
 ): ClassPlan | null => {
@@ -143,7 +260,7 @@ export const buildAutoWeekPlan = (
 
   if (!selectedClass) return null;
 
-  const plan = params.isCompetitiveMode
+  const plan: ClassPlan | null = params.isCompetitiveMode
     ? params.competitiveProfile
       ? buildCompetitiveClassPlan({
           classId: selectedClass.id,
@@ -187,6 +304,36 @@ export const buildAutoWeekPlan = (
       params.weeklySessions,
       params.sportProfile
     );
+    const ageBandKey = normalizeAgeBandKey(selectedClass.ageBand ?? "") ?? normalizeAgeBandKey(params.ageBand);
+    const monthIndex = resolveWeekMonthIndex(params.activeCycleStartDate, params.weekNumber);
+    const weeklySignals = extractWeeklyPedagogicalSignals(params.recentDailyLessonPlans);
+    const nextPedagogicalStep = ageBandKey
+      ? resolveNextPedagogicalStepFromPeriodization({
+          ageBand: ageBandKey,
+          monthIndex,
+          recentConfirmedSkills: weeklySignals.recentConfirmedSkills,
+          recentContexts: weeklySignals.recentContexts,
+          teacherOverrides: weeklySignals.recentTeacherOverrides,
+          historicalConfidence: weeklySignals.historicalConfidence,
+        })
+      : null;
+    const weeklyOperationalStrategy = resolveWeekStrategyFromCycleContext({
+      ageBand: ageBandKey,
+      monthIndex,
+      weeklySessions: params.weeklySessions,
+      weeklyVolume: weekPlan.volume,
+      historicalConfidence: weeklySignals.historicalConfidence,
+      recentTeacherOverrides: weeklySignals.recentTeacherOverrides,
+      nextPedagogicalStep,
+    });
+
+    const snapshot = {
+      ...parseSnapshot(plan.generationContextSnapshotJson),
+      weeklyOperationalStrategy: toWeeklyOperationalStrategySnapshot(weeklyOperationalStrategy),
+    };
+    plan.generationContextSnapshotJson = JSON.stringify(snapshot);
+    plan.weekNotes = sanitizeVolleyballLanguage(weeklyOperationalStrategy.weekIntentSummary);
+
     const periodizationWeek = buildPeriodizationWeekSchedule({
       classGroup: selectedClass,
       classPlan: plan,
@@ -195,6 +342,7 @@ export const buildAutoWeekPlan = (
       periodizationModel: params.periodizationModel,
       sportProfile: params.sportProfile,
       weeklySessions: params.weeklySessions,
+      weeklyOperationalDecisions: weeklyOperationalStrategy.decisions,
     });
     const autoPlans = periodizationWeek
       .map((item) => item.autoPlan)
@@ -227,12 +375,6 @@ export const buildAutoWeekPlan = (
       });
     }
 
-    const ageBandKey = normalizeAgeBandKey(selectedClass.ageBand ?? "") ?? normalizeAgeBandKey(params.ageBand);
-    const monthIndex = resolveWeekMonthIndex(params.activeCycleStartDate, params.weekNumber);
-    const nextPedagogicalStep = ageBandKey
-      ? resolveNextPedagogicalStepFromPeriodization({ ageBand: ageBandKey, monthIndex })
-      : null;
-
     if (nextPedagogicalStep) {
       const stageSummary = sanitizeVolleyballLanguage(renderStageFocusSummary(nextPedagogicalStep));
       const nextStepList = sanitizeVolleyballLanguage(renderNextStepList(nextPedagogicalStep).join(" / "));
@@ -241,11 +383,15 @@ export const buildAutoWeekPlan = (
 
       plan.theme = stageSummary || plan.theme;
       plan.technicalFocus = nextStepList || plan.technicalFocus;
-      plan.pedagogicalRule = sanitizeVolleyballLanguage(`Forma de jogo da etapa: ${gameFormLabel}.`) || plan.pedagogicalRule;
+      plan.pedagogicalRule =
+        sanitizeVolleyballLanguage(
+          `Forma de jogo da etapa: ${gameFormLabel}. Foco do trimestre: ${weeklyOperationalStrategy.quarterFocus}.`
+        ) || plan.pedagogicalRule;
       plan.constraints = uniqueStrings([
         plan.constraints,
         `Etapa pedagógica: ${stageSummary}`,
         `Próximo foco: ${nextStepList}`,
+        `Seleção da etapa: ${nextPedagogicalStep.selectionReason}`,
       ])
         .slice(0, 5)
         .join(" | ");

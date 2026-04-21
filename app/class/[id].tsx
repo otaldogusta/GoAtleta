@@ -1630,6 +1630,29 @@ export default function ClassDetails() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/planning",
+                  params: { id },
+                })
+              }
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                Planejamentos da turma
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Ver mês, semana e aulas
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={handleExportRoster}
               style={{
                 width: "100%",

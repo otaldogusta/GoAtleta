@@ -8,6 +8,7 @@ import {
     useRef,
     useState,
 } from "react";
+import { Platform } from "react-native";
 import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 
 import { clearAiCache } from "../api/ai";

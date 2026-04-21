@@ -10,7 +10,7 @@ import {
 } from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { memo, lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -34,6 +34,7 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../src/api/reports";
+import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import {
     useCopilotActions,
     useCopilotContext,
@@ -60,17 +61,16 @@ import {
     type PendingWriteFailureRow,
     type PendingWritesDiagnostics,
 } from "../src/db/seed";
+import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
 import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
-import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
-import { Pressable } from "../src/ui/Pressable";
-import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { useAppTheme } from "../src/ui/app-theme";
+import { Pressable } from "../src/ui/Pressable";
 
 const OrgMembersPanel = lazy(() =>
   import("../src/screens/coordination/OrgMembersPanel").then((module) => ({

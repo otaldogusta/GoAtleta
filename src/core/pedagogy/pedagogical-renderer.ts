@@ -11,9 +11,20 @@
 
 import type { NextPedagogicalStep } from "./pedagogical-types";
 import {
+    getDisplayLabelForContext,
     getDisplayLabelForGameForm,
+    getDisplayLabelForIntensity,
+    getDisplayLabelForOrganization,
     getDisplayLabelForSkill,
+    getDisplayLabelForTaskStyle,
 } from "./volleyball-language-lexicon";
+
+const joinPtBr = (items: string[]) => {
+  if (!items.length) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} e ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+};
 
 // Objetivo da aula em uma frase curta no estilo de quadra
 export function renderPedagogicalObjective(step: NextPedagogicalStep): string {
@@ -53,4 +64,24 @@ export function renderAlreadyIntroducedList(step: NextPedagogicalStep): string[]
 // Próximo passo em linguagem de quadra (primeiros 2 itens)
 export function renderNextStepList(step: NextPedagogicalStep): string[] {
   return step.nextStep.slice(0, 2).map((key) => getDisplayLabelForSkill(key));
+}
+
+export function renderBlockRecommendationSummary(
+  step: NextPedagogicalStep,
+  section: "warmup" | "main" | "cooldown"
+): string {
+  const block = step.blockRecommendations[section];
+  const skills = joinPtBr(block.skills.slice(0, 3).map((key) => getDisplayLabelForSkill(key)));
+  const contexts = joinPtBr(block.contexts.slice(0, 2).map((key) => getDisplayLabelForContext(key)));
+  const organization = getDisplayLabelForOrganization(block.organization);
+  const taskStyle = getDisplayLabelForTaskStyle(block.taskStyle);
+  const intensity = getDisplayLabelForIntensity(block.intensity);
+
+  if (section === "cooldown") {
+    return `${taskStyle} em ${organization}, com intensidade ${intensity}.`;
+  }
+
+  const skillPart = skills || "fundamentos da etapa";
+  const contextPart = contexts ? `em ${contexts}` : "";
+  return `${taskStyle} em ${organization}, trabalhando ${skillPart} ${contextPart}`.replace(/\s+/g, " ").trim() + ".";
 }

@@ -12,6 +12,8 @@
 import { PEDAGOGICAL_PROGRESSION_CATALOG } from "./pedagogical-progression-catalog";
 import type {
     AgeBandKey,
+    CanonicalContextKey,
+    CanonicalSkillKey,
     NextPedagogicalStep,
     PedagogicalProgressionStage,
 } from "./pedagogical-types";
@@ -20,7 +22,9 @@ export type ResolveNextPedagogicalStepInput = {
   ageBand: AgeBandKey;
   monthIndex: number;
   recentConfirmedSkills?: string[];
+  recentContexts?: string[];
   teacherOverrides?: string[];
+  historicalConfidence?: number;
 };
 
 // Resolve o ageBand canônico a partir do texto livre do ClassGroup
@@ -60,7 +64,43 @@ function pickBestStage(input: ResolveNextPedagogicalStepInput): PedagogicalProgr
     });
     return sorted[0] ?? null;
   }
-  return candidates.sort((a, b) => a.sequenceIndex - b.sequenceIndex)[0] ?? null;
+  const orderedCandidates = [...candidates].sort((a, b) => a.sequenceIndex - b.sequenceIndex);
+  const normalizedOverrides = (input.teacherOverrides ?? []).join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const confirmedSkills = new Set((input.recentConfirmedSkills ?? []).map((item) => item as CanonicalSkillKey));
+  const recentContexts = new Set((input.recentContexts ?? []).map((item) => item as CanonicalContextKey));
+  const confidence = Number.isFinite(input.historicalConfidence) ? Math.max(0, Math.min(1, Number(input.historicalConfidence))) : 0.5;
+
+  const holdBack = /(segurar|retomar|revisar|rever|voltar|manter simples)/.test(normalizedOverrides);
+  const pushForward = /(avancar|avançar|progredir|subir|autonomia|mais desafio)/.test(normalizedOverrides);
+  const hasHistorySignals = confirmedSkills.size > 0 || recentContexts.size > 0;
+
+  if (holdBack) {
+    return orderedCandidates[0] ?? null;
+  }
+
+  if (!hasHistorySignals && !pushForward) {
+    return orderedCandidates[0] ?? null;
+  }
+
+  const scored = orderedCandidates.map((stage) => {
+    let score = 0;
+    score += stage.alreadyIntroduced.filter((item) => confirmedSkills.has(item)).length * 4;
+    score += stage.alreadyPracticedContexts.filter((item) => recentContexts.has(item)).length * 2;
+    score += stage.sequenceIndex * confidence;
+
+    if (pushForward) {
+      score += stage.sequenceIndex * 3;
+    }
+
+    return { stage, score };
+  });
+
+  scored.sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    return left.stage.sequenceIndex - right.stage.sequenceIndex;
+  });
+
+  return scored[0]?.stage ?? null;
 }
 
 export function resolveNextPedagogicalStepFromPeriodization(
@@ -69,12 +109,23 @@ export function resolveNextPedagogicalStepFromPeriodization(
   const stage = pickBestStage(input);
   if (!stage) return null;
 
+  const monthStageCount = PEDAGOGICAL_PROGRESSION_CATALOG.filter(
+    (item) => item.ageBand === stage.ageBand && item.monthIndex === stage.monthIndex
+  ).length;
+
   const constraints = [
     ...stage.pedagogicalConstraints,
     ...(input.teacherOverrides ?? []).filter(Boolean),
   ];
 
+  const selectionReason = (input.recentConfirmedSkills?.length || input.recentContexts?.length)
+    ? "stage escolhido pelo histórico recente dentro do mês"
+    : "stage base do mês selecionado";
+
   return {
+    stageId: stage.id,
+    sequenceIndex: stage.sequenceIndex,
+    monthStageCount,
     currentStage: stage.stageLabel,
     gameForm: stage.gameForm,
     complexityLevel: stage.complexityLevel,
@@ -83,10 +134,23 @@ export function resolveNextPedagogicalStepFromPeriodization(
     nextStep: [...stage.nextStep],
     pedagogicalConstraints: [...new Set(constraints)],
     blockRecommendations: {
-      warmup: [...stage.blockRecommendations.warmup],
-      main: [...stage.blockRecommendations.main],
-      cooldown: [...stage.blockRecommendations.cooldown],
+      warmup: {
+        ...stage.blockRecommendations.warmup,
+        skills: [...stage.blockRecommendations.warmup.skills],
+        contexts: [...stage.blockRecommendations.warmup.contexts],
+      },
+      main: {
+        ...stage.blockRecommendations.main,
+        skills: [...stage.blockRecommendations.main.skills],
+        contexts: [...stage.blockRecommendations.main.contexts],
+      },
+      cooldown: {
+        ...stage.blockRecommendations.cooldown,
+        skills: [...stage.blockRecommendations.cooldown.skills],
+        contexts: [...stage.blockRecommendations.cooldown.contexts],
+      },
     },
+    selectionReason,
     sourceTrail: [
       {
         methodology: stage.source.methodology,

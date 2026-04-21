@@ -74,6 +74,7 @@ import type {
     ClassCompetitiveProfile,
     ClassGroup,
     ClassPlan,
+    DailyLessonPlan,
     PeriodizationContext,
     PlanningCycle,
     RecentSessionSummary,
@@ -96,7 +97,7 @@ import {
     getSessionLogsByClass,
     getTrainingPlans,
     getTrainingSessionEvidenceByClass,
-
+    listRecentDailyLessonPlansByClass,
     saveClassCalendarException,
     saveClassCompetitiveProfile,
     updateClassAcwrLimits
@@ -136,7 +137,27 @@ import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
+import type {
+    DriftFrequencyByClassItem,
+  ObservabilityInsight,
+    ObservabilityTrendByClass,
+    PlanObservabilityRecord,
+    UnstableObservabilityWeek,
+} from "../../src/db/observability-summaries";
+import {
+  buildObservabilityInsightsFromRecords,
+    computeDriftFrequencyFromRecords,
+    computeObservabilityTrendFromRecords,
+    computeRecentUnstableWeeksFromRecords,
+    listPlanObservabilitySummariesByClass,
+    upsertPlanObservabilitySummary,
+} from "../../src/db/observability-summaries";
 import { buildWeekSessionPreview } from "../../src/screens/periodization/application/build-week-session-preview";
+import { buildWeeklyObservabilitySummary } from "../../src/screens/periodization/application/build-weekly-observability-summary";
+import {
+    formatWeeklyOperationalIntentForTeacher,
+    parseWeeklyOperationalStrategySnapshot,
+} from "../../src/screens/periodization/application/format-weekly-operational-intent-for-teacher";
 import { buildAutoWeekPlan } from "../../src/screens/periodization/build-auto-week-plan";
 import { CompetitiveAgendaCard } from "../../src/screens/periodization/CompetitiveAgendaCard";
 import { DayModal } from "../../src/screens/periodization/modals/DayModal";
@@ -601,7 +622,9 @@ export default function PeriodizationScreen() {
 
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
   const [planningCycles, setPlanningCycles] = useState<PlanningCycle[]>([]);
+  const [recentDailyLessonPlans, setRecentDailyLessonPlans] = useState<DailyLessonPlan[]>([]);
   const [recentSessionSummaries, setRecentSessionSummaries] = useState<RecentSessionSummary[]>([]);
+  const [planObservabilityHistory, setPlanObservabilityHistory] = useState<PlanObservabilityRecord[]>([]);
   const [periodizationKnowledgeSnapshot, setPeriodizationKnowledgeSnapshot] =
     useState<WeeklyAutopilotKnowledgeContext | null>(null);
   const [isLoadingPeriodizationKnowledge, setIsLoadingPeriodizationKnowledge] = useState(false);
@@ -2277,6 +2300,14 @@ export default function PeriodizationScreen() {
     });
   }, [currentWeek, hasWeekPlans, weekPlans.length]);
 
+  const goToWeek = useCallback(
+    (weekNumber: number) => {
+      weekSwitchDirectionRef.current = 0;
+      setAgendaWeekNumber(Math.max(1, Math.min(weekPlans.length, weekNumber)));
+    },
+    [weekPlans.length]
+  );
+
 
   // Removido: criação automática de semanas ao entrar na tela.
 
@@ -2332,7 +2363,7 @@ export default function PeriodizationScreen() {
     setAgendaWeekNumber(weekNumber);
 
     const existing = visibleClassPlans.find((plan) => plan.weekNumber === weekNumber);
-    const plan =
+    const plan: ClassPlan =
       existing ??
       (isCompetitiveMode
         ? buildCompetitiveClassPlan({
@@ -2560,16 +2591,57 @@ export default function PeriodizationScreen() {
 
   const refreshPlans = useCallback(async () => {
 
-    if (!selectedClass) return;
+    if (!selectedClass) {
+      setClassPlans([]);
+      setRecentDailyLessonPlans([]);
+      return;
+    }
 
-    const plans = await getClassPlansByClass(selectedClass.id, {
-      cycleId: activeCycle?.id ?? null,
-      cycleYear: activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
-    });
+    const [plans, recentDailyPlans] = await Promise.all([
+      getClassPlansByClass(selectedClass.id, {
+        cycleId: activeCycle?.id ?? null,
+        cycleYear: activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
+      }),
+      listRecentDailyLessonPlansByClass(selectedClass.id, 12),
+    ]);
 
     setClassPlans(plans);
+    setRecentDailyLessonPlans(recentDailyPlans);
 
   }, [activeCycle?.id, activeCycle?.year, activeCycleStartDate, selectedClass]);
+
+  useEffect(() => {
+    let alive = true;
+
+    if (!selectedClass) {
+      setRecentDailyLessonPlans([]);
+      return;
+    }
+
+    (async () => {
+      const plans = await measureAsync(
+        "screen.periodization.load.recentDailyLessonPlans",
+        () => listRecentDailyLessonPlansByClass(selectedClass.id, 12),
+        { screen: "periodization", classId: selectedClass.id }
+      );
+
+      if (!alive) return;
+      setRecentDailyLessonPlans(plans);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [selectedClass?.id]);
+
+  // Load observability history for the selected class from local SQLite
+  useEffect(() => {
+    if (!selectedClass?.id) {
+      setPlanObservabilityHistory([]);
+      return;
+    }
+    listPlanObservabilitySummariesByClass(selectedClass.id).then(setPlanObservabilityHistory).catch(() => {});
+  }, [selectedClass?.id]);
 
 
   const buildAutoPlanForWeek = useCallback(
@@ -2589,6 +2661,7 @@ export default function PeriodizationScreen() {
         periodizationModel,
         weeklySessions,
         sportProfile,
+        recentDailyLessonPlans,
       });
 
     },
@@ -2601,6 +2674,7 @@ export default function PeriodizationScreen() {
       effectiveCycleLength,
       isCompetitiveMode,
       periodizationModel,
+      recentDailyLessonPlans,
       sportProfile,
       selectedClass,
       weeklySessions,
@@ -3265,8 +3339,76 @@ export default function PeriodizationScreen() {
     ]
   );
 
+  const [qaModeEnabled, setQaModeEnabled] = usePersistedState<boolean>(
+    __DEV__ ? "periodization.qa.mode" : null,
+    false
+  );
+  const [showQaDebugPanel, setShowQaDebugPanel] = useState(false);
 
-  const selectedDay = selectedDayIndex !== null ? weekSchedule[selectedDayIndex] : null;
+  useEffect(() => {
+    if (!qaModeEnabled && showQaDebugPanel) {
+      setShowQaDebugPanel(false);
+    }
+  }, [qaModeEnabled, showQaDebugPanel]);
+
+  const weeklyOperationalSnapshot = useMemo(
+    () => parseWeeklyOperationalStrategySnapshot(activeClassPlan?.generationContextSnapshotJson),
+    [activeClassPlan?.generationContextSnapshotJson]
+  );
+
+  const weeklyTeacherIntent = useMemo(() => {
+    return formatWeeklyOperationalIntentForTeacher(weeklyOperationalSnapshot);
+  }, [weeklyOperationalSnapshot]);
+
+  const weeklyObservabilitySummary = useMemo(
+    () =>
+      buildWeeklyObservabilitySummary({
+        weeklySnapshot: weeklyOperationalSnapshot,
+        weekSchedule,
+      }),
+    [weekSchedule, weeklyOperationalSnapshot]
+  );
+
+  const classObservabilityTrend = useMemo<ObservabilityTrendByClass>(
+    () => computeObservabilityTrendFromRecords(planObservabilityHistory),
+    [planObservabilityHistory]
+  );
+
+  const classObservabilityDriftFrequency = useMemo<DriftFrequencyByClassItem[]>(
+    () => computeDriftFrequencyFromRecords(planObservabilityHistory),
+    [planObservabilityHistory]
+  );
+
+  const classRecentUnstableWeeks = useMemo<UnstableObservabilityWeek[]>(
+    () => computeRecentUnstableWeeksFromRecords(planObservabilityHistory, 5),
+    [planObservabilityHistory]
+  );
+
+  const classObservabilityInsights = useMemo<ObservabilityInsight[]>(
+    () => buildObservabilityInsightsFromRecords(planObservabilityHistory),
+    [planObservabilityHistory]
+  );
+
+  // Persist observability summary to local SQLite whenever it's (re)computed for the active plan
+  useEffect(() => {
+    if (!activeClassPlan || !weeklyObservabilitySummary) return;
+    upsertPlanObservabilitySummary({
+      planId: activeClassPlan.id,
+      classId: activeClassPlan.classId,
+      cycleId: activeClassPlan.cycleId ?? "",
+      weekNumber: activeClassPlan.weekNumber,
+      summary: weeklyObservabilitySummary,
+    }).then(() => {
+      // Refresh the in-memory history after upsert
+      if (activeClassPlan.classId) {
+        listPlanObservabilitySummariesByClass(activeClassPlan.classId)
+          .then(setPlanObservabilityHistory)
+          .catch(() => {});
+      }
+    }).catch(() => {});
+  }, [activeClassPlan?.id, weeklyObservabilitySummary]);
+
+
   const isSelectedDayRest = selectedDay ? !normalizeText(selectedDay.session ?? "").trim() : false;
 
   const selectedDayDate = selectedDay
@@ -3971,6 +4113,18 @@ export default function PeriodizationScreen() {
             colors={colors}
             weekSchedule={weekSchedule}
             activeWeek={activeWeek}
+            weeklyTeacherIntent={weeklyTeacherIntent}
+            weeklyObservabilitySummary={weeklyObservabilitySummary}
+            qaModeEnabled={__DEV__ && qaModeEnabled}
+            showQaModeToggle={__DEV__}
+            onToggleQaMode={() => setQaModeEnabled((current) => !current)}
+            showQaDebugPanel={showQaDebugPanel}
+            onToggleQaDebugPanel={() => setShowQaDebugPanel((current) => !current)}
+            classObservabilityTrend={__DEV__ && qaModeEnabled ? classObservabilityTrend : null}
+            classObservabilityDriftFrequency={__DEV__ && qaModeEnabled ? classObservabilityDriftFrequency : []}
+            classRecentUnstableWeeks={__DEV__ && qaModeEnabled ? classRecentUnstableWeeks : []}
+            classObservabilityInsights={__DEV__ && qaModeEnabled ? classObservabilityInsights : []}
+            onGoToWeek={goToWeek}
             weekPlans={weekPlans}
             weekSwitchOpacity={weekSwitchOpacity}
             weekSwitchTranslateX={weekSwitchTranslateX}

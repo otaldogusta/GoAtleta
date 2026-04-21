@@ -6,6 +6,7 @@ import type {
     TrainingPlanGenerationExplanation,
     TrainingPlanGenerationHistoryMode,
 } from "../models";
+import type { OperationalPedagogyInfluence } from "./apply-operational-pedagogy-rules";
 import type { DominantBlockStrategyInfluence } from "./resolve-block-dominant-strategy";
 import type { LoadModulationInfluence } from "./resolve-load-modulation";
 import type { TeacherOverrideInfluence } from "./resolve-teacher-override-weight";
@@ -50,6 +51,9 @@ export type CycleDayGenerationExplanation = TrainingPlanGenerationExplanation & 
     overrideAdjusted: boolean;
     overridePreferredPrimarySkill?: TeacherOverrideInfluence["preferredPrimarySkill"];
     overridePreferredProgressionDimension?: TeacherOverrideInfluence["preferredProgressionDimension"];
+    operationalAdjusted: boolean;
+    operationalRulesApplied: string[];
+    operationalChangedFields: string[];
     repetitionAdjustment: RepetitionAdjustment;
     fingerprint: string;
     structuralFingerprint: string;
@@ -199,6 +203,8 @@ export const formatGenerationExplanation = (params: {
   loadInfluence: LoadModulationInfluence;
   overrideAdjusted: boolean;
   overrideInfluence: TeacherOverrideInfluence;
+  operationalAdjusted: boolean;
+  operationalInfluence: OperationalPedagogyInfluence;
 }): CycleDayGenerationExplanation => {
   const historyMode = resolveHistoryMode(params.cycleContext.historicalConfidence);
   const recentSessions = params.cycleContext.recentSessions;
@@ -222,6 +228,10 @@ export const formatGenerationExplanation = (params: {
     fragments.push(
       `aprendizado local do professor (${overrideStrengthLabel[params.overrideInfluence.strength]}) observado`
     );
+  }
+
+  if (params.operationalAdjusted && params.operationalInfluence.rulesApplied.length) {
+    fragments.push(`regras operacionais: ${params.operationalInfluence.rulesApplied.join(", ")}`);
   }
 
   if (
@@ -306,6 +316,9 @@ export const formatGenerationExplanation = (params: {
       overridePreferredPrimarySkill: params.overrideInfluence.preferredPrimarySkill,
       overridePreferredProgressionDimension:
         params.overrideInfluence.preferredProgressionDimension,
+      operationalAdjusted: params.operationalAdjusted,
+      operationalRulesApplied: [...params.operationalInfluence.rulesApplied],
+      operationalChangedFields: [...params.operationalInfluence.changedFields],
       repetitionAdjustment: {
         ...params.repetitionAdjustment,
         changedFields: [...params.repetitionAdjustment.changedFields],

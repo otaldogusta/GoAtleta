@@ -252,6 +252,19 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_class_plans_class_cycle_start
       ON class_plans(classId, cycleId, startDate);
 
+    CREATE TABLE IF NOT EXISTS plan_observability_summaries (
+      planId TEXT PRIMARY KEY NOT NULL,
+      classId TEXT NOT NULL,
+      cycleId TEXT NOT NULL DEFAULT '',
+      weekNumber INTEGER NOT NULL,
+      summaryJson TEXT NOT NULL DEFAULT '{}',
+      capturedAt TEXT NOT NULL DEFAULT '',
+      computedAt TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plan_obs_class
+      ON plan_observability_summaries(classId, weekNumber);
+
     CREATE TABLE IF NOT EXISTS class_competitive_profiles (
       classId TEXT PRIMARY KEY NOT NULL,
       organizationId TEXT NOT NULL DEFAULT '',
@@ -1018,6 +1031,29 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_class_plans_class_cycle_start ON class_plans(classId, cycleId, startDate)"
+    );
+  } catch {}
+  try {
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS plan_observability_summaries (
+        planId TEXT PRIMARY KEY NOT NULL,
+        classId TEXT NOT NULL,
+        cycleId TEXT NOT NULL DEFAULT '',
+        weekNumber INTEGER NOT NULL,
+        summaryJson TEXT NOT NULL DEFAULT '{}',
+        capturedAt TEXT NOT NULL DEFAULT '',
+        computedAt TEXT NOT NULL DEFAULT ''
+      )
+    `);
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE plan_observability_summaries ADD COLUMN capturedAt TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_plan_obs_class ON plan_observability_summaries(classId, weekNumber)"
     );
   } catch {}
 }

@@ -60,8 +60,8 @@ describe("resolveSessionStrategyFromCycleContext", () => {
     );
 
     expect(strategy.progressionDimension).toBe("pressao_tempo");
-    expect(strategy.timePressureLevel).toBe("high");
-    expect(strategy.oppositionLevel).toBe("medium");
+    expect(strategy.timePressureLevel).toBe("medium");
+    expect(strategy.oppositionLevel).toBe("low");
     expect(strategy.drillFamilies).toContain("deslocamento");
   });
 
@@ -211,8 +211,8 @@ describe("resolveSessionStrategyFromCycleContext", () => {
     );
 
     expect(strategy.primarySkill).toBe("saque");
-    expect(strategy.progressionDimension).toBe("precisao");
-    expect(strategy.loadIntent).toBe("moderado");
+    expect(strategy.progressionDimension).toBe("consistencia");
+    expect(strategy.loadIntent).toBe("baixo");
   });
 
   it("changes the generated strategy when dominant block changes under the same phase", () => {
@@ -295,5 +295,28 @@ describe("resolveSessionStrategyFromCycleContext", () => {
     expect(intensiveDay.loadIntent).toBe("alto");
     expect(intensiveDay.drillFamilies[0]).toBe("deslocamento");
     expect(intensiveDay.timePressureLevel).toBe("high");
+  });
+
+  it("keeps session strategy inside weekly role authority", () => {
+    const strategy = resolveSessionStrategyFromCycleContext(
+      buildContext({
+        phaseIntent: "transferencia_jogo",
+        planningPhase: "competitivo",
+        progressionDimensionTarget: "precisao",
+        pedagogicalIntent: "game_reading",
+        weeklyOperationalDecision: {
+          sessionIndexInWeek: 2,
+          sessionRole: "transferencia_jogo",
+          quarterFocus: "Aplicação em jogo reduzido com leitura coletiva.",
+          appliedRules: ["quarterly_anchor_alignment"],
+          driftRisks: [],
+          quarter: "Q3",
+          closingType: "aplicacao",
+        },
+      })
+    );
+
+    expect(strategy.progressionDimension).toBe("tomada_decisao");
+    expect(strategy.gameTransferLevel).toBe("high");
   });
 });

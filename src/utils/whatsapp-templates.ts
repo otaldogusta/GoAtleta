@@ -123,7 +123,7 @@ const normalizeDateStart = (value: Date) => {
 };
 
 const getSortedClassDays = (daysOfWeek: number[]) =>
-  [...new Set(daysOfWeek.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))].sort(
+  [...new Set(daysOfWeek.map((day) => Number(day)).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))].sort(
     (a, b) => a - b
   );
 

@@ -11,6 +11,7 @@ import type {
     RepetitionAdjustment,
     SessionStrategy,
     VolleyballSkill,
+    WeeklyOperationalDecision,
 } from "../../../core/models";
 import {
     dayLabels,
@@ -48,6 +49,7 @@ export type BuildPeriodizationAutoPlanForCycleDayParams = {
   macroLabel?: string;
   mesoLabel?: string;
   recentSessions?: RecentSessionSummary[] | null;
+  weeklyOperationalDecision?: WeeklyOperationalDecision;
 };
 
 export type PeriodizationAutoPlanForCycleDayResult = {
@@ -278,6 +280,7 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     macroLabel: params.macroLabel,
     mesoLabel: params.mesoLabel,
     recentSessions: params.recentSessions,
+    weeklyOperationalDecision: params.weeklyOperationalDecision,
   });
   const strategyDecision = resolveSessionStrategyDecisionFromCycleContext(context.cycleContext);
   const guardResult = applyPlanGuards({
@@ -298,6 +301,8 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     loadInfluence: strategyDecision.loadInfluence,
     overrideAdjusted: strategyDecision.overrideAdjusted,
     overrideInfluence: strategyDecision.overrideInfluence,
+    operationalAdjusted: strategyDecision.operationalAdjusted,
+    operationalInfluence: strategyDecision.operationalInfluence,
   });
   const primarySkillLabel = formatSkillLabel(guardResult.strategy.primarySkill);
   const progressionLabel = formatProgressionLabel(guardResult.strategy.progressionDimension);
@@ -359,7 +364,8 @@ export const buildPeriodizationWeekSchedule = (params: {
   macroLabel?: string;
   mesoLabel?: string;
   recentSessions?: RecentSessionSummary[] | null;
-}) => {
+  weeklyOperationalDecisions?: WeeklyOperationalDecision[];
+}): PeriodizationWeekScheduleItem[] => {
   if (!params.classGroup || !params.weekPlan) {
     return weekAgendaDayOrder.map((dayNumber) => {
       const labelIndex = dayNumbersByLabelIndex.indexOf(dayNumber);
@@ -376,6 +382,7 @@ export const buildPeriodizationWeekSchedule = (params: {
   const weekStartDate = resolveWeekStartDate(params.cycleStartDate, params.weekPlan.week);
   const trainingDays = resolveTrainingDaysForWeek(params.classGroup, params.weeklySessions);
   const syntheticRecentSessions = [...(params.recentSessions ?? [])];
+  let sessionCounter = 0;
 
   return weekAgendaDayOrder.map((dayNumber) => {
     const labelIndex = dayNumbersByLabelIndex.indexOf(dayNumber);
@@ -393,6 +400,11 @@ export const buildPeriodizationWeekSchedule = (params: {
       } satisfies PeriodizationWeekScheduleItem;
     }
 
+    sessionCounter += 1;
+    const weeklyOperationalDecision = params.weeklyOperationalDecisions?.find(
+      (decision) => decision.sessionIndexInWeek === sessionCounter
+    );
+
     const autoPlan = buildPeriodizationAutoPlanForCycleDay({
       classGroup: params.classGroup,
       classPlan: params.classPlan,
@@ -406,6 +418,7 @@ export const buildPeriodizationWeekSchedule = (params: {
       macroLabel: params.macroLabel,
       mesoLabel: params.mesoLabel,
       recentSessions: syntheticRecentSessions,
+      weeklyOperationalDecision,
     });
 
     syntheticRecentSessions.unshift(

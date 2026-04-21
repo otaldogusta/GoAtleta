@@ -1,6 +1,12 @@
 import { buildCycleDayPlanningContext } from "../../../core/cycle-day-planning/build-cycle-day-planning-context";
 import { resolveSessionIndexInWeek } from "../../../core/cycle-day-planning/resolve-session-index-in-week";
-import type { ClassGroup, ClassPlan, CycleDayPlanningContext, RecentSessionSummary } from "../../../core/models";
+import type {
+    ClassGroup,
+    ClassPlan,
+    CycleDayPlanningContext,
+    RecentSessionSummary,
+    WeeklyOperationalDecision,
+} from "../../../core/models";
 import type { PeriodizationModel, SportProfile, VolumeLevel } from "../../../core/periodization-basics";
 import { getDemandIndexForModel } from "../../../core/periodization-basics";
 
@@ -29,6 +35,7 @@ export type BuildPeriodizationCycleDayPlanningContextParams = {
   macroLabel?: string;
   mesoLabel?: string;
   recentSessions?: RecentSessionSummary[] | null;
+  weeklyOperationalDecision?: WeeklyOperationalDecision;
 };
 
 export type PeriodizationCycleDayPlanningContext = {
@@ -124,6 +131,8 @@ export const buildPeriodizationCycleDayPlanningContext = (
         (Number.isFinite(Number(params.weekPlan.PSETarget.match(/(\d+)/)?.[1]))
           ? Number(params.weekPlan.PSETarget.match(/(\d+)/)?.[1])
           : undefined),
+      weeklyOperationalDecision:
+        params.weeklyOperationalDecision ?? baseContext.weeklyOperationalDecision,
     },
     sessionIndexInWeek,
     demandIndex,

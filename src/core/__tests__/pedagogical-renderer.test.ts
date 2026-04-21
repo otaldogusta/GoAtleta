@@ -1,5 +1,6 @@
 import {
     renderAlreadyIntroducedList,
+    renderBlockRecommendationSummary,
     renderGameFormLabel,
     renderNextStepList,
     renderPedagogicalObjective,
@@ -8,6 +9,9 @@ import {
 import type { NextPedagogicalStep } from "../pedagogy/pedagogical-types";
 
 const makeStep = (overrides: Partial<NextPedagogicalStep> = {}): NextPedagogicalStep => ({
+  stageId: "08-10_feb_02",
+  sequenceIndex: 2,
+  monthStageCount: 3,
   currentStage: "fundamentos_basicos_com_continuidade",
   gameForm: "mini_2x2",
   complexityLevel: "baixo_moderado",
@@ -16,10 +20,29 @@ const makeStep = (overrides: Partial<NextPedagogicalStep> = {}): NextPedagogical
   nextStep: ["two_action_continuity", "mini_game_2x2_intro"],
   pedagogicalConstraints: ["manter linguagem simples"],
   blockRecommendations: {
-    warmup: ["set_self_control"],
-    main: ["two_action_continuity", "mini_game_2x2_intro"],
-    cooldown: ["mini_game_2x2_intro"],
+    warmup: {
+      skills: ["set_self_control"],
+      contexts: ["pair_work"],
+      organization: "dupla",
+      taskStyle: "brincadeira",
+      intensity: "leve",
+    },
+    main: {
+      skills: ["two_action_continuity", "mini_game_2x2_intro"],
+      contexts: ["continuity_game", "reduced_court"],
+      organization: "equipes_reduzidas",
+      taskStyle: "mini_jogo",
+      intensity: "moderada",
+    },
+    cooldown: {
+      skills: [],
+      contexts: [],
+      organization: "roda",
+      taskStyle: "fechamento",
+      intensity: "leve",
+    },
   },
+  selectionReason: "stage base do mês selecionado",
   sourceTrail: [{ methodology: "rede_esperanca", sourceLabel: "Rede Esperança — fevereiro" }],
   ...overrides,
 });
@@ -66,5 +89,12 @@ describe("pedagogical-renderer", () => {
     );
     expect(list).toHaveLength(2);
     expect(list[0]).toBe("continuidade com 2 ações");
+  });
+
+  it("renders block recommendation summary in court language", () => {
+    const summary = renderBlockRecommendationSummary(makeStep(), "main");
+    expect(summary).toContain("mini jogo orientado");
+    expect(summary).toContain("equipes reduzidas");
+    expect(summary).toContain("continuidade com 2 ações");
   });
 });

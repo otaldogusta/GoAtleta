@@ -69,16 +69,16 @@ Validacao obrigatoria:
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -102,16 +102,16 @@ Validacao obrigatoria:
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -135,16 +135,16 @@ Validacao obrigatoria:
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -183,16 +183,16 @@ Validacao obrigatoria:
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -209,16 +209,16 @@ Identificacao do plano: ____________________
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -235,16 +235,16 @@ Identificacao do plano: ____________________
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -282,16 +282,16 @@ Validacao obrigatoria:
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -308,16 +308,16 @@ Identificacao do plano: ____________________
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -334,16 +334,16 @@ Identificacao do plano: ____________________
 | Idade |  |  |
 
 Pontos muito bons:
-- 
+-
 
 Pontos genericos:
-- 
+-
 
 Pontos fora da idade:
-- 
+-
 
 Pontos fora da forma de jogo:
-- 
+-
 
 Media da aula: ______
 
@@ -384,6 +384,6 @@ Quando houver falha, registrar alvo de correcao antes de mexer em UI:
 - [ ] Ajustar base de exercicios por forma de jogo
 
 Observacoes finais da rodada:
-- 
-- 
-- 
+-
+-
+-

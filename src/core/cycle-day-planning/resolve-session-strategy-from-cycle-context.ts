@@ -7,6 +7,10 @@ import type {
     WeeklyLoadIntent,
 } from "../models";
 import {
+    applyOperationalPedagogyRules,
+    type OperationalPedagogyInfluence,
+} from "./apply-operational-pedagogy-rules";
+import {
     applyDominantBlockStrategy,
     type DominantBlockStrategyInfluence,
 } from "./resolve-block-dominant-strategy";
@@ -28,6 +32,8 @@ export type SessionStrategyResolution = {
   strategy: SessionStrategy;
   overrideAdjusted: boolean;
   overrideInfluence: TeacherOverrideInfluence;
+  operationalAdjusted: boolean;
+  operationalInfluence: OperationalPedagogyInfluence;
 };
 
 const PROGRESSION_LADDER: ProgressionDimension[] = [
@@ -355,6 +361,10 @@ export const resolveSessionStrategyDecisionFromCycleContext = (
     context,
     strategy: baseStrategy,
   });
+  const operationalResult = applyOperationalPedagogyRules({
+    context,
+    strategy: overrideResult.strategy,
+  });
 
   return {
     baseStrategy,
@@ -362,9 +372,11 @@ export const resolveSessionStrategyDecisionFromCycleContext = (
     dominantBlockInfluence: dominantBlockResult.influence,
     loadAdjusted: loadResult.adjusted,
     loadInfluence: loadResult.influence,
-    strategy: overrideResult.strategy,
+    strategy: operationalResult.strategy,
     overrideAdjusted: overrideResult.adjusted,
     overrideInfluence: overrideResult.influence,
+    operationalAdjusted: operationalResult.influence.applied,
+    operationalInfluence: operationalResult.influence,
   };
 };
 

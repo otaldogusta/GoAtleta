@@ -93,8 +93,8 @@ import { ShimmerBlock } from "../../ui/Shimmer";
 import { useAppTheme } from "../../ui/app-theme";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 
-import { markRender, measureAsync } from "../../observability/perf";
 import { getScopedProfilePath } from "../../navigation/profile-routes";
+import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { AgendaCard } from "./components/AgendaCard";
 const HomeProfessorBelowFold = lazy(() =>

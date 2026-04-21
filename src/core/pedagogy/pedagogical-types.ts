@@ -54,10 +54,34 @@ export type SourceMethodology =
   | "ltad"
   | "drill_library";
 
+export type BlockOrganization =
+  | "individual"
+  | "dupla"
+  | "trio"
+  | "equipes_reduzidas"
+  | "roda";
+
+export type BlockTaskStyle =
+  | "brincadeira"
+  | "desafio_curto"
+  | "estacao"
+  | "mini_jogo"
+  | "fechamento";
+
+export type BlockIntensity = "leve" | "moderada" | "moderada_alta";
+
+export type RichPedagogicalBlockRecommendation = {
+  skills: CanonicalSkillKey[];
+  contexts: CanonicalContextKey[];
+  organization: BlockOrganization;
+  taskStyle: BlockTaskStyle;
+  intensity: BlockIntensity;
+};
+
 export type PedagogicalBlockRecommendation = {
-  warmup: CanonicalSkillKey[];
-  main: CanonicalSkillKey[];
-  cooldown: CanonicalSkillKey[];
+  warmup: RichPedagogicalBlockRecommendation;
+  main: RichPedagogicalBlockRecommendation;
+  cooldown: RichPedagogicalBlockRecommendation;
 };
 
 export type PedagogicalProgressionStage = {
@@ -82,6 +106,9 @@ export type PedagogicalProgressionStage = {
 };
 
 export type NextPedagogicalStep = {
+  stageId: string;
+  sequenceIndex: number;
+  monthStageCount: number;
   currentStage: string;
   gameForm: GameFormKey;
   complexityLevel: ComplexityLevel;
@@ -90,6 +117,7 @@ export type NextPedagogicalStep = {
   nextStep: CanonicalSkillKey[];
   pedagogicalConstraints: string[];
   blockRecommendations: PedagogicalBlockRecommendation;
+  selectionReason: string;
   sourceTrail: Array<{
     methodology: SourceMethodology;
     sourceLabel: string;

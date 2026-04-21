@@ -1,14 +1,15 @@
 import type {
-    ClassGroup,
-    ClassPlan,
-    CycleDayPlanningContext,
-    DominantGapType,
-    PhaseIntent,
-    ProgressionDimension,
-    RecentSessionSummary,
-    TrainingPlanDevelopmentStage,
-    VolleyballSkill,
-    WeeklyLoadIntent,
+  ClassGroup,
+  ClassPlan,
+  CycleDayPlanningContext,
+  DominantGapType,
+  PhaseIntent,
+  ProgressionDimension,
+  RecentSessionSummary,
+  TrainingPlanDevelopmentStage,
+  VolleyballSkill,
+  WeeklyLoadIntent,
+  WeeklyOperationalStrategySnapshot,
 } from "../models";
 import type { PlanningPhase } from "../pedagogical-planning";
 import { getPlannedLoads } from "../periodization-load";
@@ -416,6 +417,67 @@ const resolveClassPlanDominantBlock = (classPlan?: ClassPlan | null) => {
   return candidates.find((candidate) => resolveDominantBlockStrategyProfile(candidate)) ?? undefined;
 };
 
+const resolveWeeklyOperationalDecision = (params: {
+  classPlan?: ClassPlan | null;
+  sessionIndexInWeek: number;
+}): CycleDayPlanningContext["weeklyOperationalDecision"] => {
+  const raw = String(params.classPlan?.generationContextSnapshotJson ?? "").trim();
+  if (!raw) return undefined;
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      weeklyOperationalStrategy?:
+        | WeeklyOperationalStrategySnapshot
+        | {
+            decisions?: Array<{
+              sessionIndexInWeek?: number;
+              sessionRole?: string;
+              quarterFocus?: string;
+              appliedRules?: string[];
+              driftRisks?: string[];
+              quarter?: "Q1" | "Q2" | "Q3" | "Q4" | "unknown";
+              closingType?: "exploracao" | "consolidacao" | "aplicacao" | "fechamento" | "unknown";
+            }>;
+          };
+    };
+    const decisions = parsed.weeklyOperationalStrategy?.decisions;
+    if (!Array.isArray(decisions)) return undefined;
+
+    const matched = decisions.find(
+      (item) => Number(item?.sessionIndexInWeek) === params.sessionIndexInWeek
+    );
+    if (!matched) return undefined;
+
+    const allowedRoles = new Set([
+      "introducao_exploracao",
+      "retomada_consolidacao",
+      "consolidacao_orientada",
+      "pressao_decisao",
+      "transferencia_jogo",
+      "sintese_fechamento",
+    ]);
+    if (!allowedRoles.has(String(matched.sessionRole ?? ""))) return undefined;
+
+    return {
+      sessionIndexInWeek: params.sessionIndexInWeek,
+      sessionRole: matched.sessionRole as NonNullable<
+        CycleDayPlanningContext["weeklyOperationalDecision"]
+      >["sessionRole"],
+      quarterFocus: String(matched.quarterFocus ?? "").trim(),
+      appliedRules: Array.isArray(matched.appliedRules)
+        ? matched.appliedRules.map((value) => String(value)).filter(Boolean)
+        : [],
+      driftRisks: Array.isArray(matched.driftRisks)
+        ? matched.driftRisks.map((value) => String(value)).filter(Boolean)
+        : [],
+      quarter: matched.quarter ?? "unknown",
+      closingType: matched.closingType ?? "unknown",
+    };
+  } catch {
+    return undefined;
+  }
+};
+
 export const buildCycleDayPlanningContext = (
   params: BuildCycleDayPlanningContextParams
 ): CycleDayPlanningContext => {
@@ -456,6 +518,10 @@ export const buildCycleDayPlanningContext = (
     historicalConfidence,
     sessionIndexInWeek,
   });
+  const weeklyOperationalDecision = resolveWeeklyOperationalDecision({
+    classPlan: params.classPlan,
+    sessionIndexInWeek,
+  });
 
   return {
     classId: params.classGroup.id,
@@ -487,6 +553,7 @@ export const buildCycleDayPlanningContext = (
       primarySkill,
     }),
     recentSessions,
+    weeklyOperationalDecision,
     dominantGapSkill: dominantGapSkill ?? undefined,
     dominantGapType,
     dominantBlock: resolveClassPlanDominantBlock(params.classPlan) ?? recentSessions[0]?.dominantBlock,

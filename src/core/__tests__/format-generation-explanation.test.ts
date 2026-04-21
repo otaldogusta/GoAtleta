@@ -89,6 +89,12 @@ describe("formatGenerationExplanation", () => {
         preferredProgressionDimension: "precisao",
         learnedFields: ["primarySkill", "progressionDimension"],
       },
+      operationalAdjusted: true,
+      operationalInfluence: {
+        applied: true,
+        rulesApplied: ["age_band_hard_constraint", "anti_repetition_progression_axis"],
+        changedFields: ["progressionDimension", "loadIntent"],
+      },
     });
 
     expect(result.coachSummary).toContain("Histórico parcial na fase Estabilização técnica.");
@@ -98,6 +104,8 @@ describe("formatGenerationExplanation", () => {
     expect(result.coachSummary).toContain("Bloco organizacao ofensiva priorizado.");
     expect(result.coachSummary).toContain("Carga intensiva aplicada.");
     expect(result.coachSummary).toContain("Variação anti-repetição aplicada por clone recente.");
+    expect(result.summary).toContain("regras operacionais");
+    expect(result.debug.operationalAdjusted).toBe(true);
     expect(result.debug.overrideStrength).toBe("strong");
     expect(result.debug.historyMode).toBe("partial_history");
   });

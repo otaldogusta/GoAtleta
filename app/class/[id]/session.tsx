@@ -148,6 +148,7 @@ import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { formatClock, formatDuration } from "../../../src/utils/format-time";
+import { getLessonBlockTimes } from "../../../src/utils/lesson-block-times";
 import { normalizeDisplayText } from "../../../src/utils/text-normalization";
 import { calculateAdjacentClassDate } from "../../../src/utils/whatsapp-templates";
 
@@ -1749,6 +1750,7 @@ const convertPedagogicalPlanToTrainingPlan = (
 ): TrainingPlan => {
   const nowIso = new Date().toISOString();
   const title = `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`;
+  const blockTimes = getLessonBlockTimes(pkg.input.duration ?? 60);
   return createTrainingPlanVersion({
     classId,
     version,
@@ -1764,9 +1766,9 @@ const convertPedagogicalPlanToTrainingPlan = (
       warmup: pkg.final.warmup.activities.map((activity) => activity.name),
       main: pkg.final.main.activities.map((activity) => activity.name),
       cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
-      warmupTime: `${pkg.final.warmup.duration} min`,
-      mainTime: `${pkg.final.main.duration} min`,
-      cooldownTime: `${pkg.final.cooldown.duration} min`,
+      warmupTime: `${blockTimes.warmupMinutes} min`,
+      mainTime: `${blockTimes.mainMinutes} min`,
+      cooldownTime: `${blockTimes.cooldownMinutes} min`,
     },
     applyDays: existingPlan?.applyDays ?? [],
     applyDate: existingPlan?.applyDate ?? sessionDateValue,
@@ -1780,21 +1782,24 @@ const convertPedagogicalPlanToTrainingPlan = (
   });
 };
 
-const pedagogicalPlanToAiDraft = (pkg: PedagogicalPlanPackage) => ({
-  title: `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`,
-  tags: [
-    `modo:${pkg.generated.basePlanKind}`,
-    `nivel:${pkg.analysis.level}`,
-    `heterogeneidade:${pkg.analysis.heterogeneity}`,
-    `contexto:${pkg.input.context ?? "treinamento"}`,
-  ],
-  warmup: pkg.final.warmup.activities.map((activity) => activity.name),
-  main: pkg.final.main.activities.map((activity) => activity.name),
-  cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
-  warmupTime: `${pkg.final.warmup.duration} min`,
-  mainTime: `${pkg.final.main.duration} min`,
-  cooldownTime: `${pkg.final.cooldown.duration} min`,
-});
+const pedagogicalPlanToAiDraft = (pkg: PedagogicalPlanPackage) => {
+  const blockTimes = getLessonBlockTimes(pkg.input.duration ?? 60);
+  return {
+    title: `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`,
+    tags: [
+      `modo:${pkg.generated.basePlanKind}`,
+      `nivel:${pkg.analysis.level}`,
+      `heterogeneidade:${pkg.analysis.heterogeneity}`,
+      `contexto:${pkg.input.context ?? "treinamento"}`,
+    ],
+    warmup: pkg.final.warmup.activities.map((activity) => activity.name),
+    main: pkg.final.main.activities.map((activity) => activity.name),
+    cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
+    warmupTime: `${blockTimes.warmupMinutes} min`,
+    mainTime: `${blockTimes.mainMinutes} min`,
+    cooldownTime: `${blockTimes.cooldownMinutes} min`,
+  };
+};
 
 const buildPedagogicalAiDraft = (pkg: PedagogicalPlanPackage) =>
   JSON.stringify(pedagogicalPlanToAiDraft(pkg));
@@ -1892,8 +1897,24 @@ const shiftIsoDate = (isoDate: string, deltaDays: number) => {
   const base = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(base.getTime())) return isoDate;
   base.setDate(base.getDate() + deltaDays);
-  return base.toISOString().slice(0, 10);
+  const year = base.getFullYear();
+  const month = String(base.getMonth() + 1).padStart(2, "0");
+  const day = String(base.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
+
+const formatIsoDate = (value: Date) => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeClassDaysOfWeek = (daysOfWeek: number[] | undefined) =>
+  (daysOfWeek ?? [])
+    .map((value) => Number(value))
+    .map((value) => (value === 7 ? 0 : value))
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
 
 export default function SessionScreen() {
   const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
@@ -2017,12 +2038,57 @@ export default function SessionScreen() {
     useCollapsibleAnimation(showTechniquePicker, { translateY: -6 });
   const planFabBottom = Math.max(insets.bottom + 166, 182);
   const planFabMenuBottom = planFabBottom + 74;
+  const hasExplicitSessionDate =
+    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date);
   const sessionDate =
-    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    hasExplicitSessionDate
       ? date
-      : new Date().toISOString().slice(0, 10);
+      : (() => {
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, "0");
+          const day = String(now.getDate()).padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        })();
   const shouldAutoGenerateFromPeriodization =
     autogenerate === "1" && source === "periodization";
+
+  useEffect(() => {
+    if (hasExplicitSessionDate || !cls) return;
+
+    const classDays = normalizeClassDaysOfWeek(cls.daysOfWeek);
+    if (!classDays.length) return;
+
+    const today = new Date();
+    const todayWeekday = today.getDay();
+    const targetDate = classDays.includes(todayWeekday)
+      ? today
+      : calculateAdjacentClassDate(classDays, today, 1);
+
+    if (!targetDate) return;
+    const targetIsoDate = formatIsoDate(targetDate);
+    if (targetIsoDate === sessionDate) return;
+
+    router.replace({
+      pathname: "/class/[id]/session",
+      params: {
+        id: cls.id,
+        date: targetIsoDate,
+        tab: typeof tab === "string" ? tab : undefined,
+        autogenerate: typeof autogenerate === "string" ? autogenerate : undefined,
+        source: typeof source === "string" ? source : undefined,
+      },
+    });
+  }, [
+    autogenerate,
+    cls,
+    hasExplicitSessionDate,
+    router,
+    sessionDate,
+    source,
+    tab,
+  ]);
+
   const parseTime = (value: string) => {
     const parts = value.split(":");
     const hour = Number(parts[0]);
@@ -2764,15 +2830,16 @@ export default function SessionScreen() {
   const warmup = (plan?.warmup ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
   const main = (plan?.main ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
   const cooldown = (plan?.cooldown ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
+  const defaultBlockTimes = getLessonBlockTimes(cls?.durationMinutes ?? 60);
   const warmupLabel = plan?.warmupTime
     ? `${ptBR.session.warmup} • ` + formatDuration(plan.warmupTime)
-    : `${ptBR.session.warmup} • 10 min`;
+    : `${ptBR.session.warmup} • ${defaultBlockTimes.warmupMinutes} min`;
   const mainLabel = plan?.mainTime
     ? `${ptBR.session.main} • ` + formatClock(plan.mainTime)
-    : `${ptBR.session.main} • 45 min`;
+    : `${ptBR.session.main} • ${defaultBlockTimes.mainMinutes} min`;
   const cooldownLabel = plan?.cooldownTime
     ? `${ptBR.session.cooldown} • ` + formatDuration(plan.cooldownTime)
-    : `${ptBR.session.cooldown} • 5 min`;
+    : `${ptBR.session.cooldown} • ${defaultBlockTimes.cooldownMinutes} min`;
   const showNoPlanNotice = !plan;
   const className = cls?.name ?? "";
   const classAgeBand = cls?.ageBand ?? "";
@@ -2795,11 +2862,11 @@ export default function SessionScreen() {
   const durations = useMemo(() => {
     if (!plan) return [0, 0, 0];
     return [
-      plan.warmupTime ? parseMinutes(plan.warmupTime, 10) : 10,
-      plan.mainTime ? parseMinutes(plan.mainTime, 45) : 45,
-      plan.cooldownTime ? parseMinutes(plan.cooldownTime, 5) : 5,
+      plan.warmupTime ? parseMinutes(plan.warmupTime, defaultBlockTimes.warmupMinutes) : defaultBlockTimes.warmupMinutes,
+      plan.mainTime ? parseMinutes(plan.mainTime, defaultBlockTimes.mainMinutes) : defaultBlockTimes.mainMinutes,
+      plan.cooldownTime ? parseMinutes(plan.cooldownTime, defaultBlockTimes.cooldownMinutes) : defaultBlockTimes.cooldownMinutes,
     ];
-  }, [plan]);
+  }, [defaultBlockTimes.cooldownMinutes, defaultBlockTimes.mainMinutes, defaultBlockTimes.warmupMinutes, plan]);
 
   const totalMinutes = durations.reduce((sum, value) => sum + value, 0);
   const activeDimensions = plan?.pedagogy?.dimensions?.refined ?? plan?.pedagogy?.dimensions?.base ?? null;
@@ -2884,9 +2951,9 @@ export default function SessionScreen() {
 
   const getBlockDurationMinutes = (blockKey: SessionBlockKey) => {
     if (!plan) return 0;
-    if (blockKey === "warmup") return parseMinutes(plan.warmupTime ?? "", 10);
-    if (blockKey === "main") return parseMinutes(plan.mainTime ?? "", 45);
-    return parseMinutes(plan.cooldownTime ?? "", 5);
+    if (blockKey === "warmup") return parseMinutes(plan.warmupTime ?? "", defaultBlockTimes.warmupMinutes);
+    if (blockKey === "main") return parseMinutes(plan.mainTime ?? "", defaultBlockTimes.mainMinutes);
+    return parseMinutes(plan.cooldownTime ?? "", defaultBlockTimes.cooldownMinutes);
   };
 
   const getBlockSummary = (blockKey: SessionBlockKey) => {
@@ -2917,7 +2984,7 @@ export default function SessionScreen() {
         const manualDescription = String(item.description ?? "").trim();
         return {
           name: normalizeDisplayText(activityName),
-          notes: normalizeDisplayText(
+          description: normalizeDisplayText(
             manualDescription ||
               resolveActivityDescription({
                 name: activityName,
@@ -2930,7 +2997,7 @@ export default function SessionScreen() {
           ),
         };
       })
-      .filter((item): item is { name: string; notes: string } => Boolean(item));
+        .filter((item): item is { name: string; description: string } => Boolean(item));
   };
 
   const buildEditableBlockActivities = (blockKey: SessionBlockKey): EditableBlockItem[] => {
@@ -2956,20 +3023,20 @@ export default function SessionScreen() {
           key: selectedBlockKey,
           title: blockTitleMap[selectedBlockKey],
           durationMinutes: getBlockDurationMinutes(selectedBlockKey),
-          summary: getBlockSummary(selectedBlockKey),
           activities: buildEditableBlockActivities(selectedBlockKey),
         }
       : null;
 
   const navigateSessionDate = (deltaDays: number) => {
     if (!cls) return;
+    const classDays = normalizeClassDaysOfWeek(cls.daysOfWeek);
     const adjacentClassDate = calculateAdjacentClassDate(
-      cls.daysOfWeek ?? [],
+      classDays,
       new Date(`${sessionDate}T00:00:00`),
       deltaDays < 0 ? -1 : 1
     );
     const targetDate = adjacentClassDate
-      ? adjacentClassDate.toISOString().slice(0, 10)
+      ? `${adjacentClassDate.getFullYear()}-${String(adjacentClassDate.getMonth() + 1).padStart(2, "0")}-${String(adjacentClassDate.getDate()).padStart(2, "0")}`
       : shiftIsoDate(sessionDate, deltaDays);
     router.replace({
       pathname: "/class/[id]/session",
@@ -3538,7 +3605,6 @@ export default function SessionScreen() {
     if (!plan || !cls || !selectedBlockKey) return false;
     setIsSavingBlockEdit(true);
     try {
-      const summaryValue = String(payload.summary ?? "").trim();
       const safeDuration =
         Number.isFinite(payload.durationMinutes) && payload.durationMinutes > 0
           ? payload.durationMinutes
@@ -3549,8 +3615,19 @@ export default function SessionScreen() {
           description: String(item?.description ?? "").trim(),
         }))
         .filter((item) => item.name);
-      const nextBlockSummary =
-        summaryValue || plan.pedagogy?.blocks?.[selectedBlockKey]?.summary || "";
+
+      const resolveLegacySummaryFromActivities = (
+        items: EditableBlockItem[],
+        fallback: string
+      ) => {
+        const fromDescription = items
+          .map((item) => String(item.description ?? "").trim())
+          .find(Boolean);
+        const fromName = items
+          .map((item) => String(item.name ?? "").trim())
+          .find(Boolean);
+        return fromDescription || fromName || fallback;
+      };
 
       const buildSavedActivities = (
         blockKey: SessionBlockKey,
@@ -3572,11 +3649,17 @@ export default function SessionScreen() {
         }));
 
       const currentWarmupSummary =
-        selectedBlockKey === "warmup" ? nextBlockSummary : getBlockSummary("warmup");
+        selectedBlockKey === "warmup"
+          ? resolveLegacySummaryFromActivities(activities, getBlockSummary("warmup"))
+          : getBlockSummary("warmup");
       const currentMainSummary =
-        selectedBlockKey === "main" ? nextBlockSummary : getBlockSummary("main");
+        selectedBlockKey === "main"
+          ? resolveLegacySummaryFromActivities(activities, getBlockSummary("main"))
+          : getBlockSummary("main");
       const currentCooldownSummary =
-        selectedBlockKey === "cooldown" ? nextBlockSummary : getBlockSummary("cooldown");
+        selectedBlockKey === "cooldown"
+          ? resolveLegacySummaryFromActivities(activities, getBlockSummary("cooldown"))
+          : getBlockSummary("cooldown");
 
       const currentWarmupActivities =
         selectedBlockKey === "warmup" ? activities : buildEditableBlockActivities("warmup");
@@ -3841,19 +3924,16 @@ export default function SessionScreen() {
         {
           title: ptBR.session.warmup,
           time: plan.warmupTime ? formatDuration(plan.warmupTime) : `${durations[0]} min`,
-          summary: normalizeDisplayText(getBlockSummary("warmup")),
           items: buildPdfBlockItems("warmup"),
         },
         {
           title: ptBR.session.main,
           time: plan.mainTime ? formatClock(plan.mainTime) : `${durations[1]} min`,
-          summary: normalizeDisplayText(getBlockSummary("main")),
           items: buildPdfBlockItems("main"),
         },
         {
           title: ptBR.session.cooldown,
           time: plan.cooldownTime ? formatDuration(plan.cooldownTime) : `${durations[2]} min`,
-          summary: normalizeDisplayText(getBlockSummary("cooldown")),
           items: buildPdfBlockItems("cooldown"),
         },
       ],
@@ -4216,51 +4296,6 @@ export default function SessionScreen() {
             ) : null}
           </View>
         ) : null}
-        {sessionTab === "treino" && generationExplanation?.coachSummary ? (
-          <View
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              gap: 8,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                LEITURA DO SISTEMA
-              </Text>
-              {generationHistoryLabel ? (
-                <View
-                  style={{
-                    paddingVertical: 4,
-                    paddingHorizontal: 8,
-                    borderRadius: 999,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                    {generationHistoryLabel}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={{ color: colors.text, fontSize: 13, lineHeight: 19, fontWeight: "600" }}>
-              {generationExplanation.coachSummary}
-            </Text>
-          </View>
-        ) : null}
         {sessionTab === "treino" && isPlanGenerationBusy && plan ? (
           <View
             style={{
@@ -4554,9 +4589,6 @@ export default function SessionScreen() {
               { key: "main", label: mainLabel },
               { key: "cooldown", label: cooldownLabel },
             ] as const).map((section) => {
-              const summary = getBlockSummary(section.key);
-              const summaryText = sanitizePlanDisplayItem(summary);
-              const durationMinutes = getBlockDurationMinutes(section.key);
               const previewItems = dedupeByNormalizedText(getBlockActivities(section.key)).slice(0, 2);
               const phaseMeta =
                 section.key === "warmup"
@@ -4564,11 +4596,6 @@ export default function SessionScreen() {
                   : section.key === "main"
                     ? { tint: colors.card, border: colors.primaryBg }
                     : { tint: colors.card, border: colors.successText };
-              const hasSummaryDuplicate =
-                !!summaryText &&
-                previewItems.some(
-                  (item) => arePedagogicalTextsEquivalent(item, summaryText)
-                );
               return (
                 <Pressable
                   key={section.label}
@@ -4592,36 +4619,6 @@ export default function SessionScreen() {
                       <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
                         {section.label}
                       </Text>
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                        <View
-                          style={{
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                            borderRadius: 999,
-                            backgroundColor: colors.secondaryBg,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                            {durationMinutes} min
-                          </Text>
-                        </View>
-                        <View
-                          style={{
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                            borderRadius: 999,
-                            backgroundColor: colors.secondaryBg,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                            {previewItems.length} item{previewItems.length === 1 ? "" : "s"}
-                          </Text>
-                        </View>
-                      </View>
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       {lastUpdatedBlockKey === section.key ? (
@@ -4641,9 +4638,6 @@ export default function SessionScreen() {
                       <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                     </View>
                   </View>
-                  {summaryText && !hasSummaryDuplicate ? (
-                    <Text style={{ color: colors.muted }}>{summaryText}</Text>
-                  ) : null}
                   {previewItems.length ? (
                     <View style={{ gap: 4 }}>
                       {previewItems.map((item, index) => (
@@ -5657,7 +5651,6 @@ export default function SessionScreen() {
         visible={!!selectedBlockData}
         title={selectedBlockData?.title ?? ""}
         durationMinutes={selectedBlockData?.durationMinutes ?? 0}
-        summary={selectedBlockData?.summary ?? ""}
         activities={selectedBlockData?.activities ?? []}
         saving={isSavingBlockEdit}
         onClose={() => setSelectedBlockKey(null)}

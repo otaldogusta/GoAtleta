@@ -218,6 +218,8 @@ export const buildAutoPlanForCycleDay = (
     loadInfluence: strategyDecision.loadInfluence,
     overrideAdjusted: strategyDecision.overrideAdjusted,
     overrideInfluence: strategyDecision.overrideInfluence,
+    operationalAdjusted: strategyDecision.operationalAdjusted,
+    operationalInfluence: strategyDecision.operationalInfluence,
   });
 
   return {

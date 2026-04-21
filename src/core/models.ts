@@ -564,6 +564,91 @@ export type RepetitionAdjustment = {
   changedFields: string[];
 };
 
+export type WeekSessionRole =
+  | "introducao_exploracao"
+  | "retomada_consolidacao"
+  | "consolidacao_orientada"
+  | "pressao_decisao"
+  | "transferencia_jogo"
+  | "sintese_fechamento";
+
+export type WeeklyOperationalQuarter = "Q1" | "Q2" | "Q3" | "Q4" | "unknown";
+
+export type WeeklyOperationalClosingType =
+  | "exploracao"
+  | "consolidacao"
+  | "aplicacao"
+  | "fechamento"
+  | "unknown";
+
+export type WeeklyOperationalDecision = {
+  sessionIndexInWeek: number;
+  sessionRole: WeekSessionRole;
+  quarterFocus: string;
+  appliedRules: string[];
+  driftRisks: string[];
+  quarter: WeeklyOperationalQuarter;
+  closingType: WeeklyOperationalClosingType;
+};
+
+export type WeeklyOperationalStrategySnapshot = {
+  decisions: WeeklyOperationalDecision[];
+  quarterFocus: string;
+  sessionRoleSummary: string;
+  weekIntentSummary: string;
+  weekRulesApplied: string[];
+  diagnostics: {
+    quarter: WeeklyOperationalQuarter;
+    closingType: WeeklyOperationalClosingType;
+    driftRisks: string[];
+  };
+};
+
+export type WeeklySessionCoherenceCheck = {
+  sessionIndexInWeek: number;
+  sessionRole: WeekSessionRole;
+  envelopeRespected: boolean;
+  reason?: string;
+};
+
+export type PedagogicalDriftCode =
+  | "weekly_session_misalignment"
+  | "quarter_week_misalignment"
+  | "load_flattening"
+  | "repetition_excess"
+  | "progression_stagnation";
+
+export type PedagogicalDriftSignal = {
+  detected: boolean;
+  severity: "low" | "medium" | "high";
+  reason: string;
+  code: PedagogicalDriftCode;
+};
+
+export type SessionOperationalDebug = {
+  sessionIndex: number;
+  sessionRole: WeekSessionRole;
+  finalStrategy: SessionStrategy | null;
+  rulesApplied: string[];
+  envelopeRespected: boolean;
+};
+
+export type WeeklyObservabilitySummary = {
+  quarterFocus: string;
+  quarter: WeeklyOperationalQuarter;
+  closingType: WeeklyOperationalClosingType;
+  weekRulesApplied: string[];
+  driftRisks: string[];
+  sessionRoleSummary: string;
+  sessionSummaries: Array<{
+    sessionIndexInWeek: number;
+    sessionRole: WeekSessionRole;
+  }>;
+  coherence: WeeklySessionCoherenceCheck[];
+  driftSignals: PedagogicalDriftSignal[];
+  sessionDebug: SessionOperationalDebug[];
+};
+
 export type CycleDayPlanningContext = {
   classId: string;
   classGoal?: string;
@@ -584,6 +669,7 @@ export type CycleDayPlanningContext = {
   progressionDimensionTarget: ProgressionDimension;
   pedagogicalIntent: PedagogicalIntent;
   recentSessions: RecentSessionSummary[];
+  weeklyOperationalDecision?: WeeklyOperationalDecision;
   dominantGapSkill?: VolleyballSkill;
   dominantGapType?: DominantGapType;
   dominantBlock?: string;
