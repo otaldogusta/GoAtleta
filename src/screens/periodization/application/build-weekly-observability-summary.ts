@@ -1,91 +1,160 @@
+import { validateSessionAgainstWeeklyAuthority } from "../../../core/decision-authority";
 import type {
     PedagogicalDriftSignal,
     SessionOperationalDebug,
-    SessionStrategy,
-    WeekSessionRole,
+    WeeklyAuthorityCheck,
+    WeeklyAuthoritySummary,
+    WeeklyAuthorityViolationCode,
     WeeklyObservabilitySummary,
     WeeklyOperationalStrategySnapshot,
     WeeklySessionCoherenceCheck,
+    WeeklyStabilityAssessment,
 } from "../../../core/models";
 import type { PeriodizationWeekScheduleItem } from "./build-auto-plan-for-cycle-day";
-
-const progressionRank: Record<SessionStrategy["progressionDimension"], number> = {
-  consistencia: 0,
-  precisao: 1,
-  pressao_tempo: 2,
-  oposicao: 3,
-  tomada_decisao: 4,
-  transferencia_jogo: 5,
-};
-
-const levelRank: Record<SessionStrategy["gameTransferLevel"], number> = {
-  low: 0,
-  medium: 1,
-  high: 2,
-};
 
 const uniqueStrings = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
-const detectEnvelopeViolation = (
-  sessionRole: WeekSessionRole,
-  strategy: SessionStrategy
-): string | null => {
-  const progression = progressionRank[strategy.progressionDimension] ?? 0;
-  const transfer = levelRank[strategy.gameTransferLevel] ?? 0;
-  const opposition = levelRank[strategy.oppositionLevel] ?? 0;
-  const pressure = levelRank[strategy.timePressureLevel] ?? 0;
-
-  if (sessionRole === "introducao_exploracao" || sessionRole === "retomada_consolidacao") {
-    if (progression > progressionRank.precisao) {
-      return "progression_out_of_intro_envelope";
-    }
-    if (strategy.loadIntent === "alto") {
-      return "load_out_of_intro_envelope";
-    }
-    return null;
+const getAuthorityViolationSeverity = (
+  code: WeeklyAuthorityViolationCode
+): PedagogicalDriftSignal["severity"] => {
+  switch (code) {
+    case "pure_technical_isolation_not_allowed":
+    case "missing_closure_signal":
+      return "high";
+    case "progression_outside_weekly_role":
+    case "game_transfer_below_weekly_role_minimum":
+    case "load_above_weekly_role_maximum":
+      return "medium";
+    default:
+      return "low";
   }
+};
 
-  if (sessionRole === "consolidacao_orientada") {
-    if (progression < progressionRank.precisao) {
-      return "progression_below_consolidation_floor";
-    }
-    return null;
+const getDriftSignalWeight = (severity: PedagogicalDriftSignal["severity"]): number => {
+  switch (severity) {
+    case "high":
+      return 3;
+    case "medium":
+      return 2;
+    case "low":
+    default:
+      return 1;
   }
+};
 
-  if (sessionRole === "pressao_decisao") {
-    if (progression < progressionRank.pressao_tempo) {
-      return "progression_below_pressure_floor";
-    }
-    if (opposition < levelRank.medium || pressure < levelRank.medium) {
-      return "pressure_levels_below_week_role";
-    }
-    return null;
-  }
+const getAuthorityImpactScore = (authority: WeeklyAuthoritySummary | undefined): number => {
+  if (!authority || authority.totalChecks === 0) return 0;
 
-  if (sessionRole === "transferencia_jogo") {
-    if (progression < progressionRank.tomada_decisao) {
-      return "progression_below_transfer_floor";
-    }
-    if (transfer < levelRank.medium) {
-      return "transfer_level_below_week_role";
-    }
-    return null;
-  }
-
-  if (sessionRole === "sintese_fechamento") {
-    if (progression < progressionRank.tomada_decisao) {
-      return "progression_below_closing_floor";
-    }
-    if (transfer < levelRank.medium) {
-      return "transfer_level_below_closing_floor";
-    }
-    if (strategy.loadIntent === "alto") {
-      return "load_not_reduced_for_closing";
+  let score = 0;
+  for (const check of authority.checks) {
+    for (const violation of check.violations) {
+      switch (violation) {
+        case "pure_technical_isolation_not_allowed":
+        case "missing_closure_signal":
+          score += 3;
+          break;
+        case "progression_outside_weekly_role":
+        case "game_transfer_below_weekly_role_minimum":
+        case "load_above_weekly_role_maximum":
+          score += 2;
+          break;
+        default:
+          score += 1;
+      }
     }
   }
 
-  return null;
+  if (authority.passRate < 0.5) {
+    score += 2;
+  }
+
+  return score;
+};
+
+const buildWeeklyStabilityAssessment = (params: {
+  driftSignals: PedagogicalDriftSignal[];
+  authority?: WeeklyAuthoritySummary;
+}): WeeklyStabilityAssessment => {
+  const driftScore = params.driftSignals.reduce(
+    (sum, signal) => sum + getDriftSignalWeight(signal.severity),
+    0
+  );
+  const authorityScore = getAuthorityImpactScore(params.authority);
+  const totalScore = driftScore + authorityScore;
+
+  const reasons = Array.from(
+    new Set([
+      ...params.driftSignals.map((signal) => signal.code),
+      ...(params.authority?.checks.flatMap((check) => check.violations) ?? []),
+    ])
+  );
+
+  if (totalScore >= 6) {
+    return {
+      severity: "high",
+      status: "unstable",
+      reasons,
+    };
+  }
+
+  if (totalScore >= 3) {
+    return {
+      severity: "medium",
+      status: "attention",
+      reasons,
+    };
+  }
+
+  return {
+    severity: "low",
+    status: "stable",
+    reasons,
+  };
+};
+
+const buildWeeklyAuthoritySummary = (params: {
+  weeklySnapshot: WeeklyOperationalStrategySnapshot;
+  weekSchedule: PeriodizationWeekScheduleItem[];
+}): WeeklyAuthoritySummary => {
+  const checks: WeeklyAuthorityCheck[] = params.weeklySnapshot.decisions.map((decision) => {
+    const strategy =
+      params.weekSchedule.find((item) => item.sessionIndexInWeek === decision.sessionIndexInWeek)
+        ?.autoPlan?.strategy ?? null;
+
+    const result = validateSessionAgainstWeeklyAuthority({
+      weeklyDecision: decision,
+      strategy,
+    });
+
+    if (!result) {
+      return {
+        sessionIndexInWeek: decision.sessionIndexInWeek,
+        sessionRole: decision.sessionRole,
+        isWithinEnvelope: false,
+        violations: ["progression_outside_weekly_role"],
+      };
+    }
+
+    return {
+      sessionIndexInWeek: decision.sessionIndexInWeek,
+      sessionRole: decision.sessionRole,
+      isWithinEnvelope: result.isWithinEnvelope,
+      violations: result.violations,
+    };
+  });
+
+  const totalChecks = checks.length;
+  const totalViolations = checks.reduce((sum, item) => sum + item.violations.length, 0);
+  const passedChecks = checks.filter((item) => item.isWithinEnvelope).length;
+
+  return {
+    checks,
+    passRate: totalChecks > 0 ? passedChecks / totalChecks : 1,
+    hasViolations: totalViolations > 0,
+    totalChecks,
+    totalViolations,
+  };
 };
 
 const buildSessionCoherence = (params: {
@@ -118,8 +187,12 @@ const buildSessionCoherence = (params: {
       continue;
     }
 
-    const reason = detectEnvelopeViolation(decision.sessionRole, finalStrategy);
-    const envelopeRespected = !reason;
+    const authorityResult = validateSessionAgainstWeeklyAuthority({
+      weeklyDecision: decision,
+      strategy: finalStrategy,
+    });
+    const envelopeRespected = authorityResult?.isWithinEnvelope ?? false;
+    const reason = authorityResult?.violations[0];
 
     coherence.push({
       sessionIndexInWeek: decision.sessionIndexInWeek,
@@ -152,6 +225,7 @@ export const detectPedagogicalDrift = (params: {
   weeklySnapshot: WeeklyOperationalStrategySnapshot;
   weekSchedule: PeriodizationWeekScheduleItem[];
   coherence: WeeklySessionCoherenceCheck[];
+  authority?: WeeklyAuthoritySummary | null;
 }): PedagogicalDriftSignal[] => {
   const driftSignals: PedagogicalDriftSignal[] = [];
   const scheduledStrategies = params.weekSchedule
@@ -167,6 +241,23 @@ export const detectPedagogicalDrift = (params: {
       severity: "high",
       reason: "At least one session escaped the weekly role envelope.",
       code: "weekly_session_misalignment",
+    });
+  }
+
+  if (params.authority?.hasViolations) {
+    const highestSeverity = params.authority.checks
+      .flatMap((check) => check.violations)
+      .map((code) => getAuthorityViolationSeverity(code))
+      .reduce<PedagogicalDriftSignal["severity"]>((current, incoming) => {
+        const rank = { low: 1, medium: 2, high: 3 };
+        return rank[incoming] > rank[current] ? incoming : current;
+      }, "low");
+
+    driftSignals.push({
+      detected: true,
+      severity: highestSeverity,
+      reason: "One or more sessions escaped the authority envelope defined by weekly role.",
+      code: "weekly_authority_violation",
     });
   }
 
@@ -241,10 +332,19 @@ export const buildWeeklyObservabilitySummary = (params: {
     decisions: snapshot.decisions,
     weekSchedule: params.weekSchedule,
   });
+  const authority = buildWeeklyAuthoritySummary({
+    weeklySnapshot: snapshot,
+    weekSchedule: params.weekSchedule,
+  });
   const driftSignals = detectPedagogicalDrift({
     weeklySnapshot: snapshot,
     weekSchedule: params.weekSchedule,
     coherence,
+    authority,
+  });
+  const stability = buildWeeklyStabilityAssessment({
+    driftSignals,
+    authority,
   });
 
   return {
@@ -259,6 +359,8 @@ export const buildWeeklyObservabilitySummary = (params: {
       sessionRole: decision.sessionRole,
     })),
     coherence,
+    authority,
+    stability,
     driftSignals,
     sessionDebug,
   };

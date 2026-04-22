@@ -611,8 +611,308 @@ export type WeeklySessionCoherenceCheck = {
   reason?: string;
 };
 
+export type WeeklyAuthorityViolationCode =
+  | "progression_outside_weekly_role"
+  | "game_transfer_below_weekly_role_minimum"
+  | "load_above_weekly_role_maximum"
+  | "pure_technical_isolation_not_allowed"
+  | "missing_closure_signal";
+
+export type WeeklyAuthorityCheck = {
+  sessionIndexInWeek: number;
+  sessionRole: WeekSessionRole;
+  isWithinEnvelope: boolean;
+  violations: WeeklyAuthorityViolationCode[];
+};
+
+export type WeeklyAuthoritySummary = {
+  checks: WeeklyAuthorityCheck[];
+  passRate: number;
+  hasViolations: boolean;
+  totalChecks: number;
+  totalViolations: number;
+};
+
+export type WeeklyObservabilitySeverity = "low" | "medium" | "high";
+
+export type WeeklyStabilityStatus = "stable" | "attention" | "unstable";
+
+export type WeeklyStabilityAssessment = {
+  severity: WeeklyObservabilitySeverity;
+  status: WeeklyStabilityStatus;
+  reasons: string[];
+};
+
+export type ObservabilityRecommendationCode =
+  | "reduce_technical_isolation"
+  | "restore_weekly_role_alignment"
+  | "rebalance_load_progression"
+  | "increase_game_transfer"
+  | "reinforce_quarter_closing_signal"
+  | "reduce_repetition_with_controlled_variation"
+  | "review_recent_week_design";
+
+export type ObservabilityRecommendationPriority = "low" | "medium" | "high";
+
+export type ObservabilityRecommendationAction =
+  | "adjust_next_week"
+  | "review_current_week"
+  | "monitor_without_change";
+
+export type ObservabilityRecommendation = {
+  code: ObservabilityRecommendationCode;
+  priority: ObservabilityRecommendationPriority;
+  action: ObservabilityRecommendationAction;
+  title: string;
+  message: string;
+  rationale: string;
+  sourceSignals: string[];
+};
+
+export type ObservabilityRecommendationDecisionStatus =
+  | "suggested"
+  | "accepted"
+  | "rejected";
+
+export type ObservabilityRecommendationDecisionReasonType =
+  | "teacher_judgment"
+  | "context_constraint"
+  | "not_relevant"
+  | "accepted_without_note"
+  | "other";
+
+export type ObservabilityRecommendationDecision = {
+  id: string;
+  classId: string;
+  cycleId: string;
+  planId: string;
+  weekNumber: number;
+  recommendationCode: ObservabilityRecommendationCode;
+  status: ObservabilityRecommendationDecisionStatus;
+  priority: ObservabilityRecommendationPriority;
+  title: string;
+  message: string;
+  rationale: string;
+  sourceSignals: string[];
+  reasonType?: ObservabilityRecommendationDecisionReasonType | null;
+  reasonNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RecommendationEvidenceOutcome =
+  | "improved"
+  | "unchanged"
+  | "worsened"
+  | "insufficient_evidence";
+
+export type RecommendationEvidence = {
+  recommendationCode: ObservabilityRecommendationCode;
+  decisionStatus: ObservabilityRecommendationDecisionStatus;
+  baselineWeekNumber: number;
+  comparedWeeks: number[];
+  outcome: RecommendationEvidenceOutcome;
+  rationale: string;
+  delta?: {
+    coherenceScore?: number;
+    unstableWeeks?: number;
+    authorityViolationWeeks?: number;
+  };
+};
+
+export type RecommendationObservationalConfidence = "low" | "medium" | "high";
+
+export type RecommendationFamilyAggregate = {
+  recommendationCode: ObservabilityRecommendationCode;
+  totalSuggested: number;
+  totalAccepted: number;
+  totalRejected: number;
+  improvedCount: number;
+  unchangedCount: number;
+  worsenedCount: number;
+  insufficientEvidenceCount: number;
+  confidence: RecommendationObservationalConfidence;
+};
+
+export type RecommendationRankingReason =
+  | "base_priority_only"
+  | "boosted_by_high_confidence"
+  | "held_by_low_confidence"
+  | "stable_medium_confidence";
+
+export type RecommendationConfidenceFraming =
+  | "history_favorable"
+  | "history_inconclusive"
+  | "history_unfavorable";
+
+export type RecommendationPresentationTone =
+  | "reinforced"
+  | "neutral"
+  | "cautious";
+
+export type RecommendationPresentation = {
+  tone: RecommendationPresentationTone;
+  shortLabel: string;
+  helperText: string;
+};
+
+export type RecommendationProblemFamily =
+  | "weekly_alignment"
+  | "technical_isolation"
+  | "load_progression"
+  | "game_transfer"
+  | "quarter_closing"
+  | "repetition_control"
+  | "recent_week_design";
+
+export type RecommendationFamilyPresentation = {
+  family: RecommendationProblemFamily;
+  familyLabel: string;
+  familyHelperText: string;
+};
+
+export type RecommendationProblemFamilyCohort = {
+  family: RecommendationProblemFamily;
+  familyLabel: string;
+  familyHelperText: string;
+  recommendationsCount: number;
+  highPriorityCount: number;
+  cautiousCount: number;
+};
+
+export type RecommendationProblemFamilySummary = {
+  dominantFamily: RecommendationProblemFamily | null;
+  dominantFamilyLabel: string | null;
+  cohorts: RecommendationProblemFamilyCohort[];
+};
+
+export type RecommendationProblemFamilyTension =
+  | "reinforcing"
+  | "competing"
+  | "isolated";
+
+export type RecommendationProblemAxisSummary = {
+  dominantFamily: RecommendationProblemFamily;
+  dominantLabel: string;
+  secondaryFamily: RecommendationProblemFamily | null;
+  secondaryLabel: string | null;
+  tension: RecommendationProblemFamilyTension;
+  summary: string;
+};
+
+export type RecommendationProblemFamilyTimelineItem = {
+  weekNumber: number;
+  dominantFamily: RecommendationProblemFamily;
+  dominantLabel: string;
+};
+
+export type RecommendationAxisTransitionType =
+  | "stable_axis"
+  | "axis_shift"
+  | "axis_rotation";
+
+export type RecommendationAxisTransitionSummary = {
+  transitionType: RecommendationAxisTransitionType;
+  currentFamily: RecommendationProblemFamily;
+  currentLabel: string;
+  previousFamily: RecommendationProblemFamily | null;
+  previousLabel: string | null;
+  summary: string;
+};
+
+export type RecommendationAxisPersistenceType =
+  | "stable_persistence"
+  | "mixed_persistence"
+  | "unstable_rotation";
+
+export type RecommendationAxisEarlyWarning = "none" | "attention" | "warning";
+
+export type RecommendationAxisPersistenceSummary = {
+  persistenceType: RecommendationAxisPersistenceType;
+  earlyWarning: RecommendationAxisEarlyWarning;
+  dominantFamily: RecommendationProblemFamily | null;
+  dominantLabel: string | null;
+  weeksAnalyzed: number;
+  summary: string;
+};
+
+// Slice 3.7 — QA Digest
+export type RecommendationQADigest = {
+  dominantAxisLabel: string | null;
+  secondaryAxisLabel: string | null;
+  tension: RecommendationProblemFamilyTension | null;
+  persistenceType: RecommendationAxisPersistenceType | null;
+  earlyWarning: RecommendationAxisEarlyWarning;
+  recommendationFocus: string | null;
+  summary: string;
+};
+
+// Slice 3.8 — Window comparison
+export type RecommendationWindowSummary = {
+  windowSize: number;
+  dominantFamily: RecommendationProblemFamily | null;
+  dominantLabel: string | null;
+  distinctFamilies: number;
+  persistenceType: RecommendationAxisPersistenceType | null;
+};
+
+export type RecommendationWindowDivergence =
+  | "same_axis"
+  | "different_axis"
+  | "insufficient_data";
+
+export type RecommendationWindowComparisonSummary = {
+  shortWindow: RecommendationWindowSummary;
+  mediumWindow: RecommendationWindowSummary;
+  divergence: RecommendationWindowDivergence;
+  interpretation: "acute" | "structural" | "inconclusive";
+  summary: string;
+};
+
+// Slice 3.9 — Axis alignment
+export type RecommendationAxisAlignmentType =
+  | "convergent"
+  | "partially_convergent"
+  | "divergent";
+
+export type RecommendationAxisAlignmentSummary = {
+  alignmentType: RecommendationAxisAlignmentType;
+  axisFamily: RecommendationProblemFamily | null;
+  axisLabel: string | null;
+  recommendationFocusFamily: RecommendationProblemFamily | null;
+  recommendationFocusLabel: string | null;
+  summary: string;
+};
+
+export type ConfidenceInformedRecommendation = {
+  recommendation: ObservabilityRecommendation;
+  confidence: RecommendationObservationalConfidence;
+  framing: RecommendationConfidenceFraming;
+  framingMessage: string;
+  presentation: RecommendationPresentation;
+  familyPresentation: RecommendationFamilyPresentation;
+};
+
+export type RankedObservabilityRecommendation = {
+  recommendation: ObservabilityRecommendation;
+  confidence: RecommendationObservationalConfidence;
+  framing: RecommendationConfidenceFraming;
+  framingMessage: string;
+  presentation: RecommendationPresentation;
+  familyPresentation: RecommendationFamilyPresentation;
+  rankingScore: number;
+  rankingReason: RecommendationRankingReason;
+};
+
+export type DerivedObservabilityRecommendationState = {
+  recommendation: ObservabilityRecommendation;
+  decisionStatus: "pending" | "accepted" | "rejected";
+  decision?: ObservabilityRecommendationDecision | null;
+};
+
 export type PedagogicalDriftCode =
   | "weekly_session_misalignment"
+  | "weekly_authority_violation"
   | "quarter_week_misalignment"
   | "load_flattening"
   | "repetition_excess"
@@ -645,6 +945,8 @@ export type WeeklyObservabilitySummary = {
     sessionRole: WeekSessionRole;
   }>;
   coherence: WeeklySessionCoherenceCheck[];
+  authority: WeeklyAuthoritySummary;
+  stability: WeeklyStabilityAssessment;
   driftSignals: PedagogicalDriftSignal[];
   sessionDebug: SessionOperationalDebug[];
 };

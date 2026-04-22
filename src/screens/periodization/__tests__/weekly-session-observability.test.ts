@@ -136,6 +136,8 @@ describe("weekly session observability", () => {
     expect(summary?.quarter).toBe("Q3");
     expect(summary?.weekRulesApplied).toContain("load_contrast_preserved");
     expect(summary?.sessionSummaries).toHaveLength(3);
+    expect(summary?.authority.totalChecks).toBe(3);
+    expect(summary?.stability.status).toBe("stable");
   });
 
   it("marks coherent sessions as envelope respected", () => {
@@ -186,6 +188,115 @@ describe("weekly session observability", () => {
 
     expect(summary).toBeTruthy();
     expect(summary?.coherence.some((item) => !item.envelopeRespected)).toBe(true);
+    expect(summary?.authority.hasViolations).toBe(true);
+  });
+
+  it("reports full authority pass rate when all sessions stay inside weekly envelope", () => {
+    const summary = buildWeeklyObservabilitySummary({
+      weeklySnapshot: snapshot,
+      weekSchedule: [
+        buildScheduleItem({
+          sessionIndexInWeek: 1,
+          dayNumber: 2,
+          strategy: buildStrategy({
+            progressionDimension: "precisao",
+            loadIntent: "baixo",
+            gameTransferLevel: "low",
+            oppositionLevel: "low",
+            timePressureLevel: "low",
+          }),
+        }),
+        buildScheduleItem({ sessionIndexInWeek: 2, dayNumber: 4, strategy: buildStrategy() }),
+        buildScheduleItem({
+          sessionIndexInWeek: 3,
+          dayNumber: 6,
+          strategy: buildStrategy({ progressionDimension: "tomada_decisao" }),
+        }),
+      ],
+    });
+
+    expect(summary?.authority.passRate).toBe(1);
+    expect(summary?.authority.hasViolations).toBe(false);
+    expect(summary?.authority.totalViolations).toBe(0);
+    expect(summary?.stability.status).toBe("stable");
+    expect(summary?.stability.severity).toBe("low");
+  });
+
+  it("flags authority violations when a session escapes its weekly role envelope", () => {
+    const summary = buildWeeklyObservabilitySummary({
+      weeklySnapshot: snapshot,
+      weekSchedule: [
+        buildScheduleItem({
+          sessionIndexInWeek: 1,
+          dayNumber: 2,
+          strategy: buildStrategy({
+            progressionDimension: "precisao",
+            loadIntent: "baixo",
+            gameTransferLevel: "low",
+            oppositionLevel: "low",
+            timePressureLevel: "low",
+          }),
+        }),
+        buildScheduleItem({ sessionIndexInWeek: 2, dayNumber: 4, strategy: buildStrategy() }),
+        buildScheduleItem({
+          sessionIndexInWeek: 3,
+          dayNumber: 6,
+          strategy: buildStrategy({
+            progressionDimension: "precisao",
+            gameTransferLevel: "low",
+            drillFamilies: ["bloco_tecnico"],
+            oppositionLevel: "low",
+            timePressureLevel: "low",
+          }),
+        }),
+      ],
+    });
+
+    expect(summary?.authority.passRate).toBeLessThan(1);
+    expect(summary?.authority.hasViolations).toBe(true);
+    expect(summary?.stability.status).toBe("unstable");
+    expect(summary?.stability.severity).toBe("high");
+    expect(
+      summary?.authority.checks.some((item) =>
+        item.violations.includes("pure_technical_isolation_not_allowed")
+      )
+    ).toBe(true);
+  });
+
+  it("adds weekly authority violation drift signal when authority has violations", () => {
+    const summary = buildWeeklyObservabilitySummary({
+      weeklySnapshot: snapshot,
+      weekSchedule: [
+        buildScheduleItem({
+          sessionIndexInWeek: 1,
+          dayNumber: 2,
+          strategy: buildStrategy({
+            progressionDimension: "precisao",
+            loadIntent: "baixo",
+            gameTransferLevel: "low",
+            oppositionLevel: "low",
+            timePressureLevel: "low",
+          }),
+        }),
+        buildScheduleItem({ sessionIndexInWeek: 2, dayNumber: 4, strategy: buildStrategy() }),
+        buildScheduleItem({
+          sessionIndexInWeek: 3,
+          dayNumber: 6,
+          strategy: buildStrategy({
+            progressionDimension: "precisao",
+            gameTransferLevel: "low",
+            drillFamilies: ["bloco_tecnico"],
+            oppositionLevel: "low",
+            timePressureLevel: "low",
+          }),
+        }),
+      ],
+    });
+
+    expect(
+      summary?.driftSignals.some((signal) => signal.code === "weekly_authority_violation")
+    ).toBe(true);
+    expect(summary?.stability.reasons).toContain("weekly_authority_violation");
   });
 
   it("detects drift when contrast is flattened", () => {
