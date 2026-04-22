@@ -265,6 +265,34 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_plan_obs_class
       ON plan_observability_summaries(classId, weekNumber);
 
+    CREATE TABLE IF NOT EXISTS recommendation_decisions (
+      id TEXT PRIMARY KEY NOT NULL,
+      classId TEXT NOT NULL,
+      cycleId TEXT NOT NULL DEFAULT '',
+      planId TEXT NOT NULL,
+      weekNumber INTEGER NOT NULL,
+      recommendationCode TEXT NOT NULL,
+      status TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      rationale TEXT NOT NULL,
+      sourceSignalsJson TEXT NOT NULL DEFAULT '[]',
+      reasonType TEXT,
+      reasonNote TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_recommendation_decisions_class_week
+      ON recommendation_decisions(classId, weekNumber);
+
+    CREATE INDEX IF NOT EXISTS idx_recommendation_decisions_plan
+      ON recommendation_decisions(planId);
+
+    CREATE INDEX IF NOT EXISTS idx_recommendation_decisions_code_status
+      ON recommendation_decisions(recommendationCode, status);
+
     CREATE TABLE IF NOT EXISTS class_competitive_profiles (
       classId TEXT PRIMARY KEY NOT NULL,
       organizationId TEXT NOT NULL DEFAULT '',
