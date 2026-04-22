@@ -1,165 +1,315 @@
 # Roadmap GoAtleta
 
-Documento vivo com fases, objetivos e entregaveis. Use como guia de execucao.
+Documento vivo de execucao do produto.
 
-## Fase 0 — Base do projeto e estabilidade de dev/build
+Norte atual:
 
-Objetivo: ambiente consistente para desenvolver, debugar e fazer builds.
+- a inteligencia existe para melhorar a geracao
+- a periodizacao precisa ser perceptivel no plano
+- QA observa e orienta leitura interna, mas nao controla o motor
+- professor continua como autoridade final
 
-Feito
-- Config unificada em app.config.js (remocao do app.json duplicado)
-- Android SDK ok (ANDROID_HOME, PATH)
-- EAS development build funcionando
-- Metro bundler estabilizado (porta 8083)
-- Sentry configurado (token/DSN/plugin)
+## Prioridade por trilha
 
-Recomendado
-- Criar profiles adicionais no EAS: preview e production
-- Padronizar .env e documentacao rapida do setup
+### Trilha A — Nucleo do produto
 
-DoD
-- Build dev e preview OK
-- README com passos minimos de setup
+Prioridade maxima.
 
-## Fase 1 — Segurança e banco (RLS + ownership + vínculo aluno↔auth)
+Foco:
 
-Objetivo: ninguem acessa o que não deve; vínculo automatico aluno-auth funciona.
+- gerador de plano
+- periodizacao
+- coerencia semana -> sessao -> tarefa -> fechamento
 
-Feito
-- RLS + ownership com trainers, student_user_id e policies por papel (migration 20260120...)
-- login_email + indice unico para auto-link (migration 2026012101...)
-- Seeds/queries exigindo token (sem anon), mapeando login_email
-- supabase db push --include-all aplicado
+### Trilha B — Inteligencia observacional
 
-Recomendado
-- Definir fonte de verdade do papel:
-  - trainers como papel treinador
-  - students.student_user_id como papel aluno
-- Auditoria minima (created_at, created_by nas tabelas sensiveis)
+Prioridade media.
 
-DoD
-- Políticas RLS revisadas e testadas
-- Acesso anon bloqueado nas tabelas principais
+Foco:
 
-## Fase 2 — Edge Functions (segurança + SSRF + service role)
+- warnings e leitura macro do ciclo
+- recommendation como apoio ao plano
+- evidence como memoria observacional
 
-Objetivo: functions seguras, com JWT e proteção; automacoes confiaveis.
+### Trilha C — QA avancado
 
-Feito
-- assistant e link-metadata exigindo JWT, SSRF protection, service role no server
-- Function de auto-link do aluno criada e deployada (auto-link-student)
-- verify_jwt = false no config.toml (validação manual via hook/header)
-- Webhook auth.users INSERT -> auto-link-student com Authorization Bearer secret
+Prioridade controlada.
 
-Recomendado
-- Padronizar middleware comum nas functions (auth, logs, rate limit)
-- Criar funcao get-my-role (opcional, ajuda o app a rotear com 1 chamada)
+Foco:
 
-DoD
-- Funcoes com logs consistentes e erros tratados
-- Sem secrets no client
+- mostrar o que ajuda a calibrar o gerador
+- evitar inflacao de cards ou arquitetura paralela
 
-## Fase 3 — App (sessão, bloqueios, estabilidade)
+## Backlog Executivo
 
-Objetivo: app so opera com token valido; sem crashes por platform API.
+## Bloco 1 — Valor direto no produto
 
-Feito
-- Campo "Email do aluno (login)" no cadastro/edicao
-- App pega token valido e bloqueia seed sem sessão
-- Fix de acesso a document no Android
+### 1. Reforcar papel da sessao na geracao
 
-Recomendado
-- Centralizar gate de autenticação (AuthGuard)
-- Estados para conta sem vínculo (aluno sem student_user_id)
+Prioridade: P0
 
-DoD
-- Fluxo de login e sessão ok em web/ios/android
-- Erros amigaveis para falta de sessão
+Objetivo:
 
-## Fase 4 — Rotas por papel (aluno vs treinador)
+- deixar explicito se a sessao e exploracao, consolidacao, pressao, transferencia ou sintese
 
-Objetivo: aluno ve somente o que e dele; treinador ve gestao/planejamento.
+Arquivos-alvo:
 
-Recomendado
-- Separar stacks/navegacao por role
-- Bloquear telas de treino/gestao para alunos
-- Ajustar menus e atalhos
+- app/periodization/index.tsx
+- src/core/
+- src/screens/periodization/
+- eventuais builders de plano semanal e de sessao
 
-DoD
-- Aluno não acessa cadastro de turmas/alunos/relatórios
-- Treinador não perde acesso ao que precisa
-- Teste manual: login aluno vs login treinador
+Ganhos esperados:
 
-## Fase 5 — Cadastro por papel + convite de treinador
+- menos sensacao de plano generico
+- identidade semanal mais clara
+- leitura mais rapida pelo professor
 
-Objetivo: escolha aluno/treinador com segurança real.
+Risco:
 
-Recomendado
-- Banco:
-  - trainer_invites (hash, expira, max_uses, revoked)
-  - trainers (user_id unico, unit_id, role_level)
-- RLS:
-  - trainers select so do proprio + admins
-  - trainer_invites restrito
-- Edge:
-  - claim-trainer-invite (JWT + service role)
-  - opcional create-trainer-invite (admin)
-- App:
-  - Sign up com seletor Aluno vs Treinador
-  - Treinador pede código e valida
-  - Roteamento pos-login por role real, não pela escolha
+- reforcar texto sem reforcar estrutura real da sessao
 
-DoD
-- Convite cria/ativa treinador com segurança
-- Aluno não consegue virar treinador sem convite valido
+DoD:
 
-## Fase 6 — Presenca / Check-in com cautela
+- titulo, objetivo, bloco principal e fechamento comunicam o papel da sessao
+- diferenca perceptivel entre sessoes da mesma semana
 
-Objetivo: aluno pode avisar ausencia, mas presenca oficial e do treinador.
+### 2. Reforcar progressao trimestral perceptivel
 
-Recomendado
-- Tabela absence_notices (student_id, session_id, reason, note, created_at, status)
-- Tela aluno: "Avisar ausencia"
-- Tela treinador: "Avisos pendentes" + ação confirmar/ignorar
-- Rate limit + janela de alteração
+Prioridade: P0
 
-DoD
-- Aviso do aluno não altera presenca automaticamente
-- Treinador confirma ausencia manualmente
+Objetivo:
 
-## Fase 7 — Qualidade, UX e polimento
+- fazer o professor sentir no plano a diferenca entre inicio, meio e fechamento do trimestre
 
-Objetivo: consistencia, performance e menos bugs.
+Arquivos-alvo:
 
-Recomendado
-- Estados vazios + skeletons (Home/Agenda)
-- Erros amigaveis + retry
-- Acessibilidade (fonte/contraste)
-- Modo escuro consistente (tokens de cor)
-- Telemetria minima (navegacao, falhas API, performance)
-- Revisao de dependencias e assets
+- src/core/periodization.ts
+- src/core/sessionGenerator.ts
+- app/periodization/
 
-DoD
-- Fluxos criticos com estados vazios e erro claro
-- Performance minima aceitavel no device alvo
+Ganhos esperados:
 
-## Fase 8 — Operacao e processos
+- periodizacao deixa de ser invisivel
+- tarefas, restricoes e wording passam a refletir o momento do ciclo
 
-Objetivo: deploy e manutencao sem dor.
+Risco:
 
-Recomendado
-- Checklist de release (preview -> production)
-- Sentry releases e sourcemaps no pipeline
-- Migrações versionadas + rollback basico
-- Política de chaves/secrets (rotacao)
+- mudar apenas wording e manter comportamento real muito parecido
 
-DoD
-- Pipeline documentado e repetivel
-- Processo minimo de rollback
+DoD:
 
-## Sequencia sugerida
+- fechamento trimestral fica perceptivel no objetivo, na tarefa e no fechamento
+- ha contraste claro entre semanas de inicio e de fechamento
 
-1) Fase 4 (rotas por role)
-2) Fase 5 (convite treinador)
-3) Fase 6 (aviso de ausencia)
-4) Fase 7 (polimento)
+### 3. Reforcar fechamento trimestral perceptivel
+
+Prioridade: P0
+
+Objetivo:
+
+- dar cara real de fechamento a semanas de sintese e aplicacao
+
+Arquivos-alvo:
+
+- src/core/periodization.ts
+- src/screens/periodization/application/
+- app/periodization/
+
+Ganhos esperados:
+
+- professor entende quando a semana esta fechando um ciclo
+- coerencia entre closing type e plano entregue
+
+Risco:
+
+- fechamento virar cosmetico ou repetitivo
+
+DoD:
+
+- closing type afeta tarefa dominante, criterio de exito e linguagem final
+
+### 4. Anti-repeticao funcional real
+
+Prioridade: P0
+
+Objetivo:
+
+- impedir plano reciclado com troca cosmetica de texto
+
+Arquivos-alvo:
+
+- src/core/sessionGenerator.ts
+- src/core/
+- data/imports/
+
+Ganhos esperados:
+
+- variacao com coerencia
+- fingerprints mais uteis
+- menos repeticao de familias de tarefa
+
+Risco:
+
+- aumentar variedade sem manter progressao pedagogica
+
+DoD:
+
+- repeticao consecutiva injustificada cai
+- contraste funcional entre semanas aumenta sem perder eixo
+
+## Bloco 2 — Governanca do nucleo
+
+### 5. Check de alinhamento entre plano gerado e recommendation
+
+Prioridade: P1
+
+Objetivo:
+
+- recommendation deixar de parecer comentario paralelo
+
+Arquivos-alvo:
+
+- src/db/observability-summaries.ts
+- src/screens/periodization/hooks/usePeriodizationDerivedState.ts
+- src/screens/periodization/WeekTab.tsx
+- app/periodization/index.tsx
+
+Ganhos esperados:
+
+- mais confianca no sistema
+- recommendation passa a parecer leitura do plano real
+
+Risco:
+
+- produzir score bonito sem efeito pratico de leitura
+
+DoD:
+
+- QA indica quando o plano, o eixo dominante e a recommendation convergem ou divergem
+
+### 6. Eixo dominante do periodo como driver interno mais forte
+
+Prioridade: P1
+
+Objetivo:
+
+- usar a leitura macro do eixo para reforcar tema semanal e decisao dominante de geracao
+
+Arquivos-alvo:
+
+- src/core/periodization.ts
+- src/core/sessionGenerator.ts
+- src/db/observability-summaries.ts
+
+Ganhos esperados:
+
+- o plano passa a cheirar ao eixo dominante
+- menos drift entre leitura observacional e comportamento do gerador
+
+Risco:
+
+- antecipar controle do motor cedo demais
+
+DoD:
+
+- eixo dominante informa framing interno de geracao sem bloquear recommendation valida
+
+### 7. Acute vs structural como leitura macro do ciclo
+
+Prioridade: P1
+
+Objetivo:
+
+- distinguir ruido recente de padrao cronico
+
+Arquivos-alvo:
+
+- src/db/observability-summaries.ts
+- src/screens/periodization/WeekTab.tsx
+
+Ganhos esperados:
+
+- menos reacao precipitada
+- leitura de ciclo mais madura
+
+Risco:
+
+- janela curta e media mal calibradas para turmas com pouco historico
+
+DoD:
+
+- QA consegue mostrar se o problema atual e agudo ou estrutural
+
+## Bloco 3 — QA como apoio
+
+### 8. Digest final por turma
+
+Prioridade: P2
+
+Status:
+
+- concluido na Fase 3.7
+
+Objetivo:
+
+- resumir a turma em uma leitura curta e util para calibracao interna
+
+### 9. Persistence + early warning
+
+Prioridade: P2
+
+Status:
+
+- concluido na Fase 3.6
+
+Objetivo:
+
+- detectar instabilidade macro sem intervir automaticamente
+
+### 10. Timeline e transicao de eixo
+
+Prioridade: P2
+
+Status:
+
+- concluido na Fase 3.5
+
+Objetivo:
+
+- dar contexto temporal para a leitura macro da turma
+
+## O que fica congelado por enquanto
+
+- learning adaptativo que altera o builder automaticamente
+- calibration forte por confidence
+- cohorts sofisticados por contexto
+- inteligencia organizacional
+- multimodalidade avancada
+- qualquer camada que esconda recommendation
+- qualquer camada que faca QA controlar o motor
+
+## Plano pratico de 30 dias
+
+### Semana 1
+
+- reforcar papel da sessao
+- revisar titulos, objetivos e blocos
+- reduzir sensacao de plano generico
+
+### Semana 2
+
+- reforcar progressao trimestral perceptivel
+- reforcar fechamento trimestral
+- aumentar contraste entre momentos do ciclo
+
+### Semana 3
+
+- implementar anti-repeticao funcional
+- fechar check de alinhamento eixo x plano x recommendation
+
+### Semana 4
+
+- usar digest e warnings como calibracao interna
+- consolidar leitura acute vs structural
+- evitar abrir novas frentes meta-arquiteturais
