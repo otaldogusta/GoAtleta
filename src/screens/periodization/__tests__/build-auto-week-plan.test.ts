@@ -52,6 +52,10 @@ describe("buildAutoWeekPlan", () => {
     expect(plan?.constraints || "").toContain("Semana 5:");
     expect(plan?.constraints || "").toContain("Objetivo da turma: Saque e recepção");
     expect(plan?.constraints || "").toContain("Carga médio");
+    expect(plan?.constraints || "").toContain("Variação funcional:");
+    expect(plan?.generalObjective || "").toContain("Momento do ciclo:");
+    expect(plan?.specificObjective || "").toContain("Fechamento da semana:");
+    expect(plan?.weekNotes || "").toContain("Variação funcional:");
   });
 
   it("uses recent pedagogical history to choose a later in-month stage in weekly plan", () => {
@@ -107,7 +111,12 @@ describe("buildAutoWeekPlan", () => {
     expect(snapshot?.weeklyOperationalStrategy?.decisions?.[0]?.sessionRole).toBeTruthy();
     expect(Array.isArray(snapshot?.weeklyOperationalStrategy?.weekRulesApplied)).toBe(true);
     expect(plan?.weekNotes ?? "").toContain("Foco da semana:");
+    expect(plan?.weekNotes ?? "").toContain("Momento do ciclo:");
+    expect(plan?.weekNotes ?? "").toContain("Fechamento esperado:");
     expect(plan?.pedagogicalRule ?? "").toContain("Foco do trimestre:");
+    expect(plan?.constraints ?? "").toContain("Momento do ciclo:");
+    expect(plan?.constraints ?? "").toContain("Fechamento:");
+    expect(plan?.constraints ?? "").toContain("Variação funcional:");
   });
 });
 

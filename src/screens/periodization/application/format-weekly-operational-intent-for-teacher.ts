@@ -28,9 +28,27 @@ const roleLabel = (value: string) => {
   }
 };
 
+const quarterMomentLabel = (value: WeeklyOperationalStrategySnapshot["diagnostics"]["quarter"]) => {
+  if (value === "Q1") return "início do ciclo";
+  if (value === "Q2") return "fase de desenvolvimento";
+  if (value === "Q3") return "fase de aplicação";
+  if (value === "Q4") return "fechamento do ciclo";
+  return "momento em definição";
+};
+
+const closingTypeLabel = (
+  value: WeeklyOperationalStrategySnapshot["diagnostics"]["closingType"]
+) => {
+  if (value === "exploracao") return "exploração guiada";
+  if (value === "consolidacao") return "consolidação";
+  if (value === "aplicacao") return "aplicação";
+  if (value === "fechamento") return "síntese e fechamento";
+  return "fechamento em definição";
+};
+
 const deriveTitle = (snapshot: WeeklyOperationalStrategySnapshot): string => {
   if (snapshot.diagnostics.closingType === "fechamento") {
-    return "Semana de sintese e aplicacao";
+    return "Semana de fechamento trimestral com síntese aplicada";
   }
   const hasPressure = snapshot.decisions.some(
     (decision) => decision.sessionRole === "pressao_decisao"
@@ -53,7 +71,7 @@ const deriveSummary = (snapshot: WeeklyOperationalStrategySnapshot): string => {
   if (!roleSummary) {
     return "A semana organiza uma progressao clara entre as sessoes.";
   }
-  return `${snapshot.quarterFocus} Distribuicao da semana: ${roleSummary}.`;
+  return `Momento do ciclo: ${quarterMomentLabel(snapshot.diagnostics.quarter)}. Fechamento da semana: ${closingTypeLabel(snapshot.diagnostics.closingType)}. ${snapshot.quarterFocus} Distribuicao da semana: ${roleSummary}.`;
 };
 
 const driftRiskNote = (risk: string): string | null => {
@@ -89,11 +107,18 @@ const deriveTeacherNotes = (snapshot: WeeklyOperationalStrategySnapshot): string
     ? "Fechar a semana com tarefa de sintese ou aplicacao em jogo reduzido."
     : null;
 
+  const quarterNote =
+    snapshot.diagnostics.quarter === "Q1"
+      ? "No início do ciclo, priorize clareza de regra e execução estável."
+      : snapshot.diagnostics.quarter === "Q4"
+        ? "No fechamento do ciclo, priorize síntese com critério de êxito explícito."
+        : "Conectar cada sessão ao objetivo semanal antes de subir complexidade.";
+
   const riskNotes = snapshot.diagnostics.driftRisks
     .map(driftRiskNote)
     .filter((note): note is string => Boolean(note));
 
-  return uniqueStrings([...roleNotes, reviewNote, loadNote, closingNote, ...riskNotes]).slice(0, 5);
+  return uniqueStrings([...roleNotes, reviewNote, loadNote, closingNote, quarterNote, ...riskNotes]).slice(0, 5);
 };
 
 export const parseWeeklyOperationalStrategySnapshot = (

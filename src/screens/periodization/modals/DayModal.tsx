@@ -25,6 +25,11 @@ type DayItem = {
   autoPlan?: {
     historicalConfidence?: "none" | "low" | "medium" | "high";
     historyMode?: "bootstrap" | "partial_history" | "strong_history";
+    sessionRoleLabel?: string;
+    sessionObjectiveLabel?: string;
+    sessionMainTaskLabel?: string;
+    sessionClosingLabel?: string;
+    functionalVariationLabel?: string;
     primarySkillLabel: string;
     progressionLabel: string;
     pedagogicalIntentLabel: string;
@@ -223,6 +228,31 @@ export function DayModal({
                       `Sessão ${selectedDay.sessionIndexInWeek ?? "-"}: ${selectedDay.session ?? ""}`
                     )}
                   </Text>
+                  {selectedDay.autoPlan.sessionRoleLabel ? (
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      {normalizeText(`Papel: ${selectedDay.autoPlan.sessionRoleLabel}`)}
+                    </Text>
+                  ) : null}
+                  {selectedDay.autoPlan.sessionObjectiveLabel ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {normalizeText(`Objetivo: ${selectedDay.autoPlan.sessionObjectiveLabel}`)}
+                    </Text>
+                  ) : null}
+                  {selectedDay.autoPlan.sessionMainTaskLabel ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {normalizeText(`Tarefa principal: ${selectedDay.autoPlan.sessionMainTaskLabel}`)}
+                    </Text>
+                  ) : null}
+                  {selectedDay.autoPlan.sessionClosingLabel ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {normalizeText(`Fechamento: ${selectedDay.autoPlan.sessionClosingLabel}`)}
+                    </Text>
+                  ) : null}
+                  {selectedDay.autoPlan.functionalVariationLabel ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {normalizeText(`Variação: ${selectedDay.autoPlan.functionalVariationLabel}`)}
+                    </Text>
+                  ) : null}
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     {normalizeText(
                       `Intenção: ${selectedDay.autoPlan.pedagogicalIntentLabel}`

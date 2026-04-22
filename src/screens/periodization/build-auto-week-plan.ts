@@ -1,34 +1,34 @@
 import { buildCompetitiveClassPlan } from "../../core/competitive-periodization";
 import type {
-  ClassCalendarException,
-  ClassCompetitiveProfile,
-  ClassGroup,
-  ClassPlan,
-  DailyLessonPlan,
+    ClassCalendarException,
+    ClassCompetitiveProfile,
+    ClassGroup,
+    ClassPlan,
+    DailyLessonPlan,
 } from "../../core/models";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
 import {
-  renderGameFormLabel,
-  renderNextStepList,
-  renderPedagogicalObjective,
-  renderStageFocusSummary,
+    renderGameFormLabel,
+    renderNextStepList,
+    renderPedagogicalObjective,
+    renderStageFocusSummary,
 } from "../../core/pedagogy/pedagogical-renderer";
 import {
-  normalizeAgeBandKey,
-  resolveNextPedagogicalStepFromPeriodization,
+    normalizeAgeBandKey,
+    resolveNextPedagogicalStepFromPeriodization,
 } from "../../core/pedagogy/resolve-next-pedagogical-step-from-periodization";
 import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
 import type {
-  PeriodizationModel,
-  SportProfile,
+    PeriodizationModel,
+    SportProfile,
 } from "../../core/periodization-basics";
 import { getDemandIndexForModel } from "../../core/periodization-basics";
 import { buildClassPlan, getVolumeFromTargets } from "../../core/periodization-generator";
 import { getPlannedLoads } from "../../core/periodization-load";
 import { buildPeriodizationWeekSchedule } from "./application/build-auto-plan-for-cycle-day";
 import {
-  resolveWeekStrategyFromCycleContext,
-  toWeeklyOperationalStrategySnapshot,
+    resolveWeekStrategyFromCycleContext,
+    toWeeklyOperationalStrategySnapshot,
 } from "./application/resolve-week-strategy-from-cycle-context";
 
 type BuildAutoWeekPlanParams = {
@@ -49,6 +49,16 @@ type BuildAutoWeekPlanParams = {
 
 const uniqueStrings = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+
+const countConsecutiveRepeats = (values: string[]) => {
+  let repeats = 0;
+  for (let index = 1; index < values.length; index += 1) {
+    if (values[index] && values[index] === values[index - 1]) {
+      repeats += 1;
+    }
+  }
+  return repeats;
+};
 
 const buildWeeklyPhysicalFocus = (params: {
   ageBand: BuildAutoWeekPlanParams["ageBand"];
@@ -105,6 +115,24 @@ const buildWeeklyConstraints = (params: {
   ])
     .slice(0, 4)
     .join(" | ");
+
+const quarterMomentLabel = (quarter: "Q1" | "Q2" | "Q3" | "Q4" | "unknown") => {
+  if (quarter === "Q1") return "início do ciclo";
+  if (quarter === "Q2") return "desenvolvimento do ciclo";
+  if (quarter === "Q3") return "aplicação do ciclo";
+  if (quarter === "Q4") return "fechamento do ciclo";
+  return "momento em definição";
+};
+
+const closingTypeLabel = (
+  closingType: "exploracao" | "consolidacao" | "aplicacao" | "fechamento" | "unknown"
+) => {
+  if (closingType === "exploracao") return "exploração guiada";
+  if (closingType === "consolidacao") return "consolidação";
+  if (closingType === "aplicacao") return "aplicação";
+  if (closingType === "fechamento") return "síntese e fechamento";
+  return "fechamento em definição";
+};
 
 const buildWeekPlanMeta = (params: {
   plan: ClassPlan;
@@ -257,6 +285,8 @@ export const buildAutoWeekPlan = (
   params: BuildAutoWeekPlanParams
 ): ClassPlan | null => {
   const { selectedClass, existing } = params;
+  let cycleMomentHint: string | null = null;
+  let closingMomentHint: string | null = null;
 
   if (!selectedClass) return null;
 
@@ -373,6 +403,56 @@ export const buildAutoWeekPlan = (
         pseTarget: weekPlan.PSETarget,
         demandIndex,
       });
+
+      const cycleMoment = quarterMomentLabel(weeklyOperationalStrategy.diagnostics.quarter);
+      const closingMoment = closingTypeLabel(weeklyOperationalStrategy.diagnostics.closingType);
+      const structuralFingerprints = autoPlans.map((item) => item.structuralFingerprint);
+      const uniqueStructuralFingerprints = new Set(structuralFingerprints).size;
+      const consecutiveStructuralRepeats = countConsecutiveRepeats(structuralFingerprints);
+      const repetitionAdjustments = autoPlans.filter(
+        (item) => item.repetitionAdjustment.detected
+      ).length;
+      const variationSummary =
+        `Variação funcional: ${repetitionAdjustments} ajuste(s) anti-repetição · ` +
+        `${uniqueStructuralFingerprints}/${autoPlans.length} estruturas distintas`;
+      cycleMomentHint = `Momento do ciclo: ${cycleMoment}.`;
+      closingMomentHint = `Fechamento da semana: ${closingMoment}.`;
+
+      plan.generalObjective = uniqueStrings([
+        plan.generalObjective,
+        cycleMomentHint,
+      ])
+        .slice(0, 2)
+        .join(" ");
+
+      plan.specificObjective = uniqueStrings([
+        plan.specificObjective,
+        closingMomentHint,
+      ])
+        .slice(0, 2)
+        .join(" ");
+
+      plan.pedagogicalRule = uniqueStrings([
+        plan.pedagogicalRule,
+        `Trimestre em ${cycleMoment}, com fechamento orientado para ${closingMoment}.`,
+      ])
+        .slice(0, 2)
+        .join(" ");
+
+      plan.constraints = uniqueStrings([
+        plan.constraints,
+        `Momento do ciclo: ${cycleMoment} · Fechamento: ${closingMoment}`,
+        variationSummary,
+        consecutiveStructuralRepeats > 0
+          ? `Atenção: ${consecutiveStructuralRepeats} repetição(ões) estrutural(is) consecutiva(s)`
+          : null,
+      ])
+        .slice(0, 5)
+        .join(" | ");
+
+      plan.weekNotes = sanitizeVolleyballLanguage(
+        uniqueStrings([plan.weekNotes, variationSummary]).slice(0, 2).join(" ")
+      );
     }
 
     if (nextPedagogicalStep) {
@@ -417,6 +497,18 @@ export const buildAutoWeekPlan = (
   plan.technicalFocus = sanitizeVolleyballLanguage(plan.technicalFocus);
   plan.constraints = sanitizeVolleyballLanguage(plan.constraints);
   plan.pedagogicalRule = sanitizeVolleyballLanguage(plan.pedagogicalRule ?? "") || plan.pedagogicalRule;
+
+  if (cycleMomentHint) {
+    plan.generalObjective = sanitizeVolleyballLanguage(
+      uniqueStrings([plan.generalObjective, cycleMomentHint]).slice(0, 2).join(" ")
+    );
+  }
+
+  if (closingMomentHint) {
+    plan.specificObjective = sanitizeVolleyballLanguage(
+      uniqueStrings([plan.specificObjective, closingMomentHint]).slice(0, 2).join(" ")
+    );
+  }
 
   if (existing) {
     plan.id = existing.id;

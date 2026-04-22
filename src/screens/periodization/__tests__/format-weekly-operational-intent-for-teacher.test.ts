@@ -42,11 +42,29 @@ describe("formatWeeklyOperationalIntentForTeacher", () => {
 
     expect(result).toBeTruthy();
     expect(result?.title ?? "").toContain("consolidacao");
+    expect(result?.summary ?? "").toContain("Momento do ciclo:");
+    expect(result?.summary ?? "").toContain("Fechamento da semana:");
     expect(result?.summary ?? "").toContain("Distribuicao da semana");
     expect((result?.teacherNotes ?? []).length).toBeGreaterThan(0);
     expect((result?.summary ?? "") + (result?.teacherNotes ?? []).join(" ")).not.toContain(
       "recent_history_review_lock"
     );
+  });
+
+  it("uses explicit closing title when week is in fechamento mode", () => {
+    const fechamentoSnapshot: WeeklyOperationalStrategySnapshot = {
+      ...snapshot,
+      diagnostics: {
+        ...snapshot.diagnostics,
+        quarter: "Q4",
+        closingType: "fechamento",
+      },
+    };
+
+    const result = formatWeeklyOperationalIntentForTeacher(fechamentoSnapshot);
+
+    expect(result?.title).toBe("Semana de fechamento trimestral com síntese aplicada");
+    expect(result?.summary ?? "").toContain("fechamento do ciclo");
   });
 
   it("parses typed weekly snapshot from generation context", () => {

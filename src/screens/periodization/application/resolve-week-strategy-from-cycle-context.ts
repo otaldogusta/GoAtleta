@@ -72,6 +72,22 @@ const resolveQuarter = (monthIndex: number): WeeklyOperationalQuarter => {
   return "Q1";
 };
 
+const quarterMomentLabel = (quarter: WeeklyOperationalQuarter) => {
+  if (quarter === "Q1") return "início do ciclo";
+  if (quarter === "Q2") return "fase de desenvolvimento";
+  if (quarter === "Q3") return "fase de aplicação";
+  if (quarter === "Q4") return "fechamento do ciclo";
+  return "momento em definição";
+};
+
+const closingTypeLabel = (closingType: WeeklyOperationalClosingType) => {
+  if (closingType === "exploracao") return "exploração guiada";
+  if (closingType === "consolidacao") return "consolidação de base";
+  if (closingType === "aplicacao") return "aplicação em jogo";
+  if (closingType === "fechamento") return "síntese e fechamento";
+  return "fechamento em definição";
+};
+
 const hasReviewSignal = (signals: string[]) => {
   const merged = signals.join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   return /(revis|retom|consolid|base|manter simples)/.test(merged);
@@ -187,7 +203,7 @@ export const resolveWeekStrategyFromCycleContext = (
     quarter,
     closingType,
   }));
-  const weekIntentSummary = `Foco da semana: ${quarterFocus}. Papel das sessões: ${sessionRoleSummary}.`;
+  const weekIntentSummary = `Momento do ciclo: ${quarterMomentLabel(quarter)}. Foco da semana: ${quarterFocus}. Fechamento esperado: ${closingTypeLabel(closingType)}. Papel das sessões: ${sessionRoleSummary}.`;
 
   return {
     decisions,

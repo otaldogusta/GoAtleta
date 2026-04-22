@@ -97,5 +97,8 @@ describe("resolveWeekStrategyFromCycleContext", () => {
     expect(q4.weekRulesApplied).toContain("quarterly_closing_alignment");
     expect(q4.decisions[0]?.appliedRules).not.toContain("quarterly_closing_alignment");
     expect(q4.decisions[1]?.appliedRules).toContain("quarterly_closing_alignment");
+    expect(q1.weekIntentSummary).toContain("Momento do ciclo:");
+    expect(q1.weekIntentSummary).toContain("Fechamento esperado:");
+    expect(q4.weekIntentSummary).toContain("fechamento do ciclo");
   });
 });

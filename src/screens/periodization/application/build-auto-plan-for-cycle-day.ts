@@ -11,6 +11,7 @@ import type {
     RepetitionAdjustment,
     SessionStrategy,
     VolleyballSkill,
+    WeekSessionRole,
     WeeklyOperationalDecision,
 } from "../../../core/models";
 import {
@@ -68,6 +69,12 @@ export type PeriodizationAutoPlanForCycleDayResult = {
   coachSummary: string;
   explanationSummary: string;
   drillFamiliesLabel: string;
+  sessionRole?: WeekSessionRole;
+  sessionRoleLabel?: string;
+  sessionObjectiveLabel?: string;
+  sessionMainTaskLabel?: string;
+  sessionClosingLabel?: string;
+  functionalVariationLabel?: string;
   debugSignals?: PeriodizationDebugSignals;
 };
 
@@ -132,7 +139,59 @@ export type PeriodizationWeekScheduleItem = {
   session: string;
   summary: string;
   sessionIndexInWeek?: number;
+  sessionRoleLabel?: string;
+  sessionObjectiveLabel?: string;
+  sessionMainTaskLabel?: string;
+  sessionClosingLabel?: string;
+  functionalVariationLabel?: string;
   autoPlan?: PeriodizationAutoPlanForCycleDayResult | null;
+};
+
+const SESSION_ROLE_DESCRIPTORS: Record<
+  WeekSessionRole,
+  {
+    roleLabel: string;
+    objectiveLabel: string;
+    mainTaskLabel: string;
+    closingLabel: string;
+  }
+> = {
+  introducao_exploracao: {
+    roleLabel: "Exploracao guiada",
+    objectiveLabel: "Introduzir principio da semana com leitura simples.",
+    mainTaskLabel: "Tarefa principal de exploracao com baixa pressao.",
+    closingLabel: "Fechar com sintese curta e criterio de base.",
+  },
+  retomada_consolidacao: {
+    roleLabel: "Retomada e consolidacao",
+    objectiveLabel: "Retomar referencia da semana e estabilizar execucao.",
+    mainTaskLabel: "Tarefa principal de consolidacao com repeticao funcional.",
+    closingLabel: "Fechar com checagem de consistencia coletiva.",
+  },
+  consolidacao_orientada: {
+    roleLabel: "Consolidacao orientada",
+    objectiveLabel: "Consolidar padrao tecnico-tatico com criterio claro.",
+    mainTaskLabel: "Tarefa principal orientada por decisao e ritmo controlado.",
+    closingLabel: "Fechar com aplicacao guiada em contexto reduzido.",
+  },
+  pressao_decisao: {
+    roleLabel: "Pressao e decisao",
+    objectiveLabel: "Elevar exigencia de leitura e decisao sob pressao.",
+    mainTaskLabel: "Tarefa principal com tempo curto e oposicao ativa.",
+    closingLabel: "Fechar com tomada de decisao em cenario condicionado.",
+  },
+  transferencia_jogo: {
+    roleLabel: "Transferencia para jogo",
+    objectiveLabel: "Transferir o foco semanal para contexto real de jogo.",
+    mainTaskLabel: "Tarefa principal com jogo condicionado e objetivo competitivo.",
+    closingLabel: "Fechar com bloco de aplicacao e leitura coletiva.",
+  },
+  sintese_fechamento: {
+    roleLabel: "Sintese e fechamento",
+    objectiveLabel: "Sintetizar os ganhos da semana e consolidar fechamento.",
+    mainTaskLabel: "Tarefa principal de sintese com criterio de exito explicito.",
+    closingLabel: "Fechar com recapitulacao objetiva e proximo passo.",
+  },
 };
 
 const formatSkillLabel = (skill?: VolleyballSkill) => {
@@ -164,6 +223,51 @@ const formatPedagogicalIntentLabel = (value: string) => {
     pressure_adaptation: "Adaptacao a pressao",
   };
   return labels[value] ?? formatProgressionLabel(value);
+};
+
+const quarterMomentLabel = (quarter?: "Q1" | "Q2" | "Q3" | "Q4" | "unknown") => {
+  if (quarter === "Q1") return "início do ciclo";
+  if (quarter === "Q2") return "fase de desenvolvimento";
+  if (quarter === "Q3") return "fase de aplicação";
+  if (quarter === "Q4") return "fechamento do ciclo";
+  return "momento em definição";
+};
+
+const closingTypeLabel = (
+  closingType?: "exploracao" | "consolidacao" | "aplicacao" | "fechamento" | "unknown"
+) => {
+  if (closingType === "exploracao") return "exploração guiada";
+  if (closingType === "consolidacao") return "consolidação";
+  if (closingType === "aplicacao") return "aplicação";
+  if (closingType === "fechamento") return "síntese e fechamento";
+  return "fechamento em definição";
+};
+
+const changedFieldLabel = (field: string) => {
+  if (field === "drillFamilies") return "famílias de tarefa";
+  if (field === "progressionDimension") return "progressão";
+  if (field === "secondarySkill") return "habilidade secundária";
+  if (field === "timePressureLevel") return "pressão de tempo";
+  if (field === "gameTransferLevel") return "transferência para jogo";
+  return field;
+};
+
+const buildFunctionalVariationLabel = (params: {
+  repetitionAdjustment: RepetitionAdjustment;
+  progressionLabel: string;
+  drillFamiliesLabel: string;
+}) => {
+  if (!params.repetitionAdjustment.detected) {
+    return `Variação funcional: ${params.progressionLabel.toLowerCase()} com ${params.drillFamiliesLabel}.`;
+  }
+
+  const changed = params.repetitionAdjustment.changedFields
+    .map(changedFieldLabel)
+    .filter(Boolean)
+    .slice(0, 3);
+  const changedLabel = changed.length ? changed.join(", ") : "parâmetros estratégicos";
+
+  return `Variação anti-repetição aplicada em ${changedLabel}.`;
 };
 
 const formatIsoDate = (value: Date) => {
@@ -309,6 +413,18 @@ export const buildPeriodizationAutoPlanForCycleDay = (
   const pedagogicalIntentLabel = formatPedagogicalIntentLabel(
     guardResult.strategy.pedagogicalIntent
   );
+  const sessionRole = params.weeklyOperationalDecision?.sessionRole;
+  const sessionRoleDescriptor = sessionRole
+    ? SESSION_ROLE_DESCRIPTORS[sessionRole]
+    : null;
+  const cycleMoment = quarterMomentLabel(params.weeklyOperationalDecision?.quarter);
+  const closingMoment = closingTypeLabel(params.weeklyOperationalDecision?.closingType);
+  const drillFamiliesLabel = guardResult.strategy.drillFamilies.join(", ");
+  const functionalVariationLabel = buildFunctionalVariationLabel({
+    repetitionAdjustment: guardResult.repetitionAdjustment,
+    progressionLabel,
+    drillFamiliesLabel,
+  });
 
   return {
     sessionDate: params.sessionDate,
@@ -325,7 +441,19 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     pedagogicalIntentLabel,
     coachSummary: explanation.coachSummary,
     explanationSummary: explanation.summary,
-    drillFamiliesLabel: guardResult.strategy.drillFamilies.join(", "),
+    drillFamiliesLabel,
+    sessionRole,
+    sessionRoleLabel: sessionRoleDescriptor?.roleLabel,
+    sessionObjectiveLabel: sessionRoleDescriptor?.objectiveLabel
+      ? `${sessionRoleDescriptor.objectiveLabel} Momento: ${cycleMoment}.`
+      : undefined,
+    sessionMainTaskLabel: sessionRoleDescriptor?.mainTaskLabel
+      ? `${sessionRoleDescriptor.mainTaskLabel} Progressão: ${progressionLabel}.`
+      : undefined,
+    sessionClosingLabel: sessionRoleDescriptor?.closingLabel
+      ? `${sessionRoleDescriptor.closingLabel} Fechamento do ciclo: ${closingMoment}.`
+      : undefined,
+    functionalVariationLabel,
     debugSignals: buildPeriodizationDebugSignals(params, {
       cycleContext: context.cycleContext,
       strategy: guardResult.strategy,
@@ -432,6 +560,11 @@ export const buildPeriodizationWeekSchedule = (params: {
       session: autoPlan.sessionLabel,
       summary: autoPlan.coachSummary,
       sessionIndexInWeek: autoPlan.sessionIndexInWeek,
+      sessionRoleLabel: autoPlan.sessionRoleLabel,
+      sessionObjectiveLabel: autoPlan.sessionObjectiveLabel,
+      sessionMainTaskLabel: autoPlan.sessionMainTaskLabel,
+      sessionClosingLabel: autoPlan.sessionClosingLabel,
+      functionalVariationLabel: autoPlan.functionalVariationLabel,
       autoPlan,
     } satisfies PeriodizationWeekScheduleItem;
   });
