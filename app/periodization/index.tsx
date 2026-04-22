@@ -59,7 +59,10 @@ import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
 import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
 import { useImportPlansFile } from "../../src/screens/periodization/hooks/useImportPlansFile";
+import { usePeriodizationActions } from "../../src/screens/periodization/hooks/usePeriodizationActions";
 import { usePeriodizationCopilotActions } from "../../src/screens/periodization/hooks/usePeriodizationCopilotActions";
+import { usePeriodizationData } from "../../src/screens/periodization/hooks/usePeriodizationData";
+import { usePeriodizationDerivedState } from "../../src/screens/periodization/hooks/usePeriodizationDerivedState";
 import { usePickerLayout } from "../../src/screens/periodization/hooks/usePickerLayout";
 import { useSaveWeek } from "../../src/screens/periodization/hooks/useSaveWeek";
 import { useWeekEditor } from "../../src/screens/periodization/hooks/useWeekEditor";
@@ -75,6 +78,7 @@ import type {
     ClassGroup,
     ClassPlan,
     DailyLessonPlan,
+    ObservabilityRecommendationDecision,
     PeriodizationContext,
     PlanningCycle,
     RecentSessionSummary,
@@ -123,47 +127,25 @@ import { type ThemeColors, useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 
-
-
-import { CycleTab } from "../../src/screens/periodization/CycleTab";
-import { WeekTab } from "../../src/screens/periodization/WeekTab";
-
 import { getUnitPalette } from "../../src/ui/unit-colors";
 
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-
-import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 
-import type {
-    DriftFrequencyByClassItem,
-  ObservabilityInsight,
-    ObservabilityTrendByClass,
-    PlanObservabilityRecord,
-    UnstableObservabilityWeek,
-} from "../../src/db/observability-summaries";
-import {
-  buildObservabilityInsightsFromRecords,
-    computeDriftFrequencyFromRecords,
-    computeObservabilityTrendFromRecords,
-    computeRecentUnstableWeeksFromRecords,
-    listPlanObservabilitySummariesByClass,
-    upsertPlanObservabilitySummary,
-} from "../../src/db/observability-summaries";
 import { buildWeekSessionPreview } from "../../src/screens/periodization/application/build-week-session-preview";
 import { buildWeeklyObservabilitySummary } from "../../src/screens/periodization/application/build-weekly-observability-summary";
 import {
-    formatWeeklyOperationalIntentForTeacher,
     parseWeeklyOperationalStrategySnapshot,
 } from "../../src/screens/periodization/application/format-weekly-operational-intent-for-teacher";
 import { buildAutoWeekPlan } from "../../src/screens/periodization/build-auto-week-plan";
 import { CompetitiveAgendaCard } from "../../src/screens/periodization/CompetitiveAgendaCard";
 import { DayModal } from "../../src/screens/periodization/modals/DayModal";
 import { WeekEditorModal } from "../../src/screens/periodization/modals/WeekEditorModal";
-import { OverviewTab } from "../../src/screens/periodization/OverviewTab";
 import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
+import { buildPeriodizationScreenViewModel } from "../../src/screens/periodization/views/buildPeriodizationScreenViewModel";
+import { PeriodizationScreenView } from "../../src/screens/periodization/views/PeriodizationScreenView";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 
 type WeekPlan = {
@@ -624,7 +606,6 @@ export default function PeriodizationScreen() {
   const [planningCycles, setPlanningCycles] = useState<PlanningCycle[]>([]);
   const [recentDailyLessonPlans, setRecentDailyLessonPlans] = useState<DailyLessonPlan[]>([]);
   const [recentSessionSummaries, setRecentSessionSummaries] = useState<RecentSessionSummary[]>([]);
-  const [planObservabilityHistory, setPlanObservabilityHistory] = useState<PlanObservabilityRecord[]>([]);
   const [periodizationKnowledgeSnapshot, setPeriodizationKnowledgeSnapshot] =
     useState<WeeklyAutopilotKnowledgeContext | null>(null);
   const [isLoadingPeriodizationKnowledge, setIsLoadingPeriodizationKnowledge] = useState(false);
@@ -632,7 +613,6 @@ export default function PeriodizationScreen() {
   const [isSavingPlans, setIsSavingPlans] = useState(false);
 
   const [showWeekEditor, setShowWeekEditor] = useState(false);
-  const [agendaWeekNumber, setAgendaWeekNumber] = useState<number | null>(null);
 
   const {
     editor,
@@ -1980,7 +1960,7 @@ export default function PeriodizationScreen() {
   const cyclePanelScrollRef = useRef<ScrollView>(null);
   const weekSwitchOpacity = useRef(new Animated.Value(1)).current;
   const weekSwitchTranslateX = useRef(new Animated.Value(0)).current;
-  const weekSwitchDirectionRef = useRef<-1 | 1>(1);
+  const weekSwitchDirectionRef = useRef<-1 | 0 | 1>(1);
   const shouldRealignCurrentWeekRef = useRef(false);
 
   const monthSegments = useMemo(() => {
@@ -2153,6 +2133,34 @@ export default function PeriodizationScreen() {
     ]
   );
 
+  const persistRecommendationDecisionRef = useRef<
+    ((decision: ObservabilityRecommendationDecision) => Promise<void>) | undefined
+  >(undefined);
+
+  const {
+    agendaWeekNumber,
+    setAgendaWeekNumber,
+    goToPreviousAgendaWeek,
+    goToNextAgendaWeek,
+    goToWeek,
+    qaModeEnabled,
+    showQaDebugPanel,
+    toggleQaMode,
+    toggleQaDebugPanel,
+    acceptRecommendation,
+    rejectRecommendation,
+  } = usePeriodizationActions({
+    hasWeekPlans,
+    currentWeek,
+    totalWeeks: weekPlans.length,
+    weekSwitchDirectionRef,
+    persistRecommendationDecision: async (decision) => {
+      if (persistRecommendationDecisionRef.current) {
+        await persistRecommendationDecisionRef.current(decision);
+      }
+    },
+  });
+
   const focusedWeekNumber = hasWeekPlans
     ? Math.max(1, Math.min(agendaWeekNumber ?? currentWeek, weekPlans.length))
     : currentWeek;
@@ -2281,33 +2289,6 @@ export default function PeriodizationScreen() {
       }),
     ]).start();
   }, [activeWeek.week, hasWeekPlans, weekSwitchOpacity, weekSwitchTranslateX]);
-
-  const goToPreviousAgendaWeek = useCallback(() => {
-    weekSwitchDirectionRef.current = -1;
-    setAgendaWeekNumber((prev) => {
-      if (!hasWeekPlans) return prev;
-      const current = prev ?? currentWeek;
-      return Math.max(1, current - 1);
-    });
-  }, [currentWeek, hasWeekPlans]);
-
-  const goToNextAgendaWeek = useCallback(() => {
-    weekSwitchDirectionRef.current = 1;
-    setAgendaWeekNumber((prev) => {
-      if (!hasWeekPlans) return prev;
-      const current = prev ?? currentWeek;
-      return Math.min(weekPlans.length, current + 1);
-    });
-  }, [currentWeek, hasWeekPlans, weekPlans.length]);
-
-  const goToWeek = useCallback(
-    (weekNumber: number) => {
-      weekSwitchDirectionRef.current = 0;
-      setAgendaWeekNumber(Math.max(1, Math.min(weekPlans.length, weekNumber)));
-    },
-    [weekPlans.length]
-  );
-
 
   // Removido: criação automática de semanas ao entrar na tela.
 
@@ -2633,16 +2614,6 @@ export default function PeriodizationScreen() {
       alive = false;
     };
   }, [selectedClass?.id]);
-
-  // Load observability history for the selected class from local SQLite
-  useEffect(() => {
-    if (!selectedClass?.id) {
-      setPlanObservabilityHistory([]);
-      return;
-    }
-    listPlanObservabilitySummariesByClass(selectedClass.id).then(setPlanObservabilityHistory).catch(() => {});
-  }, [selectedClass?.id]);
-
 
   const buildAutoPlanForWeek = useCallback(
 
@@ -3339,26 +3310,16 @@ export default function PeriodizationScreen() {
     ]
   );
 
-  const [qaModeEnabled, setQaModeEnabled] = usePersistedState<boolean>(
-    __DEV__ ? "periodization.qa.mode" : null,
-    false
-  );
-  const [showQaDebugPanel, setShowQaDebugPanel] = useState(false);
-
-  useEffect(() => {
-    if (!qaModeEnabled && showQaDebugPanel) {
-      setShowQaDebugPanel(false);
-    }
-  }, [qaModeEnabled, showQaDebugPanel]);
+  const selectedDay = useMemo(() => {
+    if (selectedDayIndex == null) return null;
+    if (selectedDayIndex < 0 || selectedDayIndex >= weekSchedule.length) return null;
+    return weekSchedule[selectedDayIndex] ?? null;
+  }, [selectedDayIndex, weekSchedule]);
 
   const weeklyOperationalSnapshot = useMemo(
     () => parseWeeklyOperationalStrategySnapshot(activeClassPlan?.generationContextSnapshotJson),
     [activeClassPlan?.generationContextSnapshotJson]
   );
-
-  const weeklyTeacherIntent = useMemo(() => {
-    return formatWeeklyOperationalIntentForTeacher(weeklyOperationalSnapshot);
-  }, [weeklyOperationalSnapshot]);
 
   const weeklyObservabilitySummary = useMemo(
     () =>
@@ -3369,45 +3330,71 @@ export default function PeriodizationScreen() {
     [weekSchedule, weeklyOperationalSnapshot]
   );
 
-  const classObservabilityTrend = useMemo<ObservabilityTrendByClass>(
-    () => computeObservabilityTrendFromRecords(planObservabilityHistory),
-    [planObservabilityHistory]
-  );
+  const { planObservabilityHistory, recommendationDecisions, persistRecommendationDecision } =
+    usePeriodizationData({
+    selectedClassId: selectedClass?.id,
+    activeClassPlan,
+    weeklyObservabilitySummary,
+  });
 
-  const classObservabilityDriftFrequency = useMemo<DriftFrequencyByClassItem[]>(
-    () => computeDriftFrequencyFromRecords(planObservabilityHistory),
-    [planObservabilityHistory]
-  );
-
-  const classRecentUnstableWeeks = useMemo<UnstableObservabilityWeek[]>(
-    () => computeRecentUnstableWeeksFromRecords(planObservabilityHistory, 5),
-    [planObservabilityHistory]
-  );
-
-  const classObservabilityInsights = useMemo<ObservabilityInsight[]>(
-    () => buildObservabilityInsightsFromRecords(planObservabilityHistory),
-    [planObservabilityHistory]
-  );
-
-  // Persist observability summary to local SQLite whenever it's (re)computed for the active plan
   useEffect(() => {
-    if (!activeClassPlan || !weeklyObservabilitySummary) return;
-    upsertPlanObservabilitySummary({
-      planId: activeClassPlan.id,
-      classId: activeClassPlan.classId,
-      cycleId: activeClassPlan.cycleId ?? "",
-      weekNumber: activeClassPlan.weekNumber,
-      summary: weeklyObservabilitySummary,
-    }).then(() => {
-      // Refresh the in-memory history after upsert
-      if (activeClassPlan.classId) {
-        listPlanObservabilitySummariesByClass(activeClassPlan.classId)
-          .then(setPlanObservabilityHistory)
-          .catch(() => {});
-      }
-    }).catch(() => {});
-  }, [activeClassPlan?.id, weeklyObservabilitySummary]);
+    persistRecommendationDecisionRef.current = persistRecommendationDecision;
+  }, [persistRecommendationDecision]);
 
+  const {
+    weeklyTeacherIntent,
+    classObservabilityTrend,
+    classObservabilityDriftFrequency,
+    classRecentUnstableWeeks,
+    classObservabilityInsights,
+    classObservabilityRecommendations,
+    classRankedRecommendations,
+    classObservabilityRecommendationStates,
+    classRecommendationEvidence,
+    classRecommendationAggregates,
+    classRecommendationProblemFamilySummary,
+    classRecommendationProblemAxisSummary,
+    classRecommendationProblemFamilyTimeline,
+    classRecommendationAxisTransitionSummary,
+    classRecommendationAxisPersistenceSummary,
+    classRecommendationQADigest,
+    classRecommendationWindowComparison,
+    classRecommendationAxisAlignment,
+  } = usePeriodizationDerivedState({
+    planObservabilityHistory,
+    recommendationDecisions,
+    activePlanId: activeClassPlan?.id,
+    weeklyOperationalSnapshot,
+    unstableWeeksLimit: 5,
+  });
+
+  const handleAcceptRecommendation = useCallback(
+    async (state: { recommendation: { code: string } & typeof classObservabilityRecommendations[number] }) => {
+      if (!selectedClass?.id || !activeClassPlan?.id) return;
+      await acceptRecommendation({
+        recommendation: state.recommendation,
+        classId: selectedClass.id,
+        cycleId: activeCycle?.id ?? activeClassPlan.cycleId ?? "",
+        planId: activeClassPlan.id,
+        weekNumber: activeClassPlan.weekNumber,
+      });
+    },
+    [acceptRecommendation, activeClassPlan, activeCycle?.id, selectedClass?.id]
+  );
+
+  const handleRejectRecommendation = useCallback(
+    async (state: { recommendation: { code: string } & typeof classObservabilityRecommendations[number] }) => {
+      if (!selectedClass?.id || !activeClassPlan?.id) return;
+      await rejectRecommendation({
+        recommendation: state.recommendation,
+        classId: selectedClass.id,
+        cycleId: activeCycle?.id ?? activeClassPlan.cycleId ?? "",
+        planId: activeClassPlan.id,
+        weekNumber: activeClassPlan.weekNumber,
+      });
+    },
+    [activeClassPlan, activeCycle?.id, rejectRecommendation, selectedClass?.id]
+  );
 
   const isSelectedDayRest = selectedDay ? !normalizeText(selectedDay.session ?? "").trim() : false;
 
@@ -3756,6 +3743,158 @@ export default function PeriodizationScreen() {
     />
   ) : null;
 
+  const viewModel = buildPeriodizationScreenViewModel({
+    activeTab,
+    colors,
+    selectedClass,
+    normalizeText,
+    periodizationContext,
+    isLoadingPeriodizationKnowledge,
+    periodizationKnowledgeSnapshot,
+    periodizationPlanReview,
+    formatPeriodizationContextModel,
+    formatPeriodizationContextLoad,
+    overviewTabProps: {
+      colors,
+      normalizeText,
+      formatShortDate,
+      nextSessionDate,
+      classStartTimeLabel,
+      hasInitialClass,
+      showClassPicker,
+      classTriggerRef,
+      hasUnitSelected,
+      togglePicker,
+      setClassPickerTop,
+      selectedClass,
+      showUnitPicker,
+      unitTriggerRef,
+      setUnitPickerTop,
+      selectedUnit,
+      mesoTriggerRef,
+      showMesoPicker,
+      cycleLength: effectiveCycleLength,
+      microTriggerRef,
+      showMicroPicker,
+      sessionsPerWeek,
+      painAlert,
+      painAlertDates,
+      isOrgAdmin,
+      router,
+      classPlans,
+      hasWeekPlans,
+      isSavingPlans,
+      activeCycle,
+      historyCycles,
+      onCompleteMissingCoverage: () => handleGenerateAction("fill"),
+      onGenerateCycle: handleGenerateCycle,
+      onRemoveCycle: handleRemoveCycle,
+      unitMismatchWarning,
+    },
+    cycleTabProps: {
+      colors,
+      cyclePanelCellWidth,
+      cyclePanelCellGap,
+      cyclePanelLabelWidth,
+      cyclePanelRowHeight,
+      cyclePanelRowGap,
+      cyclePanelScrollRef,
+      isEditingCycleTitle,
+      cycleTitleDraft,
+      setCycleTitleDraft,
+      saveCycleTitleEditor,
+      cancelCycleTitleEditor,
+      openCycleTitleEditor,
+      cyclePanelTitle: displayedCyclePanelTitle,
+      hasWeekPlans,
+      weekPlans,
+      currentWeek,
+      selectedWeekNumber: focusedWeekNumber,
+      monthWeekNumbers,
+      monthSegments,
+      macroSegments,
+      mesoSegments,
+      dominantBlockSegments,
+      weeklySessions,
+      periodizationModel,
+      sportProfile,
+      onSelectedWeekChange: setAgendaWeekNumber,
+      openWeekEditor,
+      sectionOpen,
+      toggleSection,
+      showLoadContent,
+      loadAnimStyle,
+      progressBars,
+      acwrLimits,
+      setAcwrLimits,
+      acwrLimitError,
+      acwrMessage,
+      volumeToPSE,
+      sessionsPerWeek,
+      showGuideContent,
+      guideAnimStyle,
+      summary,
+      showCycleContent,
+      cycleAnimStyle,
+      cycleFilter,
+      setCycleFilter,
+      selectedClass,
+      filteredWeekPlans,
+    },
+    weekTabProps: {
+      colors,
+      weekSchedule,
+      activeWeek,
+      weeklyTeacherIntent,
+      weeklyObservabilitySummary,
+      qaModeEnabled: __DEV__ && qaModeEnabled,
+      showQaModeToggle: __DEV__,
+      onToggleQaMode: toggleQaMode,
+      showQaDebugPanel,
+      onToggleQaDebugPanel: toggleQaDebugPanel,
+      classObservabilityTrend: __DEV__ && qaModeEnabled ? classObservabilityTrend : null,
+      classObservabilityDriftFrequency:
+        __DEV__ && qaModeEnabled ? classObservabilityDriftFrequency : [],
+      classRecentUnstableWeeks: __DEV__ && qaModeEnabled ? classRecentUnstableWeeks : [],
+      classObservabilityInsights: __DEV__ && qaModeEnabled ? classObservabilityInsights : [],
+      classRankedRecommendations: __DEV__ && qaModeEnabled ? classRankedRecommendations : [],
+      classObservabilityRecommendationStates:
+        __DEV__ && qaModeEnabled ? classObservabilityRecommendationStates : [],
+      classRecommendationEvidence: __DEV__ && qaModeEnabled ? classRecommendationEvidence : [],
+      classRecommendationAggregates:
+        __DEV__ && qaModeEnabled ? classRecommendationAggregates : [],
+      classRecommendationProblemFamilySummary:
+        __DEV__ && qaModeEnabled
+          ? classRecommendationProblemFamilySummary
+          : { dominantFamily: null, dominantFamilyLabel: null, cohorts: [] },
+      classRecommendationProblemAxisSummary:
+        __DEV__ && qaModeEnabled ? classRecommendationProblemAxisSummary : null,
+      classRecommendationProblemFamilyTimeline:
+        __DEV__ && qaModeEnabled ? classRecommendationProblemFamilyTimeline : [],
+      classRecommendationAxisTransitionSummary:
+        __DEV__ && qaModeEnabled ? classRecommendationAxisTransitionSummary : null,
+      classRecommendationAxisPersistenceSummary:
+        __DEV__ && qaModeEnabled ? classRecommendationAxisPersistenceSummary : null,
+      classRecommendationQADigest:
+        __DEV__ && qaModeEnabled ? classRecommendationQADigest : null,
+      classRecommendationWindowComparison:
+        __DEV__ && qaModeEnabled ? classRecommendationWindowComparison : null,
+      classRecommendationAxisAlignment:
+        __DEV__ && qaModeEnabled ? classRecommendationAxisAlignment : null,
+      onAcceptRecommendation: __DEV__ && qaModeEnabled ? handleAcceptRecommendation : undefined,
+      onRejectRecommendation: __DEV__ && qaModeEnabled ? handleRejectRecommendation : undefined,
+      onGoToWeek: goToWeek,
+      weekPlans,
+      weekSwitchOpacity,
+      weekSwitchTranslateX,
+      goToPreviousAgendaWeek,
+      goToNextAgendaWeek,
+      handleSelectDay,
+      formatWeekSessionLabel,
+      hasWeekPlans,
+      competitiveAgendaCard,
+    },
+  });
 
   return (
 
@@ -3879,263 +4018,7 @@ export default function PeriodizationScreen() {
         />
 
   </View>
-
-        { activeTab === "geral" ? (
-          <OverviewTab
-            colors={colors}
-            normalizeText={normalizeText}
-            formatShortDate={formatShortDate}
-            nextSessionDate={nextSessionDate}
-            classStartTimeLabel={classStartTimeLabel}
-            hasInitialClass={hasInitialClass}
-            showClassPicker={showClassPicker}
-            classTriggerRef={classTriggerRef}
-            hasUnitSelected={hasUnitSelected}
-            togglePicker={togglePicker}
-            setClassPickerTop={setClassPickerTop}
-            selectedClass={selectedClass}
-            showUnitPicker={showUnitPicker}
-            unitTriggerRef={unitTriggerRef}
-            setUnitPickerTop={setUnitPickerTop}
-            selectedUnit={selectedUnit}
-            mesoTriggerRef={mesoTriggerRef}
-            showMesoPicker={showMesoPicker}
-            cycleLength={effectiveCycleLength}
-            microTriggerRef={microTriggerRef}
-            showMicroPicker={showMicroPicker}
-            sessionsPerWeek={sessionsPerWeek}
-            painAlert={painAlert}
-            painAlertDates={painAlertDates}
-            isOrgAdmin={isOrgAdmin}
-            router={router}
-            classPlans={classPlans}
-            hasWeekPlans={hasWeekPlans}
-            isSavingPlans={isSavingPlans}
-            activeCycle={activeCycle}
-            historyCycles={historyCycles}
-            onCompleteMissingCoverage={() => handleGenerateAction("fill")}
-            onGenerateCycle={handleGenerateCycle}
-            onRemoveCycle={handleRemoveCycle}
-            unitMismatchWarning={unitMismatchWarning}
-          />
-        ) : null}
-
-        {activeTab === "geral" && selectedClass ? (
-          <View
-            style={[
-              getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
-              { gap: 8, marginBottom: 12 },
-            ]}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name="layers-outline" size={18} color={colors.primaryText} />
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Contexto pedagógico
-              </Text>
-            </View>
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {normalizeText(
-                  `${formatPeriodizationContextModel(periodizationContext.model)} · ${
-                    periodizationContext.objective || "Sem objetivo definido"
-                  }`
-                )}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {normalizeText(
-                  `${periodizationContext.focus || "Sem foco"}${
-                    formatPeriodizationContextLoad(periodizationContext)
-                      ? ` · ${formatPeriodizationContextLoad(periodizationContext)}`
-                      : ""
-                  }${
-                    periodizationContext.cyclePhase
-                      ? ` · ${periodizationContext.cyclePhase}`
-                      : ""
-                  }`
-                )}
-              </Text>
-              {periodizationContext.constraints?.length ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {normalizeText(
-                    `${periodizationContext.constraints.length} restrição(ões) ativas no momento`
-                  )}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-
-        {activeTab === "geral" && selectedClass ? (
-          <View
-            style={[
-              getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
-              { gap: 10 },
-            ]}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-                <Ionicons name="shield-checkmark-outline" size={18} color={colors.primaryText} />
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                  Revisão científica
-                </Text>
-              </View>
-              <View
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderRadius: 999,
-                  backgroundColor: isLoadingPeriodizationKnowledge
-                    ? colors.secondaryBg
-                    : periodizationKnowledgeSnapshot
-                      ? periodizationPlanReview?.ok
-                        ? colors.successBg
-                        : colors.warningBg
-                      : colors.secondaryBg,
-                }}
-              >
-                <Text
-                  style={{
-                    color: isLoadingPeriodizationKnowledge
-                      ? colors.muted
-                      : periodizationKnowledgeSnapshot
-                        ? periodizationPlanReview?.ok
-                          ? colors.successText
-                          : colors.warningText
-                        : colors.muted,
-                    fontSize: 11,
-                    fontWeight: "700",
-                  }}
-                >
-                  {isLoadingPeriodizationKnowledge
-                    ? "Carregando base"
-                    : periodizationKnowledgeSnapshot
-                      ? periodizationPlanReview?.ok
-                        ? "Plano validado"
-                        : `${periodizationPlanReview?.issues.length ?? 0} alerta(s)`
-                      : "Base ausente"}
-                </Text>
-              </View>
-            </View>
-
-            {isLoadingPeriodizationKnowledge ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Carregando snapshot científico da turma.
-              </Text>
-            ) : periodizationKnowledgeSnapshot ? (
-              <>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {normalizeText(
-                    `Base ${periodizationKnowledgeSnapshot.versionLabel} · ${periodizationKnowledgeSnapshot.domain}`
-                  )}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {periodizationPlanReview
-                    ? normalizeText(
-                        periodizationPlanReview.issues.length
-                          ? `${periodizationPlanReview.issues.length} alerta(s) para revisar antes de fechar o ciclo.`
-                          : "Plano alinhado com a base científica ativa."
-                      )
-                    : normalizeText("Base ativa, sem resumo de revisão disponível neste momento.")}
-                </Text>
-              </>
-            ) : (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Nenhuma base científica ativa para esta turma.
-              </Text>
-            )}
-          </View>
-        ) : null}
-
-
-        { activeTab === "ciclo" ? (
-          <CycleTab
-          colors={colors}
-          cyclePanelCellWidth={cyclePanelCellWidth}
-          cyclePanelCellGap={cyclePanelCellGap}
-          cyclePanelLabelWidth={cyclePanelLabelWidth}
-          cyclePanelRowHeight={cyclePanelRowHeight}
-          cyclePanelRowGap={cyclePanelRowGap}
-          cyclePanelScrollRef={cyclePanelScrollRef}
-          isEditingCycleTitle={isEditingCycleTitle}
-          cycleTitleDraft={cycleTitleDraft}
-          setCycleTitleDraft={setCycleTitleDraft}
-          saveCycleTitleEditor={saveCycleTitleEditor}
-          cancelCycleTitleEditor={cancelCycleTitleEditor}
-          openCycleTitleEditor={openCycleTitleEditor}
-          cyclePanelTitle={displayedCyclePanelTitle}
-          hasWeekPlans={hasWeekPlans}
-          weekPlans={weekPlans}
-          currentWeek={currentWeek}
-          selectedWeekNumber={focusedWeekNumber}
-          monthWeekNumbers={monthWeekNumbers}
-          monthSegments={monthSegments}
-          macroSegments={macroSegments}
-          mesoSegments={mesoSegments}
-          dominantBlockSegments={dominantBlockSegments}
-          weeklySessions={weeklySessions}
-          periodizationModel={periodizationModel}
-          sportProfile={sportProfile}
-          onSelectedWeekChange={setAgendaWeekNumber}
-          openWeekEditor={openWeekEditor}
-          sectionOpen={sectionOpen}
-          toggleSection={toggleSection}
-          showLoadContent={showLoadContent}
-          loadAnimStyle={loadAnimStyle}
-          progressBars={progressBars}
-          acwrLimits={acwrLimits}
-          setAcwrLimits={setAcwrLimits}
-          acwrLimitError={acwrLimitError}
-          acwrMessage={acwrMessage}
-          volumeToPSE={volumeToPSE}
-          sessionsPerWeek={sessionsPerWeek}
-          showGuideContent={showGuideContent}
-          guideAnimStyle={guideAnimStyle}
-          summary={summary}
-          showCycleContent={showCycleContent}
-          cycleAnimStyle={cycleAnimStyle}
-          cycleFilter={cycleFilter}
-          setCycleFilter={setCycleFilter}
-          selectedClass={selectedClass}
-          filteredWeekPlans={filteredWeekPlans}
-        />
-        ) : null}
-
-
-        { activeTab === "semana" ? (
-          <WeekTab
-            colors={colors}
-            weekSchedule={weekSchedule}
-            activeWeek={activeWeek}
-            weeklyTeacherIntent={weeklyTeacherIntent}
-            weeklyObservabilitySummary={weeklyObservabilitySummary}
-            qaModeEnabled={__DEV__ && qaModeEnabled}
-            showQaModeToggle={__DEV__}
-            onToggleQaMode={() => setQaModeEnabled((current) => !current)}
-            showQaDebugPanel={showQaDebugPanel}
-            onToggleQaDebugPanel={() => setShowQaDebugPanel((current) => !current)}
-            classObservabilityTrend={__DEV__ && qaModeEnabled ? classObservabilityTrend : null}
-            classObservabilityDriftFrequency={__DEV__ && qaModeEnabled ? classObservabilityDriftFrequency : []}
-            classRecentUnstableWeeks={__DEV__ && qaModeEnabled ? classRecentUnstableWeeks : []}
-            classObservabilityInsights={__DEV__ && qaModeEnabled ? classObservabilityInsights : []}
-            onGoToWeek={goToWeek}
-            weekPlans={weekPlans}
-            weekSwitchOpacity={weekSwitchOpacity}
-            weekSwitchTranslateX={weekSwitchTranslateX}
-            goToPreviousAgendaWeek={goToPreviousAgendaWeek}
-            goToNextAgendaWeek={goToNextAgendaWeek}
-            handleSelectDay={handleSelectDay}
-            formatWeekSessionLabel={formatWeekSessionLabel}
-            hasWeekPlans={hasWeekPlans}
-            competitiveAgendaCard={competitiveAgendaCard}
-          />
-        ) : null}
+        <PeriodizationScreenView {...viewModel} />
 
         </ScrollView>
 

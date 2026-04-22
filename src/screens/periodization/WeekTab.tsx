@@ -2,11 +2,23 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Animated, Text, View } from "react-native";
 import type {
+    DerivedObservabilityRecommendationState,
+    RankedObservabilityRecommendation,
+    RecommendationAxisAlignmentSummary,
+    RecommendationAxisPersistenceSummary,
+    RecommendationAxisTransitionSummary,
+    RecommendationEvidence,
+    RecommendationFamilyAggregate,
+    RecommendationProblemAxisSummary,
+    RecommendationProblemFamilySummary,
+    RecommendationProblemFamilyTimelineItem,
+    RecommendationQADigest,
+    RecommendationWindowComparisonSummary,
     WeeklyObservabilitySummary,
 } from "../../core/models";
 import type {
     DriftFrequencyByClassItem,
-  ObservabilityInsight,
+    ObservabilityInsight,
     ObservabilityTrendByClass,
     UnstableObservabilityWeek,
 } from "../../db/observability-summaries";
@@ -20,6 +32,11 @@ type WeekScheduleItem = {
   dayNumber: number;
   session: string;
   date: string;
+  sessionRoleLabel?: string;
+  sessionObjectiveLabel?: string;
+  sessionMainTaskLabel?: string;
+  sessionClosingLabel?: string;
+  functionalVariationLabel?: string;
 };
 
 type WeekPlan = {
@@ -52,6 +69,20 @@ type WeekTabProps = {
   classObservabilityDriftFrequency: DriftFrequencyByClassItem[];
   classRecentUnstableWeeks: UnstableObservabilityWeek[];
   classObservabilityInsights: ObservabilityInsight[];
+  classRankedRecommendations: RankedObservabilityRecommendation[];
+  classObservabilityRecommendationStates: DerivedObservabilityRecommendationState[];
+  classRecommendationEvidence: RecommendationEvidence[];
+  classRecommendationAggregates: RecommendationFamilyAggregate[];
+  classRecommendationProblemFamilySummary: RecommendationProblemFamilySummary;
+  classRecommendationProblemAxisSummary: RecommendationProblemAxisSummary | null;
+  classRecommendationProblemFamilyTimeline: RecommendationProblemFamilyTimelineItem[];
+  classRecommendationAxisTransitionSummary: RecommendationAxisTransitionSummary | null;
+  classRecommendationAxisPersistenceSummary: RecommendationAxisPersistenceSummary | null;
+  classRecommendationQADigest: RecommendationQADigest | null;
+  classRecommendationWindowComparison: RecommendationWindowComparisonSummary | null;
+  classRecommendationAxisAlignment: RecommendationAxisAlignmentSummary | null;
+  onAcceptRecommendation?: (state: DerivedObservabilityRecommendationState) => void;
+  onRejectRecommendation?: (state: DerivedObservabilityRecommendationState) => void;
   onGoToWeek: (weekNumber: number) => void;
   weekPlans: WeekPlan[];
   weekSwitchOpacity: Animated.Value;
@@ -79,6 +110,20 @@ export function WeekTab({
   classObservabilityDriftFrequency,
   classRecentUnstableWeeks,
   classObservabilityInsights,
+  classRankedRecommendations,
+  classObservabilityRecommendationStates,
+  classRecommendationEvidence,
+  classRecommendationAggregates,
+  classRecommendationProblemFamilySummary,
+  classRecommendationProblemAxisSummary,
+  classRecommendationProblemFamilyTimeline,
+  classRecommendationAxisTransitionSummary,
+  classRecommendationAxisPersistenceSummary,
+  classRecommendationQADigest,
+  classRecommendationWindowComparison,
+  classRecommendationAxisAlignment,
+  onAcceptRecommendation,
+  onRejectRecommendation,
   onGoToWeek,
   weekPlans,
   weekSwitchOpacity,
@@ -159,6 +204,59 @@ export function WeekTab({
           <Text style={{ color: colors.text, fontSize: 11 }}>
             {`Coerencia: ${weeklyObservabilitySummary.coherence.every((item) => item.envelopeRespected) ? "ok" : "drift detectado"}`}
           </Text>
+          <View
+            style={{
+              gap: 4,
+              paddingTop: 6,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+              ESTABILIDADE DA SEMANA
+            </Text>
+            <Text style={{ color: colors.text, fontSize: 11 }}>
+              {`Status: ${weeklyObservabilitySummary.stability.status} · Severidade: ${weeklyObservabilitySummary.stability.severity}`}
+            </Text>
+            {weeklyObservabilitySummary.stability.reasons.length ? (
+              <Text style={{ color: colors.muted, fontSize: 10 }}>
+                {`Motivos: ${weeklyObservabilitySummary.stability.reasons.join(" | ")}`}
+              </Text>
+            ) : null}
+          </View>
+          <View
+            style={{
+              gap: 4,
+              paddingTop: 6,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+              AUTORIDADE SEMANAL
+            </Text>
+            <Text style={{ color: colors.text, fontSize: 11 }}>
+              {`Pass rate: ${Math.round(weeklyObservabilitySummary.authority.passRate * 100)}%`}
+            </Text>
+            <Text style={{ color: colors.text, fontSize: 11 }}>
+              {`Sessoes verificadas: ${weeklyObservabilitySummary.authority.totalChecks} · Violacoes: ${weeklyObservabilitySummary.authority.totalViolations}`}
+            </Text>
+            <Text style={{ color: colors.text, fontSize: 11 }}>
+              {`Impacto na estabilidade: ${weeklyObservabilitySummary.stability.severity}`}
+            </Text>
+            {weeklyObservabilitySummary.authority.checks.map((check) => (
+              <View key={`authority-check-${check.sessionIndexInWeek}`} style={{ gap: 2 }}>
+                <Text style={{ color: colors.muted, fontSize: 10 }}>
+                  {`S${check.sessionIndexInWeek} · ${check.sessionRole} · ${check.isWithinEnvelope ? "OK" : "Violacao"}`}
+                </Text>
+                {!check.isWithinEnvelope ? (
+                  <Text style={{ color: colors.warningText, fontSize: 10 }}>
+                    {`- ${check.violations.join(", ")}`}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
           {weeklyObservabilitySummary.weekRulesApplied.length ? (
             <Text style={{ color: colors.text, fontSize: 11 }}>
               {`Regras: ${weeklyObservabilitySummary.weekRulesApplied.join(", ")}`}
@@ -216,6 +314,9 @@ export function WeekTab({
           </Text>
           <Text style={{ color: classObservabilityTrend.unstableWeeks > 0 ? colors.warningText : colors.muted, fontSize: 11 }}>
             {`Instáveis: ${classObservabilityTrend.unstableWeeks} · severidade alta: ${classObservabilityTrend.highSeverityWeeks}`}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 11 }}>
+            {`Atenção: ${classObservabilityTrend.attentionWeeks} · com violacao de autoridade: ${classObservabilityTrend.authorityViolationWeeks}`}
           </Text>
         </View>
       ) : null}
@@ -305,15 +406,408 @@ export function WeekTab({
                 : insight.severity === "warning"
                   ? colors.text
                   : colors.muted;
+            const evidenceParts = [
+              insight.evidence?.count != null ? `count=${insight.evidence.count}` : null,
+              insight.evidence?.ratio != null ? `ratio=${insight.evidence.ratio}` : null,
+              insight.evidence?.weeksConsidered != null
+                ? `weeks=${insight.evidence.weeksConsidered}`
+                : null,
+              insight.evidence?.dominantCode ? `dominant=${insight.evidence.dominantCode}` : null,
+            ].filter(Boolean);
             return (
               <Text
                 key={`${insight.code}-${insight.message}`}
                 style={{ color: toneColor, fontSize: 11, lineHeight: 16 }}
               >
-                {`- [${insight.severity.toUpperCase()}] ${insight.message}`}
+                {`- [${insight.severity.toUpperCase()}] [${insight.scope.toUpperCase()}] ${insight.message}${evidenceParts.length ? ` (${evidenceParts.join(" · ")})` : ""}`}
               </Text>
             );
           })}
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationProblemFamilySummary.cohorts.length > 0 ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            LINHA DO TEMPO DOS EIXOS
+          </Text>
+          {classRecommendationProblemFamilyTimeline.slice(-4).map((item) => (
+            <Text key={`axis-timeline-${item.weekNumber}`} style={{ color: colors.text, fontSize: 10 }}>
+              {`S${item.weekNumber} · ${item.dominantLabel}`}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationAxisTransitionSummary ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            TRANSICAO DE EIXO
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10 }}>
+            {`Tipo: ${classRecommendationAxisTransitionSummary.transitionType}`}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+            {classRecommendationAxisTransitionSummary.summary}
+          </Text>
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationAxisPersistenceSummary ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            PERSISTENCIA DE EIXO
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10 }}>
+            {`Tipo: ${classRecommendationAxisPersistenceSummary.persistenceType}`}
+          </Text>
+          {classRecommendationAxisPersistenceSummary.earlyWarning !== "none" ? (
+            <Text
+              style={{
+                color:
+                  classRecommendationAxisPersistenceSummary.earlyWarning === "warning"
+                    ? colors.warningText
+                    : colors.text,
+                fontSize: 10,
+                fontWeight: "700",
+              }}
+            >
+              {`Alerta: ${classRecommendationAxisPersistenceSummary.earlyWarning}`}
+            </Text>
+          ) : null}
+          <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+            {classRecommendationAxisPersistenceSummary.summary}
+          </Text>
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationQADigest ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            DIGEST QA DA TURMA
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10, lineHeight: 16 }}>
+            {classRecommendationQADigest.summary}
+          </Text>
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationWindowComparison ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            JANELA CURTA vs MEDIA
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10 }}>
+            {`Curta (${classRecommendationWindowComparison.shortWindow.windowSize}s): ${classRecommendationWindowComparison.shortWindow.dominantLabel ?? "-"}`}
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10 }}>
+            {`Media (${classRecommendationWindowComparison.mediumWindow.windowSize}s): ${classRecommendationWindowComparison.mediumWindow.dominantLabel ?? "-"}`}
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10 }}>
+            {`Divergencia: ${classRecommendationWindowComparison.divergence}`}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+            {classRecommendationWindowComparison.summary}
+          </Text>
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationAxisAlignment ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            ALINHAMENTO EIXO x RECOMMENDATION
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10 }}>
+            {`Tipo: ${classRecommendationAxisAlignment.alignmentType}`}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+            {classRecommendationAxisAlignment.summary}
+          </Text>
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationProblemFamilySummary.cohorts.length > 0 ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            RESUMO POR EIXO
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+            {`Dominante: ${classRecommendationProblemAxisSummary?.dominantLabel ?? "-"}`}
+          </Text>
+          {classRecommendationProblemAxisSummary?.secondaryLabel ? (
+            <Text style={{ color: colors.text, fontSize: 10 }}>
+              {`Secundario: ${classRecommendationProblemAxisSummary.secondaryLabel}`}
+            </Text>
+          ) : null}
+          <Text style={{ color: colors.text, fontSize: 10 }}>
+            {`Tensao: ${classRecommendationProblemAxisSummary?.tension ?? "isolated"}`}
+          </Text>
+          {classRecommendationProblemAxisSummary?.summary ? (
+            <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+              {classRecommendationProblemAxisSummary.summary}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationProblemFamilySummary.cohorts.length > 0 ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            EIXOS DE PROBLEMA (FAMILIAS)
+          </Text>
+          {classRecommendationProblemFamilySummary.dominantFamilyLabel ? (
+            <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+              {`Dominante: ${classRecommendationProblemFamilySummary.dominantFamilyLabel}`}
+            </Text>
+          ) : null}
+          {classRecommendationProblemFamilySummary.cohorts.map((cohort) => (
+            <View key={cohort.family} style={{ gap: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                {`${cohort.familyLabel} · recs=${cohort.recommendationsCount}`}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>
+                {`alta=${cohort.highPriorityCount} · cautela=${cohort.cautiousCount}`}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>{cohort.familyHelperText}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classObservabilityRecommendationStates.length > 0 ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            RECOMENDACOES INTERNAS
+          </Text>
+          {classObservabilityRecommendationStates.map((state) => {
+            const { recommendation, decision, decisionStatus } = state;
+            const ranking =
+              classRankedRecommendations.find(
+                (item) => item.recommendation.code === recommendation.code
+              ) ?? null;
+            const isCautiousPresentation = ranking?.presentation.tone === "cautious";
+            const evidence = decision
+              ? classRecommendationEvidence.find(
+                  (item) =>
+                    item.recommendationCode === recommendation.code &&
+                    item.baselineWeekNumber === decision.weekNumber
+                )
+              : null;
+            const toneColor =
+              recommendation.priority === "high"
+                ? colors.warningText
+                : recommendation.priority === "medium"
+                  ? colors.text
+                  : colors.muted;
+            const statusColor =
+              decisionStatus === "accepted"
+                ? colors.successText
+                : decisionStatus === "rejected"
+                  ? colors.warningText
+                  : colors.muted;
+            const statusLabel =
+              decisionStatus === "accepted"
+                ? "ACEITA"
+                : decisionStatus === "rejected"
+                  ? "REJEITADA"
+                  : "PENDENTE";
+
+            return (
+              <View
+                key={recommendation.code}
+                style={{
+                  gap: 2,
+                  paddingBottom: 6,
+                  paddingHorizontal: 6,
+                  paddingTop: 4,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.border,
+                  borderRadius: 8,
+                  backgroundColor: isCautiousPresentation ? colors.warningBg : "transparent",
+                }}
+              >
+                <Text style={{ color: toneColor, fontSize: 11, fontWeight: "700" }}>
+                  {`[${recommendation.priority.toUpperCase()}] ${recommendation.title}`}
+                </Text>
+                <Text style={{ color: colors.text, fontSize: 11, lineHeight: 16 }}>
+                  {recommendation.message}
+                </Text>
+                {ranking ? (
+                  <>
+                    <Text style={{ color: colors.muted, fontSize: 10 }}>
+                      {`confianca=${ranking.confidence} · historico=${ranking.framing}`}
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                      {`Familia: ${ranking.familyPresentation.familyLabel}`}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 10 }}>
+                      {ranking.familyPresentation.familyHelperText}
+                    </Text>
+                    <Text
+                      style={{
+                        color: isCautiousPresentation ? colors.warningText : colors.text,
+                        fontSize: 10,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {ranking.presentation.shortLabel}
+                    </Text>
+                    <Text
+                      style={{
+                        color: isCautiousPresentation ? colors.warningText : colors.muted,
+                        fontSize: 10,
+                      }}
+                    >
+                      {ranking.presentation.helperText}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 10 }}>
+                      {ranking.framingMessage}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 10 }}>
+                      {`ranking=${ranking.rankingReason} · score=${ranking.rankingScore}`}
+                    </Text>
+                  </>
+                ) : null}
+                <Text style={{ color: statusColor, fontSize: 10, fontWeight: "700" }}>
+                  {`STATUS: ${statusLabel}`}
+                </Text>
+                {decision?.reasonType ? (
+                  <Text style={{ color: colors.muted, fontSize: 10 }}>
+                    {`motivo=${decision.reasonType}${decision.reasonNote ? ` · nota=${decision.reasonNote}` : ""}`}
+                  </Text>
+                ) : null}
+                {evidence ? (
+                  <Text style={{ color: colors.muted, fontSize: 10 }}>
+                    {`evidencia=${evidence.outcome} · ${evidence.rationale}`}
+                  </Text>
+                ) : null}
+                {decisionStatus === "pending" ? (
+                  <View style={{ flexDirection: "row", gap: 8, paddingTop: 4 }}>
+                    <Pressable
+                      onPress={() => {
+                        if (onAcceptRecommendation) {
+                          onAcceptRecommendation(state);
+                        }
+                      }}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        backgroundColor: colors.successBg,
+                        borderWidth: 1,
+                        borderColor: colors.successText,
+                      }}
+                    >
+                      <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "700" }}>
+                        ACEITAR
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        if (onRejectRecommendation) {
+                          onRejectRecommendation(state);
+                        }
+                      }}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        backgroundColor: colors.warningBg,
+                        borderWidth: 1,
+                        borderColor: colors.warningText,
+                      }}
+                    >
+                      <Text style={{ color: colors.warningText, fontSize: 10, fontWeight: "700" }}>
+                        REJEITAR
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                {showQaDebugPanel ? (
+                  <Text style={{ color: colors.muted, fontSize: 10 }}>
+                    {`acao=${recommendation.action} · rationale=${recommendation.rationale} · evidencia=${recommendation.sourceSignals.join(",")}`}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {qaModeEnabled && classRecommendationAggregates.length > 0 ? (
+        <View
+          style={[
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            { gap: 6 },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            HISTORICO DE RECOMMENDATIONS
+          </Text>
+          {classRecommendationAggregates.map((aggregate) => (
+            <View
+              key={aggregate.recommendationCode}
+              style={{ gap: 2, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: colors.border }}
+            >
+              <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                {aggregate.recommendationCode}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>
+                {`sugestoes=${aggregate.totalSuggested} · aceitas=${aggregate.totalAccepted} · rejeitadas=${aggregate.totalRejected}`}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>
+                {`improved=${aggregate.improvedCount} · unchanged=${aggregate.unchangedCount} · worsened=${aggregate.worsenedCount} · insufficient=${aggregate.insufficientEvidenceCount}`}
+              </Text>
+              <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                {`confianca=${aggregate.confidence}`}
+              </Text>
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -424,6 +918,15 @@ export function WeekTab({
 
                 </Text>
 
+                {item.sessionRoleLabel ? (
+                  <Text
+                    numberOfLines={1}
+                    style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}
+                  >
+                    {item.sessionRoleLabel}
+                  </Text>
+                ) : null}
+
                 <Text
                   numberOfLines={2}
                   style={{ color: colors.text, fontSize: 11, fontWeight: "700", lineHeight: 14 }}
@@ -432,6 +935,18 @@ export function WeekTab({
                   {formatWeekSessionLabel(item.session || "Descanso")}
 
                 </Text>
+
+                {item.sessionClosingLabel ? (
+                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 9 }}>
+                    {item.sessionClosingLabel}
+                  </Text>
+                ) : null}
+
+                {item.functionalVariationLabel ? (
+                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 9 }}>
+                    {item.functionalVariationLabel}
+                  </Text>
+                ) : null}
 
               </Pressable>
 
