@@ -3389,6 +3389,8 @@ export default function PeriodizationScreen() {
     [planObservabilityHistory]
   );
 
+  const selectedDay = selectedDayIndex !== null ? weekSchedule[selectedDayIndex] : null;
+
   // Persist observability summary to local SQLite whenever it's (re)computed for the active plan
   useEffect(() => {
     if (!activeClassPlan || !weeklyObservabilitySummary) return;

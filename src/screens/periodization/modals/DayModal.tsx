@@ -3,11 +3,15 @@ import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import type { VolumeLevel } from "../../../core/periodization-basics";
+import type {
+  PeriodizationAutoPlanForCycleDayResult,
+  PeriodizationDebugSignals,
+} from "../application/build-auto-plan-for-cycle-day";
+import type { SessionEnvironment } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 import { getSectionCardStyle } from "../../../ui/section-styles";
-import type { PeriodizationDebugSignals } from "../application/build-auto-plan-for-cycle-day";
 
 type WeekPlan = {
   title: string;
@@ -22,16 +26,7 @@ type DayItem = {
   session?: string;
   summary?: string;
   sessionIndexInWeek?: number;
-  autoPlan?: {
-    historicalConfidence?: "none" | "low" | "medium" | "high";
-    historyMode?: "bootstrap" | "partial_history" | "strong_history";
-    primarySkillLabel: string;
-    progressionLabel: string;
-    pedagogicalIntentLabel: string;
-    drillFamiliesLabel: string;
-    coachSummary: string;
-    debugSignals?: PeriodizationDebugSignals;
-  } | null;
+  autoPlan?: PeriodizationAutoPlanForCycleDayResult | null;
 };
 
 type ClassGroup = {
@@ -71,6 +66,56 @@ const formatDebugValue = (value: unknown) => {
   }
 
   return String(value);
+};
+
+const formatSessionEnvironmentLabel = (value?: SessionEnvironment) => {
+  switch (value) {
+    case "quadra":
+      return "Quadra";
+    case "academia":
+      return "Academia";
+    case "mista":
+      return "Mista";
+    case "preventiva":
+      return "Preventiva";
+    default:
+      return "";
+  }
+};
+
+const formatSessionComponentLabel = (component: unknown) => {
+  const componentType =
+    typeof component === "object" && component && "type" in component
+      ? String((component as { type?: string }).type)
+      : "";
+
+  switch (componentType) {
+    case "quadra_tecnico_tatico":
+      return "Quadra técnico-tático";
+    case "academia_resistido":
+      return "Academia resistido";
+    case "preventivo":
+      return "Preventivo";
+    default:
+      return componentType || "Sessão";
+  }
+};
+
+const formatSessionComponentDetail = (component: unknown) => {
+  const componentType =
+    typeof component === "object" && component && "type" in component
+      ? String((component as { type?: string }).type)
+      : "";
+
+  if (componentType === "academia_resistido") {
+    const resistanceLabel = (component as { resistancePlan?: { label?: string } }).resistancePlan?.label;
+    const durationMin = (component as { durationMin?: number }).durationMin;
+    return `${resistanceLabel ?? "Plano de resistência"} · ${durationMin ?? "?"} min`;
+  }
+
+  const description = (component as { description?: string }).description;
+  const durationMin = (component as { durationMin?: number }).durationMin;
+  return `${description ?? "Descrição não disponível"} · ${durationMin ?? "?"} min`;
 };
 
 type DebugRowProps = {
@@ -236,6 +281,37 @@ export function DayModal({
                   <Text style={{ color: colors.muted, fontSize: 12 }}>
                     {normalizeText(selectedDay.autoPlan.coachSummary)}
                   </Text>
+
+                  {selectedDay.autoPlan.sessionEnvironment ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {normalizeText(`Ambiente: ${formatSessionEnvironmentLabel(selectedDay.autoPlan.sessionEnvironment)}`)}
+                    </Text>
+                  ) : null}
+
+                  {selectedDay.autoPlan.sessionComponents?.length ? (
+                    <View style={{ gap: 6, marginTop: 6 }}>
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                        {normalizeText("Componentes da sessão")}
+                      </Text>
+                      {selectedDay.autoPlan.sessionComponents.map((component, index) => (
+                        <View
+                          key={`${component.type}-${index}`}
+                          style={{
+                            padding: 10,
+                            borderRadius: 12,
+                            backgroundColor: colors.secondaryBg,
+                          }}
+                        >
+                          <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                            {normalizeText(formatSessionComponentLabel(component))}
+                          </Text>
+                          <Text style={{ color: colors.muted, fontSize: 12 }}>
+                            {normalizeText(formatSessionComponentDetail(component))}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
 
                   {shouldShowDebugSignals ? (
                     <View

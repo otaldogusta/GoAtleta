@@ -4,6 +4,41 @@ import type { PedagogicalApproachDetection } from "./methodology/pedagogical-app
 export type AgeBand = string;
 export type Goal = string;
 export type Equipment = "quadra" | "funcional" | "academia" | "misto";
+
+// ─── Resistance / Integrated Training ────────────────────────────────────────
+
+/** How court and gym sessions relate inside the weekly microcycle. */
+export type IntegratedTrainingModel =
+  | "quadra_apenas"
+  | "academia_complementar"
+  | "academia_integrada"
+  | "academia_prioritaria";
+
+/** Athlete profile for resistance training prescription. */
+export type ResistanceTrainingProfile =
+  | "iniciante"
+  | "intermediario"
+  | "avancado";
+
+/** Encapsulates the training context of a class group (derived + explicit). */
+export type TeamTrainingContext = {
+  hasGymAccess: boolean;
+  integratedTrainingModel: IntegratedTrainingModel;
+  resistanceTrainingProfile: ResistanceTrainingProfile;
+};
+
+// ─── Session Environment ──────────────────────────────────────────────────────
+
+/** Physical environment where a session takes place. */
+export type SessionEnvironment = "quadra" | "academia" | "mista" | "preventiva";
+
+/** Primary training component driving the session goal. */
+export type SessionPrimaryComponent =
+  | "tecnico_tatico"
+  | "fisico_integrado"
+  | "resistido"
+  | "preventivo"
+  | "misto_transferencia";
 export type ClassGender = "masculino" | "feminino" | "misto";
 export type Modality = ClassModality;
 export type AthletePosition =
@@ -42,6 +77,10 @@ export type ClassGroup = {
   acwrLow: number;
   acwrHigh: number;
   createdAt: string;
+  /** Optional: overrides derived model from equipment field */
+  integratedTrainingModel?: IntegratedTrainingModel;
+  /** Optional: resistance training experience level for this group */
+  resistanceTrainingProfile?: ResistanceTrainingProfile;
 };
 
 export type Unit = {
@@ -589,6 +628,8 @@ export type WeeklyOperationalDecision = {
   driftRisks: string[];
   quarter: WeeklyOperationalQuarter;
   closingType: WeeklyOperationalClosingType;
+  sessionEnvironment?: SessionEnvironment;
+  sessionPrimaryComponent?: SessionPrimaryComponent;
 };
 
 export type WeeklyOperationalStrategySnapshot = {
@@ -717,6 +758,96 @@ export type PlanFingerprint = {
 export type PlanFingerprintSet = {
   exactFingerprint: string;
   structuralFingerprint: string;
+};
+
+// ─── Resistance Training Domain Types (R3) ───────────────────────────────────
+
+export type ResistanceExerciseCategory =
+  | "empurrar"
+  | "puxar"
+  | "membros_inferiores"
+  | "potencia"
+  | "preventivo"
+  | "core";
+
+export type ResistanceTrainingGoal =
+  | "forca_base"
+  | "hipertrofia"
+  | "potencia_atletica"
+  | "resistencia_muscular"
+  | "prevencao_lesao"
+  | "ativacao_funcional";
+
+export type ResistanceExercisePrescription = {
+  name: string;
+  category: ResistanceExerciseCategory;
+  sets: number;
+  reps: string;         // e.g. "8-10", "6", "AMRAP"
+  rest: string;         // e.g. "90s", "2min"
+  cadence?: string;     // e.g. "2-0-2"
+  notes?: string;
+  transferTarget?: string;  // volleyball-specific carry-over
+};
+
+export type ResistanceTrainingPlan = {
+  id: string;
+  label: string;
+  primaryGoal: ResistanceTrainingGoal;
+  transferTarget: string;       // e.g. "salto de ataque e bloqueio"
+  estimatedDurationMin: number;
+  exercises: ResistanceExercisePrescription[];
+};
+
+/** Discriminated union of session building blocks. */
+export type SessionComponentQuadraTecnicoTatico = {
+  type: "quadra_tecnico_tatico";
+  description: string;
+  durationMin: number;
+};
+
+export type SessionComponentAcademiaResistido = {
+  type: "academia_resistido";
+  resistancePlan: ResistanceTrainingPlan;
+  durationMin: number;
+};
+
+export type SessionComponentPreventivo = {
+  type: "preventivo";
+  description: string;
+  durationMin: number;
+};
+
+export type SessionComponent =
+  | SessionComponentQuadraTecnicoTatico
+  | SessionComponentAcademiaResistido
+  | SessionComponentPreventivo;
+
+// ─── Weekly Integrated Training Context (R5) ─────────────────────────────────
+
+/** What physical quality the week prioritises. */
+export type WeeklyPhysicalEmphasis =
+  | "forca_base"
+  | "potencia_atletica"
+  | "resistencia_especifica"
+  | "velocidade_reatividade"
+  | "prevencao_recuperacao"
+  | "manutencao";
+
+/** Relationship between court and gym load within the week. */
+export type CourtGymRelationship =
+  | "quadra_dominante"        // ≥75% court load
+  | "complementar_equilibrado" // ~50/50
+  | "academia_prioritaria"    // ≥75% gym load
+  | "separado_sem_transferencia"
+  | "integrado_transferencia_direta";
+
+export type WeeklyIntegratedTrainingContext = {
+  weeklyPhysicalEmphasis: WeeklyPhysicalEmphasis;
+  courtGymRelationship: CourtGymRelationship;
+  gymSessionsCount: number;
+  courtSessionsCount: number;
+  interferenceRisk: "baixo" | "moderado" | "alto";
+  notes: string;
 };
 
 export type TrainingTemplate = {
@@ -911,6 +1042,8 @@ export type ClassPlan = {
   lastManualEditedAt?: string;
   createdAt: string;
   updatedAt: string;
+  /** R5: serialised WeeklyIntegratedTrainingContext | null */
+  weeklyIntegratedContextJson?: string;
 };
 
 export type MonthlyPlanningBlueprint = {
@@ -942,6 +1075,10 @@ export type DailyLessonPlan = {
   dayOfWeek: number;
   title: string;
   blocksJson?: string;
+  /** R3: structured session components (court + gym blocks) */
+  sessionComponents?: SessionComponent[];
+  /** R2: resolved environment for this session */
+  sessionEnvironment?: SessionEnvironment;
   warmup: string;
   mainPart: string;
   cooldown: string;

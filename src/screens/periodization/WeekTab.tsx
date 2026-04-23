@@ -2,8 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Animated, Text, View } from "react-native";
 import type {
+    SessionEnvironment,
     WeeklyObservabilitySummary,
 } from "../../core/models";
+import type { PeriodizationAutoPlanForCycleDayResult } from "./application/build-auto-plan-for-cycle-day";
 import type {
     DriftFrequencyByClassItem,
   ObservabilityInsight,
@@ -20,6 +22,7 @@ type WeekScheduleItem = {
   dayNumber: number;
   session: string;
   date: string;
+  autoPlan?: PeriodizationAutoPlanForCycleDayResult | null;
 };
 
 type WeekPlan = {
@@ -35,6 +38,21 @@ type WeekPlan = {
   plannedSessionLoad: number;
   plannedWeeklyLoad: number;
   source: "AUTO" | "MANUAL";
+};
+
+const formatSessionEnvironmentLabel = (value?: SessionEnvironment) => {
+  switch (value) {
+    case "quadra":
+      return "Quadra";
+    case "academia":
+      return "Academia";
+    case "mista":
+      return "Mista";
+    case "preventiva":
+      return "Preventiva";
+    default:
+      return "";
+  }
 };
 
 type WeekTabProps = {
@@ -432,6 +450,22 @@ export function WeekTab({
                   {formatWeekSessionLabel(item.session || "Descanso")}
 
                 </Text>
+
+                {item.autoPlan?.sessionEnvironment ? (
+                  <View
+                    style={{
+                      alignSelf: "flex-start",
+                      paddingHorizontal: 6,
+                      paddingVertical: 3,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                      {formatSessionEnvironmentLabel(item.autoPlan.sessionEnvironment)}
+                    </Text>
+                  </View>
+                ) : null}
 
               </Pressable>
 

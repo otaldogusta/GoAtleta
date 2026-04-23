@@ -994,6 +994,23 @@ export function initDb() {
       "ALTER TABLE kb_documents ADD COLUMN knowledgeSourceId TEXT"
     );
   } catch {}
+  // R1 migrations: integrated training model fields on classes
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN integratedTrainingModel TEXT NOT NULL DEFAULT 'quadra_apenas'"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN resistanceTrainingProfile TEXT NOT NULL DEFAULT 'iniciante'"
+    );
+  } catch {}
+  // R5 migration: weekly integrated training context on class_plans
+  try {
+    db.execSync(
+      "ALTER TABLE class_plans ADD COLUMN weeklyIntegratedContextJson TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
   try {
     db.execSync(
       "ALTER TABLE units ADD COLUMN organizationId TEXT NOT NULL DEFAULT ''"

@@ -9,8 +9,12 @@ import type {
     HistoricalConfidence,
     RecentSessionSummary,
     RepetitionAdjustment,
+    SessionComponent,
+    SessionEnvironment,
     SessionStrategy,
+    TeamTrainingContext,
     VolleyballSkill,
+    WeeklyIntegratedTrainingContext,
     WeeklyOperationalDecision,
 } from "../../../core/models";
 import {
@@ -21,6 +25,12 @@ import {
     type SportProfile,
     type VolumeLevel,
 } from "../../../core/periodization-basics";
+import { buildResistanceSessionPlan } from "../../../core/resistance/build-resistance-session-plan";
+import {
+    buildWeeklyIntegratedContext,
+    resolveSessionEnvironment,
+} from "../../../core/resistance/resolve-session-environment";
+import { resolveTeamTrainingContext, supportsResistanceTraining } from "../../../core/resistance/training-context";
 import { buildPeriodizationCycleDayPlanningContext } from "./build-cycle-day-planning-context";
 
 type PeriodizationWeekPlanInput = {
@@ -50,6 +60,10 @@ export type BuildPeriodizationAutoPlanForCycleDayParams = {
   mesoLabel?: string;
   recentSessions?: RecentSessionSummary[] | null;
   weeklyOperationalDecision?: WeeklyOperationalDecision;
+  /** R6: team training context for gym/court environment resolution */
+  teamTrainingContext?: TeamTrainingContext;
+  /** R6: pre-built weekly integrated context (avoids re-derivation) */
+  weeklyIntegratedContext?: WeeklyIntegratedTrainingContext;
 };
 
 export type PeriodizationAutoPlanForCycleDayResult = {
@@ -69,6 +83,10 @@ export type PeriodizationAutoPlanForCycleDayResult = {
   explanationSummary: string;
   drillFamiliesLabel: string;
   debugSignals?: PeriodizationDebugSignals;
+  /** R2: resolved environment for this session */
+  sessionEnvironment?: SessionEnvironment;
+  /** R3: structured session components (court + gym blocks) */
+  sessionComponents?: SessionComponent[];
 };
 
 export type PeriodizationDebugSignals = {
@@ -330,7 +348,68 @@ export const buildPeriodizationAutoPlanForCycleDay = (
       cycleContext: context.cycleContext,
       strategy: guardResult.strategy,
     }),
+    ...resolveResistanceOutputForSession(params, context.sessionIndexInWeek),
   };
+};
+
+/**
+ * Resolves session environment and resistance components for a single session.
+ * Returns an empty object when the team has no gym access.
+ */
+const resolveResistanceOutputForSession = (
+  params: BuildPeriodizationAutoPlanForCycleDayParams,
+  sessionIndexInWeek: number
+): { sessionEnvironment?: SessionEnvironment; sessionComponents?: SessionComponent[] } => {
+  const teamCtx =
+    params.teamTrainingContext ??
+    resolveTeamTrainingContext(params.classGroup);
+
+  if (!supportsResistanceTraining(teamCtx)) {
+    return {};
+  }
+
+  const weeklyCtx =
+    params.weeklyIntegratedContext ??
+    buildWeeklyIntegratedContext({
+      teamContext: teamCtx,
+      weeklySessions: params.weeklySessions,
+    });
+
+  const sessionEnvironment = resolveSessionEnvironment({
+    teamContext: teamCtx,
+    weeklySessions: params.weeklySessions,
+    sessionIndexInWeek: sessionIndexInWeek - 1, // convert 1-based to 0-based
+  });
+
+  if (sessionEnvironment === "quadra") {
+    return { sessionEnvironment };
+  }
+
+  const sessionRole =
+    params.weeklyOperationalDecision?.sessionRole ?? "consolidacao_orientada";
+
+  const resistanceComponent = buildResistanceSessionPlan({
+    teamContext: teamCtx,
+    weeklyContext: weeklyCtx,
+    sessionRole,
+  });
+
+  const sessionComponents: SessionComponent[] =
+    sessionEnvironment === "academia"
+      ? [resistanceComponent]
+      : [
+          resistanceComponent,
+          {
+            type: "quadra_tecnico_tatico",
+            description: "Sessão técnico-tática complementar",
+            durationMin: Math.max(
+              30,
+              (params.classGroup?.durationMinutes ?? 90) - resistanceComponent.durationMin
+            ),
+          },
+        ];
+
+  return { sessionEnvironment, sessionComponents };
 };
 
 const buildSyntheticRecentSession = (
@@ -365,6 +444,10 @@ export const buildPeriodizationWeekSchedule = (params: {
   mesoLabel?: string;
   recentSessions?: RecentSessionSummary[] | null;
   weeklyOperationalDecisions?: WeeklyOperationalDecision[];
+  /** R6: optional — derived from classGroup.equipment if not provided */
+  teamTrainingContext?: TeamTrainingContext;
+  /** R6: optional — pre-built weekly integrated context */
+  weeklyIntegratedContext?: WeeklyIntegratedTrainingContext;
 }): PeriodizationWeekScheduleItem[] => {
   if (!params.classGroup || !params.weekPlan) {
     return weekAgendaDayOrder.map((dayNumber) => {
@@ -383,6 +466,13 @@ export const buildPeriodizationWeekSchedule = (params: {
   const trainingDays = resolveTrainingDaysForWeek(params.classGroup, params.weeklySessions);
   const syntheticRecentSessions = [...(params.recentSessions ?? [])];
   let sessionCounter = 0;
+
+  // R6: resolve team context once per week schedule build
+  const teamCtxForWeek =
+    params.teamTrainingContext ?? resolveTeamTrainingContext(params.classGroup);
+  const weeklyCtxForWeek =
+    params.weeklyIntegratedContext ??
+    buildWeeklyIntegratedContext({ teamContext: teamCtxForWeek, weeklySessions: params.weeklySessions });
 
   return weekAgendaDayOrder.map((dayNumber) => {
     const labelIndex = dayNumbersByLabelIndex.indexOf(dayNumber);
@@ -419,6 +509,8 @@ export const buildPeriodizationWeekSchedule = (params: {
       mesoLabel: params.mesoLabel,
       recentSessions: syntheticRecentSessions,
       weeklyOperationalDecision,
+      teamTrainingContext: teamCtxForWeek,
+      weeklyIntegratedContext: weeklyCtxForWeek,
     });
 
     syntheticRecentSessions.unshift(

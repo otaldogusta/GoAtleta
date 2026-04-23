@@ -1,34 +1,37 @@
 import { buildCompetitiveClassPlan } from "../../core/competitive-periodization";
 import type {
-  ClassCalendarException,
-  ClassCompetitiveProfile,
-  ClassGroup,
-  ClassPlan,
-  DailyLessonPlan,
+    ClassCalendarException,
+    ClassCompetitiveProfile,
+    ClassGroup,
+    ClassPlan,
+    DailyLessonPlan,
+    TeamTrainingContext,
 } from "../../core/models";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
 import {
-  renderGameFormLabel,
-  renderNextStepList,
-  renderPedagogicalObjective,
-  renderStageFocusSummary,
+    renderGameFormLabel,
+    renderNextStepList,
+    renderPedagogicalObjective,
+    renderStageFocusSummary,
 } from "../../core/pedagogy/pedagogical-renderer";
 import {
-  normalizeAgeBandKey,
-  resolveNextPedagogicalStepFromPeriodization,
+    normalizeAgeBandKey,
+    resolveNextPedagogicalStepFromPeriodization,
 } from "../../core/pedagogy/resolve-next-pedagogical-step-from-periodization";
 import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
 import type {
-  PeriodizationModel,
-  SportProfile,
+    PeriodizationModel,
+    SportProfile,
 } from "../../core/periodization-basics";
 import { getDemandIndexForModel } from "../../core/periodization-basics";
 import { buildClassPlan, getVolumeFromTargets } from "../../core/periodization-generator";
 import { getPlannedLoads } from "../../core/periodization-load";
+import { buildWeeklyIntegratedContext } from "../../core/resistance/resolve-session-environment";
+import { resolveTeamTrainingContext } from "../../core/resistance/training-context";
 import { buildPeriodizationWeekSchedule } from "./application/build-auto-plan-for-cycle-day";
 import {
-  resolveWeekStrategyFromCycleContext,
-  toWeeklyOperationalStrategySnapshot,
+    resolveWeekStrategyFromCycleContext,
+    toWeeklyOperationalStrategySnapshot,
 } from "./application/resolve-week-strategy-from-cycle-context";
 
 type BuildAutoWeekPlanParams = {
@@ -45,6 +48,8 @@ type BuildAutoWeekPlanParams = {
   weeklySessions: number;
   sportProfile: SportProfile;
   recentDailyLessonPlans?: DailyLessonPlan[];
+  /** Optional: pass when caller already has a resolved TeamTrainingContext */
+  teamTrainingContext?: TeamTrainingContext;
 };
 
 const uniqueStrings = (values: Array<string | null | undefined>) =>
@@ -422,6 +427,14 @@ export const buildAutoWeekPlan = (
     plan.id = existing.id;
     plan.createdAt = existing.createdAt;
   }
+
+  // R5: build and attach weekly integrated training context
+  const teamCtx = params.teamTrainingContext ?? resolveTeamTrainingContext(selectedClass);
+  const integratedCtx = buildWeeklyIntegratedContext({
+    teamContext: teamCtx,
+    weeklySessions: params.weeklySessions,
+  });
+  plan.weeklyIntegratedContextJson = JSON.stringify(integratedCtx);
 
   return plan;
 };
