@@ -657,7 +657,10 @@ export type PedagogicalDriftCode =
   | "quarter_week_misalignment"
   | "load_flattening"
   | "repetition_excess"
-  | "progression_stagnation";
+  | "progression_stagnation"
+  | "resistance_interference_risk"
+  | "resistance_transfer_weak"
+  | "resistance_balance_gap";
 
 export type PedagogicalDriftSignal = {
   detected: boolean;
@@ -681,10 +684,10 @@ export type WeeklyObservabilitySummary = {
   weekRulesApplied: string[];
   driftRisks: string[];
   sessionRoleSummary: string;
-  sessionSummaries: Array<{
+  sessionSummaries: {
     sessionIndexInWeek: number;
     sessionRole: WeekSessionRole;
-  }>;
+  }[];
   coherence: WeeklySessionCoherenceCheck[];
   driftSignals: PedagogicalDriftSignal[];
   sessionDebug: SessionOperationalDebug[];

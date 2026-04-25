@@ -43,6 +43,10 @@ import {
 import { useEffectiveProfile } from "../../src/core/effective-profile";
 import type { ClassGroup, Student, StudentPreRegistration } from "../../src/core/models";
 import { deriveStudentHealthAssessment } from "../../src/core/student-health";
+import {
+    findPossibleExistingStudents,
+    normalizeStudentLookupName,
+} from "../../src/core/students/find-possible-existing-students";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     convertStudentPreRegistration,
@@ -243,6 +247,7 @@ export default function StudentsScreen() {
   const [showAllBirthdays, setShowAllBirthdays] = useState(true);
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
   const [studentsSearch, setStudentsSearch] = useState("");
+  const [dismissedExistingStudentProbe, setDismissedExistingStudentProbe] = useState("");
   const debouncedBirthdaySearch = useDebouncedValue(birthdaySearch, 250);
   const debouncedStudentsSearch = useDebouncedValue(studentsSearch, 250);
   // --- Formulário de aluno (42 campos → useReducer) ---
@@ -280,6 +285,7 @@ export default function StudentsScreen() {
     openCreateSection, openEditSection,
     formError: studentFormError, documentsError: studentDocumentsError, editSnapshot,
   } = form;
+  const debouncedExistingStudentName = useDebouncedValue(name, 400);
 
   // --- Pr?-cadastro (useReducer) ---
   const {
@@ -1155,6 +1161,7 @@ export default function StudentsScreen() {
 
   const doResetCreateForm = useCallback(() => {
     closeAllPickers();
+    setDismissedExistingStudentProbe("");
     resetCreateForm();
   }, [closeAllPickers, resetCreateForm]);
 
@@ -1426,6 +1433,45 @@ export default function StudentsScreen() {
     () => classById.get(classId)?.name ?? "",
     [classById, classId]
   );
+  const existingStudentProbeKey = useMemo(
+    () =>
+      `${normalizeStudentLookupName(debouncedExistingStudentName)}::${String(
+        birthDate ?? ""
+      ).trim()}`,
+    [birthDate, debouncedExistingStudentName]
+  );
+  const existingStudentMatches = useMemo(() => {
+    if (editingId) return [];
+    if (!showForm || studentsTab !== "cadastro") return [];
+    if (!debouncedExistingStudentName.trim()) return [];
+    if (dismissedExistingStudentProbe === existingStudentProbeKey) return [];
+
+    return findPossibleExistingStudents({
+      name: debouncedExistingStudentName,
+      birthDate,
+      currentClassId: classId,
+      editingStudentId: editingId,
+      students,
+      classesById: classById,
+    });
+  }, [
+    birthDate,
+    classById,
+    classId,
+    debouncedExistingStudentName,
+    dismissedExistingStudentProbe,
+    editingId,
+    existingStudentProbeKey,
+    showForm,
+    students,
+    studentsTab,
+  ]);
+  const reviewExistingStudents = useCallback(() => {
+    const focusName = existingStudentMatches[0]?.studentName ?? name.trim();
+    setStudentsTab("alunos");
+    setStudentsSearch(focusName);
+    setShowForm(false);
+  }, [existingStudentMatches, name, setStudentsTab, setShowForm]);
   const selectedClassLabel = useMemo(() => {
     const cls = classById.get(classId) ?? null;
     if (!cls) return "";
@@ -2657,6 +2703,9 @@ export default function StudentsScreen() {
               showClassPicker={showClassPicker}
               classTriggerRef={classTriggerRef}
               studentFormError={studentFormError}
+              existingStudentMatches={existingStudentMatches}
+              onReviewExistingStudents={reviewExistingStudents}
+              onDismissExistingStudentWarning={() => setDismissedExistingStudentProbe(existingStudentProbeKey)}
               birthDate={birthDate}
               setBirthDate={setBirthDate}
               setShowCalendar={setShowCalendar}

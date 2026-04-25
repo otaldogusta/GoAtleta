@@ -15,6 +15,13 @@ import type {
     TeamTrainingContext,
 } from "../models";
 
+export type ResistanceEligibilityMode =
+  | "none"
+  | "motor_control_integrated"
+  | "adapted_support"
+  | "formal_support"
+  | "formal_priority";
+
 /**
  * Derives the IntegratedTrainingModel from the Equipment field alone.
  * Use this when no explicit override is stored on the class record.
@@ -64,11 +71,80 @@ export function resolveTeamTrainingContext(
   };
 }
 
+function getAgeBandLowerBound(ageBand: string | undefined): number | null {
+  const match = String(ageBand ?? "").match(/(\d{2})/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function isBeginnerMvLevel(mvLevel: string | undefined): boolean {
+  const normalized = String(mvLevel ?? "").trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes("inic") ||
+    normalized.includes("base") ||
+    normalized === "mv1"
+  );
+}
+
+export function resolveResistanceEligibilityMode(params: {
+  classGroup: Pick<ClassGroup, "ageBand" | "level" | "mvLevel" | "modality">;
+  teamContext: TeamTrainingContext;
+}): ResistanceEligibilityMode {
+  const { classGroup, teamContext } = params;
+
+  if (!teamContext.hasGymAccess || teamContext.integratedTrainingModel === "quadra_apenas") {
+    return "none";
+  }
+
+  const lowerAgeBound = getAgeBandLowerBound(classGroup.ageBand);
+  const isVolleyball = classGroup.modality === "voleibol";
+  const isBeginnerClass =
+    classGroup.level === 1 || isBeginnerMvLevel(classGroup.mvLevel);
+  const isYoungGroup = lowerAgeBound !== null && lowerAgeBound <= 9;
+  const isPreFormationGroup = lowerAgeBound !== null && lowerAgeBound <= 12;
+
+  if (isVolleyball && isYoungGroup) {
+    return "motor_control_integrated";
+  }
+
+  if (
+    isVolleyball &&
+    isPreFormationGroup &&
+    (isBeginnerClass || teamContext.resistanceTrainingProfile === "iniciante")
+  ) {
+    return "adapted_support";
+  }
+
+  if (
+    lowerAgeBound !== null &&
+    lowerAgeBound >= 15 &&
+    teamContext.resistanceTrainingProfile === "avancado" &&
+    teamContext.integratedTrainingModel === "academia_prioritaria"
+  ) {
+    return "formal_priority";
+  }
+
+  return "formal_support";
+}
+
 /**
  * Returns true when the team context indicates resistance training
  * should be included in the periodization output.
  */
-export function supportsResistanceTraining(ctx: TeamTrainingContext): boolean {
+export function supportsResistanceTraining(
+  ctx: TeamTrainingContext,
+  classGroup?: Pick<ClassGroup, "ageBand" | "level" | "mvLevel" | "modality"> | null
+): boolean {
+  if (classGroup) {
+    const eligibilityMode = resolveResistanceEligibilityMode({
+      classGroup,
+      teamContext: ctx,
+    });
+    return eligibilityMode === "formal_support" || eligibilityMode === "formal_priority";
+  }
+
   return (
     ctx.hasGymAccess &&
     ctx.integratedTrainingModel !== "quadra_apenas"

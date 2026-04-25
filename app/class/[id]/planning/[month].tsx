@@ -174,6 +174,7 @@ export default function ClassPlanningMonthRoute() {
     durationMinutes: selectedClass?.durationMinutes,
     cycleStartDate: activeCycle?.startDate,
     cycleEndDate: activeCycle?.endDate,
+    classGroup: selectedClass,
   });
 
   useEffect(() => {
@@ -205,6 +206,7 @@ export default function ClassPlanningMonthRoute() {
           durationMinutes: selectedClass?.durationMinutes,
           cycleStartDate: activeCycle?.startDate,
           cycleEndDate: activeCycle?.endDate,
+          classGroup: selectedClass,
           recentPlans,
         },
       });

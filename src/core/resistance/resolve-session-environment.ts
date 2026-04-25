@@ -14,6 +14,7 @@
  */
 
 import type {
+    ClassGroup,
     CourtGymRelationship,
     IntegratedTrainingModel,
     SessionEnvironment,
@@ -25,6 +26,7 @@ import { supportsResistanceTraining } from "../../core/resistance/training-conte
 
 export type ResolveSessionEnvironmentParams = {
   teamContext: TeamTrainingContext;
+  classGroup?: Pick<ClassGroup, "ageBand" | "level" | "mvLevel" | "modality"> | null;
   weeklySessions: number;
   sessionIndexInWeek: number; // 0-based
 };
@@ -37,7 +39,7 @@ export function resolveSessionEnvironment(
 ): SessionEnvironment {
   const { teamContext, weeklySessions, sessionIndexInWeek } = params;
 
-  if (!supportsResistanceTraining(teamContext)) {
+  if (!supportsResistanceTraining(teamContext, params.classGroup)) {
     return "quadra";
   }
 
@@ -98,6 +100,7 @@ function resolveGymSessionPositions(
 
 export type BuildWeeklyIntegratedContextParams = {
   teamContext: TeamTrainingContext;
+  classGroup?: Pick<ClassGroup, "ageBand" | "level" | "mvLevel" | "modality"> | null;
   weeklySessions: number;
   weeklyPhysicalEmphasis?: WeeklyPhysicalEmphasis;
 };
@@ -110,14 +113,17 @@ export function buildWeeklyIntegratedContext(
 ): WeeklyIntegratedTrainingContext {
   const { teamContext, weeklySessions } = params;
 
-  if (!supportsResistanceTraining(teamContext)) {
+  if (!supportsResistanceTraining(teamContext, params.classGroup)) {
     return {
       weeklyPhysicalEmphasis: params.weeklyPhysicalEmphasis ?? "manutencao",
       courtGymRelationship: "quadra_dominante",
       gymSessionsCount: 0,
       courtSessionsCount: weeklySessions,
       interferenceRisk: "baixo",
-      notes: "Turma sem acesso à academia.",
+      notes:
+        teamContext.hasGymAccess
+          ? "Academia disponível apenas como apoio motor/preventivo; quadra permanece dominante."
+          : "Turma sem acesso à academia.",
     };
   }
 

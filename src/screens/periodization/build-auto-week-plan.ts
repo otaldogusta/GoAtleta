@@ -5,6 +5,7 @@ import type {
     ClassGroup,
     ClassPlan,
     DailyLessonPlan,
+    SessionPrimaryComponent,
     TeamTrainingContext,
 } from "../../core/models";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
@@ -52,7 +53,7 @@ type BuildAutoWeekPlanParams = {
   teamTrainingContext?: TeamTrainingContext;
 };
 
-const uniqueStrings = (values: Array<string | null | undefined>) =>
+const uniqueStrings = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
 const buildWeeklyPhysicalFocus = (params: {
@@ -110,6 +111,28 @@ const buildWeeklyConstraints = (params: {
   ])
     .slice(0, 4)
     .join(" | ");
+
+const deriveSessionPrimaryComponent = (params: {
+  sessionEnvironment?: string;
+  sessionComponents?: { type?: string }[];
+}): SessionPrimaryComponent | undefined => {
+  if (params.sessionComponents?.some((item) => item.type === "academia_resistido")) {
+    if (params.sessionComponents.some((item) => item.type === "quadra_tecnico_tatico")) {
+      return "misto_transferencia";
+    }
+    return "resistido";
+  }
+
+  if (params.sessionComponents?.some((item) => item.type === "preventivo")) {
+    return "preventivo";
+  }
+
+  if (params.sessionEnvironment === "quadra") return "tecnico_tatico";
+  if (params.sessionEnvironment === "mista") return "misto_transferencia";
+  if (params.sessionEnvironment === "preventiva") return "preventivo";
+  if (params.sessionEnvironment === "academia") return "resistido";
+  return undefined;
+};
 
 const buildWeekPlanMeta = (params: {
   plan: ClassPlan;
@@ -332,13 +355,6 @@ export const buildAutoWeekPlan = (
       nextPedagogicalStep,
     });
 
-    const snapshot = {
-      ...parseSnapshot(plan.generationContextSnapshotJson),
-      weeklyOperationalStrategy: toWeeklyOperationalStrategySnapshot(weeklyOperationalStrategy),
-    };
-    plan.generationContextSnapshotJson = JSON.stringify(snapshot);
-    plan.weekNotes = sanitizeVolleyballLanguage(weeklyOperationalStrategy.weekIntentSummary);
-
     const periodizationWeek = buildPeriodizationWeekSchedule({
       classGroup: selectedClass,
       classPlan: plan,
@@ -352,6 +368,34 @@ export const buildAutoWeekPlan = (
     const autoPlans = periodizationWeek
       .map((item) => item.autoPlan)
       .filter((item): item is NonNullable<(typeof periodizationWeek)[number]["autoPlan"]> => Boolean(item));
+    const decisionsWithEnvironment = weeklyOperationalStrategy.decisions.map((decision) => {
+      const autoPlan = autoPlans.find(
+        (item) => item.sessionIndexInWeek === decision.sessionIndexInWeek,
+      );
+      return {
+        ...decision,
+        sessionEnvironment:
+          autoPlan?.sessionEnvironment ?? decision.sessionEnvironment,
+        sessionPrimaryComponent:
+          autoPlan?.sessionComponents?.length
+            ? deriveSessionPrimaryComponent({
+                sessionEnvironment: autoPlan.sessionEnvironment,
+                sessionComponents: autoPlan.sessionComponents.map((component) => ({
+                  type: component.type,
+                })),
+              })
+            : decision.sessionPrimaryComponent,
+      };
+    });
+    const snapshot = {
+      ...parseSnapshot(plan.generationContextSnapshotJson),
+      weeklyOperationalStrategy: toWeeklyOperationalStrategySnapshot({
+        ...weeklyOperationalStrategy,
+        decisions: decisionsWithEnvironment,
+      }),
+    };
+    plan.generationContextSnapshotJson = JSON.stringify(snapshot);
+    plan.weekNotes = sanitizeVolleyballLanguage(weeklyOperationalStrategy.weekIntentSummary);
 
     if (autoPlans.length) {
       const skillLabels = uniqueStrings(autoPlans.map((item) => item.primarySkillLabel)).slice(0, 2);
@@ -432,6 +476,7 @@ export const buildAutoWeekPlan = (
   const teamCtx = params.teamTrainingContext ?? resolveTeamTrainingContext(selectedClass);
   const integratedCtx = buildWeeklyIntegratedContext({
     teamContext: teamCtx,
+    classGroup: selectedClass,
     weeklySessions: params.weeklySessions,
   });
   plan.weeklyIntegratedContextJson = JSON.stringify(integratedCtx);

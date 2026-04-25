@@ -55,6 +55,22 @@ describe("resolveSessionEnvironment", () => {
     expect(resolveSessionEnvironment({ teamContext: ctxPrioritaria, weeklySessions: 4, sessionIndexInWeek: 2 })).toBe("academia");
     expect(resolveSessionEnvironment({ teamContext: ctxPrioritaria, weeklySessions: 4, sessionIndexInWeek: 3 })).toBe("quadra");
   });
+
+  it("forces quadra for 07-09 beginner volleyball even when gym is available", () => {
+    expect(
+      resolveSessionEnvironment({
+        teamContext: ctxComplementar,
+        classGroup: {
+          ageBand: "07-09",
+          level: 1,
+          mvLevel: "base",
+          modality: "voleibol",
+        },
+        weeklySessions: 3,
+        sessionIndexInWeek: 1,
+      })
+    ).toBe("quadra");
+  });
 });
 
 describe("buildWeeklyIntegratedContext", () => {
@@ -79,5 +95,22 @@ describe("buildWeeklyIntegratedContext", () => {
     const ctx = buildWeeklyIntegratedContext({ teamContext: ctxComplementar, weeklySessions: 3 });
     expect(ctx.gymSessionsCount).toBe(1);
     expect(ctx.courtSessionsCount).toBe(2);
+  });
+
+  it("keeps gym sessions at zero for beginner volleyball groups with only adapted support", () => {
+    const ctx = buildWeeklyIntegratedContext({
+      teamContext: ctxComplementar,
+      classGroup: {
+        ageBand: "07-09",
+        level: 1,
+        mvLevel: "base",
+        modality: "voleibol",
+      },
+      weeklySessions: 3,
+    });
+
+    expect(ctx.gymSessionsCount).toBe(0);
+    expect(ctx.courtGymRelationship).toBe("quadra_dominante");
+    expect(ctx.notes).toContain("apoio motor/preventivo");
   });
 });

@@ -74,7 +74,11 @@ export function buildResistanceSessionPlan(
   const goal = resolveGoalForSession(weeklyContext, sessionRole);
   const resistancePlan = resolveResistanceTemplate(
     goal,
-    teamContext.resistanceTrainingProfile
+    teamContext.resistanceTrainingProfile,
+    {
+      weeklyPhysicalEmphasis: weeklyContext.weeklyPhysicalEmphasis,
+      courtGymRelationship: weeklyContext.courtGymRelationship,
+    }
   );
 
   return {

@@ -1,6 +1,7 @@
 import type {
-    SessionStrategy,
-    WeeklyOperationalStrategySnapshot,
+  SessionComponent,
+  SessionStrategy,
+  WeeklyOperationalStrategySnapshot,
 } from "../../../core/models";
 import type { PeriodizationWeekScheduleItem } from "../application/build-auto-plan-for-cycle-day";
 import {
@@ -30,6 +31,9 @@ const buildScheduleItem = (params: {
   sessionIndexInWeek: number;
   strategy: SessionStrategy;
   dayNumber: number;
+  sessionLabel?: string;
+  coachSummary?: string;
+  sessionComponents?: SessionComponent[];
 }): PeriodizationWeekScheduleItem => ({
   label: `D${params.dayNumber}`,
   dayNumber: params.dayNumber,
@@ -51,13 +55,43 @@ const buildScheduleItem = (params: {
       changedFields: [],
     },
     strategy: params.strategy,
-    sessionLabel: "Sessao",
+    sessionLabel: params.sessionLabel ?? "Sessao",
     primarySkillLabel: "Passe",
     progressionLabel: "Pressao",
     pedagogicalIntentLabel: "Adaptacao",
-    coachSummary: "Resumo coach",
+    coachSummary: params.coachSummary ?? "Resumo coach",
     explanationSummary: "Resumo",
     drillFamiliesLabel: params.strategy.drillFamilies.join(", "),
+    sessionComponents: params.sessionComponents,
+  },
+});
+
+const buildResistanceComponent = (overrides?: {
+  transferTarget?: string;
+  exercises?: {
+    category?: "membros_inferiores" | "potencia" | "preventivo" | "core" | "empurrar" | "puxar";
+    transferTarget?: string;
+  }[];
+}): SessionComponent => ({
+  type: "academia_resistido",
+  durationMin: 40,
+  resistancePlan: {
+    id: "rp_1",
+    label: "Potência de membros inferiores",
+    primaryGoal: "potencia_atletica",
+    transferTarget: overrides?.transferTarget ?? "salto de ataque e bloqueio",
+    estimatedDurationMin: 40,
+    exercises: (overrides?.exercises ?? [
+      { category: "membros_inferiores", transferTarget: "salto" },
+      { category: "potencia", transferTarget: "bloqueio" },
+    ]).map((exercise, index) => ({
+      name: `Ex ${index + 1}`,
+      category: exercise.category ?? "membros_inferiores",
+      sets: 3,
+      reps: "6",
+      rest: "90s",
+      transferTarget: exercise.transferTarget,
+    })),
   },
 });
 
@@ -287,5 +321,99 @@ describe("weekly session observability", () => {
 
     expect(merged).not.toContain("load_contrast_preserved");
     expect(merged).not.toContain("quarterly_anchor_alignment");
+  });
+
+  it("detects interference when lower-body gym load overlaps with high jump-demand court work", () => {
+    const drift = detectPedagogicalDrift({
+      weeklySnapshot: snapshot,
+      coherence: validateWeeklySessionCoherence({
+        weeklySnapshot: snapshot,
+        weekSchedule: [
+          buildScheduleItem({
+            sessionIndexInWeek: 1,
+            dayNumber: 2,
+            strategy: buildStrategy({
+              primarySkill: "ataque",
+              loadIntent: "alto",
+              progressionDimension: "precisao",
+              oppositionLevel: "low",
+              timePressureLevel: "low",
+              gameTransferLevel: "low",
+            }),
+            sessionLabel: "Ataque com salto",
+          }),
+          buildScheduleItem({
+            sessionIndexInWeek: 2,
+            dayNumber: 4,
+            strategy: buildStrategy(),
+            sessionComponents: [buildResistanceComponent()],
+          }),
+        ],
+      }),
+      weekSchedule: [
+        buildScheduleItem({
+          sessionIndexInWeek: 1,
+          dayNumber: 2,
+          strategy: buildStrategy({
+            primarySkill: "ataque",
+            loadIntent: "alto",
+            progressionDimension: "precisao",
+            oppositionLevel: "low",
+            timePressureLevel: "low",
+            gameTransferLevel: "low",
+          }),
+          sessionLabel: "Ataque com salto",
+        }),
+        buildScheduleItem({
+          sessionIndexInWeek: 2,
+          dayNumber: 4,
+          strategy: buildStrategy(),
+          sessionComponents: [buildResistanceComponent()],
+        }),
+      ],
+    });
+
+    expect(drift.some((signal) => signal.code === "resistance_interference_risk")).toBe(true);
+  });
+
+  it("detects weak transfer and structural balance gaps in formal resistance weeks", () => {
+    const summary = buildWeeklyObservabilitySummary({
+      weeklySnapshot: snapshot,
+      weekSchedule: [
+        buildScheduleItem({
+          sessionIndexInWeek: 1,
+          dayNumber: 2,
+          strategy: buildStrategy({
+            progressionDimension: "precisao",
+            loadIntent: "baixo",
+            gameTransferLevel: "low",
+            oppositionLevel: "low",
+            timePressureLevel: "low",
+          }),
+        }),
+        buildScheduleItem({
+          sessionIndexInWeek: 2,
+          dayNumber: 4,
+          strategy: buildStrategy(),
+          sessionComponents: [
+            buildResistanceComponent({
+              transferTarget: "",
+              exercises: [
+                { category: "membros_inferiores" },
+                { category: "potencia" },
+                { category: "membros_inferiores" },
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    expect(summary?.driftSignals.some((signal) => signal.code === "resistance_transfer_weak")).toBe(
+      true
+    );
+    expect(summary?.driftSignals.some((signal) => signal.code === "resistance_balance_gap")).toBe(
+      true
+    );
   });
 });

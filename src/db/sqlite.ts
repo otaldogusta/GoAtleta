@@ -207,6 +207,9 @@ export function initDb() {
       dayOfWeek INTEGER NOT NULL,
       title TEXT NOT NULL DEFAULT '',
       blocksJson TEXT NOT NULL DEFAULT '[]',
+      sessionComponentsJson TEXT NOT NULL DEFAULT '[]',
+      sessionEnvironment TEXT NOT NULL DEFAULT '',
+      sessionPrimaryComponent TEXT NOT NULL DEFAULT '',
       warmup TEXT NOT NULL DEFAULT '',
       mainPart TEXT NOT NULL DEFAULT '',
       cooldown TEXT NOT NULL DEFAULT '',
@@ -1038,6 +1041,21 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE daily_lesson_plans ADD COLUMN cycleId TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE daily_lesson_plans ADD COLUMN sessionComponentsJson TEXT NOT NULL DEFAULT '[]'"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE daily_lesson_plans ADD COLUMN sessionEnvironment TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE daily_lesson_plans ADD COLUMN sessionPrimaryComponent TEXT NOT NULL DEFAULT ''"
     );
   } catch {}
   try {

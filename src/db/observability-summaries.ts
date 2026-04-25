@@ -67,6 +67,9 @@ const DRIFT_CODES: PedagogicalDriftCode[] = [
   "load_flattening",
   "repetition_excess",
   "progression_stagnation",
+  "resistance_interference_risk",
+  "resistance_transfer_weak",
+  "resistance_balance_gap",
 ];
 
 const toSafeSummary = (raw: string): WeeklyObservabilitySummary | null => {
@@ -156,6 +159,9 @@ export function computeDriftFrequencyFromRecords(
     load_flattening: { total: 0, low: 0, medium: 0, high: 0 },
     repetition_excess: { total: 0, low: 0, medium: 0, high: 0 },
     progression_stagnation: { total: 0, low: 0, medium: 0, high: 0 },
+    resistance_interference_risk: { total: 0, low: 0, medium: 0, high: 0 },
+    resistance_transfer_weak: { total: 0, low: 0, medium: 0, high: 0 },
+    resistance_balance_gap: { total: 0, low: 0, medium: 0, high: 0 },
   };
   for (const record of records) {
     for (const signal of record.summary.driftSignals) {
@@ -378,6 +384,9 @@ export async function getDriftFrequencyByClass(
     load_flattening: { total: 0, low: 0, medium: 0, high: 0 },
     repetition_excess: { total: 0, low: 0, medium: 0, high: 0 },
     progression_stagnation: { total: 0, low: 0, medium: 0, high: 0 },
+    resistance_interference_risk: { total: 0, low: 0, medium: 0, high: 0 },
+    resistance_transfer_weak: { total: 0, low: 0, medium: 0, high: 0 },
+    resistance_balance_gap: { total: 0, low: 0, medium: 0, high: 0 },
   };
 
   for (const record of records) {

@@ -12,6 +12,8 @@
 
 **É:** academia como *componente do microciclo*, governada pela semana.
 
+Regra operacional desta fase: usar os campos reais já definidos em `src/core/models.ts` e não criar aliases paralelos na UI.
+
 ---
 
 ## 🎯 O QUE JÁ EXISTE (NÃO REFAZER)
@@ -107,13 +109,15 @@ Sinais QA que veem coerência/incoerência (SEM auto-recalibragem).
 **Arquivos:** `SessionResistanceBlock.tsx` (NOVO) | `session.tsx` (refator)
 
 **Fazer:**
+- [ ] Criar componente isolado antes de tocar na tela principal
+- [ ] Criar adapter para extrair `SessionComponentAcademiaResistido`
 - [ ] Renderizar tabela exercícios quando `sessionEnvironment === "academia"`
 - [ ] Exibir: exercício | séries | reps | intervalo | observações
 - [ ] Quadra continua funcionando (zero regressão)
 - [ ] Testes: 3+ variações de planos
 
 **Risco:** Quebra de render se dados ausentes
-**Mitiga:** Defaults obrigatórios, validação prévia
+**Mitiga:** Defaults obrigatórios, validação prévia, adapter antes de mexer em `session.tsx`
 
 ---
 
@@ -135,6 +139,7 @@ Sinais QA que veem coerência/incoerência (SEM auto-recalibragem).
 **Arquivos:** `build-auto-week-plan.ts` | `build-auto-plan-for-cycle-day.ts` | `sqlite.ts`
 
 **Fazer:**
+- [ ] Confirmar o que já foi implementado antes de adicionar nova lógica
 - [ ] `resolveTeamTrainingContext()` chamado no gerador
 - [ ] `buildWeeklyIntegratedContext()` produz JSON salvo em DB
 - [ ] DailyLessonPlan tem `sessionEnvironment` correto
@@ -236,6 +241,7 @@ Quando tudo estiver pronto, o treinador deve poder:
 6. ✅ Ver sinais QA (sem auto-recalibragem)
 7. ✅ Render quadra intacta (zero regressão)
 8. ✅ Nenhuma auto-intervenção no plano
+9. ✅ Sessões antigas ou parciais abrem sem quebrar
 
 ---
 

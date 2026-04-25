@@ -23,11 +23,15 @@ import {
     buildAutoPlanForCycleDay,
     type AutoPlanForCycleDayResult,
 } from "../../../src/screens/session/application/build-auto-plan-for-cycle-day";
+import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
 import {
     BlockEditModal,
     type BlockEditPayload,
     type EditableBlockItem,
 } from "../../../src/screens/session/components/BlockEditModal";
+import { SessionContextHeader } from "../../../src/screens/session/components/SessionContextHeader";
+import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
+import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import {
@@ -41,6 +45,7 @@ import type { PedagogicalDimensionsConfig } from "../../../src/config/pedagogica
 import { ptBR } from "../../../src/constants/copy/pt-br";
 import { toVisibleCoachingText } from "../../../src/core/methodology/coaching-lexicon";
 import type { PedagogicalApproachDetection } from "../../../src/core/methodology/pedagogical-approach-detector";
+import { parseWeeklyIntegratedContext } from "../../../src/core/resistance/weekly-integrated-context";
 import {
     buildSessionApproachAwareBlockDescription,
     buildSessionApproachAwareGeneralObjective,
@@ -68,6 +73,7 @@ import {
 import type {
     ClassGroup,
     ClassPlan,
+    DailyLessonPlan,
     KnowledgeSource,
     ProgressionDimension,
     ScoutingLog,
@@ -118,6 +124,7 @@ import {
     getAttendanceByDate,
     getClassById,
     getClassPlansByClass,
+    getDailyLessonPlanByWeekAndDate,
     getKnowledgeRuleCitations,
     getKnowledgeSources,
     getLatestTrainingPlanByClass,
@@ -1976,6 +1983,7 @@ export default function SessionScreen() {
   const planGenerationLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const [pedagogicalPlanPackage, setPedagogicalPlanPackage] = useState<PedagogicalPlanPackage | null>(null);
   const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
+  const [currentDailyLessonPlan, setCurrentDailyLessonPlan] = useState<DailyLessonPlan | null>(null);
   const [isResolvingCurrentClassPlan, setIsResolvingCurrentClassPlan] = useState(false);
   const [planGenerationPhase, setPlanGenerationPhase] = useState<
     "idle" | "generating" | "saving" | "settling"
@@ -2256,6 +2264,37 @@ export default function SessionScreen() {
   useEffect(() => {
     periodizationAutoGenerateKeyRef.current = null;
   }, [id, sessionDate, shouldAutoGenerateFromPeriodization]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCurrentDailyLessonPlan = async () => {
+      if (!currentClassPlan?.id) {
+        setCurrentDailyLessonPlan(null);
+        return;
+      }
+
+      try {
+        const dailyPlan = await getDailyLessonPlanByWeekAndDate(
+          currentClassPlan.id,
+          sessionDate,
+        );
+        if (!cancelled) {
+          setCurrentDailyLessonPlan(dailyPlan);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentDailyLessonPlan(null);
+        }
+      }
+    };
+
+    void loadCurrentDailyLessonPlan();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentClassPlan?.id, sessionDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2928,6 +2967,48 @@ export default function SessionScreen() {
           plan.pedagogy.adaptation.adjustment
       )
     : "";
+  const resistancePreview = useMemo(() => {
+    const persistedResistanceData = getResistancePlanFromSessionComponents(
+      currentDailyLessonPlan?.sessionComponents,
+    );
+    const persistedWeeklyContext = parseWeeklyIntegratedContext(
+      currentClassPlan?.weeklyIntegratedContextJson,
+    );
+
+    if (
+      currentDailyLessonPlan?.sessionEnvironment &&
+      currentDailyLessonPlan.sessionEnvironment !== "quadra" &&
+      persistedResistanceData
+    ) {
+      return {
+        sessionEnvironment: currentDailyLessonPlan.sessionEnvironment,
+        weeklyContext: persistedWeeklyContext,
+        resistancePlan: persistedResistanceData.resistancePlan,
+        durationMin: persistedResistanceData.durationMin,
+      };
+    }
+
+    const preview = buildSessionResistancePreview({
+      classGroup: cls,
+      classPlan: currentClassPlan,
+      sessionDate,
+    });
+
+    const resistanceData = getResistancePlanFromSessionComponents(
+      preview?.sessionComponents,
+    );
+
+    if (!preview || preview.sessionEnvironment === "quadra" || !resistanceData) {
+      return null;
+    }
+
+    return {
+      sessionEnvironment: preview.sessionEnvironment,
+      weeklyContext: preview.weeklyContext,
+      resistancePlan: resistanceData.resistancePlan,
+      durationMin: resistanceData.durationMin,
+    };
+  }, [cls, currentClassPlan, currentDailyLessonPlan, sessionDate]);
 
   const blockTitleMap = {
     warmup: ptBR.session.warmup,
@@ -4584,6 +4665,22 @@ export default function SessionScreen() {
         ) : null}
         {sessionTab === "treino" && plan ? (
           <>
+            {resistancePreview ? (
+              <>
+                <SessionContextHeader
+                  colors={colors}
+                  environment={resistancePreview.sessionEnvironment}
+                  weeklyPhysicalEmphasis={resistancePreview.weeklyContext?.weeklyPhysicalEmphasis}
+                  courtGymRelationship={resistancePreview.weeklyContext?.courtGymRelationship}
+                  transferTarget={resistancePreview.resistancePlan.transferTarget}
+                />
+                <SessionResistanceBlock
+                  colors={colors}
+                  resistancePlan={resistancePreview.resistancePlan}
+                  durationMin={resistancePreview.durationMin}
+                />
+              </>
+            ) : null}
             {([
               { key: "warmup", label: warmupLabel },
               { key: "main", label: mainLabel },
@@ -4680,87 +4777,159 @@ export default function SessionScreen() {
           </>
         ) : null}
         {sessionTab === "treino" && !plan && !isPlanGenerationBusy ? (
-          <View
-            style={{
-              padding: 14,
-              borderRadius: 18,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOpacity: 0.04,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 2,
-              gap: 10,
-            }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              {ptBR.session.emptyPlan.title}
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              {ptBR.session.emptyPlan.description}
-            </Text>
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              <Pressable
-                onPress={() => setShowSavedClassPlans((current) => !current)}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.primaryBg,
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  {showSavedClassPlans ? "Ocultar planos" : ptBR.session.emptyPlan.applyTraining}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={handleGeneratePedagogicalPlan}
-                disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.secondaryBg,
-                  opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan ? 0.65 : 1,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {isSavingPedagogicalPlan
-                    ? "Salvando plano..."
-                    : isGeneratingPedagogicalPlan
-                      ? "Gerando plano..."
-                      : ptBR.session.actions.generateAutomaticPlan}
-                </Text>
-              </Pressable>
-            </View>
-            {showSavedClassPlans ? (
+          <>
+            {resistancePreview ? (
+              <>
+                <SessionContextHeader
+                  colors={colors}
+                  environment={resistancePreview.sessionEnvironment}
+                  weeklyPhysicalEmphasis={resistancePreview.weeklyContext?.weeklyPhysicalEmphasis}
+                  courtGymRelationship={resistancePreview.weeklyContext?.courtGymRelationship}
+                  transferTarget={resistancePreview.resistancePlan.transferTarget}
+                />
+                <SessionResistanceBlock
+                  colors={colors}
+                  resistancePlan={resistancePreview.resistancePlan}
+                  durationMin={resistancePreview.durationMin}
+                />
+              </>
+            ) : null}
+            {!resistancePreview ? (
               <View
                 style={{
+                  padding: 14,
+                  borderRadius: 18,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.04,
+                  shadowRadius: 10,
+                  shadowOffset: { width: 0, height: 6 },
+                  elevation: 2,
                   gap: 10,
-                  paddingTop: 4,
-                  borderTopWidth: 1,
-                  borderTopColor: colors.border,
                 }}
               >
-                <View style={{ gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                    Planos salvos desta turma
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Escolha um plano já salvo para aplicar somente nesta aula.
-                  </Text>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                  {ptBR.session.emptyPlan.title}
+                </Text>
+                <Text style={{ color: colors.muted }}>
+                  {ptBR.session.emptyPlan.description}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  <Pressable
+                    onPress={() => setShowSavedClassPlans((current) => !current)}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 999,
+                      backgroundColor: colors.primaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                      {showSavedClassPlans ? "Ocultar planos" : ptBR.session.emptyPlan.applyTraining}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleGeneratePedagogicalPlan}
+                    disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan ? 0.65 : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {isSavingPedagogicalPlan
+                        ? "Salvando plano..."
+                        : isGeneratingPedagogicalPlan
+                          ? "Gerando plano..."
+                          : ptBR.session.actions.generateAutomaticPlan}
+                    </Text>
+                  </Pressable>
                 </View>
-                {savedClassPlans.length ? (
-                  savedClassPlans.map((savedPlan) => {
-                    const preview = buildSavedPlanSummary(savedPlan);
-                    const isApplying = isApplyingSavedPlanId === savedPlan.id;
-                    return (
+                {showSavedClassPlans ? (
+                  <View
+                    style={{
+                      gap: 10,
+                      paddingTop: 4,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                    }}
+                  >
+                    <View style={{ gap: 2 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                        Planos salvos desta turma
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        Escolha um plano já salvo para aplicar somente nesta aula.
+                      </Text>
+                    </View>
+                    {savedClassPlans.length ? (
+                      savedClassPlans.map((savedPlan) => {
+                        const preview = buildSavedPlanSummary(savedPlan);
+                        const isApplying = isApplyingSavedPlanId === savedPlan.id;
+                        return (
+                          <View
+                            key={savedPlan.id}
+                            style={{
+                              gap: 8,
+                              padding: 12,
+                              borderRadius: 14,
+                              backgroundColor: colors.secondaryBg,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                            }}
+                          >
+                            <View style={{ gap: 4 }}>
+                              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                                {savedPlan.title || "Plano salvo"}
+                              </Text>
+                              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                                {buildSavedPlanMeta(savedPlan)}
+                                {typeof savedPlan.version === "number" ? ` • v${savedPlan.version}` : ""}
+                              </Text>
+                              {preview ? (
+                                <Text style={{ color: colors.text, fontSize: 12 }}>
+                                  {preview}
+                                </Text>
+                              ) : null}
+                            </View>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                              <Text style={{ color: colors.muted, fontSize: 11, flex: 1 }}>
+                                Aplicação direta em {dateLabel}.
+                              </Text>
+                              <Pressable
+                                onPress={() => {
+                                  void handleApplySavedPlan(savedPlan);
+                                }}
+                                disabled={isApplying}
+                                style={{
+                                  paddingVertical: 8,
+                                  paddingHorizontal: 12,
+                                  borderRadius: 999,
+                                  backgroundColor: isApplying ? colors.border : colors.primaryBg,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: isApplying ? colors.muted : colors.primaryText,
+                                    fontSize: 12,
+                                    fontWeight: "800",
+                                  }}
+                                >
+                                  {isApplying ? "Aplicando..." : "Aplicar neste dia"}
+                                </Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        );
+                      })
+                    ) : (
                       <View
-                        key={savedPlan.id}
                         style={{
-                          gap: 8,
                           padding: 12,
                           borderRadius: 14,
                           backgroundColor: colors.secondaryBg,
@@ -4768,68 +4937,16 @@ export default function SessionScreen() {
                           borderColor: colors.border,
                         }}
                       >
-                        <View style={{ gap: 4 }}>
-                          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                            {savedPlan.title || "Plano salvo"}
-                          </Text>
-                          <Text style={{ color: colors.muted, fontSize: 12 }}>
-                            {buildSavedPlanMeta(savedPlan)}
-                            {typeof savedPlan.version === "number" ? ` • v${savedPlan.version}` : ""}
-                          </Text>
-                          {preview ? (
-                            <Text style={{ color: colors.text, fontSize: 12 }}>
-                              {preview}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                          <Text style={{ color: colors.muted, fontSize: 11, flex: 1 }}>
-                            Aplicação direta em {dateLabel}.
-                          </Text>
-                          <Pressable
-                            onPress={() => {
-                              void handleApplySavedPlan(savedPlan);
-                            }}
-                            disabled={isApplying}
-                            style={{
-                              paddingVertical: 8,
-                              paddingHorizontal: 12,
-                              borderRadius: 999,
-                              backgroundColor: isApplying ? colors.border : colors.primaryBg,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: isApplying ? colors.muted : colors.primaryText,
-                                fontSize: 12,
-                                fontWeight: "800",
-                              }}
-                            >
-                              {isApplying ? "Aplicando..." : "Aplicar neste dia"}
-                            </Text>
-                          </Pressable>
-                        </View>
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                          Esta turma ainda não tem planos finais salvos para reutilizar aqui.
+                        </Text>
                       </View>
-                    );
-                  })
-                ) : (
-                  <View
-                    style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Esta turma ainda não tem planos finais salvos para reutilizar aqui.
-                    </Text>
+                    )}
                   </View>
-                )}
+                ) : null}
               </View>
             ) : null}
-          </View>
+          </>
         ) : null}
         {sessionTab === "scouting" ? (
         <View

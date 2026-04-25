@@ -88,7 +88,6 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
   const weekIds = monthlyPlans.map((p) => p.id);
   const existingDailies = await listDailyLessonPlansByWeekIds(weekIds);
 
-  const dailyCount = existingDailies.length;
   for (let i = 0; i < monthlyPlans.length; i++) {
     const weekPlan = monthlyPlans[i];
 
@@ -121,6 +120,7 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
           durationMinutes: classGroup.durationMinutes,
           cycleStartDate: activeCycleStartDate,
           cycleEndDate: activeCycleEndDate,
+          classGroup,
           recentPlans: existingDailies,
         },
       });

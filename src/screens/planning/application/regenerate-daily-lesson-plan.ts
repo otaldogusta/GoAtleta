@@ -1,4 +1,14 @@
-import type { ClassPlan, DailyLessonPlan } from "../../../core/models";
+import type {
+  ClassGroup,
+  ClassPlan,
+  DailyLessonPlan,
+  SessionComponent,
+  SessionEnvironment,
+  SessionPrimaryComponent,
+  WeekSessionRole,
+  WeeklyOperationalDecision,
+} from "../../../core/models";
+import { buildSessionResistancePreview } from "../../session/application/build-session-resistance-preview";
 import { checkLessonAlignmentWithPeriodization } from "../../../core/pedagogy/lesson-periodization-alignment";
 import {
     renderBlockRecommendationSummary,
@@ -39,6 +49,7 @@ type DailyGenerationContext = {
   durationMinutes?: number;
   cycleStartDate?: string;
   cycleEndDate?: string;
+  classGroup?: ClassGroup | null;
   recentPlans?: DailyLessonPlan[];
 };
 
@@ -75,6 +86,89 @@ const parseOverrideMask = (value: string | undefined): DailyOverrideField[] => {
   } catch {
     return [];
   }
+};
+
+const parseWeeklyOperationalDecision = (
+  snapshotJson: string | undefined,
+  sessionIndex: number,
+): WeeklyOperationalDecision | null => {
+  if (!snapshotJson) return null;
+  try {
+    const parsed = JSON.parse(snapshotJson) as {
+      weeklyOperationalStrategy?: {
+        decisions?: Partial<WeeklyOperationalDecision>[];
+      };
+    };
+    const decisions = parsed?.weeklyOperationalStrategy?.decisions;
+    if (!Array.isArray(decisions)) return null;
+    const matched = decisions.find(
+      (item) => Number(item?.sessionIndexInWeek) === sessionIndex,
+    );
+    if (!matched?.sessionRole) return null;
+    return matched as WeeklyOperationalDecision;
+  } catch {
+    return null;
+  }
+};
+
+const deriveSessionPrimaryComponent = (params: {
+  sessionEnvironment?: SessionEnvironment;
+  sessionComponents?: SessionComponent[];
+}): SessionPrimaryComponent | undefined => {
+  if (params.sessionComponents?.some((item) => item.type === "academia_resistido")) {
+    if (params.sessionComponents.some((item) => item.type === "quadra_tecnico_tatico")) {
+      return "misto_transferencia";
+    }
+    return "resistido";
+  }
+
+  if (params.sessionComponents?.some((item) => item.type === "preventivo")) {
+    return "preventivo";
+  }
+
+  if (params.sessionEnvironment === "quadra") return "tecnico_tatico";
+  if (params.sessionEnvironment === "mista") return "misto_transferencia";
+  if (params.sessionEnvironment === "preventiva") return "preventivo";
+  if (params.sessionEnvironment === "academia") return "resistido";
+  return undefined;
+};
+
+const resolvePersistedSessionIntegration = (params: {
+  weeklyPlan: ClassPlan;
+  session: WeekSessionPreview;
+  context?: DailyGenerationContext;
+}): {
+  sessionEnvironment?: SessionEnvironment;
+  sessionPrimaryComponent?: SessionPrimaryComponent;
+  sessionComponents?: SessionComponent[];
+} => {
+  const weeklyDecision = parseWeeklyOperationalDecision(
+    params.weeklyPlan.generationContextSnapshotJson,
+    params.session.sessionIndex,
+  );
+
+  const preview = buildSessionResistancePreview({
+    classGroup: params.context?.classGroup,
+    classPlan: params.weeklyPlan,
+    sessionDate: params.session.date,
+    sessionRole: weeklyDecision?.sessionRole as WeekSessionRole | undefined,
+  });
+
+  const sessionEnvironment =
+    preview?.sessionEnvironment ?? weeklyDecision?.sessionEnvironment;
+  const sessionComponents = preview?.sessionComponents;
+  const sessionPrimaryComponent =
+    weeklyDecision?.sessionPrimaryComponent ??
+    deriveSessionPrimaryComponent({
+      sessionEnvironment,
+      sessionComponents,
+    });
+
+  return {
+    sessionEnvironment,
+    sessionPrimaryComponent,
+    sessionComponents,
+  };
 };
 
 const parseDailyDecisionKind = (snapshotJson: string | undefined): LessonKind | null => {
@@ -1044,6 +1138,11 @@ export const buildAutoDailyLessonPlan = (
         : [],
     },
   ];
+  const sessionIntegration = resolvePersistedSessionIntegration({
+    weeklyPlan,
+    session,
+    context,
+  });
 
   return {
     id: existing?.id ?? `dlp_${weeklyPlan.id}_${session.date}`,
@@ -1053,6 +1152,9 @@ export const buildAutoDailyLessonPlan = (
     dayOfWeek: session.weekday,
     title: rendered.title,
     blocksJson: serializeLessonBlocks(blocks),
+    sessionComponents: sessionIntegration.sessionComponents,
+    sessionEnvironment: sessionIntegration.sessionEnvironment,
+    sessionPrimaryComponent: sessionIntegration.sessionPrimaryComponent,
     warmup: rendered.warmup,
     mainPart: rendered.mainPart,
     cooldown: rendered.cooldown,
@@ -1094,6 +1196,10 @@ export const regenerateDailyLessonPlanFromWeek = (params: {
 
   return {
     ...merged,
+    sessionComponents: existing.sessionComponents ?? auto.sessionComponents,
+    sessionEnvironment: existing.sessionEnvironment ?? auto.sessionEnvironment,
+    sessionPrimaryComponent:
+      existing.sessionPrimaryComponent ?? auto.sessionPrimaryComponent,
     syncStatus: "overridden",
     outOfSyncReasonsJson: "[]",
     manualOverrideMaskJson: JSON.stringify(overrideMask),

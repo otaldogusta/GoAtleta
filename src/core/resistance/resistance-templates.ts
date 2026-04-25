@@ -14,10 +14,12 @@
  */
 
 import type {
+    CourtGymRelationship,
     ResistanceExercisePrescription,
     ResistanceTrainingGoal,
     ResistanceTrainingPlan,
     ResistanceTrainingProfile,
+    WeeklyPhysicalEmphasis,
 } from "../models";
 
 // ─── Volume scale helpers ────────────────────────────────────────────────────
@@ -233,6 +235,92 @@ function buildTemplateE(_profile: ResistanceTrainingProfile): ResistanceExercise
   ];
 }
 
+function buildReactivePowerVariant(
+  profile: ResistanceTrainingProfile
+): ResistanceExercisePrescription[] {
+  const exercises = buildTemplateD(profile);
+
+  return [
+    {
+      ...exercises[0],
+      name:
+        profile === "iniciante"
+          ? "Drop jump assistido + salto vertical"
+          : "Drop jump reativo + salto vertical",
+      notes: "Contato curto no solo e resposta explosiva imediata",
+      transferTarget: "reatividade de bloqueio e segundo salto",
+    },
+    {
+      ...exercises[1],
+      name: "Saltos laterais com reação ao comando",
+      notes: "Responder ao estímulo visual e trocar direção sem perder rigidez",
+      transferTarget: "primeiro passo lateral e ajuste rápido de bloqueio",
+    },
+    {
+      ...exercises[2],
+      name: "Arremesso rotacional de medicine ball",
+      notes: "Explosão curta com troca rápida de base",
+      transferTarget: "arranque para cobertura e transição ofensiva",
+    },
+    {
+      ...exercises[3],
+      name: "Prancha com toque alternado de ombro",
+      transferTarget: "estabilidade de core em mudanças rápidas de direção",
+    },
+  ];
+}
+
+function buildSpecificEnduranceVariant(
+  profile: ResistanceTrainingProfile
+): ResistanceExercisePrescription[] {
+  const exercises = buildTemplateA(profile);
+
+  return [
+    {
+      ...exercises[0],
+      name: "Desenvolvimento alternado em pé",
+      rest: profile === "avancado" ? "45s" : "60s",
+      notes: "Executar em circuito com transição curta entre exercícios",
+      transferTarget: "sustentação de ações ofensivas repetidas ao longo do rally",
+    },
+    {
+      ...exercises[1],
+      name: "Passada reversa com halteres",
+      category: "membros_inferiores",
+      rest: profile === "avancado" ? "45s" : "60s",
+      transferTarget: "manutenção de base defensiva e deslocamento repetido",
+    },
+    {
+      ...exercises[2],
+      name: "Remada baixa no cabo",
+      category: "puxar",
+      rest: "45s",
+      transferTarget: "postura de recepção estável em rallies longos",
+    },
+    {
+      ...exercises[3],
+      name: "Prancha lateral com alcance",
+      category: "core",
+      rest: "45s",
+      transferTarget: "controle de tronco sob fadiga acumulada",
+    },
+  ];
+}
+
+function buildRecoveryVariant(
+  profile: ResistanceTrainingProfile
+): ResistanceExercisePrescription[] {
+  const exercises = buildTemplateE(profile);
+
+  return exercises.map((exercise) => ({
+    ...exercise,
+    rest: "45s",
+    notes: exercise.notes
+      ? `${exercise.notes} Carga leve e foco em controle.`
+      : "Carga leve e foco em controle articular.",
+  }));
+}
+
 // ─── Template registry ────────────────────────────────────────────────────────
 
 const TEMPLATE_GOAL_TO_BUILDER: Record<
@@ -274,6 +362,95 @@ const GOAL_DURATION: Record<ResistanceTrainingGoal, Record<ResistanceTrainingPro
   ativacao_funcional:   { iniciante: 15, intermediario: 20, avancado: 20 },
 };
 
+type ResistanceTemplateOptions = {
+  courtGymRelationship?: CourtGymRelationship;
+  weeklyPhysicalEmphasis?: WeeklyPhysicalEmphasis;
+};
+
+type ResistanceTemplateVariant = {
+  idSuffix?: string;
+  label?: string;
+  transferTarget?: string;
+  estimatedDurationMin?: number;
+  buildExercises?: (
+    profile: ResistanceTrainingProfile
+  ) => ResistanceExercisePrescription[];
+};
+
+function resolveTemplateVariant(
+  goal: ResistanceTrainingGoal,
+  options: ResistanceTemplateOptions = {}
+): ResistanceTemplateVariant {
+  const { weeklyPhysicalEmphasis: emphasis, courtGymRelationship } = options;
+
+  if (goal === "potencia_atletica" && emphasis === "velocidade_reatividade") {
+    return {
+      idSuffix: emphasis,
+      label: "Potência Reativa e Velocidade",
+      transferTarget:
+        "primeiro passo, deslocamento lateral e reação de bloqueio",
+      buildExercises: buildReactivePowerVariant,
+    };
+  }
+
+  if (goal === "potencia_atletica" && courtGymRelationship === "academia_prioritaria") {
+    return {
+      idSuffix: courtGymRelationship,
+      label: "Potência Atlética Prioritária",
+      transferTarget:
+        "produção máxima de força para salto, bloqueio e ações explosivas repetidas",
+    };
+  }
+
+  if (goal === "resistencia_muscular" && emphasis === "resistencia_especifica") {
+    return {
+      idSuffix: emphasis,
+      label: "Resistência Específica Integrada",
+      transferTarget:
+        "sustentação de ações repetidas de jogo com estabilidade técnica sob fadiga",
+      estimatedDurationMin: 45,
+      buildExercises: buildSpecificEnduranceVariant,
+    };
+  }
+
+  if (
+    goal === "forca_base" &&
+    courtGymRelationship === "integrado_transferencia_direta"
+  ) {
+    return {
+      idSuffix: courtGymRelationship,
+      label: "Força Base com Transferência Direta",
+      transferTarget:
+        "aterrissagem estável, salto de ataque e retomada rápida para a ação seguinte de quadra",
+    };
+  }
+
+  if (goal === "prevencao_lesao" && emphasis === "prevencao_recuperacao") {
+    return {
+      idSuffix: emphasis,
+      label: "Recuperação e Prevenção",
+      transferTarget:
+        "redução de fadiga residual e manutenção de estabilidade de ombro, joelho e tronco",
+      estimatedDurationMin: 20,
+      buildExercises: buildRecoveryVariant,
+    };
+  }
+
+  if (
+    goal === "prevencao_lesao" &&
+    courtGymRelationship === "complementar_equilibrado"
+  ) {
+    return {
+      idSuffix: courtGymRelationship,
+      label: "Estabilidade e Prevenção Complementar",
+      transferTarget:
+        "suporte articular e controle de carga para sustentar a semana de quadra sem interferência excessiva",
+    };
+  }
+
+  return {};
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -281,17 +458,31 @@ const GOAL_DURATION: Record<ResistanceTrainingGoal, Record<ResistanceTrainingPro
  */
 export function resolveResistanceTemplate(
   goal: ResistanceTrainingGoal,
-  profile: ResistanceTrainingProfile
+  profile: ResistanceTrainingProfile,
+  options: ResistanceTemplateOptions = {}
 ): ResistanceTrainingPlan {
   const builder = TEMPLATE_GOAL_TO_BUILDER[goal];
-  const exercises = builder(profile);
+  const variant = resolveTemplateVariant(goal, options);
+  const exerciseBuilder = variant.buildExercises ?? builder;
+  const exercises = exerciseBuilder(profile);
+  const id = variant.idSuffix
+    ? `tpl_${goal}_${profile}_${variant.idSuffix}`
+    : `tpl_${goal}_${profile}`;
+  const estimatedDurationMinBase =
+    variant.estimatedDurationMin ?? GOAL_DURATION[goal][profile];
+  const estimatedDurationMin =
+    goal === "potencia_atletica" &&
+    options.courtGymRelationship === "academia_prioritaria" &&
+    !variant.estimatedDurationMin
+      ? estimatedDurationMinBase + 5
+      : estimatedDurationMinBase;
 
   return {
-    id: `tpl_${goal}_${profile}`,
-    label: GOAL_LABELS[goal],
+    id,
+    label: variant.label ?? GOAL_LABELS[goal],
     primaryGoal: goal,
-    transferTarget: GOAL_TRANSFER[goal],
-    estimatedDurationMin: GOAL_DURATION[goal][profile],
+    transferTarget: variant.transferTarget ?? GOAL_TRANSFER[goal],
+    estimatedDurationMin,
     exercises,
   };
 }

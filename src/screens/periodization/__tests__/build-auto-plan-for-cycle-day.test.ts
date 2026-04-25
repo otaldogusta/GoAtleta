@@ -99,6 +99,33 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
     expect(result.coachSummary).toContain("Bootstrap");
   });
 
+  it("does not generate formal resistance blocks for 07-09 beginner volleyball classes with gym access", () => {
+    const classGroup = buildClassGroup({
+      ageBand: "07-09",
+      level: 1,
+      mvLevel: "base",
+      equipment: "academia",
+      resistanceTrainingProfile: "iniciante",
+      integratedTrainingModel: "academia_integrada",
+      goal: "Fundamentos + coordenação",
+    });
+
+    const result = buildPeriodizationAutoPlanForCycleDay({
+      classGroup,
+      classPlan: buildClassPlan(),
+      weekPlan: buildWeekPlan(),
+      cycleStartDate: classGroup.cycleStartDate,
+      sessionDate: "2026-03-31",
+      periodizationModel: "formacao",
+      sportProfile: "voleibol",
+      weeklySessions: 3,
+      dominantBlock: "Base técnica",
+    });
+
+    expect(result.sessionEnvironment).toBe("quadra");
+    expect(result.sessionComponents).toBeUndefined();
+  });
+
   it("produces different session labels across the same week", () => {
     const classGroup = buildClassGroup();
     const weekPlan = buildWeekPlan();

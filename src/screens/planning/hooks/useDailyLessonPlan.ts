@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ClassPlan, DailyLessonPlan, LessonBlock } from "../../../core/models";
+import type { ClassGroup, ClassPlan, DailyLessonPlan, LessonBlock } from "../../../core/models";
 import {
     getDailyLessonPlanByWeekAndDate,
     listRecentDailyLessonPlansByClass,
@@ -19,6 +19,7 @@ type UseDailyLessonPlanOptions = {
   durationMinutes?: number;
   cycleStartDate?: string;
   cycleEndDate?: string;
+  classGroup?: ClassGroup | null;
 };
 
 export function useDailyLessonPlan(
@@ -48,6 +49,7 @@ export function useDailyLessonPlan(
             durationMinutes: options?.durationMinutes,
             cycleStartDate: options?.cycleStartDate,
             cycleEndDate: options?.cycleEndDate,
+            classGroup: options?.classGroup,
             recentPlans,
           })
         );
@@ -69,6 +71,7 @@ export function useDailyLessonPlan(
             durationMinutes: options?.durationMinutes,
             cycleStartDate: options?.cycleStartDate,
             cycleEndDate: options?.cycleEndDate,
+            classGroup: options?.classGroup,
             recentPlans,
           },
         });
@@ -84,6 +87,7 @@ export function useDailyLessonPlan(
   }, [
     options?.ageBand,
     options?.className,
+    options?.classGroup,
     options?.cycleEndDate,
     options?.cycleStartDate,
     options?.durationMinutes,
@@ -113,6 +117,7 @@ export function useDailyLessonPlan(
           durationMinutes: options?.durationMinutes,
           cycleStartDate: options?.cycleStartDate,
           cycleEndDate: options?.cycleEndDate,
+          classGroup: options?.classGroup,
           recentPlans,
         });
 
@@ -124,7 +129,7 @@ export function useDailyLessonPlan(
         cooldown: legacySections.cooldown.trim() !== (base.cooldown ?? "").trim(),
         observations: payload.observations.trim() !== (base.observations ?? "").trim(),
       };
-      const manualOverrideFields = (Object.keys(manualMask) as Array<keyof typeof manualMask>).filter(
+      const manualOverrideFields = (Object.keys(manualMask) as (keyof typeof manualMask)[]).filter(
         (key) => manualMask[key]
       );
       const hasManualOverrides = manualOverrideFields.length > 0;
@@ -151,6 +156,7 @@ export function useDailyLessonPlan(
     [
       options?.ageBand,
       options?.className,
+      options?.classGroup,
       options?.cycleEndDate,
       options?.cycleStartDate,
       options?.durationMinutes,
@@ -174,6 +180,7 @@ export function useDailyLessonPlan(
         durationMinutes: options?.durationMinutes,
         cycleStartDate: options?.cycleStartDate,
         cycleEndDate: options?.cycleEndDate,
+        classGroup: options?.classGroup,
         recentPlans,
       },
     });
@@ -184,6 +191,7 @@ export function useDailyLessonPlan(
   }, [
     options?.ageBand,
     options?.className,
+    options?.classGroup,
     options?.cycleEndDate,
     options?.cycleStartDate,
     options?.durationMinutes,

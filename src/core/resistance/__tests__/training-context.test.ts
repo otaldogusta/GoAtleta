@@ -2,6 +2,7 @@ import type { ClassGroup } from "../../models";
 import {
     deriveIntegratedTrainingModel,
     hasGymAccess,
+    resolveResistanceEligibilityMode,
     resolveTeamTrainingContext,
     supportsResistanceTraining,
 } from "../training-context";
@@ -79,5 +80,53 @@ describe("supportsResistanceTraining", () => {
   it("returns true for academia_integrada", () => {
     const ctx = resolveTeamTrainingContext(makeClass("academia"));
     expect(supportsResistanceTraining(ctx)).toBe(true);
+  });
+
+  it("returns false for beginner volleyball groups even with gym access", () => {
+    const ctx = resolveTeamTrainingContext(makeClass("academia"));
+    expect(
+      supportsResistanceTraining(ctx, {
+        ageBand: "07-09",
+        level: 1,
+        mvLevel: "base",
+        modality: "voleibol",
+      })
+    ).toBe(false);
+  });
+});
+
+describe("resolveResistanceEligibilityMode", () => {
+  it("keeps 07-09 beginner volleyball in integrated motor-control mode", () => {
+    const teamContext = resolveTeamTrainingContext(makeClass("academia"));
+
+    expect(
+      resolveResistanceEligibilityMode({
+        classGroup: {
+          ageBand: "07-09",
+          level: 1,
+          mvLevel: "base",
+          modality: "voleibol",
+        },
+        teamContext,
+      })
+    ).toBe("motor_control_integrated");
+  });
+
+  it("allows formal support for older intermediate volleyball groups", () => {
+    const teamContext = resolveTeamTrainingContext(
+      makeClass("academia", { resistanceTrainingProfile: "intermediario" })
+    );
+
+    expect(
+      resolveResistanceEligibilityMode({
+        classGroup: {
+          ageBand: "13-15",
+          level: 2,
+          mvLevel: "intermediario",
+          modality: "voleibol",
+        },
+        teamContext,
+      })
+    ).toBe("formal_support");
   });
 });

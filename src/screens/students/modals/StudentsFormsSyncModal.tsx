@@ -25,6 +25,7 @@ import { Pressable } from "../../../ui/Pressable";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { resolveClassModality } from "../../../core/class-modality";
 import { useConfirmDialog } from "../../../ui/confirm-dialog";
+import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import { usePersistedState } from "../../../ui/use-persisted-state";
 import { loadGoogleFormsSheetImport, type LoadedGoogleFormsSheet } from "../google-forms-sync";
@@ -288,7 +289,10 @@ export function StudentsFormsSyncModal({
     organizationId ? `students-forms-default-class:${organizationId}` : null,
     null
   );
-  const dropdownAnimationStyle = useMemo(() => ({ opacity: 1 }), []);
+  const { animatedStyle: unitDropdownAnimationStyle, isVisible: showUnitDropdownContent } =
+    useCollapsibleAnimation(showUnitDropdown, { translateY: -6 });
+  const { animatedStyle: classDropdownAnimationStyle, isVisible: showClassDropdownContent } =
+    useCollapsibleAnimation(showClassDropdown, { translateY: -6 });
   const summary = previewResult?.summary ?? null;
   const canApply = Boolean(
     summary &&
@@ -1205,10 +1209,13 @@ export function StudentsFormsSyncModal({
           style={{ flex: 1 }}
           showsVerticalScrollIndicator
           nestedScrollEnabled
+          onScrollBeginDrag={closeSyncDropdowns}
+          onMomentumScrollBegin={closeSyncDropdowns}
           contentContainerStyle={{ gap: 10, paddingBottom: 12 }}
         >
           <View
             ref={dropdownContainerRef}
+            collapsable={false}
             onLayout={syncSyncDropdownLayouts}
             style={{
               borderWidth: 1,
@@ -1251,7 +1258,10 @@ export function StudentsFormsSyncModal({
             <Button
               label={loadingMessage ? loadingMessage : "Gerar prévia da sincronização"}
               variant="outline"
-              onPress={() => void handlePreview()}
+              onPress={() => {
+                closeSyncDropdowns();
+                void handlePreview();
+              }}
               loading={Boolean(loadingMessage)}
             />
           </View>
@@ -1310,7 +1320,7 @@ export function StudentsFormsSyncModal({
             <View style={{ flexDirection: "row", gap: 8 }}>
               <View style={{ flex: 1, gap: 6 }}>
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Unidade</Text>
-                <View ref={unitTriggerRef}>
+                <View ref={unitTriggerRef} collapsable={false}>
                   <Pressable
                     onPress={openUnitDropdown}
                     style={{
@@ -1341,7 +1351,7 @@ export function StudentsFormsSyncModal({
 
               <View style={{ flex: 1, gap: 6 }}>
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Turma</Text>
-                <View ref={classTriggerRef}>
+                <View ref={classTriggerRef} collapsable={false}>
                   <Pressable
                     onPress={openClassDropdown}
                     style={{
@@ -1399,7 +1409,10 @@ export function StudentsFormsSyncModal({
                 }}
               >
                 <Pressable
-                  onPress={() => setShowOtherModalities((prev) => !prev)}
+                  onPress={() => {
+                    closeSyncDropdowns();
+                    setShowOtherModalities((prev) => !prev);
+                  }}
                   style={{
                     paddingHorizontal: 10,
                     paddingVertical: 10,
@@ -1481,7 +1494,10 @@ export function StudentsFormsSyncModal({
               }}
             >
               <Pressable
-                onPress={() => setShowSheetPreview((prev) => !prev)}
+                onPress={() => {
+                  closeSyncDropdowns();
+                  setShowSheetPreview((prev) => !prev);
+                }}
                 style={{
                   padding: 12,
                   flexDirection: "row",
@@ -1713,7 +1729,10 @@ export function StudentsFormsSyncModal({
                 Total de respostas processadas: {summary.totalRows}
               </Text>
               <Pressable
-                onPress={() => setShowSyncDetails((prev) => !prev)}
+                onPress={() => {
+                  closeSyncDropdowns();
+                  setShowSyncDetails((prev) => !prev);
+                }}
                 style={{
                   alignSelf: "flex-start",
                   borderWidth: 1,
@@ -1985,11 +2004,12 @@ export function StudentsFormsSyncModal({
         </ScrollView>
 
         <AnchoredDropdown
-          visible={showUnitDropdown}
+          visible={showUnitDropdownContent}
           layout={unitDropdownLayout}
           container={dropdownContainer}
-          animationStyle={dropdownAnimationStyle}
-          zIndex={410}
+          animationStyle={unitDropdownAnimationStyle}
+          interactiveRefs={[unitTriggerRef]}
+          zIndex={1200}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeSyncDropdowns}
@@ -2023,11 +2043,12 @@ export function StudentsFormsSyncModal({
         </AnchoredDropdown>
 
         <AnchoredDropdown
-          visible={showClassDropdown}
+          visible={showClassDropdownContent}
           layout={classDropdownLayout}
           container={dropdownContainer}
-          animationStyle={dropdownAnimationStyle}
-          zIndex={410}
+          animationStyle={classDropdownAnimationStyle}
+          interactiveRefs={[classTriggerRef]}
+          zIndex={1200}
           maxHeight={240}
           nestedScrollEnabled
           onRequestClose={closeSyncDropdowns}

@@ -109,5 +109,34 @@ describe("buildAutoWeekPlan", () => {
     expect(plan?.weekNotes ?? "").toContain("Foco da semana:");
     expect(plan?.pedagogicalRule ?? "").toContain("Foco do trimestre:");
   });
-});
 
+  it("keeps weekly integrated context quadra-dominante for 07-09 beginner volleyball with gym access", () => {
+    const plan = buildAutoWeekPlan({
+      selectedClass: buildClassGroup({
+        ageBand: "07-09",
+        level: 1,
+        mvLevel: "base",
+        equipment: "academia",
+        integratedTrainingModel: "academia_integrada",
+        resistanceTrainingProfile: "iniciante",
+        goal: "Coordenação e fundamentos",
+      }),
+      weekNumber: 3,
+      cycleLength: 12,
+      activeCycleStartDate: "2026-03-23",
+      isCompetitiveMode: false,
+      calendarExceptions: [] as ClassCalendarException[],
+      competitiveProfile: null,
+      ageBand: "09-11",
+      periodizationModel: "formacao",
+      weeklySessions: 3,
+      sportProfile: "voleibol",
+    });
+
+    const integratedContext = JSON.parse(plan?.weeklyIntegratedContextJson ?? "{}");
+
+    expect(integratedContext.courtGymRelationship).toBe("quadra_dominante");
+    expect(integratedContext.gymSessionsCount).toBe(0);
+    expect(integratedContext.notes).toContain("apoio motor/preventivo");
+  });
+});

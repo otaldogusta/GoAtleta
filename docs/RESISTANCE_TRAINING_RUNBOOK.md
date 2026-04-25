@@ -19,9 +19,48 @@ git checkout -b feat/resistance-ui-slice-a1
 npm run jest -- --clearCache
 ```
 
+### Travas obrigatórias desta frente
+
+- Use os nomes reais dos tipos existentes em `src/core/models.ts`.
+- Não criar shape paralelo ou aliases novos só para o componente.
+- Antes de tocar `app/class/[id]/session.tsx`, criar componente isolado + adapter.
+- Sessões antigas ou parciais precisam abrir sem quebrar.
+
+Campos atuais relevantes em `models.ts`:
+
+```typescript
+ResistanceTrainingPlan: {
+  id: string;
+  label: string;
+  primaryGoal: ResistanceTrainingGoal;
+  transferTarget: string;
+  estimatedDurationMin: number;
+  exercises: ResistanceExercisePrescription[];
+}
+
+ResistanceExercisePrescription: {
+  name: string;
+  sets: number;
+  reps: string;
+  rest: string;
+  cadence?: string;
+  notes?: string;
+  transferTarget?: string;
+}
+```
+
 ---
 
 ## SLICE A1: SessionResistanceBlock
+
+### Estratégia segura
+
+1. Criar `SessionResistanceBlock.tsx` isolado
+2. Criar adapter `getResistancePlanFromSessionComponents(...)`
+3. Testar tolerância a dados antigos/parciais
+4. Só então encaixar no `app/class/[id]/session.tsx`
+
+`session.tsx` segue sendo o arquivo de maior risco. Evite inventar lógica de domínio dentro dele.
 
 ### Passo 1: Criar o componente
 
@@ -43,7 +82,7 @@ export function SessionResistanceBlock(props: SessionResistanceBlockProps) {
   return (
     <View style={{ padding: 16 }}>
       <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12 }}>
-        {resistancePlan.label}
+        {resistancePlan.label || resistancePlan.primaryGoal}
       </Text>
       
       <Text style={{ fontSize: 12, color: '#666', marginBottom: 16 }}>
@@ -67,11 +106,16 @@ function ExercisePrescriptionTable(props: { exercises: any[] }) {
         <View key={idx} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
           <Text style={{ fontWeight: '500' }}>{ex.name}</Text>
           <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-            {ex.sets} × {ex.reps} — {ex.rest}
+            {ex.sets} × {ex.reps} — {ex.rest || 'intervalo não definido'}
           </Text>
+          {ex.cadence && (
+            <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+              Cadência: {ex.cadence}
+            </Text>
+          )}
           {ex.notes && (
             <Text style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-              📝 {ex.notes}
+              Notas: {ex.notes}
             </Text>
           )}
         </View>
@@ -81,7 +125,36 @@ function ExercisePrescriptionTable(props: { exercises: any[] }) {
 }
 ```
 
-### Passo 2: Refatorar session.tsx
+### Passo 2: Criar adapter antes do encaixe na tela principal
+
+**Arquivo:** `src/screens/session/components/get-resistance-plan-from-session-components.ts`
+
+```typescript
+import type {
+  ResistanceTrainingPlan,
+  SessionComponent,
+} from '../../../core/models';
+
+export function getResistancePlanFromSessionComponents(
+  sessionComponents?: SessionComponent[],
+): { resistancePlan: ResistanceTrainingPlan; durationMin: number } | null {
+  const component = sessionComponents?.find(
+    (item) => item.type === 'academia_resistido',
+  );
+
+  if (!component || !('resistancePlan' in component) || !component.resistancePlan) {
+    return null;
+  }
+
+  return {
+    resistancePlan: component.resistancePlan,
+    durationMin:
+      component.durationMin || component.resistancePlan.estimatedDurationMin || 0,
+  };
+}
+```
+
+### Passo 3: Refatorar session.tsx
 
 **Arquivo:** `app/class/[id]/session.tsx`
 
@@ -95,14 +168,14 @@ const renderSessionContent = () => {
   
   // NEW: Check for resistance session
   if (dailyLesson.sessionEnvironment === 'academia') {
-    const sessionComponent = dailyLesson.sessionComponents?.find(
-      (c) => c.type === 'academia_resistido'
+    const resistanceData = getResistancePlanFromSessionComponents(
+      dailyLesson.sessionComponents
     );
-    if (sessionComponent && 'resistancePlan' in sessionComponent) {
+    if (resistanceData) {
       return (
         <SessionResistanceBlock
-          resistancePlan={sessionComponent.resistancePlan}
-          durationMin={sessionComponent.durationMin}
+          resistancePlan={resistanceData.resistancePlan}
+          durationMin={resistanceData.durationMin}
         />
       );
     }
@@ -113,7 +186,9 @@ const renderSessionContent = () => {
 };
 ```
 
-### Passo 3: Testes
+Critério importante: se a sessão não tiver `resistancePlan`, o fluxo atual de quadra ou fallback existente continua abrindo normalmente.
+
+### Passo 4: Testes
 
 **File:** `src/screens/session/components/__tests__/SessionResistanceBlock.test.tsx`
 
@@ -125,7 +200,9 @@ describe('SessionResistanceBlock', () => {
   it('renders exercise table', () => {
     const plan = {
       label: 'Força Base',
+      primaryGoal: 'forca_base',
       transferTarget: 'Bloqueio',
+      estimatedDurationMin: 45,
       exercises: [
         { name: 'Supino', sets: 3, reps: '8-10', rest: '90s', notes: 'Pausa 2-0-2' },
       ],
@@ -138,16 +215,41 @@ describe('SessionResistanceBlock', () => {
     expect(getByText('Supino')).toBeTruthy();
     expect(getByText('3 × 8-10 — 90s')).toBeTruthy();
   });
+
+  it('does not break with partial exercise data', () => {
+    const plan = {
+      label: 'Potência',
+      primaryGoal: 'potencia_atletica',
+      transferTarget: 'Salto',
+      estimatedDurationMin: 40,
+      exercises: [{ name: 'Agachamento', sets: 4, reps: '5', rest: '' }],
+    };
+
+    const { getByText } = render(
+      <SessionResistanceBlock resistancePlan={plan} durationMin={40} />
+    );
+
+    expect(getByText('Agachamento')).toBeTruthy();
+    expect(getByText('4 × 5 — intervalo não definido')).toBeTruthy();
+  });
 });
 ```
 
-### Passo 4: Validar
+### Passo 5: Validar
 
 ```bash
 npm run lint src/screens/session/components/SessionResistanceBlock.tsx
 npm run jest src/screens/session/components/__tests__/SessionResistanceBlock.test.tsx
 npx expo start --web  # Visual check
 ```
+
+Aceite mínimo de A1:
+
+- Sessão academia renderiza tabela
+- Sessão mista não quebra
+- Sessão quadra continua igual
+- Sessão antiga sem `sessionComponents` não quebra
+- Dados faltantes não quebram render
 
 ---
 
@@ -246,6 +348,8 @@ npm run jest src/screens/session/components/__tests__/SessionContextHeader.test.
 
 ## SLICE B1: Gerador Escreve Contexto
 
+Objetivo deste slice: garantir escrita e leitura consistentes do contexto integrado já introduzido na base. Não recriar a feature do zero se ela já existir parcialmente.
+
 ### Passo 1: Verificar que buildWeeklyIntegratedContext existe
 
 **File:** `src/core/resistance/resolve-session-environment.ts`
@@ -261,7 +365,7 @@ Procure por `buildWeeklyIntegratedContext`. Deve retornar:
 }
 ```
 
-### Passo 2: Refatorar build-auto-week-plan.ts
+### Passo 2: Revisar build-auto-week-plan.ts
 
 Encontre onde salva `ClassPlan`. Adicione:
 
@@ -286,7 +390,9 @@ const classplan = {
 saveClassPlan(classplan);
 ```
 
-### Passo 3: Refatorar build-auto-plan-for-cycle-day.ts
+Se o arquivo já estiver escrevendo `weeklyIntegratedContextJson`, o trabalho aqui é garantir consistência, parse seguro e consumo correto pela UI.
+
+### Passo 3: Revisar build-auto-plan-for-cycle-day.ts
 
 ```typescript
 import { resolveSessionEnvironment } from '../../resistance/resolve-session-environment';

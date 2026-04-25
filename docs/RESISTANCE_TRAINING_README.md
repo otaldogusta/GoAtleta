@@ -140,6 +140,7 @@ SLICE C1 ────→ Sinais QA (Observacional)
 Antes de começar:
 
 - [ ] Base R1-R6 está passando em testes (`npm run jest src/core/resistance`)
+- [ ] Campos reais em `src/core/models.ts` confirmados antes de codar UI
 - [ ] Você entendeu que academia é **componente semanal**, não app paralelo
 - [ ] Você leu CONDENSED.md (rápido summary)
 - [ ] Você está pronto para pensar como treinador + dev + arquiteto
@@ -167,6 +168,8 @@ Antes de começar:
 
 **Pergunta guia:** "Isso faz academia participar da lógica da semana ou só existir no sistema?"
 
+Para A1, pergunte também: "Estou só renderizando o que já existe no domínio ou estou inventando um shape novo no componente?"
+
 ---
 
 ## 📞 SE FICAR TRAVADO
@@ -179,6 +182,9 @@ Antes de começar:
 
 ### "O que é weeklyIntegratedContext?"
 → Leia CONDENSED.md, seção "O QUE JÁ EXISTE" e "BLOCO B"
+
+### "Posso mexer direto em session.tsx?"
+→ Só depois de criar componente isolado + adapter. Esse arquivo é o maior ponto de regressão da frente.
 
 ### "Como testo isso?"
 → Em RUNBOOK.md tem comandos `npm run jest` para cada slice

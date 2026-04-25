@@ -4,6 +4,7 @@ import {
     Animated,
     Dimensions,
     Platform,
+    type RefObject,
     ScrollView,
     StyleProp,
     View,
@@ -28,6 +29,7 @@ type AnchoredDropdownProps = {
   onRequestClose?: () => void;
   showVerticalScrollIndicator?: boolean;
   portalToBodyOnWeb?: boolean;
+  interactiveRefs?: Array<RefObject<View | null>>;
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
@@ -46,8 +48,9 @@ export function AnchoredDropdown({
   onRequestClose,
   showVerticalScrollIndicator = true,
   portalToBodyOnWeb = true,
+  interactiveRefs,
 }: AnchoredDropdownProps) {
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
   const panelRef = useRef<View | null>(null);
   const pathname = usePathname();
@@ -74,9 +77,15 @@ export function AnchoredDropdown({
     if (Platform.OS !== "web" || !visible || typeof document === "undefined") return;
 
     const isEventInsidePanel = (target: EventTarget | null) => {
+      if (!(target instanceof Node)) return false;
+
       const panelElement = panelRef.current as unknown as HTMLElement | null;
-      if (!panelElement || !(target instanceof Node)) return false;
-      return panelElement.contains(target);
+      if (panelElement?.contains(target)) return true;
+
+      return (interactiveRefs ?? []).some((ref) => {
+        const element = ref.current as unknown as HTMLElement | null;
+        return Boolean(element?.contains(target));
+      });
     };
 
     const handleVisibilityOrBlur = () => {
@@ -111,7 +120,7 @@ export function AnchoredDropdown({
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onRequestClose, visible]);
+  }, [interactiveRefs, onRequestClose, visible]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || !visible || !layout) return;
@@ -204,6 +213,25 @@ export function AnchoredDropdown({
     defaultTop + resolvedMaxHeight > availableBottom
       ? Math.max(8, defaultTop - layout.height - resolvedMaxHeight)
       : defaultTop;
+  const webGlassPanelStyle =
+    Platform.OS === "web"
+      ? ({
+          backgroundColor:
+            mode === "dark"
+              ? "rgba(14, 22, 38, 0.84)"
+              : "rgba(255, 255, 255, 0.9)",
+          backgroundImage:
+            mode === "dark"
+              ? "linear-gradient(180deg, rgba(24,34,56,0.94) 0%, rgba(13,20,35,0.9) 100%)"
+              : "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(245,248,252,0.9) 100%)",
+          backdropFilter: "blur(20px) saturate(170%)",
+          WebkitBackdropFilter: "blur(20px) saturate(170%)",
+          boxShadow:
+            mode === "dark"
+              ? "0 18px 40px rgba(0, 0, 0, 0.34)"
+              : "0 18px 40px rgba(15, 23, 42, 0.16)",
+        } as ViewStyle)
+      : null;
 
   const dropdown = (
     <Animated.View
@@ -238,6 +266,7 @@ export function AnchoredDropdown({
             shadowOffset: { width: 0, height: 12 },
             elevation: 14,
           },
+          webGlassPanelStyle,
         ]}
       >
         <ScrollView

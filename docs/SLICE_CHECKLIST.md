@@ -11,16 +11,21 @@ Use isto para acompanhamento durante cada slice.
 ### Deliverables
 
 - [ ] **Componente:** `src/screens/session/components/SessionResistanceBlock.tsx`
-  - Props: `resistancePlan`, `weeklyPhysicalEmphasis`, `durationMin`
+  - Props mínimas: `resistancePlan`, `durationMin`
   - Renderiza tabela: exercício | séries | reps | intervalo | observações
-  - Aquecimento progressivo visível
   - Cadência mostrada se houver
+  - Usa os nomes reais de `ResistanceTrainingPlan` e `ResistanceExercisePrescription`
 
-- [ ] **Refator:** `app/class/[id]/session.tsx`
-  - Verificar `sessionEnvironment` antes de renderizar
-  - Se `"academia"` → render `SessionResistanceBlock`
+- [ ] **Adapter:** `src/screens/session/components/get-resistance-plan-from-session-components.ts`
+  - Extrai `SessionComponentAcademiaResistido` com segurança
+  - Não inventa shape paralelo
+  - Faz fallback para `estimatedDurationMin` se necessário
+
+- [ ] **Refator mínima:** `app/class/[id]/session.tsx`
+  - Só encaixa componente e adapter
+  - Se `"academia"` + plano válido → render `SessionResistanceBlock`
   - Se `"quadra"` → render atual (zero mudança)
-  - Fallback seguro se undefined
+  - Fallback seguro se undefined ou plano ausente
 
 - [ ] **Componente:** `src/screens/session/components/ExercisePrescriptionTable.tsx`
   - Tabela semântica (não planilha feia)
@@ -34,11 +39,16 @@ Use isto para acompanhamento durante cada slice.
 - [ ] Teste: Quadra renderiza como antes
 - [ ] Teste: sessionEnvironment undefined → quadra default
 - [ ] Teste: Mista com ambos os tipos
+- [ ] Teste: sessão sem `sessionComponents` não quebra
+- [ ] Teste: exercício sem `rest`/`cadence`/`transferTarget` não quebra
 
 ### Acceptance Criteria
 
 - ✅ Academia renderiza tabela clara
 - ✅ Quadra continua funcionando (zero regressão)
+- ✅ Sessão mista não quebra
+- ✅ Planos antigos continuam abrindo
+- ✅ Dados parciais não quebram render
 - ✅ UI legível em mobile
 - ✅ Sem lógica de recomendação alterada
 
@@ -102,11 +112,12 @@ Use isto para acompanhamento durante cada slice.
 
 ## SLICE B1: Gerador Escreve Contexto ✅
 
-**Goal:** Cada ClassPlan salva com `weeklyIntegratedContextJson` preenchido.
+**Goal:** Garantir que cada `ClassPlan` salva `weeklyIntegratedContextJson` de forma consistente e que esse contexto é consumível pela UI.
 
 ### Deliverables
 
 - [ ] **Refator:** `src/core/session-generator/build-auto-week-plan.ts`
+  - Confirmar o que já existe antes de adicionar nova lógica
   - Chamar `resolveTeamTrainingContext()` para a turma
   - Chamar `buildWeeklyIntegratedContext()` com dados da semana
   - Salvar JSON em `ClassPlan.weeklyIntegratedContextJson`
@@ -143,12 +154,14 @@ Use isto para acompanhamento durante cada slice.
 - [ ] Teste: SessionComponent criado com plano resistido
 - [ ] Teste: 10+ turmas reais geradas, sem erro
 - [ ] Teste: Planos quadra antigos carregam sem quebra
+- [ ] Teste: UI consegue consumir contexto salvo sem duplicar lógica
 
 ### Acceptance Criteria
 
 - ✅ ClassPlan tem weeklyIntegratedContextJson preenchido
 - ✅ DailyLessonPlan tem sessionEnvironment + sessionComponents
 - ✅ SessionComponent tem ResistanceTrainingPlan quando academia
+- ✅ Contexto salvo é legível e útil para a UI
 - ✅ Testes verdes em gerador
 - ✅ Zero regressão em planos quadra existentes
 

@@ -1,4 +1,5 @@
 import type {
+    ResistanceExerciseCategory,
     PedagogicalDriftSignal,
     SessionOperationalDebug,
     SessionStrategy,
@@ -24,8 +25,113 @@ const levelRank: Record<SessionStrategy["gameTransferLevel"], number> = {
   high: 2,
 };
 
-const uniqueStrings = (values: Array<string | null | undefined>) =>
+const uniqueStrings = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+
+const normalizeText = (value: string | undefined | null) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const lowerBodyCategories = new Set<ResistanceExerciseCategory>([
+  "membros_inferiores",
+  "potencia",
+]);
+
+const supportCategories = new Set<ResistanceExerciseCategory>([
+  "preventivo",
+  "core",
+]);
+
+const jumpDemandSkills = new Set<SessionStrategy["primarySkill"]>(["ataque", "bloqueio"]);
+
+type ResistanceWeekMetrics = {
+  hasFormalResistance: boolean;
+  lowerBodyOrPowerExercises: number;
+  supportExercises: number;
+  heavyLowerBodySessions: number;
+  missingTransferSessions: number;
+  highJumpDemandSessions: number;
+};
+
+const collectResistanceWeekMetrics = (
+  weekSchedule: PeriodizationWeekScheduleItem[]
+): ResistanceWeekMetrics => {
+  let hasFormalResistance = false;
+  let lowerBodyOrPowerExercises = 0;
+  let supportExercises = 0;
+  let heavyLowerBodySessions = 0;
+  let missingTransferSessions = 0;
+  let highJumpDemandSessions = 0;
+
+  for (const item of weekSchedule) {
+    const autoPlan = item.autoPlan;
+    if (!autoPlan) continue;
+
+    const normalizedSummary = normalizeText(
+      [autoPlan.sessionLabel, autoPlan.coachSummary, autoPlan.explanationSummary].join(" ")
+    );
+    const highJumpDemand =
+      autoPlan.strategy.loadIntent === "alto" &&
+      (jumpDemandSkills.has(autoPlan.strategy.primarySkill) ||
+        /salto|bloqueio|ataque/.test(normalizedSummary));
+
+    if (highJumpDemand) {
+      highJumpDemandSessions += 1;
+    }
+
+    const resistanceComponents = (autoPlan.sessionComponents ?? []).filter(
+      (component): component is Extract<
+        NonNullable<typeof autoPlan.sessionComponents>[number],
+        { type: "academia_resistido" }
+      > => component.type === "academia_resistido"
+    );
+
+    if (!resistanceComponents.length) continue;
+    hasFormalResistance = true;
+
+    let sessionLowerBody = 0;
+    let sessionHasTransfer = false;
+
+    for (const component of resistanceComponents) {
+      const planTransferTarget = normalizeText(component.resistancePlan.transferTarget);
+      if (planTransferTarget) {
+        sessionHasTransfer = true;
+      }
+
+      for (const exercise of component.resistancePlan.exercises ?? []) {
+        if (lowerBodyCategories.has(exercise.category)) {
+          sessionLowerBody += 1;
+          lowerBodyOrPowerExercises += 1;
+        }
+        if (supportCategories.has(exercise.category)) {
+          supportExercises += 1;
+        }
+        if (normalizeText(exercise.transferTarget)) {
+          sessionHasTransfer = true;
+        }
+      }
+    }
+
+    if (sessionLowerBody >= 2) {
+      heavyLowerBodySessions += 1;
+    }
+    if (!sessionHasTransfer) {
+      missingTransferSessions += 1;
+    }
+  }
+
+  return {
+    hasFormalResistance,
+    lowerBodyOrPowerExercises,
+    supportExercises,
+    heavyLowerBodySessions,
+    missingTransferSessions,
+    highJumpDemandSessions,
+  };
+};
 
 const detectEnvelopeViolation = (
   sessionRole: WeekSessionRole,
@@ -225,6 +331,45 @@ export const detectPedagogicalDrift = (params: {
         code: "progression_stagnation",
       });
     }
+  }
+
+  const resistanceMetrics = collectResistanceWeekMetrics(params.weekSchedule);
+  if (
+    resistanceMetrics.hasFormalResistance &&
+    resistanceMetrics.heavyLowerBodySessions > 0 &&
+    resistanceMetrics.highJumpDemandSessions > 0
+  ) {
+    driftSignals.push({
+      detected: true,
+      severity:
+        resistanceMetrics.heavyLowerBodySessions > 1 && resistanceMetrics.highJumpDemandSessions > 1
+          ? "high"
+          : "medium",
+      reason: "Heavy lower-body gym work overlaps with high jump-demand court sessions in the same week.",
+      code: "resistance_interference_risk",
+    });
+  }
+
+  if (resistanceMetrics.hasFormalResistance && resistanceMetrics.missingTransferSessions > 0) {
+    driftSignals.push({
+      detected: true,
+      severity: resistanceMetrics.missingTransferSessions > 1 ? "medium" : "low",
+      reason: "Formal resistance sessions were planned without an explicit transfer target to the court.",
+      code: "resistance_transfer_weak",
+    });
+  }
+
+  if (
+    resistanceMetrics.hasFormalResistance &&
+    resistanceMetrics.lowerBodyOrPowerExercises >= 3 &&
+    resistanceMetrics.supportExercises === 0
+  ) {
+    driftSignals.push({
+      detected: true,
+      severity: resistanceMetrics.lowerBodyOrPowerExercises >= 5 ? "medium" : "low",
+      reason: "Weekly gym distribution concentrated on lower body/power with little stability or preventive support.",
+      code: "resistance_balance_gap",
+    });
   }
 
   return driftSignals;

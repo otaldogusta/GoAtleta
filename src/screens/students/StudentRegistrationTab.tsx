@@ -9,6 +9,7 @@ import {
     View,
 } from "react-native";
 import type { Student } from "../../core/models";
+import type { ExistingStudentMatch } from "../../core/students/find-possible-existing-students";
 import { deriveStudentHealthAssessment } from "../../core/student-health";
 import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
@@ -93,6 +94,9 @@ export type StudentRegistrationTabProps = {
     classTriggerRef: RefObject<View | null>;
 
     studentFormError: string;
+    existingStudentMatches?: ExistingStudentMatch[];
+    onReviewExistingStudents?: () => void;
+    onDismissExistingStudentWarning?: () => void;
 
     birthDate: string;
     setBirthDate: (v: string) => void;
@@ -199,6 +203,9 @@ export function StudentRegistrationTab({
     showClassPicker,
     classTriggerRef,
     studentFormError,
+    existingStudentMatches = [],
+    onReviewExistingStudents,
+    onDismissExistingStudentWarning,
     birthDate,
     setBirthDate,
     setShowCalendar,
@@ -268,6 +275,21 @@ export function StudentRegistrationTab({
             }),
         [healthIssue, healthIssueNotes, healthObservations, medicationNotes, medicationUse]
     );
+    const topExistingMatch = existingStudentMatches[0] ?? null;
+    const existingStudentTitle = topExistingMatch
+        ? topExistingMatch.matchType === "exact_name_birthdate"
+            ? "Aluno já cadastrado"
+            : topExistingMatch.matchType === "exact_name"
+                ? "Aluno com mesmo nome"
+                : "Possível cadastro existente"
+        : "";
+    const existingStudentDescription = topExistingMatch
+        ? topExistingMatch.matchType === "exact_name_birthdate"
+            ? `${topExistingMatch.studentName} já aparece na turma ${topExistingMatch.className}. Confira antes de criar um novo cadastro.`
+            : topExistingMatch.matchType === "exact_name"
+                ? `Este nome já aparece na turma ${topExistingMatch.className}. Confira antes de criar um novo cadastro.`
+                : `Há um aluno com nome parecido na turma ${topExistingMatch.className}. Confira para evitar duplicidade.`
+        : "";
 
     return (
         <View style={{ gap: 10 }}>
@@ -327,6 +349,77 @@ export function StudentRegistrationTab({
                       </View>
                     </View>
                     {studentFormError ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{studentFormError}</Text> : null}
+                    {topExistingMatch ? (
+                      <View
+                        style={{
+                          borderWidth: 1,
+                          borderColor:
+                            topExistingMatch.confidence === "high"
+                              ? colors.warningBg
+                              : colors.border,
+                          borderRadius: 12,
+                          backgroundColor:
+                            topExistingMatch.confidence === "high"
+                              ? colors.warningBg
+                              : colors.secondaryBg,
+                          padding: 10,
+                          gap: 6,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              topExistingMatch.confidence === "high"
+                                ? colors.warningText
+                                : colors.text,
+                            fontSize: 12,
+                            fontWeight: "800",
+                          }}
+                        >
+                          {existingStudentTitle}
+                        </Text>
+                        <Text
+                          style={{
+                            color:
+                              topExistingMatch.confidence === "high"
+                                ? colors.warningText
+                                : colors.muted,
+                            fontSize: 12,
+                          }}
+                        >
+                          {existingStudentDescription}
+                        </Text>
+                        {existingStudentMatches.length > 1 ? (
+                          <Text
+                            style={{
+                              color:
+                                topExistingMatch.confidence === "high"
+                                  ? colors.warningText
+                                  : colors.muted,
+                              fontSize: 11,
+                            }}
+                          >
+                            Encontrados {existingStudentMatches.length} cadastros parecidos em outras turmas.
+                          </Text>
+                        ) : null}
+                        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                          {onReviewExistingStudents ? (
+                            <Button
+                              label="Ver alunos"
+                              variant="secondary"
+                              onPress={onReviewExistingStudents}
+                            />
+                          ) : null}
+                          {onDismissExistingStudentWarning ? (
+                            <Button
+                              label="Cadastrar mesmo assim"
+                              variant="ghost"
+                              onPress={onDismissExistingStudentWarning}
+                            />
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                       <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
                         <DateInput value={birthDate} onChange={setBirthDate} placeholder="Data de nascimento" onOpenCalendar={() => setShowCalendar(true)} />

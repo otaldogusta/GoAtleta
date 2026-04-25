@@ -364,19 +364,21 @@ const resolveResistanceOutputForSession = (
     params.teamTrainingContext ??
     resolveTeamTrainingContext(params.classGroup);
 
-  if (!supportsResistanceTraining(teamCtx)) {
-    return {};
+  if (!supportsResistanceTraining(teamCtx, params.classGroup)) {
+    return { sessionEnvironment: "quadra" };
   }
 
   const weeklyCtx =
     params.weeklyIntegratedContext ??
     buildWeeklyIntegratedContext({
       teamContext: teamCtx,
+      classGroup: params.classGroup,
       weeklySessions: params.weeklySessions,
     });
 
   const sessionEnvironment = resolveSessionEnvironment({
     teamContext: teamCtx,
+    classGroup: params.classGroup,
     weeklySessions: params.weeklySessions,
     sessionIndexInWeek: sessionIndexInWeek - 1, // convert 1-based to 0-based
   });

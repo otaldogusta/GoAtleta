@@ -1120,10 +1120,9 @@ export function HomeProfessorScreen({
     }
 
     router.push({
-      pathname: "/class/[id]/session",
+      pathname: "/class/[id]",
       params: {
         id: activeAttendanceTarget.classId,
-        date: activeAttendanceTarget.date,
       },
     });
   }, [activeAttendanceTarget, router, showSaveToast]);
@@ -1811,7 +1810,7 @@ export function HomeProfessorScreen({
                   alignItems: "center",
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Planejamento</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Ir pra turma</Text>
               </Pressable>
               <Pressable
                 onPress={handleOpenAttendanceForActiveClass}
