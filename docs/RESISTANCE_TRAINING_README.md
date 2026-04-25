@@ -14,6 +14,7 @@
 | **CONDENSED.md** | 1200 palavras | Chat apertado, foco rápido |
 | **SLICE_CHECKLIST.md** | 2000 palavras | Acompanhamento + aceite |
 | **RUNBOOK.md** | 1500 palavras | Step-by-step durante code |
+| **STATUS.md** | ~1000 palavras | Consolidado do que já entrou |
 | **Este arquivo** | — | Entrada rápida |
 
 ---
@@ -68,6 +69,18 @@
 
 ---
 
+### Cenário 5: "Quero saber o que já foi implementado e o que ainda está fora do escopo"
+
+→ **Use STATUS.md**
+
+**Por quê:** Resume a fase já entregue, os guards atuais, os sinais QA e os próximos passos opcionais sem reabrir backlog.
+
+**Onde:** `docs/RESISTANCE_TRAINING_STATUS.md`
+
+**Tempo de leitura:** 3-5 min
+
+---
+
 ## 🚀 QUICK START
 
 ### Se é primeira vez:
@@ -88,6 +101,14 @@
 2. Segue Passo 1, 2, 3, 4
 3. Usa SLICE_CHECKLIST.md para validar aceite
 4. Próxima slice
+```
+
+### Se a frente já foi implementada e você só precisa se situar:
+
+```
+1. Leia STATUS.md
+2. Confirme se a dúvida é sobre implementado, guard ou QA
+3. Só depois reabra RUNBOOK/CHECKLIST se houver nova fase real
 ```
 
 ---
