@@ -21,6 +21,7 @@ export type ApplyPlanGuardsResult = {
   strategy: SessionStrategy;
   fingerprint: string;
   structuralFingerprint: string;
+  reason?: string | null;
   repetitionAdjustment: RepetitionAdjustment;
 };
 
@@ -193,6 +194,7 @@ const createGuardResult = (params: {
     strategy: params.strategy,
     fingerprint: params.fingerprints.exactFingerprint,
     structuralFingerprint: params.fingerprints.structuralFingerprint,
+    reason: repetitionAdjustment.reason,
     repetitionAdjustment,
   };
 };

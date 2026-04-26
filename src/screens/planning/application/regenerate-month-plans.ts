@@ -112,7 +112,7 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
 
       const regeneratedDaily = regenerateDailyLessonPlanFromWeek({
         existing: existingDaily ?? null,
-        weeklyPlan,
+        weeklyPlan: weekPlan,
         session,
         context: {
           className: classGroup.name,

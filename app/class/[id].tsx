@@ -2173,7 +2173,13 @@ export default function ClassDetails() {
             }}
             actions={{
               closeAllPickers: closeEditPickers,
-              toggleEditPicker,
+              toggleEditPicker: (target) => {
+                if (target === "age" || target === "gender" || target === "goal") {
+                  toggleEditPicker(target);
+                  return;
+                }
+                closeEditPickers();
+              },
               handleEditSelectAgeBand: (value) => {
                 const selected = String(value);
                 if (selected === "Personalizar") {

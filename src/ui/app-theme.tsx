@@ -32,8 +32,10 @@ export type ThemeColors = {
   thumbFallback: string;
   successBg: string;
   successText: string;
+  successBorder: string;
   warningBg: string;
   warningText: string;
+  warningBorder: string;
   dangerSolidBg: string;
   dangerSolidText: string;
   infoBg: string;
@@ -70,8 +72,10 @@ const baseLightColors: ThemeColors = {
   thumbFallback: "#f1f5f9",
   successBg: "#22c55e",
   successText: "#052e16",
+  successBorder: "#86efac",
   warningBg: "#f59e0b",
   warningText: "#111827",
+  warningBorder: "#fcd34d",
   dangerSolidBg: "#ef4444",
   dangerSolidText: "#fff",
   infoBg: "#dbeafe",
@@ -98,8 +102,10 @@ const baseDarkColors: ThemeColors = {
   thumbFallback: "#1f2937",
   successBg: "#16a34a",
   successText: "#052e16",
+  successBorder: "#4ade80",
   warningBg: "#f59e0b",
   warningText: "#111827",
+  warningBorder: "#fbbf24",
   dangerSolidBg: "#dc2626",
   dangerSolidText: "#fff",
   infoBg: "#1e3a8a",

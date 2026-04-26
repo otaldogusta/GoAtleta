@@ -111,7 +111,7 @@ export default function ClassesScreen() {
     return `${weeks} semanas (${monthLabel})`;
   };
 
-  const DEFAULT_CLASS_CYCLE_LENGTH_WEEKS = annualCycleOptions[annualCycleOptions.length - 1];
+  const DEFAULT_CLASS_CYCLE_LENGTH_WEEKS: number = annualCycleOptions[annualCycleOptions.length - 1];
 
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");

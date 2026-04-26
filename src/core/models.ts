@@ -77,6 +77,7 @@ export type ClassGroup = {
   acwrLow: number;
   acwrHigh: number;
   createdAt: string;
+  competitiveLevel?: "beginner" | "intermediate" | "advanced" | string;
   /** Optional: overrides derived model from equipment field */
   integratedTrainingModel?: IntegratedTrainingModel;
   /** Optional: resistance training experience level for this group */
@@ -648,6 +649,8 @@ export type WeeklyOperationalStrategySnapshot = {
 export type WeeklySessionCoherenceCheck = {
   sessionIndexInWeek: number;
   sessionRole: WeekSessionRole;
+  /** Legacy/persisted pass flag. Prefer envelopeRespected for new summaries. */
+  ok?: boolean;
   envelopeRespected: boolean;
   reason?: string;
 };
@@ -1045,6 +1048,8 @@ export type ClassPlan = {
   lastManualEditedAt?: string;
   createdAt: string;
   updatedAt: string;
+  daysOfWeek?: string;
+  weeklySessions?: number;
   /** R5: serialised WeeklyIntegratedTrainingContext | null */
   weeklyIntegratedContextJson?: string;
 };
@@ -1082,6 +1087,8 @@ export type DailyLessonPlan = {
   sessionComponents?: SessionComponent[];
   /** R2: resolved environment for this session */
   sessionEnvironment?: SessionEnvironment;
+  /** R3: dominant component selected for this daily session */
+  sessionPrimaryComponent?: SessionPrimaryComponent;
   warmup: string;
   mainPart: string;
   cooldown: string;

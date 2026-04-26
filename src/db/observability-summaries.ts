@@ -99,10 +99,13 @@ const toRecord = (row: ObservabilitySummaryRow): PlanObservabilityRecord | null 
   };
 };
 
+const isCoherentSession = (item: WeeklyObservabilitySummary["coherence"][number]) =>
+  item.ok ?? item.envelopeRespected;
+
 const computeCoherenceScore = (summary: WeeklyObservabilitySummary) => {
   const total = summary.coherence.length;
   if (!total) return 1;
-  const ok = summary.coherence.filter((item) => item.ok).length;
+  const ok = summary.coherence.filter(isCoherentSession).length;
   return ok / total;
 };
 
@@ -133,7 +136,7 @@ export function computeObservabilityTrendFromRecords(
       highSeverityWeeks: 0,
     };
   }
-  const coherentWeeks = records.filter((r) => r.summary.coherence.every((item) => item.ok)).length;
+  const coherentWeeks = records.filter((r) => r.summary.coherence.every(isCoherentSession)).length;
   const coherenceScores = records.map((r) => computeCoherenceScore(r.summary));
   const unstableWeeks = records.filter((r) => isUnstableWeek(r.summary)).length;
   const highSeverityWeeks = records.filter((r) =>
@@ -347,7 +350,7 @@ export async function getObservabilityTrendByClass(
     };
   }
 
-  const coherentWeeks = records.filter((record) => record.summary.coherence.every((item) => item.ok)).length;
+  const coherentWeeks = records.filter((record) => record.summary.coherence.every(isCoherentSession)).length;
   const coherenceScores = records.map((record) => computeCoherenceScore(record.summary));
   const unstableWeeks = records.filter((record) => isUnstableWeek(record.summary)).length;
   const highSeverityWeeks = records.filter((record) =>

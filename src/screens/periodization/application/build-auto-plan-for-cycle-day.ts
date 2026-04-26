@@ -137,9 +137,9 @@ export type PeriodizationDebugSignals = {
     loadIntent: string;
     drillFamilies: string[];
     forbiddenDrillFamilies: string[];
-    decisionComplexity: number;
-    timePressureLevel: number;
-    variabilityLevel: number;
+    oppositionLevel: string;
+    timePressureLevel: string;
+    gameTransferLevel: string;
   };
 };
 
@@ -277,9 +277,9 @@ const buildPeriodizationDebugSignals = (params: BuildPeriodizationAutoPlanForCyc
     loadIntent: result.strategy.loadIntent,
     drillFamilies: [...result.strategy.drillFamilies],
     forbiddenDrillFamilies: [...result.strategy.forbiddenDrillFamilies],
-    decisionComplexity: result.strategy.decisionComplexity,
+    oppositionLevel: result.strategy.oppositionLevel,
     timePressureLevel: result.strategy.timePressureLevel,
-    variabilityLevel: result.strategy.variabilityLevel,
+    gameTransferLevel: result.strategy.gameTransferLevel,
   },
 });
 
@@ -464,14 +464,16 @@ export const buildPeriodizationWeekSchedule = (params: {
     });
   }
 
-  const weekStartDate = resolveWeekStartDate(params.cycleStartDate, params.weekPlan.week);
-  const trainingDays = resolveTrainingDaysForWeek(params.classGroup, params.weeklySessions);
+  const classGroup = params.classGroup;
+  const weekPlan = params.weekPlan;
+  const weekStartDate = resolveWeekStartDate(params.cycleStartDate, weekPlan.week);
+  const trainingDays = resolveTrainingDaysForWeek(classGroup, params.weeklySessions);
   const syntheticRecentSessions = [...(params.recentSessions ?? [])];
   let sessionCounter = 0;
 
   // R6: resolve team context once per week schedule build
   const teamCtxForWeek =
-    params.teamTrainingContext ?? resolveTeamTrainingContext(params.classGroup);
+    params.teamTrainingContext ?? resolveTeamTrainingContext(classGroup);
   const weeklyCtxForWeek =
     params.weeklyIntegratedContext ??
     buildWeeklyIntegratedContext({ teamContext: teamCtxForWeek, weeklySessions: params.weeklySessions });
@@ -498,9 +500,9 @@ export const buildPeriodizationWeekSchedule = (params: {
     );
 
     const autoPlan = buildPeriodizationAutoPlanForCycleDay({
-      classGroup: params.classGroup,
+      classGroup,
       classPlan: params.classPlan,
-      weekPlan: params.weekPlan,
+      weekPlan,
       cycleStartDate: params.cycleStartDate,
       sessionDate: date,
       periodizationModel: params.periodizationModel,

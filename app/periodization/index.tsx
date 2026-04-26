@@ -1980,7 +1980,7 @@ export default function PeriodizationScreen() {
   const cyclePanelScrollRef = useRef<ScrollView>(null);
   const weekSwitchOpacity = useRef(new Animated.Value(1)).current;
   const weekSwitchTranslateX = useRef(new Animated.Value(0)).current;
-  const weekSwitchDirectionRef = useRef<-1 | 1>(1);
+  const weekSwitchDirectionRef = useRef<-1 | 0 | 1>(1);
   const shouldRealignCurrentWeekRef = useRef(false);
 
   const monthSegments = useMemo(() => {
@@ -4599,4 +4599,3 @@ export default function PeriodizationScreen() {
   );
 
 }
-

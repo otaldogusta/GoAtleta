@@ -34,7 +34,7 @@ export default function ClassPlanningHubRoute() {
   if (isLoading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScreenLoadingState title="Carregando planejamentos" description="Organizando os meses da turma" />
+        <ScreenLoadingState />
       </SafeAreaView>
     );
   }

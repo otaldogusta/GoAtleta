@@ -4,7 +4,6 @@ import {
     Animated,
     Dimensions,
     Platform,
-    type RefObject,
     ScrollView,
     StyleProp,
     View,
@@ -29,7 +28,7 @@ type AnchoredDropdownProps = {
   onRequestClose?: () => void;
   showVerticalScrollIndicator?: boolean;
   portalToBodyOnWeb?: boolean;
-  interactiveRefs?: Array<RefObject<View | null>>;
+  interactiveRefs?: Array<React.RefObject<View | null>>;
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;

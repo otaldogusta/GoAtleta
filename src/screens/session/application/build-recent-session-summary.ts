@@ -6,6 +6,7 @@ import type {
     TeacherEditedField,
     TeacherOverrideWeight,
     TrainingPlan,
+    TrainingPlanSessionBlock,
     TrainingSession,
     TrainingSessionAttendance,
 } from "../../../core/models";
@@ -73,7 +74,7 @@ const findPreviousPlan = (plans: TrainingPlan[], current: TrainingPlan | null) =
   return plans.find((plan) => plan.id === current.previousVersionId) ?? null;
 };
 
-const normalizeBlock = (block: TrainingPlan["pedagogy"] extends { blocks?: infer T } ? T[keyof T] : never) => {
+const normalizeBlock = (block: TrainingPlanSessionBlock | null | undefined) => {
   if (!block) return null;
   return {
     summary: normalizeText(block.summary),
