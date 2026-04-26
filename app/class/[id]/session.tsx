@@ -33,6 +33,7 @@ import { SessionContextHeader } from "../../../src/screens/session/components/Se
 import { SessionResistanceNotice } from "../../../src/screens/session/components/SessionResistanceNotice";
 import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
+import { useSessionData } from "../../../src/screens/session/hooks/useSessionData";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import {
@@ -73,17 +74,12 @@ import {
     formatSessionMethodologyScoreSummary,
     formatSessionOverrideSummary,
     formatSessionPedagogicalFocusSkill,
-    type SessionMethodologyEvidence,
 } from "../../../src/core/methodology/session-pedagogical-panel-language";
 import type {
     ClassGroup,
     ClassPlan,
-    DailyLessonPlan,
-    KnowledgeSource,
     ProgressionDimension,
     ScoutingLog,
-    SessionLog,
-    Student,
     TrainingPlan,
     TrainingPlanActivity,
     TrainingPlanCriterion,
@@ -126,16 +122,7 @@ import { createTrainingPlanVersion } from "../../../src/core/training-plan-facto
 import { resolveActiveMethodology } from "../../../src/db/knowledge-base";
 import {
     deleteTrainingPlansByClassAndDate,
-    getAttendanceByDate,
-    getClassById,
-    getClassPlansByClass,
-    getDailyLessonPlanByWeekAndDate,
-    getKnowledgeRuleCitations,
-    getKnowledgeSources,
     getLatestTrainingPlanByClass,
-    getScoutingLogByDate,
-    getSessionLogByDate,
-    getStudentsByClass,
     getTrainingPlans,
     saveScoutingLog,
     saveSessionLog,
@@ -951,20 +938,6 @@ const pickLoad = (
   return { intendedRPE, volume };
 };
 
-const pickClassPlanForSessionDate = (plans: ClassPlan[], sessionDateValue: string) => {
-  if (!plans.length) return null;
-  const targetTime = Date.parse(`${sessionDateValue}T00:00:00`);
-  const sorted = [...plans].sort((a, b) => {
-    const aTime = Date.parse(`${a.startDate}T00:00:00`);
-    const bTime = Date.parse(`${b.startDate}T00:00:00`);
-    return aTime - bTime;
-  });
-  const candidate = [...sorted]
-    .reverse()
-    .find((plan) => Date.parse(`${plan.startDate}T00:00:00`) <= targetTime);
-  return candidate ?? sorted[0] ?? null;
-};
-
 const hasMeaningfulText = (value?: string | null) => String(value ?? "").trim().length > 0;
 
 const hasUsablePeriodization = (classPlan?: ClassPlan | null) => {
@@ -1725,33 +1698,6 @@ const buildPedagogicalInputHash = (pkg: PedagogicalPlanPackage) => {
   return stableSerialize(payload);
 };
 
-const getLatestFinalPlanForSession = async (
-  organizationId: string | null,
-  classId: string,
-  sessionDateValue: string,
-  weekdayValue: number
-) => {
-  const baseQuery = {
-    organizationId,
-    classId,
-    status: "final" as const,
-    orderBy: "version_desc" as const,
-    limit: 1,
-  };
-  const byDate = await getTrainingPlans({
-    ...baseQuery,
-    applyDate: sessionDateValue,
-  });
-  if (byDate[0]) {
-    return byDate[0];
-  }
-  const byWeekday = await getTrainingPlans({
-    ...baseQuery,
-    applyWeekday: weekdayValue,
-  });
-  return byWeekday[0] ?? null;
-};
-
 const convertPedagogicalPlanToTrainingPlan = (
   pkg: PedagogicalPlanPackage,
   classId: string,
@@ -1942,20 +1888,11 @@ export default function SessionScreen() {
   const { colors, mode } = useAppTheme();
   const { confirm } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
-  const [cls, setCls] = useState<ClassGroup | null>(null);
-  const [plan, setPlan] = useState<TrainingPlan | null>(null);
-  const [savedClassPlans, setSavedClassPlans] = useState<TrainingPlan[]>([]);
-  const [sessionStudents, setSessionStudents] = useState<Student[]>([]);
-  const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const [isLoadingSessionExtras, setIsLoadingSessionExtras] = useState(true);
-  const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
-  const [scoutingLog, setScoutingLog] = useState<ScoutingLog | null>(null);
   const [scoutingCounts, setScoutingCounts] = useState(createEmptyCounts());
   const [scoutingBaseline, setScoutingBaseline] = useState(createEmptyCounts());
   const [scoutingSaving, setScoutingSaving] = useState(false);
   const [scoutingMode, setScoutingMode] = useState<"treino" | "jogo">("treino");
   const [showScoutingGuide, setShowScoutingGuide] = useState(false);
-  const [studentsCount, setStudentsCount] = useState(0);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
   const sessionTabAnim = useRef<Record<SessionTabId, Animated.Value>>({
     treino: new Animated.Value(1),
@@ -1976,7 +1913,6 @@ export default function SessionScreen() {
   const [photos, setPhotos] = useState("");
   const [isPickingPhoto, setIsPickingPhoto] = useState(false);
   const [photoActionIndex, setPhotoActionIndex] = useState<number | null>(null);
-  const [attendancePercent, setAttendancePercent] = useState<number | null>(null);
   const [showPsePicker, setShowPsePicker] = useState(false);
   const [showTechniquePicker, setShowTechniquePicker] = useState(false);
   const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
@@ -1987,26 +1923,18 @@ export default function SessionScreen() {
   const planGenerationAnim = useRef(new Animated.Value(0)).current;
   const planGenerationLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const [pedagogicalPlanPackage, setPedagogicalPlanPackage] = useState<PedagogicalPlanPackage | null>(null);
-  const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
-  const [currentDailyLessonPlan, setCurrentDailyLessonPlan] = useState<DailyLessonPlan | null>(null);
-  const [isResolvingCurrentClassPlan, setIsResolvingCurrentClassPlan] = useState(false);
   const [planGenerationPhase, setPlanGenerationPhase] = useState<
     "idle" | "generating" | "saving" | "settling"
   >("idle");
   const [selectedBlockKey, setSelectedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
   const [isSavingBlockEdit, setIsSavingBlockEdit] = useState(false);
   const [lastUpdatedBlockKey, setLastUpdatedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
-  const [methodologyEvidence, setMethodologyEvidence] = useState<SessionMethodologyEvidence | null>(null);
   const [showPedagogicalPanel, setShowPedagogicalPanel] = useState(false);
   const pedagogicalPanelCollapse = useCollapsibleAnimation(showPedagogicalPanel, {
     translateY: -6,
   });
   const [showDecisionOverrideModal, setShowDecisionOverrideModal] = useState(false);
   const [showMissingPeriodizationModal, setShowMissingPeriodizationModal] = useState(false);
-  const hasUsableCurrentClassPlan = useMemo(
-    () => hasUsablePeriodization(currentClassPlan),
-    [currentClassPlan]
-  );
   const [isApplyingDecisionOverride, setIsApplyingDecisionOverride] = useState(false);
   const [decisionAppliedAdjustment, setDecisionAppliedAdjustment] = useState<
     "increase" | "maintain" | "regress"
@@ -2065,6 +1993,41 @@ export default function SessionScreen() {
         })();
   const shouldAutoGenerateFromPeriodization =
     autogenerate === "1" && source === "periodization";
+  const weekdayId = useMemo(() => {
+    const dateObj = new Date(sessionDate);
+    const day = dateObj.getDay();
+    return day === 0 ? 7 : day;
+  }, [sessionDate]);
+  const {
+    cls,
+    plan,
+    setPlan,
+    savedClassPlans,
+    setSavedClassPlans,
+    sessionStudents,
+    studentsCount,
+    isLoadingSession,
+    isLoadingSessionExtras,
+    sessionLog,
+    setSessionLog,
+    scoutingLog,
+    setScoutingLog,
+    attendancePercent,
+    currentClassPlan,
+    currentDailyLessonPlan,
+    isResolvingCurrentClassPlan,
+    methodologyEvidence,
+  } = useSessionData({
+    classId: id,
+    sessionDate,
+    weekdayId,
+    scoutingMode,
+    compactTrainingPlans,
+  });
+  const hasUsableCurrentClassPlan = useMemo(
+    () => hasUsablePeriodization(currentClassPlan),
+    [currentClassPlan]
+  );
 
   useEffect(() => {
     if (hasExplicitSessionDate || !cls) return;
@@ -2118,11 +2081,6 @@ export default function SessionScreen() {
     const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
     return start + " - " + end;
   };
-  const weekdayId = useMemo(() => {
-    const dateObj = new Date(sessionDate);
-    const day = dateObj.getDay();
-    return day === 0 ? 7 : day;
-  }, [sessionDate]);
   const isGeneratingPedagogicalPlan = planGenerationPhase === "generating";
   const isSavingPedagogicalPlan =
     planGenerationPhase === "saving" || planGenerationPhase === "settling";
@@ -2237,126 +2195,8 @@ export default function SessionScreen() {
   }, [id, sessionDate]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const loadCurrentClassPlan = async () => {
-      if (!cls) {
-        setCurrentClassPlan(null);
-        setIsResolvingCurrentClassPlan(false);
-        return;
-      }
-      setIsResolvingCurrentClassPlan(true);
-      try {
-        const plans = await getClassPlansByClass(cls.id, {
-          organizationId: cls.organizationId ?? null,
-        });
-        if (cancelled) return;
-        setCurrentClassPlan(pickClassPlanForSessionDate(plans, sessionDate));
-      } catch {
-        if (!cancelled) setCurrentClassPlan(null);
-      } finally {
-        if (!cancelled) setIsResolvingCurrentClassPlan(false);
-      }
-    };
-
-    void loadCurrentClassPlan();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cls?.id, cls?.organizationId, sessionDate]);
-
-  useEffect(() => {
     periodizationAutoGenerateKeyRef.current = null;
   }, [id, sessionDate, shouldAutoGenerateFromPeriodization]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadCurrentDailyLessonPlan = async () => {
-      if (!currentClassPlan?.id) {
-        setCurrentDailyLessonPlan(null);
-        return;
-      }
-
-      try {
-        const dailyPlan = await getDailyLessonPlanByWeekAndDate(
-          currentClassPlan.id,
-          sessionDate,
-        );
-        if (!cancelled) {
-          setCurrentDailyLessonPlan(dailyPlan);
-        }
-      } catch {
-        if (!cancelled) {
-          setCurrentDailyLessonPlan(null);
-        }
-      }
-    };
-
-    void loadCurrentDailyLessonPlan();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentClassPlan?.id, sessionDate]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadMethodologyEvidence = async () => {
-      const methodology = plan?.pedagogy?.methodology;
-      const kbRuleKey = methodology?.kbRuleKey?.trim();
-      const knowledgeBaseVersionId = methodology?.reasoning?.knowledgeBaseVersionId?.trim();
-      if (!kbRuleKey || !knowledgeBaseVersionId) {
-        setMethodologyEvidence(null);
-        return;
-      }
-
-      try {
-        const citations = await getKnowledgeRuleCitations({ knowledgeRuleId: kbRuleKey });
-        const sourceIds = citations
-          .map((citation) => citation.knowledgeSourceId ?? "")
-          .filter(Boolean);
-        if (!sourceIds.length) {
-          if (!cancelled) setMethodologyEvidence(null);
-          return;
-        }
-
-        const sources = await getKnowledgeSources({ knowledgeBaseVersionId });
-        const sourceById = new Map(sources.map((source) => [source.id, source] as const));
-        const firstSource = sourceIds
-          .map((sourceId) => sourceById.get(sourceId))
-          .find((source): source is KnowledgeSource => Boolean(source));
-        const firstCitation = citations.find((citation) => citation.knowledgeSourceId === firstSource?.id);
-
-        if (!cancelled) {
-          setMethodologyEvidence(
-            firstSource
-              ? {
-                  title: firstSource.title,
-                  authors: firstSource.authors,
-                  sourceYear: firstSource.sourceYear ?? null,
-                  citationText: firstCitation?.evidence || firstSource.citationText || firstSource.title,
-                  url: firstSource.sourceUrl,
-                }
-              : null
-          );
-        }
-      } catch {
-        if (!cancelled) setMethodologyEvidence(null);
-      }
-    };
-
-    void loadMethodologyEvidence();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    plan?.pedagogy?.methodology?.kbRuleKey,
-    plan?.pedagogy?.methodology?.reasoning?.knowledgeBaseVersionId,
-  ]);
 
   useEffect(() => {
     setShowDecisionOverrideModal(false);
@@ -2659,125 +2499,46 @@ export default function SessionScreen() {
   };
 
   useEffect(() => {
-    let alive = true;
-    setIsLoadingSession(true);
-    (async () => {
-      try {
-        const data = await getClassById(id);
-        if (alive) setCls(data);
-        if (data) {
-          const [classStudents, currentPlan, classTrainingPlans] = await Promise.all([
-            getStudentsByClass(data.id),
-            getLatestFinalPlanForSession(
-              data.organizationId ?? null,
-              data.id,
-              sessionDate,
-              weekdayId
-            ),
-            getTrainingPlans({
-              organizationId: data.organizationId ?? null,
-              classId: data.id,
-              status: "final",
-              orderBy: "createdat_desc",
-              limit: 24,
-            }),
-          ]);
-          if (alive) {
-            setStudentsCount(classStudents.length);
-            setSessionStudents(classStudents);
-            setSavedClassPlans(compactTrainingPlans(classTrainingPlans));
-          }
-          if (alive) setPlan(currentPlan);
-          if (!alive) return;
-        } else if (alive) {
-          setSavedClassPlans([]);
-        }
-        if (id) {
-          const [log, scouting] = await Promise.all([
-            getSessionLogByDate(id, sessionDate),
-            getScoutingLogByDate(id, sessionDate, scoutingMode),
-          ]);
-          if (alive) {
-            setSessionLog(log);
-            if (log) {
-              setPSE(typeof log.PSE === "number" ? log.PSE : 0);
-              setTechnique(
-                (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum"
-              );
-              setActivity(log.activity ?? "");
-              setConclusion(log.conclusion ?? "");
-              setParticipantsCount(
-                typeof log.participantsCount === "number"
-                  ? String(log.participantsCount)
-                  : ""
-              );
-              setPhotos(log.photos ?? "");
-              setReportBaseline({
-                PSE: typeof log.PSE === "number" ? log.PSE : 0,
-                technique:
-                  (log.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum",
-                activity: log.activity ?? "",
-                conclusion: log.conclusion ?? "",
-                participantsCount:
-                  typeof log.participantsCount === "number"
-                    ? String(log.participantsCount)
-                    : "",
-                photos: log.photos ?? "",
-              });
-            }
-            const counts = scouting ? countsFromLog(scouting) : createEmptyCounts();
-            setScoutingLog(scouting);
-            setScoutingCounts(counts);
-            setScoutingBaseline(counts);
-          }
-        }
-      } finally {
-        if (alive) setIsLoadingSession(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [id, sessionDate, scoutingMode]);
+    if (!sessionLog) return;
+    setPSE(typeof sessionLog.PSE === "number" ? sessionLog.PSE : 0);
+    setTechnique(
+      (sessionLog.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum"
+    );
+    setActivity(sessionLog.activity ?? "");
+    setConclusion(sessionLog.conclusion ?? "");
+    setParticipantsCount(
+      typeof sessionLog.participantsCount === "number"
+        ? String(sessionLog.participantsCount)
+        : ""
+    );
+    setPhotos(sessionLog.photos ?? "");
+    setReportBaseline({
+      PSE: typeof sessionLog.PSE === "number" ? sessionLog.PSE : 0,
+      technique:
+        (sessionLog.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum",
+      activity: sessionLog.activity ?? "",
+      conclusion: sessionLog.conclusion ?? "",
+      participantsCount:
+        typeof sessionLog.participantsCount === "number"
+          ? String(sessionLog.participantsCount)
+          : "",
+      photos: sessionLog.photos ?? "",
+    });
+  }, [sessionLog]);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      setIsLoadingSessionExtras(true);
-      try {
-        if (!id) return;
-        const attendanceRecords = await getAttendanceByDate(id, sessionDate);
-        if (!alive) return;
-        if (attendanceRecords.length) {
-          const present = attendanceRecords.filter(
-            (record) => record.status === "presente"
-          ).length;
-          const total = attendanceRecords.length;
-          const percent = total > 0 ? Math.round((present / total) * 100) : 0;
-          setAttendancePercent(percent);
-        } else if (studentsCount > 0) {
-          setAttendancePercent(0);
-        } else {
-          setAttendancePercent(null);
-        }
-        if (!plan) return;
-        const fallback = buildSimpleActivityFromPlan(plan);
-        if (fallback) {
-          setAutoActivity(fallback);
-        }
-      } finally {
-        if (alive) setIsLoadingSessionExtras(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [
-    id,
-    sessionDate,
-    plan,
-    studentsCount,
-  ]);
+    const counts = scoutingLog ? countsFromLog(scoutingLog) : createEmptyCounts();
+    setScoutingCounts(counts);
+    setScoutingBaseline(counts);
+  }, [scoutingLog]);
+
+  useEffect(() => {
+    if (!plan) return;
+    const fallback = buildSimpleActivityFromPlan(plan);
+    if (fallback) {
+      setAutoActivity(fallback);
+    }
+  }, [plan]);
 
   useEffect(() => {
     syncPickerLayouts();
