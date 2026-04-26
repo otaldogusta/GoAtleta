@@ -44,6 +44,7 @@ import { SessionResistanceBlock } from "../../../src/screens/session/components/
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
 import { useSessionData } from "../../../src/screens/session/hooks/useSessionData";
 import { useSessionPlanGeneration } from "../../../src/screens/session/hooks/useSessionPlanGeneration";
+import { useSessionReport } from "../../../src/screens/session/hooks/useSessionReport";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import {
@@ -134,7 +135,6 @@ import {
     getLatestTrainingPlanByClass,
     getTrainingPlans,
     saveScoutingLog,
-    saveSessionLog,
     saveTrainingPlan,
 } from "../../../src/db/seed";
 import { logAction, logPlanGenerationDecision } from "../../../src/observability/breadcrumbs";
@@ -1749,17 +1749,9 @@ export default function SessionScreen() {
     scouting: new Animated.Value(0),
   }).current;
   const [showAppliedPreview, setShowAppliedPreview] = useState(false);
-  const [PSE, setPSE] = useState<number>(0);
-  const [technique, setTechnique] = useState<"boa" | "ok" | "ruim" | "nenhum">(
-    "nenhum"
-  );
-  const [activity, setActivity] = useState("");
   const [autoActivity, setAutoActivity] = useState("");
-  const [conclusion, setConclusion] = useState("");
   const [isRewritingActivity, setIsRewritingActivity] = useState(false);
   const [isRewritingConclusion, setIsRewritingConclusion] = useState(false);
-  const [participantsCount, setParticipantsCount] = useState("");
-  const [photos, setPhotos] = useState("");
   const [isPickingPhoto, setIsPickingPhoto] = useState(false);
   const [photoActionIndex, setPhotoActionIndex] = useState<number | null>(null);
   const [showPsePicker, setShowPsePicker] = useState(false);
@@ -1801,14 +1793,6 @@ export default function SessionScreen() {
     width: number;
     height: number;
   } | null>(null);
-  const [reportBaseline, setReportBaseline] = useState({
-    PSE: 0,
-    technique: "nenhum" as "boa" | "ok" | "ruim" | "nenhum",
-    activity: "",
-    conclusion: "",
-    participantsCount: "",
-    photos: "",
-  });
   const containerRef = useRef<View>(null);
   const pseTriggerRef = useRef<View>(null);
   const techniqueTriggerRef = useRef<View>(null);
@@ -1867,6 +1851,28 @@ export default function SessionScreen() {
     weekdayId,
     scoutingMode,
     compactTrainingPlans,
+  });
+  const {
+    PSE,
+    setPSE,
+    technique,
+    setTechnique,
+    activity,
+    setActivity,
+    conclusion,
+    setConclusion,
+    participantsCount,
+    setParticipantsCount,
+    photos,
+    setPhotos,
+    reportHasChanges,
+    saveReport,
+  } = useSessionReport({
+    classId: cls?.id ?? "",
+    sessionDate,
+    sessionLog,
+    setSessionLog,
+    attendancePercent,
   });
   const hasUsableCurrentClassPlan = useMemo(
     () => hasUsablePeriodization(currentClassPlan),
@@ -1976,20 +1982,6 @@ export default function SessionScreen() {
   }, [planFabAnim, showPlanFabMenu]);
 
   useEffect(() => {
-    setReportBaseline({
-      PSE: 0,
-      technique: "nenhum",
-      activity: "",
-      conclusion: "",
-      participantsCount: "",
-      photos: "",
-    });
-    setPSE(0);
-    setTechnique("nenhum");
-    setActivity("");
-    setConclusion("");
-    setParticipantsCount("");
-    setPhotos("");
     setShowSavedClassPlans(false);
     setIsApplyingSavedPlanId(null);
   }, [id, sessionDate]);
@@ -2295,34 +2287,6 @@ export default function SessionScreen() {
   };
 
   useEffect(() => {
-    if (!sessionLog) return;
-    setPSE(typeof sessionLog.PSE === "number" ? sessionLog.PSE : 0);
-    setTechnique(
-      (sessionLog.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum"
-    );
-    setActivity(sessionLog.activity ?? "");
-    setConclusion(sessionLog.conclusion ?? "");
-    setParticipantsCount(
-      typeof sessionLog.participantsCount === "number"
-        ? String(sessionLog.participantsCount)
-        : ""
-    );
-    setPhotos(sessionLog.photos ?? "");
-    setReportBaseline({
-      PSE: typeof sessionLog.PSE === "number" ? sessionLog.PSE : 0,
-      technique:
-        (sessionLog.technique as "boa" | "ok" | "ruim" | "nenhum") ?? "nenhum",
-      activity: sessionLog.activity ?? "",
-      conclusion: sessionLog.conclusion ?? "",
-      participantsCount:
-        typeof sessionLog.participantsCount === "number"
-          ? String(sessionLog.participantsCount)
-          : "",
-      photos: sessionLog.photos ?? "",
-    });
-  }, [sessionLog]);
-
-  useEffect(() => {
     const counts = scoutingLog ? countsFromLog(scoutingLog) : createEmptyCounts();
     setScoutingCounts(counts);
     setScoutingBaseline(counts);
@@ -2340,75 +2304,9 @@ export default function SessionScreen() {
     syncPickerLayouts();
   }, [showPsePicker, showTechniquePicker]);
 
-  const saveReport = async () => {
-    if (!cls) return null;
-    const dateValue =
-      typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
-        ? date
-        : null;
-    const createdAt =
-      sessionLog?.createdAt ??
-      (dateValue
-        ? new Date(`${dateValue}T12:00:00`).toISOString()
-        : new Date().toISOString());
-    const participantsRaw = participantsCount.trim();
-    const participantsValue = participantsRaw ? Number(participantsRaw) : Number.NaN;
-    const parsedParticipants =
-      Number.isFinite(participantsValue) && participantsValue >= 0
-        ? participantsValue
-        : undefined;
-    const activityValue = activity.trim() || autoActivity.trim();
-    const attendanceValue =
-      typeof attendancePercent === "number" ? attendancePercent : 0;
-    await saveSessionLog({
-      id: sessionLog?.id,
-      clientId: sessionLog?.clientId,
-      classId: cls.id,
-      PSE,
-      technique,
-      attendance: attendanceValue,
-      activity: activityValue,
-      conclusion,
-      participantsCount: parsedParticipants,
-      photos,
-      createdAt,
-    });
-    setActivity(activityValue);
-    setReportBaseline({
-      PSE,
-      technique,
-      activity: activityValue,
-      conclusion,
-      participantsCount: parsedParticipants !== undefined ? String(parsedParticipants) : "",
-      photos,
-    });
-    setSessionLog({
-      id: sessionLog?.id,
-      clientId: sessionLog?.clientId,
-      classId: cls.id,
-      PSE,
-      technique,
-      attendance: attendanceValue,
-      activity: activityValue,
-      conclusion,
-      participantsCount: parsedParticipants,
-      photos,
-      createdAt,
-    });
-    return dateValue ?? new Date().toISOString().slice(0, 10);
-  };
-
-  const reportHasChanges =
-    PSE !== reportBaseline.PSE ||
-    technique !== reportBaseline.technique ||
-    activity.trim() !== reportBaseline.activity.trim() ||
-    conclusion.trim() !== reportBaseline.conclusion.trim() ||
-    participantsCount.trim() !== reportBaseline.participantsCount.trim() ||
-    photos.trim() !== reportBaseline.photos.trim();
-
   async function handleSaveReport() {
     try {
-      await saveReport();
+      await saveReport({ activityFallback: autoActivity });
       showSaveToast({ message: ptBR.session.success.reportSaved, variant: "success" });
     } catch (error) {
       showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
@@ -2418,7 +2316,7 @@ export default function SessionScreen() {
 
   async function handleSaveAndGenerateReport() {
     try {
-      await saveReport();
+      await saveReport({ activityFallback: autoActivity });
       await handleExportReportPdf();
     } catch (error) {
       showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
