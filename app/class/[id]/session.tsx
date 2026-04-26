@@ -34,6 +34,7 @@ import { SessionResistanceNotice } from "../../../src/screens/session/components
 import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
 import { useSessionData } from "../../../src/screens/session/hooks/useSessionData";
+import { useSessionPlanGeneration } from "../../../src/screens/session/hooks/useSessionPlanGeneration";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import {
@@ -1922,10 +1923,6 @@ export default function SessionScreen() {
   const planFabAnim = useRef(new Animated.Value(0)).current;
   const planGenerationAnim = useRef(new Animated.Value(0)).current;
   const planGenerationLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-  const [pedagogicalPlanPackage, setPedagogicalPlanPackage] = useState<PedagogicalPlanPackage | null>(null);
-  const [planGenerationPhase, setPlanGenerationPhase] = useState<
-    "idle" | "generating" | "saving" | "settling"
-  >("idle");
   const [selectedBlockKey, setSelectedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
   const [isSavingBlockEdit, setIsSavingBlockEdit] = useState(false);
   const [lastUpdatedBlockKey, setLastUpdatedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
@@ -1972,7 +1969,6 @@ export default function SessionScreen() {
     previousText: string;
     nextText: string;
   } | null>(null);
-  const periodizationAutoGenerateKeyRef = useRef<string | null>(null);
   const { animatedStyle: psePickerAnimStyle, isVisible: showPsePickerContent } =
     useCollapsibleAnimation(showPsePicker, { translateY: -6 });
   const { animatedStyle: techniquePickerAnimStyle, isVisible: showTechniquePickerContent } =
@@ -2081,18 +2077,6 @@ export default function SessionScreen() {
     const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
     return start + " - " + end;
   };
-  const isGeneratingPedagogicalPlan = planGenerationPhase === "generating";
-  const isSavingPedagogicalPlan =
-    planGenerationPhase === "saving" || planGenerationPhase === "settling";
-  const isPlanGenerationBusy = planGenerationPhase !== "idle";
-  const planGenerationLabel = planGenerationPhase === "generating"
-    ? "Gerando plano"
-    : "Salvando plano";
-  const planGenerationSubtitle = planGenerationPhase === "settling"
-    ? "Atualizando a aula do dia com o novo treino."
-    : planGenerationPhase === "saving"
-      ? "Aplicando o treino na aula do dia."
-      : "Montando os blocos da sessao para esta turma.";
   const generationExplanation = plan?.pedagogy?.generationExplanation;
   const generationHistoryLabel =
     generationExplanation?.historyMode === "bootstrap"
@@ -2144,38 +2128,6 @@ export default function SessionScreen() {
   }, [planFabAnim, showPlanFabMenu]);
 
   useEffect(() => {
-    if (!isPlanGenerationBusy) {
-      planGenerationLoopRef.current?.stop();
-      planGenerationLoopRef.current = null;
-      planGenerationAnim.stopAnimation();
-      planGenerationAnim.setValue(0);
-      return;
-    }
-
-    const animation = Animated.loop(
-      Animated.timing(planGenerationAnim, {
-        toValue: 1,
-        duration: 900,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-
-    planGenerationAnim.setValue(0);
-    planGenerationLoopRef.current = animation;
-    animation.start();
-
-    return () => {
-      animation.stop();
-      if (planGenerationLoopRef.current === animation) {
-        planGenerationLoopRef.current = null;
-      }
-      planGenerationAnim.stopAnimation();
-      planGenerationAnim.setValue(0);
-    };
-  }, [isPlanGenerationBusy, planGenerationAnim]);
-
-  useEffect(() => {
     setReportBaseline({
       PSE: 0,
       technique: "nenhum",
@@ -2193,10 +2145,6 @@ export default function SessionScreen() {
     setShowSavedClassPlans(false);
     setIsApplyingSavedPlanId(null);
   }, [id, sessionDate]);
-
-  useEffect(() => {
-    periodizationAutoGenerateKeyRef.current = null;
-  }, [id, sessionDate, shouldAutoGenerateFromPeriodization]);
 
   useEffect(() => {
     setShowDecisionOverrideModal(false);
@@ -3236,14 +3184,6 @@ export default function SessionScreen() {
     );
   };
 
-  const buildFreshPedagogicalPackage = async (
-    variationSeed?: number,
-    planningBasis: TrainingPlanPlanningBasis = "cycle_based"
-  ) => {
-    const autoPlanResult = await buildFreshAutoPlanResult(variationSeed, planningBasis);
-    return autoPlanResult?.package ?? null;
-  };
-
   const persistPedagogicalPlanPackage = async (
     packageToSave: PedagogicalPlanPackage,
     editedDraft?: LessonPlanDraft,
@@ -3404,77 +3344,81 @@ export default function SessionScreen() {
     });
   };
 
-  const generatePedagogicalPlanAndSave = async (
-    variationSeed?: number,
-    planningBasis: TrainingPlanPlanningBasis = "cycle_based"
-  ) => {
-    if (!cls) return;
-    setShowPlanFabMenu(false);
-    setPlanGenerationPhase("generating");
-    try {
-      await waitForInteractionIdle();
-      const autoPlanResult = await buildFreshAutoPlanResult(variationSeed, planningBasis);
-      if (!autoPlanResult) return;
-      setPedagogicalPlanPackage(autoPlanResult.package);
-      setPlanGenerationPhase("saving");
-      const successMessage =
-        plan && variationSeed
-          ? "Nova variação aplicada."
-          : undefined;
-      await persistPedagogicalPlanPackage(autoPlanResult.package, undefined, {
-        successMessage,
-        generationExplanation: toPersistedGenerationExplanation(
-          autoPlanResult.explanation,
-          planningBasis
-        ),
-        targetPrimarySkill: autoPlanResult.strategy.primarySkill,
-        targetSecondarySkill: autoPlanResult.strategy.secondarySkill,
-      });
-      setPlanGenerationPhase("settling");
-      await waitForInteractionIdle();
-      await waitForNextPaint();
-    } catch {
+  const {
+    pedagogicalPlanPackage,
+    setPedagogicalPlanPackage,
+    planGenerationPhase,
+    isGeneratingPedagogicalPlan,
+    isSavingPedagogicalPlan,
+    isPlanGenerationBusy,
+    buildFreshPedagogicalPackage,
+    generatePedagogicalPlanAndSave,
+    handleGeneratePedagogicalPlan,
+  } = useSessionPlanGeneration({
+    classId: cls?.id,
+    sessionDate,
+    plan,
+    shouldAutoGenerateFromPeriodization,
+    isLoadingSession,
+    isResolvingCurrentClassPlan,
+    hasUsableCurrentClassPlan,
+    buildFreshAutoPlanResult,
+    persistPedagogicalPlanPackage,
+    toPersistedGenerationExplanation,
+    waitForInteractionIdle,
+    waitForNextPaint,
+    onMissingPeriodization: () => setShowMissingPeriodizationModal(true),
+    onClosePlanMenu: () => setShowPlanFabMenu(false),
+    onError: ({ classId, sessionDate: errorSessionDate, variationSeed }) => {
       logAction("buildPedagogicalPlan failed", {
-        classId: cls.id,
-        sessionDate,
+        classId,
+        sessionDate: errorSessionDate,
         variationSeed: variationSeed ?? null,
       });
       showSaveToast({ message: ptBR.session.errors.planGenerateFailed, variant: "error" });
-    } finally {
-      setPlanGenerationPhase("idle");
-    }
-  };
+    },
+  });
 
-  const handleGeneratePedagogicalPlan = () => {
-    if (!isResolvingCurrentClassPlan && !hasUsableCurrentClassPlan) {
-      setShowMissingPeriodizationModal(true);
-      return;
-    }
-    void generatePedagogicalPlanAndSave(undefined, "cycle_based");
-  };
+  const planGenerationLabel = planGenerationPhase === "generating"
+    ? "Gerando plano"
+    : "Salvando plano";
+  const planGenerationSubtitle = planGenerationPhase === "settling"
+    ? "Atualizando a aula do dia com o novo treino."
+    : planGenerationPhase === "saving"
+      ? "Aplicando o treino na aula do dia."
+      : "Montando os blocos da sessao para esta turma.";
 
   useEffect(() => {
-    if (!shouldAutoGenerateFromPeriodization) return;
-    if (!cls || isLoadingSession || isResolvingCurrentClassPlan) return;
-    if (!hasUsableCurrentClassPlan) return;
-    if (plan || isPlanGenerationBusy) return;
+    if (!isPlanGenerationBusy) {
+      planGenerationLoopRef.current?.stop();
+      planGenerationLoopRef.current = null;
+      planGenerationAnim.stopAnimation();
+      planGenerationAnim.setValue(0);
+      return;
+    }
 
-    const generationKey = `${cls.id}:${sessionDate}`;
-    if (periodizationAutoGenerateKeyRef.current === generationKey) return;
-    periodizationAutoGenerateKeyRef.current = generationKey;
+    const animation = Animated.loop(
+      Animated.timing(planGenerationAnim, {
+        toValue: 1,
+        duration: 900,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
 
-    void generatePedagogicalPlanAndSave(undefined, "cycle_based");
-  }, [
-    cls,
-    generatePedagogicalPlanAndSave,
-    hasUsableCurrentClassPlan,
-    isLoadingSession,
-    isPlanGenerationBusy,
-    isResolvingCurrentClassPlan,
-    plan,
-    sessionDate,
-    shouldAutoGenerateFromPeriodization,
-  ]);
+    planGenerationAnim.setValue(0);
+    planGenerationLoopRef.current = animation;
+    animation.start();
+
+    return () => {
+      animation.stop();
+      if (planGenerationLoopRef.current === animation) {
+        planGenerationLoopRef.current = null;
+      }
+      planGenerationAnim.stopAnimation();
+      planGenerationAnim.setValue(0);
+    };
+  }, [isPlanGenerationBusy, planGenerationAnim]);
 
   const handleEditPedagogicalPlan = async () => {
     if (!cls) return;
