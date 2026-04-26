@@ -23,7 +23,16 @@ import {
     buildAutoPlanForCycleDay,
     type AutoPlanForCycleDayResult,
 } from "../../../src/screens/session/application/build-auto-plan-for-cycle-day";
+import {
+    buildPersistedGenerationExplanation as toPersistedGenerationExplanation,
+    toGenerationMode,
+} from "../../../src/screens/session/application/build-persisted-generation-explanation";
 import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
+import {
+    buildPedagogicalPlanDraft,
+    convertPedagogicalPackageToTrainingPlan,
+    pickPedagogicalObjectiveLabel,
+} from "../../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
 import {
     BlockEditModal,
     type BlockEditPayload,
@@ -102,7 +111,6 @@ import {
 } from "../../../src/core/pedagogical-evaluation";
 import {
     type LessonPlanDraft,
-    type PedagogicalObjective,
     type PedagogicalPlanBlock,
     type PedagogicalPlanPackage,
     type PlanningPhase,
@@ -340,13 +348,6 @@ const buildSavedPlanMeta = (plan: TrainingPlan) => {
   return "Plano salvo da turma";
 };
 
-const pedagogicalObjectiveLabels: Record<PedagogicalObjective, string> = {
-  controle_bola: "Controle de bola",
-  passe: "Passe",
-  resistencia: "Resistência",
-  jogo_reduzido: "Jogo reduzido",
-};
-
 const normalizePedagogicalText = (value: string) =>
   String(value ?? "")
     .normalize("NFD")
@@ -575,21 +576,6 @@ const resolveActivityDescription = (options: {
   }
 
   return "";
-};
-
-const pickPedagogicalObjectiveLabel = (value: string) => {
-  const normalized = normalizePedagogicalText(value);
-  if (!normalized) return pedagogicalObjectiveLabels.controle_bola;
-  if (normalized.includes("passe") || normalized.includes("recep")) {
-    return pedagogicalObjectiveLabels.passe;
-  }
-  if (normalized.includes("resist") || normalized.includes("condicion")) {
-    return pedagogicalObjectiveLabels.resistencia;
-  }
-  if (normalized.includes("jogo") || normalized.includes("reduz")) {
-    return pedagogicalObjectiveLabels.jogo_reduzido;
-  }
-  return pedagogicalObjectiveLabels.controle_bola;
 };
 
 const buildPedagogicalApproachInput = (
@@ -958,9 +944,6 @@ const hasUsablePeriodization = (classPlan?: ClassPlan | null) => {
 
   return hasCycleSignal && hasFocusSignal;
 };
-
-const toGenerationMode = (planningBasis: TrainingPlanPlanningBasis) =>
-  planningBasis === "cycle_based" ? "periodized" : "class_bootstrap";
 
 const toStructuredActivities = (
   block: PedagogicalPlanBlock,
@@ -1603,21 +1586,6 @@ const buildAutoPlanPedagogy = (
   };
 };
 
-const stableSerialize = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
-  }
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-      a.localeCompare(b)
-    );
-    return `{${entries
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableSerialize(item)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-};
-
 const normalizePlanningPhase = (phase?: string): PlanningPhase | undefined => {
   if (!phase) return undefined;
   const s = phase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1668,100 +1636,8 @@ const computeBaseDimensionGuidelines = (
   }
 };
 
-const buildPedagogicalInputHash = (pkg: PedagogicalPlanPackage) => {
-  const students = (pkg.input.students ?? []).map((student) => student.id);
-  const payload = {
-    classId: pkg.input.classGroup.id,
-    students: [...students].sort(),
-    objective: pkg.input.objective,
-    duration: pkg.input.duration,
-    materials: [...(pkg.input.materials ?? [])].map((item) => String(item ?? "").trim()),
-    constraints: [...(pkg.input.constraints ?? [])].map((item) => String(item ?? "").trim()),
-    context: pkg.input.context ?? "",
-    periodization: {
-      phase: pkg.input.periodizationPhase ?? null,
-      week: pkg.input.weekNumber ?? null,
-      rpeTarget: pkg.input.rpeTarget ?? null,
-    },
-    analysis: {
-      level: pkg.analysis.level,
-      heterogeneity: pkg.analysis.heterogeneity,
-    },
-    final: {
-      warmup: pkg.final.warmup.activities.map((activity) => activity.name),
-      main: pkg.final.main.activities.map((activity) => activity.name),
-      cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
-      warmupDuration: pkg.final.warmup.duration,
-      mainDuration: pkg.final.main.duration,
-      cooldownDuration: pkg.final.cooldown.duration,
-    },
-  };
-  return stableSerialize(payload);
-};
-
-const convertPedagogicalPlanToTrainingPlan = (
-  pkg: PedagogicalPlanPackage,
-  classId: string,
-  sessionDateValue: string,
-  existingPlan: TrainingPlan | null,
-  version: number,
-  pedagogy?: TrainingPlanPedagogy
-): TrainingPlan => {
-  const nowIso = new Date().toISOString();
-  const title = `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`;
-  const blockTimes = getLessonBlockTimes(pkg.input.duration ?? 60);
-  return createTrainingPlanVersion({
-    classId,
-    version,
-    origin: "auto",
-    draft: {
-      title,
-      tags: [
-        `modo:${pkg.generated.basePlanKind}`,
-        `nivel:${pkg.analysis.level}`,
-        `heterogeneidade:${pkg.analysis.heterogeneity}`,
-        `contexto:${pkg.input.context ?? "treinamento"}`,
-      ],
-      warmup: pkg.final.warmup.activities.map((activity) => activity.name),
-      main: pkg.final.main.activities.map((activity) => activity.name),
-      cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
-      warmupTime: `${blockTimes.warmupMinutes} min`,
-      mainTime: `${blockTimes.mainMinutes} min`,
-      cooldownTime: `${blockTimes.cooldownMinutes} min`,
-    },
-    applyDays: existingPlan?.applyDays ?? [],
-    applyDate: existingPlan?.applyDate ?? sessionDateValue,
-    inputHash: buildPedagogicalInputHash(pkg),
-    nowIso,
-    idPrefix: "plan_pedagogical",
-    status: "final",
-    generatedAt: nowIso,
-    finalizedAt: nowIso,
-    pedagogy,
-  });
-};
-
-const pedagogicalPlanToAiDraft = (pkg: PedagogicalPlanPackage) => {
-  const blockTimes = getLessonBlockTimes(pkg.input.duration ?? 60);
-  return {
-    title: `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`,
-    tags: [
-      `modo:${pkg.generated.basePlanKind}`,
-      `nivel:${pkg.analysis.level}`,
-      `heterogeneidade:${pkg.analysis.heterogeneity}`,
-      `contexto:${pkg.input.context ?? "treinamento"}`,
-    ],
-    warmup: pkg.final.warmup.activities.map((activity) => activity.name),
-    main: pkg.final.main.activities.map((activity) => activity.name),
-    cooldown: pkg.final.cooldown.activities.map((activity) => activity.name),
-    warmupTime: `${blockTimes.warmupMinutes} min`,
-    mainTime: `${blockTimes.mainMinutes} min`,
-    cooldownTime: `${blockTimes.cooldownMinutes} min`,
-  };
-};
-
 const buildPedagogicalAiDraft = (pkg: PedagogicalPlanPackage) =>
-  JSON.stringify(pedagogicalPlanToAiDraft(pkg));
+  JSON.stringify(buildPedagogicalPlanDraft(pkg));
 
 const applyEditedDraftToPackage = (
   pkg: PedagogicalPlanPackage,
@@ -1778,34 +1654,6 @@ const applyEditedDraftToPackage = (
     },
   };
 };
-
-  const buildSessionTrainingPlan = (
-  pkg: PedagogicalPlanPackage,
-  classId: string,
-  sessionDateValue: string,
-  existingPlan: TrainingPlan | null,
-  version: number,
-  pedagogy?: TrainingPlanPedagogy
-): TrainingPlan =>
-  convertPedagogicalPlanToTrainingPlan(
-    pkg,
-    classId,
-    sessionDateValue,
-    existingPlan,
-    version,
-    pedagogy
-  );
-
-const toPersistedGenerationExplanation = (
-  explanation: AutoPlanForCycleDayResult["explanation"],
-  planningBasis: TrainingPlanPlanningBasis
-): NonNullable<TrainingPlanPedagogy["generationExplanation"]> => ({
-  historyMode: explanation.historyMode,
-  summary: explanation.summary,
-  coachSummary: explanation.coachSummary,
-  planningBasis,
-  generationMode: toGenerationMode(planningBasis),
-});
 
 const waitForInteractionIdle = () =>
   new Promise<void>((resolve) => {
@@ -3297,13 +3145,13 @@ export default function SessionScreen() {
     });
     const skillHistoryBySkill = buildSkillHistoryBySkill(historicalPlans);
 
-    const nextPlan = buildSessionTrainingPlan(
-      packageToSave,
-      cls.id,
+    const nextPlan = convertPedagogicalPackageToTrainingPlan({
+      pkg: packageToSave,
+      classId: cls.id,
       sessionDate,
-      latestPlan,
-      latestVersion + 1,
-      buildAutoPlanPedagogy(
+      existingPlan: latestPlan,
+      version: latestVersion + 1,
+      pedagogy: buildAutoPlanPedagogy(
         packageToSave,
         methodology,
         currentClassPlan,
@@ -3316,8 +3164,8 @@ export default function SessionScreen() {
           skillHistoryBySkill,
           generationExplanation: options?.generationExplanation,
         }
-      )
-    );
+      ),
+    });
     const versionedPlan: TrainingPlan = nextPlan;
     if (
       latestPlan?.inputHash &&
