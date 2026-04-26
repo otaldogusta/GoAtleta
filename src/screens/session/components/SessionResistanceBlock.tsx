@@ -13,8 +13,38 @@ const formatExerciseLine = (exercise: Partial<ResistanceExercisePrescription>) =
   const sets = typeof exercise.sets === "number" && Number.isFinite(exercise.sets) ? exercise.sets : "-";
   const reps = String(exercise.reps ?? "-").trim() || "-";
   const rest = String(exercise.rest ?? "").trim() || "intervalo não definido";
-  return `${sets} × ${reps} • ${rest}`;
+  return `${sets} séries · ${reps} reps · ${rest}`;
 };
+
+const categoryLabelMap = {
+  empurrar: "Empurrar",
+  puxar: "Puxar",
+  membros_inferiores: "Membros inferiores",
+  potencia: "Potência",
+  preventivo: "Prevenção",
+  core: "Core",
+} as const;
+
+const Chip = ({
+  colors,
+  label,
+}: {
+  colors: ThemeColors;
+  label: string;
+}) => (
+  <View
+    style={{
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: colors.secondaryBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+    }}
+  >
+    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{label}</Text>
+  </View>
+);
 
 export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: Props) {
   const headerLabel = String(resistancePlan.label ?? "").trim() || resistancePlan.primaryGoal;
@@ -43,9 +73,13 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
         <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
           {headerLabel}
         </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <Chip colors={colors} label={headerLabel} />
+          {transferTarget ? <Chip colors={colors} label="Transferência direta" /> : null}
+        </View>
         {transferTarget ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Transferência: {transferTarget}
+            Impacto principal na quadra: {transferTarget}
           </Text>
         ) : null}
         {resolvedDuration > 0 ? (
@@ -57,51 +91,41 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
 
       <View
         style={{
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: colors.border,
-          overflow: "hidden",
+          gap: 10,
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            backgroundColor: colors.secondaryBg,
-          }}
-        >
-          <Text style={{ flex: 1.3, color: colors.text, fontSize: 11, fontWeight: "700" }}>
-            Exercício
-          </Text>
-          <Text style={{ flex: 1, color: colors.text, fontSize: 11, fontWeight: "700" }}>
-            Prescrição
-          </Text>
-        </View>
-
         {exercises.length ? (
           exercises.map((exercise, index) => {
             const name = String(exercise.name ?? "").trim() || `Exercício ${index + 1}`;
             const notes = String(exercise.notes ?? "").trim();
             const cadence = String(exercise.cadence ?? "").trim();
-            const exerciseTransferTarget = String(exercise.transferTarget ?? "").trim();
+            const exerciseTransferTarget =
+              String(exercise.transferTarget ?? "").trim() || transferTarget;
+            const categoryLabel =
+              categoryLabelMap[exercise.category as keyof typeof categoryLabelMap] ?? "Exercício";
 
             return (
               <View
                 key={`${name}-${index}`}
                 style={{
                   paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  borderTopWidth: index === 0 ? 0 : 1,
-                  borderTopColor: colors.border,
-                  gap: 4,
+                  paddingVertical: 12,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  gap: 8,
                 }}
               >
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <Text style={{ flex: 1.3, color: colors.text, fontSize: 13, fontWeight: "600" }}>
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
                     {name}
                   </Text>
-                  <Text style={{ flex: 1, color: colors.muted, fontSize: 12 }}>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    <Chip colors={colors} label={categoryLabel} />
+                    {exerciseTransferTarget ? <Chip colors={colors} label="Impacto na quadra" /> : null}
+                  </View>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
                     {formatExerciseLine(exercise)}
                   </Text>
                 </View>
@@ -111,13 +135,23 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
                   </Text>
                 ) : null}
                 {exerciseTransferTarget ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Transferência do exercício: {exerciseTransferTarget}
-                  </Text>
+                  <View
+                    style={{
+                      padding: 10,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      gap: 3,
+                    }}
+                  >
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>Impacto na quadra</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                      {exerciseTransferTarget}
+                    </Text>
+                  </View>
                 ) : null}
                 {notes ? (
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Notas: {notes}
+                    Observação: {notes}
                   </Text>
                 ) : null}
               </View>

@@ -1,4 +1,4 @@
-import { SessionContextHeader } from "../SessionContextHeader";
+import { SessionResistanceNotice } from "../SessionResistanceNotice";
 
 const collectText = (node: unknown): string[] => {
   if (node == null) return [];
@@ -43,36 +43,24 @@ const colors = {
   infoText: "#1d4ed8",
 } as const;
 
-describe("SessionContextHeader", () => {
-  it("renders integrated session context labels", () => {
-    const element = SessionContextHeader({
+describe("SessionResistanceNotice", () => {
+  it("renders title, description and actions", () => {
+    const element = SessionResistanceNotice({
       colors: colors as any,
-      environment: "academia",
-      weeklyPhysicalEmphasis: "potencia_atletica",
-      courtGymRelationship: "integrado_transferencia_direta",
-      transferTarget: "Salto de ataque e bloqueio",
-      durationMin: 45,
+      title: "Sessão resistida indisponível",
+      description: "Os exercícios ainda não foram gerados.",
+      tone: "warning",
+      actions: [
+        { label: "Regenerar sessão", onPress: jest.fn(), variant: "primary" },
+        { label: "Usar treino de quadra", onPress: jest.fn() },
+      ],
     });
 
     const text = collectText(element).join(" ");
 
-    expect(text).toContain("Academia — Potência atlética");
-    expect(text).toContain("Função na semana:");
-    expect(text).toContain("Academia");
-    expect(text).toContain("Salto de ataque e bloqueio");
-    expect(text).toContain("Transferência para a quadra");
-  });
-
-  it("keeps fallback labels when optional values are absent", () => {
-    const element = SessionContextHeader({
-      colors: colors as any,
-      environment: "academia",
-      transferTarget: "",
-    });
-
-    const text = collectText(element).join(" ");
-
-    expect(text).toContain("Não definido");
-    expect(text).toContain("Não definida");
+    expect(text).toContain("Sessão resistida indisponível");
+    expect(text).toContain("Os exercícios ainda não foram gerados.");
+    expect(text).toContain("Regenerar sessão");
+    expect(text).toContain("Usar treino de quadra");
   });
 });

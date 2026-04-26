@@ -72,8 +72,10 @@ describe("SessionResistanceBlock", () => {
     expect(text).toContain("Sessão resistida");
     expect(text).toContain("Força Base");
     expect(text).toContain("Salto e bloqueio");
+    expect(text).toContain("Impacto principal na quadra:");
     expect(text).toContain("Agachamento");
-    expect(text).toContain("4 × 6-8 • 90s");
+    expect(text).toContain("4 séries · 6-8 reps · 90s");
+    expect(text).toContain("Impacto na quadra");
     expect(text).toContain("Controle na descida");
   });
 
@@ -102,7 +104,7 @@ describe("SessionResistanceBlock", () => {
 
     expect(text).toContain("potencia_atletica");
     expect(text).toContain("Exercício 1");
-    expect(text).toContain("3 × 5 • intervalo não definido");
+    expect(text).toContain("3 séries · 5 reps · intervalo não definido");
     expect(text).toContain("Duração prevista:");
     expect(text).toContain("40");
     expect(text).toContain("min");

@@ -30,6 +30,7 @@ import {
     type EditableBlockItem,
 } from "../../../src/screens/session/components/BlockEditModal";
 import { SessionContextHeader } from "../../../src/screens/session/components/SessionContextHeader";
+import { SessionResistanceNotice } from "../../../src/screens/session/components/SessionResistanceNotice";
 import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
 import { Pressable } from "../../../src/ui/Pressable";
@@ -46,6 +47,10 @@ import { ptBR } from "../../../src/constants/copy/pt-br";
 import { toVisibleCoachingText } from "../../../src/core/methodology/coaching-lexicon";
 import type { PedagogicalApproachDetection } from "../../../src/core/methodology/pedagogical-approach-detector";
 import { parseWeeklyIntegratedContext } from "../../../src/core/resistance/weekly-integrated-context";
+import {
+    resolveTeamTrainingContext,
+    supportsResistanceTraining,
+} from "../../../src/core/resistance/training-context";
 import {
     buildSessionApproachAwareBlockDescription,
     buildSessionApproachAwareGeneralObjective,
@@ -2967,25 +2972,52 @@ export default function SessionScreen() {
           plan.pedagogy.adaptation.adjustment
       )
     : "";
-  const resistancePreview = useMemo(() => {
-    const persistedResistanceData = getResistancePlanFromSessionComponents(
-      currentDailyLessonPlan?.sessionComponents,
-    );
-    const persistedWeeklyContext = parseWeeklyIntegratedContext(
-      currentClassPlan?.weeklyIntegratedContextJson,
-    );
-
-    if (
+  const [dismissResistanceUnavailable, setDismissResistanceUnavailable] = useState(false);
+  const teamTrainingContext = useMemo(
+    () => (cls ? resolveTeamTrainingContext(cls) : null),
+    [cls],
+  );
+  const persistedResistanceData = useMemo(
+    () => getResistancePlanFromSessionComponents(currentDailyLessonPlan?.sessionComponents),
+    [currentDailyLessonPlan?.sessionComponents],
+  );
+  const persistedWeeklyContext = useMemo(
+    () => parseWeeklyIntegratedContext(currentClassPlan?.weeklyIntegratedContextJson),
+    [currentClassPlan?.weeklyIntegratedContextJson],
+  );
+  const shouldShowResistanceGuardNotice = Boolean(
+    cls &&
+      teamTrainingContext?.hasGymAccess &&
+      !supportsResistanceTraining(teamTrainingContext, cls),
+  );
+  const hasUnavailableResistanceSession = Boolean(
+    !dismissResistanceUnavailable &&
       currentDailyLessonPlan?.sessionEnvironment &&
       currentDailyLessonPlan.sessionEnvironment !== "quadra" &&
-      persistedResistanceData
-    ) {
-      return {
-        sessionEnvironment: currentDailyLessonPlan.sessionEnvironment,
-        weeklyContext: persistedWeeklyContext,
-        resistancePlan: persistedResistanceData.resistancePlan,
-        durationMin: persistedResistanceData.durationMin,
-      };
+      !persistedResistanceData,
+  );
+
+  useEffect(() => {
+    setDismissResistanceUnavailable(false);
+  }, [currentDailyLessonPlan?.id, sessionDate]);
+
+  const resistancePreview = useMemo(() => {
+    if (currentDailyLessonPlan?.sessionEnvironment) {
+      if (
+        currentDailyLessonPlan.sessionEnvironment !== "quadra" &&
+        persistedResistanceData
+      ) {
+        return {
+          sessionEnvironment: currentDailyLessonPlan.sessionEnvironment,
+          weeklyContext: persistedWeeklyContext,
+          resistancePlan: persistedResistanceData.resistancePlan,
+          durationMin: persistedResistanceData.durationMin,
+        };
+      }
+
+      if (currentDailyLessonPlan.sessionEnvironment !== "quadra") {
+        return null;
+      }
     }
 
     const preview = buildSessionResistancePreview({
@@ -3008,7 +3040,25 @@ export default function SessionScreen() {
       resistancePlan: resistanceData.resistancePlan,
       durationMin: resistanceData.durationMin,
     };
-  }, [cls, currentClassPlan, currentDailyLessonPlan, sessionDate]);
+  }, [
+    cls,
+    currentClassPlan,
+    currentDailyLessonPlan,
+    persistedResistanceData,
+    persistedWeeklyContext,
+    sessionDate,
+  ]);
+
+  const mixedSessionBridgeDescription = useMemo(() => {
+    if (!resistancePreview || resistancePreview.sessionEnvironment !== "mista") {
+      return "";
+    }
+    const transferTarget = String(resistancePreview.resistancePlan.transferTarget ?? "").trim();
+    if (transferTarget) {
+      return `Após o bloco resistido, aplicar na quadra com foco em ${transferTarget.toLowerCase()}.`;
+    }
+    return "Após o bloco resistido, aplicar na quadra em situações curtas e específicas do jogo.";
+  }, [resistancePreview]);
 
   const blockTitleMap = {
     warmup: ptBR.session.warmup,
@@ -4665,6 +4715,36 @@ export default function SessionScreen() {
         ) : null}
         {sessionTab === "treino" && plan ? (
           <>
+            {!resistancePreview && shouldShowResistanceGuardNotice ? (
+              <SessionResistanceNotice
+                colors={colors}
+                tone="warning"
+                title="Academia não priorizada nesta sessão"
+                description="Apesar do acesso à academia, o foco permanece em quadra porque este momento da turma pede controle corporal, coordenação e aprendizagem do jogo."
+              />
+            ) : null}
+            {hasUnavailableResistanceSession ? (
+              <SessionResistanceNotice
+                colors={colors}
+                tone="warning"
+                title="Sessão resistida indisponível"
+                description="O contexto da semana indica academia, mas os exercícios ainda não foram gerados. Você pode regenerar a sessão ou seguir com treino de quadra."
+                actions={[
+                  {
+                    label:
+                      isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
+                        ? "Gerando plano..."
+                        : "Regenerar sessão",
+                    onPress: handleGeneratePedagogicalPlan,
+                    variant: "primary",
+                  },
+                  {
+                    label: "Usar treino de quadra",
+                    onPress: () => setDismissResistanceUnavailable(true),
+                  },
+                ]}
+              />
+            ) : null}
             {resistancePreview ? (
               <>
                 <SessionContextHeader
@@ -4673,12 +4753,20 @@ export default function SessionScreen() {
                   weeklyPhysicalEmphasis={resistancePreview.weeklyContext?.weeklyPhysicalEmphasis}
                   courtGymRelationship={resistancePreview.weeklyContext?.courtGymRelationship}
                   transferTarget={resistancePreview.resistancePlan.transferTarget}
+                  durationMin={resistancePreview.durationMin}
                 />
                 <SessionResistanceBlock
                   colors={colors}
                   resistancePlan={resistancePreview.resistancePlan}
                   durationMin={resistancePreview.durationMin}
                 />
+                {resistancePreview.sessionEnvironment === "mista" ? (
+                  <SessionResistanceNotice
+                    colors={colors}
+                    title="Ponte para a quadra"
+                    description={mixedSessionBridgeDescription}
+                  />
+                ) : null}
               </>
             ) : null}
             {([
@@ -4778,6 +4866,36 @@ export default function SessionScreen() {
         ) : null}
         {sessionTab === "treino" && !plan && !isPlanGenerationBusy ? (
           <>
+            {!resistancePreview && shouldShowResistanceGuardNotice ? (
+              <SessionResistanceNotice
+                colors={colors}
+                tone="warning"
+                title="Academia não priorizada nesta sessão"
+                description="Apesar do acesso à academia, o foco permanece em quadra porque este momento da turma pede controle corporal, coordenação e aprendizagem do jogo."
+              />
+            ) : null}
+            {hasUnavailableResistanceSession ? (
+              <SessionResistanceNotice
+                colors={colors}
+                tone="warning"
+                title="Sessão resistida indisponível"
+                description="O contexto da semana indica academia, mas os exercícios ainda não foram gerados. Você pode regenerar a sessão ou seguir com treino de quadra."
+                actions={[
+                  {
+                    label:
+                      isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
+                        ? "Gerando plano..."
+                        : "Regenerar sessão",
+                    onPress: handleGeneratePedagogicalPlan,
+                    variant: "primary",
+                  },
+                  {
+                    label: "Usar treino de quadra",
+                    onPress: () => setShowSavedClassPlans(true),
+                  },
+                ]}
+              />
+            ) : null}
             {resistancePreview ? (
               <>
                 <SessionContextHeader
@@ -4786,12 +4904,20 @@ export default function SessionScreen() {
                   weeklyPhysicalEmphasis={resistancePreview.weeklyContext?.weeklyPhysicalEmphasis}
                   courtGymRelationship={resistancePreview.weeklyContext?.courtGymRelationship}
                   transferTarget={resistancePreview.resistancePlan.transferTarget}
+                  durationMin={resistancePreview.durationMin}
                 />
                 <SessionResistanceBlock
                   colors={colors}
                   resistancePlan={resistancePreview.resistancePlan}
                   durationMin={resistancePreview.durationMin}
                 />
+                {resistancePreview.sessionEnvironment === "mista" ? (
+                  <SessionResistanceNotice
+                    colors={colors}
+                    title="Ponte para a quadra"
+                    description={mixedSessionBridgeDescription}
+                  />
+                ) : null}
               </>
             ) : null}
             {!resistancePreview ? (
