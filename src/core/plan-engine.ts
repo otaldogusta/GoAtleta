@@ -169,6 +169,8 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
 const safeFinite = (value: unknown, fallback: number): number => {
+  if (value == null) return fallback;
+  if (typeof value === "string" && value.trim().length === 0) return fallback;
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 };

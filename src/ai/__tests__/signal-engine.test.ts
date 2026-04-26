@@ -1,26 +1,26 @@
 /* eslint-disable import/first */
-const listAdminPendingSessionLogsMock = jest.fn();
-const getClassesMock = jest.fn();
-const getStudentsMock = jest.fn();
-const getAttendanceAllMock = jest.fn();
-const getSessionLogsByRangeMock = jest.fn();
-const listCheckinsByRangeMock = jest.fn();
+const mockListAdminPendingSessionLogs = jest.fn();
+const mockGetClasses = jest.fn();
+const mockGetStudents = jest.fn();
+const mockGetAttendanceAll = jest.fn();
+const mockGetSessionLogsByRange = jest.fn();
+const mockListCheckinsByRange = jest.fn();
 
 jest.mock("../../api/reports", () => ({
   listAdminPendingSessionLogs: (...args: unknown[]) =>
-    listAdminPendingSessionLogsMock(...args),
+    mockListAdminPendingSessionLogs(...args),
 }));
 
 jest.mock("../../db/seed", () => ({
-  getClasses: (...args: unknown[]) => getClassesMock(...args),
-  getStudents: (...args: unknown[]) => getStudentsMock(...args),
-  getAttendanceAll: (...args: unknown[]) => getAttendanceAllMock(...args),
+  getClasses: (...args: unknown[]) => mockGetClasses(...args),
+  getStudents: (...args: unknown[]) => mockGetStudents(...args),
+  getAttendanceAll: (...args: unknown[]) => mockGetAttendanceAll(...args),
   getSessionLogsByRange: (...args: unknown[]) =>
-    getSessionLogsByRangeMock(...args),
+    mockGetSessionLogsByRange(...args),
 }));
 
 jest.mock("../../data/attendance-checkins", () => ({
-  listCheckinsByRange: (...args: unknown[]) => listCheckinsByRangeMock(...args),
+  listCheckinsByRange: (...args: unknown[]) => mockListCheckinsByRange(...args),
 }));
 
 import {
@@ -34,11 +34,11 @@ describe("signal engine", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     __clearSignalEngineCacheForTests();
-    getClassesMock.mockResolvedValue([
+    mockGetClasses.mockResolvedValue([
       { id: "c_1", name: "Sub 12-14" },
       { id: "c_2", name: "Sub 17-19" },
     ]);
-    getStudentsMock.mockResolvedValue([
+    mockGetStudents.mockResolvedValue([
       { id: "s_1", name: "Aluno 1", classId: "c_1" },
       { id: "s_2", name: "Aluno 2", classId: "c_1" },
       { id: "s_3", name: "Aluno 3", classId: "c_1" },
@@ -46,14 +46,14 @@ describe("signal engine", () => {
       { id: "s_5", name: "Aluno 5", classId: "c_2" },
       { id: "s_6", name: "Aluno 6", classId: "c_2" },
     ]);
-    getAttendanceAllMock.mockResolvedValue([]);
-    getSessionLogsByRangeMock.mockResolvedValue([]);
-    listAdminPendingSessionLogsMock.mockResolvedValue([]);
-    listCheckinsByRangeMock.mockResolvedValue([]);
+    mockGetAttendanceAll.mockResolvedValue([]);
+    mockGetSessionLogsByRange.mockResolvedValue([]);
+    mockListAdminPendingSessionLogs.mockResolvedValue([]);
+    mockListCheckinsByRange.mockResolvedValue([]);
   });
 
   test("creates attendance_drop when recent average declines with threshold", async () => {
-    getSessionLogsByRangeMock.mockResolvedValue([
+    mockGetSessionLogsByRange.mockResolvedValue([
       { classId: "c_1", attendance: 0.9, createdAt: "2026-01-23T12:00:00.000Z" },
       { classId: "c_1", attendance: 0.86, createdAt: "2026-01-29T12:00:00.000Z" },
       { classId: "c_1", attendance: 0.62, createdAt: "2026-02-13T12:00:00.000Z" },
@@ -68,7 +68,7 @@ describe("signal engine", () => {
   });
 
   test("creates repeated_absence for 3 latest absences within 30 days", async () => {
-    getAttendanceAllMock.mockResolvedValue([
+    mockGetAttendanceAll.mockResolvedValue([
       { studentId: "s_1", classId: "c_1", status: "faltou", date: "2026-02-18", createdAt: "2026-02-18T10:00:00.000Z" },
       { studentId: "s_1", classId: "c_1", status: "faltou", date: "2026-02-17", createdAt: "2026-02-17T10:00:00.000Z" },
       { studentId: "s_1", classId: "c_1", status: "faltou", date: "2026-02-16", createdAt: "2026-02-16T10:00:00.000Z" },
@@ -84,7 +84,7 @@ describe("signal engine", () => {
   });
 
   test("creates report_delay severity by 7/14 day windows", async () => {
-    listAdminPendingSessionLogsMock.mockResolvedValue([
+    mockListAdminPendingSessionLogs.mockResolvedValue([
       {
         classId: "c_1",
         className: "Sub 12-14",
@@ -113,7 +113,7 @@ describe("signal engine", () => {
   });
 
   test("builds unusual_presence_pattern using NFC check-ins", async () => {
-    listCheckinsByRangeMock.mockResolvedValue([
+    mockListCheckinsByRange.mockResolvedValue([
       { classId: "c_1", checkedInAt: "2026-02-16T10:00:00.000Z" },
       { classId: "c_1", checkedInAt: "2026-02-16T10:01:00.000Z" },
       { classId: "c_1", checkedInAt: "2026-02-16T10:02:00.000Z" },
@@ -139,7 +139,7 @@ describe("signal engine", () => {
   });
 
   test("creates engagement_risk as critical when multiple strong conditions match", async () => {
-    getSessionLogsByRangeMock.mockResolvedValue([
+    mockGetSessionLogsByRange.mockResolvedValue([
       { classId: "c_1", attendance: 0.92, createdAt: "2026-01-24T12:00:00.000Z" },
       { classId: "c_1", attendance: 0.9, createdAt: "2026-01-30T12:00:00.000Z" },
       { classId: "c_1", attendance: 0.6, createdAt: "2026-02-14T12:00:00.000Z" },
@@ -149,7 +149,7 @@ describe("signal engine", () => {
       { classId: "c_2", attendance: 0.61, createdAt: "2026-02-13T12:00:00.000Z" },
       { classId: "c_2", attendance: 0.59, createdAt: "2026-02-18T12:00:00.000Z" },
     ]);
-    listAdminPendingSessionLogsMock.mockResolvedValue([
+    mockListAdminPendingSessionLogs.mockResolvedValue([
       { classId: "c_1", className: "Sub 12-14", unit: "Rede", periodStart: "2026-02-01", lastReportAt: "2026-02-10T00:00:00.000Z" },
       { classId: "c_2", className: "Sub 17-19", unit: "Rede", periodStart: "2026-02-01", lastReportAt: "2026-02-10T00:00:00.000Z" },
       { classId: "c_3", className: "Sub 10-12", unit: "Rede", periodStart: "2026-02-01", lastReportAt: null },
@@ -160,7 +160,8 @@ describe("signal engine", () => {
     expect(engagement).toBeTruthy();
     expect(engagement?.severity).toBe("critical");
     expect(engagement?.title).toBe("Risco geral de engajamento");
-    expect(engagement?.summary).toContain("combinacao de faltas");
+    expect(engagement?.summary).toContain("combinação de faltas");
     expect(signals[0].type).toBe("engagement_risk");
   });
 });
+

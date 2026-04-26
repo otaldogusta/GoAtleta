@@ -12,6 +12,7 @@ const mk = (ageBand: any, goal = "Fundamentos") => ({
   goal,
   equipment: "misto",
   level: 1,
+  modality: "voleibol",
 } as unknown as ClassGroup);
 
 test("gera sessão para 8-9 com conteúdo de voleibol", () => {
@@ -52,7 +53,10 @@ test("warmup tem 3 itens", () => {
 });
 
 test("usa fallback fitness quando objetivo não é voleibol", () => {
-  const s = generateSession(mk("08-09", "Força Geral"));
+  const s = generateSession({
+    ...mk("08-09", "Força Geral"),
+    modality: "fitness",
+  } as unknown as ClassGroup);
   expect(s.main.join(" ")).toContain("Circuito");
 });
 

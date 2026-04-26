@@ -1,15 +1,15 @@
 /* eslint-disable import/first */
-const supabaseRestRequestMock = jest.fn();
-const supabaseRestGetMock = jest.fn();
-const queueNfcCheckinWriteMock = jest.fn();
+const mockSupabaseRestRequest = jest.fn();
+const mockSupabaseRestGet = jest.fn();
+const mockQueueNfcCheckinWrite = jest.fn();
 
 jest.mock("../../api/rest", () => ({
-  supabaseRestRequest: (...args: unknown[]) => supabaseRestRequestMock(...args),
-  supabaseRestGet: (...args: unknown[]) => supabaseRestGetMock(...args),
+  supabaseRestRequest: (...args: unknown[]) => mockSupabaseRestRequest(...args),
+  supabaseRestGet: (...args: unknown[]) => mockSupabaseRestGet(...args),
 }));
 
 jest.mock("../../db/seed", () => ({
-  queueNfcCheckinWrite: (...args: unknown[]) => queueNfcCheckinWriteMock(...args),
+  queueNfcCheckinWrite: (...args: unknown[]) => mockQueueNfcCheckinWrite(...args),
 }));
 
 import {
@@ -25,7 +25,7 @@ describe("attendance checkins", () => {
   });
 
   test("remote success returns synced status", async () => {
-    supabaseRestRequestMock.mockResolvedValue([
+    mockSupabaseRestRequest.mockResolvedValue([
       {
         id: "row_1",
         organization_id: "org_1",
@@ -46,12 +46,12 @@ describe("attendance checkins", () => {
 
     expect(result.status).toBe("synced");
     expect(result.checkin.id).toBe("row_1");
-    expect(queueNfcCheckinWriteMock).not.toHaveBeenCalled();
+    expect(mockQueueNfcCheckinWrite).not.toHaveBeenCalled();
   });
 
   test("network failure enqueues and returns pending", async () => {
-    supabaseRestRequestMock.mockRejectedValue(new Error("Failed to fetch"));
-    queueNfcCheckinWriteMock.mockResolvedValue(undefined);
+    mockSupabaseRestRequest.mockRejectedValue(new Error("Failed to fetch"));
+    mockQueueNfcCheckinWrite.mockResolvedValue(undefined);
 
     const result = await createCheckinWithFallback({
       organizationId: "org_1",
@@ -63,7 +63,7 @@ describe("attendance checkins", () => {
 
     expect(result.status).toBe("pending");
     expect(result.checkin.id.startsWith("queue_nfc_")).toBe(true);
-    expect(queueNfcCheckinWriteMock).toHaveBeenCalledTimes(1);
+    expect(mockQueueNfcCheckinWrite).toHaveBeenCalledTimes(1);
   });
 
   test("idempotency key is scoped by day", () => {
@@ -81,7 +81,7 @@ describe("attendance checkins", () => {
   });
 
   test("listCheckinsByRange applies org/class/range filters", async () => {
-    supabaseRestGetMock.mockResolvedValue([
+    mockSupabaseRestGet.mockResolvedValue([
       {
         id: "row_2",
         organization_id: "org_1",
@@ -103,20 +103,21 @@ describe("attendance checkins", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].studentId).toBe("s_2");
-    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+    expect(mockSupabaseRestGet).toHaveBeenCalledWith(
       expect.stringContaining("/attendance_checkins?")
     );
-    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+    expect(mockSupabaseRestGet).toHaveBeenCalledWith(
       expect.stringContaining("organization_id=eq.org_1")
     );
-    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+    expect(mockSupabaseRestGet).toHaveBeenCalledWith(
       expect.stringContaining("class_id=eq.c_1")
     );
-    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+    expect(mockSupabaseRestGet).toHaveBeenCalledWith(
       expect.stringContaining("checked_in_at=gte.")
     );
-    expect(supabaseRestGetMock).toHaveBeenCalledWith(
+    expect(mockSupabaseRestGet).toHaveBeenCalledWith(
       expect.stringContaining("checked_in_at=lt.")
     );
   });
 });
+
