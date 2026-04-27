@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, Text, View, useWindowDimensions } from "react-native";
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { useOptionalOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
+import { WEB_SHELL_MIN_WIDTH, shouldHideWebShellForPath } from "../../ui/AppShell";
 import { useAppTheme } from "../../ui/app-theme";
 import { FabRadialMenu } from "./FabRadialMenu";
 import { ROLE_RADIAL_ACTIONS, ROLE_TABS, type AppRole } from "./tab-config";
@@ -31,6 +32,7 @@ export function AnimatedBottomTabs({
   const activeOrganization = organization?.activeOrganization ?? null;
   const memberPermissions = organization?.memberPermissions ?? {};
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const pathname = usePathname();
   useRenderDiagnostic("AnimatedBottomTabs", { role, pathname, "colors.background": colors.background });
@@ -43,6 +45,11 @@ export function AnimatedBottomTabs({
     /^\/(prof|coord)\/planning(\/|$)/.test(pathname) ||
     /^\/(prof|coord)\/periodization(\/|$)/.test(pathname) ||
     /^\/periodization(\/|$)/.test(pathname);
+  const hideForWebShell =
+    role === "prof" &&
+    Platform.OS === "web" &&
+    width >= WEB_SHELL_MIN_WIDTH &&
+    !shouldHideWebShellForPath(pathname);
 
   const tabs = useMemo(() => {
     const baseTabs = ROLE_TABS[role];
@@ -102,7 +109,7 @@ export function AnimatedBottomTabs({
     return segments[segments.length - 1] ?? "";
   }, [pathname]);
 
-  if (hideNavigation) {
+  if (hideNavigation || hideForWebShell) {
     return null;
   }
 
