@@ -29,25 +29,25 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
 
   const shortcutCardSurfaceStyle = isAndroidLight
     ? ({
-        backgroundColor: "#ffffff",
+        backgroundColor: "#f8fafc",
         overflow: "hidden",
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: "rgba(15,23,42,0.06)",
         shadowOpacity: 0,
         shadowRadius: 0,
         shadowOffset: { width: 0, height: 0 },
         elevation: 0,
       } as const)
     : ({
-        backgroundColor: colors.card,
+        backgroundColor: mode === "dark" ? "rgba(255,255,255,0.04)" : colors.secondaryBg,
         overflow: "hidden",
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.06)",
         shadowColor: "#000",
-        shadowOpacity: mode === "dark" ? 0.28 : 0.08,
-        shadowRadius: mode === "dark" ? 10 : 6,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: mode === "dark" ? 6 : 2,
+        shadowOpacity: mode === "dark" ? 0.08 : 0.03,
+        shadowRadius: mode === "dark" ? 6 : 3,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: mode === "dark" ? 2 : 1,
       } as const);
 
   return (

@@ -5,6 +5,7 @@ import { Text, View } from "react-native";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
+import { webShellTokens } from "./web-shell-tokens";
 
 type WebSidebarProps = {
   role: AppRole;
@@ -33,17 +34,15 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const tabs = ROLE_TABS[role].filter((tab) => !tab.isCenter);
-  const sidebarBg = mode === "dark" ? "#050816" : "#07111f";
-  const sidebarBorder = mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.16)";
 
   return (
     <View
       style={{
         width: 88,
         alignSelf: "stretch",
-        backgroundColor: sidebarBg,
+        backgroundColor: webShellTokens.sidebar,
         borderRightWidth: 1,
-        borderRightColor: sidebarBorder,
+        borderRightColor: "rgba(255,255,255,0.06)",
         paddingVertical: 18,
         paddingHorizontal: 10,
         gap: 18,
@@ -55,9 +54,9 @@ export function WebSidebar({ role }: WebSidebarProps) {
             width: 44,
             height: 44,
             borderRadius: 16,
-            backgroundColor: "rgba(255,255,255,0.1)",
+            backgroundColor: webShellTokens.sidebarSoft,
             borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.16)",
+            borderColor: webShellTokens.sidebarHover,
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -91,19 +90,19 @@ export function WebSidebar({ role }: WebSidebarProps) {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 4,
-                backgroundColor: active ? colors.primaryBg : "transparent",
+                backgroundColor: active ? webShellTokens.primarySoft : "transparent",
                 borderWidth: 1,
-                borderColor: active ? "rgba(255,255,255,0.28)" : "transparent",
+                borderColor: active ? webShellTokens.primary : "transparent",
               }}
             >
               <Ionicons
                 name={tab.icon}
                 size={19}
-                color={active ? colors.primaryText : "rgba(255,255,255,0.68)"}
+                color={active ? webShellTokens.primary : "rgba(255,255,255,0.68)"}
               />
               <Text
                 style={{
-                  color: active ? colors.primaryText : "rgba(255,255,255,0.68)",
+                  color: active ? webShellTokens.primary : "rgba(255,255,255,0.68)",
                   fontSize: 9,
                   fontWeight: active ? "800" : "700",
                   textAlign: "center",

@@ -7,6 +7,7 @@ import { LocationBadge } from "../../../ui/LocationBadge";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { getUnitPalette } from "../../../ui/unit-colors";
+import { webShellTokens } from "../../../ui/web-shell-tokens";
 
 export type TodayScheduleRailItem = {
   classId: string;
@@ -37,26 +38,29 @@ function TodayScheduleRailBase({
   onOpenAttendance,
 }: TodayScheduleRailProps) {
   const isDark = mode === "dark";
-  const railBackground = isDark ? "#080d18" : "rgba(248, 250, 252, 0.88)";
-  const railBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.1)";
-  const cardBackground = isDark ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.76)";
-  const activeCardBackground = isDark ? "rgba(86,214,154,0.12)" : "rgba(255,255,255,0.9)";
-  const cardBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(15,23,42,0.1)";
-  const actionBg = isDark ? "rgba(86,214,154,0.22)" : colors.primaryBg;
-  const secondaryActionBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(15,23,42,0.04)";
+  const railBackground = isDark ? "rgba(9, 14, 32, 0.92)" : webShellTokens.surfaceSoft;
+  const railBorder = isDark ? "rgba(255,255,255,0.06)" : webShellTokens.border;
+  const currentCardBackground = isDark ? "rgba(255,255,255,0.08)" : webShellTokens.surface;
+  const upcomingCardBackground = isDark ? "rgba(255,255,255,0.03)" : webShellTokens.surfaceAlt;
+  const cardBorder = isDark ? "rgba(255,255,255,0.08)" : webShellTokens.border;
+  const actionBg = isDark ? "rgba(86,214,154,0.22)" : webShellTokens.primary;
+
+  const activeItem = items.find((item) => item.startTime <= nowTime && item.endTime > nowTime);
+  const upcomingItems = items.filter((item) => item.startTime > nowTime);
+  const futureItems = activeItem ? upcomingItems : items;
 
   return (
     <View
       style={{
-        width: 304,
+        width: 320,
         alignSelf: "stretch",
         borderLeftWidth: 1,
         borderLeftColor: railBorder,
         backgroundColor: railBackground,
-        paddingHorizontal: 12,
-        paddingTop: 22,
-        paddingBottom: 18,
-        gap: 10,
+        paddingHorizontal: 14,
+        paddingTop: 24,
+        paddingBottom: 20,
+        gap: 12,
       }}
     >
       <View style={{ gap: 3 }}>
@@ -74,7 +78,7 @@ function TodayScheduleRailBase({
             borderRadius: 16,
             borderWidth: 1,
             borderColor: cardBorder,
-            backgroundColor: cardBackground,
+            backgroundColor: currentCardBackground,
             padding: 13,
           }}
         >
@@ -86,119 +90,120 @@ function TodayScheduleRailBase({
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ gap: 9, paddingBottom: 6 }}
+          contentContainerStyle={{ gap: 14, paddingBottom: 6 }}
         >
-          {items.map((item) => {
-            const isCurrent = item.startTime <= nowTime && item.endTime > nowTime;
-            const isPast = item.endTime <= nowTime;
-            return (
-              <View
-                key={`${item.classId}-${item.dateKey}-${item.startTime}`}
-                style={{
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: isCurrent ? colors.primaryBg : cardBorder,
-                  backgroundColor: isCurrent ? activeCardBackground : cardBackground,
-                  padding: 11,
-                  gap: 9,
-                  opacity: isPast ? 0.72 : 1,
-                  ...(isDark
-                    ? {}
-                    : ({
-                        boxShadow: "0px 10px 24px rgba(15, 23, 42, 0.06)",
-                      } as any)),
-                }}
-              >
-                <View style={{ gap: 7 }}>
+          {activeItem ? (
+            <View
+              style={{
+                borderRadius: 22,
+                backgroundColor: currentCardBackground,
+                borderWidth: 1,
+                borderColor: webShellTokens.primary,
+                padding: 16,
+                gap: 12,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ gap: 4 }}>
+                  <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "700" }}>
+                    Aula atual
+                  </Text>
+                  <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
+                    {activeItem.className}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <View
                     style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                      {item.timeLabel}
-                    </Text>
-                    {isCurrent ? (
-                      <View
-                        style={{
-                          borderRadius: 999,
-                          backgroundColor: colors.primaryBg,
-                          paddingHorizontal: 7,
-                          paddingVertical: 2,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color: colors.primaryText,
-                            fontSize: 9,
-                            fontWeight: "800",
-                          }}
-                        >
-                          Agora
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-
-                  <View style={{ gap: 5 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text
-                        style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
-                        numberOfLines={1}
-                      >
-                        {item.className}
-                      </Text>
-                      {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
-                    </View>
-                    <LocationBadge
-                      location={item.unit ?? ""}
-                      palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
-                      size="sm"
-                      showIcon
-                    />
-                  </View>
-                </View>
-
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Pressable
-                    onPress={() => onOpenSession(item)}
-                    style={{
-                      flexShrink: 0,
+                      width: 8,
+                      height: 8,
                       borderRadius: 999,
-                      backgroundColor: actionBg,
-                      alignItems: "center",
-                      paddingVertical: 7,
-                      paddingHorizontal: 12,
+                      backgroundColor: webShellTokens.primary,
                     }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
-                      Ver aula
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => onOpenAttendance(item)}
-                    style={{
-                      flexShrink: 0,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: cardBorder,
-                      backgroundColor: secondaryActionBg,
-                      alignItems: "center",
-                      paddingVertical: 7,
-                      paddingHorizontal: 12,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                      Chamada
-                    </Text>
-                  </Pressable>
+                  />
+                  <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "700" }}>
+                    Agora
+                  </Text>
                 </View>
               </View>
-            );
-          })}
+              <Text style={{ color: colors.muted, fontSize: 12 }}>{activeItem.timeLabel}</Text>
+              <LocationBadge
+                location={activeItem.unit ?? ""}
+                palette={getUnitPalette(activeItem.unit ?? "Sem unidade", colors)}
+                size="sm"
+                showIcon
+              />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Pressable
+                  onPress={() => onOpenSession(activeItem)}
+                  style={{
+                    flex: 1,
+                    borderRadius: 999,
+                    backgroundColor: actionBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
+                    Ver aula
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => onOpenAttendance(activeItem)}
+                  style={{
+                    flexShrink: 0,
+                    borderRadius: 999,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "800" }}>
+                    Chamada
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          {futureItems.length > 0 ? (
+            <View style={{ gap: 10 }}>
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                Próximas aulas
+              </Text>
+              {futureItems.map((item) => (
+                <View
+                  key={`${item.classId}-${item.dateKey}-${item.startTime}`}
+                  style={{
+                    borderRadius: 18,
+                    backgroundColor: upcomingCardBackground,
+                    padding: 13,
+                    gap: 8,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      {item.timeLabel}
+                    </Text>
+                    {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
+                  </View>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }} numberOfLines={1}>
+                    {item.className}
+                  </Text>
+                  <LocationBadge
+                    location={item.unit ?? ""}
+                    palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
+                    size="sm"
+                    showIcon
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+              Nenhuma aula restante hoje.
+            </Text>
+          )}
         </ScrollView>
       )}
     </View>

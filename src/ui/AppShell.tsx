@@ -5,6 +5,7 @@ import { Platform, View, useWindowDimensions } from "react-native";
 import type { AppRole } from "../components/navigation/tab-config";
 import { WebSidebar } from "./WebSidebar";
 import { useAppTheme } from "./app-theme";
+import { webShellTokens } from "./web-shell-tokens";
 
 type AppShellProps = {
   role: AppRole;
@@ -39,7 +40,7 @@ export function AppShell({ role, children }: AppShellProps) {
       style={{
         flex: 1,
         flexDirection: "row",
-        backgroundColor: colors.background,
+        backgroundColor: webShellTokens.background,
         minHeight: "100%",
       }}
     >

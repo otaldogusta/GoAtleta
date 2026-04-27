@@ -83,8 +83,8 @@ import {
 import { useOrganization } from "../../providers/OrganizationProvider";
 
 
-import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 import { WEB_SHELL_MIN_WIDTH } from "../../ui/AppShell";
+import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 
 
 import { ScreenLoadingState } from "../../components/ui/ScreenLoadingState";
@@ -92,6 +92,7 @@ import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
+import { webShellTokens } from "../../ui/web-shell-tokens";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 
 import { getScopedProfilePath } from "../../navigation/profile-routes";
@@ -962,6 +963,24 @@ export function HomeProfessorScreen({
     [insets.bottom, isWebHome, showWebScheduleRail]
   );
 
+  const webShellContentStyle = useMemo(() => {
+    if (!showWebScheduleRail) return undefined;
+    return {
+      borderRadius: 36,
+      backgroundColor: webShellTokens.surface,
+      borderWidth: 1,
+      borderColor: webShellTokens.border,
+      shadowColor: webShellTokens.border,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.08,
+      shadowRadius: 28,
+      elevation: 4,
+      padding: 22,
+      gap: 18,
+      overflow: "hidden",
+    } as const;
+  }, [showWebScheduleRail]);
+
   const agendaScrollStyle = useMemo(() => {
 
     if (Platform.OS !== "web") return undefined;
@@ -1483,6 +1502,8 @@ export function HomeProfessorScreen({
 
       >
 
+        <View style={webShellContentStyle ?? undefined}>
+
         <View
 
         style={{
@@ -1793,11 +1814,11 @@ export function HomeProfessorScreen({
             overflow: "hidden",
           }}
         >
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: webShellTokens.text, fontSize: 16, fontWeight: "800" }}>
               {showWebScheduleRail ? "Agenda da semana" : "Agenda do dia"}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={{ color: webShellTokens.muted, fontSize: 12 }}>
               {showWebScheduleRail
                 ? "Arraste para navegar pela semana."
                 : "Arraste para ver a semana anterior e a próxima."}
@@ -1886,14 +1907,12 @@ export function HomeProfessorScreen({
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
+                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.04)",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Chamada</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, opacity: 0.88 }}>Chamada</Text>
               </Pressable>
               <Pressable
                 onPress={handleOpenReportsForActiveClass}
@@ -1902,14 +1921,12 @@ export function HomeProfessorScreen({
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
+                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.04)",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Relatórios</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, opacity: 0.88 }}>Relatórios</Text>
               </Pressable>
             </View>
           </View>
@@ -2205,6 +2222,8 @@ export function HomeProfessorScreen({
             />
           </Suspense>
         ) : null}
+
+      </View>
 
       </View>
 
