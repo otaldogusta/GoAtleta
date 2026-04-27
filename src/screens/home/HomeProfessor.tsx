@@ -946,7 +946,7 @@ export function HomeProfessorScreen({
       ({
         padding: isWebHome ? 14 : 16,
         gap: isWebHome ? 12 : 14,
-        paddingBottom: insets.bottom + 220,
+        paddingBottom: insets.bottom + (isWebHome ? 280 : 240),
         width: "100%",
         maxWidth: isWebHome ? 1120 : undefined,
         alignSelf: "center",
@@ -963,8 +963,8 @@ export function HomeProfessorScreen({
   }, []);
 
   const agendaContentContainerStyle = useMemo(
-    () => ({ paddingRight: agendaCardGap } as const),
-    [agendaCardGap]
+    () => ({ paddingRight: isWebHome ? 28 : agendaCardGap } as const),
+    [agendaCardGap, isWebHome]
   );
 
   const agendaLoadingRowStyle = useMemo(
@@ -1449,7 +1449,7 @@ export function HomeProfessorScreen({
 
           justifyContent: "space-between",
 
-          marginBottom: 14,
+          marginBottom: isWebHome ? 4 : 8,
 
         }}
 
