@@ -56,6 +56,7 @@ export const AgendaCard = memo(function AgendaCard({
   const badgeLabel = useMemo(() => item.timeLabel, [item.timeLabel]);
   const isCompactCard = agendaCardWidth <= 260;
   const isVeryCompactCard = agendaCardWidth <= 200;
+  const isWebCard = Platform.OS === "web";
 
   const containerStyle = useMemo(
     () => [
@@ -87,6 +88,7 @@ export const AgendaCard = memo(function AgendaCard({
         <View
           style={[
             styles.outerCard,
+            isWebCard ? styles.outerCardWeb : null,
             isActive && Platform.OS !== "android"
               ? {
                   shadowColor: mode === "dark" ? colors.primaryBg : "#000",
@@ -140,6 +142,7 @@ export const AgendaCard = memo(function AgendaCard({
             style={[
               styles.innerCard,
               isCompactCard ? styles.innerCardCompact : null,
+              isWebCard ? styles.innerCardWeb : null,
               {
                 backgroundColor: colors.card,
                 borderColor: isActive ? activeBorderColor : colors.border,
@@ -147,7 +150,13 @@ export const AgendaCard = memo(function AgendaCard({
               },
             ]}
           >
-            <View style={[styles.content, Platform.OS === "web" ? styles.webOpticalShift : null]}>
+            <View
+              style={[
+                styles.content,
+                isWebCard ? styles.contentWeb : null,
+                isWebCard ? styles.webOpticalShift : null,
+              ]}
+            >
               <View style={styles.headerRow}>
                 <Text
                   style={[styles.dateText, isCompactCard ? styles.dateTextCompact : null, { color: colors.muted }]}
@@ -200,6 +209,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     paddingTop: 14,
   },
+  outerCardWeb: {
+    paddingTop: 12,
+  },
   innerCard: {
     paddingTop: 16,
     paddingHorizontal: 14,
@@ -212,6 +224,11 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 10,
     paddingBottom: 12,
+  },
+  innerCardWeb: {
+    paddingTop: 14,
+    paddingHorizontal: 11,
+    paddingBottom: 11,
   },
   statusBadge: {
     position: "relative",
@@ -260,6 +277,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+  },
+  contentWeb: {
+    gap: 6,
   },
   headerRow: {
     flexDirection: "row",

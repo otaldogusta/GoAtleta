@@ -924,18 +924,35 @@ export function HomeProfessorScreen({
 
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isAndroidLight = Platform.OS === "android" && mode === "light";
+  const isWebHome = Platform.OS === "web";
 
-  const agendaCardGap = 10;
+  const agendaCardGap = isWebHome ? 8 : 10;
 
   const agendaCardWidth = useMemo(() => {
 
     if (!agendaWidth) return 210;
 
-    const target = Math.max(160, Math.min(agendaWidth * 0.62, 220));
+    const target =
+      Platform.OS === "web"
+        ? Math.max(176, Math.min(agendaWidth * 0.28, 204))
+        : Math.max(160, Math.min(agendaWidth * 0.62, 220));
 
     return Math.round(target);
 
   }, [agendaWidth]);
+
+  const homeContentContainerStyle = useMemo(
+    () =>
+      ({
+        padding: isWebHome ? 14 : 16,
+        gap: isWebHome ? 12 : 14,
+        paddingBottom: insets.bottom + 220,
+        width: "100%",
+        maxWidth: isWebHome ? 1120 : undefined,
+        alignSelf: "center",
+      }) as const,
+    [insets.bottom, isWebHome]
+  );
 
   const agendaScrollStyle = useMemo(() => {
 
@@ -1412,7 +1429,7 @@ export function HomeProfessorScreen({
       <ScrollView
         style={Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined}
 
-        contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 220 }}
+        contentContainerStyle={homeContentContainerStyle}
 
         refreshControl={
           Platform.OS === "web"
@@ -1791,38 +1808,43 @@ export function HomeProfessorScreen({
 
           <View
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
+              flexDirection: isWebHome ? "row" : "column",
+              alignItems: "stretch",
+              gap: isWebHome ? 8 : 10,
             }}
           >
-            <View style={{ flex: 1, flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1, flexDirection: isWebHome ? "row" : "column", gap: isWebHome ? 8 : 10 }}>
               <Pressable
                 onPress={handleOpenPlanningForActiveClass}
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  paddingVertical: 12,
+                  paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
                   borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
+                  borderColor: colors.primaryBg,
+                  backgroundColor: colors.primaryBg,
                   alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  gap: 6,
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Ir pra turma</Text>
+                <Ionicons name="today-outline" size={15} color={colors.primaryText} />
+                <Text numberOfLines={1} style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Ir pra aula do dia</Text>
               </Pressable>
               <Pressable
                 onPress={handleOpenAttendanceForActiveClass}
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  paddingVertical: 12,
+                  paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
                   alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Chamada</Text>
@@ -1832,12 +1854,13 @@ export function HomeProfessorScreen({
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  paddingVertical: 12,
+                  paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
                   alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Relatórios</Text>
