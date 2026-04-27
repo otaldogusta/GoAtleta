@@ -22,6 +22,7 @@ export type TodayScheduleRailItem = {
 type TodayScheduleRailProps = {
   items: TodayScheduleRailItem[];
   colors: ThemeColors;
+  mode: "light" | "dark";
   nowTime: number;
   onOpenSession: (item: TodayScheduleRailItem) => void;
   onOpenAttendance: (item: TodayScheduleRailItem) => void;
@@ -30,30 +31,40 @@ type TodayScheduleRailProps = {
 function TodayScheduleRailBase({
   items,
   colors,
+  mode,
   nowTime,
   onOpenSession,
   onOpenAttendance,
 }: TodayScheduleRailProps) {
+  const isDark = mode === "dark";
+  const railBackground = isDark ? "#080d18" : "rgba(248, 250, 252, 0.88)";
+  const railBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.1)";
+  const cardBackground = isDark ? "rgba(255,255,255,0.055)" : "rgba(255,255,255,0.76)";
+  const activeCardBackground = isDark ? "rgba(86,214,154,0.12)" : "rgba(255,255,255,0.9)";
+  const cardBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(15,23,42,0.1)";
+  const actionBg = isDark ? "rgba(86,214,154,0.22)" : colors.primaryBg;
+  const secondaryActionBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(15,23,42,0.04)";
+
   return (
     <View
       style={{
-        width: 312,
+        width: 304,
         alignSelf: "stretch",
         borderLeftWidth: 1,
-        borderLeftColor: colors.border,
-        backgroundColor: colors.background,
-        paddingHorizontal: 14,
-        paddingTop: 24,
-        paddingBottom: 20,
-        gap: 12,
+        borderLeftColor: railBorder,
+        backgroundColor: railBackground,
+        paddingHorizontal: 12,
+        paddingTop: 22,
+        paddingBottom: 18,
+        gap: 10,
       }}
     >
       <View style={{ gap: 3 }}>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
           Aulas do dia
         </Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>
-          Próximas aulas e ações rápidas.
+          Próximas aulas e rotina rápida.
         </Text>
       </View>
 
@@ -62,9 +73,9 @@ function TodayScheduleRailBase({
           style={{
             borderRadius: 16,
             borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 14,
+            borderColor: cardBorder,
+            backgroundColor: cardBackground,
+            padding: 13,
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>Sem aulas hoje</Text>
@@ -75,7 +86,7 @@ function TodayScheduleRailBase({
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ gap: 10, paddingBottom: 6 }}
+          contentContainerStyle={{ gap: 9, paddingBottom: 6 }}
         >
           {items.map((item) => {
             const isCurrent = item.startTime <= nowTime && item.endTime > nowTime;
@@ -86,11 +97,16 @@ function TodayScheduleRailBase({
                 style={{
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: isCurrent ? colors.primaryBg : colors.border,
-                  backgroundColor: colors.card,
-                  padding: 12,
-                  gap: 10,
+                  borderColor: isCurrent ? colors.primaryBg : cardBorder,
+                  backgroundColor: isCurrent ? activeCardBackground : cardBackground,
+                  padding: 11,
+                  gap: 9,
                   opacity: isPast ? 0.72 : 1,
+                  ...(isDark
+                    ? {}
+                    : ({
+                        boxShadow: "0px 10px 24px rgba(15, 23, 42, 0.06)",
+                      } as any)),
                 }}
               >
                 <View style={{ gap: 7 }}>
@@ -102,7 +118,7 @@ function TodayScheduleRailBase({
                       gap: 8,
                     }}
                   >
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
                       {item.timeLabel}
                     </Text>
                     {isCurrent ? (
@@ -110,14 +126,14 @@ function TodayScheduleRailBase({
                         style={{
                           borderRadius: 999,
                           backgroundColor: colors.primaryBg,
-                          paddingHorizontal: 8,
-                          paddingVertical: 3,
+                          paddingHorizontal: 7,
+                          paddingVertical: 2,
                         }}
                       >
                         <Text
                           style={{
                             color: colors.primaryText,
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: "800",
                           }}
                         >
@@ -127,10 +143,10 @@ function TodayScheduleRailBase({
                     ) : null}
                   </View>
 
-                  <View style={{ gap: 6 }}>
+                  <View style={{ gap: 5 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text
-                        style={{ color: colors.text, fontSize: 15, fontWeight: "800", flex: 1 }}
+                        style={{ color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 }}
                         numberOfLines={1}
                       >
                         {item.className}
@@ -146,15 +162,16 @@ function TodayScheduleRailBase({
                   </View>
                 </View>
 
-                <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Pressable
                     onPress={() => onOpenSession(item)}
                     style={{
-                      flex: 1,
+                      flexShrink: 0,
                       borderRadius: 999,
-                      backgroundColor: colors.primaryBg,
+                      backgroundColor: actionBg,
                       alignItems: "center",
-                      paddingVertical: 8,
+                      paddingVertical: 7,
+                      paddingHorizontal: 12,
                     }}
                   >
                     <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
@@ -164,13 +181,14 @@ function TodayScheduleRailBase({
                   <Pressable
                     onPress={() => onOpenAttendance(item)}
                     style={{
-                      flex: 1,
+                      flexShrink: 0,
                       borderRadius: 999,
                       borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
+                      borderColor: cardBorder,
+                      backgroundColor: secondaryActionBg,
                       alignItems: "center",
-                      paddingVertical: 8,
+                      paddingVertical: 7,
+                      paddingHorizontal: 12,
                     }}
                   >
                     <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>

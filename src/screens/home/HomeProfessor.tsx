@@ -1795,10 +1795,12 @@ export function HomeProfessorScreen({
         >
           <View style={{ gap: 4 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Agenda do dia
+              {showWebScheduleRail ? "Agenda da semana" : "Agenda do dia"}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Arraste para ver a semana anterior e a próxima.
+              {showWebScheduleRail
+                ? "Arraste para navegar pela semana."
+                : "Arraste para ver a semana anterior e a próxima."}
             </Text>
           </View>
 
@@ -2212,6 +2214,7 @@ export function HomeProfessorScreen({
         <TodayScheduleRail
           items={todayAgendaItems}
           colors={colors}
+          mode={mode}
           nowTime={nowTime}
           onOpenSession={handleOpenSessionFromRail}
           onOpenAttendance={handleOpenAttendanceFromRail}
