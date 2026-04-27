@@ -37,8 +37,8 @@ import {
 
     ScrollView,
     Text,
-
-    View
+    View,
+    useWindowDimensions
 } from "react-native";
 
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -84,6 +84,7 @@ import { useOrganization } from "../../providers/OrganizationProvider";
 
 
 import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
+import { WEB_SHELL_MIN_WIDTH } from "../../ui/AppShell";
 
 
 import { ScreenLoadingState } from "../../components/ui/ScreenLoadingState";
@@ -97,6 +98,10 @@ import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { AgendaCard } from "./components/AgendaCard";
+import {
+    TodayScheduleRail,
+    type TodayScheduleRailItem,
+} from "./components/TodayScheduleRail";
 const HomeProfessorBelowFold = lazy(() =>
   import("./HomeProfessorBelowFold").then((module) => ({
     default: module.HomeProfessorBelowFold,
@@ -127,6 +132,7 @@ export function HomeProfessorScreen({
   // Glass overlay function no longer needed - using native component styling instead
 
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
 
   const { session } = useAuth();
 
@@ -925,6 +931,8 @@ export function HomeProfessorScreen({
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isAndroidLight = Platform.OS === "android" && mode === "light";
   const isWebHome = Platform.OS === "web";
+  const showWebScheduleRail =
+    isWebHome && windowWidth >= WEB_SHELL_MIN_WIDTH && !isAdminDashboardContext;
 
   const agendaCardGap = isWebHome ? 8 : 10;
 
@@ -948,10 +956,10 @@ export function HomeProfessorScreen({
         gap: isWebHome ? 12 : 14,
         paddingBottom: insets.bottom + (isWebHome ? 280 : 240),
         width: "100%",
-        maxWidth: isWebHome ? 1120 : undefined,
+        maxWidth: showWebScheduleRail ? 980 : isWebHome ? 1120 : undefined,
         alignSelf: "center",
       }) as const,
-    [insets.bottom, isWebHome]
+    [insets.bottom, isWebHome, showWebScheduleRail]
   );
 
   const agendaScrollStyle = useMemo(() => {
@@ -1174,6 +1182,32 @@ export function HomeProfessorScreen({
       },
     });
   }, [activeAttendanceTarget, router, showSaveToast]);
+
+  const handleOpenSessionFromRail = useCallback(
+    (item: TodayScheduleRailItem) => {
+      router.push({
+        pathname: "/class/[id]/session",
+        params: {
+          id: item.classId,
+          date: item.dateKey,
+        },
+      });
+    },
+    [router]
+  );
+
+  const handleOpenAttendanceFromRail = useCallback(
+    (item: TodayScheduleRailItem) => {
+      router.push({
+        pathname: "/class/[id]/attendance",
+        params: {
+          id: item.classId,
+          date: item.dateKey,
+        },
+      });
+    },
+    [router]
+  );
 
   const showToast = (message: string, type: "info" | "success" | "error") => {
 
@@ -1426,8 +1460,18 @@ export function HomeProfessorScreen({
 
     >
 
+      <View
+        style={{
+          flex: 1,
+          flexDirection: showWebScheduleRail ? "row" : "column",
+        }}
+      >
+
       <ScrollView
-        style={Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined}
+        style={[
+          { flex: 1 },
+          Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined,
+        ]}
 
         contentContainerStyle={homeContentContainerStyle}
 
@@ -2164,6 +2208,18 @@ export function HomeProfessorScreen({
 
       </ScrollView>
 
+      {showWebScheduleRail ? (
+        <TodayScheduleRail
+          items={todayAgendaItems}
+          colors={colors}
+          nowTime={nowTime}
+          onOpenSession={handleOpenSessionFromRail}
+          onOpenAttendance={handleOpenAttendanceFromRail}
+        />
+      ) : null}
+
+      </View>
+
 
 
       {Platform.OS === "web" ? null : (
@@ -2553,4 +2609,3 @@ export function HomeProfessorScreen({
 export default function HomeProfessor() {
   return <HomeProfessorScreen />;
 }
-
