@@ -234,9 +234,10 @@ export default function LoginScreen() {
     if (
       normalized.includes("invalid login") ||
       normalized.includes("invalid credentials") ||
-      normalized.includes("login credentials")
+      normalized.includes("login credentials") ||
+      normalized === "not found"
     ) {
-      return "!Email ou senha incorretos.";
+      return "!Conta não encontrada ou senha incorreta.";
     }
     if (
       normalized.includes("email not confirmed") ||
@@ -285,7 +286,10 @@ export default function LoginScreen() {
     } catch (error) {
       const nextMessage = getLoginErrorMessage(error);
       setMessage(nextMessage);
-      setFailedLoginAttempt(nextMessage.startsWith("!Email ou senha incorretos."));
+      setFailedLoginAttempt(
+        nextMessage.startsWith("!Email ou senha incorretos.") ||
+          nextMessage.startsWith("!Conta não encontrada")
+      );
     } finally {
       loginInFlightRef.current = false;
       setBusy(false);
