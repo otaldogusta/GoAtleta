@@ -71,7 +71,21 @@ const authFetch = async (
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(text || "Falha na autenticação.");
+    const parsed = safeJsonParse<{
+      code?: string;
+      error?: string;
+      error_code?: string;
+      msg?: string;
+      message?: string;
+    } | null>(text, null);
+    const detail =
+      parsed?.msg ||
+      parsed?.message ||
+      parsed?.error ||
+      parsed?.error_code ||
+      parsed?.code ||
+      text;
+    throw new Error(detail || "Falha na autenticação.");
   }
   if (!text) return {};
   const parsed = safeJsonParse<Record<string, any> | null>(text, null);
