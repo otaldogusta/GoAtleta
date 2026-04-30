@@ -31,16 +31,9 @@ const getExtraString = (key: string) => {
   return "";
 };
 
-const requireEnv = (key: string) => {
-  const value = getExtraString(key);
-  if (!value) {
-    throw new Error(`Missing ${key}. Set EXPO_PUBLIC_${key} or app.json extra.`);
-  }
-  return value;
-};
-
-export const SUPABASE_URL = requireEnv("SUPABASE_URL");
-export const SUPABASE_ANON_KEY = requireEnv("SUPABASE_ANON_KEY");
+export const SUPABASE_URL = getExtraString("SUPABASE_URL");
+export const SUPABASE_ANON_KEY = getExtraString("SUPABASE_ANON_KEY");
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 const normalizeBoolean = (value: string) => {
   const normalized = value.trim().toLowerCase();
