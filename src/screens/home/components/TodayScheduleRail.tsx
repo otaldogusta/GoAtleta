@@ -1,214 +1,161 @@
 import { memo } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { FlatList, Text, View } from "react-native";
 
-import type { ClassGroup } from "../../../core/models";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
-import { LocationBadge } from "../../../ui/LocationBadge";
 import { Pressable } from "../../../ui/Pressable";
-import type { ThemeColors } from "../../../ui/app-theme";
-import { getUnitPalette } from "../../../ui/unit-colors";
-import { webShellTokens } from "../../../ui/web-shell-tokens";
-
-export type TodayScheduleRailItem = {
-  classId: string;
-  className: string;
-  unit: string;
-  gender: ClassGroup["gender"] | null;
-  dateKey: string;
-  startTime: number;
-  endTime: number;
-  timeLabel: string;
-};
+import type { HomeScheduleItem, HomeScheduleSlot } from "./homeScheduleTypes";
 
 type TodayScheduleRailProps = {
-  items: TodayScheduleRailItem[];
-  colors: ThemeColors;
-  mode: "light" | "dark";
-  nowTime: number;
-  onOpenSession: (item: TodayScheduleRailItem) => void;
-  onOpenAttendance: (item: TodayScheduleRailItem) => void;
+  title: string;
+  subtitle: string;
+  slots: HomeScheduleSlot[];
+  totalDurationMinutes: number;
+  compact?: boolean;
+  width?: number;
+  onOpenLesson: (item: HomeScheduleItem) => void;
+  onOpenAttendance: (item: HomeScheduleItem) => void;
 };
 
-function TodayScheduleRailBase({
-  items,
-  colors,
-  mode,
-  nowTime,
-  onOpenSession,
+export const TodayScheduleRail = memo(function TodayScheduleRail({
+  title,
+  subtitle,
+  slots,
+  totalDurationMinutes,
+  compact = false,
+  width = 350,
+  onOpenLesson,
   onOpenAttendance,
 }: TodayScheduleRailProps) {
-  const isDark = mode === "dark";
-  const railBackground = isDark ? "rgba(9, 14, 32, 0.92)" : webShellTokens.surfaceSoft;
-  const railBorder = isDark ? "rgba(255,255,255,0.06)" : webShellTokens.border;
-  const currentCardBackground = isDark ? "rgba(255,255,255,0.08)" : webShellTokens.surface;
-  const upcomingCardBackground = isDark ? "rgba(255,255,255,0.03)" : webShellTokens.surfaceAlt;
-  const cardBorder = isDark ? "rgba(255,255,255,0.08)" : webShellTokens.border;
-  const actionBg = isDark ? "rgba(86,214,154,0.22)" : webShellTokens.primary;
-
-  const activeItem = items.find((item) => item.startTime <= nowTime && item.endTime > nowTime);
-  const upcomingItems = items.filter((item) => item.startTime > nowTime);
-  const futureItems = activeItem ? upcomingItems : items;
+  const durationHours = Math.round((totalDurationMinutes / 60) * 10) / 10;
 
   return (
     <View
       style={{
-        width: 320,
+        width,
         alignSelf: "stretch",
-        borderLeftWidth: 1,
-        borderLeftColor: railBorder,
-        backgroundColor: railBackground,
-        paddingHorizontal: 14,
-        paddingTop: 24,
-        paddingBottom: 20,
-        gap: 12,
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: "rgba(15,23,42,0.06)",
+        shadowColor: "#0F172A",
+        shadowOpacity: 0.06,
+        shadowRadius: 22,
+        shadowOffset: { width: 0, height: 12 },
+        overflow: "hidden",
       }}
     >
-      <View style={{ gap: 3 }}>
-        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
-          Aulas do dia
+      <View style={{ paddingHorizontal: compact ? 14 : 18, paddingTop: compact ? 14 : 18, paddingBottom: compact ? 12 : 16, gap: 4 }}>
+        <Text style={{ color: "#101827", fontSize: compact ? 16 : 18, fontWeight: "900" }}>
+          {title}
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-          Próximas aulas e rotina rápida.
+        <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "700" }}>
+          {subtitle}
         </Text>
       </View>
 
-      {items.length === 0 ? (
-        <View
-          style={{
-            borderRadius: 16,
-            borderWidth: 1,
-            borderColor: cardBorder,
-            backgroundColor: currentCardBackground,
-            padding: 13,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Sem aulas hoje</Text>
-          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-            Nenhuma turma programada para hoje.
+      <View style={{ height: 1, backgroundColor: "rgba(15,23,42,0.08)" }} />
+
+      {slots.length === 0 ? (
+        <View style={{ padding: 24, gap: 10 }}>
+          <Text style={{ color: "#101827", fontSize: 15, fontWeight: "800" }}>
+            Nenhuma aula neste dia
+          </Text>
+          <Text style={{ color: "#667085", fontSize: 13 }}>
+            Selecione outro dia da semana para ver as aulas programadas.
           </Text>
         </View>
       ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ gap: 14, paddingBottom: 6 }}
-        >
-          {activeItem ? (
-            <View
-              style={{
-                borderRadius: 22,
-                backgroundColor: currentCardBackground,
-                borderWidth: 1,
-                borderColor: webShellTokens.primary,
-                padding: 16,
-                gap: 12,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "700" }}>
-                    Aula atual
-                  </Text>
-                  <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
-                    {activeItem.className}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <View
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 999,
-                      backgroundColor: webShellTokens.primary,
-                    }}
-                  />
-                  <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "700" }}>
-                    Agora
-                  </Text>
-                </View>
-              </View>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>{activeItem.timeLabel}</Text>
-              <LocationBadge
-                location={activeItem.unit ?? ""}
-                palette={getUnitPalette(activeItem.unit ?? "Sem unidade", colors)}
-                size="sm"
-                showIcon
-              />
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Pressable
-                  onPress={() => onOpenSession(activeItem)}
-                  style={{
-                    flex: 1,
-                    borderRadius: 999,
-                    backgroundColor: actionBg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingVertical: 10,
-                  }}
-                >
-                  <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
-                    Ver aula
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => onOpenAttendance(activeItem)}
-                  style={{
-                    flexShrink: 0,
-                    borderRadius: 999,
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                  }}
-                >
-                  <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "800" }}>
-                    Chamada
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
-
-          {futureItems.length > 0 ? (
-            <View style={{ gap: 10 }}>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                Próximas aulas
-              </Text>
-              {futureItems.map((item) => (
+        <FlatList
+          data={slots}
+          keyExtractor={(slot) => slot.key}
+          scrollEnabled={false}
+          renderItem={({ item: slot }) => (
+            <View>
+              {slot.items.map((lesson) => (
                 <View
-                  key={`${item.classId}-${item.dateKey}-${item.startTime}`}
+                  key={`${slot.key}-${lesson.classId}`}
                   style={{
-                    borderRadius: 18,
-                    backgroundColor: upcomingCardBackground,
-                    padding: 13,
-                    gap: 8,
+                    paddingHorizontal: compact ? 14 : 18,
+                    paddingVertical: compact ? 10 : 13,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "rgba(15,23,42,0.08)",
+                    gap: compact ? 8 : 10,
                   }}
                 >
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                      {item.timeLabel}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                      <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "800" }}>
+                      {lesson.timeLabel}
                     </Text>
-                    {item.gender ? <ClassGenderBadge gender={item.gender} size="sm" /> : null}
+                    {lesson.gender ? <ClassGenderBadge gender={lesson.gender} size="sm" /> : null}
                   </View>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }} numberOfLines={1}>
-                    {item.className}
-                  </Text>
-                  <LocationBadge
-                    location={item.unit ?? ""}
-                    palette={getUnitPalette(item.unit ?? "Sem unidade", colors)}
-                    size="sm"
-                    showIcon
-                  />
+
+                  <View style={{ gap: 10 }}>
+                    <Text style={{ color: "#101827", fontSize: compact ? 17 : 19, fontWeight: "900" }} numberOfLines={1}>
+                      {lesson.className}
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Ionicons name="location" size={15} color="#475467" />
+                      <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "600" }} numberOfLines={1}>
+                        {lesson.unit}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: "row", gap: 12 }}>
+                    <Pressable
+                      onPress={() => onOpenLesson(lesson)}
+                      style={{
+                        flex: 1,
+                        height: compact ? 34 : 38,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: "rgba(15,23,42,0.10)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        gap: 8,
+                      }}
+                    >
+                      <Text style={{ color: "#101827", fontSize: compact ? 11 : 12, fontWeight: "800" }}>
+                        Ver aula
+                      </Text>
+                      <Ionicons name="arrow-forward" size={17} color="#101827" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => onOpenAttendance(lesson)}
+                      style={{
+                        flex: 1,
+                        height: compact ? 34 : 38,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor: "rgba(15,23,42,0.10)",
+                        backgroundColor: "#FFFFFF",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        gap: 8,
+                      }}
+                    >
+                      <Ionicons name="people-outline" size={17} color="#101827" />
+                      <Text style={{ color: "#101827", fontSize: compact ? 11 : 12, fontWeight: "800" }}>
+                        Chamada
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
               ))}
             </View>
-          ) : (
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-              Nenhuma aula restante hoje.
-            </Text>
           )}
-        </ScrollView>
+        />
       )}
+
+      <View style={{ padding: compact ? 12 : 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Ionicons name="calendar-outline" size={22} color="#475467" />
+        <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "700" }}>
+          {slots.reduce((total, slot) => total + slot.items.length, 0)} aulas - {durationHours}h de duração
+        </Text>
+      </View>
     </View>
   );
-}
-
-export const TodayScheduleRail = memo(TodayScheduleRailBase);
-TodayScheduleRail.displayName = "TodayScheduleRail";
+});

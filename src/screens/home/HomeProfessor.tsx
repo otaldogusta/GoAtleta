@@ -26,8 +26,6 @@ import {
 import {
     Animated,
 
-    Dimensions,
-
     FlatList,
     PanResponder,
 
@@ -37,6 +35,7 @@ import {
 
     ScrollView,
     Text,
+
     View,
     useWindowDimensions
 } from "react-native";
@@ -83,7 +82,6 @@ import {
 import { useOrganization } from "../../providers/OrganizationProvider";
 
 
-import { WEB_SHELL_MIN_WIDTH } from "../../ui/AppShell";
 import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 
 
@@ -92,17 +90,16 @@ import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
-import { webShellTokens } from "../../ui/web-shell-tokens";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 
 import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { AgendaCard } from "./components/AgendaCard";
-import {
-    TodayScheduleRail,
-    type TodayScheduleRailItem,
-} from "./components/TodayScheduleRail";
+import { CurrentLessonHero } from "./components/CurrentLessonHero";
+import { TodayScheduleRail } from "./components/TodayScheduleRail";
+import { WeekDaySelector } from "./components/WeekDaySelector";
+import type { HomeScheduleItem } from "./components/homeScheduleTypes";
 const HomeProfessorBelowFold = lazy(() =>
   import("./HomeProfessorBelowFold").then((module) => ({
     default: module.HomeProfessorBelowFold,
@@ -113,6 +110,40 @@ function HomeProfessorBelowFoldFallback() {
   return (
     <SectionLoadingState />
   );
+}
+
+function buildScheduleSlots(items: HomeScheduleItem[]) {
+  const slotMap = new Map<
+    string,
+    {
+      key: string;
+      timeLabel: string;
+      startTime: number;
+      endTime: number;
+      items: HomeScheduleItem[];
+    }
+  >();
+
+  items.forEach((item) => {
+    const key = `${item.dateKey}-${item.startTime}-${item.endTime}`;
+    if (!slotMap.has(key)) {
+      slotMap.set(key, {
+        key,
+        timeLabel: item.timeLabel,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        items: [],
+      });
+    }
+    slotMap.get(key)?.items.push(item);
+  });
+
+  return Array.from(slotMap.values())
+    .map((slot) => ({
+      ...slot,
+      items: [...slot.items].sort((a, b) => a.className.localeCompare(b.className)),
+    }))
+    .sort((a, b) => a.startTime - b.startTime);
 }
 
 
@@ -133,7 +164,6 @@ export function HomeProfessorScreen({
   // Glass overlay function no longer needed - using native component styling instead
 
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
 
   const { session } = useAuth();
 
@@ -192,7 +222,7 @@ export function HomeProfessorScreen({
   const { showSaveToast } = useSaveToast();
   const { confirm: confirmDialog } = useConfirmDialog();
 
-  const screenWidth = Dimensions.get("window").width;
+  const { width: screenWidth } = useWindowDimensions();
 
   const panelWidth = Math.min(screenWidth * 0.85, 360);
   const inboxPanelSurface =
@@ -678,8 +708,13 @@ export function HomeProfessorScreen({
 
 
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
+  const [selectedDateKey, setSelectedDateKey] = useState(todayDateKey);
 
   const nowTime = useMemo(() => now.getTime(), [now]);
+
+  useEffect(() => {
+    setSelectedDateKey(todayDateKey);
+  }, [todayDateKey]);
 
   const scheduleBaseDate = useMemo(() => {
     const parsed = new Date(todayDateKey + "T00:00:00");
@@ -932,8 +967,13 @@ export function HomeProfessorScreen({
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isAndroidLight = Platform.OS === "android" && mode === "light";
   const isWebHome = Platform.OS === "web";
-  const showWebScheduleRail =
-    isWebHome && windowWidth >= WEB_SHELL_MIN_WIDTH && !isAdminDashboardContext;
+  const isUx2CWebHome = isWebHome && screenWidth >= 1200 && !isAdminDashboardContext;
+  const isUx2CWithRail = isUx2CWebHome;
+  const isUx2CWideDesktop = screenWidth >= 1440;
+  const isUx2CUltraWide = screenWidth >= 1600;
+  const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
+  const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
+  const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
 
   const agendaCardGap = isWebHome ? 8 : 10;
 
@@ -953,33 +993,15 @@ export function HomeProfessorScreen({
   const homeContentContainerStyle = useMemo(
     () =>
       ({
-        padding: isWebHome ? 14 : 16,
-        gap: isWebHome ? 12 : 14,
+        padding: isUx2CWebHome ? (isUx2CCompact ? 16 : 22) : isWebHome ? 14 : 16,
+        gap: isUx2CWebHome ? (isUx2CCompact ? 12 : 14) : isWebHome ? 12 : 14,
         paddingBottom: insets.bottom + (isWebHome ? 280 : 240),
         width: "100%",
-        maxWidth: showWebScheduleRail ? 980 : isWebHome ? 1120 : undefined,
+        maxWidth: isUx2CWebHome ? (isUx2CUltraWide ? 1600 : isUx2CWideDesktop ? 1460 : undefined) : isWebHome ? 1120 : undefined,
         alignSelf: "center",
       }) as const,
-    [insets.bottom, isWebHome, showWebScheduleRail]
+    [insets.bottom, isUx2CCompact, isUx2CUltraWide, isUx2CWebHome, isUx2CWideDesktop, isWebHome]
   );
-
-  const webShellContentStyle = useMemo(() => {
-    if (!showWebScheduleRail) return undefined;
-    return {
-      borderRadius: 36,
-      backgroundColor: webShellTokens.surface,
-      borderWidth: 1,
-      borderColor: webShellTokens.border,
-      shadowColor: webShellTokens.border,
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.08,
-      shadowRadius: 28,
-      elevation: 4,
-      padding: 22,
-      gap: 18,
-      overflow: "hidden",
-    } as const;
-  }, [showWebScheduleRail]);
 
   const agendaScrollStyle = useMemo(() => {
 
@@ -1202,8 +1224,13 @@ export function HomeProfessorScreen({
     });
   }, [activeAttendanceTarget, router, showSaveToast]);
 
-  const handleOpenSessionFromRail = useCallback(
-    (item: TodayScheduleRailItem) => {
+  const handleOpenLesson = useCallback(
+    (item: HomeScheduleItem | null) => {
+      if (!item) {
+        showSaveToast({ message: "Selecione uma turma na agenda para abrir a aula.", variant: "info" });
+        return;
+      }
+
       router.push({
         pathname: "/class/[id]/session",
         params: {
@@ -1212,11 +1239,16 @@ export function HomeProfessorScreen({
         },
       });
     },
-    [router]
+    [router, showSaveToast]
   );
 
-  const handleOpenAttendanceFromRail = useCallback(
-    (item: TodayScheduleRailItem) => {
+  const handleOpenAttendance = useCallback(
+    (item: HomeScheduleItem | null) => {
+      if (!item) {
+        showSaveToast({ message: "Selecione uma turma na agenda para abrir a chamada.", variant: "info" });
+        return;
+      }
+
       router.push({
         pathname: "/class/[id]/attendance",
         params: {
@@ -1225,7 +1257,7 @@ export function HomeProfessorScreen({
         },
       });
     },
-    [router]
+    [router, showSaveToast]
   );
 
   const showToast = (message: string, type: "info" | "success" | "error") => {
@@ -1389,7 +1421,7 @@ export function HomeProfessorScreen({
 
   };
 
-  const todayAgendaItems = useMemo(
+  const todayAgendaItems = useMemo<HomeScheduleItem[]>(
     () =>
       scheduleWindow.filter(
         (item): item is (typeof scheduleWindow)[number] =>
@@ -1420,37 +1452,53 @@ export function HomeProfessorScreen({
     };
   }, [scheduleWindow, nowTime, todayDateKey]);
 
-  const todayScheduleSlots = useMemo(() => {
-    const slotMap = new Map<
-      string,
-      {
-        key: string;
-        timeLabel: string;
-        startTime: number;
-        items: (typeof todayAgendaItems)[number][];
-      }
-    >();
+  const currentHeroSlot = useMemo(() => {
+    if (!nextScheduleSlot) return null;
+    return buildScheduleSlots(nextScheduleSlot.items)[0] ?? null;
+  }, [nextScheduleSlot]);
 
-    todayAgendaItems.forEach((item) => {
-      const key = `${item.dateKey}-${item.startTime}-${item.endTime}`;
-      if (!slotMap.has(key)) {
-        slotMap.set(key, {
-          key,
-          timeLabel: item.timeLabel,
-          startTime: item.startTime,
-          items: [],
-        });
-      }
-      slotMap.get(key)?.items.push(item);
-    });
+  const selectedDayItems = useMemo<HomeScheduleItem[]>(
+    () =>
+      scheduleWindow.filter(
+        (item): item is (typeof scheduleWindow)[number] =>
+          Boolean(item?.classId) && Boolean(item?.dateKey) && item.dateKey === selectedDateKey
+      ),
+    [scheduleWindow, selectedDateKey]
+  );
 
-    return Array.from(slotMap.values())
-      .map((slot) => ({
-        ...slot,
-        items: [...slot.items].sort((a, b) => a.className.localeCompare(b.className)),
-      }))
-      .sort((a, b) => a.startTime - b.startTime);
-  }, [todayAgendaItems]);
+  const weekDaySummaries = useMemo(() => {
+    const days = [];
+    for (let offset = 0; offset < 7; offset += 1) {
+      const dayDate = new Date(scheduleBaseDate);
+      dayDate.setDate(scheduleBaseDate.getDate() + offset);
+      dayDate.setHours(0, 0, 0, 0);
+      const dateKey = formatIsoDate(dayDate);
+      const dayItems = scheduleWindow.filter((item) => item.dateKey === dateKey);
+      const weekday = dayDate.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+      const weekdayLabel = weekday.slice(0, 3).toUpperCase();
+      days.push({
+        dateKey,
+        weekdayLabel,
+        dateLabel: dayDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+        fullLabel: dayDate.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }),
+        lessonCount: dayItems.length,
+        durationMinutes: dayItems.reduce(
+          (total, item) => total + Math.max(0, Math.round((item.endTime - item.startTime) / 60000)),
+          0
+        ),
+        isToday: dateKey === todayDateKey,
+      });
+    }
+    return days;
+  }, [scheduleBaseDate, scheduleWindow, todayDateKey]);
+
+  const selectedDaySummary = useMemo(
+    () => weekDaySummaries.find((day) => day.dateKey === selectedDateKey) ?? weekDaySummaries[0] ?? null,
+    [selectedDateKey, weekDaySummaries]
+  );
+
+  const todayScheduleSlots = useMemo(() => buildScheduleSlots(todayAgendaItems), [todayAgendaItems]);
+  const selectedDaySlots = useMemo(() => buildScheduleSlots(selectedDayItems), [selectedDayItems]);
 
   const todayScheduleSlotPreview = useMemo(() => todayScheduleSlots.slice(0, 4), [todayScheduleSlots]);
   const todayRemainingSlots = Math.max(0, todayScheduleSlots.length - todayScheduleSlotPreview.length);
@@ -1475,22 +1523,12 @@ export function HomeProfessorScreen({
 
     <SafeAreaView
 
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1, backgroundColor: isUx2CWebHome ? "#F3F5F7" : colors.background }}
 
     >
 
-      <View
-        style={{
-          flex: 1,
-          flexDirection: showWebScheduleRail ? "row" : "column",
-        }}
-      >
-
       <ScrollView
-        style={[
-          { flex: 1 },
-          Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined,
-        ]}
+        style={Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined}
 
         contentContainerStyle={homeContentContainerStyle}
 
@@ -1501,8 +1539,6 @@ export function HomeProfessorScreen({
         }
 
       >
-
-        <View style={webShellContentStyle ?? undefined}>
 
         <View
 
@@ -1802,7 +1838,79 @@ export function HomeProfessorScreen({
 
         ) : null}
 
-        {!isAdminDashboardContext ? (
+        {isUx2CWebHome ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: ux2CGap,
+            }}
+          >
+            <View
+              style={{
+                flex: 1,
+                minWidth: 0,
+                width: "100%",
+                maxWidth: isUx2CUltraWide ? 980 : isUx2CWideDesktop ? 920 : undefined,
+                alignSelf: "auto",
+                gap: isUx2CCompact ? 12 : 14,
+              }}
+            >
+              <CurrentLessonHero
+                slot={currentHeroSlot}
+                selectedDateLabel={todayLabel}
+                isToday={currentHeroSlot?.items[0]?.dateKey === todayDateKey}
+                compact={isUx2CCompact}
+                onOpenLesson={() => handleOpenLesson(currentHeroSlot?.items[0] ?? null)}
+                onOpenAttendance={() => handleOpenAttendance(currentHeroSlot?.items[0] ?? null)}
+              />
+
+              <WeekDaySelector
+                days={weekDaySummaries}
+                selectedDateKey={selectedDateKey}
+                colors={colors}
+                compact={isUx2CCompact}
+                onSelect={setSelectedDateKey}
+              />
+
+              <View
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 18,
+                  borderWidth: 1,
+                  borderColor: "rgba(15,23,42,0.06)",
+                  padding: isUx2CCompact ? 12 : 16,
+                  shadowColor: "#0F172A",
+                  shadowOpacity: 0.05,
+                  shadowRadius: 18,
+                  shadowOffset: { width: 0, height: 8 },
+                }}
+              >
+                <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
+                  <HomeProfessorBelowFold
+                    canOpenClassesShortcut={canOpenClassesShortcut}
+                    canOpenStudentsShortcut={canOpenStudentsShortcut}
+                    canSeeCoordination={canSeeCoordination}
+                  />
+                </Suspense>
+              </View>
+
+            </View>
+
+            <TodayScheduleRail
+              title={`Aulas de ${selectedDaySummary?.fullLabel ?? "hoje"}`}
+              subtitle={selectedDaySummary?.dateLabel ?? ""}
+              slots={selectedDaySlots}
+              totalDurationMinutes={selectedDaySummary?.durationMinutes ?? 0}
+              compact={isUx2CCompact}
+              width={ux2CRailWidth}
+              onOpenLesson={handleOpenLesson}
+              onOpenAttendance={handleOpenAttendance}
+            />
+          </View>
+        ) : null}
+
+        {!isAdminDashboardContext && !isUx2CWebHome ? (
         <View
           style={{
             padding: 14,
@@ -1814,14 +1922,12 @@ export function HomeProfessorScreen({
             overflow: "hidden",
           }}
         >
-          <View style={{ gap: 2 }}>
-            <Text style={{ color: webShellTokens.text, fontSize: 16, fontWeight: "800" }}>
-              {showWebScheduleRail ? "Agenda da semana" : "Agenda do dia"}
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              Agenda do dia
             </Text>
-            <Text style={{ color: webShellTokens.muted, fontSize: 12 }}>
-              {showWebScheduleRail
-                ? "Arraste para navegar pela semana."
-                : "Arraste para ver a semana anterior e a próxima."}
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Arraste para ver a semana anterior e a próxima.
             </Text>
           </View>
 
@@ -1907,12 +2013,14 @@ export function HomeProfessorScreen({
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
-                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.04)",
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, opacity: 0.88 }}>Chamada</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Chamada</Text>
               </Pressable>
               <Pressable
                 onPress={handleOpenReportsForActiveClass}
@@ -1921,12 +2029,14 @@ export function HomeProfessorScreen({
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
-                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.04)",
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, opacity: 0.88 }}>Relatórios</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Relatórios</Text>
               </Pressable>
             </View>
           </View>
@@ -2213,7 +2323,7 @@ export function HomeProfessorScreen({
         </View>
         ) : null}
 
-        {!isAdminDashboardContext ? (
+        {!isAdminDashboardContext && !isUx2CWebHome ? (
           <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
             <HomeProfessorBelowFold
               canOpenClassesShortcut={canOpenClassesShortcut}
@@ -2225,22 +2335,7 @@ export function HomeProfessorScreen({
 
       </View>
 
-      </View>
-
       </ScrollView>
-
-      {showWebScheduleRail ? (
-        <TodayScheduleRail
-          items={todayAgendaItems}
-          colors={colors}
-          mode={mode}
-          nowTime={nowTime}
-          onOpenSession={handleOpenSessionFromRail}
-          onOpenAttendance={handleOpenAttendanceFromRail}
-        />
-      ) : null}
-
-      </View>
 
 
 
