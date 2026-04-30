@@ -8,6 +8,7 @@ import type { Exercise, HiddenTemplate, TrainingPlan, TrainingTemplate } from ".
 import {
   CACHE_KEYS,
   getActiveOrganizationId,
+  isAuthError,
   isNetworkError,
   readCache,
   supabaseDelete,
@@ -242,7 +243,7 @@ export async function getTrainingPlans(
     }
     return filtered;
   } catch (error) {
-    if (isNetworkError(error)) {
+    if (isNetworkError(error) || isAuthError(error)) {
       const cached = await readCache<TrainingPlan[]>(CACHE_KEYS.trainingPlans);
       if (cached) {
         const classId = options.classId?.trim() || "";

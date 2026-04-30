@@ -117,14 +117,14 @@ export function useSessionData({
               data.id,
               sessionDate,
               weekdayId
-            ),
+            ).catch(() => null),
             getTrainingPlans({
               organizationId: data.organizationId ?? null,
               classId: data.id,
               status: "final",
               orderBy: "createdat_desc",
               limit: 24,
-            }),
+            }).catch(() => [] as TrainingPlan[]),
           ]);
           if (alive) {
             setSessionStudents(classStudents);
@@ -147,6 +147,14 @@ export function useSessionData({
             setSessionLog(log);
             setScoutingLog(scouting);
           }
+        }
+      } catch {
+        if (alive) {
+          setSavedClassPlans([]);
+          setSessionStudents([]);
+          setPlan(null);
+          setSessionLog(null);
+          setScoutingLog(null);
         }
       } finally {
         if (alive) setIsLoadingSession(false);
@@ -300,6 +308,8 @@ export function useSessionData({
         } else {
           setAttendancePercent(null);
         }
+      } catch {
+        if (alive) setAttendancePercent(null);
       } finally {
         if (alive) setIsLoadingSessionExtras(false);
       }
@@ -328,6 +338,7 @@ export function useSessionData({
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,
+    setCurrentDailyLessonPlan,
     isResolvingCurrentClassPlan,
     methodologyEvidence,
     reload,
