@@ -26,12 +26,15 @@ import { hasStoredSession, setRememberPreference } from "../src/auth/session";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { getBiometricsEnabled } from "../src/security/biometric-settings";
 import { isBiometricsSupported } from "../src/security/biometrics";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Button } from "../src/ui/Button";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 
 export default function LoginScreen() {
+  markRender("screen.login.render.root");
+
   const { colors, mode } = useAppTheme();
   const useNativeDriver = Platform.OS !== "web";
 
@@ -84,7 +87,10 @@ export default function LoginScreen() {
   useEffect(() => {
     let active = true;
     (async () => {
-      const saved = await AsyncStorage.getItem(rememberKey);
+      const saved = await measureAsync(
+        "screen.login.load.rememberedEmail",
+        () => AsyncStorage.getItem(rememberKey)
+      );
       if (!active) return;
       if (saved) {
         setEmail(saved);
@@ -222,6 +228,43 @@ export default function LoginScreen() {
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
   };
 
+  const getLoginErrorMessage = (error: unknown) => {
+    const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
+    const normalized = detail.toLowerCase();
+    if (
+      normalized.includes("invalid login") ||
+      normalized.includes("invalid credentials") ||
+      normalized.includes("login credentials")
+    ) {
+      return "!Email ou senha incorretos.";
+    }
+    if (
+      normalized.includes("email not confirmed") ||
+      normalized.includes("email_not_confirmed") ||
+      normalized.includes("not confirmed")
+    ) {
+      return "!Email ainda não confirmado. Verifique sua caixa de entrada antes de entrar.";
+    }
+    if (
+      normalized.includes("failed to fetch") ||
+      normalized.includes("network request failed") ||
+      normalized.includes("fetch failed")
+    ) {
+      return "Não foi possível conectar ao Supabase. Verifique sua internet e as variáveis do ambiente.";
+    }
+    if (
+      normalized.includes("api key") ||
+      normalized.includes("jwt") ||
+      normalized.includes("invalid token") ||
+      normalized.includes("project not found")
+    ) {
+      return "Configuração do Supabase inválida. Revise EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY.";
+    }
+    return detail && detail !== "Falha ao autenticar."
+      ? detail
+      : "Não foi possível concluir. Verifique os dados e tente novamente.";
+  };
+
   const handleLogin = async () => {
     if (busy || loginInFlightRef.current) return;
     if (!email.trim()) {
@@ -240,14 +283,9 @@ export default function LoginScreen() {
       markCredentialLoginSuccess();
       setFailedLoginAttempt(false);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
-      const normalized = detail.toLowerCase();
-      if (normalized.includes("invalid login")) {
-        setMessage("!Email ou senha incorretos.");
-        setFailedLoginAttempt(true);
-      } else {
-        setMessage("Não foi possível concluir. Verifique os dados e tente novamente.");
-      }
+      const nextMessage = getLoginErrorMessage(error);
+      setMessage(nextMessage);
+      setFailedLoginAttempt(nextMessage.startsWith("!Email ou senha incorretos."));
     } finally {
       loginInFlightRef.current = false;
       setBusy(false);
