@@ -37,8 +37,8 @@ import {
 
     ScrollView,
     Text,
-
-    View
+    View,
+    useWindowDimensions
 } from "react-native";
 
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -83,6 +83,7 @@ import {
 import { useOrganization } from "../../providers/OrganizationProvider";
 
 
+import { WEB_SHELL_MIN_WIDTH } from "../../ui/AppShell";
 import { SyncStatusBadge } from "../../ui/SyncStatusBadge";
 
 
@@ -91,12 +92,17 @@ import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
+import { webShellTokens } from "../../ui/web-shell-tokens";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 
 import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { AgendaCard } from "./components/AgendaCard";
+import {
+    TodayScheduleRail,
+    type TodayScheduleRailItem,
+} from "./components/TodayScheduleRail";
 const HomeProfessorBelowFold = lazy(() =>
   import("./HomeProfessorBelowFold").then((module) => ({
     default: module.HomeProfessorBelowFold,
@@ -127,6 +133,7 @@ export function HomeProfessorScreen({
   // Glass overlay function no longer needed - using native component styling instead
 
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
 
   const { session } = useAuth();
 
@@ -925,6 +932,8 @@ export function HomeProfessorScreen({
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isAndroidLight = Platform.OS === "android" && mode === "light";
   const isWebHome = Platform.OS === "web";
+  const showWebScheduleRail =
+    isWebHome && windowWidth >= WEB_SHELL_MIN_WIDTH && !isAdminDashboardContext;
 
   const agendaCardGap = isWebHome ? 8 : 10;
 
@@ -948,11 +957,29 @@ export function HomeProfessorScreen({
         gap: isWebHome ? 12 : 14,
         paddingBottom: insets.bottom + (isWebHome ? 280 : 240),
         width: "100%",
-        maxWidth: isWebHome ? 1120 : undefined,
+        maxWidth: showWebScheduleRail ? 980 : isWebHome ? 1120 : undefined,
         alignSelf: "center",
       }) as const,
-    [insets.bottom, isWebHome]
+    [insets.bottom, isWebHome, showWebScheduleRail]
   );
+
+  const webShellContentStyle = useMemo(() => {
+    if (!showWebScheduleRail) return undefined;
+    return {
+      borderRadius: 36,
+      backgroundColor: webShellTokens.surface,
+      borderWidth: 1,
+      borderColor: webShellTokens.border,
+      shadowColor: webShellTokens.border,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.08,
+      shadowRadius: 28,
+      elevation: 4,
+      padding: 22,
+      gap: 18,
+      overflow: "hidden",
+    } as const;
+  }, [showWebScheduleRail]);
 
   const agendaScrollStyle = useMemo(() => {
 
@@ -1174,6 +1201,32 @@ export function HomeProfessorScreen({
       },
     });
   }, [activeAttendanceTarget, router, showSaveToast]);
+
+  const handleOpenSessionFromRail = useCallback(
+    (item: TodayScheduleRailItem) => {
+      router.push({
+        pathname: "/class/[id]/session",
+        params: {
+          id: item.classId,
+          date: item.dateKey,
+        },
+      });
+    },
+    [router]
+  );
+
+  const handleOpenAttendanceFromRail = useCallback(
+    (item: TodayScheduleRailItem) => {
+      router.push({
+        pathname: "/class/[id]/attendance",
+        params: {
+          id: item.classId,
+          date: item.dateKey,
+        },
+      });
+    },
+    [router]
+  );
 
   const showToast = (message: string, type: "info" | "success" | "error") => {
 
@@ -1426,8 +1479,18 @@ export function HomeProfessorScreen({
 
     >
 
+      <View
+        style={{
+          flex: 1,
+          flexDirection: showWebScheduleRail ? "row" : "column",
+        }}
+      >
+
       <ScrollView
-        style={Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined}
+        style={[
+          { flex: 1 },
+          Platform.OS === "web" ? ({ scrollbarGutter: "auto" } as any) : undefined,
+        ]}
 
         contentContainerStyle={homeContentContainerStyle}
 
@@ -1438,6 +1501,8 @@ export function HomeProfessorScreen({
         }
 
       >
+
+        <View style={webShellContentStyle ?? undefined}>
 
         <View
 
@@ -1749,12 +1814,14 @@ export function HomeProfessorScreen({
             overflow: "hidden",
           }}
         >
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Agenda do dia
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: webShellTokens.text, fontSize: 16, fontWeight: "800" }}>
+              {showWebScheduleRail ? "Agenda da semana" : "Agenda do dia"}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Arraste para ver a semana anterior e a próxima.
+            <Text style={{ color: webShellTokens.muted, fontSize: 12 }}>
+              {showWebScheduleRail
+                ? "Arraste para navegar pela semana."
+                : "Arraste para ver a semana anterior e a próxima."}
             </Text>
           </View>
 
@@ -1840,14 +1907,12 @@ export function HomeProfessorScreen({
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
+                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.04)",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Chamada</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, opacity: 0.88 }}>Chamada</Text>
               </Pressable>
               <Pressable
                 onPress={handleOpenReportsForActiveClass}
@@ -1856,14 +1921,12 @@ export function HomeProfessorScreen({
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
                   borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
+                  backgroundColor: mode === "dark" ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.04)",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Relatórios</Text>
+                <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13, opacity: 0.88 }}>Relatórios</Text>
               </Pressable>
             </View>
           </View>
@@ -2162,7 +2225,22 @@ export function HomeProfessorScreen({
 
       </View>
 
+      </View>
+
       </ScrollView>
+
+      {showWebScheduleRail ? (
+        <TodayScheduleRail
+          items={todayAgendaItems}
+          colors={colors}
+          mode={mode}
+          nowTime={nowTime}
+          onOpenSession={handleOpenSessionFromRail}
+          onOpenAttendance={handleOpenAttendanceFromRail}
+        />
+      ) : null}
+
+      </View>
 
 
 
@@ -2553,4 +2631,3 @@ export function HomeProfessorScreen({
 export default function HomeProfessor() {
   return <HomeProfessorScreen />;
 }
-

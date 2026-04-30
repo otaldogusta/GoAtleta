@@ -8,6 +8,7 @@ import { LocationBadge } from "../../../ui/LocationBadge";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { getUnitPalette } from "../../../ui/unit-colors";
+import { webShellTokens } from "../../../ui/web-shell-tokens";
 
 type AgendaCardItem = {
   classId: string;
@@ -53,10 +54,11 @@ export const AgendaCard = memo(function AgendaCard({
   markRender("screen.home.render.agendaCard", { classId: item.classId, index });
 
   const handlePress = useCallback(() => onCardPress(index), [index, onCardPress]);
-  const badgeLabel = useMemo(() => item.timeLabel, [item.timeLabel]);
+  const badgeLabel = useMemo(() => label || item.timeLabel, [item.timeLabel, label]);
   const isCompactCard = agendaCardWidth <= 260;
   const isVeryCompactCard = agendaCardWidth <= 200;
   const isWebCard = Platform.OS === "web";
+  const showTimeLabel = Boolean(item.timeLabel && item.timeLabel !== badgeLabel);
 
   const containerStyle = useMemo(
     () => [
@@ -109,8 +111,8 @@ export const AgendaCard = memo(function AgendaCard({
                 styles.statusBadge,
                 isCompactCard ? styles.statusBadgeCompact : null,
                 {
-                  backgroundColor: mode === "dark" ? colors.secondaryBg : colors.primaryBg,
-                  borderColor: isActive ? activeBorderColor : colors.border,
+                  backgroundColor: isActive ? webShellTokens.primary : webShellTokens.surfaceSoft,
+                  borderColor: isActive ? webShellTokens.primary : webShellTokens.border,
                   opacity: isPast ? 0.72 : 1,
                 },
               ]}
@@ -124,12 +126,7 @@ export const AgendaCard = memo(function AgendaCard({
                       ? styles.statusBadgeTextCompact
                       : null,
                   {
-                    color:
-                      mode === "dark"
-                        ? colors.text
-                        : isActive
-                          ? colors.primaryText
-                          : colors.primaryText,
+                    color: isActive ? "#FFFFFF" : webShellTokens.text,
                   },
                 ]}
                 numberOfLines={1}
@@ -144,8 +141,8 @@ export const AgendaCard = memo(function AgendaCard({
               isCompactCard ? styles.innerCardCompact : null,
               isWebCard ? styles.innerCardWeb : null,
               {
-                backgroundColor: colors.card,
-                borderColor: isActive ? activeBorderColor : colors.border,
+                backgroundColor: webShellTokens.surface,
+                borderColor: isActive ? webShellTokens.primary : webShellTokens.border,
                 opacity: isPast ? 0.6 : 1,
               },
             ]}
@@ -157,13 +154,18 @@ export const AgendaCard = memo(function AgendaCard({
                 isWebCard ? styles.webOpticalShift : null,
               ]}
             >
-              <View style={styles.headerRow}>
+              <View style={[styles.headerRow, showTimeLabel ? styles.headerRowWithTime : null]}>
                 <Text
                   style={[styles.dateText, isCompactCard ? styles.dateTextCompact : null, { color: colors.muted }]}
                   numberOfLines={1}
                 >
                   {item.dateLabel}
                 </Text>
+                {showTimeLabel ? (
+                  <Text style={[styles.timeLabel, { color: colors.muted }]} numberOfLines={1}>
+                    {item.timeLabel}
+                  </Text>
+                ) : null}
               </View>
 
               <View style={[styles.classRow, isCompactCard ? styles.classRowCompact : null]}>
@@ -287,6 +289,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: "100%",
     marginBottom: 1,
+  },
+  headerRowWithTime: {
+    justifyContent: "space-between",
+  },
+  timeLabel: {
+    fontSize: 12,
+    flexShrink: 1,
+    textAlign: "right",
   },
   dateText: {
     fontSize: 12,
