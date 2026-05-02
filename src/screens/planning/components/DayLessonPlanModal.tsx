@@ -247,26 +247,6 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
             </Pressable>
             <Pressable
               onPress={() => {
-                void handleRegenerate();
-              }}
-              disabled={isRegenerating || !onRegenerate}
-              style={{
-                flex: 1,
-                alignItems: "center",
-                paddingVertical: 13,
-                borderRadius: 14,
-                backgroundColor: "rgba(255,255,255,0.04)",
-                borderWidth: 1,
-                borderColor: isRegenerating ? "rgba(239, 68, 68, 0.28)" : "rgba(239, 68, 68, 0.55)",
-                opacity: onRegenerate ? 1 : 0.5,
-              }}
-            >
-              <Text style={{ color: "#ef4444", fontWeight: "800" }}>
-                {isRegenerating ? "Gerando..." : "Gerar novamente"}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
                 void handleSave();
               }}
               disabled={!hasChanges || isSaving}
@@ -478,6 +458,29 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
                 )}
               </View>
             </View>
+
+            <Pressable
+              onPress={() => {
+                void handleRegenerate();
+              }}
+              disabled={isRegenerating || !onRegenerate}
+              style={{
+                alignSelf: isCompact ? "stretch" : "center",
+                minWidth: isCompact ? undefined : 280,
+                alignItems: "center",
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 14,
+                backgroundColor: "rgba(239, 68, 68, 0.06)",
+                borderWidth: 1,
+                borderColor: isRegenerating ? "rgba(239, 68, 68, 0.28)" : "rgba(239, 68, 68, 0.55)",
+                opacity: onRegenerate ? 1 : 0.5,
+              }}
+            >
+              <Text style={{ color: "#ef4444", fontWeight: "800" }}>
+                {isRegenerating ? "Gerando..." : "Gerar novamente"}
+              </Text>
+            </Pressable>
           </View>
         </KeyboardAvoidingView>
       </ModalDialogFrame>
