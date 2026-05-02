@@ -15,6 +15,7 @@ type Props = {
   subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
+  headerAddon?: ReactNode;
   position?: "bottom" | "center";
   contentContainerStyle?: object;
   bodyStyle?: object;
@@ -30,6 +31,7 @@ export function ModalDialogFrame({
   subtitle,
   children,
   footer,
+  headerAddon,
   position = "center",
   contentContainerStyle,
   bodyStyle,
@@ -43,21 +45,24 @@ export function ModalDialogFrame({
             <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>{title}</Text>
             {subtitle ? <Text style={{ color: colors.muted, fontSize: 12 }}>{subtitle}</Text> : null}
           </View>
-          <Pressable
-            onPress={onClose}
-            style={{
-              height: 32,
-              width: 32,
-              borderRadius: 16,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Ionicons name="close" size={18} color={colors.text} />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {headerAddon}
+            <Pressable
+              onPress={onClose}
+              style={{
+                height: 32,
+                width: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Ionicons name="close" size={18} color={colors.text} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={[{ flex: 1, minHeight: 0 }, bodyStyle]}>
