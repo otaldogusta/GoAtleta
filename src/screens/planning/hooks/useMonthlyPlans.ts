@@ -78,18 +78,32 @@ const dedupeWeeklyPlans = (plans: ClassPlan[]) => {
   return [...byWeek.values()].sort((a, b) => a.weekNumber - b.weekNumber);
 };
 
-const buildWeeklyItems = (plans: ClassPlan[], selectedClass: ClassGroup | null): WeeklyPlanningItem[] => {
+const buildPlanSessions = (plan: ClassPlan, selectedClass: ClassGroup | null) => {
   const daysOfWeek = selectedClass?.daysOfWeek ?? [];
   const weeklySessions = selectedClass?.daysPerWeek || daysOfWeek.length;
 
+  return buildWeekSessionPreview({
+    startDate: plan.startDate,
+    daysOfWeek,
+    weeklySessions,
+  });
+};
+
+const planHasSessionInMonth = (plan: ClassPlan, selectedClass: ClassGroup | null, monthKey: string) => {
+  const sessions = buildPlanSessions(plan, selectedClass);
+  if (sessions.length > 0) {
+    return sessions.some((session) => toMonthKey(session.date) === monthKey);
+  }
+  return toMonthKey(plan.startDate) === monthKey;
+};
+
+const buildWeeklyItems = (plans: ClassPlan[], selectedClass: ClassGroup | null, monthKey: string): WeeklyPlanningItem[] => {
   return plans
     .sort((a, b) => a.weekNumber - b.weekNumber)
     .map((plan) => {
-      const sessions = buildWeekSessionPreview({
-        startDate: plan.startDate,
-        daysOfWeek,
-        weeklySessions,
-      });
+      const allSessions = buildPlanSessions(plan, selectedClass);
+      const sessions =
+        allSessions.length > 0 ? allSessions.filter((session) => toMonthKey(session.date) === monthKey) : allSessions;
       const weekStartLabel = sessions[0]?.dateLabel ?? formatDatePt(plan.startDate);
       const weekEndLabel = sessions[sessions.length - 1]?.dateLabel ?? formatDatePt(plan.startDate);
 
@@ -150,7 +164,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setActiveCycle(activeCycle);
       setClassPlans(scopedPlans);
 
-      const monthPlans = scopedPlans.filter((plan) => toMonthKey(plan.startDate) === monthKey);
+      const monthPlans = scopedPlans.filter((plan) => planHasSessionInMonth(plan, cls, monthKey));
       const weekIds = monthPlans.map((plan) => plan.id);
       const dailyPlans = await listDailyLessonPlansByWeekIds(weekIds);
       const mapped: DailyLessonPlanLookup = {};
@@ -170,13 +184,13 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
   }, [load]);
 
   const monthPlans = useMemo(
-    () => classPlans.filter((plan) => toMonthKey(plan.startDate) === monthKey),
-    [classPlans, monthKey]
+    () => classPlans.filter((plan) => planHasSessionInMonth(plan, selectedClass, monthKey)),
+    [classPlans, monthKey, selectedClass]
   );
 
   const weeklyItems = useMemo(
-    () => buildWeeklyItems(monthPlans, selectedClass),
-    [monthPlans, selectedClass]
+    () => buildWeeklyItems(monthPlans, selectedClass, monthKey),
+    [monthPlans, selectedClass, monthKey]
   );
 
   return {
