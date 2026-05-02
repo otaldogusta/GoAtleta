@@ -4,9 +4,12 @@ import type { ClassGroup, ClassPlan, DailyLessonPlan, PlanningCycle } from "../.
 import { ensureActiveCycleForYear, getActivePlanningCycle } from "../../../db/cycles";
 import { getClassById, getClassPlansByClass, listDailyLessonPlansByWeekIds } from "../../../db/seed";
 import {
-    buildWeekSessionPreview,
-    type WeekSessionPreview,
-} from "../../periodization/application/build-week-session-preview";
+  buildPlanSessions,
+  filterPlansWithSessionsInMonth,
+  filterSessionsInMonth,
+  toMonthKey,
+} from "../application/monthly-session-filter";
+import type { WeekSessionPreview } from "../../periodization/application/build-week-session-preview";
 
 export type WeeklyPlanningItem = {
   plan: ClassPlan;
@@ -22,12 +25,6 @@ const formatDatePt = (isoDate: string) => {
   const date = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
-};
-
-const toMonthKey = (isoDate: string) => {
-  const date = new Date(`${isoDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 };
 
 const toIsoDate = (value: string | null | undefined) => {
@@ -78,32 +75,12 @@ const dedupeWeeklyPlans = (plans: ClassPlan[]) => {
   return [...byWeek.values()].sort((a, b) => a.weekNumber - b.weekNumber);
 };
 
-const buildPlanSessions = (plan: ClassPlan, selectedClass: ClassGroup | null) => {
-  const daysOfWeek = selectedClass?.daysOfWeek ?? [];
-  const weeklySessions = selectedClass?.daysPerWeek || daysOfWeek.length;
-
-  return buildWeekSessionPreview({
-    startDate: plan.startDate,
-    daysOfWeek,
-    weeklySessions,
-  });
-};
-
-const planHasSessionInMonth = (plan: ClassPlan, selectedClass: ClassGroup | null, monthKey: string) => {
-  const sessions = buildPlanSessions(plan, selectedClass);
-  if (sessions.length > 0) {
-    return sessions.some((session) => toMonthKey(session.date) === monthKey);
-  }
-  return toMonthKey(plan.startDate) === monthKey;
-};
-
 const buildWeeklyItems = (plans: ClassPlan[], selectedClass: ClassGroup | null, monthKey: string): WeeklyPlanningItem[] => {
   return plans
     .sort((a, b) => a.weekNumber - b.weekNumber)
     .map((plan) => {
       const allSessions = buildPlanSessions(plan, selectedClass);
-      const sessions =
-        allSessions.length > 0 ? allSessions.filter((session) => toMonthKey(session.date) === monthKey) : allSessions;
+      const sessions = allSessions.length > 0 ? filterSessionsInMonth(allSessions, monthKey) : allSessions;
       const weekStartLabel = sessions[0]?.dateLabel ?? formatDatePt(plan.startDate);
       const weekEndLabel = sessions[sessions.length - 1]?.dateLabel ?? formatDatePt(plan.startDate);
 
@@ -164,7 +141,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setActiveCycle(activeCycle);
       setClassPlans(scopedPlans);
 
-      const monthPlans = scopedPlans.filter((plan) => planHasSessionInMonth(plan, cls, monthKey));
+      const monthPlans = filterPlansWithSessionsInMonth(scopedPlans, cls, monthKey);
       const weekIds = monthPlans.map((plan) => plan.id);
       const dailyPlans = await listDailyLessonPlansByWeekIds(weekIds);
       const mapped: DailyLessonPlanLookup = {};
@@ -184,7 +161,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
   }, [load]);
 
   const monthPlans = useMemo(
-    () => classPlans.filter((plan) => planHasSessionInMonth(plan, selectedClass, monthKey)),
+    () => filterPlansWithSessionsInMonth(classPlans, selectedClass, monthKey),
     [classPlans, monthKey, selectedClass]
   );
 
