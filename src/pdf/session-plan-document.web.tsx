@@ -129,9 +129,6 @@ const asText = (value: unknown) => sanitizeVolleyballLanguage(toPdfText(value));
 
 const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoachingText(value));
 
-const buildOrderedLines = (rows: string[]) =>
-  rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
-
 const getBlockLabel = (block: SessionPlanPdfData["blocks"][number]) =>
   asText(block?.label || block?.title) || "-";
 
@@ -273,32 +270,42 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             </View>
           </View>
 
-          {blocks.map((block, blockIndex) => {
+          {blocks.flatMap((block, blockIndex) => {
             const period = getBlockLabel(block);
             const time = getBlockTime(block);
             const items = getBlockActivities(block);
-            const activities = buildOrderedLines(
-              items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
-            );
-            const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
-            return (
-              <View key={`${period}-${blockIndex}`} style={styles.row} wrap={false}>
+            const rows = items.length
+              ? items.map((item, itemIndex) => ({
+                  key: `${period}-${blockIndex}-${itemIndex}`,
+                  activity: asCoachingText(item?.name).trim() || "-",
+                  description: asCoachingText(item?.description || item?.notes).trim() || "-",
+                  showPeriod: itemIndex === 0,
+                }))
+              : resolveBlockDescriptionLines(block).map((description, itemIndex) => ({
+                  key: `${period}-${blockIndex}-${itemIndex}`,
+                  activity: "-",
+                  description,
+                  showPeriod: itemIndex === 0,
+                }));
+
+            return rows.map((row) => (
+              <View key={row.key} style={styles.row}>
                 <View style={[styles.cell, styles.periodCell]}>
                   <Text style={styles.text}>
-                    <Text style={styles.strong}>{period}</Text>
+                    <Text style={styles.strong}>{row.showPeriod ? period : ""}</Text>
                   </Text>
                 </View>
                 <View style={[styles.cell, styles.activitiesCell]}>
-                  <Text style={styles.text}>{activities}</Text>
+                  <Text style={styles.text}>{row.activity}</Text>
                 </View>
                 <View style={[styles.cell, styles.timeCell]}>
-                  <Text style={[styles.text, styles.textCenter]}>{time}</Text>
+                  <Text style={[styles.text, styles.textCenter]}>{row.showPeriod ? time : ""}</Text>
                 </View>
                 <View style={[styles.cell, styles.descriptionCell, styles.cellLast]}>
-                  <Text style={styles.text}>{descriptions}</Text>
+                  <Text style={styles.text}>{row.description}</Text>
                 </View>
               </View>
-            );
+            ));
           })}
 
           <View style={[styles.row, styles.rowLast]}>

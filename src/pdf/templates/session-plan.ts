@@ -52,9 +52,6 @@ const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoach
 
 const nl2br = (value: unknown) => esc(asText(value)).replace(/\n/g, "<br/>");
 
-const buildOrderedLines = (rows: string[]) =>
-  rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
-
 const getBlockLabel = (block: SessionBlock) => asText(block?.label || block?.title) || "-";
 
 const getBlockTime = (block: SessionBlock) => {
@@ -102,23 +99,30 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
 
   const blockRowsHtml = blocks
-    .map((block) => {
+    .flatMap((block) => {
       const period = getBlockLabel(block);
       const time = getBlockTime(block);
       const blockItems = getBlockActivities(block);
-      const activities = buildOrderedLines(
-        blockItems.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
-      );
-      const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
+      const rows = blockItems.length
+        ? blockItems.map((item, itemIndex) => ({
+            activity: asCoachingText(item?.name).trim() || "-",
+            description: asCoachingText(item?.description || item?.notes).trim() || "-",
+            showPeriod: itemIndex === 0,
+          }))
+        : resolveBlockDescriptionLines(block).map((description, itemIndex) => ({
+            activity: "-",
+            description,
+            showPeriod: itemIndex === 0,
+          }));
 
-      return `
+      return rows.map((row) => `
       <tr>
-        <td class="period"><strong>${esc(period)}</strong></td>
-        <td class="activities prewrap">${nl2br(activities)}</td>
-        <td class="time">${esc(time)}</td>
-        <td class="description prewrap">${nl2br(descriptions)}</td>
+        <td class="period"><strong>${row.showPeriod ? esc(period) : ""}</strong></td>
+        <td class="activities prewrap">${nl2br(row.activity)}</td>
+        <td class="time">${row.showPeriod ? esc(time) : ""}</td>
+        <td class="description prewrap">${nl2br(row.description)}</td>
       </tr>
-    `;
+    `);
     })
     .join("");
 
