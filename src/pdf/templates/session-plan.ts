@@ -52,6 +52,9 @@ const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoach
 
 const nl2br = (value: unknown) => esc(asText(value)).replace(/\n/g, "<br/>");
 
+const buildOrderedLines = (rows: string[]) =>
+  rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
+
 const getBlockLabel = (block: SessionBlock) => asText(block?.label || block?.title) || "-";
 
 const getBlockTime = (block: SessionBlock) => {
@@ -79,36 +82,6 @@ const resolveBlockDescriptionLines = (block: SessionBlock) => {
   return blockSummary ? [blockSummary] : [];
 };
 
-const extractSectionValue = (text: string, label: string, nextLabels: string[]) => {
-  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const escapedNext = nextLabels.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-  const pattern = new RegExp(`${escapedLabel}:\\s*([\\s\\S]*?)(?=\\n(?:${escapedNext}):|$)`, "i");
-  return text.match(pattern)?.[1]?.trim() ?? "";
-};
-
-const parseActivitySections = (description: string) => {
-  const labels = [
-    "Organização",
-    "Desenvolvimento",
-    "Comandos do professor",
-    "Critério de sucesso",
-    "Progressão",
-    "Adaptação",
-    "Perguntas",
-  ];
-  return {
-    organization: extractSectionValue(description, "Organização", labels),
-    development: extractSectionValue(description, "Desenvolvimento", labels),
-    criteria: extractSectionValue(description, "Critério de sucesso", labels),
-    progression: [
-      extractSectionValue(description, "Progressão", labels),
-      extractSectionValue(description, "Adaptação", labels),
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  };
-};
-
 export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const objective = asCoachingText(data?.objective);
   const generalObjective = asCoachingText(data?.generalObjective);
@@ -129,43 +102,23 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
 
   const blockRowsHtml = blocks
-    .flatMap((block) => {
+    .map((block) => {
       const period = getBlockLabel(block);
       const time = getBlockTime(block);
       const blockItems = getBlockActivities(block);
-      const rows = blockItems.length
-        ? blockItems.map((item, itemIndex) => {
-            const description = asCoachingText(item?.description || item?.notes).trim();
-            const sections = parseActivitySections(description);
-            return {
-              activity: asCoachingText(item?.name).trim() || "-",
-              organization: sections.organization || "-",
-              development: sections.development || description || "-",
-              criteria: sections.criteria || "-",
-              progression: sections.progression || "-",
-              showPeriod: itemIndex === 0,
-            };
-          })
-        : resolveBlockDescriptionLines(block).map((description, itemIndex) => ({
-            activity: "-",
-            organization: "-",
-            development: description,
-            criteria: "-",
-            progression: "-",
-            showPeriod: itemIndex === 0,
-          }));
+      const activities = buildOrderedLines(
+        blockItems.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
+      );
+      const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
 
-      return rows.map((row) => `
+      return `
       <tr>
-        <td class="period"><strong>${row.showPeriod ? esc(period) : ""}</strong></td>
-        <td class="activities prewrap">${nl2br(row.activity)}</td>
-        <td class="time">${row.showPeriod ? esc(time) : ""}</td>
-        <td class="organization prewrap">${nl2br(row.organization)}</td>
-        <td class="development prewrap">${nl2br(row.development)}</td>
-        <td class="criteria prewrap">${nl2br(row.criteria)}</td>
-        <td class="progression prewrap">${nl2br(row.progression)}</td>
+        <td class="period"><strong>${esc(period)}</strong></td>
+        <td class="activities prewrap">${nl2br(activities)}</td>
+        <td class="time">${esc(time)}</td>
+        <td class="description prewrap">${nl2br(descriptions)}</td>
       </tr>
-    `);
+    `;
     })
     .join("");
 
@@ -223,11 +176,11 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 9px;
+          font-size: 11px;
         }
         td, th {
           border: 1px solid #111;
-          padding: 7px;
+          padding: 9px;
           vertical-align: top;
           hyphens: none;
         }
@@ -243,30 +196,21 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
           line-height: 1.4;
         }
         .period {
-          width: 12%;
+          width: 16%;
           font-size: 11px;
         }
         .activities {
-          width: 17%;
+          width: 24%;
         }
         .time {
-          width: 8%;
+          width: 12%;
           text-align: center;
           font-weight: 700;
           white-space: nowrap;
           word-break: keep-all;
         }
-        .organization {
-          width: 16%;
-        }
-        .development {
-          width: 22%;
-        }
-        .criteria {
-          width: 12%;
-        }
-        .progression {
-          width: 13%;
+        .description {
+          width: 48%;
         }
         .notes-label {
           width: 20%;
@@ -317,34 +261,31 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
 
       <table>
         <tr>
-          <td colspan="7"><strong>Tema/Atividade:</strong> ${esc(title || "")}</td>
+          <td colspan="4"><strong>Tema/Atividade:</strong> ${esc(title || "")}</td>
         </tr>
         ${
           resolvedGeneralObjective
-            ? `<tr><td colspan="7"><strong>Objetivo geral:</strong> ${esc(resolvedGeneralObjective)}</td></tr>`
+            ? `<tr><td colspan="4"><strong>Objetivo geral:</strong> ${esc(resolvedGeneralObjective)}</td></tr>`
             : ""
         }
         ${
           resolvedSpecificObjective
-            ? `<tr><td colspan="7"><strong>Objetivo específico:</strong> ${esc(resolvedSpecificObjective)}</td></tr>`
+            ? `<tr><td colspan="4"><strong>Objetivo específico:</strong> ${esc(resolvedSpecificObjective)}</td></tr>`
             : ""
         }
         <tr>
-          <td colspan="7"><strong>Tempo total:</strong> ${esc(asText(data?.totalTime) || "")}</td>
+          <td colspan="4"><strong>Tempo total:</strong> ${esc(asText(data?.totalTime) || "")}</td>
         </tr>
         <tr>
           <th>Per\u00edodo</th>
           <th>Atividades</th>
           <th>Tempo</th>
-          <th>Organiza\u00e7\u00e3o</th>
-          <th>Desenvolvimento</th>
-          <th>Crit\u00e9rio</th>
-          <th>Progress\u00e3o/Adapta\u00e7\u00e3o</th>
+          <th>Descri\u00e7\u00e3o</th>
         </tr>
         ${blockRowsHtml}
         <tr>
           <td class="notes-label">Observa\u00e7\u00f5es:</td>
-          <td colspan="6" class="notes-value prewrap">${nl2br(notes || "-")}</td>
+          <td colspan="3" class="notes-value prewrap">${nl2br(notes || "-")}</td>
         </tr>
       </table>
 
