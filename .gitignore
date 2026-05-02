@@ -28,6 +28,7 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 .codex-expo-*.log
+.codex/
 
 # macOS
 .DS_Store
