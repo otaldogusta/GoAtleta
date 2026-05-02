@@ -416,6 +416,7 @@ export function CyclePlanTable({
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
                 {weekPlans.map((week, weekIdx) => {
                   const isActive = week.week === selectedWeekNumber;
+                  const isCurrent = week.week === currentWeek;
                   const isPast = week.week < currentWeek;
                   const monthWeekNumber = monthWeekNumbers[weekIdx] ?? week.week;
                   return (
@@ -432,16 +433,16 @@ export function CyclePlanTable({
                         alignItems: "center",
                         justifyContent: "center",
                         gap: 3,
-                        backgroundColor: colors.secondaryBg,
+                        backgroundColor: isActive ? colors.inputBg : colors.secondaryBg,
                         borderWidth: 1,
-                        borderColor: colors.border,
+                        borderColor: isActive ? colors.text : colors.border,
                         opacity: isPast ? 0.45 : 1,
                       }}
                     >
                       <Text style={{ color: colors.text, fontSize: 11, fontWeight: isActive ? "700" : "400" }}>
                         {`${monthWeekNumber}`}
                       </Text>
-                      {isActive ? (
+                      {isCurrent ? (
                         <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.text }} />
                       ) : (
                         <View style={{ width: 4, height: 4 }} />
