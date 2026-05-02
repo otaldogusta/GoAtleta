@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { DailyLessonPlan, LessonBlock } from "../../../core/models";
 import { useAppTheme } from "../../../ui/app-theme";
@@ -41,7 +41,14 @@ const buildSnapshot = (payload: { title: string; blocks: LessonBlock[]; observat
 
 export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, onRegenerate, onExportPdf, onSave }: Props) {
   const { colors } = useAppTheme();
-  const modalCardStyle = useModalCardStyle({ maxWidth: 760, maxHeight: "92%", radius: 18 });
+  const { width } = useWindowDimensions();
+  const isCompact = width < 720;
+  const modalCardStyle = useModalCardStyle({
+    maxWidth: 760,
+    maxHeight: Platform.OS === "web" ? "90vh" : "92%",
+    radius: isCompact ? 0 : 18,
+    fullWidth: isCompact,
+  });
   const [title, setTitle] = useState("");
   const [blocks, setBlocks] = useState<LessonBlock[]>([]);
   const [observations, setObservations] = useState("");
@@ -162,7 +169,12 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
         contentContainerStyle={{
           gap: 10,
           paddingTop: 12,
-          paddingBottom: 24,
+          paddingBottom: 112,
+        }}
+        bodyStyle={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
         }}
         footerStyle={{
           paddingTop: 10,
@@ -230,7 +242,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
               />
             </View>
 
-            <LessonBlocksEditor blocks={blocks} onChange={setBlocks} maxHeight={420} />
+            <LessonBlocksEditor blocks={blocks} onChange={setBlocks} maxHeight={isCompact ? 300 : 360} />
 
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Observações</Text>
