@@ -130,7 +130,6 @@ export function FabRadialMenu({
 
   return (
     <View
-      pointerEvents={visible ? "box-none" : "none"}
       style={{
         position: "absolute",
         left: 0,
@@ -138,6 +137,7 @@ export function FabRadialMenu({
         bottom: anchorBottom,
         height: 220,
         zIndex: 4200,
+        pointerEvents: visible ? "box-none" : "none",
       }}
     >
       <View style={{ width: "100%", height: 220 }}>

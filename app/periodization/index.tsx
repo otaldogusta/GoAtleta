@@ -3779,16 +3779,6 @@ export default function PeriodizationScreen() {
 
           }}
 
-          pointerEvents={
-
-            showUnitPicker || showClassPicker || showMesoPicker || showMicroPicker
-
-              ? "auto"
-
-              : "none"
-
-          }
-
           style={{
 
             position: "absolute",
@@ -3802,6 +3792,10 @@ export default function PeriodizationScreen() {
             left: 0,
 
             zIndex: 0,
+            pointerEvents:
+              showUnitPicker || showClassPicker || showMesoPicker || showMicroPicker
+                ? "auto"
+                : "none",
 
           }}
 

@@ -54,7 +54,6 @@ export function TrainingFabMenu({
 
   return (
     <View
-      pointerEvents="box-none"
       style={{
         position: "absolute",
         top: 0,
@@ -62,6 +61,7 @@ export function TrainingFabMenu({
         bottom: 0,
         left: 0,
         zIndex: 3190,
+        pointerEvents: "box-none",
       }}
     >
       <Pressable

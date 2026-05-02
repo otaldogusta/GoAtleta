@@ -80,7 +80,7 @@ export function CollapsibleSection({
       </Pressable>
 
       {isVisible ? (
-        <Animated.View style={animatedStyle} pointerEvents={expanded ? "auto" : "none"}>
+        <Animated.View style={[animatedStyle, { pointerEvents: expanded ? "auto" : "none" }]}>
           <View style={contentContainerStyle}>{children}</View>
         </Animated.View>
       ) : null}

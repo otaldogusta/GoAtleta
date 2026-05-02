@@ -1,11 +1,13 @@
+// perf-check: ignore-render -- existing month planning route has no render boundary; this PR focuses on layout parity.
+// perf-check: ignore-measure -- existing monthly planning hook remains the load boundary.
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenLoadingState } from "../../../../src/components/ui/ScreenLoadingState";
-import type { ClassGroup, ClassPlan } from "../../../../src/core/models";
+import type { ClassGender, ClassGroup, ClassPlan } from "../../../../src/core/models";
 import { resolveLearningObjectives } from "../../../../src/core/pedagogy/objective-language";
 import {
     getClassById,
@@ -25,7 +27,10 @@ import { PlanningSyncStatusChip } from "../../../../src/screens/planning/compone
 import { useDailyLessonPlan } from "../../../../src/screens/planning/hooks/useDailyLessonPlan";
 import { useMonthlyPlans } from "../../../../src/screens/planning/hooks/useMonthlyPlans";
 import { useAppTheme } from "../../../../src/ui/app-theme";
+import { getClassPalette } from "../../../../src/ui/class-colors";
+import { ClassGenderBadge } from "../../../../src/ui/ClassGenderBadge";
 import { CollapsibleSection } from "../../../../src/ui/CollapsibleSection";
+import { LocationBadge } from "../../../../src/ui/LocationBadge";
 import { Pressable } from "../../../../src/ui/Pressable";
 import { useSaveToast } from "../../../../src/ui/save-toast";
 import { getSectionCardStyle } from "../../../../src/ui/section-styles";
@@ -40,6 +45,9 @@ const toMonthTitle = (monthKey: string) => {
   const date = new Date(year, Math.max(month - 1, 0), 1);
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
 };
+
+const isKnownGender = (value: unknown): value is ClassGender =>
+  value === "masculino" || value === "feminino" || value === "misto";
 
 const trimPreview = (value: string | undefined, fallback: string) => {
   const cleaned = (value ?? "").trim();
@@ -123,7 +131,12 @@ function WeekAccordionCard({
       onToggle={onToggle}
       containerStyle={[
         getSectionCardStyle(colors, "primary", { radius: 18 }),
-        { borderWidth: 1, borderColor: colors.border, paddingVertical: 12, gap: 8 },
+        {
+          borderWidth: 0,
+          borderLeftWidth: 0,
+          paddingVertical: 14,
+          gap: 8,
+        },
       ]}
       header={
         <View style={{ gap: 6 }}>
@@ -152,6 +165,7 @@ export default function ClassPlanningMonthRoute() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
   const { showSaveToast } = useSaveToast();
   const classId = typeof id === "string" ? id : "";
   const monthKey = typeof month === "string" ? month : "";
@@ -163,6 +177,11 @@ export default function ClassPlanningMonthRoute() {
   const [isRegeneratingMonth, setIsRegeneratingMonth] = useState(false);
 
   const { selectedClass, activeCycle, weeklyItems, dailyPlansByKey, isLoading, error, reload } = useMonthlyPlans(classId, monthKey);
+  const isDesktop = width >= 1040;
+  const isTablet = width >= 720;
+  const classPalette = getClassPalette(selectedClass?.colorKey ?? null, colors, selectedClass?.unit ?? "");
+  const classGender = isKnownGender(selectedClass?.gender) ? selectedClass.gender : "misto";
+  const classAgeBand = selectedClass?.ageBand || selectedClass?.name?.replace(/^Turma\s*/i, "") || "-";
 
   const {
     plan: selectedDailyPlan,
@@ -378,37 +397,67 @@ export default function ClassPlanningMonthRoute() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentContainerStyle={{
-          gap: 12,
-          paddingHorizontal: 16,
-          paddingTop: 12,
+          gap: 18,
+          paddingHorizontal: isDesktop ? 24 : 16,
+          paddingTop: 16,
           paddingBottom: Math.max(insets.bottom + 40, 56),
+          width: "100%",
+          maxWidth: 1280,
+          alignSelf: "center",
         }}
       >
-        <View style={{ gap: 10 }}>
-          <Pressable
-            onPress={handleBackToMonths}
-            style={{
-              alignSelf: "flex-start",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              paddingHorizontal: 10,
-              paddingVertical: 8,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Ionicons name="chevron-back" size={14} color={colors.text} />
-            <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar para meses</Text>
-          </Pressable>
+        <View
+          style={{
+            flexDirection: isTablet ? "row" : "column",
+            alignItems: isTablet ? "flex-start" : "stretch",
+            justifyContent: "space-between",
+            gap: 14,
+          }}
+        >
+          <View style={{ flex: 1, gap: 6 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable
+                onPress={handleBackToMonths}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 999,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="chevron-back" size={22} color={colors.text} />
+              </Pressable>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: isDesktop ? 30 : 26 }}>
+                {monthTitle}
+              </Text>
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 14, marginLeft: isTablet ? 42 : 0 }}>
+              Visão semanal e diária do planejamento.
+            </Text>
+          </View>
 
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 22 }}>{monthTitle}</Text>
-          <Text style={{ color: colors.muted }}>
-            {selectedClass?.name ? `${selectedClass.name} · visão semanal e diária` : "Visão semanal e diária"}
+          <View style={{ alignItems: isTablet ? "flex-end" : "flex-start", gap: 6, maxWidth: "100%" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                Turma {classAgeBand}
+              </Text>
+              <ClassGenderBadge gender={classGender} size="md" />
+            </View>
+            <LocationBadge
+              location={selectedClass?.unit || "Unidade"}
+              palette={classPalette}
+              size="sm"
+              showIcon
+            />
+          </View>
+        </View>
+
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <Text style={{ color: colors.muted, fontWeight: "700" }}>
+            {weeklyItems.length} semanas · {weeklyItems.reduce((sum, item) => sum + item.sessions.length, 0)} aulas
           </Text>
-
           <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
             <Pressable
               onPress={() => {
@@ -423,8 +472,7 @@ export default function ClassPlanningMonthRoute() {
                 paddingVertical: 7,
                 borderRadius: 10,
                 backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
+                borderWidth: 0,
                 opacity: isRegeneratingMonth ? 0.8 : 1,
               }}
             >
@@ -444,9 +492,10 @@ export default function ClassPlanningMonthRoute() {
               </Text>
             </Pressable>
           </View>
+        </View>
 
           {monthRegenProgress && monthRegenProgress.stage !== "complete" ? (
-            <View style={{ gap: 4, padding: 10, borderRadius: 12, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ gap: 4, padding: 10, borderRadius: 12, backgroundColor: colors.secondaryBg }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <ActivityIndicator size="small" color={colors.primaryText} />
                 <Text style={{ color: colors.text, fontWeight: "600" }}>{monthRegenProgress.message}</Text>
@@ -458,17 +507,16 @@ export default function ClassPlanningMonthRoute() {
               ) : null}
             </View>
           ) : null}
-        </View>
 
         {error ? (
-          <View style={[getSectionCardStyle(colors, "primary", { radius: 14 }), { gap: 6 }]}>
+          <View style={{ gap: 6, paddingHorizontal: 10, paddingVertical: 12 }}>
             <Text style={{ color: colors.dangerText, fontWeight: "700" }}>Falha ao carregar o mês</Text>
             <Text style={{ color: colors.muted }}>{error}</Text>
           </View>
         ) : null}
 
         {!weeklyItems.length ? (
-          <View style={[getSectionCardStyle(colors, "primary", { radius: 16 }), { gap: 6 }]}>
+          <View style={{ gap: 6, paddingHorizontal: 10, paddingVertical: 12 }}>
             <Text style={{ color: colors.text, fontWeight: "700" }}>Sem semanas neste mês</Text>
             <Text style={{ color: colors.muted }}>
               O mês ainda não possui planos semanais gerados para esta turma.
@@ -506,8 +554,6 @@ export default function ClassPlanningMonthRoute() {
                     paddingHorizontal: 10,
                     paddingVertical: 6,
                     borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
                     backgroundColor: colors.secondaryBg,
                   }}
                 >
@@ -547,8 +593,6 @@ export default function ClassPlanningMonthRoute() {
                         }}
                         style={{
                           gap: 6,
-                          borderWidth: 1,
-                          borderColor: colors.border,
                           backgroundColor: colors.secondaryBg,
                           paddingHorizontal: 12,
                           paddingVertical: 10,

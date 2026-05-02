@@ -1253,12 +1253,12 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     />
 
       <View
-        pointerEvents="box-none"
         style={{
           position: "absolute",
           right: isCompact ? 14 : 18,
           bottom: embedded ? 16 : 24,
           alignItems: "flex-end",
+          pointerEvents: "box-none",
         }}
       >
         <Pressable

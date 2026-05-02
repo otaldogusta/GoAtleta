@@ -179,16 +179,22 @@ export function ModalSheet({
         flex: 1,
         zIndex: overlayZIndex,
         elevation: overlayZIndex,
+        pointerEvents: visible ? "auto" : "none",
         ...(Platform.OS === "web"
           ? { position: "fixed", top: 0, right: 0, bottom: 0, left: 0 }
           : null),
       }}
-      pointerEvents={visible ? "auto" : "none"}
     >
       <RawPressable
-        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          pointerEvents: visible ? "auto" : "none",
+        }}
         onPress={onClose}
-        pointerEvents={visible ? "auto" : "none"}
       >
         <Animated.View
           style={{
@@ -201,10 +207,9 @@ export function ModalSheet({
       <View
         style={
           isCenter
-            ? { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }
-            : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
+            ? { flex: 1, alignItems: "center", justifyContent: "center", padding: 16, pointerEvents: "box-none" }
+            : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset, pointerEvents: "box-none" }
         }
-        pointerEvents="box-none"
       >
         <Animated.View
           style={[

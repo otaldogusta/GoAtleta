@@ -18,7 +18,7 @@ export function ScreenBackdrop({ variant = "default" }: ScreenBackdropProps) {
         ? [colors.background, colors.card, colors.secondaryBg]
         : [colors.background, colors.card, colors.secondaryBg];
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
       <LinearGradient
         colors={gradientColors as [string, string, string]}
         style={StyleSheet.absoluteFill}

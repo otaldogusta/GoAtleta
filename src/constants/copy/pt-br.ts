@@ -61,8 +61,8 @@ export const ptBR = {
       optionalNote: "Observação (opcional)",
       saveFinalDecision: "Salvar decisão final",
     },
-    viewSuggestionLogic: "Ver lógica da sugestão",
-    hideSuggestionLogic: "Ocultar lógica da sugestão",
+    viewSuggestionLogic: "Ver justificativa pedagógica",
+    hideSuggestionLogic: "Ocultar justificativa pedagógica",
     objective: "Objetivo da aula",
     applyManualAdjustment: "Aplicar ajuste manual",
     alerts: {

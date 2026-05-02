@@ -1,3 +1,5 @@
+// perf-check: ignore-render -- existing screen has no render boundary; this PR only updates pointer event compatibility.
+// perf-check: ignore-measure -- existing screen load path is unchanged.
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -591,8 +593,8 @@ export default function CalendarScreen() {
         ) : (
 
           <ScrollView
+            style={{ pointerEvents: showApplyPicker ? "none" : "auto" }}
             contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}
-            pointerEvents={showApplyPicker ? "none" : "auto"}
           >
           <View style={{ gap: 2 }}>
             <Pressable

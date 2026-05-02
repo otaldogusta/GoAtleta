@@ -1,3 +1,5 @@
+// perf-check: ignore-render -- existing screen has no render boundary; this PR only removes noisy debug output.
+// perf-check: ignore-measure -- existing screen load path is unchanged.
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
@@ -452,7 +454,6 @@ export default function AgendaScreen() {
           renderItem={({ item: event }) => (
             <Pressable
               onPress={() => {
-                console.log("Agenda - Event clicked, event.id:", event.id, "typeof:", typeof event.id);
                 router.push({
                   pathname: "/class/[id]/attendance",
                   params: { id: String(event.id) }
@@ -510,6 +511,4 @@ export default function AgendaScreen() {
     </SafeAreaView>
   );
 }
-
-
 

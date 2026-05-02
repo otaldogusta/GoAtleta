@@ -1106,7 +1106,6 @@ export default function NfcAttendanceScreen() {
               {isScanLive ? (
                 <>
                   <Animated.View
-                    pointerEvents="none"
                     style={[
                       {
                         position: "absolute",
@@ -1115,12 +1114,12 @@ export default function NfcAttendanceScreen() {
                         borderRadius: 48,
                         borderWidth: 2,
                         borderColor: colors.primaryBg,
+                        pointerEvents: "none",
                       },
                       pulseAStyle,
                     ]}
                   />
                   <Animated.View
-                    pointerEvents="none"
                     style={[
                       {
                         position: "absolute",
@@ -1129,6 +1128,7 @@ export default function NfcAttendanceScreen() {
                         borderRadius: 48,
                         borderWidth: 2,
                         borderColor: colors.primaryBg,
+                        pointerEvents: "none",
                       },
                       pulseBStyle,
                     ]}

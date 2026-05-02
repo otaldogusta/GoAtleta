@@ -97,7 +97,7 @@ const toMonthSummary = (plans: ClassPlan[], selectedClass: ClassGroup | null): M
     });
   }
 
-  return [...byMonth.values()].sort((a, b) => (a.monthKey < b.monthKey ? 1 : -1));
+  return [...byMonth.values()].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 };
 
 export function useClassPlanning(classId: string) {

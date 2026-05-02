@@ -709,12 +709,19 @@ export function HomeProfessorScreen({
 
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
   const [selectedDateKey, setSelectedDateKey] = useState(todayDateKey);
+  const [didManuallySelectDate, setDidManuallySelectDate] = useState(false);
 
   const nowTime = useMemo(() => now.getTime(), [now]);
 
   useEffect(() => {
     setSelectedDateKey(todayDateKey);
+    setDidManuallySelectDate(false);
   }, [todayDateKey]);
+
+  useEffect(() => {
+    setSelectedDateKey(todayDateKey);
+    setDidManuallySelectDate(false);
+  }, [activeOrganization?.id, todayDateKey]);
 
   const scheduleBaseDate = useMemo(() => {
     const parsed = new Date(todayDateKey + "T00:00:00");
@@ -974,6 +981,17 @@ export function HomeProfessorScreen({
   const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
   const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
+  const homeHeaderTitleColor = isUx2CWebHome ? "#101827" : colors.text;
+  const homeHeaderMutedColor = isUx2CWebHome ? "#667085" : colors.muted;
+  const homeHeaderIconColor = isUx2CWebHome ? "#101827" : colors.text;
+  const homeHeaderNotificationBg = isUx2CWebHome ? "#D7F5E8" : colors.primaryBg;
+  const homeHeaderNotificationIconColor = isUx2CWebHome ? "#1B7A5E" : colors.primaryText;
+  const homeHeaderProfileSurface = isUx2CWebHome ? "#FFFFFF" : inboxPanelSurface;
+  const homeHeaderProfileBorder = isUx2CWebHome ? "rgba(15,23,42,0.10)" : inboxPanelBorder;
+  const homeHeaderAvatarBg = isUx2CWebHome ? "#E5E7EB" : colors.secondaryBg;
+  const homeHeaderBadgeBg = isUx2CWebHome ? "#1B7A5E" : colors.warningBg;
+  const homeHeaderBadgeTextColor = isUx2CWebHome ? "#FFFFFF" : colors.text;
+  const homeHeaderBadgeBorder = isUx2CWebHome ? "#FFFFFF" : "rgba(17, 26, 45, 0.5)";
 
   const agendaCardGap = isWebHome ? 8 : 10;
 
@@ -1242,6 +1260,23 @@ export function HomeProfessorScreen({
     [router, showSaveToast]
   );
 
+  const handleOpenClass = useCallback(
+    (item: HomeScheduleItem | null) => {
+      if (!item) {
+        showSaveToast({ message: "Selecione uma turma na agenda para acessar a turma.", variant: "info" });
+        return;
+      }
+
+      router.push({
+        pathname: "/class/[id]",
+        params: {
+          id: item.classId,
+        },
+      });
+    },
+    [router, showSaveToast]
+  );
+
   const handleOpenAttendance = useCallback(
     (item: HomeScheduleItem | null) => {
       if (!item) {
@@ -1492,6 +1527,31 @@ export function HomeProfessorScreen({
     return days;
   }, [scheduleBaseDate, scheduleWindow, todayDateKey]);
 
+  useEffect(() => {
+    if (didManuallySelectDate || loadingClasses || weekDaySummaries.length === 0) return;
+    const selectedSummary = weekDaySummaries.find((day) => day.dateKey === selectedDateKey);
+    if (selectedSummary && selectedSummary.lessonCount > 0) return;
+
+    const nextDayWithLessons =
+      weekDaySummaries.find((day) => day.dateKey >= todayDateKey && day.lessonCount > 0) ??
+      weekDaySummaries.find((day) => day.lessonCount > 0);
+
+    if (nextDayWithLessons && nextDayWithLessons.dateKey !== selectedDateKey) {
+      setSelectedDateKey(nextDayWithLessons.dateKey);
+    }
+  }, [
+    didManuallySelectDate,
+    loadingClasses,
+    selectedDateKey,
+    todayDateKey,
+    weekDaySummaries,
+  ]);
+
+  const handleSelectWeekDay = useCallback((dateKey: string) => {
+    setDidManuallySelectDate(true);
+    setSelectedDateKey(dateKey);
+  }, []);
+
   const selectedDaySummary = useMemo(
     () => weekDaySummaries.find((day) => day.dateKey === selectedDateKey) ?? weekDaySummaries[0] ?? null,
     [selectedDateKey, weekDaySummaries]
@@ -1558,13 +1618,13 @@ export function HomeProfessorScreen({
 
         <View>
 
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: 26, fontWeight: "800", color: homeHeaderTitleColor }}>
 
             Hoje
 
           </Text>
 
-          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
+          <Text style={{ fontSize: 14, color: homeHeaderMutedColor, marginTop: 4 }}>
 
             {todayLabel}
 
@@ -1587,13 +1647,13 @@ export function HomeProfessorScreen({
 
                 borderRadius: 999,
 
-                backgroundColor: colors.primaryBg,
+                backgroundColor: homeHeaderNotificationBg,
 
               }}
 
             >
 
-              <Ionicons name="notifications-outline" size={18} color={colors.primaryText} />
+              <Ionicons name="notifications-outline" size={18} color={homeHeaderNotificationIconColor} />
 
             </Pressable>
 
@@ -1615,7 +1675,7 @@ export function HomeProfessorScreen({
 
                   borderRadius: 10,
 
-                  backgroundColor: colors.warningBg,
+                  backgroundColor: homeHeaderBadgeBg,
 
                   alignItems: "center",
 
@@ -1625,7 +1685,7 @@ export function HomeProfessorScreen({
 
                   borderWidth: 1,
 
-                  borderColor: "rgba(17, 26, 45, 0.5)",
+                  borderColor: homeHeaderBadgeBorder,
 
                   pointerEvents: "none",
 
@@ -1633,7 +1693,7 @@ export function HomeProfessorScreen({
 
               >
 
-                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "800" }}>
+                <Text style={{ color: homeHeaderBadgeTextColor, fontSize: 10, fontWeight: "800" }}>
 
                   !
 
@@ -1656,9 +1716,9 @@ export function HomeProfessorScreen({
 
               borderRadius: 999,
 
-              backgroundColor: inboxPanelSurface,
+              backgroundColor: homeHeaderProfileSurface,
               borderWidth: 1,
-              borderColor: inboxPanelBorder,
+              borderColor: homeHeaderProfileBorder,
               alignItems: "center",
 
               justifyContent: "center",
@@ -1687,7 +1747,7 @@ export function HomeProfessorScreen({
 
                 borderRadius: 999,
 
-                backgroundColor: colors.secondaryBg,
+                backgroundColor: homeHeaderAvatarBg,
 
                 alignItems: "center",
 
@@ -1696,7 +1756,7 @@ export function HomeProfessorScreen({
 
             >
 
-              <Ionicons name="person" size={22} color={colors.text} />
+              <Ionicons name="person" size={22} color={homeHeaderIconColor} />
 
               { profilePhotoUri ? (
 
@@ -1870,7 +1930,7 @@ export function HomeProfessorScreen({
                 selectedDateKey={selectedDateKey}
                 colors={colors}
                 compact={isUx2CCompact}
-                onSelect={setSelectedDateKey}
+                onSelect={handleSelectWeekDay}
               />
 
               <View
@@ -1891,6 +1951,7 @@ export function HomeProfessorScreen({
                     canOpenClassesShortcut={canOpenClassesShortcut}
                     canOpenStudentsShortcut={canOpenStudentsShortcut}
                     canSeeCoordination={canSeeCoordination}
+                    forceLightSurface
                   />
                 </Suspense>
               </View>
@@ -1904,7 +1965,7 @@ export function HomeProfessorScreen({
               totalDurationMinutes={selectedDaySummary?.durationMinutes ?? 0}
               compact={isUx2CCompact}
               width={ux2CRailWidth}
-              onOpenLesson={handleOpenLesson}
+              onOpenLesson={handleOpenClass}
               onOpenAttendance={handleOpenAttendance}
             />
           </View>

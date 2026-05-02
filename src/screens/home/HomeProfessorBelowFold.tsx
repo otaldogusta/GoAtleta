@@ -13,6 +13,7 @@ type HomeProfessorBelowFoldProps = {
   canOpenClassesShortcut: boolean;
   canOpenStudentsShortcut: boolean;
   canSeeCoordination: boolean;
+  forceLightSurface?: boolean;
 };
 
 type ShortcutCardProps = {
@@ -20,12 +21,17 @@ type ShortcutCardProps = {
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
+  forceLightSurface?: boolean;
 };
 
-function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) {
+function ShortcutCard({ label, description, icon, onPress, forceLightSurface = false }: ShortcutCardProps) {
   const { colors, mode } = useAppTheme();
   const isAndroidLight = Platform.OS === "android" && mode === "light";
   const isWeb = Platform.OS === "web";
+  const textColor = forceLightSurface ? "#101827" : colors.text;
+  const mutedColor = forceLightSurface ? "#667085" : colors.muted;
+  const iconBg = forceLightSurface ? "#F8FAFC" : colors.secondaryBg;
+  const iconBorder = forceLightSurface ? "rgba(15,23,42,0.10)" : colors.border;
 
   const shortcutCardSurfaceStyle = isAndroidLight
     ? ({
@@ -37,6 +43,18 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
         shadowRadius: 0,
         shadowOffset: { width: 0, height: 0 },
         elevation: 0,
+      } as const)
+    : forceLightSurface
+    ? ({
+        backgroundColor: "#FFFFFF",
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(15,23,42,0.08)",
+        shadowColor: "#0F172A",
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 1,
       } as const)
     : ({
         backgroundColor: mode === "dark" ? "rgba(255,255,255,0.04)" : colors.secondaryBg,
@@ -66,20 +84,20 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
             width: isWeb ? 30 : 34,
             height: isWeb ? 30 : 34,
             borderRadius: 999,
-            backgroundColor: colors.secondaryBg,
+            backgroundColor: iconBg,
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            borderColor: colors.border,
+            borderColor: iconBorder,
           }}
         >
-          <Ionicons name={icon} size={isWeb ? 15 : 17} color={colors.text} />
+          <Ionicons name={icon} size={isWeb ? 15 : 17} color={textColor} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: "700", color: colors.text }} numberOfLines={1}>
+          <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: "700", color: textColor }} numberOfLines={1}>
             {label}
           </Text>
-          <Text style={{ color: colors.muted, marginTop: 2, fontSize: isWeb ? 12 : 14 }} numberOfLines={1}>
+          <Text style={{ color: mutedColor, marginTop: 2, fontSize: isWeb ? 12 : 14 }} numberOfLines={1}>
             {description}
           </Text>
         </View>
@@ -92,13 +110,15 @@ function HomeProfessorBelowFoldBase({
   canOpenClassesShortcut,
   canOpenStudentsShortcut,
   canSeeCoordination,
+  forceLightSurface = false,
 }: HomeProfessorBelowFoldProps) {
   const { colors } = useAppTheme();
+  const titleColor = forceLightSurface ? "#101827" : colors.text;
   const router = useRouter();
 
   return (
     <View style={{ gap: 10 }}>
-      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
+      <Text style={{ fontSize: 16, fontWeight: "700", color: titleColor }}>Atalhos</Text>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
         <ShortcutCard
@@ -106,6 +126,7 @@ function HomeProfessorBelowFoldBase({
           description="Modelos e planejamentos"
           icon="clipboard-outline"
           onPress={() => router.push("/prof/planning")}
+          forceLightSurface={forceLightSurface}
         />
 
         {canOpenClassesShortcut ? (
@@ -114,6 +135,7 @@ function HomeProfessorBelowFoldBase({
             description="Cadastros e lista"
             icon="people-outline"
             onPress={() => router.push("/prof/classes")}
+            forceLightSurface={forceLightSurface}
           />
         ) : null}
 
@@ -123,6 +145,7 @@ function HomeProfessorBelowFoldBase({
             description="Lista e chamada"
             icon="school-outline"
             onPress={() => router.push("/prof/students")}
+            forceLightSurface={forceLightSurface}
           />
         ) : null}
 
@@ -131,6 +154,7 @@ function HomeProfessorBelowFoldBase({
           description="Aulas e chamada"
           icon="calendar-outline"
           onPress={() => router.push("/prof/calendar")}
+          forceLightSurface={forceLightSurface}
         />
 
         {canSeeCoordination ? (
@@ -139,6 +163,7 @@ function HomeProfessorBelowFoldBase({
             description="Dashboard e gerenciar membros"
             icon="analytics-outline"
             onPress={() => router.push("/coord/management")}
+            forceLightSurface={forceLightSurface}
           />
         ) : null}
 
@@ -147,6 +172,7 @@ function HomeProfessorBelowFoldBase({
           description="Alunos ausentes"
           icon="notifications-outline"
           onPress={() => router.push("/prof/absence-notices")}
+          forceLightSurface={forceLightSurface}
         />
 
         <ShortcutCard
@@ -154,6 +180,7 @@ function HomeProfessorBelowFoldBase({
           description="Registrar por UID"
           icon="radio-outline"
           onPress={() => router.push("/prof/nfc-attendance")}
+          forceLightSurface={forceLightSurface}
         />
 
         <ShortcutCard
@@ -161,6 +188,7 @@ function HomeProfessorBelowFoldBase({
           description="Biblioteca com vídeos"
           icon="fitness-outline"
           onPress={() => router.push("/prof/exercises")}
+          forceLightSurface={forceLightSurface}
         />
 
         <ShortcutCard
@@ -168,6 +196,7 @@ function HomeProfessorBelowFoldBase({
           description="Ciclos e cargas"
           icon="trending-up-outline"
           onPress={() => router.push("/prof/periodization")}
+          forceLightSurface={forceLightSurface}
         />
       </View>
     </View>

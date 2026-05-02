@@ -131,7 +131,6 @@ export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollP
         ? fadeSteps.map((step, index) => (
             <View
               key={`fade-left-${index}`}
-              pointerEvents="none"
               style={{
                 position: "absolute",
                 left: index * stepWidth,
@@ -140,6 +139,7 @@ export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollP
                 width: stepWidth + 0.5,
                 backgroundColor: step.color,
                 opacity: step.opacity,
+                pointerEvents: "none",
               }}
             />
           ))
@@ -148,7 +148,6 @@ export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollP
         ? fadeSteps.map((step, index) => (
             <View
               key={`fade-right-${index}`}
-              pointerEvents="none"
               style={{
                 position: "absolute",
                 right: index * stepWidth,
@@ -157,6 +156,7 @@ export const FadeHorizontalScroll = forwardRef<ScrollView, FadeHorizontalScrollP
                 width: stepWidth + 0.5,
                 backgroundColor: step.color,
                 opacity: step.opacity,
+                pointerEvents: "none",
               }}
             />
           ))

@@ -76,12 +76,12 @@ export const AgendaCard = memo(function AgendaCard({
     <View style={containerStyle}>
       {showDivider ? (
         <View
-          pointerEvents="none"
           style={[
             styles.divider,
             {
               left: -Math.max(4, Math.round(agendaCardGap / 2)),
               backgroundColor: colors.border,
+              pointerEvents: "none",
             },
           ]}
         />
@@ -103,8 +103,11 @@ export const AgendaCard = memo(function AgendaCard({
           ]}
         >
           <View
-            pointerEvents="none"
-            style={[styles.statusBadgeSlot, Platform.OS === "web" ? styles.webOpticalShift : null]}
+            style={[
+              styles.statusBadgeSlot,
+              Platform.OS === "web" ? styles.webOpticalShift : null,
+              { pointerEvents: "none" },
+            ]}
           >
             <View
               style={[

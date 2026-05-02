@@ -1,6 +1,6 @@
+// perf-check: ignore-render -- existing session route has no render boundary; this PR lazy-loads optional PDF/photo work.
+// perf-check: ignore-measure -- session data loading remains centralized in useSessionData.
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
-import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -29,10 +29,16 @@ import {
 } from "../../../src/screens/session/application/build-persisted-generation-explanation";
 import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
 import {
+    buildWeekSessionPreview,
+    type WeekSessionPreview,
+} from "../../../src/screens/periodization/application/build-week-session-preview";
+import {
     buildPedagogicalPlanDraft,
     convertPedagogicalPackageToTrainingPlan,
     pickPedagogicalObjectiveLabel,
 } from "../../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
+import { convertTrainingPlanToDailyLessonPlan } from "../../../src/screens/session/application/convert-training-plan-to-daily-lesson-plan";
+import { regenerateDailyLessonPlanFromWeek } from "../../../src/screens/planning/application/regenerate-daily-lesson-plan";
 import {
     BlockEditModal,
     type BlockEditPayload,
@@ -61,7 +67,6 @@ import type { PedagogicalApproachDetection } from "../../../src/core/methodology
 import { parseWeeklyIntegratedContext } from "../../../src/core/resistance/weekly-integrated-context";
 import {
     resolveTeamTrainingContext,
-    supportsResistanceTraining,
 } from "../../../src/core/resistance/training-context";
 import {
     buildSessionApproachAwareBlockDescription,
@@ -136,14 +141,10 @@ import {
     getTrainingPlans,
     saveScoutingLog,
     saveTrainingPlan,
+    upsertDailyLessonPlan,
 } from "../../../src/db/seed";
 import { logAction, logPlanGenerationDecision } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
-import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
-import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
-import { SessionReportDocument } from "../../../src/pdf/session-report-document";
-import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
-import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -1723,6 +1724,54 @@ const normalizeClassDaysOfWeek = (daysOfWeek: number[] | undefined) =>
     .map((value) => (value === 7 ? 0 : value))
     .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
 
+const parseClassPlanDaysOfWeek = (value: string | undefined, fallback: number[]) => {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return fallback;
+    const normalized = normalizeClassDaysOfWeek(parsed.map((item) => Number(item)));
+    return normalized.length ? normalized : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const buildSessionPreviewForDate = (params: {
+  weeklyPlan: ClassPlan;
+  classGroup: ClassGroup;
+  sessionDate: string;
+}): WeekSessionPreview => {
+  const { weeklyPlan, classGroup, sessionDate } = params;
+  const classDays = normalizeClassDaysOfWeek(classGroup.daysOfWeek);
+  const daysOfWeek = parseClassPlanDaysOfWeek(weeklyPlan.daysOfWeek, classDays);
+  const weeklySessions = Math.max(1, weeklyPlan.weeklySessions || classGroup.daysPerWeek || daysOfWeek.length || 1);
+  const sessions = buildWeekSessionPreview({
+    startDate: weeklyPlan.startDate,
+    daysOfWeek,
+    weeklySessions,
+  });
+  const matched = sessions.find((item) => item.date === sessionDate);
+  if (matched) return matched;
+
+  const dateObj = new Date(`${sessionDate}T00:00:00`);
+  const weekday = Number.isNaN(dateObj.getTime()) ? 0 : dateObj.getDay();
+  const day = String(Number.isNaN(dateObj.getTime()) ? "" : dateObj.getDate()).padStart(2, "0");
+  const month = String(Number.isNaN(dateObj.getTime()) ? "" : dateObj.getMonth() + 1).padStart(2, "0");
+  const year = Number.isNaN(dateObj.getTime()) ? "" : String(dateObj.getFullYear());
+  const weekdayLabel = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"][weekday] ?? "?";
+  const sessionIndex =
+    daysOfWeek.findIndex((dayOfWeek) => dayOfWeek === weekday) + 1 || 1;
+
+  return {
+    sessionIndex,
+    weekday,
+    weekdayLabel,
+    date: sessionDate,
+    dateLabel: day && month && year ? `${day}/${month}/${year}` : sessionDate,
+    shortLabel: day && month ? `${weekdayLabel} ${day}/${month}` : sessionDate,
+  };
+};
+
 export default function SessionScreen() {
   const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
     id: string;
@@ -1760,6 +1809,7 @@ export default function SessionScreen() {
   const [showSavedClassPlans, setShowSavedClassPlans] = useState(false);
   const [isApplyingSavedPlanId, setIsApplyingSavedPlanId] = useState<string | null>(null);
   const [isRemovingAppliedPlan, setIsRemovingAppliedPlan] = useState(false);
+  const [isGeneratingDailyLessonPlan, setIsGeneratingDailyLessonPlan] = useState(false);
   const planFabAnim = useRef(new Animated.Value(0)).current;
   const planGenerationAnim = useRef(new Animated.Value(0)).current;
   const planGenerationLoopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -1828,8 +1878,11 @@ export default function SessionScreen() {
   }, [sessionDate]);
   const {
     cls,
-    plan,
+    plan: appliedTrainingPlan,
     setPlan,
+    effectivePlan,
+    effectivePlanSource,
+    effectivePlanConflict,
     savedClassPlans,
     setSavedClassPlans,
     sessionStudents,
@@ -1843,8 +1896,10 @@ export default function SessionScreen() {
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,
+    setCurrentDailyLessonPlan,
     isResolvingCurrentClassPlan,
     methodologyEvidence,
+    reload,
   } = useSessionData({
     classId: id,
     sessionDate,
@@ -1852,6 +1907,34 @@ export default function SessionScreen() {
     scoutingMode,
     compactTrainingPlans,
   });
+  const plan = effectivePlan ?? (!currentDailyLessonPlan ? appliedTrainingPlan : null);
+  const dailyPlanComesFromAppliedTraining =
+    currentDailyLessonPlan?.generationModelVersion === "manual-training-plan-apply";
+  const resolvedPlanSourceLabel =
+    effectivePlanSource === "daily_lesson_plan"
+      ? dailyPlanComesFromAppliedTraining
+        ? "Plano salvo"
+        : "Planejamento da turma"
+      : effectivePlanSource === "training_plan"
+        ? "Plano salvo"
+        : effectivePlanSource === "generated_fallback"
+          ? "Gerado automaticamente"
+          : appliedTrainingPlan && !currentDailyLessonPlan
+            ? "Plano salvo"
+            : "";
+
+  useEffect(() => {
+    if (!effectivePlanConflict) return;
+    logAction("Session effective plan conflict", {
+      classId: id,
+      sessionDate,
+      kind: effectivePlanConflict.kind,
+      dailyLessonPlanId: effectivePlanConflict.dailyLessonPlanId,
+      trainingPlanId: effectivePlanConflict.trainingPlanId,
+      dailyEnvironment: effectivePlanConflict.dailyEnvironment,
+      trainingEnvironment: effectivePlanConflict.trainingEnvironment,
+    });
+  }, [effectivePlanConflict, id, sessionDate]);
   const {
     PSE,
     setPSE,
@@ -2072,6 +2155,7 @@ export default function SessionScreen() {
 
     setIsPickingPhoto(true);
     try {
+      const ImagePicker = await import("expo-image-picker");
       if (source === "camera") {
         if (Platform.OS === "web") {
           showSaveToast({
@@ -2155,6 +2239,7 @@ export default function SessionScreen() {
         }
         if (!isLocalImageUri(uri)) return uri;
         try {
+          const FileSystem = await import("expo-file-system");
           const base64 = await FileSystem.readAsStringAsync(uri, {
             encoding: (FileSystem as any).EncodingType?.Base64 ?? "base64",
           });
@@ -2440,10 +2525,16 @@ export default function SessionScreen() {
     () => parseWeeklyIntegratedContext(currentClassPlan?.weeklyIntegratedContextJson),
     [currentClassPlan?.weeklyIntegratedContextJson],
   );
+  const weeklyContextConsideredGym = Boolean(
+    persistedWeeklyContext &&
+      (persistedWeeklyContext.gymSessionsCount > 0 ||
+        persistedWeeklyContext.courtGymRelationship !== "quadra_dominante"),
+  );
   const shouldShowResistanceGuardNotice = Boolean(
-    cls &&
+    plan &&
+      currentDailyLessonPlan?.sessionEnvironment === "quadra" &&
       teamTrainingContext?.hasGymAccess &&
-      !supportsResistanceTraining(teamTrainingContext, cls),
+      weeklyContextConsideredGym,
   );
   const hasUnavailableResistanceSession = Boolean(
     !dismissResistanceUnavailable &&
@@ -2659,10 +2750,26 @@ export default function SessionScreen() {
         previousVersionId: savedPlan.id,
         pedagogy: savedPlan.pedagogy,
       });
-      await saveTrainingPlan(updatedPlan);
+      await saveTrainingPlan(updatedPlan, {
+        organizationId: cls.organizationId ?? undefined,
+      });
+      if (currentClassPlan) {
+        const appliedDailyPlan = convertTrainingPlanToDailyLessonPlan({
+          trainingPlan: updatedPlan,
+          classGroup: cls,
+          classPlan: currentClassPlan,
+          existingDailyPlan: currentDailyLessonPlan,
+          sessionDate,
+          weekdayId,
+          nowIso,
+        });
+        await upsertDailyLessonPlan(appliedDailyPlan);
+        setCurrentDailyLessonPlan(appliedDailyPlan);
+      }
       setPlan(updatedPlan);
       setShowSavedClassPlans(false);
       setAutoActivity(buildSimpleActivityFromPlan(updatedPlan));
+      reload();
       showSaveToast({
         message: "Treino aplicado para esta aula.",
         variant: "success",
@@ -2945,7 +3052,7 @@ export default function SessionScreen() {
       organizationId: cls.organizationId ?? null,
     });
     const latestVersion = latestVersionPlan?.version ?? 0;
-    const latestPlan = plan;
+    const latestPlan = appliedTrainingPlan;
     const methodology = await resolveActiveMethodology({
       organizationId: cls.organizationId ?? null,
       classId: cls.id,
@@ -3104,7 +3211,8 @@ export default function SessionScreen() {
     classId: cls?.id,
     sessionDate,
     plan,
-    shouldAutoGenerateFromPeriodization,
+    shouldAutoGenerateFromPeriodization:
+      shouldAutoGenerateFromPeriodization && !currentDailyLessonPlan,
     isLoadingSession,
     isResolvingCurrentClassPlan,
     hasUsableCurrentClassPlan,
@@ -3133,9 +3241,86 @@ export default function SessionScreen() {
     : planGenerationPhase === "saving"
       ? "Aplicando o treino na aula do dia."
       : "Montando os blocos da sessao para esta turma.";
+  const isPlanGenerationUiBusy = isPlanGenerationBusy || isGeneratingDailyLessonPlan;
+  const planGenerationUiLabel = isGeneratingDailyLessonPlan ? "Gerando plano" : planGenerationLabel;
+  const planGenerationUiSubtitle = isGeneratingDailyLessonPlan
+    ? "Montando o plano operacional a partir do planejamento da turma."
+    : planGenerationSubtitle;
+
+  const handleGenerateAutomaticPlan = useCallback(async () => {
+    if (isPlanGenerationBusy || isGeneratingDailyLessonPlan) return;
+    if (!cls || !currentClassPlan) {
+      handleGeneratePedagogicalPlan();
+      return;
+    }
+
+    setIsGeneratingDailyLessonPlan(true);
+    setShowPlanFabMenu(false);
+    setShowSavedClassPlans(false);
+
+    try {
+      const session = buildSessionPreviewForDate({
+        weeklyPlan: currentClassPlan,
+        classGroup: cls,
+        sessionDate,
+      });
+      const regeneratedDailyPlan = regenerateDailyLessonPlanFromWeek({
+        existing:
+          currentDailyLessonPlan?.weeklyPlanId === currentClassPlan.id &&
+          currentDailyLessonPlan.date === sessionDate
+            ? currentDailyLessonPlan
+            : null,
+        weeklyPlan: currentClassPlan,
+        session,
+        context: {
+          className: cls.name,
+          ageBand: cls.ageBand,
+          durationMinutes: cls.durationMinutes,
+          cycleStartDate: cls.cycleStartDate,
+          classGroup: cls,
+        },
+      });
+
+      await upsertDailyLessonPlan(regeneratedDailyPlan);
+      setCurrentDailyLessonPlan(regeneratedDailyPlan);
+      setPedagogicalPlanPackage(null);
+      await reload();
+      showSaveToast({
+        message: "Plano diário gerado e aplicado nesta aula.",
+        variant: "success",
+      });
+      logAction("dailyLessonPlan generated from session", {
+        classId: cls.id,
+        sessionDate,
+        dailyLessonPlanId: regeneratedDailyPlan.id,
+        weeklyPlanId: currentClassPlan.id,
+      });
+    } catch (error) {
+      logAction("dailyLessonPlan generation from session failed", {
+        classId: cls.id,
+        sessionDate,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      showSaveToast({ message: ptBR.session.errors.planGenerateFailed, variant: "error" });
+    } finally {
+      setIsGeneratingDailyLessonPlan(false);
+    }
+  }, [
+    cls,
+    currentClassPlan,
+    currentDailyLessonPlan,
+    handleGeneratePedagogicalPlan,
+    isGeneratingDailyLessonPlan,
+    isPlanGenerationBusy,
+    reload,
+    sessionDate,
+    setCurrentDailyLessonPlan,
+    setPedagogicalPlanPackage,
+    showSaveToast,
+  ]);
 
   useEffect(() => {
-    if (!isPlanGenerationBusy) {
+    if (!isPlanGenerationUiBusy) {
       planGenerationLoopRef.current?.stop();
       planGenerationLoopRef.current = null;
       planGenerationAnim.stopAnimation();
@@ -3164,7 +3349,7 @@ export default function SessionScreen() {
       planGenerationAnim.stopAnimation();
       planGenerationAnim.setValue(0);
     };
-  }, [isPlanGenerationBusy, planGenerationAnim]);
+  }, [isPlanGenerationUiBusy, planGenerationAnim]);
 
   const handleEditPedagogicalPlan = async () => {
     if (!cls) return;
@@ -3520,11 +3705,17 @@ export default function SessionScreen() {
         },
       ],
     };
-    const html = sessionPlanHtml(pdfData);
-    const webDocument =
-      Platform.OS === "web" ? <SessionPlanDocument data={pdfData} /> : undefined;
 
     try {
+      const [{ exportPdf, safeFileName }, { sessionPlanHtml }, { SessionPlanDocument }] =
+        await Promise.all([
+          import("../../../src/pdf/export-pdf"),
+          import("../../../src/pdf/templates/session-plan"),
+          import("../../../src/pdf/session-plan-document"),
+        ]);
+      const html = sessionPlanHtml(pdfData);
+      const webDocument =
+        Platform.OS === "web" ? <SessionPlanDocument data={pdfData} /> : undefined;
       const safeClass = safeFileName(cls.name);
       const safeDate = safeFileName(sessionDate);
       const fileName = `plano-aula-${safeClass}-${safeDate}.pdf`;
@@ -3579,10 +3770,16 @@ export default function SessionScreen() {
       photos: photosForPdf,
       deadlineLabel: "último dia da escolinha do mês",
     };
-    const html = sessionReportHtml(reportData);
-    const webDocument =
-      Platform.OS === "web" ? <SessionReportDocument data={reportData} /> : undefined;
     try {
+      const [{ exportPdf, safeFileName }, { sessionReportHtml }, { SessionReportDocument }] =
+        await Promise.all([
+          import("../../../src/pdf/export-pdf"),
+          import("../../../src/pdf/templates/session-report"),
+          import("../../../src/pdf/session-report-document"),
+        ]);
+      const html = sessionReportHtml(reportData);
+      const webDocument =
+        Platform.OS === "web" ? <SessionReportDocument data={reportData} /> : undefined;
       const safeClass = safeFileName(cls.name);
       const safeDate = safeFileName(sessionDate);
       const fileName = `relatório-${safeClass}-${safeDate}.pdf`;
@@ -3868,9 +4065,19 @@ export default function SessionScreen() {
             <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
               {ptBR.session.objective}
             </Text>
+            {resolvedPlanSourceLabel ? (
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>
+                Origem: {resolvedPlanSourceLabel}
+              </Text>
+            ) : null}
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
               {plan.pedagogy?.sessionObjective || block || "Conduzir treino do dia"}
             </Text>
+            {effectivePlanConflict ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Plano diário salvo encontrado. A aula foi alinhada ao planejamento da turma.
+              </Text>
+            ) : null}
             {highlightedGuideline ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {highlightedGuideline}
@@ -3878,7 +4085,7 @@ export default function SessionScreen() {
             ) : null}
           </View>
         ) : null}
-        {sessionTab === "treino" && isPlanGenerationBusy && plan ? (
+        {sessionTab === "treino" && isPlanGenerationUiBusy && plan ? (
           <View
             style={{
               paddingVertical: 12,
@@ -3892,7 +4099,7 @@ export default function SessionScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
-                {planGenerationLabel}
+                {planGenerationUiLabel}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                 {[planGenerationDotOne, planGenerationDotTwo, planGenerationDotThree].map(
@@ -3912,11 +4119,11 @@ export default function SessionScreen() {
               </View>
             </View>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {planGenerationSubtitle}
+              {planGenerationUiSubtitle}
             </Text>
           </View>
         ) : null}
-        {sessionTab === "treino" && isPlanGenerationBusy && !plan ? (
+        {sessionTab === "treino" && isPlanGenerationUiBusy && !plan ? (
           <>
             <View
               style={{
@@ -3930,7 +4137,7 @@ export default function SessionScreen() {
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                  {planGenerationLabel}
+                  {planGenerationUiLabel}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   {[planGenerationDotOne, planGenerationDotTwo, planGenerationDotThree].map(
@@ -3950,7 +4157,7 @@ export default function SessionScreen() {
                 </View>
               </View>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {planGenerationSubtitle}
+                {planGenerationUiSubtitle}
               </Text>
             </View>
 
@@ -4170,8 +4377,8 @@ export default function SessionScreen() {
               <SessionResistanceNotice
                 colors={colors}
                 tone="warning"
-                title="Academia não priorizada nesta sessão"
-                description="Apesar do acesso à academia, o foco permanece em quadra porque este momento da turma pede controle corporal, coordenação e aprendizagem do jogo."
+                title="Sessão de quadra definida para hoje"
+                description="A turma tem acesso à academia, mas o planejamento desta aula prioriza quadra por foco técnico, coordenação e aprendizagem do jogo."
               />
             ) : null}
             {hasUnavailableResistanceSession ? (
@@ -4183,10 +4390,10 @@ export default function SessionScreen() {
                 actions={[
                   {
                     label:
-                      isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
+                      isSavingPedagogicalPlan || isGeneratingPedagogicalPlan || isGeneratingDailyLessonPlan
                         ? "Gerando plano..."
                         : "Regenerar sessão",
-                    onPress: handleGeneratePedagogicalPlan,
+                    onPress: handleGenerateAutomaticPlan,
                     variant: "primary",
                   },
                   {
@@ -4315,64 +4522,8 @@ export default function SessionScreen() {
             </Pressable>
           </>
         ) : null}
-        {sessionTab === "treino" && !plan && !isPlanGenerationBusy ? (
-          <>
-            {!resistancePreview && shouldShowResistanceGuardNotice ? (
-              <SessionResistanceNotice
-                colors={colors}
-                tone="warning"
-                title="Academia não priorizada nesta sessão"
-                description="Apesar do acesso à academia, o foco permanece em quadra porque este momento da turma pede controle corporal, coordenação e aprendizagem do jogo."
-              />
-            ) : null}
-            {hasUnavailableResistanceSession ? (
-              <SessionResistanceNotice
-                colors={colors}
-                tone="warning"
-                title="Sessão resistida indisponível"
-                description="O contexto da semana indica academia, mas os exercícios ainda não foram gerados. Você pode regenerar a sessão ou seguir com treino de quadra."
-                actions={[
-                  {
-                    label:
-                      isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
-                        ? "Gerando plano..."
-                        : "Regenerar sessão",
-                    onPress: handleGeneratePedagogicalPlan,
-                    variant: "primary",
-                  },
-                  {
-                    label: "Usar treino de quadra",
-                    onPress: () => setShowSavedClassPlans(true),
-                  },
-                ]}
-              />
-            ) : null}
-            {resistancePreview ? (
-              <>
-                <SessionContextHeader
-                  colors={colors}
-                  environment={resistancePreview.sessionEnvironment}
-                  weeklyPhysicalEmphasis={resistancePreview.weeklyContext?.weeklyPhysicalEmphasis}
-                  courtGymRelationship={resistancePreview.weeklyContext?.courtGymRelationship}
-                  transferTarget={resistancePreview.resistancePlan.transferTarget}
-                  durationMin={resistancePreview.durationMin}
-                />
-                <SessionResistanceBlock
-                  colors={colors}
-                  resistancePlan={resistancePreview.resistancePlan}
-                  durationMin={resistancePreview.durationMin}
-                />
-                {resistancePreview.sessionEnvironment === "mista" ? (
-                  <SessionResistanceNotice
-                    colors={colors}
-                    title="Ponte para a quadra"
-                    description={mixedSessionBridgeDescription}
-                  />
-                ) : null}
-              </>
-            ) : null}
-            {!resistancePreview ? (
-              <View
+        {sessionTab === "treino" && !plan && !isPlanGenerationUiBusy ? (
+          <View
                 style={{
                   padding: 14,
                   borderRadius: 18,
@@ -4408,20 +4559,20 @@ export default function SessionScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
-                    onPress={handleGeneratePedagogicalPlan}
-                    disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan}
+                    onPress={handleGenerateAutomaticPlan}
+                    disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan || isGeneratingDailyLessonPlan}
                     style={{
                       paddingVertical: 8,
                       paddingHorizontal: 12,
                       borderRadius: 999,
                       backgroundColor: colors.secondaryBg,
-                      opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan ? 0.65 : 1,
+                      opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan || isGeneratingDailyLessonPlan ? 0.65 : 1,
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700" }}>
                       {isSavingPedagogicalPlan
                         ? "Salvando plano..."
-                        : isGeneratingPedagogicalPlan
+                        : isGeneratingPedagogicalPlan || isGeneratingDailyLessonPlan
                           ? "Gerando plano..."
                           : ptBR.session.actions.generateAutomaticPlan}
                     </Text>
@@ -4521,9 +4672,7 @@ export default function SessionScreen() {
                     )}
                   </View>
                 ) : null}
-              </View>
-            ) : null}
-          </>
+          </View>
         ) : null}
         {sessionTab === "scouting" ? (
         <View

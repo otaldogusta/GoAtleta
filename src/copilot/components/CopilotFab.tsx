@@ -25,21 +25,21 @@ export const CopilotFab = memo(function CopilotFab({
   useRenderDiagnostic("CopilotFab", { showPulse, fabBottomOffset, primaryBgColor, hasHintMessage: Boolean(hintMessage) });
   return (
     <View
-      pointerEvents="box-none"
       style={[
         styles.fabWrapper,
         {
           bottom: fabBottomOffset,
+          pointerEvents: "box-none",
         },
       ]}
     >
       {showPulse ? (
         <View
-          pointerEvents="none"
           style={{
             position: "absolute",
             bottom: 76,
             maxWidth: 220,
+            pointerEvents: "none",
             borderRadius: 999,
             backgroundColor: "rgba(17,17,17,0.92)",
             paddingHorizontal: 10,
@@ -53,10 +53,10 @@ export const CopilotFab = memo(function CopilotFab({
       ) : null}
       {showPulse ? (
         <Animated.View
-          pointerEvents="none"
           style={[
             styles.fabPulseRing,
             {
+              pointerEvents: "none",
               borderColor: primaryBgColor,
               opacity: pulseAnim.interpolate({
                 inputRange: [0, 1],

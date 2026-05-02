@@ -91,12 +91,12 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
     >
       {width > 0 ? (
         <Animated.View
-          pointerEvents="none"
           style={{
             position: "absolute",
             top: -6,
             bottom: -6,
             width: shimmerWidth,
+            pointerEvents: "none",
             backgroundColor: sheenColor,
             opacity: 0.18,
             transform: [{ translateX }],

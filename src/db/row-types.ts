@@ -259,6 +259,8 @@ export type ClassPlanRow = {
   ruleset?: string | null;
   jump_target?: string | null;
   rpe_target?: string | null;
+  generation_context_snapshot_json?: string | null;
+  weekly_integrated_context_json?: string | null;
   source: string;
   created_at?: string | null;
   updated_at?: string | null;

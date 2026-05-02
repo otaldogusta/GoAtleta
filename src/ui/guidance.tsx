@@ -126,13 +126,13 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
             />
           ) : null}
           <View
-            pointerEvents="box-none"
             style={{
               position: "absolute",
               right: 12,
               bottom: 72,
               alignItems: "flex-end",
               zIndex: 20,
+              pointerEvents: "box-none",
             }}
           >
             {open ? (
@@ -251,12 +251,12 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
               }}
             >
               <Animated.View
-                pointerEvents="none"
                 style={{
                   position: "absolute",
                   width: 56,
                   height: 56,
                   borderRadius: 28,
+                  pointerEvents: "none",
                   backgroundColor: colors.primaryBg,
                   opacity: pulse.interpolate({
                     inputRange: [0, 1],

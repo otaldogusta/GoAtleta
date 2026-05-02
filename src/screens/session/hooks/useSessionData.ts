@@ -12,6 +12,11 @@ import type {
 } from "../../../core/models";
 import type { SessionMethodologyEvidence } from "../../../core/methodology/session-pedagogical-panel-language";
 import {
+  resolveSessionEffectivePlan,
+  type SessionEffectivePlanSource,
+  type SessionPlanConflict,
+} from "../application/resolve-session-effective-plan";
+import {
   getAttendanceByDate,
   getClassById,
   getClassPlansByClass,
@@ -93,6 +98,11 @@ export function useSessionData({
   const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
   const [currentDailyLessonPlan, setCurrentDailyLessonPlan] =
     useState<DailyLessonPlan | null>(null);
+  const [effectivePlan, setEffectivePlan] = useState<TrainingPlan | null>(null);
+  const [effectivePlanSource, setEffectivePlanSource] =
+    useState<SessionEffectivePlanSource>("none");
+  const [effectivePlanConflict, setEffectivePlanConflict] =
+    useState<SessionPlanConflict | null>(null);
   const [isResolvingCurrentClassPlan, setIsResolvingCurrentClassPlan] = useState(false);
   const [methodologyEvidence, setMethodologyEvidence] =
     useState<SessionMethodologyEvidence | null>(null);
@@ -230,6 +240,48 @@ export function useSessionData({
   useEffect(() => {
     let cancelled = false;
 
+    const resolveEffectivePlan = async () => {
+      if (!cls) {
+        setEffectivePlan(null);
+        setEffectivePlanSource("none");
+        setEffectivePlanConflict(null);
+        return;
+      }
+
+      const result = await resolveSessionEffectivePlan({
+        classGroup: cls,
+        sessionDate,
+        weekdayId,
+        currentTrainingPlan: plan,
+        currentClassPlan,
+        currentDailyLessonPlan,
+        studentsCount: sessionStudents.length,
+      });
+
+      if (cancelled) return;
+      setEffectivePlan(result.plan);
+      setEffectivePlanSource(result.source);
+      setEffectivePlanConflict(result.conflict);
+    };
+
+    void resolveEffectivePlan();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cls,
+    currentClassPlan,
+    currentDailyLessonPlan,
+    plan,
+    sessionDate,
+    sessionStudents.length,
+    weekdayId,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const loadMethodologyEvidence = async () => {
       const methodology = plan?.pedagogy?.methodology;
       const kbRuleKey = methodology?.kbRuleKey?.trim();
@@ -324,6 +376,9 @@ export function useSessionData({
     setCls,
     plan,
     setPlan,
+    effectivePlan,
+    effectivePlanSource,
+    effectivePlanConflict,
     savedClassPlans,
     setSavedClassPlans,
     sessionStudents,

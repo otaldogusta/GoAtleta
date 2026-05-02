@@ -118,7 +118,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                       }}
                     >
                       <Text style={{ color: "#101827", fontSize: compact ? 11 : 12, fontWeight: "800" }}>
-                        Ver aula
+                        Acessar turma
                       </Text>
                       <Ionicons name="arrow-forward" size={17} color="#101827" />
                     </Pressable>

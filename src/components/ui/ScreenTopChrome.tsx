@@ -24,11 +24,10 @@ export function ScreenTopChrome({
     <View style={[{ backgroundColor: colors.background }, style]}>
       <View style={contentStyle}>{children}</View>
       <LinearGradient
-        pointerEvents="none"
         colors={[colors.background, "rgba(0,0,0,0)"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={{ height: fadeHeight }}
+        style={{ height: fadeHeight, pointerEvents: "none" }}
       />
     </View>
   );

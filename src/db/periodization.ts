@@ -34,6 +34,30 @@ const isCycleIdColumnError = (error: unknown) => {
   return normalized.includes("cycle_id") || normalized.includes("cycleid");
 };
 
+const isAdvancedContextColumnError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("generation_context_snapshot_json") ||
+    normalized.includes("weekly_integrated_context_json")
+  );
+};
+
+const stripAdvancedContextColumns = <T extends Record<string, unknown>>(payload: T) => {
+  const {
+    generation_context_snapshot_json: _ignoredGenerationContext,
+    weekly_integrated_context_json: _ignoredWeeklyIntegratedContext,
+    ...legacyPayload
+  } = payload;
+  return legacyPayload;
+};
+
+const warnAdvancedContextFallback = () => {
+  console.warn(
+    "[periodization] class_plans advanced context columns unavailable; saving legacy payload."
+  );
+};
+
 const isLegacyUniqueWeekConstraintError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.toLowerCase();
@@ -47,11 +71,27 @@ const postClassPlansPayload = async (payload: Array<Record<string, unknown>>) =>
   try {
     await supabasePost("/class_plans", payload);
   } catch (error) {
+    if (isAdvancedContextColumnError(error)) {
+      warnAdvancedContextFallback();
+      await supabasePost("/class_plans", payload.map(stripAdvancedContextColumns));
+      return;
+    }
     if (!isCycleIdColumnError(error)) throw error;
-    await supabasePost(
-      "/class_plans",
-      payload.map(({ cycle_id: _ignoredCycleId, ...legacyPayload }) => legacyPayload)
-    );
+    try {
+      await supabasePost(
+        "/class_plans",
+        payload.map(({ cycle_id: _ignoredCycleId, ...legacyPayload }) => legacyPayload)
+      );
+    } catch (legacyError) {
+      if (!isAdvancedContextColumnError(legacyError)) throw legacyError;
+      warnAdvancedContextFallback();
+      await supabasePost(
+        "/class_plans",
+        payload.map(({ cycle_id: _ignoredCycleId, ...legacyPayload }) =>
+          stripAdvancedContextColumns(legacyPayload)
+        )
+      );
+    }
   }
 };
 
@@ -144,6 +184,8 @@ export async function getClassPlansByClass(
       warmupProfile: row.warmupprofile ?? "",
       jumpTarget: row.jump_target ?? "",
       rpeTarget: row.rpe_target ?? "",
+      generationContextSnapshotJson: row.generation_context_snapshot_json ?? "",
+      weeklyIntegratedContextJson: row.weekly_integrated_context_json ?? "",
       createdAt: row.created_at ?? row.createdat ?? new Date().toISOString(),
       updatedAt:
         row.updated_at ??
@@ -233,15 +275,28 @@ export async function updateClassPlan(
     organization_id: organizationId ?? undefined,
     jump_target: plan.jumpTarget,
     rpe_target: plan.rpeTarget,
+    generation_context_snapshot_json: plan.generationContextSnapshotJson || null,
+    weekly_integrated_context_json: plan.weeklyIntegratedContextJson || null,
     created_at: plan.createdAt,
     updated_at: plan.updatedAt ?? plan.createdAt,
   };
   try {
     await supabasePatch(path, payload);
   } catch (error) {
+    if (isAdvancedContextColumnError(error)) {
+      warnAdvancedContextFallback();
+      await supabasePatch(path, stripAdvancedContextColumns(payload));
+      return;
+    }
     if (!isCycleIdColumnError(error)) throw error;
     const { cycle_id: _ignoredCycleId, ...legacyPayload } = payload;
-    await supabasePatch(path, legacyPayload);
+    try {
+      await supabasePatch(path, legacyPayload);
+    } catch (legacyError) {
+      if (!isAdvancedContextColumnError(legacyError)) throw legacyError;
+      warnAdvancedContextFallback();
+      await supabasePatch(path, stripAdvancedContextColumns(legacyPayload));
+    }
   }
 }
 
@@ -266,6 +321,8 @@ export async function saveClassPlans(plans: ClassPlan[], options?: { organizatio
     source: plan.source,
     jump_target: plan.jumpTarget,
     rpe_target: plan.rpeTarget,
+    generation_context_snapshot_json: plan.generationContextSnapshotJson || null,
+    weekly_integrated_context_json: plan.weeklyIntegratedContextJson || null,
     created_at: plan.createdAt,
     updated_at: plan.updatedAt ?? plan.createdAt,
   }));

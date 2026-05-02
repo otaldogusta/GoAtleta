@@ -138,7 +138,6 @@ export function SaveToastProvider({
 
   const toastContent = toast ? (
     <Animated.View
-      pointerEvents="box-none"
       style={{
         ...(Platform.OS === "web"
           ? ({ position: "fixed", top: toastTop, right: 0, left: 0 } as const)
@@ -146,6 +145,7 @@ export function SaveToastProvider({
         alignItems: "center",
         zIndex: 50000,
         elevation: 50000,
+        pointerEvents: "box-none",
         opacity: anim,
         transform: [
           {
@@ -209,7 +209,6 @@ export function SaveToastProvider({
 
   const toastOverlay = toastContent ? (
     <View
-      pointerEvents="box-none"
       style={
         Platform.OS === "web"
           ? {
@@ -219,6 +218,7 @@ export function SaveToastProvider({
               bottom: 0,
               left: 0,
               zIndex: 2147483647,
+              pointerEvents: "box-none",
             }
           : {
               position: "absolute",
@@ -228,6 +228,7 @@ export function SaveToastProvider({
               left: 0,
               zIndex: 99999,
               elevation: 99999,
+              pointerEvents: "box-none",
             }
       }
     >
@@ -254,4 +255,3 @@ export function useSaveToast() {
   }
   return context;
 }
-

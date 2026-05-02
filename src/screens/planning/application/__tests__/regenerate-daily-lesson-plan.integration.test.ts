@@ -231,4 +231,70 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(plan.sessionPrimaryComponent).toBe("tecnico_tatico");
     expect(plan.sessionComponents).toBeUndefined();
   });
+
+  it("generates operational court activities for 07-09 reception sessions", () => {
+    const weeklyPlan = {
+      id: "wp-4",
+      classId: "class-4",
+      weekNumber: 2,
+      phase: "Base",
+      generalObjective: "Desenvolver controlar a primeira bola",
+      specificObjective: "Recepção e manchete com alvo",
+      theme: "Controle da primeira bola",
+      technicalFocus: "Manchete e recepção",
+      physicalFocus: "Coordenação",
+      pedagogicalRule: "Direcionar a primeira bola para uma zona combinada",
+      rpeTarget: "PSE 4",
+      jumpTarget: "baixo",
+      warmupProfile: "ativo",
+      constraints: "",
+      generationVersion: 2,
+      generationContextSnapshotJson: JSON.stringify({
+        weeklyOperationalStrategy: {
+          decisions: [
+            {
+              sessionIndexInWeek: 1,
+              sessionRole: "consolidacao_orientada",
+              sessionEnvironment: "quadra",
+              sessionPrimaryComponent: "tecnico_tatico",
+            },
+          ],
+        },
+      }),
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+    } as any;
+
+    const session = {
+      sessionIndex: 1,
+      weekday: 2,
+      weekdayLabel: "Ter",
+      date: "2026-04-21",
+      dateLabel: "21/04/2026",
+      shortLabel: "Ter 21/04",
+    };
+
+    const plan = buildAutoDailyLessonPlan(
+      weeklyPlan,
+      session,
+      "2026-04-20T12:00:00.000Z",
+      null,
+      {
+        className: "Turma 07-09",
+        ageBand: "07-09",
+        durationMinutes: 60,
+      },
+    );
+
+    const blocks = JSON.parse(plan.blocksJson || "[]");
+    expect(plan.observations).toContain("Objetivo da aula: Desenvolver o controle da primeira bola");
+    expect(plan.observations).not.toContain("Desenvolver controlar");
+    expect(blocks.find((block: any) => block.key === "warmup")?.activities?.[0]?.name).toBe("Caça ao alvo com bola");
+    expect(blocks.find((block: any) => block.key === "main")?.activities).toHaveLength(3);
+    expect(plan.mainPart).toContain("Organização: Trios");
+    expect(plan.mainPart).toContain("Comandos do professor:");
+    expect(plan.mainPart).toContain("Critério de sucesso:");
+    expect(plan.mainPart).toContain("Progressão:");
+    expect(plan.mainPart).toContain("Adaptação:");
+  });
 });

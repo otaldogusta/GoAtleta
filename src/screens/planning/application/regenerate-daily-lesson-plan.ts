@@ -2,6 +2,7 @@ import type {
   ClassGroup,
   ClassPlan,
   DailyLessonPlan,
+  LessonBlock,
   SessionComponent,
   SessionEnvironment,
   SessionPrimaryComponent,
@@ -25,7 +26,6 @@ import {
     FORBIDDEN_UI_TERMS,
     sanitizeVolleyballLanguage
 } from "../../../core/pedagogy/volleyball-language-lexicon";
-import { summarizeLessonActivity } from "../../../pdf/summarize-lesson-activity";
 import { getLessonBlockTimes } from "../../../utils/lesson-block-times";
 import type { WeekSessionPreview } from "../../periodization/application/build-week-session-preview";
 import { serializeLessonBlocks } from "./daily-lesson-blocks";
@@ -66,6 +66,12 @@ type PedagogicalDecision = {
 };
 
 type DailySection = "warmup" | "mainPart" | "cooldown" | "observations";
+
+type OperationalActivity = {
+  id: string;
+  name: string;
+  description: string;
+};
 
 type QaResult = {
   score: number;
@@ -566,6 +572,262 @@ const postProcessDailyText = (value: string): string => {
   return sanitizeVolleyballLanguage(text);
 };
 
+const polishLessonObjective = (value: string): string => {
+  let text = postProcessDailyText(value)
+    .replace(/^Objetivo da aula:\s*/i, "")
+    .replace(/^Desenvolver\s+controlar\s+a\s+primeira\s+bola/i, "Desenvolver o controle da primeira bola")
+    .replace(/^Desenvolver\s+controlar\s+/i, "Desenvolver o controle de ")
+    .replace(/^Desenvolver\s+recepcao\b/i, "Desenvolver a recepção")
+    .replace(/^Desenvolver\s+recepção\b/i, "Desenvolver a recepção")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/controle da primeira bola/i.test(text) && !/alvo|zona|sequ[eê]ncia|jogada/i.test(text)) {
+    text =
+      "Desenvolver o controle da primeira bola, direcionando a recepção para um alvo definido e dando sequência à jogada em situações simples de leitura do jogo.";
+  }
+
+  return ensureSentenceEnding(text);
+};
+
+const formatActivityDescription = (sections: {
+  organization: string;
+  development: string;
+  coachCommands?: string[];
+  successCriteria?: string;
+  progression?: string;
+  easier?: string;
+  harder?: string;
+  questions?: string[];
+}) => {
+  const lines = [
+    `Organização: ${sections.organization}`,
+    `Desenvolvimento: ${sections.development}`,
+    sections.coachCommands?.length
+      ? `Comandos do professor: ${sections.coachCommands.map((item) => `"${item}"`).join("; ")}`
+      : "",
+    sections.successCriteria ? `Critério de sucesso: ${sections.successCriteria}` : "",
+    sections.progression ? `Progressão: ${sections.progression}` : "",
+    sections.easier || sections.harder
+      ? `Adaptação: ${sections.easier ? `se estiver difícil, ${sections.easier}` : ""}${
+          sections.easier && sections.harder ? "; " : ""
+        }${sections.harder ? `se estiver fácil, ${sections.harder}` : ""}.`
+      : "",
+    sections.questions?.length ? `Perguntas: ${sections.questions.join(" | ")}` : "",
+  ];
+
+  return lines.filter(Boolean).join("\n");
+};
+
+const buildOperationalLessonPlan = (params: {
+  weeklyPlan: ClassPlan;
+  decision: PedagogicalDecision;
+  profile: LanguageProfile;
+  blockTimes: ReturnType<typeof getLessonBlockTimes>;
+  sessionDate: string;
+  canonicalObjective: string;
+}) => {
+  const { weeklyPlan, decision, profile, blockTimes, sessionDate, canonicalObjective } = params;
+  const focusText = normalizeFocus(
+    [weeklyPlan.technicalFocus, weeklyPlan.theme, decision.purpose].filter(Boolean).join(" "),
+    "fundamento da aula"
+  );
+  const normalizedFocus = normalizeForCheck(focusText);
+  const isReceptionFocus = /(recepc|manchete|primeira bola|passe)/.test(normalizedFocus);
+  const objective = isReceptionFocus
+    ? "Desenvolver o controle da primeira bola, orientando a manchete para um alvo definido e estimulando a escolha da melhor resposta após a recepção."
+    : polishLessonObjective(
+        canonicalObjective ||
+          `Desenvolver ${lowerFirst(decision.purpose)}, com organização clara, alvo definido e continuidade da jogada.`
+      );
+  const focusLabel = isReceptionFocus
+    ? "Manchete e recepção com alvo"
+    : normalizeFocus(weeklyPlan.technicalFocus || weeklyPlan.theme, "Foco técnico da aula");
+  const successCriterion = isReceptionFocus
+    ? "Realizar 3 recepções controladas em sequência, direcionando a bola para a zona combinada."
+    : "Cumprir a tarefa combinada em 3 tentativas seguidas, mantendo organização do grupo e controle da bola.";
+
+  const warmupActivity: OperationalActivity = isReceptionFocus
+    ? {
+        id: `warmup_${sessionDate}`,
+        name: "Caça ao alvo com bola",
+        description: formatActivityDescription({
+          organization:
+            profile === "kids_8_11"
+              ? "Duplas com uma bola. Espalhar cones ou arcos pela quadra como alvos próximos."
+              : "Duplas com uma bola, alvos marcados por cones/arcos e troca de função a cada rodada.",
+          development:
+            "Um aluno lança por baixo e o outro recebe de manchete tentando direcionar para o alvo. Depois de 3 tentativas, trocam as funções.",
+          coachCommands: ["Base baixa", "Braços firmes", "Olha a bola antes de escolher o alvo", "Direciona, não só rebate"],
+          successCriteria: "Acertar ou aproximar a bola do alvo em 2 de 3 tentativas.",
+          progression: "Aumentar a distância do alvo ou mudar o alvo após cada acerto.",
+          easier: "aproximar o alvo e permitir lançamento mais alto",
+          harder: "alternar o alvo no comando do professor",
+        }),
+      }
+    : {
+        id: `warmup_${sessionDate}`,
+        name: `Alvo móvel de ${lowerFirst(focusLabel)}`,
+        description: formatActivityDescription({
+          organization: "Duplas ou trios com uma bola, usando corredores curtos da quadra.",
+          development:
+            "A turma aquece com deslocamento leve, troca de bola e alvo simples antes de entrar na tarefa principal.",
+          coachCommands: ["Organiza o corpo antes do toque", "Mira antes de enviar", "Troca a função rápido"],
+          successCriteria: "Manter a troca por 4 ações sem parar a bola.",
+          progression: "Mudar distância, alvo ou direção a cada rodada.",
+          easier: "reduzir a distância e deixar o lançamento mais previsível",
+          harder: "pedir deslocamento antes da ação",
+        }),
+      };
+
+  const mainActivities: OperationalActivity[] = isReceptionFocus
+    ? [
+        {
+          id: `main_${sessionDate}_1`,
+          name: "Recepção com alvo fixo",
+          description: formatActivityDescription({
+            organization: "Trios. Um lança, um recebe e um fica como alvo/levantador.",
+            development:
+              "O lançador envia bolas fáceis e médias. O receptor faz a manchete tentando direcionar para o colega-alvo. A cada 5 bolas, troca a função.",
+            coachCommands: ["Plataforma firme", "Pernas ajudam a bola subir", "Termina apontando para o alvo"],
+            successCriteria: "Conseguir 3 recepções controladas em 5 tentativas.",
+            progression: "Variar a distância do lançamento ou deslocar o alvo um passo para o lado.",
+            easier: "aproximar lançador e alvo",
+            harder: "exigir deslocamento curto antes da recepção",
+          }),
+        },
+        {
+          id: `main_${sessionDate}_2`,
+          name: "Recepção e continuidade",
+          description: formatActivityDescription({
+            organization: "Trios ou quartetos em meia quadra.",
+            development:
+              "Depois da recepção, o grupo precisa dar sequência com segundo toque e envio controlado para uma zona marcada.",
+            coachCommands: ["Não encerra na manchete", "Ajuda o próximo toque", "Chama a bola"],
+            successCriteria: "Receber, levantar/enviar e manter a jogada viva em 3 sequências.",
+            progression: "Adicionar zona de envio ou reduzir o tempo para decidir.",
+            easier: "permitir bola segurada no segundo toque",
+            harder: "pedir envio para zona alternada",
+          }),
+        },
+        {
+          id: `main_${sessionDate}_3`,
+          name: "Mini jogo 2x2 com recepção obrigatória",
+          description: formatActivityDescription({
+            organization: "Jogos curtos em espaço reduzido, com rodízio por tempo.",
+            development:
+              "A equipe só pontua se a primeira bola for controlada e direcionada para o colega antes do envio.",
+            coachCommands: ["Primeira bola organizada", "Escolhe o colega", "Joga no espaço livre"],
+            successCriteria: "Pontuar após recepção controlada e sequência da dupla.",
+            progression: "Trocar o alvo de pontuação a cada rodada.",
+            easier: "permitir saque/lance por baixo",
+            harder: "obrigar três ações antes de enviar",
+          }),
+        },
+      ]
+    : [
+        {
+          id: `main_${sessionDate}_1`,
+          name: `${focusLabel} com alvo definido`,
+          description: formatActivityDescription({
+            organization: "Trios ou grupos pequenos, com um alvo claro por estação.",
+            development:
+              "Um aluno inicia a bola, outro executa o fundamento e o terceiro observa o critério combinado. Trocam a função a cada 5 ações.",
+            coachCommands: ["Prepara antes da bola chegar", "Mira no alvo", "Corrige uma coisa por vez"],
+            successCriteria: successCriterion,
+            progression: "Aumentar distância, mudar alvo ou colocar tomada de decisão simples.",
+            easier: "reduzir distância e tirar pressão de tempo",
+            harder: "incluir deslocamento ou oposição leve",
+          }),
+        },
+        {
+          id: `main_${sessionDate}_2`,
+          name: "Continuidade da jogada",
+          description: formatActivityDescription({
+            organization: "Meia quadra com trios ou quartetos.",
+            development:
+              "O grupo precisa transformar a primeira ação em uma segunda resposta organizada, mantendo a bola viva.",
+            coachCommands: ["Depois do toque, prepara de novo", "Fala com o colega", "Procura a melhor resposta"],
+            successCriteria: "Completar 3 sequências com continuidade.",
+            progression: "Adicionar alvo de envio ou regra de ponto extra.",
+            easier: "permitir lançamento controlado",
+            harder: "reduzir espaço ou tempo de decisão",
+          }),
+        },
+        {
+          id: `main_${sessionDate}_3`,
+          name: "Jogo reduzido com regra do foco",
+          description: formatActivityDescription({
+            organization: "Mini jogos em espaço reduzido, rodadas de 3 a 4 minutos.",
+            development:
+              "A equipe ganha ponto extra quando usa o foco da aula para organizar a jogada antes de enviar a bola.",
+            coachCommands: ["Cumpre a regra antes de pontuar", "Organiza o grupo", "Decide com calma"],
+            successCriteria: "Usar a regra do foco em pelo menos 3 jogadas da rodada.",
+            progression: "Trocar a regra ou o alvo após cada rodada.",
+            easier: "aumentar o espaço e permitir bola mais alta",
+            harder: "reduzir espaço ou exigir comunicação antes da ação",
+          }),
+        },
+      ];
+
+  const cooldownActivity: OperationalActivity = {
+    id: `cooldown_${sessionDate}`,
+    name: "Roda rápida de fechamento",
+    description: formatActivityDescription({
+      organization: "Turma em roda, com bola no centro para indicar quem fala.",
+      development: "Desacelerar, hidratar e fechar com respostas curtas sobre o que funcionou na aula.",
+      questions: isReceptionFocus
+        ? [
+            "O que ajudou a controlar melhor a primeira bola?",
+            "Quando foi melhor direcionar para o colega?",
+            "O que a dupla precisa melhorar na próxima aula?",
+          ]
+        : [
+            "O que ajudou mais no foco de hoje?",
+            "Qual ajuste o grupo precisa repetir na próxima aula?",
+            "O que ficou mais fácil depois da progressão?",
+          ],
+      successCriteria: "Cada grupo aponta uma melhora e um ajuste para a próxima aula.",
+    }),
+  };
+
+  const blocks: LessonBlock[] = [
+    {
+      key: "warmup",
+      label: "Aquecimento",
+      durationMinutes: blockTimes.warmupMinutes,
+      activities: [warmupActivity],
+    },
+    {
+      key: "main",
+      label: "Parte principal",
+      durationMinutes: blockTimes.mainMinutes,
+      activities: mainActivities,
+    },
+    {
+      key: "cooldown",
+      label: "Volta à calma",
+      durationMinutes: blockTimes.cooldownMinutes,
+      activities: [cooldownActivity],
+    },
+  ];
+
+  return {
+    objective,
+    focusLabel,
+    successCriterion,
+    blocks,
+    warmup: warmupActivity.description,
+    mainPart: mainActivities.map((activity) => `${activity.name}\n${activity.description}`).join("\n\n"),
+    cooldown: cooldownActivity.description,
+    observations: [
+      `Objetivo da aula: ${objective}`,
+      `Foco da aula: ${focusLabel}.`,
+      `Critério de sucesso: ${successCriterion}`,
+    ].join("\n"),
+  };
+};
+
 const buildCanonicalSectionText = (params: {
   section: "warmup" | "main" | "cooldown";
   step: NextPedagogicalStep;
@@ -1049,6 +1311,17 @@ export const buildAutoDailyLessonPlan = (
     session,
     nextPedagogicalStep,
   });
+  const canonicalObjective = nextPedagogicalStep
+    ? sanitizeVolleyballLanguage(renderPedagogicalObjective(nextPedagogicalStep))
+    : rendered.observations.replace(/^Objetivo da aula:\s*/i, "");
+  const operationalPlan = buildOperationalLessonPlan({
+    weeklyPlan,
+    decision,
+    profile,
+    blockTimes,
+    sessionDate: session.date,
+    canonicalObjective,
+  });
   const alignmentCheck = checkLessonAlignmentWithPeriodization({
     weeklyPlan: {
       id: weeklyPlan.id,
@@ -1067,10 +1340,10 @@ export const buildAutoDailyLessonPlan = (
     },
     dailyLessonPlan: {
       title: rendered.title,
-      warmup: rendered.warmup,
-      mainPart: rendered.mainPart,
-      cooldown: rendered.cooldown,
-      observations: rendered.observations,
+      warmup: operationalPlan.warmup,
+      mainPart: operationalPlan.mainPart,
+      cooldown: operationalPlan.cooldown,
+      observations: operationalPlan.observations,
       lessonKind: decision.lessonKind,
     },
     nextPedagogicalStep,
@@ -1094,50 +1367,7 @@ export const buildAutoDailyLessonPlan = (
     },
   };
 
-  const blocks = [
-    {
-      key: "warmup" as const,
-      label: "Aquecimento",
-      durationMinutes: blockTimes.warmupMinutes,
-      activities: rendered.warmup
-        ? [
-            {
-              id: `warmup_${session.date}`,
-              name: summarizeLessonActivity(rendered.warmup, "warmup"),
-              description: rendered.warmup,
-            },
-          ]
-        : [],
-    },
-    {
-      key: "main" as const,
-      label: "Parte principal",
-      durationMinutes: blockTimes.mainMinutes,
-      activities: rendered.mainPart
-        ? [
-            {
-              id: `main_${session.date}`,
-              name: summarizeLessonActivity(rendered.mainPart, "main"),
-              description: rendered.mainPart,
-            },
-          ]
-        : [],
-    },
-    {
-      key: "cooldown" as const,
-      label: "Volta à calma",
-      durationMinutes: blockTimes.cooldownMinutes,
-      activities: rendered.cooldown
-        ? [
-            {
-              id: `cooldown_${session.date}`,
-              name: summarizeLessonActivity(rendered.cooldown, "cooldown"),
-              description: rendered.cooldown,
-            },
-          ]
-        : [],
-    },
-  ];
+  const blocks = operationalPlan.blocks;
   const sessionIntegration = resolvePersistedSessionIntegration({
     weeklyPlan,
     session,
@@ -1155,10 +1385,10 @@ export const buildAutoDailyLessonPlan = (
     sessionComponents: sessionIntegration.sessionComponents,
     sessionEnvironment: sessionIntegration.sessionEnvironment,
     sessionPrimaryComponent: sessionIntegration.sessionPrimaryComponent,
-    warmup: rendered.warmup,
-    mainPart: rendered.mainPart,
-    cooldown: rendered.cooldown,
-    observations: rendered.observations,
+    warmup: operationalPlan.warmup,
+    mainPart: operationalPlan.mainPart,
+    cooldown: operationalPlan.cooldown,
+    observations: operationalPlan.observations,
     generationVersion: (existing?.generationVersion ?? 0) + 1,
     derivedFromWeeklyVersion: weeklyPlan.generationVersion ?? 1,
     generationModelVersion: "planning-v2-pedagogical",
