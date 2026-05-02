@@ -59,6 +59,37 @@ describe("buildMonthSegments", () => {
     expect(weekNumbers).toEqual([1, 2, 3, 4, 1, 2, 3, 4]);
   });
 
+  it("assigns a cross-month week to the month of the real class session when schedule is known", () => {
+    const segments = buildMonthSegments({
+      weekCount: 2,
+      cycleStartDate: "2026-04-27",
+      daysOfWeek: [6],
+      weeklySessions: 1,
+    });
+
+    const weekNumbers = buildMonthWeekNumbers({
+      weekCount: 2,
+      cycleStartDate: "2026-04-27",
+      daysOfWeek: [6],
+      weeklySessions: 1,
+    });
+
+    expect(segments).toEqual([{ label: "Mai", length: 2 }]);
+    expect(weekNumbers).toEqual([1, 2]);
+  });
+
+  it("keeps anchor-date behavior when no class schedule is provided", () => {
+    const segments = buildMonthSegments({
+      weekCount: 2,
+      cycleStartDate: "2026-04-27",
+    });
+
+    expect(segments).toEqual([
+      { label: "Abr", length: 1 },
+      { label: "Mai", length: 1 },
+    ]);
+  });
+
   it("keeps week numbers aligned to the cycle even when saved dates are stale", () => {
     const weekNumbers = buildMonthWeekNumbers({
       weekCount: 6,

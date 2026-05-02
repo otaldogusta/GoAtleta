@@ -531,8 +531,9 @@ export default function PeriodizationScreen() {
     classId: string;
     unit: string;
   }>();
+  const initialClassIdParam = typeof initialClassId === "string" ? initialClassId.trim() : "";
   const hasInitialClass =
-    typeof initialClassId === "string" && initialClassId.trim().length > 0;
+    initialClassIdParam.length > 0;
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const organization = useOptionalOrganization();
@@ -994,7 +995,6 @@ export default function PeriodizationScreen() {
 
   }, []);
 
-
   useEffect(() => {
     let alive = true;
     const currentClass = classes.find((item) => item.id === selectedClassId) ?? null;
@@ -1122,6 +1122,24 @@ export default function PeriodizationScreen() {
     [classes, selectedClassId]
 
   );
+  const handleBackPress = useCallback(() => {
+    const targetClassId = selectedClass?.id || selectedClassId || initialClassIdParam;
+    if (targetClassId) {
+      router.replace({
+        pathname: "/class/[id]",
+        params: { id: targetClassId },
+      });
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/");
+  }, [initialClassIdParam, router, selectedClass?.id, selectedClassId]);
+
   const periodizationKnowledgeDomain = useMemo(
     () => (selectedClass ? resolveWeeklyAutopilotKnowledgeDomain(selectedClass) : null),
     [
@@ -1988,8 +2006,10 @@ export default function PeriodizationScreen() {
       weekCount: weekPlans.length,
       cycleStartDate: activeCycleStartDate || visibleClassPlans[0]?.startDate || null,
       plans: visibleClassPlans,
+      daysOfWeek: selectedClass?.daysOfWeek ?? [],
+      weeklySessions,
     });
-  }, [activeCycleStartDate, visibleClassPlans, weekPlans.length]);
+  }, [activeCycleStartDate, selectedClass?.daysOfWeek, visibleClassPlans, weekPlans.length, weeklySessions]);
 
   const macroSegments = useMemo(() => {
     if (!weekPlans.length) return [] as Array<{ label: string; length: number }>;
@@ -2037,8 +2057,10 @@ export default function PeriodizationScreen() {
       weekCount: weekPlans.length,
       cycleStartDate: activeCycleStartDate || visibleClassPlans[0]?.startDate || null,
       plans: visibleClassPlans,
+      daysOfWeek: selectedClass?.daysOfWeek ?? [],
+      weeklySessions,
     });
-  }, [activeCycleStartDate, visibleClassPlans, weekPlans.length]);
+  }, [activeCycleStartDate, selectedClass?.daysOfWeek, visibleClassPlans, weekPlans.length, weeklySessions]);
 
   const dominantBlockSegments = useMemo(() => {
     if (!weekPlans.length) return [] as Array<{ label: string; length: number }>;
@@ -3828,13 +3850,7 @@ export default function PeriodizationScreen() {
         <View style={{ gap: 10, position: "relative", zIndex: 40 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, position: "relative", zIndex: 40 }}>
             <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
-              }}
+              onPress={handleBackPress}
               style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
             >
               <Ionicons name="chevron-back" size={20} color={colors.text} />
