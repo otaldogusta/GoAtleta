@@ -129,6 +129,9 @@ const asText = (value: unknown) => sanitizeVolleyballLanguage(toPdfText(value));
 
 const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoachingText(value));
 
+const buildNumberedLines = (rows: string[]) =>
+  rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n\n") : "-";
+
 const getBlockLabel = (block: SessionPlanPdfData["blocks"][number]) =>
   asText(block?.label || block?.title) || "-";
 
@@ -155,6 +158,60 @@ const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number
 
   const blockSummary = asCoachingText(block?.summary).trim();
   return blockSummary ? [blockSummary] : [];
+};
+
+const DETAIL_LABELS = [
+  "Organização",
+  "Desenvolvimento",
+  "Comandos do professor",
+  "Critério de sucesso",
+  "Progressão",
+  "Adaptação",
+  "Perguntas",
+];
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const extractSectionValue = (text: string, label: string) => {
+  const escapedLabel = escapeRegex(label);
+  const escapedNext = DETAIL_LABELS.map(escapeRegex).join("|");
+  const pattern = new RegExp(`${escapedLabel}:\\s*([\\s\\S]*?)(?=\\n(?:${escapedNext}):|$)`, "i");
+  return text.match(pattern)?.[1]?.trim() ?? "";
+};
+
+const compactText = (value: string) =>
+  value
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+
+const firstSentences = (value: string, limit = 2) => {
+  const sentences = compactText(value).match(/[^.!?]+[.!?]?/g) ?? [];
+  return sentences.slice(0, limit).join(" ").trim();
+};
+
+const toPdfActivitySummary = (description: string) => {
+  const cleanDescription = asCoachingText(description).trim();
+  if (!cleanDescription) return "-";
+
+  const organization = extractSectionValue(cleanDescription, "Organização");
+  const development = extractSectionValue(cleanDescription, "Desenvolvimento");
+  const progression = extractSectionValue(cleanDescription, "Progressão");
+  const adaptation = extractSectionValue(cleanDescription, "Adaptação");
+
+  const parts = [
+    firstSentences(organization, 1),
+    firstSentences(development, 2),
+    firstSentences([progression, adaptation].filter(Boolean).join(" "), 1),
+  ].filter(Boolean);
+
+  if (parts.length) return compactText(parts.join(" "));
+
+  const withoutLabels = DETAIL_LABELS.reduce(
+    (text, label) => text.replace(new RegExp(`${escapeRegex(label)}:\\s*`, "gi"), ""),
+    cleanDescription
+  );
+  return firstSentences(withoutLabels, 2) || "-";
 };
 
 const TITLE_TEXT = "PLANEJAMENTO DE AULA DO DIA";
@@ -270,42 +327,33 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             </View>
           </View>
 
-          {blocks.flatMap((block, blockIndex) => {
+          {blocks.map((block, blockIndex) => {
             const period = getBlockLabel(block);
             const time = getBlockTime(block);
             const items = getBlockActivities(block);
-            const rows = items.length
-              ? items.map((item, itemIndex) => ({
-                  key: `${period}-${blockIndex}-${itemIndex}`,
-                  activity: asCoachingText(item?.name).trim() || "-",
-                  description: asCoachingText(item?.description || item?.notes).trim() || "-",
-                  showPeriod: itemIndex === 0,
-                }))
-              : resolveBlockDescriptionLines(block).map((description, itemIndex) => ({
-                  key: `${period}-${blockIndex}-${itemIndex}`,
-                  activity: "-",
-                  description,
-                  showPeriod: itemIndex === 0,
-                }));
+            const activityRows = items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
+            const descriptionRows = items.length
+              ? items.map((item) => toPdfActivitySummary(item?.description || item?.notes || ""))
+              : resolveBlockDescriptionLines(block).map(toPdfActivitySummary);
 
-            return rows.map((row) => (
-              <View key={row.key} style={styles.row}>
+            return (
+              <View key={`${period}-${blockIndex}`} style={styles.row}>
                 <View style={[styles.cell, styles.periodCell]}>
                   <Text style={styles.text}>
-                    <Text style={styles.strong}>{row.showPeriod ? period : ""}</Text>
+                    <Text style={styles.strong}>{period}</Text>
                   </Text>
                 </View>
                 <View style={[styles.cell, styles.activitiesCell]}>
-                  <Text style={styles.text}>{row.activity}</Text>
+                  <Text style={styles.text}>{buildNumberedLines(activityRows)}</Text>
                 </View>
                 <View style={[styles.cell, styles.timeCell]}>
-                  <Text style={[styles.text, styles.textCenter]}>{row.showPeriod ? time : ""}</Text>
+                  <Text style={[styles.text, styles.textCenter]}>{time}</Text>
                 </View>
                 <View style={[styles.cell, styles.descriptionCell, styles.cellLast]}>
-                  <Text style={styles.text}>{row.description}</Text>
+                  <Text style={styles.text}>{buildNumberedLines(descriptionRows)}</Text>
                 </View>
               </View>
-            ));
+            );
           })}
 
           <View style={[styles.row, styles.rowLast]}>
