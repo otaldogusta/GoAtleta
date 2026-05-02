@@ -289,12 +289,92 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     const blocks = JSON.parse(plan.blocksJson || "[]");
     expect(plan.observations).toContain("Objetivo da aula: Desenvolver o controle da primeira bola");
     expect(plan.observations).not.toContain("Desenvolver controlar");
-    expect(blocks.find((block: any) => block.key === "warmup")?.activities?.[0]?.name).toBe("Caça ao alvo com bola");
+    expect(blocks.find((block: any) => block.key === "warmup")?.activities?.[0]?.name).toBe("Alvo da primeira bola");
     expect(blocks.find((block: any) => block.key === "main")?.activities).toHaveLength(3);
-    expect(plan.mainPart).toContain("Organização: Trios");
+    expect(plan.mainPart).toContain("Mini 2x2");
     expect(plan.mainPart).toContain("Comandos do professor:");
     expect(plan.mainPart).toContain("Critério de sucesso:");
     expect(plan.mainPart).toContain("Progressão:");
     expect(plan.mainPart).toContain("Adaptação:");
+  });
+
+  it("differentiates 07-09 and 10-12 reception planning instead of cloning activities", () => {
+    const weeklyPlan = {
+      id: "wp-5",
+      classId: "class-5",
+      weekNumber: 2,
+      phase: "Base",
+      generalObjective: "Desenvolver a primeira bola",
+      specificObjective: "Recepção e continuidade",
+      theme: "Controle da primeira bola",
+      technicalFocus: "Manchete e recepção",
+      physicalFocus: "Coordenação",
+      pedagogicalRule: "Organizar a recepção para dar sequência",
+      rpeTarget: "PSE 4",
+      jumpTarget: "baixo",
+      warmupProfile: "ativo",
+      constraints: "",
+      generationVersion: 2,
+      generationContextSnapshotJson: JSON.stringify({
+        weeklyOperationalStrategy: {
+          decisions: [
+            {
+              sessionIndexInWeek: 1,
+              sessionRole: "consolidacao_orientada",
+              sessionEnvironment: "quadra",
+              sessionPrimaryComponent: "tecnico_tatico",
+            },
+          ],
+        },
+      }),
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+    } as any;
+
+    const session = {
+      sessionIndex: 1,
+      weekday: 2,
+      weekdayLabel: "Ter",
+      date: "2026-04-21",
+      dateLabel: "21/04/2026",
+      shortLabel: "Ter 21/04",
+    };
+
+    const youngPlan = buildAutoDailyLessonPlan(
+      weeklyPlan,
+      session,
+      "2026-04-20T12:00:00.000Z",
+      null,
+      {
+        className: "Turma 07-09",
+        ageBand: "07-09",
+        durationMinutes: 60,
+      },
+    );
+    const preteenPlan = buildAutoDailyLessonPlan(
+      { ...weeklyPlan, id: "wp-6", classId: "class-6" },
+      session,
+      "2026-04-20T12:00:00.000Z",
+      null,
+      {
+        className: "Turma 10-12",
+        ageBand: "10-12",
+        durationMinutes: 60,
+      },
+    );
+
+    const youngBlocks = JSON.parse(youngPlan.blocksJson || "[]");
+    const preteenBlocks = JSON.parse(preteenPlan.blocksJson || "[]");
+    const youngMainNames = youngBlocks.find((block: any) => block.key === "main")?.activities?.map((item: any) => item.name);
+    const preteenMainNames = preteenBlocks.find((block: any) => block.key === "main")?.activities?.map((item: any) => item.name);
+
+    expect(youngBlocks.find((block: any) => block.key === "warmup")?.activities?.[0]?.name).toBe("Alvo da primeira bola");
+    expect(preteenBlocks.find((block: any) => block.key === "warmup")?.activities?.[0]?.name).toBe(
+      "Primeira bola para zona de levantamento",
+    );
+    expect(youngMainNames).not.toEqual(preteenMainNames);
+    expect(youngPlan.observations).toContain("mini 2x2");
+    expect(preteenPlan.observations).toContain("3x3");
+    expect(preteenPlan.mainPart).toContain("zona de levantamento");
   });
 });

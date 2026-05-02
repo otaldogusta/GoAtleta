@@ -91,30 +91,39 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   text: {
-    fontSize: 10.5,
-    lineHeight: 1.35,
+    fontSize: 8.5,
+    lineHeight: 1.25,
   },
   textCenter: {
     textAlign: "center",
     fontWeight: "bold",
   },
   periodCell: {
-    width: "20%",
-  },
-  activitiesCell: {
-    width: "24%",
-  },
-  timeCell: {
     width: "12%",
   },
-  descriptionCell: {
-    width: "44%",
+  activitiesCell: {
+    width: "17%",
+  },
+  timeCell: {
+    width: "8%",
+  },
+  organizationCell: {
+    width: "16%",
+  },
+  developmentCell: {
+    width: "22%",
+  },
+  criteriaCell: {
+    width: "12%",
+  },
+  progressionCell: {
+    width: "13%",
   },
   notesLabel: {
-    width: "20%",
+    width: "12%",
   },
   notesContent: {
-    width: "80%",
+    width: "88%",
     minHeight: 86,
   },
   footer: {
@@ -128,9 +137,6 @@ const styles = StyleSheet.create({
 const asText = (value: unknown) => sanitizeVolleyballLanguage(toPdfText(value));
 
 const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoachingText(value));
-
-const buildOrderedLines = (rows: string[]) =>
-  rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
 
 const getBlockLabel = (block: SessionPlanPdfData["blocks"][number]) =>
   asText(block?.label || block?.title) || "-";
@@ -160,9 +166,38 @@ const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number
   return blockSummary ? [blockSummary] : [];
 };
 
+const extractSectionValue = (text: string, label: string, nextLabels: string[]) => {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedNext = nextLabels.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const pattern = new RegExp(`${escapedLabel}:\\s*([\\s\\S]*?)(?=\\n(?:${escapedNext}):|$)`, "i");
+  return text.match(pattern)?.[1]?.trim() ?? "";
+};
+
+const parseActivitySections = (description: string) => {
+  const labels = [
+    "Organização",
+    "Desenvolvimento",
+    "Comandos do professor",
+    "Critério de sucesso",
+    "Progressão",
+    "Adaptação",
+    "Perguntas",
+  ];
+  return {
+    organization: extractSectionValue(description, "Organização", labels),
+    development: extractSectionValue(description, "Desenvolvimento", labels),
+    criteria: extractSectionValue(description, "Critério de sucesso", labels),
+    progression: [
+      extractSectionValue(description, "Progressão", labels),
+      extractSectionValue(description, "Adaptação", labels),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  };
+};
+
 const TITLE_TEXT = "PLANEJAMENTO DE AULA DO DIA";
 const LABEL_PERIODO = "Per\u00edodo";
-const LABEL_DESCRICAO = "Descri\u00e7\u00e3o";
 const LABEL_OBSERVACOES = "Observa\u00e7\u00f5es:";
 
 export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
@@ -187,7 +222,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
 
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" orientation="landscape" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.title}>{TITLE_TEXT}</Text>
           <View style={styles.headerMeta}>
@@ -268,37 +303,73 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             <View style={[styles.cell, styles.timeCell, styles.headerCell]}>
               <Text style={styles.labelStrong}>Tempo</Text>
             </View>
-            <View style={[styles.cell, styles.descriptionCell, styles.cellLast, styles.headerCell]}>
-              <Text style={styles.labelStrong}>{LABEL_DESCRICAO}</Text>
+            <View style={[styles.cell, styles.organizationCell, styles.headerCell]}>
+              <Text style={styles.labelStrong}>Organização</Text>
+            </View>
+            <View style={[styles.cell, styles.developmentCell, styles.headerCell]}>
+              <Text style={styles.labelStrong}>Desenvolvimento</Text>
+            </View>
+            <View style={[styles.cell, styles.criteriaCell, styles.headerCell]}>
+              <Text style={styles.labelStrong}>Critério</Text>
+            </View>
+            <View style={[styles.cell, styles.progressionCell, styles.cellLast, styles.headerCell]}>
+              <Text style={styles.labelStrong}>Progressão/Adaptação</Text>
             </View>
           </View>
 
-          {blocks.map((block, blockIndex) => {
+          {blocks.flatMap((block, blockIndex) => {
             const period = getBlockLabel(block);
             const time = getBlockTime(block);
             const items = getBlockActivities(block);
-            const activities = buildOrderedLines(
-              items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
-            );
-            const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
-            return (
-              <View key={`${period}-${blockIndex}`} style={styles.row}>
+            const activityRows = items.length
+              ? items.map((item, itemIndex) => {
+                  const sections = parseActivitySections(asCoachingText(item?.description || item?.notes).trim());
+                  return {
+                    key: `${period}-${blockIndex}-${itemIndex}`,
+                    activity: asCoachingText(item?.name).trim() || "-",
+                    organization: sections.organization || "-",
+                    development: sections.development || asCoachingText(item?.description || item?.notes).trim() || "-",
+                    criteria: sections.criteria || "-",
+                    progression: sections.progression || "-",
+                    showPeriod: itemIndex === 0,
+                  };
+                })
+              : resolveBlockDescriptionLines(block).map((description, itemIndex) => ({
+                  key: `${period}-${blockIndex}-${itemIndex}`,
+                  activity: "-",
+                  organization: "-",
+                  development: description,
+                  criteria: "-",
+                  progression: "-",
+                  showPeriod: itemIndex === 0,
+                }));
+            return activityRows.map((row) => (
+              <View key={row.key} style={styles.row} wrap={false}>
                 <View style={[styles.cell, styles.periodCell]}>
                   <Text style={styles.text}>
-                    <Text style={styles.strong}>{period}</Text>
+                    <Text style={styles.strong}>{row.showPeriod ? period : ""}</Text>
                   </Text>
                 </View>
                 <View style={[styles.cell, styles.activitiesCell]}>
-                  <Text style={styles.text}>{activities}</Text>
+                  <Text style={styles.text}>{row.activity}</Text>
                 </View>
                 <View style={[styles.cell, styles.timeCell]}>
-                  <Text style={[styles.text, styles.textCenter]}>{time}</Text>
+                  <Text style={[styles.text, styles.textCenter]}>{row.showPeriod ? time : ""}</Text>
                 </View>
-                <View style={[styles.cell, styles.descriptionCell, styles.cellLast]}>
-                  <Text style={styles.text}>{descriptions}</Text>
+                <View style={[styles.cell, styles.organizationCell]}>
+                  <Text style={styles.text}>{row.organization}</Text>
+                </View>
+                <View style={[styles.cell, styles.developmentCell]}>
+                  <Text style={styles.text}>{row.development}</Text>
+                </View>
+                <View style={[styles.cell, styles.criteriaCell]}>
+                  <Text style={styles.text}>{row.criteria}</Text>
+                </View>
+                <View style={[styles.cell, styles.progressionCell, styles.cellLast]}>
+                  <Text style={styles.text}>{row.progression}</Text>
                 </View>
               </View>
-            );
+            ));
           })}
 
           <View style={[styles.row, styles.rowLast]}>
