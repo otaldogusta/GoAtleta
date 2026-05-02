@@ -292,10 +292,11 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(blocks.find((block: any) => block.key === "warmup")?.activities?.[0]?.name).toBe("Alvo da primeira bola");
     expect(blocks.find((block: any) => block.key === "main")?.activities).toHaveLength(3);
     expect(plan.mainPart).toContain("Mini 2x2");
-    expect(plan.mainPart).toContain("Comandos do professor:");
-    expect(plan.mainPart).toContain("Critério de sucesso:");
-    expect(plan.mainPart).toContain("Progressão:");
-    expect(plan.mainPart).toContain("Adaptação:");
+    expect(plan.mainPart).not.toContain("Comandos do professor:");
+    expect(plan.mainPart).not.toContain("Critério de sucesso:");
+    expect(plan.mainPart).not.toContain("Progressão:");
+    expect(plan.mainPart).not.toContain("Adaptação:");
+    expect(plan.mainPart).toContain("Ajuste a tarefa:");
   });
 
   it("differentiates 07-09 and 10-12 reception planning instead of cloning activities", () => {

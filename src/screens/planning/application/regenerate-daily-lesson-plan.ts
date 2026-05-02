@@ -633,23 +633,20 @@ const formatActivityDescription = (sections: {
   harder?: string;
   questions?: string[];
 }) => {
-  const lines = [
-    `Organização: ${sections.organization}`,
-    `Desenvolvimento: ${sections.development}`,
-    sections.coachCommands?.length
-      ? `Comandos do professor: ${sections.coachCommands.map((item) => `"${item}"`).join("; ")}`
-      : "",
-    sections.successCriteria ? `Critério de sucesso: ${sections.successCriteria}` : "",
-    sections.progression ? `Progressão: ${sections.progression}` : "",
-    sections.easier || sections.harder
-      ? `Adaptação: ${sections.easier ? `se estiver difícil, ${sections.easier}` : ""}${
-          sections.easier && sections.harder ? "; " : ""
-        }${sections.harder ? `se estiver fácil, ${sections.harder}` : ""}.`
-      : "",
-    sections.questions?.length ? `Perguntas: ${sections.questions.join(" | ")}` : "",
-  ];
+  const adaptation = [sections.easier ? `se estiver difícil, ${sections.easier}` : "", sections.harder ? `se estiver fácil, ${sections.harder}` : ""]
+    .filter(Boolean)
+    .join("; ");
+  const adjustment = adaptation
+    ? `Ajuste a tarefa: ${adaptation}.`
+    : sections.progression
+      ? `Como progressão, ${lowerFirst(sections.progression)}`
+      : "";
+  const questions = sections.questions?.length
+    ? `Feche com perguntas rápidas: ${sections.questions.join(" ")}`
+    : "";
+  const text = [sections.organization, sections.development, adjustment, questions].filter(Boolean).join(" ");
 
-  return lines.filter(Boolean).join("\n");
+  return ensureSentenceEnding(cleanupSpacing(text));
 };
 
 const buildReceptionOperationalActivities = (params: {

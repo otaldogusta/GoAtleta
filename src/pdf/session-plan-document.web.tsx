@@ -160,60 +160,6 @@ const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number
   return blockSummary ? [blockSummary] : [];
 };
 
-const DETAIL_LABELS = [
-  "Organização",
-  "Desenvolvimento",
-  "Comandos do professor",
-  "Critério de sucesso",
-  "Progressão",
-  "Adaptação",
-  "Perguntas",
-];
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const extractSectionValue = (text: string, label: string) => {
-  const escapedLabel = escapeRegex(label);
-  const escapedNext = DETAIL_LABELS.map(escapeRegex).join("|");
-  const pattern = new RegExp(`${escapedLabel}:\\s*([\\s\\S]*?)(?=\\n(?:${escapedNext}):|$)`, "i");
-  return text.match(pattern)?.[1]?.trim() ?? "";
-};
-
-const compactText = (value: string) =>
-  value
-    .replace(/\s+/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .trim();
-
-const firstSentences = (value: string, limit = 2) => {
-  const sentences = compactText(value).match(/[^.!?]+[.!?]?/g) ?? [];
-  return sentences.slice(0, limit).join(" ").trim();
-};
-
-const toPdfActivitySummary = (description: string) => {
-  const cleanDescription = asCoachingText(description).trim();
-  if (!cleanDescription) return "-";
-
-  const organization = extractSectionValue(cleanDescription, "Organização");
-  const development = extractSectionValue(cleanDescription, "Desenvolvimento");
-  const progression = extractSectionValue(cleanDescription, "Progressão");
-  const adaptation = extractSectionValue(cleanDescription, "Adaptação");
-
-  const parts = [
-    firstSentences(organization, 1),
-    firstSentences(development, 2),
-    firstSentences([progression, adaptation].filter(Boolean).join(" "), 1),
-  ].filter(Boolean);
-
-  if (parts.length) return compactText(parts.join(" "));
-
-  const withoutLabels = DETAIL_LABELS.reduce(
-    (text, label) => text.replace(new RegExp(`${escapeRegex(label)}:\\s*`, "gi"), ""),
-    cleanDescription
-  );
-  return firstSentences(withoutLabels, 2) || "-";
-};
-
 const TITLE_TEXT = "PLANEJAMENTO DE AULA DO DIA";
 const LABEL_PERIODO = "Per\u00edodo";
 const LABEL_DESCRICAO = "Descri\u00e7\u00e3o";
@@ -333,8 +279,8 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             const items = getBlockActivities(block);
             const activityRows = items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
             const descriptionRows = items.length
-              ? items.map((item) => toPdfActivitySummary(item?.description || item?.notes || ""))
-              : resolveBlockDescriptionLines(block).map(toPdfActivitySummary);
+              ? items.map((item) => asCoachingText(item?.description || item?.notes).trim() || "-")
+              : resolveBlockDescriptionLines(block);
 
             return (
               <View key={`${period}-${blockIndex}`} style={styles.row}>
