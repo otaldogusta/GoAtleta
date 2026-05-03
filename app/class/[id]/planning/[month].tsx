@@ -2,8 +2,8 @@
 // perf-check: ignore-measure -- existing monthly planning hook remains the load boundary.
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Easing, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ScreenLoadingState } from "../../../../src/components/ui/ScreenLoadingState";
@@ -32,6 +32,7 @@ import { ClassGenderBadge } from "../../../../src/ui/ClassGenderBadge";
 import { LocationBadge } from "../../../../src/ui/LocationBadge";
 import { Pressable } from "../../../../src/ui/Pressable";
 import { useSaveToast } from "../../../../src/ui/save-toast";
+import { useCollapsibleAnimation } from "../../../../src/ui/use-collapsible";
 import { useSingleAccordion } from "../../../../src/ui/use-single-accordion";
 import { getLessonBlockTimes } from "../../../../src/utils/lesson-block-times";
 
@@ -123,6 +124,27 @@ function WeekAccordionCard({
   colors: ReturnType<typeof useAppTheme>["colors"];
   children: React.ReactNode;
 }) {
+  const chevronAnim = useRef(new Animated.Value(isExpanded ? 1 : 0)).current;
+  const { animatedStyle, isVisible } = useCollapsibleAnimation(isExpanded, {
+    durationIn: 220,
+    durationOut: 180,
+    translateY: -8,
+  });
+
+  useEffect(() => {
+    Animated.timing(chevronAnim, {
+      toValue: isExpanded ? 1 : 0,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [chevronAnim, isExpanded]);
+
+  const chevronRotate = chevronAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "180deg"],
+  });
+
   return (
     <View
       style={{
@@ -194,13 +216,17 @@ function WeekAccordionCard({
               {sessionsCount} aula{sessionsCount === 1 ? "" : "s"}
             </Text>
           </View>
-          <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.muted} />
+          <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
+            <Ionicons name="chevron-down" size={18} color={colors.muted} />
+          </Animated.View>
         </View>
       </Pressable>
 
-      {isExpanded ? (
-        <View
+      {isVisible ? (
+        <Animated.View
           style={{
+            ...animatedStyle,
+            pointerEvents: isExpanded ? "auto" : "none",
             borderTopWidth: 1,
             borderTopColor: colors.border,
             paddingHorizontal: 16,
@@ -210,7 +236,7 @@ function WeekAccordionCard({
           }}
         >
           {children}
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );
