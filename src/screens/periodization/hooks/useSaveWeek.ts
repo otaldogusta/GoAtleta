@@ -7,6 +7,10 @@ import { buildClassPlan } from "../../../core/periodization-generator";
 import { createClassPlan, markDailyLessonPlansOutOfSyncByWeek, updateClassPlan } from "../../../db/seed";
 import { logAction } from "../../../observability/breadcrumbs";
 import { measure } from "../../../observability/perf";
+import {
+  applySessionEnvironmentDecisions,
+  type SessionEnvironmentDecisions,
+} from "../application/session-environment-decisions";
 
 export type UseSaveWeekParams = {
   selectedClass: ClassGroup | null;
@@ -34,6 +38,7 @@ export type UseSaveWeekParams = {
   editWarmupProfile: string;
   editJumpTarget: string;
   editPSETarget: string;
+  editSessionEnvironments: SessionEnvironmentDecisions;
   hasPlanChanges: (existing: ClassPlan | null, candidate: ClassPlan) => boolean;
   setEditSource: (value: "AUTO" | "MANUAL") => void;
   setIsSavingWeek: (value: boolean) => void;
@@ -68,6 +73,7 @@ export function useSaveWeek({
   editWarmupProfile,
   editJumpTarget,
   editPSETarget,
+  editSessionEnvironments,
   hasPlanChanges,
   setEditSource,
   setIsSavingWeek,
@@ -111,6 +117,13 @@ export function useSaveWeek({
         });
 
     const nowIso = new Date().toISOString();
+    const sessionCount = Math.max(1, weeklySessions || selectedClass.daysOfWeek?.length || 1);
+    const autoPlanMetadata = autoPlan as Partial<ClassPlan>;
+    const generationContextSnapshotJson = applySessionEnvironmentDecisions({
+      rawJson: existing?.generationContextSnapshotJson ?? autoPlanMetadata.generationContextSnapshotJson,
+      sessionCount,
+      decisions: editSessionEnvironments,
+    });
 
     const plan: ClassPlan = {
       id: editingPlanId ?? `cp_${selectedClass.id}_${Date.now()}_${editingWeek}`,
@@ -129,13 +142,18 @@ export function useSaveWeek({
       jumpTarget: editJumpTarget.trim() || autoPlan.jumpTarget,
       rpeTarget: editPSETarget.trim() || autoPlan.rpeTarget,
       source: editSource,
+      generationContextSnapshotJson,
+      weeklyIntegratedContextJson:
+        existing?.weeklyIntegratedContextJson ?? autoPlanMetadata.weeklyIntegratedContextJson,
       createdAt: editingPlanId
         ? classPlans.find((p) => p.id === editingPlanId)?.createdAt ?? nowIso
         : nowIso,
       updatedAt: nowIso,
     };
 
-    const shouldPropagateForward = hasPlanChanges(existing, plan);
+    const shouldPropagateForward =
+      hasPlanChanges(existing, plan) ||
+      (existing?.generationContextSnapshotJson ?? "") !== generationContextSnapshotJson;
 
     if (shouldPropagateForward) {
       plan.source = "MANUAL";
@@ -191,6 +209,7 @@ export function useSaveWeek({
     editPedagogicalRule,
     editPhase,
     editPhysicalFocus,
+    editSessionEnvironments,
     editSource,
     editTechnicalFocus,
     editTheme,

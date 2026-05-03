@@ -1,10 +1,15 @@
 ﻿import { KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
-import type { WeeklyAutopilotPlanReview } from "../../../core/models";
+import type { SessionEnvironment, WeeklyAutopilotPlanReview } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../ui/confirm-dialog";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 import type { WeekSessionPreview } from "../application/build-week-session-preview";
+import {
+  SESSION_ENVIRONMENT_OPTIONS,
+  formatSessionEnvironmentLabel,
+  type SessionEnvironmentDecisions,
+} from "../application/session-environment-decisions";
 
 type Props = {
   visible: boolean;
@@ -34,6 +39,8 @@ type Props = {
   daysOfWeek: number[];
   weeklySessions: number;
   weekSessions: WeekSessionPreview[];
+  sessionEnvironments: SessionEnvironmentDecisions;
+  onSessionEnvironmentChange: (sessionIndex: number, value: SessionEnvironment) => void;
   isSavingWeek: boolean;
   onSave: () => void;
   onResetToAuto: () => void;
@@ -97,6 +104,8 @@ export function WeekEditorModal({
   daysOfWeek,
   weeklySessions,
   weekSessions,
+  sessionEnvironments,
+  onSessionEnvironmentChange,
   isSavingWeek,
   onSave,
   onResetToAuto,
@@ -202,23 +211,58 @@ export function WeekEditorModal({
                 <View
                   key={item.date}
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
                     gap: 8,
                     paddingHorizontal: 12,
-                    paddingVertical: 8,
+                    paddingVertical: 10,
                     borderRadius: 10,
                     backgroundColor: colors.secondaryBg,
                     borderWidth: 1,
                     borderColor: colors.border,
                   }}
                 >
-                  <Text style={{ color: colors.muted, fontSize: 11, width: 68 }}>
-                    Sessão {item.sessionIndex}/{sessionCount}
-                  </Text>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                    {item.weekdayLabel} · {item.dateLabel}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ color: colors.muted, fontSize: 11, width: 68 }}>
+                      Sessão {item.sessionIndex}/{sessionCount}
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700", flex: 1 }}>
+                      {item.weekdayLabel} · {item.dateLabel}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                      {formatSessionEnvironmentLabel(
+                        sessionEnvironments[item.sessionIndex] ?? "quadra"
+                      )}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                    {SESSION_ENVIRONMENT_OPTIONS.map((option) => {
+                      const selected =
+                        (sessionEnvironments[item.sessionIndex] ?? "quadra") === option.value;
+                      return (
+                        <Pressable
+                          key={`${item.date}_${option.value}`}
+                          onPress={() => onSessionEnvironmentChange(item.sessionIndex, option.value)}
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 999,
+                            borderWidth: 1,
+                            borderColor: selected ? colors.successBorder : colors.border,
+                            backgroundColor: selected ? colors.successBg : colors.inputBg,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: selected ? colors.successText : colors.text,
+                              fontSize: 12,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
               ))}
             </View>
@@ -470,4 +514,3 @@ export function WeekEditorModal({
     </ModalDialogFrame>
   );
 }
-

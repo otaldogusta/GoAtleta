@@ -55,6 +55,7 @@ import {
     toPlanningGraphFromClassPlans,
 } from "../../src/core/plan-engine";
 import { buildPeriodizationWeekSchedule } from "../../src/screens/periodization/application/build-auto-plan-for-cycle-day";
+import { getSessionEnvironmentDecisions } from "../../src/screens/periodization/application/session-environment-decisions";
 import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState";
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
 import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
@@ -649,6 +650,8 @@ export default function PeriodizationScreen() {
     setEditWarmupProfile,
     setEditJumpTarget,
     setEditPSETarget,
+    setEditSessionEnvironments,
+    setEditSessionEnvironment,
     setEditSource,
     setIsSavingWeek,
     resetWeekEditor,
@@ -666,6 +669,7 @@ export default function PeriodizationScreen() {
     editWarmupProfile,
     editJumpTarget,
     editPSETarget,
+    editSessionEnvironments,
     editSource,
     isSavingWeek,
   } = editor;
@@ -2435,6 +2439,13 @@ export default function PeriodizationScreen() {
 
     setEditPSETarget(normalizeText(plan.rpeTarget));
 
+    setEditSessionEnvironments(
+      getSessionEnvironmentDecisions(
+        plan.generationContextSnapshotJson,
+        Math.max(1, weeklySessions || selectedClass.daysOfWeek?.length || 1)
+      )
+    );
+
     setEditSource(existing ? plan.source : "AUTO");
 
     setShowWeekEditor(true);
@@ -2449,6 +2460,7 @@ export default function PeriodizationScreen() {
     periodizationModel,
     sportProfile,
     selectedClass,
+    setEditSessionEnvironments,
     visibleClassPlans,
     weeklySessions,
   ]);
@@ -2816,6 +2828,7 @@ export default function PeriodizationScreen() {
     editWarmupProfile,
     editJumpTarget,
     editPSETarget,
+    editSessionEnvironments,
     hasPlanChanges,
     setEditSource,
     setIsSavingWeek,
@@ -4579,6 +4592,8 @@ export default function PeriodizationScreen() {
         daysOfWeek={selectedClass?.daysOfWeek ?? []}
         weeklySessions={weeklySessions}
         weekSessions={weekSessions}
+        sessionEnvironments={editSessionEnvironments}
+        onSessionEnvironmentChange={setEditSessionEnvironment}
         cycleLength={effectiveCycleLength}
         editPhase={editPhase}
         setEditPhase={setEditPhase}

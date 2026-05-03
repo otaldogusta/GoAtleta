@@ -1,4 +1,6 @@
 import { useCallback, useReducer } from "react";
+import type { SessionEnvironment } from "../../../core/models";
+import type { SessionEnvironmentDecisions } from "../application/session-environment-decisions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +19,7 @@ export type WeekEditorState = {
   editWarmupProfile: string;
   editJumpTarget: string;
   editPSETarget: string;
+  editSessionEnvironments: SessionEnvironmentDecisions;
   editSource: "AUTO" | "MANUAL";
   isSavingWeek: boolean;
 };
@@ -48,6 +51,7 @@ const INITIAL_STATE: WeekEditorState = {
   editWarmupProfile: "",
   editJumpTarget: "",
   editPSETarget: "",
+  editSessionEnvironments: {},
   editSource: "AUTO",
   isSavingWeek: false,
 };
@@ -122,6 +126,23 @@ export function useWeekEditor() {
     (v: string) => dispatch({ type: "SET_FIELD", field: "editPSETarget", value: v }),
     []
   );
+  const setEditSessionEnvironments = useCallback(
+    (v: SessionEnvironmentDecisions) =>
+      dispatch({ type: "SET_FIELD", field: "editSessionEnvironments", value: v }),
+    []
+  );
+  const setEditSessionEnvironment = useCallback(
+    (sessionIndex: number, value: SessionEnvironment) =>
+      dispatch({
+        type: "SET_FIELD",
+        field: "editSessionEnvironments",
+        value: {
+          ...editor.editSessionEnvironments,
+          [sessionIndex]: value,
+        },
+      }),
+    [editor.editSessionEnvironments]
+  );
   const setEditSource = useCallback(
     (v: "AUTO" | "MANUAL") => dispatch({ type: "SET_FIELD", field: "editSource", value: v }),
     []
@@ -146,6 +167,8 @@ export function useWeekEditor() {
     setEditWarmupProfile,
     setEditJumpTarget,
     setEditPSETarget,
+    setEditSessionEnvironments,
+    setEditSessionEnvironment,
     setEditSource,
     setIsSavingWeek,
     resetWeekEditor,
