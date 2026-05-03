@@ -81,11 +81,11 @@ export const resolveConservativeDailySessionEnvironment = (
     return saved;
   }
 
-  if (hasResistanceComponents(plan)) {
+  const main = blocks.find((block) => block.key === "main");
+  if (hasResistanceComponents(plan) && (!isCourtLikeBlock(main) || isResistanceLikeBlock(main))) {
     return saved;
   }
 
-  const main = blocks.find((block) => block.key === "main");
   if ((saved === "academia" || saved === "mista") && isResistanceLikeBlock(main) && !isCourtLikeBlock(main)) {
     return saved;
   }

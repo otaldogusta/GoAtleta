@@ -103,6 +103,7 @@ import type {
     TrainingPlanPedagogy,
     TrainingPlanPlanningBasis,
     VolleyballSkill,
+    WeekSessionRole,
 } from "../../../src/core/models";
 import {
     buildCAPFromDimensions,
@@ -1774,6 +1775,42 @@ const buildSessionPreviewForDate = (params: {
   };
 };
 
+const resolveExplicitResistanceDecisionForSession = (params: {
+  weeklyPlan: ClassPlan;
+  classGroup: ClassGroup;
+  sessionDate: string;
+}): { sessionRole?: WeekSessionRole } | null => {
+  const session = buildSessionPreviewForDate(params);
+  try {
+    const parsed = JSON.parse(params.weeklyPlan.generationContextSnapshotJson ?? "{}") as {
+      weeklyOperationalStrategy?: {
+        decisions?: Array<{
+          sessionIndexInWeek?: number;
+          sessionRole?: WeekSessionRole;
+          sessionEnvironment?: string;
+          sessionPrimaryComponent?: string;
+        }>;
+      };
+    };
+    const decision = parsed.weeklyOperationalStrategy?.decisions?.find(
+      (item) => Number(item.sessionIndexInWeek) === session.sessionIndex,
+    );
+    if (!decision) return null;
+    const hasExplicitResistanceEnvironment =
+      decision.sessionEnvironment === "academia" ||
+      decision.sessionEnvironment === "mista";
+    const hasExplicitResistanceComponent =
+      decision.sessionPrimaryComponent === "resistido" ||
+      decision.sessionPrimaryComponent === "misto_transferencia";
+    if (!hasExplicitResistanceEnvironment && !hasExplicitResistanceComponent) {
+      return null;
+    }
+    return { sessionRole: decision.sessionRole };
+  } catch {
+    return null;
+  }
+};
+
 export default function SessionScreen() {
   const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
     id: string;
@@ -2540,12 +2577,21 @@ export default function SessionScreen() {
       (persistedWeeklyContext.gymSessionsCount > 0 ||
         persistedWeeklyContext.courtGymRelationship !== "quadra_dominante"),
   );
+  const explicitWeeklyResistanceDecision = useMemo(() => {
+    if (!currentClassPlan || !cls) return null;
+    return resolveExplicitResistanceDecisionForSession({
+      weeklyPlan: currentClassPlan,
+      classGroup: cls,
+      sessionDate,
+    });
+  }, [cls, currentClassPlan, sessionDate]);
   const dailyPlanAllowsResistance =
     currentDailyLessonPlan?.sessionEnvironment === "academia" ||
     currentDailyLessonPlan?.sessionEnvironment === "mista";
   const shouldShowResistanceGuardNotice = Boolean(
     plan &&
       !currentDailyLessonPlan &&
+      explicitWeeklyResistanceDecision &&
       teamTrainingContext?.hasGymAccess &&
       weeklyContextConsideredGym,
   );
@@ -2573,10 +2619,15 @@ export default function SessionScreen() {
       return null;
     }
 
+    if (!explicitWeeklyResistanceDecision) {
+      return null;
+    }
+
     const preview = buildSessionResistancePreview({
       classGroup: cls,
       classPlan: currentClassPlan,
       sessionDate,
+      sessionRole: explicitWeeklyResistanceDecision.sessionRole,
     });
 
     const resistanceData = getResistancePlanFromSessionComponents(
@@ -2598,6 +2649,7 @@ export default function SessionScreen() {
     currentClassPlan,
     currentDailyLessonPlan,
     dailyPlanAllowsResistance,
+    explicitWeeklyResistanceDecision,
     persistedResistanceData,
     persistedWeeklyContext,
     sessionDate,

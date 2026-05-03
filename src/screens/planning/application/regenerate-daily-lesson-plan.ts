@@ -139,6 +139,12 @@ const deriveSessionPrimaryComponent = (params: {
   return undefined;
 };
 
+const isResistanceEnvironment = (environment: SessionEnvironment | undefined) =>
+  environment === "academia" || environment === "mista";
+
+const isResistancePrimaryComponent = (component: SessionPrimaryComponent | undefined) =>
+  component === "resistido" || component === "misto_transferencia";
+
 const resolvePersistedSessionIntegration = (params: {
   weeklyPlan: ClassPlan;
   session: WeekSessionPreview;
@@ -153,16 +159,30 @@ const resolvePersistedSessionIntegration = (params: {
     params.session.sessionIndex,
   );
 
-  const preview = buildSessionResistancePreview({
-    classGroup: params.context?.classGroup,
-    classPlan: params.weeklyPlan,
-    sessionDate: params.session.date,
-    sessionRole: weeklyDecision?.sessionRole as WeekSessionRole | undefined,
-  });
+  const explicitEnvironment = weeklyDecision?.sessionEnvironment;
+  const shouldBuildResistancePreview =
+    isResistanceEnvironment(explicitEnvironment) ||
+    isResistancePrimaryComponent(weeklyDecision?.sessionPrimaryComponent);
+
+  const preview = shouldBuildResistancePreview
+    ? buildSessionResistancePreview({
+        classGroup: params.context?.classGroup,
+        classPlan: params.weeklyPlan,
+        sessionDate: params.session.date,
+        sessionRole: weeklyDecision?.sessionRole as WeekSessionRole | undefined,
+      })
+    : null;
 
   const sessionEnvironment =
-    preview?.sessionEnvironment ?? weeklyDecision?.sessionEnvironment;
-  const sessionComponents = preview?.sessionComponents;
+    explicitEnvironment ??
+    (weeklyDecision?.sessionPrimaryComponent === "misto_transferencia"
+      ? "mista"
+      : weeklyDecision?.sessionPrimaryComponent === "resistido"
+        ? "academia"
+        : "quadra");
+  const sessionComponents = isResistanceEnvironment(sessionEnvironment)
+    ? preview?.sessionComponents
+    : undefined;
   const sessionPrimaryComponent =
     weeklyDecision?.sessionPrimaryComponent ??
     deriveSessionPrimaryComponent({
@@ -1648,6 +1668,10 @@ export const buildAutoDailyLessonPlan = (
     session,
     context,
   });
+  const contextSnapshotWithSessionIntegration = {
+    ...contextSnapshot,
+    sessionIntegration,
+  };
 
   return {
     id: existing?.id ?? `dlp_${weeklyPlan.id}_${session.date}`,
@@ -1667,7 +1691,7 @@ export const buildAutoDailyLessonPlan = (
     generationVersion: (existing?.generationVersion ?? 0) + 1,
     derivedFromWeeklyVersion: weeklyPlan.generationVersion ?? 1,
     generationModelVersion: "planning-v2-pedagogical",
-    generationContextSnapshotJson: JSON.stringify(contextSnapshot),
+    generationContextSnapshotJson: JSON.stringify(contextSnapshotWithSessionIntegration),
     syncStatus: "in_sync",
     outOfSyncReasonsJson: "[]",
     manualOverridesJson: existing?.manualOverridesJson ?? "{}",

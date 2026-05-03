@@ -85,7 +85,7 @@ describe("resolveConservativeDailySessionEnvironment", () => {
     ).toBe("academia");
   });
 
-  it("mantém academia quando há componente resistido real", () => {
+  it("não mantém academia se componente resistido veio junto de conteúdo de quadra", () => {
     expect(
       resolveConservativeDailySessionEnvironment(
         {
@@ -108,6 +108,35 @@ describe("resolveConservativeDailySessionEnvironment", () => {
           manualOverridesJson: undefined,
         },
         courtBlocks
+      )
+    ).toBe("quadra");
+  });
+
+  it("mantém academia quando componente resistido combina com bloco resistido real", () => {
+    const academyBlocks = ensureLessonBlocksMatchSessionEnvironment(courtBlocks, "academia", 60);
+
+    expect(
+      resolveConservativeDailySessionEnvironment(
+        {
+          sessionEnvironment: "academia",
+          sessionComponents: [
+            {
+              type: "academia_resistido",
+              durationMin: 35,
+              resistancePlan: {
+                id: "r1",
+                label: "Treino resistido",
+                primaryGoal: "forca_base",
+                transferTarget: "salto",
+                estimatedDurationMin: 35,
+                exercises: [],
+              },
+            } as any,
+          ],
+          manualOverrideMaskJson: undefined,
+          manualOverridesJson: undefined,
+        },
+        academyBlocks
       )
     ).toBe("academia");
   });
