@@ -1,5 +1,8 @@
 import type { LessonBlock } from "../../../../core/models";
-import { ensureLessonBlocksMatchSessionEnvironment } from "../daily-lesson-blocks";
+import {
+  ensureLessonBlocksMatchSessionEnvironment,
+  resolveConservativeDailySessionEnvironment,
+} from "../daily-lesson-blocks";
 
 const courtBlocks: LessonBlock[] = [
   {
@@ -50,5 +53,62 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
     expect(ensureLessonBlocksMatchSessionEnvironment(academyBlocks, "academia", 60)).toEqual(
       academyBlocks
     );
+  });
+});
+
+describe("resolveConservativeDailySessionEnvironment", () => {
+  it("usa quadra quando academia veio sem evidência forte", () => {
+    expect(
+      resolveConservativeDailySessionEnvironment(
+        {
+          sessionEnvironment: "academia",
+          sessionComponents: [],
+          manualOverrideMaskJson: undefined,
+          manualOverridesJson: undefined,
+        },
+        courtBlocks
+      )
+    ).toBe("quadra");
+  });
+
+  it("mantém academia quando professor alterou explicitamente", () => {
+    expect(
+      resolveConservativeDailySessionEnvironment(
+        {
+          sessionEnvironment: "academia",
+          sessionComponents: [],
+          manualOverrideMaskJson: JSON.stringify(["sessionEnvironment"]),
+          manualOverridesJson: undefined,
+        },
+        courtBlocks
+      )
+    ).toBe("academia");
+  });
+
+  it("mantém academia quando há componente resistido real", () => {
+    expect(
+      resolveConservativeDailySessionEnvironment(
+        {
+          sessionEnvironment: "academia",
+          sessionComponents: [
+            {
+              type: "academia_resistido",
+              durationMin: 35,
+              resistancePlan: {
+                id: "r1",
+                label: "Treino resistido",
+                primaryGoal: "forca_base",
+                transferTarget: "salto",
+                estimatedDurationMin: 35,
+                exercises: [],
+              },
+            },
+          ],
+          manualOverrideMaskJson: undefined,
+          manualOverridesJson: undefined,
+        },
+        courtBlocks
+      )
+    ).toBe("academia");
   });
 });

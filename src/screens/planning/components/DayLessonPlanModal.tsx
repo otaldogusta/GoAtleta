@@ -11,6 +11,7 @@ import { LessonActivityEditor } from "../../lesson/components/LessonActivityEdit
 import {
   buildSessionEnvironmentLessonBlocks,
   ensureLessonBlocksMatchSessionEnvironment,
+  resolveConservativeDailySessionEnvironment,
   resolveLessonBlocksFromDailyPlan,
 } from "../application/daily-lesson-blocks";
 import { PlanningSyncStatusChip } from "./PlanningSyncStatusChip";
@@ -132,7 +133,9 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
     });
     const resolvedTitle = initialPlan?.title ?? "";
     const resolvedObservations = initialPlan?.observations ?? "";
-    const resolvedSessionEnvironment = normalizeEditableSessionEnvironment(initialPlan?.sessionEnvironment);
+    const resolvedSessionEnvironment = normalizeEditableSessionEnvironment(
+      resolveConservativeDailySessionEnvironment(initialPlan, rawResolvedBlocks)
+    );
     const resolvedBlocks = ensureLessonBlocksMatchSessionEnvironment(
       rawResolvedBlocks,
       resolvedSessionEnvironment,

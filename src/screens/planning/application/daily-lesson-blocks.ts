@@ -43,6 +43,56 @@ const isCourtLikeBlock = (block: LessonBlock | undefined) =>
 const isResistanceLikeBlock = (block: LessonBlock | undefined) =>
   RESISTANCE_ACTIVITY_PATTERN.test(blockText(block));
 
+const parseManualSessionEnvironmentOverride = (plan: Pick<DailyLessonPlan, "manualOverrideMaskJson" | "manualOverridesJson"> | null | undefined) => {
+  try {
+    const mask = JSON.parse(plan?.manualOverrideMaskJson ?? "[]");
+    if (Array.isArray(mask) && mask.includes("sessionEnvironment")) return true;
+  } catch {
+    // Keep conservative fallback below.
+  }
+
+  try {
+    const overrides = JSON.parse(plan?.manualOverridesJson ?? "{}") as { sessionEnvironment?: boolean };
+    return overrides?.sessionEnvironment === true;
+  } catch {
+    return false;
+  }
+};
+
+const hasResistanceComponents = (plan: Pick<DailyLessonPlan, "sessionComponents"> | null | undefined) =>
+  Boolean(plan?.sessionComponents?.some((component) => component.type === "academia_resistido"));
+
+export const resolveConservativeDailySessionEnvironment = (
+  plan: Pick<
+    DailyLessonPlan,
+    | "sessionEnvironment"
+    | "sessionComponents"
+    | "manualOverrideMaskJson"
+    | "manualOverridesJson"
+  > | null | undefined,
+  blocks: LessonBlock[] = [],
+): SessionEnvironment => {
+  const saved = plan?.sessionEnvironment;
+  if (saved !== "academia" && saved !== "mista" && saved !== "preventiva") {
+    return "quadra";
+  }
+
+  if (parseManualSessionEnvironmentOverride(plan)) {
+    return saved;
+  }
+
+  if (hasResistanceComponents(plan)) {
+    return saved;
+  }
+
+  const main = blocks.find((block) => block.key === "main");
+  if ((saved === "academia" || saved === "mista") && isResistanceLikeBlock(main) && !isCourtLikeBlock(main)) {
+    return saved;
+  }
+
+  return "quadra";
+};
+
 const resolveTemplateDurations = (durationMinutes: number, environment: SessionEnvironment) => {
   const total = Math.max(30, Math.round(durationMinutes || 60));
   if (environment === "academia") {
