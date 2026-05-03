@@ -331,6 +331,17 @@ export const db = {
       return;
     }
 
+    if (normalized.startsWith("delete from daily_lesson_plans")) {
+      const classId = String(params[0] ?? "");
+      const date = String(params[1] ?? "");
+      for (let index = dailyLessonPlans.length - 1; index >= 0; index -= 1) {
+        if (dailyLessonPlans[index].classId === classId && dailyLessonPlans[index].date === date) {
+          dailyLessonPlans.splice(index, 1);
+        }
+      }
+      return;
+    }
+
     // Handle INSERT OR REPLACE into class_plans (weeklies)
     if (normalized.startsWith("insert or replace into class_plans")) {
       const plan = {
