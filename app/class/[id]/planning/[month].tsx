@@ -29,11 +29,9 @@ import { useMonthlyPlans } from "../../../../src/screens/planning/hooks/useMonth
 import { useAppTheme } from "../../../../src/ui/app-theme";
 import { getClassPalette } from "../../../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../../../src/ui/ClassGenderBadge";
-import { CollapsibleSection } from "../../../../src/ui/CollapsibleSection";
 import { LocationBadge } from "../../../../src/ui/LocationBadge";
 import { Pressable } from "../../../../src/ui/Pressable";
 import { useSaveToast } from "../../../../src/ui/save-toast";
-import { getSectionCardStyle } from "../../../../src/ui/section-styles";
 import { useSingleAccordion } from "../../../../src/ui/use-single-accordion";
 import { getLessonBlockTimes } from "../../../../src/utils/lesson-block-times";
 
@@ -126,37 +124,95 @@ function WeekAccordionCard({
   children: React.ReactNode;
 }) {
   return (
-    <CollapsibleSection
-      expanded={isExpanded}
-      onToggle={onToggle}
-      containerStyle={[
-        getSectionCardStyle(colors, "primary", { radius: 18 }),
-        {
-          borderWidth: 0,
-          borderLeftWidth: 0,
-          paddingVertical: 14,
-          gap: 8,
-        },
-      ]}
-      header={
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>{label}</Text>
-          <Text style={{ color: colors.muted }}>
-            {weekStartLabel} - {weekEndLabel} · {sessionsCount} aula(s)
-          </Text>
-          <Text style={{ color: colors.text, fontSize: 13 }}>{summary}</Text>
-        </View>
-      }
-      headerStyle={{ gap: 6 }}
-      contentContainerStyle={{ gap: 8, marginTop: 4 }}
-      rightAdornment={weekStatus ? <PlanningSyncStatusChip status={weekStatus} compact /> : null}
-      chevronColor={colors.muted}
-      contentDurationIn={220}
-      contentDurationOut={180}
-      contentTranslateY={-8}
+    <View
+      style={{
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: isExpanded ? "rgba(47, 133, 90, 0.35)" : colors.border,
+        backgroundColor: colors.card,
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOpacity: 0.1,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 3,
+      }}
     >
-      {children}
-    </CollapsibleSection>
+      <Pressable
+        onPress={onToggle}
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 14,
+        }}
+      >
+        <View
+          style={{
+            width: 50,
+            height: 50,
+            borderRadius: 14,
+            backgroundColor: isExpanded ? "rgba(47, 133, 90, 0.1)" : colors.secondaryBg,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: isExpanded ? "rgba(47, 133, 90, 0.28)" : colors.border,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "900", fontSize: 15 }}>
+            {label.replace(/^Semana\s*/i, "")}
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>sem</Text>
+        </View>
+
+        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>{label}</Text>
+            {weekStatus ? <PlanningSyncStatusChip status={weekStatus} compact /> : null}
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 13 }} numberOfLines={1}>
+            {weekStartLabel} - {weekEndLabel}
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 13 }} numberOfLines={1}>
+            {summary}
+          </Text>
+        </View>
+
+        <View style={{ alignItems: "flex-end", gap: 8 }}>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
+              {sessionsCount} aula{sessionsCount === 1 ? "" : "s"}
+            </Text>
+          </View>
+          <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.muted} />
+        </View>
+      </Pressable>
+
+      {isExpanded ? (
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            gap: 10,
+            backgroundColor: colors.secondaryBg,
+          }}
+        >
+          {children}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -397,12 +453,12 @@ export default function ClassPlanningMonthRoute() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentContainerStyle={{
-          gap: 18,
+          gap: 16,
           paddingHorizontal: isDesktop ? 24 : 16,
           paddingTop: 16,
           paddingBottom: Math.max(insets.bottom + 40, 56),
           width: "100%",
-          maxWidth: 1280,
+          maxWidth: 1180,
           alignSelf: "center",
         }}
       >
@@ -454,11 +510,26 @@ export default function ClassPlanningMonthRoute() {
           </View>
         </View>
 
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <Text style={{ color: colors.muted, fontWeight: "700" }}>
-            {weeklyItems.length} semanas · {weeklyItems.reduce((sum, item) => sum + item.sessions.length, 0)} aulas
-          </Text>
-          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+        <View
+          style={{
+            borderRadius: 18,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            padding: 14,
+            flexDirection: isTablet ? "row" : "column",
+            justifyContent: "space-between",
+            alignItems: isTablet ? "center" : "stretch",
+            gap: 12,
+          }}
+        >
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>Resumo do mês</Text>
+            <Text style={{ color: colors.muted, fontWeight: "700" }}>
+              {weeklyItems.length} semanas · {weeklyItems.reduce((sum, item) => sum + item.sessions.length, 0)} aulas
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: isTablet ? "flex-end" : "flex-start" }}>
             <Pressable
               onPress={() => {
                 void handleRegenerateMonth();
@@ -468,11 +539,12 @@ export default function ClassPlanningMonthRoute() {
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 6,
-                paddingHorizontal: 10,
-                paddingVertical: 7,
-                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 9,
+                borderRadius: 12,
                 backgroundColor: colors.secondaryBg,
-                borderWidth: 0,
+                borderWidth: 1,
+                borderColor: colors.border,
                 opacity: isRegeneratingMonth ? 0.8 : 1,
               }}
             >
