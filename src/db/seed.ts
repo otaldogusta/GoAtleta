@@ -47,6 +47,7 @@ export {
 } from "./periodization";
 
 export {
+    deleteDailyLessonPlanByClassAndDate,
     getDailyLessonPlanByWeekAndDate,
     listDailyLessonPlansByWeekIds,
     listRecentDailyLessonPlansByClass,
@@ -60,4 +61,3 @@ export {
     getAttendanceByStudent, getStudentById, getStudentPreRegistrations, getStudents,
     getStudentsByClass, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
 } from "./students";
-

@@ -160,6 +160,21 @@ export async function getDailyLessonPlanByWeekAndDate(weeklyPlanId: string, date
   }
 }
 
+export async function deleteDailyLessonPlanByClassAndDate(classId: string, date: string) {
+  if (!classId || !date) return;
+
+  try {
+    await db.runAsync(
+      `DELETE FROM daily_lesson_plans
+       WHERE classId = ? AND date = ?`,
+      [classId, date]
+    );
+  } catch (error) {
+    console.warn("Failed to delete daily lesson plan:", error);
+    throw error;
+  }
+}
+
 export async function upsertDailyLessonPlan(plan: DailyLessonPlan) {
   try {
     await db.runAsync(

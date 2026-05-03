@@ -136,6 +136,7 @@ import {
 import { createTrainingPlanVersion } from "../../../src/core/training-plan-factory";
 import { resolveActiveMethodology } from "../../../src/db/knowledge-base";
 import {
+    deleteDailyLessonPlanByClassAndDate,
     deleteTrainingPlansByClassAndDate,
     getLatestTrainingPlanByClass,
     getTrainingPlans,
@@ -2801,6 +2802,9 @@ export default function SessionScreen() {
       onConfirm: async () => {
         setIsRemovingAppliedPlan(true);
         try {
+          await measure("deleteDailyLessonPlanByClassAndDate", () =>
+            deleteDailyLessonPlanByClassAndDate(cls.id, sessionDate)
+          );
           await measure("deleteTrainingPlansByClassAndDate", () =>
             deleteTrainingPlansByClassAndDate(cls.id, sessionDate, {
               organizationId: cls.organizationId ?? null,
@@ -2814,6 +2818,7 @@ export default function SessionScreen() {
             limit: 24,
           });
           setPlan(null);
+          setCurrentDailyLessonPlan(null);
           setSavedClassPlans(compactTrainingPlans(remainingClassPlans));
           setAutoActivity("");
           setShowPedagogicalPanel(false);
@@ -2821,6 +2826,7 @@ export default function SessionScreen() {
           setSelectedBlockKey(null);
           setLastUpdatedBlockKey(null);
           setPedagogicalPlanPackage(null);
+          await reload();
           showSaveToast({
             message: "Plano removido desta aula.",
             variant: "success",
@@ -2828,6 +2834,7 @@ export default function SessionScreen() {
           logAction("Remover plano da aula do dia", {
             classId: cls.id,
             planId: plan.id,
+            dailyLessonPlanId: currentDailyLessonPlan?.id ?? null,
             applyDate: sessionDate,
           });
         } catch {
