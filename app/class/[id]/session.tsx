@@ -39,6 +39,7 @@ import {
 } from "../../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
 import { convertTrainingPlanToDailyLessonPlan } from "../../../src/screens/session/application/convert-training-plan-to-daily-lesson-plan";
 import { regenerateDailyLessonPlanFromWeek } from "../../../src/screens/planning/application/regenerate-daily-lesson-plan";
+import { parseLessonBlocksJson } from "../../../src/screens/planning/application/daily-lesson-blocks";
 import {
     BlockEditModal,
     type BlockEditPayload,
@@ -2416,15 +2417,23 @@ export default function SessionScreen() {
   const main = (plan?.main ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
   const cooldown = (plan?.cooldown ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
   const defaultBlockTimes = getLessonBlockTimes(cls?.durationMinutes ?? 60);
+  const dailyBlockLabels = useMemo(() => {
+    const parsed = parseLessonBlocksJson(currentDailyLessonPlan?.blocksJson);
+    return {
+      warmup: parsed?.find((block) => block.key === "warmup")?.label?.trim(),
+      main: parsed?.find((block) => block.key === "main")?.label?.trim(),
+      cooldown: parsed?.find((block) => block.key === "cooldown")?.label?.trim(),
+    };
+  }, [currentDailyLessonPlan?.blocksJson]);
   const warmupLabel = plan?.warmupTime
-    ? `${ptBR.session.warmup} • ` + formatDuration(plan.warmupTime)
-    : `${ptBR.session.warmup} • ${defaultBlockTimes.warmupMinutes} min`;
+    ? `${dailyBlockLabels.warmup || ptBR.session.warmup} • ` + formatDuration(plan.warmupTime)
+    : `${dailyBlockLabels.warmup || ptBR.session.warmup} • ${defaultBlockTimes.warmupMinutes} min`;
   const mainLabel = plan?.mainTime
-    ? `${ptBR.session.main} • ` + formatClock(plan.mainTime)
-    : `${ptBR.session.main} • ${defaultBlockTimes.mainMinutes} min`;
+    ? `${dailyBlockLabels.main || ptBR.session.main} • ` + formatClock(plan.mainTime)
+    : `${dailyBlockLabels.main || ptBR.session.main} • ${defaultBlockTimes.mainMinutes} min`;
   const cooldownLabel = plan?.cooldownTime
-    ? `${ptBR.session.cooldown} • ` + formatDuration(plan.cooldownTime)
-    : `${ptBR.session.cooldown} • ${defaultBlockTimes.cooldownMinutes} min`;
+    ? `${dailyBlockLabels.cooldown || ptBR.session.cooldown} • ` + formatDuration(plan.cooldownTime)
+    : `${dailyBlockLabels.cooldown || ptBR.session.cooldown} • ${defaultBlockTimes.cooldownMinutes} min`;
   const showNoPlanNotice = !plan;
   const className = cls?.name ?? "";
   const classAgeBand = cls?.ageBand ?? "";

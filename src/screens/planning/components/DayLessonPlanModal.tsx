@@ -8,7 +8,10 @@ import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
 import { Pressable } from "../../../ui/Pressable";
 import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import { LessonActivityEditor } from "../../lesson/components/LessonActivityEditor";
-import { resolveLessonBlocksFromDailyPlan } from "../application/daily-lesson-blocks";
+import {
+  buildSessionEnvironmentLessonBlocks,
+  resolveLessonBlocksFromDailyPlan,
+} from "../application/daily-lesson-blocks";
 import { PlanningSyncStatusChip } from "./PlanningSyncStatusChip";
 
 type Props = {
@@ -63,6 +66,38 @@ const buildSnapshot = (payload: {
     blocks: normalizeLessonBlocks(payload.blocks),
   });
 
+const hasFilledLessonContent = (blocks: LessonBlock[]) =>
+  blocks.some((block) =>
+    (block.activities ?? []).some(
+      (activity) => activity.name?.trim() || activity.description?.trim()
+    )
+  );
+
+const sessionEnvironmentChangeCopy: Record<
+  SessionEnvironment,
+  { title: string; message: string }
+> = {
+  quadra: {
+    title: "Adaptar para aula de quadra",
+    message:
+      "Essa mudança remove a estrutura resistida e volta para uma aula de quadra. Deseja continuar?",
+  },
+  academia: {
+    title: "Adaptar para treino resistido",
+    message:
+      "Essa mudança adapta a estrutura do plano para treino resistido. As atividades atuais de quadra podem ser substituídas. Deseja continuar?",
+  },
+  mista: {
+    title: "Adaptar para sessão mista",
+    message:
+      "Essa mudança divide a sessão entre quadra e academia. Revise os tempos para garantir que a aula caiba no horário.",
+  },
+  preventiva: {
+    title: "Adaptar estrutura",
+    message: "Essa mudança adapta a estrutura do plano. Deseja continuar?",
+  },
+};
+
 export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, onRegenerate, onExportPdf, onSave }: Props) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -81,6 +116,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
   const [activeBlockKey, setActiveBlockKey] = useState<string | null>(null);
   const [baselineSnapshot, setBaselineSnapshot] = useState("");
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [pendingSessionEnvironment, setPendingSessionEnvironment] = useState<SessionEnvironment | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -110,6 +146,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
       })
     );
     setShowCloseConfirm(false);
+    setPendingSessionEnvironment(null);
   }, [initialPlan, visible]);
 
   useEffect(() => {
@@ -151,6 +188,26 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
     setBlocks((currentBlocks) =>
       currentBlocks.map((block) => (block.key === key ? nextBlock : block))
     );
+  };
+
+  const applySessionEnvironmentChange = (nextEnvironment: SessionEnvironment) => {
+    const nextBlocks = buildSessionEnvironmentLessonBlocks(
+      nextEnvironment,
+      totalDuration || 60
+    );
+    setSessionEnvironment(nextEnvironment);
+    setBlocks(nextBlocks);
+    setActiveBlockKey(nextBlocks[1]?.key ?? nextBlocks[0]?.key ?? null);
+    setPendingSessionEnvironment(null);
+  };
+
+  const requestSessionEnvironmentChange = (nextEnvironment: SessionEnvironment) => {
+    if (nextEnvironment === sessionEnvironment) return;
+    if (hasFilledLessonContent(blocks)) {
+      setPendingSessionEnvironment(nextEnvironment);
+      return;
+    }
+    applySessionEnvironmentChange(nextEnvironment);
   };
 
   const inputStyle = useMemo(
@@ -325,7 +382,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
                   return (
                     <Pressable
                       key={option.value}
-                      onPress={() => setSessionEnvironment(option.value)}
+                      onPress={() => requestSessionEnvironmentChange(option.value)}
                       style={{
                         flex: 1,
                         borderRadius: 12,
@@ -567,6 +624,29 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
           void handleSaveAndClose();
         }}
         onCancel={handleDiscard}
+      />
+
+      <ConfirmCloseOverlay
+        visible={Boolean(pendingSessionEnvironment)}
+        title={
+          pendingSessionEnvironment
+            ? sessionEnvironmentChangeCopy[pendingSessionEnvironment].title
+            : "Adaptar estrutura"
+        }
+        message={
+          pendingSessionEnvironment
+            ? sessionEnvironmentChangeCopy[pendingSessionEnvironment].message
+            : "Deseja adaptar a estrutura do plano?"
+        }
+        confirmLabel="Continuar"
+        cancelLabel="Cancelar"
+        overlayZIndex={35000}
+        onConfirm={() => {
+          if (pendingSessionEnvironment) {
+            applySessionEnvironmentChange(pendingSessionEnvironment);
+          }
+        }}
+        onCancel={() => setPendingSessionEnvironment(null)}
       />
     </>
   );

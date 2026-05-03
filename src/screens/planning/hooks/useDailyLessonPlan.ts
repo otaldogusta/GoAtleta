@@ -5,6 +5,8 @@ import type {
   ClassPlan,
   DailyLessonPlan,
   LessonBlock,
+  ResistanceExerciseCategory,
+  SessionComponent,
   SessionEnvironment,
   SessionPrimaryComponent,
 } from "../../../core/models";
@@ -36,6 +38,62 @@ const resolveSessionPrimaryComponent = (
   if (environment === "mista") return "misto_transferencia";
   if (environment === "preventiva") return "preventivo";
   return "tecnico_tatico";
+};
+
+const resistanceCategoryByIndex: ResistanceExerciseCategory[] = [
+  "membros_inferiores",
+  "membros_inferiores",
+  "puxar",
+  "core",
+  "preventivo",
+];
+
+const buildSessionComponentsFromBlocks = (
+  blocks: LessonBlock[],
+  environment: SessionEnvironment,
+): SessionComponent[] => {
+  if (environment === "quadra") return [];
+
+  const mainBlock = blocks.find((block) => block.key === "main");
+  const exercises = (mainBlock?.activities ?? [])
+    .map((activity, index) => {
+      const name = activity.name?.trim();
+      if (!name) return null;
+      return {
+        name,
+        category: resistanceCategoryByIndex[index] ?? "preventivo",
+        sets: 3,
+        reps: index >= 3 ? "20-30s" : "8-10",
+        rest: index >= 3 ? "45s" : "75-90s",
+        notes: activity.description?.trim() || undefined,
+        transferTarget:
+          environment === "mista"
+            ? "transferência para quadra"
+            : "estabilidade, força e controle corporal",
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (!exercises.length) return [];
+
+  const durationMin = Math.max(20, mainBlock?.durationMinutes ?? 35);
+  return [
+    {
+      type: "academia_resistido",
+      durationMin,
+      resistancePlan: {
+        id: `daily_resistance_${Date.now()}`,
+        label: environment === "mista" ? "Bloco resistido integrado" : "Treino resistido",
+        primaryGoal: "forca_base",
+        transferTarget:
+          environment === "mista"
+            ? "transferência para ações de quadra"
+            : "estabilidade, impulsão e controle corporal",
+        estimatedDurationMin: durationMin,
+        exercises,
+      },
+    },
+  ];
 };
 
 export function useDailyLessonPlan(
@@ -164,7 +222,9 @@ export function useDailyLessonPlan(
         sessionEnvironment: payload.sessionEnvironment,
         sessionPrimaryComponent: resolveSessionPrimaryComponent(payload.sessionEnvironment),
         sessionComponents:
-          payload.sessionEnvironment === "quadra" ? [] : base.sessionComponents,
+          payload.sessionEnvironment === "quadra"
+            ? []
+            : buildSessionComponentsFromBlocks(payload.blocks, payload.sessionEnvironment),
         syncStatus: hasManualOverrides ? "overridden" : "in_sync",
         manualOverridesJson: JSON.stringify(manualMask),
         manualOverrideMaskJson: JSON.stringify(manualOverrideFields),

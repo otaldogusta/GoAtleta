@@ -1,4 +1,4 @@
-import type { DailyLessonPlan, LessonActivity, LessonBlock } from "../../../core/models";
+import type { DailyLessonPlan, LessonActivity, LessonBlock, SessionEnvironment } from "../../../core/models";
 import { summarizeLessonActivity, type LessonBlockType } from "../../../pdf/summarize-lesson-activity";
 import { getLessonBlockTimes } from "../../../utils/lesson-block-times";
 
@@ -16,7 +16,195 @@ const makeActivity = (description: string, blockType: LessonBlockType): LessonAc
   description,
 });
 
-const parseBlocksJson = (value: string | undefined): LessonBlock[] | null => {
+const makeTemplateActivity = (
+  id: string,
+  name: string,
+  description: string,
+): LessonActivity => ({ id, name, description });
+
+const resolveTemplateDurations = (durationMinutes: number, environment: SessionEnvironment) => {
+  const total = Math.max(30, Math.round(durationMinutes || 60));
+  if (environment === "academia") {
+    const warmup = total >= 75 ? 15 : 10;
+    const cooldown = total >= 75 ? 10 : 5;
+    return {
+      warmup,
+      main: Math.max(20, total - warmup - cooldown),
+      cooldown,
+    };
+  }
+
+  if (environment === "mista") {
+    const warmup = total >= 75 ? 10 : 8;
+    const cooldown = total >= 75 ? 20 : 12;
+    return {
+      warmup,
+      main: Math.max(20, total - warmup - cooldown),
+      cooldown,
+    };
+  }
+
+  const blockTimes = getLessonBlockTimes(total);
+  return {
+    warmup: blockTimes.warmupMinutes,
+    main: blockTimes.mainMinutes,
+    cooldown: blockTimes.cooldownMinutes,
+  };
+};
+
+export const buildSessionEnvironmentLessonBlocks = (
+  environment: SessionEnvironment,
+  durationMinutes = 60,
+): LessonBlock[] => {
+  const durations = resolveTemplateDurations(durationMinutes, environment);
+  if (environment === "academia") {
+    return [
+      {
+        key: "warmup",
+        label: "Preparação",
+        durationMinutes: durations.warmup,
+        activities: [
+          makeTemplateActivity(
+            "academy_preparation",
+            "Mobilidade e ativação geral",
+            "Mobilidade de quadril, tornozelo e ombros, seguida de ativação leve de core e membros inferiores para preparar o treino resistido."
+          ),
+        ],
+      },
+      {
+        key: "main",
+        label: "Treino resistido",
+        durationMinutes: durations.main,
+        activities: [
+          makeTemplateActivity(
+            "academy_leg_press",
+            "Leg Press 45°",
+            "3 séries de 8 a 10 repetições, descanso de 75 a 90 segundos. Priorizar amplitude segura e controle na descida, relacionando a força de membros inferiores com salto e estabilidade."
+          ),
+          makeTemplateActivity(
+            "academy_stiff",
+            "Stiff com halteres",
+            "3 séries de 8 repetições, descanso de 75 segundos. Manter coluna neutra e quadril para trás, reforçando cadeia posterior para impulsão e proteção de joelho."
+          ),
+          makeTemplateActivity(
+            "academy_row",
+            "Remada baixa",
+            "3 séries de 10 repetições, descanso de 60 segundos. Puxar com escápulas estáveis, conectando força de tronco e ombro ao controle de manchete e defesa."
+          ),
+          makeTemplateActivity(
+            "academy_core",
+            "Core anti-rotação",
+            "3 séries de 20 a 30 segundos por lado, descanso curto. Manter tronco estável para melhorar equilíbrio em deslocamentos e aterrissagens."
+          ),
+        ],
+      },
+      {
+        key: "cooldown",
+        label: "Fechamento",
+        durationMinutes: durations.cooldown,
+        activities: [
+          makeTemplateActivity(
+            "academy_closure",
+            "Desaceleração e registro de carga",
+            "Alongamento leve, hidratação e registro rápido de percepção de esforço. Fechar com orientação sobre recuperação e qualidade de movimento."
+          ),
+        ],
+      },
+    ];
+  }
+
+  if (environment === "mista") {
+    return [
+      {
+        key: "warmup",
+        label: "Quadra inicial",
+        durationMinutes: durations.warmup,
+        activities: [
+          makeTemplateActivity(
+            "mixed_court_start",
+            "Ativação com bola",
+            "Ativação curta em quadra com deslocamentos, manchete leve e toque de segurança para preparar a turma antes do bloco resistido."
+          ),
+        ],
+      },
+      {
+        key: "main",
+        label: "Academia",
+        durationMinutes: durations.main,
+        activities: [
+          makeTemplateActivity(
+            "mixed_leg_press",
+            "Leg Press 45°",
+            "3 séries de 8 repetições, descanso de 75 segundos. Executar com controle e transferir a intenção para impulsão e estabilidade na quadra."
+          ),
+          makeTemplateActivity(
+            "mixed_stiff",
+            "Stiff com halteres",
+            "3 séries de 8 repetições, descanso de 75 segundos. Trabalhar cadeia posterior com postura estável e movimento controlado."
+          ),
+          makeTemplateActivity(
+            "mixed_core",
+            "Core anti-rotação",
+            "3 séries de 20 segundos por lado, descanso curto. Manter tronco firme para sustentar deslocamentos e recepções."
+          ),
+        ],
+      },
+      {
+        key: "cooldown",
+        label: "Transferência para quadra e fechamento",
+        durationMinutes: durations.cooldown,
+        activities: [
+          makeTemplateActivity(
+            "mixed_transfer",
+            "Aplicação técnica na quadra",
+            "Retornar para a quadra e aplicar movimentos curtos com bola, conectando estabilidade, deslocamento e primeira bola. Encerrar com roda rápida sobre como a força ajudou a execução."
+          ),
+        ],
+      },
+    ];
+  }
+
+  return [
+    {
+      key: "warmup",
+      label: "Aquecimento",
+      durationMinutes: durations.warmup,
+      activities: [
+        makeTemplateActivity(
+          "court_warmup",
+          "Aquecimento com bola",
+          "Ativação em quadra com deslocamentos simples, controle de bola e comandos curtos para preparar a parte principal."
+        ),
+      ],
+    },
+    {
+      key: "main",
+      label: "Parte principal",
+      durationMinutes: durations.main,
+      activities: [
+        makeTemplateActivity(
+          "court_main",
+          "Atividade principal de quadra",
+          "Organizar a turma em grupos pequenos para trabalhar o fundamento planejado com alvo, repetição orientada e aplicação em jogo reduzido."
+        ),
+      ],
+    },
+    {
+      key: "cooldown",
+      label: "Volta à calma",
+      durationMinutes: durations.cooldown,
+      activities: [
+        makeTemplateActivity(
+          "court_cooldown",
+          "Roda rápida de fechamento",
+          "Fechar a aula com perguntas curtas sobre o que funcionou, o que precisa melhorar e qual ajuste será levado para a próxima sessão."
+        ),
+      ],
+    },
+  ];
+};
+
+export const parseLessonBlocksJson = (value: string | undefined): LessonBlock[] | null => {
   if (!value) return null;
   try {
     const parsed = JSON.parse(value);
@@ -98,7 +286,7 @@ export const resolveLessonBlocksFromDailyPlan = (
   plan: Pick<DailyLessonPlan, "warmup" | "mainPart" | "cooldown" | "blocksJson">,
   durationMinutes?: number
 ): LessonBlock[] => {
-  const parsed = parseBlocksJson(plan.blocksJson);
+  const parsed = parseLessonBlocksJson(plan.blocksJson);
   const blockTimes = getLessonBlockTimes(durationMinutes ?? 60);
   if (parsed) {
     const byKey = new Map(parsed.map((block) => [block.key, block]));
