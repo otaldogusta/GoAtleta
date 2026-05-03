@@ -2530,16 +2530,18 @@ export default function SessionScreen() {
       (persistedWeeklyContext.gymSessionsCount > 0 ||
         persistedWeeklyContext.courtGymRelationship !== "quadra_dominante"),
   );
+  const dailyPlanAllowsResistance =
+    currentDailyLessonPlan?.sessionEnvironment === "academia" ||
+    currentDailyLessonPlan?.sessionEnvironment === "mista";
   const shouldShowResistanceGuardNotice = Boolean(
     plan &&
-      currentDailyLessonPlan?.sessionEnvironment === "quadra" &&
+      !currentDailyLessonPlan &&
       teamTrainingContext?.hasGymAccess &&
       weeklyContextConsideredGym,
   );
   const hasUnavailableResistanceSession = Boolean(
     !dismissResistanceUnavailable &&
-      currentDailyLessonPlan?.sessionEnvironment &&
-      currentDailyLessonPlan.sessionEnvironment !== "quadra" &&
+      dailyPlanAllowsResistance &&
       !persistedResistanceData,
   );
 
@@ -2548,22 +2550,17 @@ export default function SessionScreen() {
   }, [currentDailyLessonPlan?.id, sessionDate]);
 
   const resistancePreview = useMemo(() => {
-    if (currentDailyLessonPlan?.sessionEnvironment) {
-      if (
-        currentDailyLessonPlan.sessionEnvironment !== "quadra" &&
-        persistedResistanceData
-      ) {
+    if (currentDailyLessonPlan) {
+      if (dailyPlanAllowsResistance && persistedResistanceData) {
         return {
-          sessionEnvironment: currentDailyLessonPlan.sessionEnvironment,
+          sessionEnvironment: currentDailyLessonPlan.sessionEnvironment ?? "quadra",
           weeklyContext: persistedWeeklyContext,
           resistancePlan: persistedResistanceData.resistancePlan,
           durationMin: persistedResistanceData.durationMin,
         };
       }
 
-      if (currentDailyLessonPlan.sessionEnvironment !== "quadra") {
-        return null;
-      }
+      return null;
     }
 
     const preview = buildSessionResistancePreview({
@@ -2590,6 +2587,7 @@ export default function SessionScreen() {
     cls,
     currentClassPlan,
     currentDailyLessonPlan,
+    dailyPlanAllowsResistance,
     persistedResistanceData,
     persistedWeeklyContext,
     sessionDate,

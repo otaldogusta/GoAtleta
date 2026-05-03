@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Text, TextInput, useWindowDimensions, View } from "react-native";
 
-import type { DailyLessonPlan, LessonBlock } from "../../../core/models";
+import type { DailyLessonPlan, LessonBlock, SessionEnvironment } from "../../../core/models";
 import { useAppTheme } from "../../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
@@ -18,8 +18,26 @@ type Props = {
   onClose: () => void;
   onRegenerate?: () => Promise<void>;
   onExportPdf?: () => Promise<void>;
-  onSave: (payload: { title: string; blocks: LessonBlock[]; observations: string }) => Promise<void>;
+  onSave: (payload: {
+    title: string;
+    blocks: LessonBlock[];
+    observations: string;
+    sessionEnvironment: SessionEnvironment;
+  }) => Promise<void>;
 };
+
+const SESSION_ENVIRONMENT_OPTIONS: {
+  value: SessionEnvironment;
+  label: string;
+  description: string;
+}[] = [
+  { value: "quadra", label: "Quadra", description: "Técnico/tático" },
+  { value: "academia", label: "Academia", description: "Treino resistido" },
+  { value: "mista", label: "Mista", description: "Quadra + academia" },
+];
+
+const normalizeEditableSessionEnvironment = (value?: SessionEnvironment): SessionEnvironment =>
+  value === "academia" || value === "mista" ? value : "quadra";
 
 const normalizeLessonBlocks = (blocks: LessonBlock[]) =>
   blocks.map((block) => ({
@@ -32,10 +50,16 @@ const normalizeLessonBlocks = (blocks: LessonBlock[]) =>
     })),
   }));
 
-const buildSnapshot = (payload: { title: string; blocks: LessonBlock[]; observations: string }) =>
+const buildSnapshot = (payload: {
+  title: string;
+  blocks: LessonBlock[];
+  observations: string;
+  sessionEnvironment: SessionEnvironment;
+}) =>
   JSON.stringify({
     title: payload.title.trim(),
     observations: payload.observations.trim(),
+    sessionEnvironment: payload.sessionEnvironment,
     blocks: normalizeLessonBlocks(payload.blocks),
   });
 
@@ -53,6 +77,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
   const [title, setTitle] = useState("");
   const [blocks, setBlocks] = useState<LessonBlock[]>([]);
   const [observations, setObservations] = useState("");
+  const [sessionEnvironment, setSessionEnvironment] = useState<SessionEnvironment>("quadra");
   const [activeBlockKey, setActiveBlockKey] = useState<string | null>(null);
   const [baselineSnapshot, setBaselineSnapshot] = useState("");
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -70,15 +95,18 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
     });
     const resolvedTitle = initialPlan?.title ?? "";
     const resolvedObservations = initialPlan?.observations ?? "";
+    const resolvedSessionEnvironment = normalizeEditableSessionEnvironment(initialPlan?.sessionEnvironment);
     setTitle(initialPlan?.title ?? "");
     setBlocks(resolvedBlocks);
     setObservations(resolvedObservations);
+    setSessionEnvironment(resolvedSessionEnvironment);
     setActiveBlockKey(resolvedBlocks[1]?.key ?? resolvedBlocks[0]?.key ?? null);
     setBaselineSnapshot(
       buildSnapshot({
         title: resolvedTitle,
         blocks: resolvedBlocks,
         observations: resolvedObservations,
+        sessionEnvironment: resolvedSessionEnvironment,
       })
     );
     setShowCloseConfirm(false);
@@ -98,8 +126,8 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
   }, [activeBlockKey, blocks]);
 
   const currentSnapshot = useMemo(
-    () => buildSnapshot({ title, blocks, observations }),
-    [title, blocks, observations]
+    () => buildSnapshot({ title, blocks, observations, sessionEnvironment }),
+    [title, blocks, observations, sessionEnvironment]
   );
 
   const hasChanges = baselineSnapshot.length > 0 && currentSnapshot !== baselineSnapshot;
@@ -147,6 +175,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
         title: title.trim(),
         blocks,
         observations: observations.trim(),
+        sessionEnvironment,
       });
       setBaselineSnapshot(currentSnapshot);
       onClose();
@@ -281,6 +310,48 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
                 onChangeText={setTitle}
                 style={inputStyle}
               />
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Tipo de sessão</Text>
+              <View
+                style={{
+                  flexDirection: isCompact ? "column" : "row",
+                  gap: 8,
+                }}
+              >
+                {SESSION_ENVIRONMENT_OPTIONS.map((option) => {
+                  const selected = sessionEnvironment === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setSessionEnvironment(option.value)}
+                      style={{
+                        flex: 1,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: selected ? "#2f855a" : colors.border,
+                        backgroundColor: selected ? "rgba(47, 133, 90, 0.1)" : colors.secondaryBg,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        gap: 3,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                        {option.label}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                        {option.description}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {sessionEnvironment === "mista" && totalDuration <= 60 ? (
+                <Text style={{ color: colors.warningText, fontSize: 11, lineHeight: 15 }}>
+                  Aula mista em {totalDuration} min pode reduzir a qualidade da execução.
+                </Text>
+              ) : null}
             </View>
 
             <View

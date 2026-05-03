@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ClassGroup, ClassPlan, DailyLessonPlan, LessonBlock } from "../../../core/models";
+import type {
+  ClassGroup,
+  ClassPlan,
+  DailyLessonPlan,
+  LessonBlock,
+  SessionEnvironment,
+  SessionPrimaryComponent,
+} from "../../../core/models";
 import {
     getDailyLessonPlanByWeekAndDate,
     listRecentDailyLessonPlansByClass,
@@ -20,6 +27,15 @@ type UseDailyLessonPlanOptions = {
   cycleStartDate?: string;
   cycleEndDate?: string;
   classGroup?: ClassGroup | null;
+};
+
+const resolveSessionPrimaryComponent = (
+  environment: SessionEnvironment,
+): SessionPrimaryComponent => {
+  if (environment === "academia") return "resistido";
+  if (environment === "mista") return "misto_transferencia";
+  if (environment === "preventiva") return "preventivo";
+  return "tecnico_tatico";
 };
 
 export function useDailyLessonPlan(
@@ -104,6 +120,7 @@ export function useDailyLessonPlan(
       title: string;
       blocks: LessonBlock[];
       observations: string;
+      sessionEnvironment: SessionEnvironment;
     }) => {
       if (!weeklyPlan || !session) return null;
 
@@ -128,6 +145,8 @@ export function useDailyLessonPlan(
         mainPart: legacySections.mainPart.trim() !== (base.mainPart ?? "").trim(),
         cooldown: legacySections.cooldown.trim() !== (base.cooldown ?? "").trim(),
         observations: payload.observations.trim() !== (base.observations ?? "").trim(),
+        sessionEnvironment:
+          payload.sessionEnvironment !== (base.sessionEnvironment ?? "quadra"),
       };
       const manualOverrideFields = (Object.keys(manualMask) as (keyof typeof manualMask)[]).filter(
         (key) => manualMask[key]
@@ -142,6 +161,10 @@ export function useDailyLessonPlan(
         mainPart: legacySections.mainPart,
         cooldown: legacySections.cooldown,
         observations: payload.observations,
+        sessionEnvironment: payload.sessionEnvironment,
+        sessionPrimaryComponent: resolveSessionPrimaryComponent(payload.sessionEnvironment),
+        sessionComponents:
+          payload.sessionEnvironment === "quadra" ? [] : base.sessionComponents,
         syncStatus: hasManualOverrides ? "overridden" : "in_sync",
         manualOverridesJson: JSON.stringify(manualMask),
         manualOverrideMaskJson: JSON.stringify(manualOverrideFields),
