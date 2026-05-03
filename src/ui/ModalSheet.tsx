@@ -4,6 +4,9 @@ import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useModalCardStyle } from "./use-modal-card-style";
 
+const activeModalStack: number[] = [];
+let nextModalId = 1;
+
 type ModalSheetProps = {
   visible: boolean;
   onClose: () => void;
@@ -28,6 +31,7 @@ export function ModalSheet({
   bottomOffset,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
+  const modalId = useRef(nextModalId++).current;
   const [isMounted, setIsMounted] = useState(visible);
   const previousOverflow = useRef<string | null>(null);
   const previousHtmlOverflow = useRef<string | null>(null);
@@ -47,6 +51,43 @@ export function ModalSheet({
     : Math.max(bottomOffset ?? 0, insets.bottom);
   const baseCardStyle = useModalCardStyle();
   const resolvedCardStyle = [baseCardStyle, cardStyle];
+
+  useEffect(() => {
+    if (!visible) {
+      const existingIndex = activeModalStack.indexOf(modalId);
+      if (existingIndex >= 0) {
+        activeModalStack.splice(existingIndex, 1);
+      }
+      return;
+    }
+
+    if (!activeModalStack.includes(modalId)) {
+      activeModalStack.push(modalId);
+    }
+
+    return () => {
+      const existingIndex = activeModalStack.indexOf(modalId);
+      if (existingIndex >= 0) {
+        activeModalStack.splice(existingIndex, 1);
+      }
+    };
+  }, [modalId, visible]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeModalStack[activeModalStack.length - 1] !== modalId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [modalId, onClose, visible]);
 
   useEffect(() => {
     if (visible) {
