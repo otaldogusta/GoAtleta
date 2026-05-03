@@ -10,6 +10,7 @@ import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import { LessonActivityEditor } from "../../lesson/components/LessonActivityEditor";
 import {
   buildSessionEnvironmentLessonBlocks,
+  ensureLessonBlocksMatchSessionEnvironment,
   resolveLessonBlocksFromDailyPlan,
 } from "../application/daily-lesson-blocks";
 import { PlanningSyncStatusChip } from "./PlanningSyncStatusChip";
@@ -123,7 +124,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
 
   useEffect(() => {
     if (!visible) return;
-    const resolvedBlocks = resolveLessonBlocksFromDailyPlan({
+    const rawResolvedBlocks = resolveLessonBlocksFromDailyPlan({
       warmup: initialPlan?.warmup ?? "",
       mainPart: initialPlan?.mainPart ?? "",
       cooldown: initialPlan?.cooldown ?? "",
@@ -132,6 +133,11 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
     const resolvedTitle = initialPlan?.title ?? "";
     const resolvedObservations = initialPlan?.observations ?? "";
     const resolvedSessionEnvironment = normalizeEditableSessionEnvironment(initialPlan?.sessionEnvironment);
+    const resolvedBlocks = ensureLessonBlocksMatchSessionEnvironment(
+      rawResolvedBlocks,
+      resolvedSessionEnvironment,
+      rawResolvedBlocks.reduce((sum, block) => sum + Number(block.durationMinutes ?? 0), 0) || 60
+    );
     setTitle(initialPlan?.title ?? "");
     setBlocks(resolvedBlocks);
     setObservations(resolvedObservations);

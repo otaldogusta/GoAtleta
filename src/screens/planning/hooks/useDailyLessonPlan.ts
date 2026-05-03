@@ -16,7 +16,11 @@ import {
     upsertDailyLessonPlan,
 } from "../../../db/seed";
 import type { WeekSessionPreview } from "../../periodization/application/build-week-session-preview";
-import { deriveLegacyDailySections, serializeLessonBlocks } from "../application/daily-lesson-blocks";
+import {
+    deriveLegacyDailySections,
+    ensureLessonBlocksMatchSessionEnvironment,
+    serializeLessonBlocks,
+} from "../application/daily-lesson-blocks";
 import {
     buildAutoDailyLessonPlan,
     regenerateDailyLessonPlanFromWeek,
@@ -196,7 +200,16 @@ export function useDailyLessonPlan(
           recentPlans,
         });
 
-      const legacySections = deriveLegacyDailySections(payload.blocks);
+      const durationForTemplate =
+        payload.blocks.reduce((sum, block) => sum + Number(block.durationMinutes ?? 0), 0) ||
+        options?.durationMinutes ||
+        60;
+      const environmentAlignedBlocks = ensureLessonBlocksMatchSessionEnvironment(
+        payload.blocks,
+        payload.sessionEnvironment,
+        durationForTemplate
+      );
+      const legacySections = deriveLegacyDailySections(environmentAlignedBlocks);
       const manualMask = {
         title: payload.title.trim() !== (base.title ?? "").trim(),
         warmup: legacySections.warmup.trim() !== (base.warmup ?? "").trim(),
@@ -214,7 +227,7 @@ export function useDailyLessonPlan(
       const next: DailyLessonPlan = {
         ...base,
         title: payload.title,
-        blocksJson: serializeLessonBlocks(payload.blocks),
+        blocksJson: serializeLessonBlocks(environmentAlignedBlocks),
         warmup: legacySections.warmup,
         mainPart: legacySections.mainPart,
         cooldown: legacySections.cooldown,
@@ -224,7 +237,7 @@ export function useDailyLessonPlan(
         sessionComponents:
           payload.sessionEnvironment === "quadra"
             ? []
-            : buildSessionComponentsFromBlocks(payload.blocks, payload.sessionEnvironment),
+            : buildSessionComponentsFromBlocks(environmentAlignedBlocks, payload.sessionEnvironment),
         syncStatus: hasManualOverrides ? "overridden" : "in_sync",
         manualOverridesJson: JSON.stringify(manualMask),
         manualOverrideMaskJson: JSON.stringify(manualOverrideFields),

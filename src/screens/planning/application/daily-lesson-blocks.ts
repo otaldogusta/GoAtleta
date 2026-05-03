@@ -22,6 +22,27 @@ const makeTemplateActivity = (
   description: string,
 ): LessonActivity => ({ id, name, description });
 
+const COURT_ACTIVITY_PATTERN =
+  /\b(recepcao|recepção|saque|levantamento|bloqueio|cobertura|contra-ataque|jogo|mini\s*jogo|mini\s*\d+x\d+|manchete|toque|quadra)\b/i;
+
+const RESISTANCE_ACTIVITY_PATTERN =
+  /\b(leg\s*press|stiff|agachamento|panturrilha|core|remada|halter|halteres|serie|série|series|séries|repetic|repetiç|descanso|cadencia|cadência|resistido|academia)\b/i;
+
+const blockText = (block: LessonBlock | undefined) =>
+  [
+    block?.label,
+    ...(block?.activities ?? []).flatMap((activity) => [activity.name, activity.description]),
+  ]
+    .map((value) => safeText(value))
+    .filter(Boolean)
+    .join(" ");
+
+const isCourtLikeBlock = (block: LessonBlock | undefined) =>
+  COURT_ACTIVITY_PATTERN.test(blockText(block));
+
+const isResistanceLikeBlock = (block: LessonBlock | undefined) =>
+  RESISTANCE_ACTIVITY_PATTERN.test(blockText(block));
+
 const resolveTemplateDurations = (durationMinutes: number, environment: SessionEnvironment) => {
   const total = Math.max(30, Math.round(durationMinutes || 60));
   if (environment === "academia") {
@@ -202,6 +223,56 @@ export const buildSessionEnvironmentLessonBlocks = (
       ],
     },
   ];
+};
+
+export const ensureLessonBlocksMatchSessionEnvironment = (
+  blocks: LessonBlock[],
+  environment: SessionEnvironment,
+  durationMinutes = 60,
+): LessonBlock[] => {
+  if (!blocks.length) {
+    return buildSessionEnvironmentLessonBlocks(environment, durationMinutes);
+  }
+
+  const byKey = new Map(blocks.map((block) => [block.key, block]));
+  const warmup = byKey.get("warmup");
+  const main = byKey.get("main");
+  const cooldown = byKey.get("cooldown");
+
+  if (environment === "academia") {
+    const hasAcademyStructure =
+      /preparacao|preparação/i.test(warmup?.label ?? "") &&
+      /treino\s+resistido|resistido|academia/i.test(main?.label ?? "") &&
+      /fechamento/i.test(cooldown?.label ?? "");
+
+    if (!hasAcademyStructure || isCourtLikeBlock(main) || !isResistanceLikeBlock(main)) {
+      return buildSessionEnvironmentLessonBlocks("academia", durationMinutes);
+    }
+  }
+
+  if (environment === "mista") {
+    const hasMixedStructure =
+      /quadra\s+inicial/i.test(warmup?.label ?? "") &&
+      /academia|resistido/i.test(main?.label ?? "") &&
+      /transferencia|transferência|fechamento/i.test(cooldown?.label ?? "");
+
+    if (!hasMixedStructure || isCourtLikeBlock(main) || !isResistanceLikeBlock(main)) {
+      return buildSessionEnvironmentLessonBlocks("mista", durationMinutes);
+    }
+  }
+
+  if (environment === "quadra") {
+    const hasCourtStructure =
+      /aquecimento/i.test(warmup?.label ?? "") &&
+      /parte\s+principal/i.test(main?.label ?? "") &&
+      /volta/i.test(cooldown?.label ?? "");
+
+    if (!hasCourtStructure || isResistanceLikeBlock(main)) {
+      return buildSessionEnvironmentLessonBlocks("quadra", durationMinutes);
+    }
+  }
+
+  return blocks;
 };
 
 export const parseLessonBlocksJson = (value: string | undefined): LessonBlock[] | null => {
