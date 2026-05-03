@@ -146,7 +146,7 @@ export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: 
             }}
           >
             <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }} numberOfLines={1}>
-              Atividade removida. Use Ctrl+Z para desfazer.
+              Atividade removida.
             </Text>
             <Pressable onPress={restoreLastRemoved} style={{ paddingVertical: 4, paddingHorizontal: 8 }}>
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>Desfazer</Text>
@@ -295,7 +295,7 @@ export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: 
       <ConfirmCloseOverlay
         visible={pendingRemoveIndex !== null}
         title="Remover atividade?"
-        message="Essa atividade será removida do plano. Você ainda poderá usar Ctrl+Z para desfazer logo depois."
+        message="Essa atividade será removida do plano."
         confirmLabel="Remover"
         cancelLabel="Cancelar"
         overlayZIndex={36000}
