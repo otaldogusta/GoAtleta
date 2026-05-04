@@ -188,13 +188,13 @@ export const buildSessionEnvironmentLessonBlocks = (
     return [
       {
         key: "warmup",
-        label: "Quadra inicial",
+        label: "Preparação",
         durationMinutes: durations.warmup,
         activities: [
           makeTemplateActivity(
-            "mixed_court_start",
-            "Ativação com bola",
-            "Ativação curta em quadra com deslocamentos, manchete leve e toque de segurança para preparar a turma antes do bloco resistido."
+            "mixed_preparation",
+            "Mobilidade e ativação para transferência",
+            "Mobilidade de quadril, tornozelo e ombros, seguida de ativação leve de core e membros inferiores para preparar o bloco resistido e a aplicação posterior em quadra."
           ),
         ],
       },
@@ -228,7 +228,7 @@ export const buildSessionEnvironmentLessonBlocks = (
           makeTemplateActivity(
             "mixed_transfer",
             "Aplicação técnica na quadra",
-            "Retornar para a quadra e aplicar movimentos curtos com bola, conectando estabilidade, deslocamento e primeira bola. Encerrar com roda rápida sobre como a força ajudou a execução."
+            "Após o bloco de academia, retornar para a quadra e aplicar movimentos curtos com bola, conectando estabilidade, deslocamento e primeira bola. Encerrar com roda rápida sobre como a força ajudou a execução."
           ),
         ],
       },
@@ -302,7 +302,7 @@ export const ensureLessonBlocksMatchSessionEnvironment = (
 
   if (environment === "mista") {
     const hasMixedStructure =
-      /quadra\s+inicial/i.test(warmup?.label ?? "") &&
+      /preparacao|preparação/i.test(warmup?.label ?? "") &&
       /academia|resistido/i.test(main?.label ?? "") &&
       /transferencia|transferência|fechamento/i.test(cooldown?.label ?? "");
 
