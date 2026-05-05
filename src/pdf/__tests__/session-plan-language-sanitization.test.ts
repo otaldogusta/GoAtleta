@@ -62,4 +62,46 @@ describe("session-plan language sanitization", () => {
     expect(html).toContain("1. Descrição editada pelo professor para esta atividade.");
     expect(html).toContain("2. Outra descrição salva no modal.");
   });
+
+  it("keeps resistance workout sheet descriptions compact in the same four-column PDF", () => {
+    const html = sessionPlanHtml({
+      className: "Turma 16+",
+      dateLabel: "05/05/2026",
+      title: "Treino resistido",
+      blocks: [
+        {
+          key: "warmup",
+          label: "Preparação",
+          durationMinutes: 10,
+          activities: [
+            {
+              name: "Aquecimento específico",
+              description: "Antes das séries válidas: 1–2 séries leves e progressivas no primeiro exercício. Não contar como série válida.",
+            },
+          ],
+        },
+        {
+          key: "main",
+          label: "Treino resistido",
+          durationMinutes: 45,
+          activities: [
+            {
+              name: "Leg Press 45°",
+              description: "3 séries · 8–10 reps · 75–90s. Amplitude segura e controle na descida.",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toContain("<th>Período</th>");
+    expect(html).toContain("<th>Atividades</th>");
+    expect(html).toContain("<th>Tempo</th>");
+    expect(html).toContain("<th>Descrição</th>");
+    expect(html).toContain("1. Aquecimento específico");
+    expect(html).toContain("1. Antes das séries válidas: 1–2 séries leves");
+    expect(html).toContain("1. Leg Press 45°");
+    expect(html).toContain("1. 3 séries · 8–10 reps · 75–90s");
+    expect(html).not.toMatch(/Organização:|Desenvolvimento:|Comandos do professor:|Critério de sucesso:|Progressão:|Adaptação:/);
+  });
 });

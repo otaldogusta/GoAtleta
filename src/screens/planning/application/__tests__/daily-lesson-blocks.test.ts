@@ -45,6 +45,15 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
     expect(result[1]?.activities.map((activity) => activity.name).join(" ")).not.toMatch(
       /recepção|saque|jogo/i
     );
+    expect(result[0]?.activities[0]?.name).toBe("Aquecimento específico");
+    expect(result[0]?.activities[0]?.description).toContain("1–2 séries leves");
+    expect(result[0]?.activities[0]?.description).not.toContain("Mobilidade e ativação geral");
+    expect(result[1]?.activities[0]?.description).toBe(
+      "3 séries · 8–10 reps · 75–90s. Amplitude segura e controle na descida."
+    );
+    expect(result[1]?.activities.map((activity) => activity.description).join(" ")).not.toMatch(
+      /relacionando|conectando|transferir a intenção|melhorar equilíbrio/i
+    );
   });
 
   it("mantém bloco de academia válido", () => {
@@ -67,6 +76,9 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
       expect.arrayContaining(["Leg Press 45°", "Stiff com halteres"])
     );
     expect(result[2]?.activities[0]?.description).toMatch(/Após o bloco de academia/i);
+    expect(result[0]?.activities[0]?.description).toContain("1–2 séries leves");
+    expect(result[1]?.activities[0]?.description).toContain("3 séries · 8 reps · 75s");
+    expect(result[2]?.activities[0]?.description).toContain("Bloqueio com aterrissagem controlada — 3x5");
   });
 
   it("normaliza estrutura mista antiga que começava pela quadra", () => {
@@ -94,7 +106,7 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
     const result = ensureLessonBlocksMatchSessionEnvironment(legacyMixedBlocks, "mista", 90);
 
     expect(result[0]?.label).toBe("Preparação");
-    expect(result[0]?.activities[0]?.name).toBe("Mobilidade e ativação para transferência");
+    expect(result[0]?.activities[0]?.name).toBe("Aquecimento específico");
   });
 });
 

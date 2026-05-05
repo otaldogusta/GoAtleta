@@ -22,6 +22,9 @@ const makeTemplateActivity = (
   description: string,
 ): LessonActivity => ({ id, name, description });
 
+const RESISTANCE_PREPARATION_DESCRIPTION =
+  "Antes das séries válidas: 1–2 séries leves e progressivas no primeiro exercício. Não contar como série válida.";
+
 const COURT_ACTIVITY_PATTERN =
   /\b(recepcao|recepção|saque|levantamento|bloqueio|cobertura|contra-ataque|jogo|mini\s*jogo|mini\s*\d+x\d+|manchete|toque|quadra)\b/i;
 
@@ -137,8 +140,8 @@ export const buildSessionEnvironmentLessonBlocks = (
         activities: [
           makeTemplateActivity(
             "academy_preparation",
-            "Mobilidade e ativação geral",
-            "Mobilidade de quadril, tornozelo e ombros, seguida de ativação leve de core e membros inferiores para preparar o treino resistido."
+            "Aquecimento específico",
+            RESISTANCE_PREPARATION_DESCRIPTION
           ),
         ],
       },
@@ -150,22 +153,22 @@ export const buildSessionEnvironmentLessonBlocks = (
           makeTemplateActivity(
             "academy_leg_press",
             "Leg Press 45°",
-            "3 séries de 8 a 10 repetições, descanso de 75 a 90 segundos. Priorizar amplitude segura e controle na descida, relacionando a força de membros inferiores com salto e estabilidade."
+            "3 séries · 8–10 reps · 75–90s. Amplitude segura e controle na descida."
           ),
           makeTemplateActivity(
             "academy_stiff",
             "Stiff com halteres",
-            "3 séries de 8 repetições, descanso de 75 segundos. Manter coluna neutra e quadril para trás, reforçando cadeia posterior para impulsão e proteção de joelho."
+            "3 séries · 8 reps · 75s. Coluna neutra e quadril para trás."
           ),
           makeTemplateActivity(
             "academy_row",
             "Remada baixa",
-            "3 séries de 10 repetições, descanso de 60 segundos. Puxar com escápulas estáveis, conectando força de tronco e ombro ao controle de manchete e defesa."
+            "3 séries · 10 reps · 60s. Escápulas estáveis durante a puxada."
           ),
           makeTemplateActivity(
             "academy_core",
             "Core anti-rotação",
-            "3 séries de 20 a 30 segundos por lado, descanso curto. Manter tronco estável para melhorar equilíbrio em deslocamentos e aterrissagens."
+            "3 séries · 20–30s por lado · 45–60s. Tronco firme durante toda a série."
           ),
         ],
       },
@@ -177,7 +180,7 @@ export const buildSessionEnvironmentLessonBlocks = (
           makeTemplateActivity(
             "academy_closure",
             "Desaceleração e registro de carga",
-            "Alongamento leve, hidratação e registro rápido de percepção de esforço. Fechar com orientação sobre recuperação e qualidade de movimento."
+            "Hidratar, registrar percepção de esforço e anotar cargas usadas."
           ),
         ],
       },
@@ -193,8 +196,8 @@ export const buildSessionEnvironmentLessonBlocks = (
         activities: [
           makeTemplateActivity(
             "mixed_preparation",
-            "Mobilidade e ativação para transferência",
-            "Mobilidade de quadril, tornozelo e ombros, seguida de ativação leve de core e membros inferiores para preparar o bloco resistido e a aplicação posterior em quadra."
+            "Aquecimento específico",
+            RESISTANCE_PREPARATION_DESCRIPTION
           ),
         ],
       },
@@ -206,17 +209,17 @@ export const buildSessionEnvironmentLessonBlocks = (
           makeTemplateActivity(
             "mixed_leg_press",
             "Leg Press 45°",
-            "3 séries de 8 repetições, descanso de 75 segundos. Executar com controle e transferir a intenção para impulsão e estabilidade na quadra."
+            "3 séries · 8 reps · 75s. Controle na descida e saída forte."
           ),
           makeTemplateActivity(
             "mixed_stiff",
             "Stiff com halteres",
-            "3 séries de 8 repetições, descanso de 75 segundos. Trabalhar cadeia posterior com postura estável e movimento controlado."
+            "3 séries · 8 reps · 75s. Postura estável e movimento controlado."
           ),
           makeTemplateActivity(
             "mixed_core",
             "Core anti-rotação",
-            "3 séries de 20 segundos por lado, descanso curto. Manter tronco firme para sustentar deslocamentos e recepções."
+            "3 séries · 20s por lado · 45–60s. Tronco firme."
           ),
         ],
       },
@@ -228,7 +231,7 @@ export const buildSessionEnvironmentLessonBlocks = (
           makeTemplateActivity(
             "mixed_transfer",
             "Aplicação técnica na quadra",
-            "Após o bloco de academia, retornar para a quadra e aplicar movimentos curtos com bola, conectando estabilidade, deslocamento e primeira bola. Encerrar com roda rápida sobre como a força ajudou a execução."
+            "Após o bloco de academia, retornar para a quadra. Bloqueio com aterrissagem controlada — 3x5. Deslocamento + manchete — 3x4 ações."
           ),
         ],
       },

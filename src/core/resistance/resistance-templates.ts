@@ -41,6 +41,28 @@ function scale(
   return i;
 }
 
+function normalizeExerciseForWorkoutSheet(
+  exercise: ResistanceExercisePrescription
+): ResistanceExercisePrescription {
+  if (exercise.category === "potencia") {
+    return {
+      ...exercise,
+      notes: "Executar rápido, com técnica, sem chegar à falha.",
+    };
+  }
+
+  const notes = String(exercise.notes ?? "").trim();
+  if (!notes) return exercise;
+
+  return {
+    ...exercise,
+    notes: notes
+      .replace(/,\s*/g, ". ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  };
+}
+
 // ─── Template A — Empurrar (Push) ────────────────────────────────────────────
 
 function buildTemplateA(profile: ResistanceTrainingProfile): ResistanceExercisePrescription[] {
@@ -316,7 +338,7 @@ function buildRecoveryVariant(
     ...exercise,
     rest: "45s",
     notes: exercise.notes
-      ? `${exercise.notes} Carga leve e foco em controle.`
+      ? `${exercise.notes}. Carga leve e foco em controle.`
       : "Carga leve e foco em controle articular.",
   }));
 }
@@ -464,7 +486,16 @@ export function resolveResistanceTemplate(
   const builder = TEMPLATE_GOAL_TO_BUILDER[goal];
   const variant = resolveTemplateVariant(goal, options);
   const exerciseBuilder = variant.buildExercises ?? builder;
-  const exercises = exerciseBuilder(profile);
+  const exercises = exerciseBuilder(profile)
+    .map(normalizeExerciseForWorkoutSheet)
+    .map((exercise) =>
+      goal === "potencia_atletica"
+        ? {
+            ...exercise,
+            notes: "Executar rápido, com técnica, sem chegar à falha.",
+          }
+        : exercise
+    );
   const id = variant.idSuffix
     ? `tpl_${goal}_${profile}_${variant.idSuffix}`
     : `tpl_${goal}_${profile}`;

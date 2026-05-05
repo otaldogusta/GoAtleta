@@ -74,17 +74,16 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
           {headerLabel}
         </Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          <Chip colors={colors} label={headerLabel} />
           {transferTarget ? <Chip colors={colors} label="Transferência direta" /> : null}
         </View>
         {transferTarget ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Impacto principal na quadra: {transferTarget}
+            Transferência para quadra: {transferTarget}
           </Text>
         ) : null}
         {resolvedDuration > 0 ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Duração prevista: {resolvedDuration} min
+            {resolvedDuration} min
           </Text>
         ) : null}
       </View>
@@ -99,8 +98,6 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
             const name = String(exercise.name ?? "").trim() || `Exercício ${index + 1}`;
             const notes = String(exercise.notes ?? "").trim();
             const cadence = String(exercise.cadence ?? "").trim();
-            const exerciseTransferTarget =
-              String(exercise.transferTarget ?? "").trim() || transferTarget;
             const categoryLabel =
               categoryLabelMap[exercise.category as keyof typeof categoryLabelMap] ?? "Exercício";
 
@@ -123,7 +120,6 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
                   </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                     <Chip colors={colors} label={categoryLabel} />
-                    {exerciseTransferTarget ? <Chip colors={colors} label="Impacto na quadra" /> : null}
                   </View>
                   <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
                     {formatExerciseLine(exercise)}
@@ -133,21 +129,6 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
                     Cadência: {cadence}
                   </Text>
-                ) : null}
-                {exerciseTransferTarget ? (
-                  <View
-                    style={{
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      gap: 3,
-                    }}
-                  >
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>Impacto na quadra</Text>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
-                      {exerciseTransferTarget}
-                    </Text>
-                  </View>
                 ) : null}
                 {notes ? (
                   <Text style={{ color: colors.muted, fontSize: 11 }}>

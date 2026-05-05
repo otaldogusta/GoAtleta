@@ -108,4 +108,13 @@ describe("resolveResistanceTemplate", () => {
       regular.estimatedDurationMin
     );
   });
+
+  it("keeps power notes short and operational for workout sheets", () => {
+    const plan = resolveResistanceTemplate("potencia_atletica", "intermediario");
+
+    expect(plan.exercises.every((exercise) => exercise.notes === "Executar rápido, com técnica, sem chegar à falha.")).toBe(true);
+    expect(plan.exercises.map((exercise) => exercise.notes).join(" ")).not.toMatch(
+      /máxima intenção|cadeia cinética|produção de força/i
+    );
+  });
 });
