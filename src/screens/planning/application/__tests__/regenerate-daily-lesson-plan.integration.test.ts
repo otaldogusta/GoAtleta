@@ -387,7 +387,8 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(plan.mainPart).not.toContain("Critério de sucesso:");
     expect(plan.mainPart).not.toContain("Progressão:");
     expect(plan.mainPart).not.toContain("Adaptação:");
-    expect(plan.mainPart).toContain("Ajuste a tarefa:");
+    expect(plan.mainPart).not.toContain("Ajuste a tarefa:");
+    expect(plan.mainPart).toContain("Ajuste:");
   });
 
   it("differentiates 07-09 and 10-12 reception planning instead of cloning activities", () => {
@@ -468,5 +469,77 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(youngPlan.observations).toContain("mini 2x2");
     expect(preteenPlan.observations).toContain("3x3");
     expect(preteenPlan.mainPart).toContain("zona de levantamento");
+  });
+
+  it("generates court language for older reception and service plans without system wording", () => {
+    const weeklyPlan = {
+      id: "wp-7",
+      classId: "class-7",
+      weekNumber: 4,
+      phase: "Desenvolvimento",
+      generalObjective: "Desenvolver fundamentos de consolidação técnica",
+      specificObjective: "Serviço, recepção e organização de ataque",
+      theme: "serviço, recepção e organização de ataque no mini 4x4",
+      technicalFocus: "recepção do saque e primeira bola",
+      physicalFocus: "potência controlada",
+      pedagogicalRule: "Organizar primeira bola para continuidade",
+      rpeTarget: "PSE 6",
+      jumpTarget: "moderado",
+      warmupProfile: "ativo",
+      constraints: "",
+      generationVersion: 2,
+      generationContextSnapshotJson: JSON.stringify({
+        weeklyOperationalStrategy: {
+          decisions: [
+            {
+              sessionIndexInWeek: 1,
+              sessionRole: "consolidacao_orientada",
+              sessionEnvironment: "quadra",
+              sessionPrimaryComponent: "tecnico_tatico",
+            },
+          ],
+        },
+      }),
+      createdAt: "2026-05-01T00:00:00.000Z",
+      updatedAt: "2026-05-01T00:00:00.000Z",
+    } as any;
+
+    const session = {
+      sessionIndex: 1,
+      weekday: 2,
+      weekdayLabel: "Ter",
+      date: "2026-05-05",
+      dateLabel: "05/05/2026",
+      shortLabel: "Ter 05/05",
+    };
+
+    const plan = buildAutoDailyLessonPlan(
+      weeklyPlan,
+      session,
+      "2026-05-01T12:00:00.000Z",
+      null,
+      {
+        className: "Turma 16+",
+        ageBand: "16+",
+        durationMinutes: 90,
+      },
+    );
+
+    const blocks = JSON.parse(plan.blocksJson || "[]");
+    const mainActivities = blocks.find((block: any) => block.key === "main")?.activities ?? [];
+    const allGeneratedText = [plan.title, plan.observations, plan.warmup, plan.mainPart, plan.cooldown].join("\n");
+
+    expect(plan.title).toBe("Saque, recepção e primeira bola no mini 4x4");
+    expect(plan.observations).toContain("Organizar a recepção do saque e a primeira bola");
+    expect(plan.observations).toContain("Receber o saque com controle");
+    expect(mainActivities.map((item: any) => item.name)).toEqual([
+      "Recepção de saque direcionado",
+      "Recepção e transição para contra-ataque",
+      "Jogo condicionado de primeira bola",
+    ]);
+    expect(plan.mainPart).toContain("zona de levantamento");
+    expect(plan.mainPart).toContain("zona vulnerável");
+    expect(plan.mainPart).not.toContain("Ajuste a tarefa:");
+    expect(allGeneratedText).not.toMatch(/Etapa:|atividades guiadas|proposta progressiva|execução qualificada|fundamentos de consolidação técnica/i);
   });
 });

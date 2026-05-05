@@ -68,7 +68,8 @@ describe("pedagogical runtime scenarios", () => {
       );
 
       const fullText = [daily.title, daily.warmup, daily.mainPart, daily.cooldown, daily.observations].join(" ");
-      expect(daily.title).toContain("Etapa:");
+      expect(daily.title).not.toContain("Etapa:");
+      expect(daily.title).toMatch(/mini\s+[234]x[234]/i);
       expect(daily.observations).toContain("Objetivo da aula");
       expect(hasForbiddenTerm(fullText)).toBe(false);
 

@@ -54,6 +54,48 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
       academyBlocks
     );
   });
+
+  it("estrutura sessão mista com academia antes da transferência para quadra", () => {
+    const result = ensureLessonBlocksMatchSessionEnvironment(courtBlocks, "mista", 90);
+
+    expect(result.map((block) => block.label)).toEqual([
+      "Preparação",
+      "Academia",
+      "Transferência para quadra e fechamento",
+    ]);
+    expect(result[1]?.activities.map((activity) => activity.name)).toEqual(
+      expect.arrayContaining(["Leg Press 45°", "Stiff com halteres"])
+    );
+    expect(result[2]?.activities[0]?.description).toMatch(/Após o bloco de academia/i);
+  });
+
+  it("normaliza estrutura mista antiga que começava pela quadra", () => {
+    const legacyMixedBlocks: LessonBlock[] = [
+      {
+        key: "warmup",
+        label: "Quadra inicial",
+        durationMinutes: 10,
+        activities: [{ name: "Ativação com bola", description: "Manchete leve em quadra." }],
+      },
+      {
+        key: "main",
+        label: "Academia",
+        durationMinutes: 60,
+        activities: [{ name: "Leg Press 45°", description: "3 séries de 8 repetições." }],
+      },
+      {
+        key: "cooldown",
+        label: "Transferência para quadra e fechamento",
+        durationMinutes: 20,
+        activities: [{ name: "Aplicação técnica", description: "Retorno para a quadra." }],
+      },
+    ];
+
+    const result = ensureLessonBlocksMatchSessionEnvironment(legacyMixedBlocks, "mista", 90);
+
+    expect(result[0]?.label).toBe("Preparação");
+    expect(result[0]?.activities[0]?.name).toBe("Mobilidade e ativação para transferência");
+  });
 });
 
 describe("resolveConservativeDailySessionEnvironment", () => {

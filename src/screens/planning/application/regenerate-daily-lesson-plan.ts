@@ -643,6 +643,35 @@ const polishLessonObjective = (value: string): string => {
   return ensureSentenceEnding(text);
 };
 
+const polishLessonTitle = (value: string): string => {
+  const original = cleanupSpacing(value.replace(/^Etapa:\s*/i, ""));
+  const normalized = normalizeForCheck(original);
+
+  if (/(saque|servico|serviço)/.test(normalized) && /recepcao/.test(normalized) && /mini\s*4x4/.test(normalized)) {
+    return "Saque, recepção e primeira bola no mini 4x4";
+  }
+
+  if (/alternancia/.test(normalized) && /toque/.test(normalized) && /recepcao/.test(normalized) && /mini\s*2x2/.test(normalized)) {
+    return "Toque, recepção e continuidade no mini 2x2";
+  }
+
+  if (/bloqueio/.test(normalized) && /cobertura/.test(normalized) && /mini\s*3x3/.test(normalized)) {
+    return "Bloqueio, cobertura e continuidade no mini 3x3";
+  }
+
+  let text = original
+    .replace(/\bserviço\b/gi, "saque")
+    .replace(/\bservico\b/gi, "saque")
+    .replace(/\bfundamentos de consolidação técnica\b/gi, "fundamentos em jogo")
+    .replace(/\bfundamentos básicos\b/gi, "fundamentos")
+    .replace(/\s*·\s*/g, " no ")
+    .replace(/[.!?]+$/g, "")
+    .trim();
+
+  if (!text) return "Plano diário da turma";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
 const formatActivityDescription = (sections: {
   organization: string;
   development: string;
@@ -657,9 +686,9 @@ const formatActivityDescription = (sections: {
     .filter(Boolean)
     .join("; ");
   const adjustment = adaptation
-    ? `Ajuste a tarefa: ${adaptation}.`
+    ? `Ajuste: ${adaptation}.`
     : sections.progression
-      ? `Como progressão, ${lowerFirst(sections.progression)}`
+      ? `Ajuste: ${lowerFirst(sections.progression)}`
       : "";
   const questions = sections.questions?.length
     ? `Feche com perguntas rápidas: ${sections.questions.join(" ")}`
@@ -824,14 +853,13 @@ const buildReceptionOperationalActivities = (params: {
     id: `warmup_${sessionDate}_recepcao_pressao`,
     name: "Recepção com origem variável",
     description: formatActivityDescription({
-      organization: "Trios ou quartetos, com zona de levantamento e origem de bola alternada.",
+      organization: "Trios ou quartetos, com zona de levantamento marcada.",
       development:
-        "O grupo recebe bola curta, média e longa, ajustando posição corporal antes da manchete.",
+        "Um aluno envia bolas curtas, médias e longas para os recebedores. O objetivo é ajustar o posicionamento antes da manchete e direcionar a bola para a zona de levantamento. Alternar a origem da bola a cada rodada.",
       coachCommands: ["Lê a origem", "Ajusta a base", "Entrega bola jogável"],
       successCriteria: "Manter 4 de 6 recepções jogáveis.",
-      progression: "Trocar lançamento por saque direcionado.",
-      easier: "fixar origem da bola",
-      harder: "adicionar pontuação condicionada",
+      easier: "reduzir a velocidade da bola se a turma perder controle",
+      harder: "variar a origem ou trocar lançamento por saque direcionado",
     }),
   };
 
@@ -842,12 +870,11 @@ const buildReceptionOperationalActivities = (params: {
       description: formatActivityDescription({
         organization: "Grupos de 4 a 6, com sacador, recebedores e zona de levantamento.",
         development:
-          "O sacador direciona zonas simples. A recepção precisa entregar bola jogável para transição.",
+          "O sacador direciona para zonas combinadas. A recepção precisa chegar jogável para a posição 3, permitindo a continuidade da jogada.",
         coachCommands: ["Chama responsabilidade", "Fecha espaço", "Entrega para transição"],
         successCriteria: "Resolver 4 de 6 saques com primeira bola jogável.",
-        progression: "Aumentar zona-alvo ou variar saque curto/longo.",
         easier: "reduzir velocidade do saque",
-        harder: "incluir tomada de decisão de contra-ataque",
+        harder: "variar saque curto e longo",
       }),
     },
     {
@@ -856,12 +883,11 @@ const buildReceptionOperationalActivities = (params: {
       description: formatActivityDescription({
         organization: "3x3 ou 4x4 em meia quadra, com pontuação condicionada.",
         development:
-          "Após receber, a equipe precisa organizar segundo toque e atacar ou enviar em zona vulnerável.",
+          "A equipe recebe, organiza o segundo toque e escolhe entre atacar ou enviar a bola para uma zona vulnerável. O foco é não encerrar a ação na recepção.",
         coachCommands: ["Recebe pensando no ataque", "Cobre a ação", "Escolhe a melhor resposta"],
         successCriteria: "Criar contra-ataque organizado em 3 jogadas da rodada.",
-        progression: "Adicionar bloqueio passivo ou defesa posicionada.",
         easier: "permitir envio controlado sem ataque",
-        harder: "pontuar só com transição completa",
+        harder: "adicionar bloqueio passivo ou defesa posicionada",
       }),
     },
     {
@@ -873,7 +899,6 @@ const buildReceptionOperationalActivities = (params: {
           "A equipe só marca ponto cheio quando a primeira bola gera continuidade e opção clara de ataque.",
         coachCommands: ["Primeira bola define a jogada", "Comunica cobertura", "Ataca a zona livre"],
         successCriteria: "Completar 3 jogadas com recepção, organização e envio/ataque.",
-        progression: "Reduzir tempo de decisão ou aumentar oposição.",
         easier: "ampliar espaço de alvo",
         harder: "exigir ataque dirigido",
       }),
@@ -882,9 +907,9 @@ const buildReceptionOperationalActivities = (params: {
 
   return {
     objective:
-      "Aprimorar a primeira bola sob variação de origem, conectando recepção, organização e transição para ataque.",
-    focusLabel: "Recepção, zona de levantamento e transição",
-    successCriterion: "Transformar a primeira bola em continuidade jogável em pelo menos 4 de 6 ações.",
+      "Organizar a recepção do saque e a primeira bola para dar continuidade à jogada no mini 4x4.",
+    focusLabel: "Saque, recepção e primeira bola no mini 4x4",
+    successCriterion: "Receber o saque com controle, direcionar a bola para a zona de levantamento e construir uma opção simples de ataque ou envio dirigido.",
     warmupActivity,
     mainActivities,
     blockTimes,
@@ -1558,9 +1583,10 @@ const renderDailyText = (params: {
   );
 
   const gatePassed = avgScore >= 5 && translationPassed;
+  const title = polishLessonTitle(baseTitle);
 
   return {
-    title: baseTitle,
+    title,
     warmup: gatePassed ? warmupResult.text : fallbackWarmup,
     mainPart: gatePassed ? mainResult.text : fallbackMain,
     cooldown: gatePassed ? cooldownResult.text : fallbackCooldown,
