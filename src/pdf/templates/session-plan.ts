@@ -70,6 +70,19 @@ const getBlockActivities = (block: SessionBlock) => {
   return [];
 };
 
+const hasWorkoutPrescription = (item: SessionPlanActivity) =>
+  Boolean(
+    String(item?.sets ?? "").trim() ||
+      String(item?.reps ?? "").trim() ||
+      String(item?.rest ?? "").trim()
+  );
+
+const isWorkoutBlock = (block: SessionBlock) => {
+  const label = asText(block?.label || block?.title);
+  const activities = getBlockActivities(block);
+  return /treino\s+resistido|academia/i.test(label) || activities.some(hasWorkoutPrescription);
+};
+
 const resolveBlockDescriptionLines = (block: SessionBlock) => {
   const blockItems = getBlockActivities(block);
   const descriptionRows = blockItems
@@ -106,17 +119,46 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       const period = getBlockLabel(block);
       const time = getBlockTime(block);
       const blockItems = getBlockActivities(block);
+      const workoutBlock = isWorkoutBlock(block);
       const activityRows = blockItems.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
       const descriptionRows = blockItems.length
         ? blockItems.map((item) => asCoachingText(item?.description || item?.notes).trim() || "-")
         : resolveBlockDescriptionLines(block);
+      const workoutTableHtml = workoutBlock && blockItems.length
+        ? `
+          <table class="workout-table">
+            <tr>
+              <th>Atividade</th>
+              <th>Séries</th>
+              <th>Repet.</th>
+              <th>Interv.</th>
+            </tr>
+            ${blockItems
+              .map((item, index) => {
+                const name = asCoachingText(item?.name).trim() || `Exercício ${index + 1}`;
+                const sets = asText(item?.sets) || "-";
+                const reps = asText(item?.reps) || "-";
+                const rest = asText(item?.rest) || "-";
+                return `
+                  <tr>
+                    <td>${esc(name)}</td>
+                    <td class="workout-center">${esc(sets)}</td>
+                    <td class="workout-center">${esc(reps)}</td>
+                    <td class="workout-center">${esc(rest)}</td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </table>
+        `
+        : "";
 
       return `
       <tr>
         <td class="period"><strong>${esc(period)}</strong></td>
-        <td class="activities prewrap">${nl2br(buildNumberedLines(activityRows))}</td>
+        <td class="activities prewrap">${workoutBlock ? "-" : nl2br(buildNumberedLines(activityRows))}</td>
         <td class="time">${esc(time)}</td>
-        <td class="description prewrap">${nl2br(buildNumberedLines(descriptionRows))}</td>
+        <td class="description ${workoutBlock ? "" : "prewrap"}">${workoutBlock ? workoutTableHtml : nl2br(buildNumberedLines(descriptionRows))}</td>
       </tr>
     `;
     })
@@ -211,6 +253,25 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         }
         .description {
           width: 48%;
+        }
+        .workout-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 10px;
+        }
+        .workout-table th,
+        .workout-table td {
+          border: 1px solid #888;
+          padding: 5px;
+          vertical-align: middle;
+        }
+        .workout-table th {
+          background: #f7f7f7;
+          font-size: 10px;
+        }
+        .workout-center {
+          text-align: center;
+          white-space: nowrap;
         }
         .notes-label {
           width: 20%;

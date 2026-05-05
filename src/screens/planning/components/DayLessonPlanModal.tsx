@@ -52,6 +52,10 @@ const normalizeLessonBlocks = (blocks: LessonBlock[]) =>
     activities: (block?.activities ?? []).map((activity) => ({
       name: String(activity?.name ?? "").trim(),
       description: String(activity?.description ?? "").trim(),
+      sets: String(activity?.sets ?? "").trim(),
+      reps: String(activity?.reps ?? "").trim(),
+      rest: String(activity?.rest ?? "").trim(),
+      notes: String(activity?.notes ?? "").trim(),
     })),
   }));
 
@@ -71,9 +75,27 @@ const buildSnapshot = (payload: {
 const hasFilledLessonContent = (blocks: LessonBlock[]) =>
   blocks.some((block) =>
     (block.activities ?? []).some(
-      (activity) => activity.name?.trim() || activity.description?.trim()
+      (activity) =>
+        activity.name?.trim() ||
+        activity.description?.trim() ||
+        String(activity.sets ?? "").trim() ||
+        activity.reps?.trim() ||
+        activity.rest?.trim() ||
+        activity.notes?.trim()
     )
   );
+
+const isWorkoutBlock = (block: LessonBlock | null) => {
+  if (!block) return false;
+  const label = String(block.label ?? "");
+  if (/treino\s+resistido|academia/i.test(label)) return true;
+  return (block.activities ?? []).some(
+    (activity) =>
+      String(activity.sets ?? "").trim() ||
+      String(activity.reps ?? "").trim() ||
+      String(activity.rest ?? "").trim()
+  );
+};
 
 const sessionEnvironmentChangeCopy: Record<
   SessionEnvironment,
@@ -588,6 +610,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
                       activities={activeBlock.activities}
                       onChange={(activities) => updateBlock(activeBlock.key, { ...activeBlock, activities })}
                       maxHeight={isCompact ? 310 : 390}
+                      variant={isWorkoutBlock(activeBlock) ? "workout" : "lesson"}
                     />
                   </>
                 ) : (

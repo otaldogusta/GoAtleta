@@ -110,6 +110,51 @@ const styles = StyleSheet.create({
   descriptionCell: {
     width: "48%",
   },
+  workoutTable: {
+    borderWidth: 1,
+    borderColor: "#888888",
+    width: "100%",
+  },
+  workoutHeaderRow: {
+    flexDirection: "row",
+    backgroundColor: "#f7f7f7",
+    borderBottomWidth: 1,
+    borderBottomColor: "#888888",
+  },
+  workoutRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#888888",
+  },
+  workoutRowLast: {
+    borderBottomWidth: 0,
+  },
+  workoutCell: {
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRightWidth: 1,
+    borderRightColor: "#888888",
+  },
+  workoutNameCell: {
+    width: "46%",
+  },
+  workoutSmallCell: {
+    width: "18%",
+  },
+  workoutCellLast: {
+    borderRightWidth: 0,
+  },
+  workoutHeaderText: {
+    fontSize: 9,
+    fontWeight: "bold",
+  },
+  workoutText: {
+    fontSize: 9,
+    lineHeight: 1.25,
+  },
+  workoutTextCenter: {
+    textAlign: "center",
+  },
   notesLabel: {
     width: "16%",
   },
@@ -148,6 +193,19 @@ const getBlockActivities = (block: SessionPlanPdfData["blocks"][number]) => {
   return [];
 };
 
+const hasWorkoutPrescription = (item: ReturnType<typeof getBlockActivities>[number]) =>
+  Boolean(
+    String(item?.sets ?? "").trim() ||
+      String(item?.reps ?? "").trim() ||
+      String(item?.rest ?? "").trim()
+  );
+
+const isWorkoutBlock = (block: SessionPlanPdfData["blocks"][number]) => {
+  const label = getBlockLabel(block);
+  const items = getBlockActivities(block);
+  return /treino\s+resistido|academia/i.test(label) || items.some(hasWorkoutPrescription);
+};
+
 const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number]) => {
   const items = getBlockActivities(block);
   const descriptionRows = items
@@ -164,6 +222,44 @@ const TITLE_TEXT = "PLANEJAMENTO DE AULA DO DIA";
 const LABEL_PERIODO = "Per\u00edodo";
 const LABEL_DESCRICAO = "Descri\u00e7\u00e3o";
 const LABEL_OBSERVACOES = "Observa\u00e7\u00f5es:";
+
+const WorkoutTable = ({ items }: { items: ReturnType<typeof getBlockActivities> }) => (
+  <View style={styles.workoutTable}>
+    <View style={styles.workoutHeaderRow}>
+      <View style={[styles.workoutCell, styles.workoutNameCell]}>
+        <Text style={styles.workoutHeaderText}>Atividade</Text>
+      </View>
+      <View style={[styles.workoutCell, styles.workoutSmallCell]}>
+        <Text style={[styles.workoutHeaderText, styles.workoutTextCenter]}>Séries</Text>
+      </View>
+      <View style={[styles.workoutCell, styles.workoutSmallCell]}>
+        <Text style={[styles.workoutHeaderText, styles.workoutTextCenter]}>Repet.</Text>
+      </View>
+      <View style={[styles.workoutCell, styles.workoutSmallCell, styles.workoutCellLast]}>
+        <Text style={[styles.workoutHeaderText, styles.workoutTextCenter]}>Interv.</Text>
+      </View>
+    </View>
+    {items.map((item, index) => (
+      <View
+        key={`${item.name ?? "exercise"}-${index}`}
+        style={[styles.workoutRow, index === items.length - 1 ? styles.workoutRowLast : {}]}
+      >
+        <View style={[styles.workoutCell, styles.workoutNameCell]}>
+          <Text style={styles.workoutText}>{asCoachingText(item?.name) || `Exercício ${index + 1}`}</Text>
+        </View>
+        <View style={[styles.workoutCell, styles.workoutSmallCell]}>
+          <Text style={[styles.workoutText, styles.workoutTextCenter]}>{asText(item?.sets) || "-"}</Text>
+        </View>
+        <View style={[styles.workoutCell, styles.workoutSmallCell]}>
+          <Text style={[styles.workoutText, styles.workoutTextCenter]}>{asText(item?.reps) || "-"}</Text>
+        </View>
+        <View style={[styles.workoutCell, styles.workoutSmallCell, styles.workoutCellLast]}>
+          <Text style={[styles.workoutText, styles.workoutTextCenter]}>{asText(item?.rest) || "-"}</Text>
+        </View>
+      </View>
+    ))}
+  </View>
+);
 
 export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
   const objective = asCoachingText(data?.objective);
@@ -277,6 +373,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             const period = getBlockLabel(block);
             const time = getBlockTime(block);
             const items = getBlockActivities(block);
+            const workoutBlock = isWorkoutBlock(block);
             const activityRows = items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
             const descriptionRows = items.length
               ? items.map((item) => asCoachingText(item?.description || item?.notes).trim() || "-")
@@ -290,13 +387,17 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
                   </Text>
                 </View>
                 <View style={[styles.cell, styles.activitiesCell]}>
-                  <Text style={styles.text}>{buildNumberedLines(activityRows)}</Text>
+                  <Text style={styles.text}>{workoutBlock ? "-" : buildNumberedLines(activityRows)}</Text>
                 </View>
                 <View style={[styles.cell, styles.timeCell]}>
                   <Text style={[styles.text, styles.textCenter]}>{time}</Text>
                 </View>
                 <View style={[styles.cell, styles.descriptionCell, styles.cellLast]}>
-                  <Text style={styles.text}>{buildNumberedLines(descriptionRows)}</Text>
+                  {workoutBlock && items.length ? (
+                    <WorkoutTable items={items} />
+                  ) : (
+                    <Text style={styles.text}>{buildNumberedLines(descriptionRows)}</Text>
+                  )}
                 </View>
               </View>
             );

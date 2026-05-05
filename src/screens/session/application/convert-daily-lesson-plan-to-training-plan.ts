@@ -54,12 +54,21 @@ const blockActivities = (
   const block = blocks.find((item) => item.key === key);
   const activities = block?.activities
     ?.flatMap((activity): TrainingPlanActivity[] => {
+      const sets = String(activity.sets ?? "").trim();
+      const reps = String(activity.reps ?? "").trim();
+      const rest = String(activity.rest ?? "").trim();
+      const notes = String(activity.notes ?? "").trim();
+      const prescription = [
+        sets ? `${sets} séries` : "",
+        reps ? `${reps} reps` : "",
+        rest,
+      ].filter(Boolean).join(" · ");
       const name = activity.name?.trim() || activity.description?.trim();
       if (!name) return [];
       return [
         {
           name,
-          description: activity.description?.trim(),
+          description: prescription || notes || activity.description?.trim(),
           source: "fallback",
         },
       ];

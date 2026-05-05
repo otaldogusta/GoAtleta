@@ -63,7 +63,7 @@ describe("session-plan language sanitization", () => {
     expect(html).toContain("2. Outra descrição salva no modal.");
   });
 
-  it("keeps resistance workout sheet descriptions compact in the same four-column PDF", () => {
+  it("exports resistance block as a workout sheet without exercise execution text", () => {
     const html = sessionPlanHtml({
       className: "Turma 16+",
       dateLabel: "05/05/2026",
@@ -87,7 +87,17 @@ describe("session-plan language sanitization", () => {
           activities: [
             {
               name: "Leg Press 45°",
-              description: "3 séries · 8–10 reps · 75–90s. Amplitude segura e controle na descida.",
+              description: "Amplitude segura e controle na descida.",
+              sets: "3",
+              reps: "8–10",
+              rest: "75–90s",
+            },
+            {
+              name: "Stiff com halteres",
+              description: "Coluna neutra e quadril para trás.",
+              sets: "3",
+              reps: "8",
+              rest: "75s",
             },
           ],
         },
@@ -100,8 +110,15 @@ describe("session-plan language sanitization", () => {
     expect(html).toContain("<th>Descrição</th>");
     expect(html).toContain("1. Aquecimento específico");
     expect(html).toContain("1. Antes das séries válidas: 1–2 séries leves");
-    expect(html).toContain("1. Leg Press 45°");
-    expect(html).toContain("1. 3 séries · 8–10 reps · 75–90s");
+    expect(html).toContain("<th>Atividade</th>");
+    expect(html).toContain("<th>Séries</th>");
+    expect(html).toContain("<th>Repet.</th>");
+    expect(html).toContain("<th>Interv.</th>");
+    expect(html).toContain("Leg Press 45°");
+    expect(html).toContain("<td class=\"workout-center\">3</td>");
+    expect(html).toContain("<td class=\"workout-center\">8–10</td>");
+    expect(html).toContain("<td class=\"workout-center\">75–90s</td>");
+    expect(html).not.toMatch(/Amplitude segura|controle na descida|Coluna neutra|quadril para trás/);
     expect(html).not.toMatch(/Organização:|Desenvolvimento:|Comandos do professor:|Critério de sucesso:|Progressão:|Adaptação:/);
   });
 });

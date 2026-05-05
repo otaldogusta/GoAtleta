@@ -54,12 +54,16 @@ function normalizeExerciseForWorkoutSheet(
   const notes = String(exercise.notes ?? "").trim();
   if (!notes) return exercise;
 
+  if (/carga\s+leve/i.test(notes)) {
+    return {
+      ...exercise,
+      notes: "Carga leve, sem chegar à falha.",
+    };
+  }
+
   return {
     ...exercise,
-    notes: notes
-      .replace(/,\s*/g, ". ")
-      .replace(/\s+/g, " ")
-      .trim(),
+    notes: undefined,
   };
 }
 

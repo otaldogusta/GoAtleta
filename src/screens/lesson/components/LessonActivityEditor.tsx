@@ -12,6 +12,7 @@ type Props = {
   activities: LessonActivity[];
   onChange: (activities: LessonActivity[]) => void;
   maxHeight?: number;
+  variant?: "lesson" | "workout";
 };
 
 const nextActivityId = () => `act_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -24,6 +25,7 @@ function LessonActivityEditorCard({
   onDone,
   onRemove,
   onUpdate,
+  variant,
 }: {
   activity: LessonActivity;
   index: number;
@@ -32,6 +34,7 @@ function LessonActivityEditorCard({
   onDone: () => void;
   onRemove: () => void;
   onUpdate: (index: number, field: keyof LessonActivity, value: string) => void;
+  variant: "lesson" | "workout";
 }) {
   const { colors } = useAppTheme();
   const { animatedStyle, isVisible } = useCollapsibleAnimation(isExpanded, {
@@ -41,6 +44,13 @@ function LessonActivityEditorCard({
   });
   const activityName = String(activity.name ?? "").trim() || "Atividade sem título";
   const description = String(activity.description ?? "").trim();
+  const sets = String(activity.sets ?? "").trim();
+  const reps = String(activity.reps ?? "").trim();
+  const rest = String(activity.rest ?? "").trim();
+  const notes = String(activity.notes ?? "").trim();
+  const prescription = [sets ? `${sets} séries` : "", reps ? `${reps} reps` : "", rest]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <View
@@ -99,30 +109,90 @@ function LessonActivityEditorCard({
             </Pressable>
           </View>
 
-          <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Descrição</Text>
-            <TextInput
-              value={activity.description}
-              multiline
-              scrollEnabled
-              textAlignVertical="top"
-              onChangeText={(value) => onUpdate(index, "description", value)}
-              placeholder="Descreva como a atividade será conduzida"
-              placeholderTextColor={colors.muted}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-                fontSize: 14,
-                minHeight: 82,
-                maxHeight: 132,
-              }}
-            />
-          </View>
+          {variant === "workout" ? (
+            <>
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                {([
+                  ["sets", "Séries", "3"],
+                  ["reps", "Repetições", "8–10"],
+                  ["rest", "Intervalo", "75–90s"],
+                ] as const).map(([field, label, placeholder]) => (
+                  <View key={field} style={{ flex: 1, minWidth: 112, gap: 6 }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      {label}
+                    </Text>
+                    <TextInput
+                      value={String(activity[field] ?? "")}
+                      onChangeText={(value) => onUpdate(index, field, value)}
+                      placeholder={placeholder}
+                      placeholderTextColor={colors.muted}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 12,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        backgroundColor: colors.inputBg,
+                        color: colors.inputText,
+                        fontSize: 14,
+                      }}
+                    />
+                  </View>
+                ))}
+              </View>
+              <View style={{ gap: 6 }}>
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                  Observação curta opcional
+                </Text>
+                <TextInput
+                  value={activity.notes ?? ""}
+                  multiline
+                  scrollEnabled
+                  textAlignVertical="top"
+                  onChangeText={(value) => onUpdate(index, "notes", value)}
+                  placeholder="Ex.: executar rápido, sem chegar à falha"
+                  placeholderTextColor={colors.muted}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                    fontSize: 14,
+                    minHeight: 58,
+                    maxHeight: 96,
+                  }}
+                />
+              </View>
+            </>
+          ) : (
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Descrição</Text>
+              <TextInput
+                value={activity.description}
+                multiline
+                scrollEnabled
+                textAlignVertical="top"
+                onChangeText={(value) => onUpdate(index, "description", value)}
+                placeholder="Descreva como a atividade será conduzida"
+                placeholderTextColor={colors.muted}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  fontSize: 14,
+                  minHeight: 82,
+                  maxHeight: 132,
+                }}
+              />
+            </View>
+          )}
           <Pressable
             onPress={onDone}
             style={{
@@ -145,7 +215,9 @@ function LessonActivityEditorCard({
               {activityName}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }} numberOfLines={2}>
-              {description || "Sem descrição."}
+              {variant === "workout"
+                ? prescription || notes || "Sem prescrição."
+                : description || "Sem descrição."}
             </Text>
           </View>
           <Pressable
@@ -167,7 +239,7 @@ function LessonActivityEditorCard({
   );
 }
 
-export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: Props) {
+export function LessonActivityEditor({ activities, onChange, maxHeight = 280, variant = "lesson" }: Props) {
   const { colors } = useAppTheme();
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [pendingRemoveIndex, setPendingRemoveIndex] = useState<number | null>(null);
@@ -251,11 +323,20 @@ export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: 
   const addActivity = () => {
     onChange([
       ...activities,
-      {
-        id: nextActivityId(),
-        name: "",
-        description: "",
-      },
+      variant === "workout"
+        ? {
+            id: nextActivityId(),
+            name: "",
+            description: "",
+            sets: "3",
+            reps: "8–10",
+            rest: "75–90s",
+          }
+        : {
+            id: nextActivityId(),
+            name: "",
+            description: "",
+          },
     ]);
     setExpandedIndex(activities.length);
   };
@@ -319,6 +400,7 @@ export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: 
                   onDone={() => setExpandedIndex(null)}
                   onRemove={() => setPendingRemoveIndex(index)}
                   onUpdate={updateActivity}
+                  variant={variant}
                 />
               );
             })

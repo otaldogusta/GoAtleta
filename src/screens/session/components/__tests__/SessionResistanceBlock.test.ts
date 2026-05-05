@@ -73,10 +73,16 @@ describe("SessionResistanceBlock", () => {
     expect(text).toContain("Força Base");
     expect(text).toContain("Salto e bloqueio");
     expect(text).toContain("Transferência para quadra:");
+    expect(text).toContain("Atividade");
+    expect(text).toContain("Séries");
+    expect(text).toContain("Repet.");
+    expect(text).toContain("Interv.");
     expect(text).toContain("Agachamento");
-    expect(text).toContain("4 séries · 6-8 reps · 90s");
+    expect(text).toContain("4");
+    expect(text).toContain("6-8");
+    expect(text).toContain("90s");
     expect(text).not.toContain("Impacto na quadra");
-    expect(text).toContain("Controle na descida");
+    expect(text).not.toContain("Controle na descida");
   });
 
   it("keeps rendering with partial exercise data", () => {
@@ -104,7 +110,9 @@ describe("SessionResistanceBlock", () => {
 
     expect(text).toContain("potencia_atletica");
     expect(text).toContain("Exercício 1");
-    expect(text).toContain("3 séries · 5 reps · intervalo não definido");
+    expect(text).toContain("3");
+    expect(text).toContain("5");
+    expect(text).toContain("-");
     expect(text).toContain("40");
     expect(text).toContain("min");
   });

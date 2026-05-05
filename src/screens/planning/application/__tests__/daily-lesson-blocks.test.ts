@@ -48,11 +48,15 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
     expect(result[0]?.activities[0]?.name).toBe("Aquecimento específico");
     expect(result[0]?.activities[0]?.description).toContain("1–2 séries leves");
     expect(result[0]?.activities[0]?.description).not.toContain("Mobilidade e ativação geral");
-    expect(result[1]?.activities[0]?.description).toBe(
-      "3 séries · 8–10 reps · 75–90s. Amplitude segura e controle na descida."
-    );
+    expect(result[1]?.activities[0]).toMatchObject({
+      name: "Leg Press 45°",
+      sets: 3,
+      reps: "8–10",
+      rest: "75–90s",
+      description: "",
+    });
     expect(result[1]?.activities.map((activity) => activity.description).join(" ")).not.toMatch(
-      /relacionando|conectando|transferir a intenção|melhorar equilíbrio/i
+      /amplitude segura|controle na descida|coluna neutra|escápulas estáveis|tronco firme|relacionando|conectando|transferir a intenção|melhorar equilíbrio/i
     );
   });
 
@@ -77,7 +81,13 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
     );
     expect(result[2]?.activities[0]?.description).toMatch(/Após o bloco de academia/i);
     expect(result[0]?.activities[0]?.description).toContain("1–2 séries leves");
-    expect(result[1]?.activities[0]?.description).toContain("3 séries · 8 reps · 75s");
+    expect(result[1]?.activities[0]).toMatchObject({
+      name: "Leg Press 45°",
+      sets: 3,
+      reps: "8",
+      rest: "75s",
+      description: "",
+    });
     expect(result[2]?.activities[0]?.description).toContain("Bloqueio com aterrissagem controlada — 3x5");
   });
 

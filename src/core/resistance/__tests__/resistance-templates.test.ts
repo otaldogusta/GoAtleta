@@ -117,4 +117,16 @@ describe("resolveResistanceTemplate", () => {
       /máxima intenção|cadeia cinética|produção de força/i
     );
   });
+
+  it("does not expose execution cues as exercise notes in workout sheets", () => {
+    const goalsWithoutPower = GOALS.filter((goal) => goal !== "potencia_atletica");
+
+    for (const goal of goalsWithoutPower) {
+      const plan = resolveResistanceTemplate(goal, "intermediario");
+      const notes = plan.exercises.map((exercise) => exercise.notes ?? "").join(" ");
+      expect(notes).not.toMatch(
+        /amplitude|controle na descida|coluna neutra|escápula|tronco firme|cotovelo|quadril para trás/i
+      );
+    }
+  });
 });

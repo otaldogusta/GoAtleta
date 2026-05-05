@@ -9,42 +9,18 @@ type Props = {
   colors: ThemeColors;
 };
 
-const formatExerciseLine = (exercise: Partial<ResistanceExercisePrescription>) => {
+const formatSets = (exercise: Partial<ResistanceExercisePrescription>) => {
   const sets = typeof exercise.sets === "number" && Number.isFinite(exercise.sets) ? exercise.sets : "-";
-  const reps = String(exercise.reps ?? "-").trim() || "-";
-  const rest = String(exercise.rest ?? "").trim() || "intervalo não definido";
-  return `${sets} séries · ${reps} reps · ${rest}`;
+  return String(sets);
 };
 
-const categoryLabelMap = {
-  empurrar: "Empurrar",
-  puxar: "Puxar",
-  membros_inferiores: "Membros inferiores",
-  potencia: "Potência",
-  preventivo: "Prevenção",
-  core: "Core",
-} as const;
+const formatReps = (exercise: Partial<ResistanceExercisePrescription>) => {
+  const reps = String(exercise.reps ?? "-").trim() || "-";
+  return reps;
+};
 
-const Chip = ({
-  colors,
-  label,
-}: {
-  colors: ThemeColors;
-  label: string;
-}) => (
-  <View
-    style={{
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 999,
-      backgroundColor: colors.secondaryBg,
-      borderWidth: 1,
-      borderColor: colors.border,
-    }}
-  >
-    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{label}</Text>
-  </View>
-);
+const formatRest = (exercise: Partial<ResistanceExercisePrescription>) =>
+  String(exercise.rest ?? "").trim() || "-";
 
 export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: Props) {
   const headerLabel = String(resistancePlan.label ?? "").trim() || resistancePlan.primaryGoal;
@@ -73,9 +49,6 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
         <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
           {headerLabel}
         </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {transferTarget ? <Chip colors={colors} label="Transferência direta" /> : null}
-        </View>
         {transferTarget ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Transferência para quadra: {transferTarget}
@@ -90,54 +63,63 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
 
       <View
         style={{
-          gap: 10,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 14,
+          overflow: "hidden",
         }}
       >
         {exercises.length ? (
-          exercises.map((exercise, index) => {
-            const name = String(exercise.name ?? "").trim() || `Exercício ${index + 1}`;
-            const notes = String(exercise.notes ?? "").trim();
-            const cadence = String(exercise.cadence ?? "").trim();
-            const categoryLabel =
-              categoryLabelMap[exercise.category as keyof typeof categoryLabelMap] ?? "Exercício";
-
-            return (
+          <>
+            <View
+              style={{
+                flexDirection: "row",
+                backgroundColor: colors.secondaryBg,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+              }}
+            >
+              <Text style={{ flex: 1.6, padding: 10, color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                Atividade
+              </Text>
+              <Text style={{ width: 70, padding: 10, color: colors.text, fontSize: 12, fontWeight: "800", textAlign: "center" }}>
+                Séries
+              </Text>
+              <Text style={{ width: 96, padding: 10, color: colors.text, fontSize: 12, fontWeight: "800", textAlign: "center" }}>
+                Repet.
+              </Text>
+              <Text style={{ width: 88, padding: 10, color: colors.text, fontSize: 12, fontWeight: "800", textAlign: "center" }}>
+                Interv.
+              </Text>
+            </View>
+            {exercises.map((exercise, index) => {
+              const name = String(exercise.name ?? "").trim() || `Exercício ${index + 1}`;
+              return (
               <View
                 key={`${name}-${index}`}
                 style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 12,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  gap: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  borderBottomWidth: index === exercises.length - 1 ? 0 : 1,
+                  borderBottomColor: colors.border,
                 }}
               >
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
-                    {name}
-                  </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    <Chip colors={colors} label={categoryLabel} />
-                  </View>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
-                    {formatExerciseLine(exercise)}
-                  </Text>
-                </View>
-                {cadence ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Cadência: {cadence}
-                  </Text>
-                ) : null}
-                {notes ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    Observação: {notes}
-                  </Text>
-                ) : null}
+                <Text style={{ flex: 1.6, padding: 10, color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                  {name}
+                </Text>
+                <Text style={{ width: 70, padding: 10, color: colors.text, fontSize: 13, fontWeight: "700", textAlign: "center" }}>
+                  {formatSets(exercise)}
+                </Text>
+                <Text style={{ width: 96, padding: 10, color: colors.text, fontSize: 13, textAlign: "center" }}>
+                  {formatReps(exercise)}
+                </Text>
+                <Text style={{ width: 88, padding: 10, color: colors.text, fontSize: 13, textAlign: "center" }}>
+                  {formatRest(exercise)}
+                </Text>
               </View>
-            );
-          })
+              );
+            })}
+          </>
         ) : (
           <View style={{ paddingHorizontal: 12, paddingVertical: 12 }}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>

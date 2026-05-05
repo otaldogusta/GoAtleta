@@ -20,7 +20,8 @@ const makeTemplateActivity = (
   id: string,
   name: string,
   description: string,
-): LessonActivity => ({ id, name, description });
+  extras: Partial<LessonActivity> = {},
+): LessonActivity => ({ id, name, description, ...extras });
 
 const RESISTANCE_PREPARATION_DESCRIPTION =
   "Antes das séries válidas: 1–2 séries leves e progressivas no primeiro exercício. Não contar como série válida.";
@@ -34,7 +35,14 @@ const RESISTANCE_ACTIVITY_PATTERN =
 const blockText = (block: LessonBlock | undefined) =>
   [
     block?.label,
-    ...(block?.activities ?? []).flatMap((activity) => [activity.name, activity.description]),
+    ...(block?.activities ?? []).flatMap((activity) => [
+      activity.name,
+      activity.description,
+      activity.sets,
+      activity.reps,
+      activity.rest,
+      activity.notes,
+    ]),
   ]
     .map((value) => safeText(value))
     .filter(Boolean)
@@ -153,22 +161,26 @@ export const buildSessionEnvironmentLessonBlocks = (
           makeTemplateActivity(
             "academy_leg_press",
             "Leg Press 45°",
-            "3 séries · 8–10 reps · 75–90s. Amplitude segura e controle na descida."
+            "",
+            { sets: 3, reps: "8–10", rest: "75–90s" }
           ),
           makeTemplateActivity(
             "academy_stiff",
             "Stiff com halteres",
-            "3 séries · 8 reps · 75s. Coluna neutra e quadril para trás."
+            "",
+            { sets: 3, reps: "8", rest: "75s" }
           ),
           makeTemplateActivity(
             "academy_row",
             "Remada baixa",
-            "3 séries · 10 reps · 60s. Escápulas estáveis durante a puxada."
+            "",
+            { sets: 3, reps: "10", rest: "60s" }
           ),
           makeTemplateActivity(
             "academy_core",
             "Core anti-rotação",
-            "3 séries · 20–30s por lado · 45–60s. Tronco firme durante toda a série."
+            "",
+            { sets: 3, reps: "20–30s por lado", rest: "45–60s" }
           ),
         ],
       },
@@ -209,17 +221,20 @@ export const buildSessionEnvironmentLessonBlocks = (
           makeTemplateActivity(
             "mixed_leg_press",
             "Leg Press 45°",
-            "3 séries · 8 reps · 75s. Controle na descida e saída forte."
+            "",
+            { sets: 3, reps: "8", rest: "75s" }
           ),
           makeTemplateActivity(
             "mixed_stiff",
             "Stiff com halteres",
-            "3 séries · 8 reps · 75s. Postura estável e movimento controlado."
+            "",
+            { sets: 3, reps: "8", rest: "75s" }
           ),
           makeTemplateActivity(
             "mixed_core",
             "Core anti-rotação",
-            "3 séries · 20s por lado · 45–60s. Tronco firme."
+            "",
+            { sets: 3, reps: "20s por lado", rest: "45–60s" }
           ),
         ],
       },
@@ -341,14 +356,30 @@ export const parseLessonBlocksJson = (value: string | undefined): LessonBlock[] 
         const activities = Array.isArray(raw?.activities)
           ? raw.activities
               .map((item: unknown) => {
-                const maybe = item as { id?: string; name?: string; description?: string };
+                const maybe = item as {
+                  id?: string;
+                  name?: string;
+                  description?: string;
+                  sets?: number | string;
+                  reps?: string;
+                  rest?: string;
+                  notes?: string;
+                };
                 const name = safeText(maybe?.name);
                 const description = safeText(maybe?.description);
-                if (!name && !description) return null;
+                const sets = safeText(maybe?.sets);
+                const reps = safeText(maybe?.reps);
+                const rest = safeText(maybe?.rest);
+                const notes = safeText(maybe?.notes);
+                if (!name && !description && !sets && !reps && !rest && !notes) return null;
                 return {
                   id: safeText(maybe?.id) || undefined,
                   name: name || summarizeLessonActivity(description, key),
                   description,
+                  sets: sets || undefined,
+                  reps: reps || undefined,
+                  rest: rest || undefined,
+                  notes: notes || undefined,
                 } as LessonActivity;
               })
               .filter((item: LessonActivity | null): item is LessonActivity => Boolean(item))
@@ -449,8 +480,12 @@ export const serializeLessonBlocks = (blocks: LessonBlock[]): string =>
           id: safeText(activity.id) || undefined,
           name: safeText(activity.name),
           description: safeText(activity.description),
+          sets: safeText(activity.sets) || undefined,
+          reps: safeText(activity.reps) || undefined,
+          rest: safeText(activity.rest) || undefined,
+          notes: safeText(activity.notes) || undefined,
         }))
-        .filter((activity) => activity.name || activity.description),
+        .filter((activity) => activity.name || activity.description || activity.sets || activity.reps || activity.rest || activity.notes),
     }))
   );
 

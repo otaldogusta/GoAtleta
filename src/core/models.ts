@@ -368,6 +368,10 @@ export type LessonActivity = {
   id?: string;
   name: string;
   description: string;
+  sets?: number | string;
+  reps?: string;
+  rest?: string;
+  notes?: string;
 };
 
 export type LessonBlock = {
