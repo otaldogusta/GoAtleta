@@ -5,6 +5,8 @@ const teamContext: TeamTrainingContext = {
   hasGymAccess: true,
   integratedTrainingModel: "academia_integrada",
   resistanceTrainingProfile: "intermediario",
+  trainingContext: "volleyball",
+  sportContext: "volleyball",
 };
 
 const baseWeeklyContext: WeeklyIntegratedTrainingContext = {
@@ -63,5 +65,23 @@ describe("buildResistanceSessionPlan", () => {
 
     expect(component.resistancePlan.primaryGoal).toBe("prevencao_lesao");
     expect(component.resistancePlan.label).toBe("Prevenção e Estabilidade");
+  });
+
+  it("falls back to universal copy when the context is general fitness", () => {
+    const component = buildResistanceSessionPlan({
+      teamContext: {
+        ...teamContext,
+        trainingContext: "general_fitness",
+        sportContext: undefined,
+      },
+      weeklyContext: {
+        ...baseWeeklyContext,
+        weeklyPhysicalEmphasis: "forca_base",
+      },
+      sessionRole: "consolidacao_orientada",
+    });
+
+    expect(component.resistancePlan.label).toBe("Força Base com Transferência Funcional");
+    expect(component.resistancePlan.transferTarget).not.toMatch(/quadra|bloqueio|salto|ataque/i);
   });
 });

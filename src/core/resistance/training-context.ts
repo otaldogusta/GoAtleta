@@ -11,6 +11,12 @@ import type {
     ClassGroup,
     Equipment,
     IntegratedTrainingModel,
+    ResistanceTrainingContextDecision,
+    ResistanceTrainingContextSource,
+    ResistanceSportContext,
+    ResistanceTrainingContext,
+    SessionEnvironment,
+    SessionPrimaryComponent,
     ResistanceTrainingProfile,
     TeamTrainingContext,
 } from "../models";
@@ -21,6 +27,24 @@ export type ResistanceEligibilityMode =
   | "adapted_support"
   | "formal_support"
   | "formal_priority";
+
+export const RESISTANCE_TRAINING_CONTEXT_LABELS: Record<
+  ResistanceTrainingContext,
+  string
+> = {
+  general_fitness: "Condicionamento geral",
+  health: "Saúde e movimento",
+  strength: "Força",
+  hypertrophy: "Hipertrofia",
+  weight_loss: "Emagrecimento",
+  rehabilitation_light: "Prevenção e retorno",
+  school: "Contexto escolar",
+  volleyball: "Vôlei",
+  soccer: "Futebol",
+  running: "Corrida",
+  basketball: "Basquete",
+  other_sport: "Outro esporte",
+};
 
 /**
  * Derives the IntegratedTrainingModel from the Equipment field alone.
@@ -48,12 +72,185 @@ export function hasGymAccess(equipment: Equipment): boolean {
   return equipment === "academia" || equipment === "misto";
 }
 
+export function resolveResistanceTrainingContext(
+  modality?: ClassGroup["modality"] | null
+): ResistanceTrainingContext {
+  switch (modality) {
+    case "voleibol":
+      return "volleyball";
+    case "futebol":
+    case "futsal":
+      return "soccer";
+    case "basquete":
+      return "basketball";
+    case "fitness":
+      return "general_fitness";
+    default:
+      return "school";
+  }
+}
+
+export function formatResistanceTrainingContextLabel(
+  trainingContext?: ResistanceTrainingContext | null
+): string {
+  if (!trainingContext) return "Condicionamento geral";
+  return RESISTANCE_TRAINING_CONTEXT_LABELS[trainingContext] ?? "Condicionamento geral";
+}
+
+function resolveResistanceSportContext(
+  trainingContext: ResistanceTrainingContext
+): ResistanceSportContext | undefined {
+  if (
+    trainingContext === "volleyball" ||
+    trainingContext === "soccer" ||
+    trainingContext === "running" ||
+    trainingContext === "basketball"
+  ) {
+    return trainingContext;
+  }
+  return undefined;
+}
+
+export { resolveResistanceSportContext };
+
+const isResistanceEnvironment = (environment?: SessionEnvironment | null) =>
+  environment === "academia" || environment === "mista";
+
+const isResistancePrimaryComponent = (
+  component?: SessionPrimaryComponent | null
+) => component === "resistido" || component === "misto_transferencia";
+
+const resolveSportContextFromOverride = (
+  trainingContext: ResistanceTrainingContext,
+  sportContext?: ResistanceSportContext | null
+) => {
+  if (sportContext) return sportContext;
+  return resolveResistanceSportContext(trainingContext);
+};
+
+const buildTrainingContextDecision = (params: {
+  trainingContext: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
+  source: ResistanceTrainingContextSource;
+  confidence: ResistanceTrainingContextDecision["confidence"];
+  reason: string;
+}): ResistanceTrainingContextDecision => ({
+  trainingContext: params.trainingContext,
+  sportContext: params.sportContext,
+  source: params.source,
+  confidence: params.confidence,
+  reason: params.reason,
+});
+
+export function resolveTrainingContextFromPlanningContext(params: {
+  classGroup?: Pick<ClassGroup, "modality" | "goal"> | null;
+  sessionEnvironment?: SessionEnvironment | null;
+  sessionPrimaryComponent?: SessionPrimaryComponent | null;
+  physicalFocus?: string | null;
+  dominantBlock?: string | null;
+  overrideTrainingContext?: ResistanceTrainingContext | null;
+  overrideSportContext?: ResistanceSportContext | null;
+  weeklyTrainingContext?: ResistanceTrainingContext | null;
+  weeklySportContext?: ResistanceSportContext | null;
+}): ResistanceTrainingContextDecision {
+  if (params.overrideTrainingContext) {
+    const trainingContext = params.overrideTrainingContext;
+    return buildTrainingContextDecision({
+      trainingContext,
+      sportContext: resolveSportContextFromOverride(
+        trainingContext,
+        params.overrideSportContext
+      ),
+      source: "manual_override",
+      confidence: "high",
+      reason: `Professor definiu manualmente o foco do treino como ${formatResistanceTrainingContextLabel(trainingContext).toLowerCase()}.`,
+    });
+  }
+
+  if (params.weeklyTrainingContext) {
+    const trainingContext = params.weeklyTrainingContext;
+    return buildTrainingContextDecision({
+      trainingContext,
+      sportContext: resolveSportContextFromOverride(
+        trainingContext,
+        params.weeklySportContext
+      ),
+      source: "weekly_strategy",
+      confidence: "high",
+      reason: `A periodização da sessão definiu ${formatResistanceTrainingContextLabel(trainingContext).toLowerCase()} como contexto principal.`,
+    });
+  }
+
+  const derivedFromModality = resolveResistanceTrainingContext(
+    params.classGroup?.modality
+  );
+  const sportFromModality = resolveResistanceSportContext(derivedFromModality);
+  const resistanceSession =
+    isResistanceEnvironment(params.sessionEnvironment) ||
+    isResistancePrimaryComponent(params.sessionPrimaryComponent);
+
+  if (resistanceSession) {
+    if (sportFromModality) {
+      return buildTrainingContextDecision({
+        trainingContext: derivedFromModality,
+        sportContext: sportFromModality,
+        source: "class_modality",
+        confidence: "medium",
+        reason: `Sessão resistida alinhada à modalidade principal da turma: ${formatResistanceTrainingContextLabel(derivedFromModality)}.`,
+      });
+    }
+
+    if (derivedFromModality === "general_fitness") {
+      return buildTrainingContextDecision({
+        trainingContext: "general_fitness",
+        source: "class_modality",
+        confidence: "medium",
+        reason: "Sessão resistida sem esporte específico; usado condicionamento geral como contexto principal.",
+      });
+    }
+
+    return buildTrainingContextDecision({
+      trainingContext: "general_fitness",
+      source: "fallback",
+      confidence: "medium",
+      reason: "Sessão resistida sem modalidade esportiva explícita; usado condicionamento geral como fallback seguro.",
+    });
+  }
+
+  if (sportFromModality) {
+    return buildTrainingContextDecision({
+      trainingContext: derivedFromModality,
+      sportContext: sportFromModality,
+      source: "class_modality",
+      confidence: "medium",
+      reason: `Contexto derivado da modalidade principal da turma: ${formatResistanceTrainingContextLabel(derivedFromModality)}.`,
+    });
+  }
+
+  if (derivedFromModality === "general_fitness") {
+    return buildTrainingContextDecision({
+      trainingContext: "general_fitness",
+      source: "class_modality",
+      confidence: "medium",
+      reason: "Contexto derivado da modalidade fitness da turma.",
+    });
+  }
+
+  return buildTrainingContextDecision({
+    trainingContext: "general_fitness",
+    source: "fallback",
+    confidence: "low",
+    reason: "Sem decisão explícita de contexto; usado condicionamento geral como fallback seguro.",
+  });
+}
+
 /**
  * Builds a TeamTrainingContext from a ClassGroup record.
  * Explicit class-level overrides take priority over derived values.
  */
 export function resolveTeamTrainingContext(
-  classGroup: Pick<ClassGroup, "equipment" | "integratedTrainingModel" | "resistanceTrainingProfile">
+  classGroup: Pick<ClassGroup, "equipment" | "integratedTrainingModel" | "resistanceTrainingProfile"> &
+    Partial<Pick<ClassGroup, "modality">>
 ): TeamTrainingContext {
   const gymAccess = hasGymAccess(classGroup.equipment);
 
@@ -63,11 +260,14 @@ export function resolveTeamTrainingContext(
 
   const resistanceTrainingProfile: ResistanceTrainingProfile =
     classGroup.resistanceTrainingProfile ?? "iniciante";
+  const trainingContext = resolveResistanceTrainingContext(classGroup.modality);
 
   return {
     hasGymAccess: gymAccess,
     integratedTrainingModel,
     resistanceTrainingProfile,
+    trainingContext,
+    sportContext: resolveResistanceSportContext(trainingContext),
   };
 }
 
@@ -99,18 +299,19 @@ export function resolveResistanceEligibilityMode(params: {
   }
 
   const lowerAgeBound = getAgeBandLowerBound(classGroup.ageBand);
-  const isVolleyball = classGroup.modality === "voleibol";
+  const isVolleyball = teamContext.trainingContext === "volleyball";
+  const isSchoolContext = teamContext.trainingContext === "school";
   const isBeginnerClass =
     classGroup.level === 1 || isBeginnerMvLevel(classGroup.mvLevel);
   const isYoungGroup = lowerAgeBound !== null && lowerAgeBound <= 9;
   const isPreFormationGroup = lowerAgeBound !== null && lowerAgeBound <= 12;
 
-  if (isVolleyball && isYoungGroup) {
+  if ((isVolleyball || isSchoolContext) && isYoungGroup) {
     return "motor_control_integrated";
   }
 
   if (
-    isVolleyball &&
+    (isVolleyball || isSchoolContext) &&
     isPreFormationGroup &&
     (isBeginnerClass || teamContext.resistanceTrainingProfile === "iniciante")
   ) {

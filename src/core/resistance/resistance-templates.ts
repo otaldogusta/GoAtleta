@@ -16,6 +16,8 @@
 import type {
     CourtGymRelationship,
     ResistanceExercisePrescription,
+    ResistanceSportContext,
+    ResistanceTrainingContext,
     ResistanceTrainingGoal,
     ResistanceTrainingPlan,
     ResistanceTrainingProfile,
@@ -361,7 +363,7 @@ const TEMPLATE_GOAL_TO_BUILDER: Record<
   ativacao_funcional: buildTemplateE,
 };
 
-const GOAL_LABELS: Record<ResistanceTrainingGoal, string> = {
+const VOLLEYBALL_GOAL_LABELS: Record<ResistanceTrainingGoal, string> = {
   forca_base: "Força Base (Membros Inferiores)",
   hipertrofia: "Hipertrofia / Força Tração",
   potencia_atletica: "Potência Atlética",
@@ -370,13 +372,62 @@ const GOAL_LABELS: Record<ResistanceTrainingGoal, string> = {
   ativacao_funcional: "Ativação Funcional",
 };
 
-const GOAL_TRANSFER: Record<ResistanceTrainingGoal, string> = {
+const UNIVERSAL_GOAL_LABELS: Record<ResistanceTrainingGoal, string> = {
+  forca_base: "Força Base",
+  hipertrofia: "Hipertrofia",
+  potencia_atletica: "Potência",
+  resistencia_muscular: "Resistência Muscular",
+  prevencao_lesao: "Prevenção e Estabilidade",
+  ativacao_funcional: "Ativação Funcional",
+};
+
+const VOLLEYBALL_GOAL_TRANSFER: Record<ResistanceTrainingGoal, string> = {
   forca_base: "impulso de salto, deslocamento e estabilidade de aterrissagem",
   hipertrofia: "força de recepção, postura e estabilidade escapular",
   potencia_atletica: "velocidade de produção de força no ataque e bloqueio",
   resistencia_muscular: "resistência muscular local para longa duração de jogo",
   prevencao_lesao: "redução de risco de lesões de ombro, joelho e lombar",
   ativacao_funcional: "prontidão neuromuscular pré-treino de quadra",
+};
+
+const UNIVERSAL_GOAL_TRANSFER: Record<ResistanceTrainingGoal, string> = {
+  forca_base: "força de base, estabilidade e produção segura de força",
+  hipertrofia: "ganho de força e massa muscular com boa técnica",
+  potencia_atletica: "produção rápida de força com controle técnico",
+  resistencia_muscular: "sustentação do esforço com postura e ritmo consistentes",
+  prevencao_lesao: "estabilidade articular, controle de carga e recuperação",
+  ativacao_funcional: "preparação neuromuscular para a sessão",
+};
+
+const SPORT_GOAL_TRANSFER: Record<
+  ResistanceSportContext,
+  Record<ResistanceTrainingGoal, string>
+> = {
+  volleyball: VOLLEYBALL_GOAL_TRANSFER,
+  soccer: {
+    forca_base: "arranque, desaceleração e estabilidade de joelho",
+    hipertrofia: "força geral para contato, postura e suporte articular",
+    potencia_atletica: "arranque, mudança de direção e aceleração curta",
+    resistencia_muscular: "sustentação do esforço ao longo do jogo",
+    prevencao_lesao: "controle de carga para joelho, posterior e quadril",
+    ativacao_funcional: "prontidão neuromuscular para aceleração e contato",
+  },
+  running: {
+    forca_base: "economia de corrida, estabilidade e rigidez útil",
+    hipertrofia: "suporte de força geral para membros inferiores e tronco",
+    potencia_atletica: "produção rápida de força para passada e sprint",
+    resistencia_muscular: "sustentação do ritmo com postura eficiente",
+    prevencao_lesao: "controle de carga para tornozelo, joelho e quadril",
+    ativacao_funcional: "prontidão neuromuscular para corrida",
+  },
+  basketball: {
+    forca_base: "salto, aterrissagem e mudança de direção",
+    hipertrofia: "força geral para contato, postura e suporte escapular",
+    potencia_atletica: "impulsão, aceleração curta e segundo salto",
+    resistencia_muscular: "sustentação de ações repetidas ao longo do jogo",
+    prevencao_lesao: "controle de carga para joelho, tornozelo e ombro",
+    ativacao_funcional: "prontidão neuromuscular para deslocamentos e saltos",
+  },
 };
 
 const GOAL_DURATION: Record<ResistanceTrainingGoal, Record<ResistanceTrainingProfile, number>> = {
@@ -391,6 +442,8 @@ const GOAL_DURATION: Record<ResistanceTrainingGoal, Record<ResistanceTrainingPro
 type ResistanceTemplateOptions = {
   courtGymRelationship?: CourtGymRelationship;
   weeklyPhysicalEmphasis?: WeeklyPhysicalEmphasis;
+  trainingContext?: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
 };
 
 type ResistanceTemplateVariant = {
@@ -407,14 +460,20 @@ function resolveTemplateVariant(
   goal: ResistanceTrainingGoal,
   options: ResistanceTemplateOptions = {}
 ): ResistanceTemplateVariant {
-  const { weeklyPhysicalEmphasis: emphasis, courtGymRelationship } = options;
+  const {
+    weeklyPhysicalEmphasis: emphasis,
+    courtGymRelationship,
+    trainingContext = "volleyball",
+  } = options;
+  const isVolleyballContext = trainingContext === "volleyball";
 
   if (goal === "potencia_atletica" && emphasis === "velocidade_reatividade") {
     return {
       idSuffix: emphasis,
       label: "Potência Reativa e Velocidade",
-      transferTarget:
-        "primeiro passo, deslocamento lateral e reação de bloqueio",
+      transferTarget: isVolleyballContext
+        ? "primeiro passo, deslocamento lateral e reação de bloqueio"
+        : "primeiro passo, mudança de direção e reação rápida",
       buildExercises: buildReactivePowerVariant,
     };
   }
@@ -423,8 +482,9 @@ function resolveTemplateVariant(
     return {
       idSuffix: courtGymRelationship,
       label: "Potência Atlética Prioritária",
-      transferTarget:
-        "produção máxima de força para salto, bloqueio e ações explosivas repetidas",
+      transferTarget: isVolleyballContext
+        ? "produção máxima de força para salto, bloqueio e ações explosivas repetidas"
+        : "produção máxima de força para ações explosivas repetidas",
     };
   }
 
@@ -445,9 +505,12 @@ function resolveTemplateVariant(
   ) {
     return {
       idSuffix: courtGymRelationship,
-      label: "Força Base com Transferência Direta",
-      transferTarget:
-        "aterrissagem estável, salto de ataque e retomada rápida para a ação seguinte de quadra",
+      label: isVolleyballContext
+        ? "Força Base com Transferência Direta"
+        : "Força Base com Transferência Funcional",
+      transferTarget: isVolleyballContext
+        ? "aterrissagem estável, salto de ataque e retomada rápida para a ação seguinte de quadra"
+        : "produção estável de força com aplicação imediata na sessão",
     };
   }
 
@@ -477,6 +540,107 @@ function resolveTemplateVariant(
   return {};
 }
 
+function resolveGoalLabels(
+  trainingContext: ResistanceTrainingContext,
+  sportContext?: ResistanceSportContext
+) {
+  if (trainingContext === "volleyball" || sportContext === "volleyball") {
+    return VOLLEYBALL_GOAL_LABELS;
+  }
+  return UNIVERSAL_GOAL_LABELS;
+}
+
+function resolveGoalTransfer(
+  goal: ResistanceTrainingGoal,
+  trainingContext: ResistanceTrainingContext,
+  sportContext?: ResistanceSportContext
+) {
+  if (sportContext && SPORT_GOAL_TRANSFER[sportContext]) {
+    return SPORT_GOAL_TRANSFER[sportContext][goal];
+  }
+  if (trainingContext === "volleyball") {
+    return VOLLEYBALL_GOAL_TRANSFER[goal];
+  }
+  return UNIVERSAL_GOAL_TRANSFER[goal];
+}
+
+function resolveExerciseTransferTarget(params: {
+  exercise: ResistanceExercisePrescription;
+  trainingContext: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
+}): string | undefined {
+  const { exercise, trainingContext, sportContext } = params;
+
+  if (trainingContext === "volleyball" || sportContext === "volleyball") {
+    return exercise.transferTarget;
+  }
+
+  const genericByCategory: Record<
+    ResistanceExercisePrescription["category"],
+    string
+  > = {
+    empurrar: "força de empurrar com estabilidade de ombro e tronco",
+    puxar: "força de puxar com postura e controle escapular",
+    membros_inferiores: "força de membros inferiores e estabilidade geral",
+    potencia: "produção rápida de força com coordenação",
+    preventivo: "estabilidade articular e controle de carga",
+    core: "controle de tronco e transmissão de força",
+  };
+
+  if (sportContext === "soccer") {
+    const byCategory: Record<ResistanceExercisePrescription["category"], string> = {
+      empurrar: "estabilidade de tronco para contato e proteção de bola",
+      puxar: "postura e suporte escapular para aceleração e contato",
+      membros_inferiores: "arranque, frenagem e mudança de direção",
+      potencia: "aceleração curta e impulsão",
+      preventivo: "prevenção para joelho, posterior e quadril",
+      core: "controle de tronco nas mudanças de direção",
+    };
+    return byCategory[exercise.category];
+  }
+
+  if (sportContext === "running") {
+    const byCategory: Record<ResistanceExercisePrescription["category"], string> = {
+      empurrar: "estabilidade geral e suporte de tronco",
+      puxar: "postura e equilíbrio muscular de tronco",
+      membros_inferiores: "economia de corrida e estabilidade de apoio",
+      potencia: "resposta rápida de passada e sprint",
+      preventivo: "prevenção para tornozelo, joelho e quadril",
+      core: "controle de tronco durante a corrida",
+    };
+    return byCategory[exercise.category];
+  }
+
+  if (sportContext === "basketball") {
+    const byCategory: Record<ResistanceExercisePrescription["category"], string> = {
+      empurrar: "força de empurrar com estabilidade de ombro",
+      puxar: "postura e proteção escapular para contato",
+      membros_inferiores: "salto, aterrissagem e mudança de direção",
+      potencia: "impulsão e aceleração curta",
+      preventivo: "prevenção para joelho, tornozelo e ombro",
+      core: "controle de tronco sob ações explosivas",
+    };
+    return byCategory[exercise.category];
+  }
+
+  return genericByCategory[exercise.category];
+}
+
+function adaptExerciseToContext(
+  exercise: ResistanceExercisePrescription,
+  trainingContext: ResistanceTrainingContext,
+  sportContext?: ResistanceSportContext
+): ResistanceExercisePrescription {
+  return {
+    ...exercise,
+    transferTarget: resolveExerciseTransferTarget({
+      exercise,
+      trainingContext,
+      sportContext,
+    }),
+  };
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -487,11 +651,14 @@ export function resolveResistanceTemplate(
   profile: ResistanceTrainingProfile,
   options: ResistanceTemplateOptions = {}
 ): ResistanceTrainingPlan {
+  const trainingContext = options.trainingContext ?? "volleyball";
+  const sportContext = options.sportContext;
   const builder = TEMPLATE_GOAL_TO_BUILDER[goal];
   const variant = resolveTemplateVariant(goal, options);
   const exerciseBuilder = variant.buildExercises ?? builder;
   const exercises = exerciseBuilder(profile)
     .map(normalizeExerciseForWorkoutSheet)
+    .map((exercise) => adaptExerciseToContext(exercise, trainingContext, sportContext))
     .map((exercise) =>
       goal === "potencia_atletica"
         ? {
@@ -514,12 +681,16 @@ export function resolveResistanceTemplate(
 
   return {
     id,
-    label: variant.label ?? GOAL_LABELS[goal],
+    label: variant.label ?? resolveGoalLabels(trainingContext, sportContext)[goal],
     primaryGoal: goal,
-    transferTarget: variant.transferTarget ?? GOAL_TRANSFER[goal],
+    transferTarget:
+      variant.transferTarget ??
+      resolveGoalTransfer(goal, trainingContext, sportContext),
+    trainingContext,
+    sportContext,
     estimatedDurationMin,
     exercises,
   };
 }
 
-export { GOAL_LABELS, GOAL_TRANSFER };
+export { UNIVERSAL_GOAL_LABELS, UNIVERSAL_GOAL_TRANSFER, VOLLEYBALL_GOAL_LABELS, VOLLEYBALL_GOAL_TRANSFER };

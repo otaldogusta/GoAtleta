@@ -10,6 +10,7 @@ import { measure } from "../../../observability/perf";
 import {
   applySessionEnvironmentDecisions,
   type SessionEnvironmentDecisions,
+  type SessionTrainingContextDecisions,
 } from "../application/session-environment-decisions";
 
 export type UseSaveWeekParams = {
@@ -39,6 +40,7 @@ export type UseSaveWeekParams = {
   editJumpTarget: string;
   editPSETarget: string;
   editSessionEnvironments: SessionEnvironmentDecisions;
+  editSessionTrainingContexts: SessionTrainingContextDecisions;
   hasPlanChanges: (existing: ClassPlan | null, candidate: ClassPlan) => boolean;
   setEditSource: (value: "AUTO" | "MANUAL") => void;
   setIsSavingWeek: (value: boolean) => void;
@@ -74,6 +76,7 @@ export function useSaveWeek({
   editJumpTarget,
   editPSETarget,
   editSessionEnvironments,
+  editSessionTrainingContexts,
   hasPlanChanges,
   setEditSource,
   setIsSavingWeek,
@@ -106,6 +109,7 @@ export function useSaveWeek({
       : buildClassPlan({
           classId: selectedClass.id,
           ageBand,
+          rawAgeBand: selectedClass.ageBand,
           startDate: activeCycleStartDate,
           weekNumber: editingWeek,
           source: editSource,
@@ -123,6 +127,7 @@ export function useSaveWeek({
       rawJson: existing?.generationContextSnapshotJson ?? autoPlanMetadata.generationContextSnapshotJson,
       sessionCount,
       decisions: editSessionEnvironments,
+      trainingContexts: editSessionTrainingContexts,
     });
 
     const plan: ClassPlan = {
@@ -210,6 +215,7 @@ export function useSaveWeek({
     editPhase,
     editPhysicalFocus,
     editSessionEnvironments,
+    editSessionTrainingContexts,
     editSource,
     editTechnicalFocus,
     editTheme,

@@ -1,4 +1,6 @@
 import type { ClassCalendarException, ClassGroup, DailyLessonPlan } from "../../../core/models";
+import { getPlannedLoads } from "../../../core/periodization-load";
+import { getVolumeFromTargets } from "../../../core/periodization-generator";
 import { buildAutoWeekPlan } from "../build-auto-week-plan";
 
 const buildClassGroup = (overrides: Partial<ClassGroup> = {}): ClassGroup => ({
@@ -138,5 +140,34 @@ describe("buildAutoWeekPlan", () => {
     expect(integratedContext.courtGymRelationship).toBe("quadra_dominante");
     expect(integratedContext.gymSessionsCount).toBe(0);
     expect(integratedContext.notes).toContain("apoio motor/preventivo");
+  });
+
+  it("allows moderate development load for 07-09 without escalating to alta", () => {
+    const plan = buildAutoWeekPlan({
+      selectedClass: buildClassGroup({
+        ageBand: "07-09",
+        name: "Turma 07-09",
+        daysPerWeek: 1,
+        daysOfWeek: [2],
+        goal: "Continuidade e tomada de decisão",
+      }),
+      weekNumber: 3,
+      cycleLength: 12,
+      activeCycleStartDate: "2026-03-23",
+      isCompetitiveMode: false,
+      calendarExceptions: [] as ClassCalendarException[],
+      competitiveProfile: null,
+      ageBand: "09-11",
+      periodizationModel: "formacao",
+      weeklySessions: 1,
+      sportProfile: "voleibol",
+    });
+
+    const resolvedVolume = getVolumeFromTargets(plan?.phase ?? "", plan?.rpeTarget ?? "", "07-09");
+    const loads = getPlannedLoads(plan?.rpeTarget ?? "", 60, 1);
+
+    expect(plan?.rpeTarget).toBe("4-6");
+    expect(resolvedVolume).toBe("médio");
+    expect(loads.plannedSessionLoad).toBe(300);
   });
 });

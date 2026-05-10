@@ -129,4 +129,26 @@ describe("resolveResistanceTemplate", () => {
       );
     }
   });
+
+  it("uses universal transfer language for general_fitness instead of volleyball copy", () => {
+    const plan = resolveResistanceTemplate("forca_base", "intermediario", {
+      trainingContext: "general_fitness",
+    });
+
+    expect(plan.label).toBe("Força Base");
+    expect(plan.transferTarget).not.toMatch(/quadra|bloqueio|recep|ataque|salto/i);
+    expect(plan.transferTarget).toMatch(/força de base|estabilidade|produção segura/i);
+    expect(plan.exercises.some((exercise) =>
+      /quadra|bloqueio|recep|ataque|salto/i.test(String(exercise.transferTarget ?? ""))
+    )).toBe(false);
+  });
+
+  it("keeps modality-specific transfer language when volleyball is explicit", () => {
+    const plan = resolveResistanceTemplate("potencia_atletica", "intermediario", {
+      trainingContext: "volleyball",
+      sportContext: "volleyball",
+    });
+
+    expect(plan.transferTarget).toMatch(/ataque|bloqueio|salto/i);
+  });
 });

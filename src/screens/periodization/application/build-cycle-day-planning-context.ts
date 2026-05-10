@@ -66,7 +66,8 @@ const buildEffectiveClassPlan = (params: BuildPeriodizationCycleDayPlanningConte
       params.weekPlan.volume,
       params.periodizationModel,
       params.weeklySessions,
-      params.sportProfile
+      params.sportProfile,
+      params.classGroup.ageBand
     )}/10`,
     `Carga sessao: ${Math.round(params.weekPlan.plannedSessionLoad)}`,
     `Carga semana: ${Math.round(params.weekPlan.plannedWeeklyLoad)}`,
@@ -111,7 +112,8 @@ export const buildPeriodizationCycleDayPlanningContext = (
     params.weekPlan.volume,
     params.periodizationModel,
     params.weeklySessions,
-    params.sportProfile
+    params.sportProfile,
+    params.classGroup.ageBand
   );
 
   return {

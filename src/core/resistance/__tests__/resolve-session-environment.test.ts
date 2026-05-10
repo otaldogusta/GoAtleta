@@ -8,24 +8,32 @@ const ctxQuadra: TeamTrainingContext = {
   hasGymAccess: false,
   integratedTrainingModel: "quadra_apenas",
   resistanceTrainingProfile: "iniciante",
+  trainingContext: "volleyball",
+  sportContext: "volleyball",
 };
 
 const ctxComplementar: TeamTrainingContext = {
   hasGymAccess: true,
   integratedTrainingModel: "academia_complementar",
   resistanceTrainingProfile: "iniciante",
+  trainingContext: "volleyball",
+  sportContext: "volleyball",
 };
 
 const ctxIntegrada: TeamTrainingContext = {
   hasGymAccess: true,
   integratedTrainingModel: "academia_integrada",
   resistanceTrainingProfile: "intermediario",
+  trainingContext: "volleyball",
+  sportContext: "volleyball",
 };
 
 const ctxPrioritaria: TeamTrainingContext = {
   hasGymAccess: true,
   integratedTrainingModel: "academia_prioritaria",
   resistanceTrainingProfile: "avancado",
+  trainingContext: "volleyball",
+  sportContext: "volleyball",
 };
 
 describe("resolveSessionEnvironment", () => {

@@ -60,7 +60,7 @@ describe("SessionContextHeader", () => {
     expect(text).toContain("Função na semana:");
     expect(text).toContain("Academia");
     expect(text).toContain("Salto de ataque e bloqueio");
-    expect(text).toContain("Transferência para a quadra");
+    expect(text).toContain("Foco aplicado");
   });
 
   it("keeps fallback labels when optional values are absent", () => {

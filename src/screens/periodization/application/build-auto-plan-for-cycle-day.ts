@@ -30,7 +30,11 @@ import {
     buildWeeklyIntegratedContext,
     resolveSessionEnvironment,
 } from "../../../core/resistance/resolve-session-environment";
-import { resolveTeamTrainingContext, supportsResistanceTraining } from "../../../core/resistance/training-context";
+import {
+    resolveTeamTrainingContext,
+    resolveTrainingContextFromPlanningContext,
+    supportsResistanceTraining,
+} from "../../../core/resistance/training-context";
 import { buildPeriodizationCycleDayPlanningContext } from "./build-cycle-day-planning-context";
 
 type PeriodizationWeekPlanInput = {
@@ -389,11 +393,22 @@ const resolveResistanceOutputForSession = (
 
   const sessionRole =
     params.weeklyOperationalDecision?.sessionRole ?? "consolidacao_orientada";
+  const contextDecision = resolveTrainingContextFromPlanningContext({
+    classGroup: params.classGroup,
+    sessionEnvironment,
+    sessionPrimaryComponent:
+      sessionEnvironment === "mista" ? "misto_transferencia" : "resistido",
+    physicalFocus: params.classPlan?.physicalFocus ?? params.weekPlan.focus,
+    dominantBlock: params.dominantBlock,
+    weeklyTrainingContext: params.weeklyOperationalDecision?.trainingContext,
+    weeklySportContext: params.weeklyOperationalDecision?.sportContext,
+  });
 
   const resistanceComponent = buildResistanceSessionPlan({
     teamContext: teamCtx,
     weeklyContext: weeklyCtx,
     sessionRole,
+    contextDecision,
   });
 
   const sessionComponents: SessionComponent[] =

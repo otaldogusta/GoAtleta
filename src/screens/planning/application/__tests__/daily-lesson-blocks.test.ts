@@ -91,6 +91,16 @@ describe("ensureLessonBlocksMatchSessionEnvironment", () => {
     expect(result[2]?.activities[0]?.description).toContain("Bloqueio com aterrissagem controlada — 3x5");
   });
 
+  it("gera fechamento misto genérico fora do contexto de vôlei", () => {
+    const result = ensureLessonBlocksMatchSessionEnvironment(courtBlocks, "mista", 90, {
+      trainingContext: "general_fitness",
+    });
+
+    expect(result[2]?.label).toBe("Transferência prática e fechamento");
+    expect(result[2]?.activities[0]?.name).toBe("Aplicação prática final");
+    expect(result[2]?.activities[0]?.description).not.toMatch(/bloqueio|manchete|quadra/i);
+  });
+
   it("normaliza estrutura mista antiga que começava pela quadra", () => {
     const legacyMixedBlocks: LessonBlock[] = [
       {

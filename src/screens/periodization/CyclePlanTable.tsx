@@ -18,6 +18,7 @@ import {
     type VolumeLevel,
 } from "../../core/periodization-basics";
 import { formatPlannedLoad } from "../../core/periodization-load";
+import type { VisibleMonthWeekSlot } from "./month-segments";
 import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
 import { getSectionCardStyle } from "../../ui/section-styles";
@@ -120,10 +121,12 @@ export type CyclePlanTableProps = {
   // data
   hasWeekPlans: boolean;
   weekPlans: WeekPlan[];
+  visibleWeekSlots: VisibleMonthWeekSlot[];
   currentWeek: number;
   selectedWeekNumber: number;
-  monthWeekNumbers: number[];
-  monthSegments: Segment[];
+  selectedWeekSlotKey?: string | null;
+  monthSegments?: Segment[];
+  monthWeekNumbers?: number[];
   macroSegments: Segment[];
   mesoSegments: Segment[];
   dominantBlockSegments: Segment[];
@@ -132,10 +135,15 @@ export type CyclePlanTableProps = {
   weeklySessions: number;
   periodizationModel: PeriodizationModel;
   sportProfile: SportProfile;
+  rawAgeBand?: string | null;
 
   // actions
   onSelectedWeekChange?: (week: number) => void;
-  openWeekEditor: (week: number) => void;
+  onSelectedWeekSlotChange?: (slotKey: string, week: number) => void;
+  openWeekEditor: (
+    week: number,
+    options?: { displayWeekNumber?: number; visibleMonthKey?: string; slotKey?: string }
+  ) => void;
 };
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -157,17 +165,20 @@ export function CyclePlanTable({
   cyclePanelTitle,
   hasWeekPlans,
   weekPlans,
+  visibleWeekSlots,
   currentWeek,
   selectedWeekNumber,
-  monthWeekNumbers,
-  monthSegments,
+  selectedWeekSlotKey,
+  monthWeekNumbers: _monthWeekNumbers,
   macroSegments,
   mesoSegments,
   dominantBlockSegments,
   weeklySessions,
   periodizationModel,
   sportProfile,
+  rawAgeBand,
   onSelectedWeekChange,
+  onSelectedWeekSlotChange,
   openWeekEditor,
 }: CyclePlanTableProps) {
   const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,6 +187,79 @@ export function CyclePlanTable({
   const cycleSnapInterval = useMemo(
     () => cyclePanelCellWidth + cyclePanelCellGap,
     [cyclePanelCellGap, cyclePanelCellWidth]
+  );
+  const displayWeeks = useMemo(
+    () =>
+      visibleWeekSlots
+        .map((slot) => {
+          const week = weekPlans.find((item) => item.week === slot.sourceWeekNumber);
+          if (!week) return null;
+          return { ...slot, week };
+        })
+        .filter(
+          (
+            item
+          ): item is VisibleMonthWeekSlot & {
+            week: WeekPlan;
+          } => Boolean(item)
+        ),
+    [visibleWeekSlots, weekPlans]
+  );
+  const primarySlotKeyBySourceWeek = useMemo(() => {
+    const byWeek = new Map<number, string>();
+    displayWeeks.forEach((slot) => {
+      if (!byWeek.has(slot.sourceWeekNumber)) {
+        byWeek.set(slot.sourceWeekNumber, slot.key);
+      }
+    });
+    return byWeek;
+  }, [displayWeeks]);
+  const resolveSegmentLabelForSourceWeek = useCallback(
+    (segments: Segment[], sourceWeekNumber: number) => {
+      const sourceIndex = weekPlans.findIndex((item) => item.week === sourceWeekNumber);
+      if (sourceIndex < 0) return "";
+      let cursor = 0;
+      for (const segment of segments) {
+        cursor += segment.length;
+        if (sourceIndex < cursor) return segment.label;
+      }
+      return segments[segments.length - 1]?.label ?? "";
+    },
+    [weekPlans]
+  );
+  const buildDisplaySegments = useCallback(
+    (segments: Segment[]) => {
+      const result: Segment[] = [];
+      displayWeeks.forEach((slot) => {
+        const label = resolveSegmentLabelForSourceWeek(segments, slot.sourceWeekNumber);
+        const last = result[result.length - 1];
+        if (last?.label === label) {
+          last.length += 1;
+        } else {
+          result.push({ label, length: 1 });
+        }
+      });
+      return result;
+    },
+    [displayWeeks, resolveSegmentLabelForSourceWeek]
+  );
+  const displayMonthSegments = useMemo(() => {
+    const result: Segment[] = [];
+    displayWeeks.forEach((slot) => {
+      const last = result[result.length - 1];
+      if (last?.label === slot.monthLabel) {
+        last.length += 1;
+      } else {
+        result.push({ label: slot.monthLabel, length: 1 });
+      }
+    });
+    return result;
+  }, [displayWeeks]);
+  const displayMacroSegments = useMemo(() => buildDisplaySegments(macroSegments), [buildDisplaySegments, macroSegments]);
+  const displayMesoSegments = useMemo(() => buildDisplaySegments(mesoSegments), [buildDisplaySegments, mesoSegments]);
+  const displayDominantSegments = useMemo(
+    () => buildDisplaySegments(dominantBlockSegments),
+    [buildDisplaySegments, dominantBlockSegments]
   );
 
   const clearScheduledSnap = useCallback(() => {
@@ -186,14 +270,18 @@ export function CyclePlanTable({
 
   const snapToNearestWeek = useCallback(
     (offsetX: number, animated: boolean) => {
-      if (!hasWeekPlans || !weekPlans.length) return;
+      if (!hasWeekPlans || !displayWeeks.length) return;
 
       const snappedIndex = Math.round(offsetX / cycleSnapInterval);
-      const clampedIndex = Math.max(0, Math.min(snappedIndex, weekPlans.length - 1));
+      const clampedIndex = Math.max(0, Math.min(snappedIndex, displayWeeks.length - 1));
       const nextOffsetX = clampedIndex * cycleSnapInterval;
-      const nextWeekNumber = weekPlans[clampedIndex]?.week ?? clampedIndex + 1;
+      const nextSlot = displayWeeks[clampedIndex];
+      const nextWeekNumber = nextSlot?.sourceWeekNumber ?? clampedIndex + 1;
 
       onSelectedWeekChange?.(nextWeekNumber);
+      if (nextSlot) {
+        onSelectedWeekSlotChange?.(nextSlot.key, nextWeekNumber);
+      }
 
       if (Math.abs(nextOffsetX - offsetX) < 1) {
         lastAppliedScrollXRef.current = nextOffsetX;
@@ -205,10 +293,11 @@ export function CyclePlanTable({
     [
       cyclePanelScrollRef,
       cycleSnapInterval,
+      displayWeeks,
+      displayWeeks.length,
       hasWeekPlans,
       onSelectedWeekChange,
-      weekPlans,
-      weekPlans.length,
+      onSelectedWeekSlotChange,
     ]
   );
 
@@ -235,13 +324,16 @@ export function CyclePlanTable({
   );
 
   useEffect(() => {
-    if (!hasWeekPlans || !weekPlans.length) return;
+    if (!hasWeekPlans || !displayWeeks.length) return;
 
-    const targetWeek = selectedWeekNumber || currentWeek;
-    const clampedWeek = Math.max(1, Math.min(targetWeek, weekPlans.length));
+    const targetIndex =
+      selectedWeekSlotKey != null
+        ? displayWeeks.findIndex((slot) => slot.key === selectedWeekSlotKey)
+        : displayWeeks.findIndex((slot) => slot.sourceWeekNumber === (selectedWeekNumber || currentWeek));
+    const clampedIndex = Math.max(0, targetIndex >= 0 ? targetIndex : 0);
     const scrollToX = Math.max(
       0,
-      (clampedWeek - 1) * (cyclePanelCellWidth + cyclePanelCellGap)
+      clampedIndex * (cyclePanelCellWidth + cyclePanelCellGap)
     );
 
     if (Math.abs((lastAppliedScrollXRef.current ?? -999999) - scrollToX) < 1) {
@@ -260,10 +352,11 @@ export function CyclePlanTable({
     cyclePanelCellGap,
     cyclePanelCellWidth,
     cyclePanelScrollRef,
+    displayWeeks,
     hasWeekPlans,
-    selectedWeekNumber,
-    weekPlans.length,
     currentWeek,
+    selectedWeekNumber,
+    selectedWeekSlotKey,
   ]);
 
   useEffect(() => {
@@ -391,7 +484,7 @@ export function CyclePlanTable({
 
               {/* Linha de meses */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {monthSegments.map((seg, idx) => (
+                {displayMonthSegments.map((seg, idx) => (
                   <View
                     key={`month-${idx}`}
                     style={{
@@ -414,17 +507,25 @@ export function CyclePlanTable({
 
               {/* Linha de semanas */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {weekPlans.map((week, weekIdx) => {
-                  const isActive = week.week === selectedWeekNumber;
-                  const isCurrent = week.week === currentWeek;
-                  const isPast = week.week < currentWeek;
-                  const monthWeekNumber = monthWeekNumbers[weekIdx] ?? week.week;
+                {displayWeeks.map((slot) => {
+                  const isActive =
+                    selectedWeekSlotKey != null
+                      ? slot.key === selectedWeekSlotKey
+                      : slot.sourceWeekNumber === selectedWeekNumber &&
+                        primarySlotKeyBySourceWeek.get(slot.sourceWeekNumber) === slot.key;
+                  const isCurrent = slot.sourceWeekNumber === currentWeek;
+                  const isPast = slot.sourceWeekNumber < currentWeek;
                   return (
                     <Pressable
-                      key={`head-${week.week}`}
+                      key={`head-${slot.key}`}
                       onPress={() => {
-                        onSelectedWeekChange?.(week.week);
-                        openWeekEditor(week.week);
+                        onSelectedWeekChange?.(slot.sourceWeekNumber);
+                        onSelectedWeekSlotChange?.(slot.key, slot.sourceWeekNumber);
+                        openWeekEditor(slot.sourceWeekNumber, {
+                          displayWeekNumber: slot.monthWeekNumber,
+                          visibleMonthKey: slot.monthKey,
+                          slotKey: slot.key,
+                        });
                       }}
                       style={{
                         width: cyclePanelCellWidth,
@@ -440,7 +541,7 @@ export function CyclePlanTable({
                       }}
                     >
                       <Text style={{ color: colors.text, fontSize: 11, fontWeight: isActive ? "700" : "400" }}>
-                        {`${monthWeekNumber}`}
+                        {`${slot.monthWeekNumber}`}
                       </Text>
                       {isCurrent ? (
                         <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.text }} />
@@ -456,7 +557,9 @@ export function CyclePlanTable({
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
                 <View
                   style={{
-                    width: weekPlans.length * cyclePanelCellWidth + Math.max(0, weekPlans.length - 1) * cyclePanelCellGap,
+                    width:
+                      displayWeeks.length * cyclePanelCellWidth +
+                      Math.max(0, displayWeeks.length - 1) * cyclePanelCellGap,
                     height: cyclePanelRowHeight,
                     borderRadius: 8,
                     alignItems: "center",
@@ -474,7 +577,7 @@ export function CyclePlanTable({
 
               {/* Macrociclo */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                  {macroSegments.map((seg, idx) => {
+                  {displayMacroSegments.map((seg, idx) => {
                     const bgColors = [colors.inputBg, colors.secondaryBg, colors.card];
                     return (
                       <View
@@ -501,7 +604,7 @@ export function CyclePlanTable({
 
               {/* Mesociclos */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {mesoSegments.map((seg, idx) => (
+                {displayMesoSegments.map((seg, idx) => (
                   <View
                     key={`meso-${idx}`}
                     style={{
@@ -524,7 +627,7 @@ export function CyclePlanTable({
 
               {/* Bloco dominante */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {dominantBlockSegments.map((seg, idx) => {
+                {displayDominantSegments.map((seg, idx) => {
                   const bgColors = [colors.secondaryBg, colors.card, colors.inputBg, colors.card, colors.secondaryBg];
                   return (
                     <View
@@ -551,12 +654,13 @@ export function CyclePlanTable({
 
               {/* Carga */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {weekPlans.map((week) => {
+                {displayWeeks.map((item) => {
+                  const week = item.week;
                   const palette = getVolumePalette(week.volume, colors);
-                  const isPast = week.week < currentWeek;
+                  const isPast = item.sourceWeekNumber < currentWeek;
                   return (
                     <View
-                      key={`load-${week.week}`}
+                      key={`load-${item.key}`}
                       style={{
                         width: cyclePanelCellWidth,
                         height: cyclePanelRowHeight,
@@ -577,17 +681,19 @@ export function CyclePlanTable({
 
               {/* Índice */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {weekPlans.map((week) => {
-                  const isPast = week.week < currentWeek;
+                {displayWeeks.map((item) => {
+                  const week = item.week;
+                  const isPast = item.sourceWeekNumber < currentWeek;
                   const intensity = getDemandIndexForModel(
                     week.volume,
                     periodizationModel,
                     weeklySessions,
-                    sportProfile
+                    sportProfile,
+                    rawAgeBand
                   );
                   return (
                     <View
-                      key={`idx-${week.week}`}
+                      key={`idx-${item.key}`}
                       style={{
                         width: cyclePanelCellWidth,
                         height: cyclePanelRowHeight,
@@ -610,11 +716,12 @@ export function CyclePlanTable({
 
               {/* Meta PSE */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {weekPlans.map((week) => {
-                  const isPast = week.week < currentWeek;
+                {displayWeeks.map((item) => {
+                  const week = item.week;
+                  const isPast = item.sourceWeekNumber < currentWeek;
                   return (
                     <View
-                      key={`pse-${week.week}`}
+                      key={`pse-${item.key}`}
                       style={{
                         width: cyclePanelCellWidth,
                         height: cyclePanelRowHeight,
@@ -637,11 +744,12 @@ export function CyclePlanTable({
 
               {/* Carga interna */}
               <View style={{ flexDirection: "row", gap: cyclePanelCellGap }}>
-                {weekPlans.map((week) => {
-                  const isPast = week.week < currentWeek;
+                {displayWeeks.map((item) => {
+                  const week = item.week;
+                  const isPast = item.sourceWeekNumber < currentWeek;
                   return (
                     <View
-                      key={`internal-load-${week.week}`}
+                      key={`internal-load-${item.key}`}
                       style={{
                         width: cyclePanelCellWidth,
                         height: cyclePanelRowHeight,

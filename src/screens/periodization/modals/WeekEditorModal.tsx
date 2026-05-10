@@ -7,8 +7,12 @@ import { Pressable } from "../../../ui/Pressable";
 import type { WeekSessionPreview } from "../application/build-week-session-preview";
 import {
   SESSION_ENVIRONMENT_OPTIONS,
+  SESSION_TRAINING_CONTEXT_OPTIONS,
   formatSessionEnvironmentLabel,
+  formatSessionTrainingContextLabel,
   type SessionEnvironmentDecisions,
+  type SessionTrainingContextDecisions,
+  type SessionTrainingContextSelection,
 } from "../application/session-environment-decisions";
 
 type Props = {
@@ -17,6 +21,7 @@ type Props = {
   modalCardStyle: object;
   colors: ThemeColors;
   editingWeek: number;
+  editingWeekDisplayNumber?: number;
   selectedClassName: string;
   cycleLength: number;
   // form fields
@@ -40,7 +45,12 @@ type Props = {
   weeklySessions: number;
   weekSessions: WeekSessionPreview[];
   sessionEnvironments: SessionEnvironmentDecisions;
+  sessionTrainingContexts: SessionTrainingContextDecisions;
   onSessionEnvironmentChange: (sessionIndex: number, value: SessionEnvironment) => void;
+  onSessionTrainingContextChange: (
+    sessionIndex: number,
+    value: SessionTrainingContextSelection
+  ) => void;
   isSavingWeek: boolean;
   onSave: () => void;
   onResetToAuto: () => void;
@@ -83,6 +93,7 @@ export function WeekEditorModal({
   modalCardStyle,
   colors,
   editingWeek,
+  editingWeekDisplayNumber,
   selectedClassName,
   cycleLength,
   editPhase,
@@ -105,7 +116,9 @@ export function WeekEditorModal({
   weeklySessions,
   weekSessions,
   sessionEnvironments,
+  sessionTrainingContexts,
   onSessionEnvironmentChange,
+  onSessionTrainingContextChange,
   isSavingWeek,
   onSave,
   onResetToAuto,
@@ -135,7 +148,7 @@ export function WeekEditorModal({
       cardStyle={modalCardStyle}
       position="center"
       colors={colors}
-      title={`Planejamento da semana ${editingWeek}`}
+      title={`Planejamento da semana ${editingWeekDisplayNumber ?? editingWeek}`}
       subtitle={operationalSubtitle}
       contentContainerStyle={{
         gap: 12,
@@ -240,7 +253,12 @@ export function WeekEditorModal({
                       return (
                         <Pressable
                           key={`${item.date}_${option.value}`}
-                          onPress={() => onSessionEnvironmentChange(item.sessionIndex, option.value)}
+                          onPress={() => {
+                            onSessionEnvironmentChange(item.sessionIndex, option.value);
+                            if (option.value === "quadra") {
+                              onSessionTrainingContextChange(item.sessionIndex, "automatic");
+                            }
+                          }}
                           style={{
                             paddingHorizontal: 10,
                             paddingVertical: 6,
@@ -263,6 +281,51 @@ export function WeekEditorModal({
                       );
                     })}
                   </View>
+                  {(sessionEnvironments[item.sessionIndex] ?? "quadra") !== "quadra" ? (
+                    <View style={{ gap: 6 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        Foco do treino
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                        {SESSION_TRAINING_CONTEXT_OPTIONS.map((option) => {
+                          const selected =
+                            (sessionTrainingContexts[item.sessionIndex] ?? "automatic") ===
+                            option.value;
+                          return (
+                            <Pressable
+                              key={`${item.date}_${option.value}_training_context`}
+                              onPress={() =>
+                                onSessionTrainingContextChange(item.sessionIndex, option.value)
+                              }
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 6,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: selected ? colors.successBorder : colors.border,
+                                backgroundColor: selected ? colors.successBg : colors.inputBg,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: selected ? colors.successText : colors.text,
+                                  fontSize: 12,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        {`Contexto: ${formatSessionTrainingContextLabel(
+                          sessionTrainingContexts[item.sessionIndex] ?? "automatic"
+                        )}`}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               ))}
             </View>

@@ -160,6 +160,23 @@ export async function getDailyLessonPlanByWeekAndDate(weeklyPlanId: string, date
   }
 }
 
+export async function getDailyLessonPlanByClassAndDate(classId: string, date: string) {
+  try {
+    const row = await db.getFirstAsync<DailyLessonPlanRow>(
+      `SELECT * FROM daily_lesson_plans
+       WHERE classId = ? AND date = ?
+       ORDER BY updatedAt DESC
+       LIMIT 1`,
+      [classId, date]
+    );
+
+    return row ? mapDailyLessonPlanRow(row) : null;
+  } catch (error) {
+    console.warn("Failed to load daily lesson plan by class and date:", error);
+    return null;
+  }
+}
+
 export async function deleteDailyLessonPlanByClassAndDate(classId: string, date: string) {
   if (!classId || !date) return;
 

@@ -1,4 +1,11 @@
-import type { DailyLessonPlan, LessonActivity, LessonBlock, SessionEnvironment } from "../../../core/models";
+import type {
+  DailyLessonPlan,
+  LessonActivity,
+  LessonBlock,
+  ResistanceSportContext,
+  ResistanceTrainingContext,
+  SessionEnvironment,
+} from "../../../core/models";
 import { summarizeLessonActivity, type LessonBlockType } from "../../../pdf/summarize-lesson-activity";
 import { getLessonBlockTimes } from "../../../utils/lesson-block-times";
 
@@ -25,6 +32,12 @@ const makeTemplateActivity = (
 
 const RESISTANCE_PREPARATION_DESCRIPTION =
   "Antes das séries válidas: 1–2 séries leves e progressivas no primeiro exercício. Não contar como série válida.";
+
+const GENERIC_TRANSFER_DESCRIPTION =
+  "Depois do bloco de academia, aplicar a capacidade trabalhada em uma tarefa prática curta e fechar a sessão com registro objetivo do que precisa continuar evoluindo.";
+
+const VOLLEYBALL_TRANSFER_DESCRIPTION =
+  "Após o bloco de academia, retornar para a quadra. Bloqueio com aterrissagem controlada — 3x5. Deslocamento + manchete — 3x4 ações.";
 
 const COURT_ACTIVITY_PATTERN =
   /\b(recepcao|recepção|saque|levantamento|bloqueio|cobertura|contra-ataque|jogo|mini\s*jogo|mini\s*\d+x\d+|manchete|toque|quadra)\b/i;
@@ -72,6 +85,31 @@ const parseManualSessionEnvironmentOverride = (plan: Pick<DailyLessonPlan, "manu
 
 const hasResistanceComponents = (plan: Pick<DailyLessonPlan, "sessionComponents"> | null | undefined) =>
   Boolean(plan?.sessionComponents?.some((component) => component.type === "academia_resistido"));
+
+const resolveTrainingContextCopy = (params?: {
+  trainingContext?: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
+}) => {
+  const trainingContext = params?.trainingContext ?? "volleyball";
+  const sportContext = params?.sportContext;
+  const isVolleyball = trainingContext === "volleyball" || sportContext === "volleyball";
+
+  if (isVolleyball) {
+    return {
+      mixedClosingLabel: "Transferência para quadra e fechamento",
+      mixedTransferDescription: VOLLEYBALL_TRANSFER_DESCRIPTION,
+      academyClosingName: "Desaceleração e registro de carga",
+      academyClosingDescription: "Hidratar, registrar percepção de esforço e anotar cargas usadas.",
+    };
+  }
+
+  return {
+    mixedClosingLabel: "Transferência prática e fechamento",
+    mixedTransferDescription: GENERIC_TRANSFER_DESCRIPTION,
+    academyClosingName: "Desaceleração e registro da sessão",
+    academyClosingDescription: "Hidratar, registrar percepção de esforço e anotar as cargas principais da sessão.",
+  };
+};
 
 export const resolveConservativeDailySessionEnvironment = (
   plan: Pick<
@@ -137,8 +175,13 @@ const resolveTemplateDurations = (durationMinutes: number, environment: SessionE
 export const buildSessionEnvironmentLessonBlocks = (
   environment: SessionEnvironment,
   durationMinutes = 60,
+  context?: {
+    trainingContext?: ResistanceTrainingContext;
+    sportContext?: ResistanceSportContext;
+  },
 ): LessonBlock[] => {
   const durations = resolveTemplateDurations(durationMinutes, environment);
+  const contextCopy = resolveTrainingContextCopy(context);
   if (environment === "academia") {
     return [
       {
@@ -191,8 +234,8 @@ export const buildSessionEnvironmentLessonBlocks = (
         activities: [
           makeTemplateActivity(
             "academy_closure",
-            "Desaceleração e registro de carga",
-            "Hidratar, registrar percepção de esforço e anotar cargas usadas."
+            contextCopy.academyClosingName,
+            contextCopy.academyClosingDescription
           ),
         ],
       },
@@ -240,13 +283,15 @@ export const buildSessionEnvironmentLessonBlocks = (
       },
       {
         key: "cooldown",
-        label: "Transferência para quadra e fechamento",
+        label: contextCopy.mixedClosingLabel,
         durationMinutes: durations.cooldown,
         activities: [
           makeTemplateActivity(
             "mixed_transfer",
-            "Aplicação técnica na quadra",
-            "Após o bloco de academia, retornar para a quadra. Bloqueio com aterrissagem controlada — 3x5. Deslocamento + manchete — 3x4 ações."
+            context?.trainingContext === "volleyball" || context?.sportContext === "volleyball"
+              ? "Aplicação técnica na quadra"
+              : "Aplicação prática final",
+            contextCopy.mixedTransferDescription
           ),
         ],
       },
@@ -297,9 +342,13 @@ export const ensureLessonBlocksMatchSessionEnvironment = (
   blocks: LessonBlock[],
   environment: SessionEnvironment,
   durationMinutes = 60,
+  context?: {
+    trainingContext?: ResistanceTrainingContext;
+    sportContext?: ResistanceSportContext;
+  },
 ): LessonBlock[] => {
   if (!blocks.length) {
-    return buildSessionEnvironmentLessonBlocks(environment, durationMinutes);
+    return buildSessionEnvironmentLessonBlocks(environment, durationMinutes, context);
   }
 
   const byKey = new Map(blocks.map((block) => [block.key, block]));
@@ -314,7 +363,7 @@ export const ensureLessonBlocksMatchSessionEnvironment = (
       /fechamento/i.test(cooldown?.label ?? "");
 
     if (!hasAcademyStructure || isCourtLikeBlock(main) || !isResistanceLikeBlock(main)) {
-      return buildSessionEnvironmentLessonBlocks("academia", durationMinutes);
+      return buildSessionEnvironmentLessonBlocks("academia", durationMinutes, context);
     }
   }
 
@@ -325,7 +374,7 @@ export const ensureLessonBlocksMatchSessionEnvironment = (
       /transferencia|transferência|fechamento/i.test(cooldown?.label ?? "");
 
     if (!hasMixedStructure || isCourtLikeBlock(main) || !isResistanceLikeBlock(main)) {
-      return buildSessionEnvironmentLessonBlocks("mista", durationMinutes);
+      return buildSessionEnvironmentLessonBlocks("mista", durationMinutes, context);
     }
   }
 
@@ -336,7 +385,7 @@ export const ensureLessonBlocksMatchSessionEnvironment = (
       /volta/i.test(cooldown?.label ?? "");
 
     if (!hasCourtStructure || isResistanceLikeBlock(main)) {
-      return buildSessionEnvironmentLessonBlocks("quadra", durationMinutes);
+      return buildSessionEnvironmentLessonBlocks("quadra", durationMinutes, context);
     }
   }
 

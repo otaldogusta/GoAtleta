@@ -16,7 +16,7 @@ export {
 
 export {
     deleteClass,
-    deleteClassCascade, duplicateClass, getClassById, getClasses, saveClass, seedIfEmpty,
+    deleteClassCascade, duplicateClass, getCachedClassById, getClassById, getClasses, saveClass, seedIfEmpty,
     seedStudentsIfEmpty, updateClass, updateClassAcwrLimits, updateClassColor
 } from "./classes";
 
@@ -47,6 +47,7 @@ export {
 } from "./periodization";
 
 export {
+    getDailyLessonPlanByClassAndDate,
     deleteDailyLessonPlanByClassAndDate,
     getDailyLessonPlanByWeekAndDate,
     listDailyLessonPlansByWeekIds,

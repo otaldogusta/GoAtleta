@@ -480,4 +480,39 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(regenerated.explanation.debug.overrideStrength).toBe("strong");
     expect(regenerated.explanation.coachSummary).toContain("Aprendizado local do professor (forte)");
   });
+
+  it("adapts the day session when there is a pre-match context", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({ goal: "Organização de jogo e side-out" }),
+      classPlan: buildClassPlan({
+        phase: "desenvolvimento",
+        theme: "Recepcao e transicao",
+        technicalFocus: "Passe",
+        rpeTarget: "PSE 5",
+      }),
+      students: [buildStudent()],
+      sessionDate: "2026-05-08",
+      recentPlans: [],
+      teamPlanningContext: {
+        hasUpcomingMatch: true,
+        daysUntilMatch: 1,
+        planningMode: "pre_match",
+        recommendedLoadBias: "reduce",
+        focusHints: ["ajuste tático", "organização coletiva", "comunicação"],
+        avoidHints: ["fadiga excessiva", "volume desnecessário"],
+        reason: "amistoso amanhã",
+      },
+    });
+
+    expect(result.generationContext.weeklyLoadIntent).toBe("baixo");
+    expect(result.generationContext.phaseIntent).toBe("transferencia_jogo");
+    expect(result.generationContext.pedagogicalIntent).toBe("team_organization");
+    expect(result.generationContext.constraints).toEqual(
+      expect.arrayContaining([
+        "Contexto competitivo: pré-jogo.",
+        "Foco contextual: ajuste tático.",
+        "Evitar: fadiga excessiva.",
+      ])
+    );
+  });
 });

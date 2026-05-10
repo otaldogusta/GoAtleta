@@ -28,6 +28,7 @@ import {
     toGenerationMode,
 } from "../../../src/screens/session/application/build-persisted-generation-explanation";
 import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
+import { buildTeamPlanningContextSummary } from "../../../src/screens/team-context/team-context-actions";
 import {
     buildWeekSessionPreview,
     type WeekSessionPreview,
@@ -50,8 +51,15 @@ import { SessionResistanceNotice } from "../../../src/screens/session/components
 import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
 import { useSessionData } from "../../../src/screens/session/hooks/useSessionData";
+import {
+    buildScoutingNewRouteParams,
+    isScoutingModuleSession,
+    shouldRedirectLegacyScoutingTab,
+    type SessionScreenTabId,
+} from "../../../src/screens/session/application/session-scouting-navigation";
 import { useSessionPlanGeneration } from "../../../src/screens/session/hooks/useSessionPlanGeneration";
 import { useSessionReport } from "../../../src/screens/session/hooks/useSessionReport";
+import { CLEARED_DAILY_LESSON_PLAN_MODEL_VERSION } from "../../../src/screens/session/application/resolve-session-effective-plan";
 import { Pressable } from "../../../src/ui/Pressable";
 
 import {
@@ -167,10 +175,9 @@ import { calculateAdjacentClassDate } from "../../../src/utils/whatsapp-template
 const sessionTabs = [
   { id: "treino", label: ptBR.session.tabs.training },
   { id: "relatório", label: ptBR.session.tabs.report },
-  { id: "scouting", label: ptBR.session.tabs.scouting },
 ] as const;
 
-type SessionTabId = (typeof sessionTabs)[number]["id"];
+type SessionTabId = SessionScreenTabId;
 type SessionBlockKey = "warmup" | "main" | "cooldown";
 type SessionPedagogicalApproach = NonNullable<TrainingPlanPedagogy["pedagogicalApproach"]>;
 const REPORT_REWRITE_MAX_CHARS = 1200;
@@ -1812,12 +1819,13 @@ const resolveExplicitResistanceDecisionForSession = (params: {
 };
 
 export default function SessionScreen() {
-  const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
+  const { id, date, tab, autogenerate, source, scoutingMode: scoutingModeParam } = useLocalSearchParams<{
     id: string;
     date?: string;
     tab?: string;
     autogenerate?: string;
     source?: string;
+    scoutingMode?: string;
   }>();
   const router = useRouter();
   const { config: pedagogicalConfig } = usePedagogicalConfig();
@@ -1947,6 +1955,9 @@ export default function SessionScreen() {
     compactTrainingPlans,
   });
   const plan = effectivePlan ?? (!currentDailyLessonPlan ? appliedTrainingPlan : null);
+  const [teamPlanningSummary, setTeamPlanningSummary] = useState<Awaited<
+    ReturnType<typeof buildTeamPlanningContextSummary>
+  > | null>(null);
   const dailyPlanComesFromAppliedTraining =
     currentDailyLessonPlan?.generationModelVersion === "manual-training-plan-apply";
   const resolvedPlanSourceLabel =
@@ -1962,6 +1973,11 @@ export default function SessionScreen() {
             ? "Plano salvo"
             : "";
 
+  const canRemoveAppliedPlan = Boolean(
+    plan &&
+      (effectivePlanSource === "daily_lesson_plan" || Boolean(plan.applyDate))
+  );
+
   useEffect(() => {
     if (!effectivePlanConflict) return;
     logAction("Session effective plan conflict", {
@@ -1974,6 +1990,25 @@ export default function SessionScreen() {
       trainingEnvironment: effectivePlanConflict.trainingEnvironment,
     });
   }, [effectivePlanConflict, id, sessionDate]);
+  useEffect(() => {
+    let cancelled = false;
+    const loadTeamPlanningSummary = async () => {
+      try {
+        const summary = await buildTeamPlanningContextSummary(id, sessionDate);
+        if (!cancelled) {
+          setTeamPlanningSummary(summary);
+        }
+      } catch {
+        if (!cancelled) {
+          setTeamPlanningSummary(null);
+        }
+      }
+    };
+    void loadTeamPlanningSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, sessionDate]);
   const {
     PSE,
     setPSE,
@@ -2852,62 +2887,138 @@ export default function SessionScreen() {
     }
   };
 
-  const handleRemoveAppliedPlan = () => {
-    if (!cls || !plan || isRemovingAppliedPlan) return;
-    confirm({
+  const handleRemoveAppliedPlan = async () => {
+    if (!cls || !plan || !canRemoveAppliedPlan || isRemovingAppliedPlan) return;
+    const confirmed = await confirm({
       title: "Remover plano deste dia?",
       message: `Isso remove o treino aplicado em ${dateLabel} e a aula volta para sem plano aplicado.`,
       confirmLabel: "Remover",
       cancelLabel: "Cancelar",
       tone: "danger",
-      onConfirm: async () => {
-        setIsRemovingAppliedPlan(true);
-        try {
-          await measure("deleteDailyLessonPlanByClassAndDate", () =>
-            deleteDailyLessonPlanByClassAndDate(cls.id, sessionDate)
-          );
-          await measure("deleteTrainingPlansByClassAndDate", () =>
-            deleteTrainingPlansByClassAndDate(cls.id, sessionDate, {
-              organizationId: cls.organizationId ?? null,
-            })
-          );
-          const remainingClassPlans = await getTrainingPlans({
-            organizationId: cls.organizationId ?? null,
-            classId: cls.id,
-            status: "final",
-            orderBy: "createdat_desc",
-            limit: 24,
-          });
-          setPlan(null);
-          setCurrentDailyLessonPlan(null);
-          setSavedClassPlans(compactTrainingPlans(remainingClassPlans));
-          setAutoActivity("");
-          setShowPedagogicalPanel(false);
-          setShowSavedClassPlans(false);
-          setSelectedBlockKey(null);
-          setLastUpdatedBlockKey(null);
-          setPedagogicalPlanPackage(null);
-          await reload();
-          showSaveToast({
-            message: "Plano removido desta aula.",
-            variant: "success",
-          });
-          logAction("Remover plano da aula do dia", {
-            classId: cls.id,
-            planId: plan.id,
-            dailyLessonPlanId: currentDailyLessonPlan?.id ?? null,
-            applyDate: sessionDate,
-          });
-        } catch {
-          showSaveToast({
-            message: "Não foi possível remover o plano desta aula.",
-            variant: "error",
-          });
-        } finally {
-          setIsRemovingAppliedPlan(false);
-        }
-      },
+      onConfirm: async () => {},
     });
+
+    if (!confirmed) return;
+
+    setIsRemovingAppliedPlan(true);
+    try {
+      if (currentClassPlan?.id) {
+        const timestamp = new Date().toISOString();
+        await measure("upsertDailyLessonPlan:cleared", () =>
+          upsertDailyLessonPlan({
+            id: currentDailyLessonPlan?.id ?? `daily_plan_cleared_${cls.id}_${sessionDate}`,
+            classId: cls.id,
+            weeklyPlanId:
+              currentDailyLessonPlan?.weeklyPlanId ??
+              currentClassPlan.id ??
+              `cleared_${cls.id}`,
+            date: sessionDate,
+            dayOfWeek: weekdayId,
+            title: "",
+            blocksJson: "[]",
+            sessionComponents: [],
+            sessionEnvironment: "quadra",
+            sessionPrimaryComponent: "tecnico_tatico",
+            warmup: "",
+            mainPart: "",
+            cooldown: "",
+            observations: "",
+            generationVersion: currentDailyLessonPlan?.generationVersion ?? 1,
+            derivedFromWeeklyVersion:
+              currentDailyLessonPlan?.derivedFromWeeklyVersion ??
+              currentClassPlan.generationVersion ??
+              1,
+            generationModelVersion: CLEARED_DAILY_LESSON_PLAN_MODEL_VERSION,
+            generationContextSnapshotJson:
+              currentDailyLessonPlan?.generationContextSnapshotJson ?? "{}",
+            syncStatus: "overridden",
+            outOfSyncReasonsJson: "[]",
+            manualOverridesJson: "{}",
+            manualOverrideMaskJson: "[]",
+            lastAutoGeneratedAt:
+              currentDailyLessonPlan?.lastAutoGeneratedAt ?? timestamp,
+            lastManualEditedAt: timestamp,
+            createdAt: currentDailyLessonPlan?.createdAt ?? timestamp,
+            updatedAt: timestamp,
+          })
+        );
+      } else {
+        const timestamp = new Date().toISOString();
+        await measure("upsertDailyLessonPlan:cleared", () =>
+          upsertDailyLessonPlan({
+            id: currentDailyLessonPlan?.id ?? `daily_plan_cleared_${cls.id}_${sessionDate}`,
+            classId: cls.id,
+            weeklyPlanId:
+              currentDailyLessonPlan?.weeklyPlanId ?? `cleared_${cls.id}`,
+            date: sessionDate,
+            dayOfWeek: weekdayId,
+            title: "",
+            blocksJson: "[]",
+            sessionComponents: [],
+            sessionEnvironment: "quadra",
+            sessionPrimaryComponent: "tecnico_tatico",
+            warmup: "",
+            mainPart: "",
+            cooldown: "",
+            observations: "",
+            generationVersion: currentDailyLessonPlan?.generationVersion ?? 1,
+            derivedFromWeeklyVersion:
+              currentDailyLessonPlan?.derivedFromWeeklyVersion ?? 1,
+            generationModelVersion: CLEARED_DAILY_LESSON_PLAN_MODEL_VERSION,
+            generationContextSnapshotJson:
+              currentDailyLessonPlan?.generationContextSnapshotJson ?? "{}",
+            syncStatus: "overridden",
+            outOfSyncReasonsJson: "[]",
+            manualOverridesJson: "{}",
+            manualOverrideMaskJson: "[]",
+            lastAutoGeneratedAt:
+              currentDailyLessonPlan?.lastAutoGeneratedAt ?? timestamp,
+            lastManualEditedAt: timestamp,
+            createdAt: currentDailyLessonPlan?.createdAt ?? timestamp,
+            updatedAt: timestamp,
+          })
+        );
+      }
+      await measure("deleteTrainingPlansByClassAndDate", () =>
+        deleteTrainingPlansByClassAndDate(cls.id, sessionDate, {
+          organizationId: cls.organizationId ?? null,
+        })
+      );
+      const remainingClassPlans = await getTrainingPlans({
+        organizationId: cls.organizationId ?? null,
+        classId: cls.id,
+        status: "final",
+        orderBy: "createdat_desc",
+        limit: 24,
+      });
+      setPlan(null);
+      setCurrentDailyLessonPlan(null);
+      setSavedClassPlans(compactTrainingPlans(remainingClassPlans));
+      setAutoActivity("");
+      setShowPedagogicalPanel(false);
+      setShowSavedClassPlans(false);
+      setSelectedBlockKey(null);
+      setLastUpdatedBlockKey(null);
+      setPedagogicalPlanPackage(null);
+      await reload();
+      showSaveToast({
+        message: "Plano removido desta aula.",
+        variant: "success",
+      });
+      logAction("Remover plano da aula do dia", {
+        classId: cls.id,
+        planId: plan.id,
+        dailyLessonPlanId: currentDailyLessonPlan?.id ?? null,
+        applyDate: sessionDate,
+      });
+    } catch {
+      showSaveToast({
+        message: "Não foi possível remover o plano desta aula.",
+        variant: "error",
+      });
+    } finally {
+      setIsRemovingAppliedPlan(false);
+    }
   };
 
   const handleBackToClass = () => {
@@ -3022,9 +3133,18 @@ export default function SessionScreen() {
         recentPlans: savedClassPlans,
         variationSeed,
         dimensionGuidelines,
+        teamPlanningContext: teamPlanningSummary?.context ?? null,
       });
     },
-    [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents]
+    [
+      cls,
+      currentClassPlan,
+      savedClassPlans,
+      scoutingCounts,
+      sessionDate,
+      sessionStudents,
+      teamPlanningSummary?.context,
+    ]
   );
 
   const buildPedagogicalPackageFromSessionContext = useCallback(
@@ -3773,15 +3893,17 @@ export default function SessionScreen() {
     };
 
     try {
-      const [{ exportPdf, safeFileName }, { sessionPlanHtml }, { SessionPlanDocument }] =
+      const [{ exportPdf, safeFileName }, { sessionPlanHtml }, { SessionPlanDocument }, { enrichSessionPlanWithMedia }] =
         await Promise.all([
           import("../../../src/pdf/export-pdf"),
           import("../../../src/pdf/templates/session-plan"),
           import("../../../src/pdf/session-plan-document"),
+          import("../../../src/pdf/enrich-session-plan-with-media"),
         ]);
-      const html = sessionPlanHtml(pdfData);
+      const enrichedData = await enrichSessionPlanWithMedia(pdfData).catch(() => pdfData);
+      const html = sessionPlanHtml(enrichedData);
       const webDocument =
-        Platform.OS === "web" ? <SessionPlanDocument data={pdfData} /> : undefined;
+        Platform.OS === "web" ? <SessionPlanDocument data={enrichedData} /> : undefined;
       const safeClass = safeFileName(cls.name);
       const safeDate = safeFileName(sessionDate);
       const fileName = `plano-aula-${safeClass}-${safeDate}.pdf`;
@@ -3896,10 +4018,23 @@ export default function SessionScreen() {
 
   useEffect(() => {
     if (!tab) return;
-    if (tab === "treino" || tab === "relatório" || tab === "scouting") {
-      setSessionTab(tab);
+    if (shouldRedirectLegacyScoutingTab(tab, typeof source === "string" ? source : undefined)) {
+      router.replace({
+        pathname: "/class/[id]/scouting",
+        params: { id },
+      });
+      return;
     }
-  }, [tab]);
+    if (tab === "treino" || tab === "relatório" || isScoutingModuleSession(tab, typeof source === "string" ? source : undefined)) {
+      setSessionTab(tab as SessionTabId);
+    }
+  }, [id, router, source, tab]);
+
+  useEffect(() => {
+    if (scoutingModeParam === "treino" || scoutingModeParam === "jogo") {
+      setScoutingMode(scoutingModeParam);
+    }
+  }, [scoutingModeParam]);
 
   useEffect(() => {
     (Object.keys(sessionTabAnim) as SessionTabId[]).forEach((tabKey) => {
@@ -4033,72 +4168,114 @@ export default function SessionScreen() {
         </View>
       </View>
 
-      <View
-        style={{
-          flexDirection: "row",
-          gap: 6,
-          backgroundColor: colors.secondaryBg,
-          padding: 6,
-          borderRadius: 999,
-          marginBottom: 12,
-        }}
-      >
-        {sessionTabs.map((tab) => {
-          const tabProgress = sessionTabAnim[tab.id];
-          const tabScale = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.95, 1],
-          });
-          const tabOpacity = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.68, 1],
-          });
-          const tabBackground = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [colors.card, colors.primaryBg],
-          });
-          const tabTextColor = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [colors.text, colors.primaryText],
-          });
-          return (
-            <Animated.View
-              key={tab.id}
-              style={{
-                flex: 1,
-                borderRadius: 999,
-                opacity: tabOpacity,
-                transform: [{ scale: tabScale }],
-                backgroundColor: tabBackground,
-              }}
-            >
-            <Pressable
-              onPress={() => {
-                closePickers();
-                setSessionTab(tab.id);
-              }}
-              style={{
-                flex: 1,
-                paddingVertical: 8,
-                borderRadius: 999,
-                alignItems: "center",
-              }}
-            >
-              <Animated.Text
-                numberOfLines={1}
+      {sessionTab !== "scouting" ? (
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            backgroundColor: colors.secondaryBg,
+            padding: 6,
+            borderRadius: 999,
+            marginBottom: 12,
+          }}
+        >
+          {sessionTabs.map((tab) => {
+            const tabProgress = sessionTabAnim[tab.id];
+            const tabScale = tabProgress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.95, 1],
+            });
+            const tabOpacity = tabProgress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.68, 1],
+            });
+            const tabBackground = tabProgress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [colors.card, colors.primaryBg],
+            });
+            const tabTextColor = tabProgress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [colors.text, colors.primaryText],
+            });
+            return (
+              <Animated.View
+                key={tab.id}
                 style={{
-                  color: tabTextColor,
-                  fontWeight: "700",
-                  fontSize: 12,
+                  flex: 1,
+                  borderRadius: 999,
+                  opacity: tabOpacity,
+                  transform: [{ scale: tabScale }],
+                  backgroundColor: tabBackground,
                 }}
               >
-                {tab.label}
-              </Animated.Text>
-            </Pressable>
-            </Animated.View>
-          );
-        })}
-      </View>
+                <Pressable
+                  onPress={() => {
+                    closePickers();
+                    setSessionTab(tab.id);
+                  }}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    alignItems: "center",
+                  }}
+                >
+                  <Animated.Text
+                    numberOfLines={1}
+                    style={{
+                      color: tabTextColor,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    {tab.label}
+                  </Animated.Text>
+                </Pressable>
+              </Animated.View>
+            );
+          })}
+        </View>
+      ) : (
+        <View
+          style={{
+            padding: 12,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.secondaryBg,
+            marginBottom: 12,
+            gap: 8,
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+            Registro técnico de scouting
+          </Text>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Este fluxo pertence ao módulo de scouting da turma e está usando o motor técnico já existente.
+          </Text>
+          <Pressable
+            onPress={() =>
+              router.replace({
+                pathname: "/class/[id]/scouting",
+                params: { id },
+              })
+            }
+            style={{
+              alignSelf: "flex-start",
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Voltar ao módulo de scouting
+            </Text>
+          </Pressable>
+        </View>
+      )}
 
       </View>
 
@@ -4149,6 +4326,88 @@ export default function SessionScreen() {
                 {highlightedGuideline}
               </Text>
             ) : null}
+          </View>
+        ) : null}
+        {sessionTab === "treino" &&
+        teamPlanningSummary &&
+        (teamPlanningSummary.context.planningMode !== "normal" ||
+          teamPlanningSummary.context.focusHints.length > 0) ? (
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+              gap: 8,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                Contexto competitivo
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                {teamPlanningSummary.planningModeLabel}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                {teamPlanningSummary.loadBiasLabel}
+              </Text>
+            </View>
+            {teamPlanningSummary.context.focusHints.length ? (
+              <Text style={{ color: colors.text, fontSize: 12 }}>
+                Focar em {teamPlanningSummary.context.focusHints.slice(0, 3).join(", ")}.
+              </Text>
+            ) : null}
+            {teamPlanningSummary.context.avoidHints.length ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Evitar {teamPlanningSummary.context.avoidHints.slice(0, 2).join(", ")}.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        {sessionTab === "treino" ? (
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              gap: 8,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+              Scouting desta sessão
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Registre análise técnica, jogo ou desempenho da turma no módulo de scouting.
+            </Text>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/scouting/new",
+                  params: buildScoutingNewRouteParams({
+                    classId: id,
+                    date: sessionDate,
+                    type: "training",
+                    source: "session",
+                  }),
+                })
+              }
+              style={{
+                alignSelf: "flex-start",
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Abrir scouting
+              </Text>
+            </Pressable>
           </View>
         ) : null}
         {sessionTab === "treino" && isPlanGenerationUiBusy && plan ? (
@@ -4437,7 +4696,7 @@ export default function SessionScreen() {
             ) : null}
           </Animated.View>
         ) : null}
-        {sessionTab === "treino" && plan ? (
+        {sessionTab === "treino" && plan && canRemoveAppliedPlan ? (
           <>
             {!resistancePreview && shouldShowResistanceGuardNotice ? (
               <SessionResistanceNotice

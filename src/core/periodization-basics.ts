@@ -1,3 +1,5 @@
+import { parseAgeBandRange } from "./age-band";
+
 export type VolumeLevel = "baixo" | "médio" | "alto";
 
 export type PeriodizationModel = "iniciacao" | "formacao" | "competitivo";
@@ -47,12 +49,24 @@ export const splitSegmentLengths = (total: number, parts: number) => {
   return lengths;
 };
 
+export const isChildSafeAgeBand = (ageBand?: string | null) => {
+  const range = parseAgeBandRange(ageBand ?? null);
+  return Number.isFinite(range.end) && range.end <= 9;
+};
+
 export const getDemandIndexForModel = (
   volume: VolumeLevel,
   model: PeriodizationModel,
   sessionsPerWeek = 2,
-  sport: SportProfile = "voleibol"
+  sport: SportProfile = "voleibol",
+  ageBand?: string | null
 ) => {
+  if (isChildSafeAgeBand(ageBand)) {
+    const base = volume === "alto" ? 5 : volume === "médio" ? 4 : 2;
+    const frequencyDelta = sessionsPerWeek >= 3 ? 1 : 0;
+    return Math.max(2, Math.min(5, base + frequencyDelta));
+  }
+
   const frequencyDelta = sessionsPerWeek <= 1 ? -1 : sessionsPerWeek >= 3 ? 1 : 0;
   const sportDelta =
     sport === "funcional" ? -1 : sport === "futebol" || sport === "basquete" ? 1 : 0;

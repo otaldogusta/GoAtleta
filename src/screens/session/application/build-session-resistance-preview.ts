@@ -2,6 +2,8 @@ import { resolveSessionIndexInWeek } from "../../../core/cycle-day-planning/reso
 import type {
   ClassGroup,
   ClassPlan,
+  ResistanceSportContext,
+  ResistanceTrainingContext,
   SessionComponent,
   SessionEnvironment,
   WeekSessionRole,
@@ -15,6 +17,7 @@ import {
 import { parseWeeklyIntegratedContext } from "../../../core/resistance/weekly-integrated-context";
 import {
   resolveTeamTrainingContext,
+  resolveTrainingContextFromPlanningContext,
   supportsResistanceTraining,
 } from "../../../core/resistance/training-context";
 
@@ -23,6 +26,9 @@ type BuildSessionResistancePreviewParams = {
   classPlan?: ClassPlan | null;
   sessionDate: string;
   sessionRole?: WeekSessionRole;
+  sessionEnvironment?: SessionEnvironment;
+  weeklyTrainingContext?: ResistanceTrainingContext;
+  weeklySportContext?: ResistanceSportContext;
 };
 
 type SessionResistancePreview = {
@@ -52,12 +58,14 @@ export function buildSessionResistancePreview(
     sessionDate: params.sessionDate,
   });
 
-  const sessionEnvironment = resolveSessionEnvironment({
-    teamContext,
-    classGroup: params.classGroup,
-    weeklySessions,
-    sessionIndexInWeek: Math.max(0, sessionIndexInWeek - 1),
-  });
+  const sessionEnvironment =
+    params.sessionEnvironment ??
+    resolveSessionEnvironment({
+      teamContext,
+      classGroup: params.classGroup,
+      weeklySessions,
+      sessionIndexInWeek: Math.max(0, sessionIndexInWeek - 1),
+    });
 
   if (sessionEnvironment === "quadra") {
     return { sessionEnvironment };
@@ -79,6 +87,15 @@ export function buildSessionResistancePreview(
         teamContext,
         weeklyContext,
         sessionRole: params.sessionRole ?? "consolidacao_orientada",
+        contextDecision: resolveTrainingContextFromPlanningContext({
+          classGroup: params.classGroup,
+          sessionEnvironment,
+          sessionPrimaryComponent:
+            sessionEnvironment === "mista" ? "misto_transferencia" : "resistido",
+          physicalFocus: params.classPlan?.physicalFocus,
+          weeklyTrainingContext: params.weeklyTrainingContext,
+          weeklySportContext: params.weeklySportContext,
+        }),
       }),
     ],
   };

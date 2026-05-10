@@ -1,7 +1,10 @@
 import { Text, View } from "react-native";
 
 import type { ResistanceExercisePrescription, ResistanceTrainingPlan } from "../../../core/models";
+import { formatResistanceTrainingContextLabel } from "../../../core/resistance/training-context";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { ExerciseMediaButton } from "./ExerciseMediaButton";
+import { resolveSessionExerciseMedia } from "./resolve-session-exercise-media";
 
 type Props = {
   resistancePlan: ResistanceTrainingPlan;
@@ -30,6 +33,9 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
       ? durationMin
       : resistancePlan.estimatedDurationMin;
   const exercises = Array.isArray(resistancePlan.exercises) ? resistancePlan.exercises : [];
+  const contextLabel = formatResistanceTrainingContextLabel(
+    resistancePlan.trainingContext
+  );
 
   return (
     <View
@@ -46,12 +52,27 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
         <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
           Sessão resistida
         </Text>
+        <View
+          style={{
+            alignSelf: "flex-start",
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.secondaryBg,
+          }}
+        >
+          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+            Contexto: {contextLabel}
+          </Text>
+        </View>
         <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
           {headerLabel}
         </Text>
         {transferTarget ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Transferência para quadra: {transferTarget}
+            Foco aplicado: {transferTarget}
           </Text>
         ) : null}
         {resolvedDuration > 0 ? (
@@ -94,6 +115,13 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
             </View>
             {exercises.map((exercise, index) => {
               const name = String(exercise.name ?? "").trim() || `Exercício ${index + 1}`;
+              const media = resolveSessionExerciseMedia({
+                exerciseName: name,
+                category: exercise.category,
+                transferTarget: exercise.transferTarget ?? resistancePlan.transferTarget,
+                trainingContext: resistancePlan.trainingContext,
+                sportContext: resistancePlan.sportContext,
+              });
               return (
               <View
                 key={`${name}-${index}`}
@@ -104,9 +132,12 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
                   borderBottomColor: colors.border,
                 }}
               >
-                <Text style={{ flex: 1.6, padding: 10, color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                  {name}
-                </Text>
+                <View style={{ flex: 1.6, padding: 10, gap: 8 }}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                    {name}
+                  </Text>
+                  <ExerciseMediaButton asset={media.asset} colors={colors} compact />
+                </View>
                 <Text style={{ width: 70, padding: 10, color: colors.text, fontSize: 13, fontWeight: "700", textAlign: "center" }}>
                   {formatSets(exercise)}
                 </Text>

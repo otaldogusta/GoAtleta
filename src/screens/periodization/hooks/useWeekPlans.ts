@@ -9,6 +9,7 @@ import type {
     ClassPlan,
 } from "../../../core/models";
 import {
+    isChildSafeAgeBand,
     type PeriodizationModel,
     type SportProfile,
     ageBands,
@@ -153,7 +154,36 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
         const normalizedJump = normalizeText(plan.jumpTarget);
         const normalizedRpe = normalizeText(plan.rpeTarget);
         const phaseForPse = normalizedPhase || plan.phase;
-        const resolvedPSETarget = normalizedRpe || getPSETarget(phaseForPse, weeklySessions, sportProfile);
+        const resolvedVolume = getVolumeForModel(
+          template.volume,
+          periodizationModel,
+          weeklySessions,
+          sportProfile,
+          selectedClass.ageBand
+        );
+        const shouldRecalculateChildAutoLoad =
+          !isCompetitiveMode &&
+          plan.source !== "MANUAL" &&
+          isChildSafeAgeBand(selectedClass.ageBand);
+        const resolvedPSETarget =
+          shouldRecalculateChildAutoLoad
+            ? getPSETarget(
+                phaseForPse,
+                weeklySessions,
+                sportProfile,
+                selectedClass.ageBand,
+                resolvedVolume,
+                normalizedTheme || template.title
+              )
+            : normalizedRpe ||
+              getPSETarget(
+                phaseForPse,
+                weeklySessions,
+                sportProfile,
+                selectedClass.ageBand,
+                resolvedVolume,
+                normalizedTheme || template.title
+              );
         const plannedLoads = getPlannedLoads(resolvedPSETarget, durationMinutes, weeklySessions);
         const meta = isCompetitiveMode
           ? buildCompetitiveWeekMeta({
@@ -169,8 +199,8 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
           title: normalizedPhase,
           focus: normalizedTheme,
           volume: isCompetitiveMode
-            ? getVolumeFromTargets(plan.phase, plan.rpeTarget)
-            : getVolumeForModel(template.volume, periodizationModel, weeklySessions, sportProfile),
+            ? getVolumeFromTargets(plan.phase, plan.rpeTarget, selectedClass.ageBand)
+            : resolvedVolume,
           notes: [normalizedConstraints, normalizedWarmup].filter(Boolean),
           dateRange: meta?.dateRangeLabel,
           sessionDatesLabel: meta?.sessionDatesLabel,
@@ -186,13 +216,27 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
       }
 
       const phase = getPhaseForWeek(i, length, periodizationModel, sportProfile);
-      const pseTarget = getPSETarget(phase, weeklySessions, sportProfile);
+      const resolvedVolume = getVolumeForModel(
+        template.volume,
+        periodizationModel,
+        weeklySessions,
+        sportProfile,
+        selectedClass.ageBand
+      );
+      const pseTarget = getPSETarget(
+        phase,
+        weeklySessions,
+        sportProfile,
+        selectedClass.ageBand,
+        resolvedVolume,
+        template.title
+      );
       const plannedLoads = getPlannedLoads(pseTarget, durationMinutes, weeklySessions);
       weeks.push({
         ...template,
         week: i,
         title: phase,
-        volume: getVolumeForModel(template.volume, periodizationModel, weeklySessions, sportProfile),
+        volume: resolvedVolume,
         jumpTarget: getJumpTarget(selectedClass?.mvLevel ?? "", ageBand),
         PSETarget: pseTarget,
         plannedSessionLoad: plannedLoads.plannedSessionLoad,

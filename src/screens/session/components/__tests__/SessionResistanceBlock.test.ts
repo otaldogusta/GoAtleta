@@ -1,4 +1,5 @@
 import { SessionResistanceBlock } from "../SessionResistanceBlock";
+import { resetExerciseMediaRegistry } from "../../../../exercise-media/exercise-media-registry";
 
 const collectText = (node: unknown): string[] => {
   if (node == null) return [];
@@ -44,6 +45,10 @@ const colors = {
 } as const;
 
 describe("SessionResistanceBlock", () => {
+  beforeEach(() => {
+    resetExerciseMediaRegistry();
+  });
+
   it("renders exercise table with real domain fields", () => {
     const element = SessionResistanceBlock({
       colors: colors as any,
@@ -53,6 +58,7 @@ describe("SessionResistanceBlock", () => {
         label: "Força Base",
         primaryGoal: "forca_base",
         transferTarget: "Salto e bloqueio",
+        trainingContext: "volleyball",
         estimatedDurationMin: 45,
         exercises: [
           {
@@ -70,9 +76,11 @@ describe("SessionResistanceBlock", () => {
     const text = collectText(element).join(" ");
 
     expect(text).toContain("Sessão resistida");
+    expect(text).toContain("Contexto:");
+    expect(text).toContain("Vôlei");
     expect(text).toContain("Força Base");
     expect(text).toContain("Salto e bloqueio");
-    expect(text).toContain("Transferência para quadra:");
+    expect(text).toContain("Foco aplicado:");
     expect(text).toContain("Atividade");
     expect(text).toContain("Séries");
     expect(text).toContain("Repet.");
@@ -83,6 +91,7 @@ describe("SessionResistanceBlock", () => {
     expect(text).toContain("90s");
     expect(text).not.toContain("Impacto na quadra");
     expect(text).not.toContain("Controle na descida");
+    expect(text).not.toContain("Ver demonstração");
   });
 
   it("keeps rendering with partial exercise data", () => {

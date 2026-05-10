@@ -120,6 +120,27 @@ export async function getLatestScoutingLog(
   }
 }
 
+export async function listScoutingLogsByClass(
+  classId: string,
+  options: { organizationId?: string | null; limit?: number } = {}
+): Promise<ScoutingLog[]> {
+  try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+    const limit = typeof options.limit === "number" && options.limit > 0 ? Math.round(options.limit) : 24;
+    const rows = await supabaseGet<ScoutingLogRow[]>(
+      organizationId
+        ? `/scouting_logs?select=*&classid=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=date.desc&limit=${limit}`
+        : `/scouting_logs?select=*&classid=eq.${encodeURIComponent(classId)}&order=date.desc&limit=${limit}`
+    );
+    return rows.map(scoutingRowToLog);
+  } catch (error) {
+    if (isMissingRelation(error, "scouting_logs")) return [];
+    if (isAuthError(error)) return [];
+    if (isNetworkError(error)) return [];
+    throw error;
+  }
+}
+
 export async function saveScoutingLog(
   log: ScoutingLog,
   options?: { allowQueue?: boolean; organizationId?: string }

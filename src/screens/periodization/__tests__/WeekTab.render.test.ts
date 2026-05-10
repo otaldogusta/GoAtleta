@@ -258,6 +258,123 @@ describe("WeekTab render", () => {
     expect(text).not.toContain("weekly session misalignment");
   });
 
+  it("shows resisted training focus label for explicit academy sessions", () => {
+    const element = WeekTab({
+      ...buildBaseProps(),
+      weekSchedule: [
+        {
+          label: "Seg",
+          dayNumber: 1,
+          session: "Treino resistido",
+          date: "2026-04-20",
+          autoPlan: {
+            sessionEnvironment: "academia",
+            sessionComponents: [
+              {
+                type: "academia_resistido",
+                durationMin: 45,
+                trainingContext: "strength",
+                contextSource: "weekly_strategy",
+                resistancePlan: {
+                  id: "res_1",
+                  label: "Forca base",
+                  primaryGoal: "forca_base",
+                  transferTarget: "geral",
+                  estimatedDurationMin: 45,
+                  trainingContext: "strength",
+                  exercises: [],
+                },
+              },
+            ],
+          } as any,
+        },
+      ],
+    });
+
+    const text = collectText(element).join(" ");
+
+    expect(text).toContain("Academia");
+    expect(text).toContain("Força");
+  });
+
+  it("shows volleyball focus for mixed sessions with resisted component", () => {
+    const element = WeekTab({
+      ...buildBaseProps(),
+      weekSchedule: [
+        {
+          label: "Qua",
+          dayNumber: 3,
+          session: "Transferência",
+          date: "2026-04-22",
+          autoPlan: {
+            sessionEnvironment: "mista",
+            sessionComponents: [
+              {
+                type: "academia_resistido",
+                durationMin: 35,
+                trainingContext: "volleyball",
+                contextSource: "manual_override",
+                resistancePlan: {
+                  id: "res_2",
+                  label: "Potencia",
+                  primaryGoal: "potencia_atletica",
+                  transferTarget: "quadra",
+                  estimatedDurationMin: 35,
+                  trainingContext: "volleyball",
+                  exercises: [],
+                },
+              },
+            ],
+          } as any,
+        },
+      ],
+    });
+
+    const text = collectText(element).join(" ");
+
+    expect(text).toContain("Mista");
+    expect(text).toContain("Vôlei");
+  });
+
+  it("does not show resisted training focus for pure court sessions", () => {
+    const element = WeekTab({
+      ...buildBaseProps(),
+      weekSchedule: [
+        {
+          label: "Sex",
+          dayNumber: 5,
+          session: "Jogo reduzido",
+          date: "2026-04-25",
+          autoPlan: {
+            sessionEnvironment: "quadra",
+            sessionComponents: [
+              {
+                type: "academia_resistido",
+                durationMin: 30,
+                trainingContext: "general_fitness",
+                contextSource: "fallback",
+                resistancePlan: {
+                  id: "res_3",
+                  label: "Condicionamento",
+                  primaryGoal: "resistencia_muscular",
+                  transferTarget: "geral",
+                  estimatedDurationMin: 30,
+                  trainingContext: "general_fitness",
+                  exercises: [],
+                },
+              },
+            ],
+          } as any,
+        },
+      ],
+    });
+
+    const text = collectText(element).join(" ");
+
+    expect(text).toContain("Quadra");
+    expect(text).not.toContain("Condicionamento geral");
+  });
+
   it("shows unstable weeks card with link-to-week entries", () => {
     const element = WeekTab({
       ...buildBaseProps(),

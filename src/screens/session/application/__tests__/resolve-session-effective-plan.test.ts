@@ -5,7 +5,10 @@ import type {
   TrainingPlan,
 } from "../../../../core/models";
 import { convertDailyLessonPlanToTrainingPlan } from "../convert-daily-lesson-plan-to-training-plan";
-import { resolveSessionEffectivePlan } from "../resolve-session-effective-plan";
+import {
+  CLEARED_DAILY_LESSON_PLAN_MODEL_VERSION,
+  resolveSessionEffectivePlan,
+} from "../resolve-session-effective-plan";
 
 const classGroup: ClassGroup = {
   id: "class_1",
@@ -253,6 +256,31 @@ describe("resolveSessionEffectivePlan", () => {
       currentTrainingPlan: null,
       currentClassPlan: classPlan,
       currentDailyLessonPlan: null,
+      studentsCount: 12,
+    });
+
+    expect(result).toEqual({ plan: null, source: "none", conflict: null });
+  });
+
+  it("returns none when the day was explicitly cleared", async () => {
+    const result = await resolveSessionEffectivePlan({
+      classGroup,
+      sessionDate: "2026-05-02",
+      weekdayId: 6,
+      currentTrainingPlan: trainingPlan({
+        id: "training_recurring",
+        applyDate: undefined,
+      }),
+      currentClassPlan: classPlan,
+      currentDailyLessonPlan: dailyPlan({
+        title: "",
+        warmup: "",
+        mainPart: "",
+        cooldown: "",
+        observations: "",
+        blocksJson: "[]",
+        generationModelVersion: CLEARED_DAILY_LESSON_PLAN_MODEL_VERSION,
+      }),
       studentsCount: 12,
     });
 

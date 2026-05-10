@@ -17,17 +17,36 @@ export type WeekSessionPreview = {
   shortLabel: string; // Ter 14/04
 };
 
+const parseIsoDate = (value: string | null | undefined) => {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const startOfCalendarWeek = (value: Date) => {
+  const next = new Date(value);
+  const weekday = next.getDay();
+  const offset = weekday === 0 ? -6 : 1 - weekday;
+  next.setDate(next.getDate() + offset);
+  return next;
+};
+
 /**
- * Builds the real session dates for a week given the week start date and class schedule.
- * Iterates all 7 days from startDate and picks the ones matching daysOfWeek (JS convention: 0=Sun..6=Sat).
+ * Builds the real session dates for the calendar week containing the anchor date.
+ * The result is aligned to the Monday-Sunday window of that week, while allowing
+ * callers to trim sessions before the true cycle start with `minDate`.
  */
 export const buildWeekSessionPreview = (params: {
   startDate: string;
   daysOfWeek: number[];
   weeklySessions: number;
+  minDate?: string | null;
+  visibleMonthKey?: string | null;
 }): WeekSessionPreview[] => {
-  const start = new Date(`${params.startDate}T00:00:00`);
-  if (Number.isNaN(start.getTime())) return [];
+  const anchorDate = parseIsoDate(params.startDate);
+  if (!anchorDate) return [];
+  const minDate = parseIsoDate(params.minDate);
+  const start = startOfCalendarWeek(anchorDate);
 
   const allowedDays = new Set(
     [...params.daysOfWeek].sort((a, b) => a - b).slice(0, params.weeklySessions)
@@ -38,6 +57,9 @@ export const buildWeekSessionPreview = (params: {
   for (let offset = 0; offset < 7; offset += 1) {
     const current = new Date(start);
     current.setDate(start.getDate() + offset);
+    if (minDate && current.getTime() < minDate.getTime()) continue;
+    const monthKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`;
+    if (params.visibleMonthKey && monthKey !== params.visibleMonthKey) continue;
     const weekday = current.getDay();
     if (!allowedDays.has(weekday)) continue;
 

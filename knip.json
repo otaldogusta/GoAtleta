@@ -1,0 +1,28 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "app/**/*.tsx",
+    "components/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "constants/**/*.{ts,tsx}",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "scripts/**/*.js"
+  ],
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "components/**/*.{ts,tsx}",
+    "hooks/**/*.{ts,tsx}",
+    "constants/**/*.{ts,tsx}",
+    "src/**/*.{ts,tsx}",
+    "scripts/**/*.js"
+  ],
+  "ignoreBinaries": [
+    "eas",
+    "maestro"
+  ],
+  "ignoreDependencies": [
+    "@swc/helpers",
+    "babel-jest"
+  ]
+}

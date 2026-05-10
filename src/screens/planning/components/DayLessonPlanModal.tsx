@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Text, TextInput, useWindowDimensions, View } from "react-native";
 
-import type { DailyLessonPlan, LessonBlock, SessionEnvironment } from "../../../core/models";
+import type {
+  ClassGroup,
+  DailyLessonPlan,
+  LessonBlock,
+  ResistanceTrainingContext,
+  ResistanceTrainingContextDecision,
+  SessionEnvironment,
+} from "../../../core/models";
+import {
+  formatResistanceTrainingContextLabel,
+  resolveTrainingContextFromPlanningContext,
+} from "../../../core/resistance/training-context";
 import { useAppTheme } from "../../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
@@ -19,6 +30,7 @@ import { PlanningSyncStatusChip } from "./PlanningSyncStatusChip";
 type Props = {
   visible: boolean;
   initialPlan: DailyLessonPlan | null;
+  classGroup?: ClassGroup | null;
   dayLabel: string;
   onClose: () => void;
   onRegenerate?: () => Promise<void>;
@@ -28,6 +40,7 @@ type Props = {
     blocks: LessonBlock[];
     observations: string;
     sessionEnvironment: SessionEnvironment;
+    trainingContextDecision?: ResistanceTrainingContextDecision;
   }) => Promise<void>;
 };
 
@@ -43,6 +56,21 @@ const SESSION_ENVIRONMENT_OPTIONS: {
 
 const normalizeEditableSessionEnvironment = (value?: SessionEnvironment): SessionEnvironment =>
   value === "academia" || value === "mista" ? value : "quadra";
+
+const TRAINING_CONTEXT_OPTIONS: ResistanceTrainingContext[] = [
+  "general_fitness",
+  "health",
+  "strength",
+  "hypertrophy",
+  "weight_loss",
+  "rehabilitation_light",
+  "school",
+  "volleyball",
+  "soccer",
+  "running",
+  "basketball",
+  "other_sport",
+];
 
 const normalizeLessonBlocks = (blocks: LessonBlock[]) =>
   blocks.map((block) => ({
@@ -64,11 +92,13 @@ const buildSnapshot = (payload: {
   blocks: LessonBlock[];
   observations: string;
   sessionEnvironment: SessionEnvironment;
+  trainingContextDecision?: ResistanceTrainingContextDecision | null;
 }) =>
   JSON.stringify({
     title: payload.title.trim(),
     observations: payload.observations.trim(),
     sessionEnvironment: payload.sessionEnvironment,
+    trainingContext: payload.trainingContextDecision?.trainingContext ?? null,
     blocks: normalizeLessonBlocks(payload.blocks),
   });
 
@@ -122,7 +152,16 @@ const sessionEnvironmentChangeCopy: Record<
   },
 };
 
-export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, onRegenerate, onExportPdf, onSave }: Props) {
+export function DayLessonPlanModal({
+  visible,
+  initialPlan,
+  classGroup,
+  dayLabel,
+  onClose,
+  onRegenerate,
+  onExportPdf,
+  onSave,
+}: Props) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const isCompact = width < 760;
@@ -141,9 +180,34 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
   const [baselineSnapshot, setBaselineSnapshot] = useState("");
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [pendingSessionEnvironment, setPendingSessionEnvironment] = useState<SessionEnvironment | null>(null);
+  const [trainingContextDecision, setTrainingContextDecision] =
+    useState<ResistanceTrainingContextDecision | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const savedResistanceComponent = useMemo(
+    () =>
+      initialPlan?.sessionComponents?.find(
+        (component): component is Extract<
+          NonNullable<DailyLessonPlan["sessionComponents"]>[number],
+          { type: "academia_resistido" }
+        > => component.type === "academia_resistido"
+      ) ?? null,
+    [initialPlan?.sessionComponents]
+  );
+  const sessionContext = useMemo(() => {
+    if (!savedResistanceComponent) {
+      return undefined;
+    }
+    return {
+      trainingContext:
+        savedResistanceComponent.trainingContext ??
+        savedResistanceComponent.resistancePlan.trainingContext,
+      sportContext:
+        savedResistanceComponent.sportContext ??
+        savedResistanceComponent.resistancePlan.sportContext,
+    };
+  }, [savedResistanceComponent]);
 
   useEffect(() => {
     if (!visible) return;
@@ -161,24 +225,42 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
     const resolvedBlocks = ensureLessonBlocksMatchSessionEnvironment(
       rawResolvedBlocks,
       resolvedSessionEnvironment,
-      rawResolvedBlocks.reduce((sum, block) => sum + Number(block.durationMinutes ?? 0), 0) || 60
+      rawResolvedBlocks.reduce((sum, block) => sum + Number(block.durationMinutes ?? 0), 0) || 60,
+      sessionContext
     );
+    const resolvedTrainingContextDecision =
+      resolvedSessionEnvironment === "quadra"
+        ? null
+        : resolveTrainingContextFromPlanningContext({
+            classGroup,
+            sessionEnvironment: resolvedSessionEnvironment,
+            sessionPrimaryComponent: initialPlan?.sessionPrimaryComponent,
+            physicalFocus: undefined,
+            overrideTrainingContext:
+              savedResistanceComponent?.trainingContext ??
+              savedResistanceComponent?.resistancePlan.trainingContext,
+            overrideSportContext:
+              savedResistanceComponent?.sportContext ??
+              savedResistanceComponent?.resistancePlan.sportContext,
+          });
     setTitle(initialPlan?.title ?? "");
     setBlocks(resolvedBlocks);
     setObservations(resolvedObservations);
     setSessionEnvironment(resolvedSessionEnvironment);
     setActiveBlockKey(resolvedBlocks[1]?.key ?? resolvedBlocks[0]?.key ?? null);
+    setTrainingContextDecision(resolvedTrainingContextDecision);
     setBaselineSnapshot(
       buildSnapshot({
         title: resolvedTitle,
         blocks: resolvedBlocks,
         observations: resolvedObservations,
         sessionEnvironment: resolvedSessionEnvironment,
+        trainingContextDecision: resolvedTrainingContextDecision,
       })
     );
     setShowCloseConfirm(false);
     setPendingSessionEnvironment(null);
-  }, [initialPlan, visible]);
+  }, [classGroup, initialPlan, savedResistanceComponent, sessionContext, visible]);
 
   useEffect(() => {
     if (!blocks.length) {
@@ -194,8 +276,15 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
   }, [activeBlockKey, blocks]);
 
   const currentSnapshot = useMemo(
-    () => buildSnapshot({ title, blocks, observations, sessionEnvironment }),
-    [title, blocks, observations, sessionEnvironment]
+    () =>
+      buildSnapshot({
+        title,
+        blocks,
+        observations,
+        sessionEnvironment,
+        trainingContextDecision,
+      }),
+    [title, blocks, observations, sessionEnvironment, trainingContextDecision]
   );
 
   const hasChanges = baselineSnapshot.length > 0 && currentSnapshot !== baselineSnapshot;
@@ -222,13 +311,32 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
   };
 
   const applySessionEnvironmentChange = (nextEnvironment: SessionEnvironment) => {
+    const nextTrainingContextDecision =
+      nextEnvironment === "quadra"
+        ? null
+        : resolveTrainingContextFromPlanningContext({
+            classGroup,
+            sessionEnvironment: nextEnvironment,
+            sessionPrimaryComponent:
+              nextEnvironment === "mista" ? "misto_transferencia" : "resistido",
+            overrideTrainingContext:
+              trainingContextDecision?.source === "manual_override"
+                ? trainingContextDecision.trainingContext
+                : undefined,
+            overrideSportContext:
+              trainingContextDecision?.source === "manual_override"
+                ? trainingContextDecision.sportContext
+                : undefined,
+          });
     const nextBlocks = buildSessionEnvironmentLessonBlocks(
       nextEnvironment,
-      totalDuration || 60
+      totalDuration || 60,
+      nextTrainingContextDecision ?? sessionContext
     );
     setSessionEnvironment(nextEnvironment);
     setBlocks(nextBlocks);
     setActiveBlockKey(nextBlocks[1]?.key ?? nextBlocks[0]?.key ?? null);
+    setTrainingContextDecision(nextTrainingContextDecision);
     setPendingSessionEnvironment(null);
   };
 
@@ -264,6 +372,7 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
         blocks,
         observations: observations.trim(),
         sessionEnvironment,
+        trainingContextDecision: trainingContextDecision ?? undefined,
       });
       setBaselineSnapshot(currentSnapshot);
       onClose();
@@ -441,6 +550,85 @@ export function DayLessonPlanModal({ visible, initialPlan, dayLabel, onClose, on
                 </Text>
               ) : null}
             </View>
+
+            {sessionEnvironment !== "quadra" ? (
+              <View style={{ gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                    Foco do treino
+                  </Text>
+                  {trainingContextDecision ? (
+                    <View
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                        Contexto: {formatResistanceTrainingContextLabel(trainingContextDecision.trainingContext)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  {TRAINING_CONTEXT_OPTIONS.map((option) => {
+                    const selected =
+                      trainingContextDecision?.trainingContext === option;
+                    return (
+                      <Pressable
+                        key={option}
+                        onPress={() => {
+                          const nextDecision =
+                            resolveTrainingContextFromPlanningContext({
+                              classGroup,
+                              sessionEnvironment,
+                              sessionPrimaryComponent:
+                                sessionEnvironment === "mista"
+                                  ? "misto_transferencia"
+                                  : "resistido",
+                              overrideTrainingContext: option,
+                            });
+                          setTrainingContextDecision(nextDecision);
+                          setBlocks((currentBlocks) =>
+                            ensureLessonBlocksMatchSessionEnvironment(
+                              currentBlocks,
+                              sessionEnvironment,
+                              totalDuration || 60,
+                              {
+                                trainingContext: nextDecision.trainingContext,
+                                sportContext: nextDecision.sportContext,
+                              }
+                            )
+                          );
+                        }}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 7,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                          borderColor: selected ? "#2f855a" : colors.border,
+                          backgroundColor: selected ? "rgba(47, 133, 90, 0.1)" : colors.secondaryBg,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: selected ? "#2f855a" : colors.text,
+                            fontSize: 11,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {formatResistanceTrainingContextLabel(option)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
 
             <View
               style={{

@@ -34,6 +34,8 @@ import type { ScoutingCounts } from "../../../core/scouting";
 import type { ClassGenerationContext } from "./build-class-generation-context";
 import { buildPedagogicalInputFromContext } from "./build-pedagogical-input-from-context";
 import { buildRecentSessionSummary } from "./build-recent-session-summary";
+import { adaptGenerationContextWithTeamPlanning } from "./adapt-generation-context-with-team-planning";
+import type { TeamPlanningContext } from "../../../core/team-context";
 
 export type BuildAutoPlanForCycleDayParams = {
   classGroup: ClassGroup;
@@ -49,6 +51,7 @@ export type BuildAutoPlanForCycleDayParams = {
   sessionIndexInWeek?: number;
   variationSeed?: number;
   dimensionGuidelines?: string[];
+  teamPlanningContext?: TeamPlanningContext | null;
 };
 
 export type AutoPlanForCycleDayResult = {
@@ -169,10 +172,14 @@ export const buildAutoPlanForCycleDay = (
     recentSessions,
     recentPlans,
   });
+  const adaptedGenerationContext = adaptGenerationContextWithTeamPlanning({
+    generationContext,
+    teamPlanningContext: params.teamPlanningContext,
+  });
   const pkg = buildPedagogicalInputFromContext({
     classGroup: params.classGroup,
     students: params.students,
-    generationContext,
+    generationContext: adaptedGenerationContext,
     variationSeed: params.variationSeed,
     dimensionGuidelines: params.dimensionGuidelines,
   });
@@ -233,7 +240,7 @@ export const buildAutoPlanForCycleDay = (
     structuralFingerprint: guardResult.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     explanation,
-    generationContext,
+    generationContext: adaptedGenerationContext,
     package: sanitizedPlan.package,
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,

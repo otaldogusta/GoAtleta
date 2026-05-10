@@ -121,4 +121,58 @@ describe("session-plan language sanitization", () => {
     expect(html).not.toMatch(/Amplitude segura|controle na descida|Coluna neutra|quadril para trás/);
     expect(html).not.toMatch(/Organização:|Desenvolvimento:|Comandos do professor:|Critério de sucesso:|Progressão:|Adaptação:/);
   });
+
+  it("does not render demonstration qr when media is absent", () => {
+    const html = sessionPlanHtml({
+      className: "Turma 16+",
+      dateLabel: "05/05/2026",
+      title: "Treino resistido",
+      blocks: [
+        {
+          key: "main",
+          label: "Treino resistido",
+          durationMinutes: 45,
+          activities: [
+            {
+              name: "Stiff",
+              sets: "3",
+              reps: "8-10",
+              rest: "75-90s",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).not.toContain("Demonstração");
+    expect(html).not.toContain("data:image/png;base64,");
+  });
+
+  it("renders demonstration qr when media is present", () => {
+    const html = sessionPlanHtml({
+      className: "Turma 16+",
+      dateLabel: "05/05/2026",
+      title: "Treino resistido",
+      blocks: [
+        {
+          key: "main",
+          label: "Treino resistido",
+          durationMinutes: 45,
+          activities: [
+            {
+              name: "Stiff",
+              sets: "3",
+              reps: "8-10",
+              rest: "75-90s",
+              demoLabel: "Demonstração",
+              demoQrDataUri: "data:image/png;base64,abc123",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toContain("Demonstração");
+    expect(html).toContain("data:image/png;base64,abc123");
+  });
 });

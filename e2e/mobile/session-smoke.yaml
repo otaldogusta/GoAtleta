@@ -1,0 +1,6 @@
+appId: com.goatleta.app
+---
+# Template baseline. Replace the visible text below with a stable first-screen label
+# once the mobile smoke flow is defined for the current environment.
+- launchApp
+- assertVisible: "GoAtleta"

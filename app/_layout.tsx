@@ -35,6 +35,8 @@ import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvi
 import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
+import { bootstrapExerciseMediaRuntime } from "../src/exercise-media/bootstrap-exercise-media-runtime";
+import { bootstrapExerciseMediaStore } from "../src/exercise-media/bootstrap-exercise-media-store";
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
@@ -342,6 +344,11 @@ function RootLayoutContent() {
       router.replace("/");
     }
   }, [normalizedPathname, router, session]);
+
+  useEffect(() => {
+    if (!session) return;
+    void bootstrapExerciseMediaStore();
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (initialRouteGuardAppliedRef.current) return;
@@ -829,6 +836,7 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
 
 function RootLayout() {
   useEffect(() => {
+    void bootstrapExerciseMediaRuntime();
     setSentryBaseTags();
     const globalHandler = (global as unknown as {
       ErrorUtils: {

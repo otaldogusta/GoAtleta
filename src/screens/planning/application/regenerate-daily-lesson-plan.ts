@@ -36,6 +36,8 @@ const DAILY_OVERRIDE_FIELDS = [
   "mainPart",
   "cooldown",
   "observations",
+  "sessionEnvironment",
+  "sessionComponents",
 ] as const;
 
 type DailyOverrideField = (typeof DAILY_OVERRIDE_FIELDS)[number];
@@ -170,6 +172,9 @@ const resolvePersistedSessionIntegration = (params: {
         classPlan: params.weeklyPlan,
         sessionDate: params.session.date,
         sessionRole: weeklyDecision?.sessionRole as WeekSessionRole | undefined,
+        sessionEnvironment: explicitEnvironment,
+        weeklyTrainingContext: weeklyDecision?.trainingContext,
+        weeklySportContext: weeklyDecision?.sportContext,
       })
     : null;
 
@@ -1744,9 +1749,10 @@ export const regenerateDailyLessonPlanFromWeek = (params: {
   const overrideMask = parseOverrideMask(existing.manualOverrideMaskJson);
   if (!overrideMask.length) return auto;
 
-  const merged = { ...auto };
+  const merged: DailyLessonPlan = { ...auto };
   for (const field of overrideMask) {
-    merged[field] = existing[field];
+    (merged as Record<DailyOverrideField, DailyLessonPlan[DailyOverrideField]>)[field] =
+      existing[field];
   }
 
   return {

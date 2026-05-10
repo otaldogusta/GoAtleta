@@ -139,9 +139,11 @@ const buildWeekPlanMeta = (params: {
   weekNumber: number;
   weeklySessions: number;
   sportProfile: SportProfile;
+  periodizationModel: PeriodizationModel;
+  ageBand: string;
   durationMinutes: number;
 }) => {
-  const volume = getVolumeFromTargets(params.plan.phase, params.plan.rpeTarget);
+  const volume = getVolumeFromTargets(params.plan.phase, params.plan.rpeTarget, params.ageBand);
   const plannedLoads = getPlannedLoads(
     params.plan.rpeTarget,
     Math.max(15, params.durationMinutes),
@@ -309,6 +311,7 @@ export const buildAutoWeekPlan = (
         startDate: params.activeCycleStartDate,
         weekNumber: params.weekNumber,
         source: "AUTO",
+        rawAgeBand: selectedClass.ageBand,
         mvLevel: selectedClass.mvLevel,
         cycleLength: params.cycleLength,
         model: params.periodizationModel,
@@ -324,13 +327,16 @@ export const buildAutoWeekPlan = (
       weekNumber: params.weekNumber,
       weeklySessions: params.weeklySessions,
       sportProfile: params.sportProfile,
+      periodizationModel: params.periodizationModel,
+      ageBand: selectedClass.ageBand,
       durationMinutes: selectedClass.durationMinutes,
     });
     const demandIndex = getDemandIndexForModel(
       weekPlan.volume,
       params.periodizationModel,
       params.weeklySessions,
-      params.sportProfile
+      params.sportProfile,
+      selectedClass.ageBand
     );
     const ageBandKey = normalizeAgeBandKey(selectedClass.ageBand ?? "") ?? normalizeAgeBandKey(params.ageBand);
     const monthIndex = resolveWeekMonthIndex(params.activeCycleStartDate, params.weekNumber);
@@ -372,6 +378,14 @@ export const buildAutoWeekPlan = (
       const autoPlan = autoPlans.find(
         (item) => item.sessionIndexInWeek === decision.sessionIndexInWeek,
       );
+      const resistanceComponent =
+        autoPlan?.sessionComponents?.find(
+          (component) => component.type === "academia_resistido"
+        )?.type === "academia_resistido"
+          ? autoPlan.sessionComponents.find(
+              (component) => component.type === "academia_resistido"
+            )
+          : null;
       return {
         ...decision,
         sessionEnvironment:
@@ -385,6 +399,12 @@ export const buildAutoWeekPlan = (
                 })),
               })
             : decision.sessionPrimaryComponent,
+        trainingContext: resistanceComponent?.trainingContext ?? decision.trainingContext,
+        sportContext: resistanceComponent?.sportContext ?? decision.sportContext,
+        contextSource: resistanceComponent?.contextSource ?? decision.contextSource,
+        contextConfidence:
+          resistanceComponent?.contextConfidence ?? decision.contextConfidence,
+        contextReason: resistanceComponent?.contextReason ?? decision.contextReason,
       };
     });
     const snapshot = {

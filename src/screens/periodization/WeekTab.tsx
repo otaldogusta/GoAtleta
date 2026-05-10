@@ -2,9 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Animated, Text, View } from "react-native";
 import type {
+    ResistanceTrainingContextSource,
     SessionEnvironment,
     WeeklyObservabilitySummary,
 } from "../../core/models";
+import { formatResistanceTrainingContextLabel } from "../../core/resistance/training-context";
 import type { PeriodizationAutoPlanForCycleDayResult } from "./application/build-auto-plan-for-cycle-day";
 import type {
     DriftFrequencyByClassItem,
@@ -53,6 +55,45 @@ const formatSessionEnvironmentLabel = (value?: SessionEnvironment) => {
     default:
       return "";
   }
+};
+
+const resolveWeekSessionResistanceFocus = (
+  autoPlan?: PeriodizationAutoPlanForCycleDayResult | null,
+): {
+  label: string;
+  source?: ResistanceTrainingContextSource;
+} | null => {
+  if (
+    autoPlan?.sessionEnvironment !== "academia" &&
+    autoPlan?.sessionEnvironment !== "mista"
+  ) {
+    return null;
+  }
+
+  const resistanceComponent = autoPlan.sessionComponents?.find(
+    (item) => item.type === "academia_resistido",
+  );
+
+  const trainingContext =
+    resistanceComponent?.trainingContext ??
+    (resistanceComponent?.type === "academia_resistido"
+      ? resistanceComponent.resistancePlan.trainingContext
+      : undefined);
+
+  if (!trainingContext) {
+    return null;
+  }
+
+  const source =
+    resistanceComponent?.contextSource ??
+    (resistanceComponent?.type === "academia_resistido"
+      ? resistanceComponent.resistancePlan.contextSource
+      : undefined);
+
+  return {
+    label: formatResistanceTrainingContextLabel(trainingContext),
+    source,
+  };
 };
 
 type WeekTabProps = {
@@ -402,8 +443,13 @@ export function WeekTab({
 
           >
 
-            {weekSchedule.map((item, index) => (
+            {weekSchedule.map((item, index) => {
+              const resistanceFocus = resolveWeekSessionResistanceFocus(item.autoPlan);
+              const isExplicitFocus =
+                resistanceFocus?.source === "weekly_strategy" ||
+                resistanceFocus?.source === "manual_override";
 
+              return (
               <Pressable
 
                 key={item.label}
@@ -452,24 +498,50 @@ export function WeekTab({
                 </Text>
 
                 {item.autoPlan?.sessionEnvironment ? (
-                  <View
-                    style={{
-                      alignSelf: "flex-start",
-                      paddingHorizontal: 6,
-                      paddingVertical: 3,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
-                      {formatSessionEnvironmentLabel(item.autoPlan.sessionEnvironment)}
-                    </Text>
+                  <View style={{ alignSelf: "flex-start", gap: 4 }}>
+                    <View
+                      style={{
+                        alignSelf: "flex-start",
+                        paddingHorizontal: 6,
+                        paddingVertical: 3,
+                        borderRadius: 999,
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
+                        {formatSessionEnvironmentLabel(item.autoPlan.sessionEnvironment)}
+                      </Text>
+                    </View>
+                    {resistanceFocus ? (
+                      <View
+                        style={{
+                          alignSelf: "flex-start",
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                          borderRadius: 999,
+                          backgroundColor: isExplicitFocus ? colors.card : colors.secondaryBg,
+                          borderWidth: isExplicitFocus ? 1 : 0,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: isExplicitFocus ? colors.text : colors.muted,
+                            fontSize: 9,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {resistanceFocus.label}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 ) : null}
 
               </Pressable>
-
-            ))}
+              );
+            })}
 
           </View>
 

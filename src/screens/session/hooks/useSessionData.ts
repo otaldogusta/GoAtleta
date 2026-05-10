@@ -20,6 +20,7 @@ import {
   getAttendanceByDate,
   getClassById,
   getClassPlansByClass,
+  getDailyLessonPlanByClassAndDate,
   getDailyLessonPlanByWeekAndDate,
   getKnowledgeRuleCitations,
   getKnowledgeSources,
@@ -210,18 +211,15 @@ export function useSessionData({
     let cancelled = false;
 
     const loadCurrentDailyLessonPlan = async () => {
-      if (!currentClassPlan?.id) {
-        setCurrentDailyLessonPlan(null);
-        return;
-      }
-
       try {
-        const dailyPlan = await getDailyLessonPlanByWeekAndDate(
-          currentClassPlan.id,
-          sessionDate
-        );
+        const dailyPlan = currentClassPlan?.id
+          ? await getDailyLessonPlanByWeekAndDate(currentClassPlan.id, sessionDate)
+          : null;
+
+        const fallbackDailyPlan =
+          dailyPlan ?? (classId ? await getDailyLessonPlanByClassAndDate(classId, sessionDate) : null);
         if (!cancelled) {
-          setCurrentDailyLessonPlan(dailyPlan);
+          setCurrentDailyLessonPlan(fallbackDailyPlan);
         }
       } catch {
         if (!cancelled) {
@@ -235,7 +233,7 @@ export function useSessionData({
     return () => {
       cancelled = true;
     };
-  }, [currentClassPlan?.id, reloadToken, sessionDate]);
+  }, [classId, currentClassPlan?.id, reloadToken, sessionDate]);
 
   useEffect(() => {
     let cancelled = false;

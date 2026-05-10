@@ -2,6 +2,7 @@ import React from "react";
 // Use the browser bundle to avoid yoga's import.meta in dev web.
 import {
     Document,
+    Image,
     Page,
     StyleSheet,
     Text,
@@ -155,6 +156,27 @@ const styles = StyleSheet.create({
   workoutTextCenter: {
     textAlign: "center",
   },
+  activityEntry: {
+    gap: 4,
+    marginBottom: 8,
+  },
+  activityEntryLast: {
+    marginBottom: 0,
+  },
+  demoQr: {
+    marginTop: 4,
+    gap: 3,
+    alignItems: "flex-start",
+  },
+  demoQrLabel: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#222222",
+  },
+  demoQrImage: {
+    width: 44,
+    height: 44,
+  },
   notesLabel: {
     width: "16%",
   },
@@ -223,6 +245,23 @@ const LABEL_PERIODO = "Per\u00edodo";
 const LABEL_DESCRICAO = "Descri\u00e7\u00e3o";
 const LABEL_OBSERVACOES = "Observa\u00e7\u00f5es:";
 
+const DemoQr = ({
+  label,
+  dataUri,
+}: {
+  label?: string;
+  dataUri?: string;
+}) => {
+  const qr = String(dataUri ?? "").trim();
+  if (!qr) return null;
+  return (
+    <View style={styles.demoQr}>
+      <Text style={styles.demoQrLabel}>{asText(label) || "Demonstração"}</Text>
+      <Image src={qr} style={styles.demoQrImage} />
+    </View>
+  );
+};
+
 const WorkoutTable = ({ items }: { items: ReturnType<typeof getBlockActivities> }) => (
   <View style={styles.workoutTable}>
     <View style={styles.workoutHeaderRow}>
@@ -246,6 +285,7 @@ const WorkoutTable = ({ items }: { items: ReturnType<typeof getBlockActivities> 
       >
         <View style={[styles.workoutCell, styles.workoutNameCell]}>
           <Text style={styles.workoutText}>{asCoachingText(item?.name) || `Exercício ${index + 1}`}</Text>
+          <DemoQr label={item.demoLabel} dataUri={item.demoQrDataUri} />
         </View>
         <View style={[styles.workoutCell, styles.workoutSmallCell]}>
           <Text style={[styles.workoutText, styles.workoutTextCenter]}>{asText(item?.sets) || "-"}</Text>
@@ -374,7 +414,6 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             const time = getBlockTime(block);
             const items = getBlockActivities(block);
             const workoutBlock = isWorkoutBlock(block);
-            const activityRows = items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
             const descriptionRows = items.length
               ? items.map((item) => asCoachingText(item?.description || item?.notes).trim() || "-")
               : resolveBlockDescriptionLines(block);
@@ -387,7 +426,21 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
                   </Text>
                 </View>
                 <View style={[styles.cell, styles.activitiesCell]}>
-                  <Text style={styles.text}>{workoutBlock ? "-" : buildNumberedLines(activityRows)}</Text>
+                  {workoutBlock ? (
+                    <Text style={styles.text}>-</Text>
+                  ) : (
+                    items.map((item, index) => (
+                      <View
+                        key={`${item.name ?? "activity"}-${index}`}
+                        style={[styles.activityEntry, index === items.length - 1 ? styles.activityEntryLast : {}]}
+                      >
+                        <Text style={styles.text}>
+                          {`${index + 1}. ${asCoachingText(item?.name).trim() || `Atividade ${index + 1}`}`}
+                        </Text>
+                        <DemoQr label={item.demoLabel} dataUri={item.demoQrDataUri} />
+                      </View>
+                    ))
+                  )}
                 </View>
                 <View style={[styles.cell, styles.timeCell]}>
                   <Text style={[styles.text, styles.textCenter]}>{time}</Text>

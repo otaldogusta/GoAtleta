@@ -1,6 +1,10 @@
 import { useCallback, useReducer } from "react";
 import type { SessionEnvironment } from "../../../core/models";
-import type { SessionEnvironmentDecisions } from "../application/session-environment-decisions";
+import type {
+  SessionEnvironmentDecisions,
+  SessionTrainingContextDecisions,
+  SessionTrainingContextSelection,
+} from "../application/session-environment-decisions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -8,6 +12,7 @@ import type { SessionEnvironmentDecisions } from "../application/session-environ
 
 export type WeekEditorState = {
   editingWeek: number;
+  editingWeekDisplayNumber: number;
   editingPlanId: string | null;
   editPhase: string;
   editTheme: string;
@@ -20,6 +25,7 @@ export type WeekEditorState = {
   editJumpTarget: string;
   editPSETarget: string;
   editSessionEnvironments: SessionEnvironmentDecisions;
+  editSessionTrainingContexts: SessionTrainingContextDecisions;
   editSource: "AUTO" | "MANUAL";
   isSavingWeek: boolean;
 };
@@ -40,6 +46,7 @@ type Action = SetFieldAction | ResetAction;
 
 const INITIAL_STATE: WeekEditorState = {
   editingWeek: 1,
+  editingWeekDisplayNumber: 1,
   editingPlanId: null,
   editPhase: "",
   editTheme: "",
@@ -52,6 +59,7 @@ const INITIAL_STATE: WeekEditorState = {
   editJumpTarget: "",
   editPSETarget: "",
   editSessionEnvironments: {},
+  editSessionTrainingContexts: {},
   editSource: "AUTO",
   isSavingWeek: false,
 };
@@ -80,6 +88,11 @@ export function useWeekEditor() {
 
   const setEditingWeek = useCallback(
     (v: number) => dispatch({ type: "SET_FIELD", field: "editingWeek", value: v }),
+    []
+  );
+  const setEditingWeekDisplayNumber = useCallback(
+    (v: number) =>
+      dispatch({ type: "SET_FIELD", field: "editingWeekDisplayNumber", value: v }),
     []
   );
   const setEditingPlanId = useCallback(
@@ -131,6 +144,11 @@ export function useWeekEditor() {
       dispatch({ type: "SET_FIELD", field: "editSessionEnvironments", value: v }),
     []
   );
+  const setEditSessionTrainingContexts = useCallback(
+    (v: SessionTrainingContextDecisions) =>
+      dispatch({ type: "SET_FIELD", field: "editSessionTrainingContexts", value: v }),
+    []
+  );
   const setEditSessionEnvironment = useCallback(
     (sessionIndex: number, value: SessionEnvironment) =>
       dispatch({
@@ -142,6 +160,18 @@ export function useWeekEditor() {
         },
       }),
     [editor.editSessionEnvironments]
+  );
+  const setEditSessionTrainingContext = useCallback(
+    (sessionIndex: number, value: SessionTrainingContextSelection) =>
+      dispatch({
+        type: "SET_FIELD",
+        field: "editSessionTrainingContexts",
+        value: {
+          ...editor.editSessionTrainingContexts,
+          [sessionIndex]: value,
+        },
+      }),
+    [editor.editSessionTrainingContexts]
   );
   const setEditSource = useCallback(
     (v: "AUTO" | "MANUAL") => dispatch({ type: "SET_FIELD", field: "editSource", value: v }),
@@ -156,6 +186,7 @@ export function useWeekEditor() {
   return {
     editor,
     setEditingWeek,
+    setEditingWeekDisplayNumber,
     setEditingPlanId,
     setEditPhase,
     setEditTheme,
@@ -168,7 +199,9 @@ export function useWeekEditor() {
     setEditJumpTarget,
     setEditPSETarget,
     setEditSessionEnvironments,
+    setEditSessionTrainingContexts,
     setEditSessionEnvironment,
+    setEditSessionTrainingContext,
     setEditSource,
     setIsSavingWeek,
     resetWeekEditor,

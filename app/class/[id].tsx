@@ -38,20 +38,17 @@ import {
 import {
     deleteClassCascade,
     duplicateClass,
-    getAttendanceByClass,
+    getCachedClassById,
     getClassById,
     getClasses,
-    getLatestScoutingLog,
-    getStudentsByClass,
-    getTrainingPlans,
     updateClass,
     updateClassColor,
-} from "../../src/db/seed";
+} from "../../src/db/classes";
+import { getLatestScoutingLog } from "../../src/db/session";
+import { getAttendanceByClass, getStudentsByClass } from "../../src/db/students";
+import { getTrainingPlans } from "../../src/db/training";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
-import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
-import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
-import { classRosterHtml } from "../../src/pdf/templates/class-roster";
 import {
     ClassEditModalBody,
     ClassEditModalPickers,
@@ -690,6 +687,25 @@ export default function ClassDetails() {
       setLoading(true);
       setScoutingLoading(true);
       try {
+        const cached = await getCachedClassById(id);
+        if (alive && cached) {
+          setCls(cached);
+          setName(cached.name ?? "");
+          setUnit(cached.unit ?? "");
+          setAgeBand(cached.ageBand ?? "08-09");
+          setGender(cached.gender ?? "misto");
+          setStartTime(cached.startTime ?? "14:00");
+          setEndTime(
+            cached.endTime ??
+              computeEndTimeFromDuration(cached.startTime ?? "14:00", cached.durationMinutes ?? 60)
+          );
+          setDuration(String(cached.durationMinutes ?? 60));
+          setDaysOfWeek(cached.daysOfWeek ?? []);
+          setGoal(cached.goal ?? "Fundamentos");
+          setClassColorKey(cached.colorKey ?? null);
+          setCoachNameOverride(cached.id ? coachNameByClass[cached.id] ?? "" : "");
+          setLoading(false);
+        }
         const dataResult = await measureAsync(
           "screen.classDetails.load.initial",
           () => getClassById(id),
@@ -1231,6 +1247,15 @@ export default function ClassDetails() {
   ) => {
     if (!cls) return;
     try {
+      const [
+        { exportPdf, safeFileName },
+        { classRosterHtml },
+        { ClassRosterDocument },
+      ] = await Promise.all([
+        import("../../src/pdf/export-pdf"),
+        import("../../src/pdf/templates/class-roster"),
+        import("../../src/pdf/class-roster-document"),
+      ]);
       const list = await getStudentsByClass(cls.id);
       const exportDate = new Date().toLocaleDateString("pt-BR");
       const timeParts = parseTime(classStartTime);
@@ -1577,33 +1602,10 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Ver aula do dia
+                Aula do dia
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Plano e cronômetro
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/class/[id]/attendance",
-                  params: { id },
-                })
-              }
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Fazer chamada
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Presença rápida
+                Planejamento, cronômetro e execução
               </Text>
             </Pressable>
             <Pressable
@@ -1623,10 +1625,80 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Periodização da turma
+                Periodização
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Ver ciclo, semana e metas
+                Ciclo, carga e objetivos da turma
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/scouting",
+                  params: { id },
+                })
+              }
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: scoutingFocus ? colors.infoBg : colors.border,
+                gap: 6,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                  Scouting
+                </Text>
+                {scoutingFocus ? (
+                  <View
+                    style={{
+                      paddingVertical: 4,
+                      paddingHorizontal: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.infoBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.infoText, fontSize: 11, fontWeight: "700" }}>
+                      Foco recente
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={{ color: colors.muted, marginTop: 2 }}>
+                Análise técnica, jogo e evolução
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/prof/class-context",
+                  params: { classId: cls?.id ?? "" },
+                })
+              }
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                Contexto competitivo
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Registrar jogos, amistosos e ajustes táticos
               </Text>
             </Pressable>
             <Pressable
@@ -1646,14 +1718,19 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Planejamentos da turma
+                Planejamentos
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Ver mês, semana e aulas
+                Semana, sessões e histórico
               </Text>
             </Pressable>
             <Pressable
-              onPress={handleExportRoster}
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/attendance",
+                  params: { id },
+                })
+              }
               style={{
                 width: "100%",
                 padding: 14,
@@ -1664,10 +1741,10 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Exportar lista da turma
+                Chamada
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Lista de chamada mensal
+                Presença e frequência
               </Text>
             </Pressable>
             <Pressable
@@ -1687,10 +1764,28 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Alunos da turma
+                Alunos
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Ver, buscar e editar
+                Perfil, evolução e observações
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleExportRoster}
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                Relatórios
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Exportações e documentos
               </Text>
             </Pressable>
             <Pressable
@@ -1708,16 +1803,51 @@ export default function ClassDetails() {
                 WhatsApp
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Contato responsável
+                Contato com responsáveis
               </Text>
             </Pressable>
           </View>
         </View>
 
         <View style={getSectionCardStyle(colors, "neutral", { radius: 18 })}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Scouting recente
-          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                Scouting recente
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Análise técnica, jogo e evolução da turma.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/scouting",
+                  params: { id },
+                })
+              }
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                Abrir scouting
+              </Text>
+            </Pressable>
+          </View>
           {scoutingLoading ? (
             <View style={{ gap: 8 }}>
               <ShimmerBlock style={{ height: 18, width: "42%", borderRadius: 8 }} />
@@ -1882,12 +2012,13 @@ export default function ClassDetails() {
         </Animated.View>
       </Pressable>
 
-      <ModalSheet
-        visible={showEditModal}
-        onClose={requestCloseEditModal}
-        position="center"
-        cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
-      >
+      {showEditModal ? (
+        <ModalSheet
+          visible={showEditModal}
+          onClose={requestCloseEditModal}
+          position="center"
+          cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
+        >
         <View
           ref={editContainerRef}
           onLayout={() => {
@@ -2214,14 +2345,16 @@ export default function ClassDetails() {
           />
         </View>
 
-      </ModalSheet>
+        </ModalSheet>
+      ) : null}
 
-            <ModalSheet
-        visible={showRosterExportModal}
-        onClose={() => setShowRosterExportModal(false)}
-        position="center"
-        cardStyle={rosterModalCardStyle}
-      >
+      {showRosterExportModal ? (
+        <ModalSheet
+          visible={showRosterExportModal}
+          onClose={() => setShowRosterExportModal(false)}
+          position="center"
+          cardStyle={rosterModalCardStyle}
+        >
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ gap: 14, paddingBottom: 6 }}
@@ -2787,19 +2920,21 @@ export default function ClassDetails() {
             </Pressable>
           </View>
         </ScrollView>
-      </ModalSheet>
+        </ModalSheet>
+      ) : null}
 
-      <ModalSheet
-        visible={showWhatsAppSettingsModal}
-        onClose={() => setShowWhatsAppSettingsModal(false)}
-        cardStyle={[
-          whatsappModalCardStyle,
-          {
-            overflow: "hidden",
-          },
-        ]}
-        position="center"
-      >
+      {showWhatsAppSettingsModal ? (
+        <ModalSheet
+          visible={showWhatsAppSettingsModal}
+          onClose={() => setShowWhatsAppSettingsModal(false)}
+          cardStyle={[
+            whatsappModalCardStyle,
+            {
+              overflow: "hidden",
+            },
+          ]}
+          position="center"
+        >
         <ScrollView
           style={{ maxHeight: "100%" }}
           contentContainerStyle={{ gap: 12, paddingBottom: 6 }}
@@ -3156,18 +3291,20 @@ export default function ClassDetails() {
             </Text>
           </Pressable>
         </ScrollView>
-      </ModalSheet>
-      <DatePickerModal
-        visible={showRosterMonthPicker}
-        value={rosterMonthValue}
-        onChange={handleRosterMonthChange}
-        onClose={() => {
-          setShowRosterMonthPicker(false);
-        }}
-        closeOnSelect
-        initialViewMode="month"
-      />
+        </ModalSheet>
+      ) : null}
+      {showRosterMonthPicker ? (
+        <DatePickerModal
+          visible={showRosterMonthPicker}
+          value={rosterMonthValue}
+          onChange={handleRosterMonthChange}
+          onClose={() => {
+            setShowRosterMonthPicker(false);
+          }}
+          closeOnSelect
+          initialViewMode="month"
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
-

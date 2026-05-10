@@ -9,6 +9,7 @@
     "app/**/*.tsx",
     "src/**/*.ts",
     "src/**/*.tsx",
+    "src/**/*.d.ts",
     "expo-env.d.ts"
   ],
   "exclude": [

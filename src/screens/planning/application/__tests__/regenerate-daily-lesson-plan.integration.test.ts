@@ -115,6 +115,9 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
               sessionRole: "consolidacao_orientada",
               sessionEnvironment: "academia",
               sessionPrimaryComponent: "resistido",
+              trainingContext: "volleyball",
+              sportContext: "volleyball",
+              contextSource: "weekly_strategy",
             },
           ],
         },
@@ -179,6 +182,16 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(plan.sessionEnvironment).toBe("academia");
     expect(plan.sessionPrimaryComponent).toBe("resistido");
     expect(plan.sessionComponents?.[0]?.type).toBe("academia_resistido");
+    expect(
+      plan.sessionComponents?.[0]?.type === "academia_resistido"
+        ? plan.sessionComponents[0].trainingContext
+        : null
+    ).toBe("volleyball");
+    expect(
+      plan.sessionComponents?.[0]?.type === "academia_resistido"
+        ? plan.sessionComponents[0].contextSource
+        : null
+    ).toBe("weekly_strategy");
   });
 
   it("keeps snapshot environment fallback when class context is absent", () => {
@@ -321,6 +334,193 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(plan.sessionEnvironment).toBe("quadra");
     expect(plan.sessionPrimaryComponent).toBe("tecnico_tatico");
     expect(plan.sessionComponents).toBeUndefined();
+  });
+
+  it("uses general fitness for explicit academy sessions without sport modality", () => {
+    const weeklyPlan = {
+      id: "wp-generic-academy",
+      classId: "class-generic",
+      weekNumber: 4,
+      phase: "Base",
+      generalObjective: "Objetivo semanal",
+      specificObjective: "Objetivo específico",
+      theme: "Condicionamento",
+      technicalFocus: "Coordenação",
+      physicalFocus: "Força geral",
+      pedagogicalRule: "Regra semanal",
+      rpeTarget: "PSE 5",
+      jumpTarget: "baixo",
+      warmupProfile: "ativo",
+      constraints: "",
+      generationVersion: 1,
+      generationContextSnapshotJson: JSON.stringify({
+        weeklyOperationalStrategy: {
+          decisions: [
+            {
+              sessionIndexInWeek: 1,
+              sessionRole: "consolidacao_orientada",
+              sessionEnvironment: "academia",
+              sessionPrimaryComponent: "resistido",
+              trainingContext: "general_fitness",
+              contextSource: "weekly_strategy",
+            },
+          ],
+        },
+      }),
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+    } as any;
+
+    const plan = buildAutoDailyLessonPlan(
+      weeklyPlan,
+      {
+        sessionIndex: 1,
+        weekday: 2,
+        weekdayLabel: "Ter",
+        date: "2026-04-21",
+        dateLabel: "21/04/2026",
+        shortLabel: "Ter 21/04",
+      },
+      "2026-04-20T12:00:00.000Z",
+      null,
+      {
+        classGroup: {
+          id: "class-generic",
+          name: "Saúde e movimento",
+          organizationId: "org-1",
+          unit: "Centro",
+          unitId: "unit-1",
+          colorKey: "blue",
+          modality: undefined,
+          ageBand: "16+",
+          gender: "misto",
+          startTime: "18:00",
+          endTime: "19:00",
+          durationMinutes: 60,
+          daysOfWeek: [2],
+          daysPerWeek: 1,
+          goal: "saúde geral",
+          equipment: "academia",
+          level: 1,
+          mvLevel: "iniciante",
+          cycleStartDate: "2026-04-20",
+          cycleLengthWeeks: 12,
+          acwrLow: 0.8,
+          acwrHigh: 1.3,
+          createdAt: "2026-04-20T00:00:00.000Z",
+          integratedTrainingModel: "academia_integrada",
+          resistanceTrainingProfile: "iniciante",
+        } as any,
+      }
+    );
+
+    expect(plan.sessionComponents?.[0]?.type).toBe("academia_resistido");
+    expect(
+      plan.sessionComponents?.[0]?.type === "academia_resistido"
+        ? plan.sessionComponents[0].trainingContext
+        : null
+    ).toBe("general_fitness");
+    expect(
+      plan.sessionComponents?.[0]?.type === "academia_resistido"
+        ? plan.sessionComponents[0].sportContext
+        : null
+    ).toBeUndefined();
+    expect(
+      plan.sessionComponents?.[0]?.type === "academia_resistido"
+        ? plan.sessionComponents[0].contextSource
+        : null
+    ).toBe("weekly_strategy");
+  });
+
+  it("prioritizes weekly training context over class modality when the week defines a generic resisted focus", () => {
+    const weeklyPlan = {
+      id: "wp-weekly-general-fitness",
+      classId: "class-volleyball-generic-strength",
+      weekNumber: 4,
+      phase: "Base",
+      generalObjective: "Objetivo semanal",
+      specificObjective: "Objetivo específico",
+      theme: "Força geral",
+      technicalFocus: "Base física",
+      physicalFocus: "Força",
+      pedagogicalRule: "",
+      rpeTarget: "PSE 5",
+      jumpTarget: "baixo",
+      warmupProfile: "ativo",
+      constraints: "",
+      generationVersion: 1,
+      generationContextSnapshotJson: JSON.stringify({
+        weeklyOperationalStrategy: {
+          decisions: [
+            {
+              sessionIndexInWeek: 1,
+              sessionRole: "consolidacao_orientada",
+              sessionEnvironment: "academia",
+              sessionPrimaryComponent: "resistido",
+              trainingContext: "general_fitness",
+              contextSource: "weekly_strategy",
+            },
+          ],
+        },
+      }),
+      createdAt: "2026-04-20T00:00:00.000Z",
+      updatedAt: "2026-04-20T00:00:00.000Z",
+    } as any;
+
+    const plan = buildAutoDailyLessonPlan(
+      weeklyPlan,
+      {
+        sessionIndex: 1,
+        weekday: 2,
+        weekdayLabel: "Ter",
+        date: "2026-04-21",
+        dateLabel: "21/04/2026",
+        shortLabel: "Ter 21/04",
+      },
+      "2026-04-20T12:00:00.000Z",
+      null,
+      {
+        classGroup: {
+          id: "class-volleyball-generic-strength",
+          name: "Turma de vôlei",
+          organizationId: "org-1",
+          unit: "Centro",
+          unitId: "unit-1",
+          colorKey: "blue",
+          modality: "voleibol",
+          ageBand: "16+",
+          gender: "misto",
+          startTime: "18:00",
+          endTime: "19:00",
+          durationMinutes: 60,
+          daysOfWeek: [2],
+          daysPerWeek: 1,
+          goal: "força geral",
+          equipment: "academia",
+          level: 2,
+          mvLevel: "intermediario",
+          cycleStartDate: "2026-04-20",
+          cycleLengthWeeks: 12,
+          acwrLow: 0.8,
+          acwrHigh: 1.3,
+          createdAt: "2026-04-20T00:00:00.000Z",
+          integratedTrainingModel: "academia_integrada",
+          resistanceTrainingProfile: "iniciante",
+        } as any,
+      }
+    );
+
+    expect(plan.sessionComponents?.[0]?.type).toBe("academia_resistido");
+    expect(
+      plan.sessionComponents?.[0]?.type === "academia_resistido"
+        ? plan.sessionComponents[0].trainingContext
+        : null
+    ).toBe("general_fitness");
+    expect(
+      plan.sessionComponents?.[0]?.type === "academia_resistido"
+        ? plan.sessionComponents[0].contextSource
+        : null
+    ).toBe("weekly_strategy");
   });
 
   it("generates operational court activities for 07-09 reception sessions", () => {

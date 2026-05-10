@@ -1,0 +1,99 @@
+
+> goatleta@1.0.0 start
+> expo start
+
+env: load .env.local
+env: export EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_SUPABASE_URL
+Starting project at C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta
+React Compiler enabled
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 51.5% ( 932/1538)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 63.1% (1446/1820)
+λ Bundled 5997ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (2518 modules)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (2472/2472)
+Web Bundled 9976ms node_modules\expo-router\entry.js (2472 modules)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 150ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (1 module)
+Web Bundled 1529ms node_modules\expo-router\entry.js (1 module)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 97.3% (2403/2436)
+Web Bundled 2076ms node_modules\expo-router\entry.js (2436 modules)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 25ms src\config\pedagogical-dimensions.json (1 module)
+Web Bundled 368ms src\db\session.ts (607 modules)
+Web Bundled 368ms src\db\students.ts (521 modules)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 315ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (1 module)
+Web Bundled 2978ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 565ms node_modules\expo-router\entry.js (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 16ms src\config\pedagogical-dimensions.json (1 module)
+Web Bundled 57ms src\db\session.ts (1 module)
+Web Bundled 48ms src\db\students.ts (1 module)
+ ERROR  SyntaxError: C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\app\class\[id]\scouting\new.tsx: Expected corresponding JSX closing tag for <ScrollView>. (167:8)
+
+  165 |             </View>
+  166 |           </View>
+> 167 |         </View>
+      |         ^
+  168 |
+  169 |         <View
+  170 |           style={{
+    at constructor (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:365:19)
+    at TypeScriptParserMixin.raise (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:6599:19)
+    at TypeScriptParserMixin.jsxParseElementAt (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:4727:16)
+    at TypeScriptParserMixin.jsxParseElementAt (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:4698:32)
+    at TypeScriptParserMixin.jsxParseElement (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:4749:17)
+    at TypeScriptParserMixin.parseExprAtom (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:4759:19)
+    at TypeScriptParserMixin.parseExprSubscripts (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11081:23)
+    at TypeScriptParserMixin.parseUpdate (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11066:21)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11046:23)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:9837:18)
+    at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10899:61)
+    at TypeScriptParserMixin.parseExprOps (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10904:23)
+    at TypeScriptParserMixin.parseMaybeConditional (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10881:23)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10831:21)
+    at C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:9775:39
+    at TypeScriptParserMixin.tryParse (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:6907:20)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:9775:18)
+    at C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10800:39
+    at TypeScriptParserMixin.allowInAnd (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12426:12)
+    at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10800:17)
+    at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12493:17)
+    at TypeScriptParserMixin.parseParenAndDistinguishExpression (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11675:28)
+    at TypeScriptParserMixin.parseExprAtom (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11331:23)
+    at TypeScriptParserMixin.parseExprAtom (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:4764:20)
+    at TypeScriptParserMixin.parseExprSubscripts (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11081:23)
+    at TypeScriptParserMixin.parseUpdate (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11066:21)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:11046:23)
+    at TypeScriptParserMixin.parseMaybeUnary (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:9837:18)
+    at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10899:61)
+    at TypeScriptParserMixin.parseExprOps (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10904:23)
+    at TypeScriptParserMixin.parseMaybeConditional (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10881:23)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10831:21)
+    at TypeScriptParserMixin.parseMaybeAssign (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:9786:20)
+    at TypeScriptParserMixin.parseExpressionBase (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10784:23)
+    at C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10780:39
+    at TypeScriptParserMixin.allowInAnd (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12421:16)
+    at TypeScriptParserMixin.parseExpression (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:10780:17)
+    at TypeScriptParserMixin.parseReturnStatement (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:13142:28)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12798:21)
+    at TypeScriptParserMixin.parseStatementContent (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:9508:18)
+    at TypeScriptParserMixin.parseStatementLike (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12767:17)
+    at TypeScriptParserMixin.parseStatementListItem (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12747:17)
+    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:13316:61)
+    at TypeScriptParserMixin.parseBlockBody (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:13309:10)
+    at TypeScriptParserMixin.parseBlock (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:13297:10)
+    at TypeScriptParserMixin.parseFunctionBody (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12100:24)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12086:10)
+    at TypeScriptParserMixin.parseFunctionBodyAndFinish (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:9172:18)
+    at C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:13445:12
+    at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (C:\Users\gusta\.codex\worktrees\6cb1\GoAtleta\node_modules\@babel\parser\lib\index.js:12403:14)
+Web src\screens\home\HomeProfessorBelowFold.tsx ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 2337ms src\screens\home\HomeProfessorBelowFold.tsx (857 modules)
+Web app\classes\index.tsx ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1289ms app\classes\index.tsx (1358 modules)

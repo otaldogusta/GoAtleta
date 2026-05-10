@@ -63,7 +63,7 @@ const buildWeeklyFunctionLabel = (params: {
   courtGymRelationship?: CourtGymRelationship;
   transferTarget: string;
 }) => {
-  const transferTarget = params.transferTarget || "ações da quadra";
+  const transferTarget = params.transferTarget || "objetivo principal da sessão";
 
   switch (params.courtGymRelationship) {
     case "integrado_transferencia_direta":
@@ -71,9 +71,9 @@ const buildWeeklyFunctionLabel = (params: {
     case "academia_prioritaria":
       return `Desenvolver ${transferTarget} como prioridade física`;
     case "complementar_equilibrado":
-      return `Complementar a quadra com foco em ${transferTarget}`;
+      return `Complementar a sessão com foco em ${transferTarget}`;
     case "quadra_dominante":
-      return `Apoiar a quadra com foco em ${transferTarget}`;
+      return `Apoiar a sessão com foco em ${transferTarget}`;
     case "separado_sem_transferencia":
       return "Sustentar a semana física sem ponte explícita";
     default:
@@ -130,7 +130,10 @@ export function SessionContextHeader({
         : `${environmentLabelMap[environment]} — ${emphasisLabel}`;
   const weeklyFunctionLabel = buildWeeklyFunctionLabel({
     courtGymRelationship,
-    transferTarget: normalizedTransferTarget === "Não definida" ? "ações da quadra" : normalizedTransferTarget,
+    transferTarget:
+      normalizedTransferTarget === "Não definida"
+        ? "objetivo principal da sessão"
+        : normalizedTransferTarget,
   });
   const expectedLoadLabel = resolveExpectedLoadLabel({
     environment,
@@ -168,7 +171,7 @@ export function SessionContextHeader({
       </View>
 
       <View style={{ gap: 2 }}>
-        <Text style={{ color: colors.muted, fontSize: 11 }}>Transferência para a quadra</Text>
+        <Text style={{ color: colors.muted, fontSize: 11 }}>Foco aplicado</Text>
         <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
           {normalizedTransferTarget}
         </Text>

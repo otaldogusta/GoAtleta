@@ -2,6 +2,7 @@ import { parseAgeBandRange } from "./age-band";
 import type { ClassPlan } from "./models";
 import {
     ageBands,
+    isChildSafeAgeBand,
     isAnnualCycle,
     type PeriodizationModel,
     type SportProfile,
@@ -77,23 +78,23 @@ export const basePlans: Record<(typeof ageBands)[number], WeekTemplate[]> = {
     {
       week: 1,
       title: "Base técnica",
-      focus: "Fundamentos e controle de bola",
-      volume: "médio",
-      notes: ["2-3 sessões/semana", "Equilíbrio e core"],
+      focus: "Fundamentos, organização e controle de bola",
+      volume: "baixo",
+      notes: ["Adaptação à semana", "Coordenação e regras claras"],
     },
     {
       week: 2,
       title: "Tomada de decisão",
       focus: "Leitura simples de jogo e cooperação",
       volume: "médio",
-      notes: ["Jogos condicionados", "Ritmo moderado"],
+      notes: ["Jogos condicionados", "Ritmo moderado e mais tempo ativo"],
     },
     {
       week: 3,
-      title: "Intensidade controlada",
-      focus: "Velocidade e saltos com controle",
-      volume: "alto",
-      notes: ["Monitorar saltos", "Pausas ativas"],
+      title: "Aplicação controlada",
+      focus: "Jogos reduzidos, deslocamento e decisões com controle",
+      volume: "médio",
+      notes: ["Jogos 2x2/3x3", "Mais decisões com pausas curtas"],
     },
     {
       week: 4,
@@ -235,7 +236,7 @@ const annualVolleyballPlans: Record<(typeof ageBands)[number], AnnualPhaseTempla
       phase: "Desenvolvimento",
       technicalFocus: "Passe ao alvo, saque direcionado e levantamento simples",
       physicalFocus: "Agilidade, ritmo e coordenação sob controle",
-      rpeTarget: "4-5",
+      rpeTarget: "4-6",
       notes: ["Consistência e direção", "Sequências de 2-3 contatos"],
       warmupProfile: "Ativação específica de plataforma e toque",
     },
@@ -246,7 +247,7 @@ const annualVolleyballPlans: Record<(typeof ageBands)[number], AnnualPhaseTempla
       phase: "Desenvolvimento",
       technicalFocus: "1x1, 2x2, 3x3 e continuidade com ocupação de espaço",
       physicalFocus: "Deslocamento e reação em espaço reduzido",
-      rpeTarget: "4-5",
+      rpeTarget: "4-6",
       notes: ["Transferência para o jogo", "Semanas baixas estratégicas"],
       warmupProfile: "Jogos condicionados de entrada",
     },
@@ -257,7 +258,7 @@ const annualVolleyballPlans: Record<(typeof ageBands)[number], AnnualPhaseTempla
       phase: "Desenvolvimento",
       technicalFocus: "Leitura do jogo, ajuste de direção e comunicação",
       physicalFocus: "Agilidade perceptiva e recuperação curta",
-      rpeTarget: "4-5",
+      rpeTarget: "4-6",
       notes: ["Alvo livre", "Decidir entre manter vivo e acelerar"],
       warmupProfile: "Aquecimento com leitura e escolha",
     },
@@ -644,9 +645,14 @@ const normalizeText = (value: string) =>
 export const getPSETarget = (
   phase: string,
   sessionsPerWeek = 2,
-  sport: SportProfile = "voleibol"
+  sport: SportProfile = "voleibol",
+  ageBand?: string | null,
+  preferredVolume?: VolumeLevel,
+  focusHint?: string
 ) => {
   const normalized = normalizeText(phase).toLowerCase();
+  const normalizedFocusHint = normalizeText(focusHint ?? "").toLowerCase();
+  const childSafe = isChildSafeAgeBand(ageBand);
 
   const adjustByFrequency = (target: string) => {
     if (sessionsPerWeek > 1) return target;
@@ -655,6 +661,25 @@ export const getPSETarget = (
     if (target === "4-5") return "3-4";
     return target;
   };
+
+  if (childSafe) {
+    if (preferredVolume === "baixo") return "3-4";
+    if (preferredVolume === "alto") return "4-6";
+    if (preferredVolume === "médio") {
+      if (
+        normalized.includes("jogo") ||
+        normalized.includes("tomada") ||
+        normalized.includes("desenvolvimento") ||
+        normalized.includes("integracao") ||
+        normalizedFocusHint.includes("jogo") ||
+        normalizedFocusHint.includes("desloc") ||
+        normalizedFocusHint.includes("aplic")
+      ) {
+        return "4-6";
+      }
+      return "4-5";
+    }
+  }
 
   if (normalized.includes("explor") || normalized.includes("ludic"))
     return adjustByFrequency("3-4");
@@ -681,8 +706,14 @@ export const getVolumeForModel = (
   volume: VolumeLevel,
   model: PeriodizationModel,
   sessionsPerWeek = 2,
-  sport: SportProfile = "voleibol"
+  sport: SportProfile = "voleibol",
+  ageBand?: string | null
 ): VolumeLevel => {
+  if (isChildSafeAgeBand(ageBand)) {
+    if (volume === "alto") return "médio";
+    return volume;
+  }
+
   if (model === "iniciacao") {
     if (sessionsPerWeek <= 1 && volume !== "baixo") return "baixo";
     if (volume === "alto") return "médio";
@@ -698,9 +729,32 @@ export const getVolumeForModel = (
   return volume;
 };
 
-export const getVolumeFromTargets = (phase: string, rpeTarget: string): VolumeLevel => {
+export const getVolumeFromTargets = (
+  phase: string,
+  rpeTarget: string,
+  ageBand?: string | null
+): VolumeLevel => {
   const normalizedRpe = normalizeText(rpeTarget).toLowerCase();
   const normalizedPhase = normalizeText(phase).toLowerCase();
+  const childSafe = isChildSafeAgeBand(ageBand);
+
+  if (childSafe) {
+    if (
+      normalizedRpe.includes("4-6") ||
+      normalizedRpe.includes("4 a 6") ||
+      normalizedRpe.includes("5-6") ||
+      normalizedRpe.includes("5 a 6") ||
+      normalizedRpe.includes("4-5") ||
+      normalizedRpe.includes("4 a 5") ||
+      normalizedPhase.includes("desenvolvimento") ||
+      normalizedPhase.includes("jogo") ||
+      normalizedPhase.includes("tomada")
+    ) {
+      return "médio";
+    }
+    return "baixo";
+  }
+
   if (
     normalizedRpe.includes("6-7") ||
     normalizedRpe.includes("6 a 7") ||
@@ -749,6 +803,7 @@ export const validateAcwrLimits = (next: {
 export const buildClassPlan = (options: {
   classId: string;
   ageBand: (typeof ageBands)[number];
+  rawAgeBand?: string;
   startDate: string;
   weekNumber: number;
   source: "AUTO" | "MANUAL";
@@ -823,7 +878,20 @@ export const buildClassPlan = (options: {
     mvFormat: getMvFormat(options.ageBand),
     warmupProfile: template.notes[1] ?? "",
     jumpTarget: getJumpTarget(options.mvLevel, options.ageBand),
-    rpeTarget: getPSETarget(phase, options.sessionsPerWeek, options.sport),
+    rpeTarget: getPSETarget(
+      phase,
+      options.sessionsPerWeek,
+      options.sport,
+      options.rawAgeBand ?? options.ageBand,
+      getVolumeForModel(
+        template.volume,
+        options.model,
+        options.sessionsPerWeek,
+        options.sport,
+        options.rawAgeBand ?? options.ageBand
+      ),
+      template.title
+    ),
     source: options.source,
     createdAt,
     updatedAt: createdAt,
@@ -851,6 +919,7 @@ export const toClassPlans = (options: {
       startDate: options.startDate,
       weekNumber: index + 1,
       source: "AUTO",
+      rawAgeBand: options.ageBand,
       mvLevel: options.mvLevel,
       cycleLength: options.cycleLength,
       model: options.model,
@@ -876,6 +945,7 @@ export const toAnnualClassPlans = (options: {
       startDate: options.startDate,
       weekNumber: index + 1,
       source: "AUTO",
+      rawAgeBand: options.ageBand,
       mvLevel: options.mvLevel,
       cycleLength: options.cycleLength,
       model: options.model,

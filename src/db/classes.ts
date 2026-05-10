@@ -38,6 +38,9 @@ import {
 const buildClassesCacheKey = (organizationId: string | null) =>
   organizationId ? `${CACHE_KEYS.classes}_${organizationId}` : CACHE_KEYS.classes;
 
+const buildUnitMap = (units: UnitRow[]) =>
+  new Map(units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)]));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -121,6 +124,73 @@ export const ensureUnit = async (
     throw error;
   }
 };
+
+const mapClassRowToGroup = (
+  row: ClassRow,
+  activeOrganizationId: string | null,
+  unitMap?: Map<string, string>
+): ClassGroup => {
+  const unitFromId = row.unit_id ? unitMap?.get(row.unit_id) : undefined;
+  const unitLabel =
+    canonicalizeUnitLabel(row.unit ?? null) ??
+    canonicalizeUnitLabel(unitFromId ?? null) ??
+    "Sem unidade";
+  const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
+  const resolvedStartTime = row.starttime ?? "14:00";
+  const resolvedEndTime =
+    row.end_time ??
+    row.endtime ??
+    computeEndTime(row.starttime, row.duration ?? 60) ??
+    computeEndTime(resolvedStartTime, row.duration ?? 60) ??
+    resolvedStartTime;
+  const resolvedEquipment: ClassGroup["equipment"] =
+    row.equipment === "quadra" ||
+    row.equipment === "funcional" ||
+    row.equipment === "academia" ||
+    row.equipment === "misto"
+      ? row.equipment
+      : "misto";
+  const resolvedModality: ClassGroup["modality"] = resolveClassModality(row.modality) ?? "fitness";
+  const resolvedGender: ClassGroup["gender"] =
+    row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto";
+  const resolvedLevel: ClassGroup["level"] = row.level === 2 || row.level === 3 ? row.level : 1;
+
+  return {
+    id: row.id,
+    name: row.name,
+    organizationId: resolvedOrganizationId,
+    unit: unitLabel,
+    unitId: row.unit_id ?? "",
+    colorKey: row.color_key ?? "",
+    modality: resolvedModality,
+    ageBand: normalizeAgeBand(row.ageband),
+    gender: resolvedGender,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime,
+    durationMinutes: row.duration ?? 60,
+    daysOfWeek:
+      Array.isArray(row.days) && row.days.length ? row.days : row.daysperweek === 3 ? [1, 3, 5] : [2, 4],
+    daysPerWeek: row.daysperweek,
+    goal: row.goal,
+    equipment: resolvedEquipment,
+    level: resolvedLevel,
+    mvLevel: row.mv_level ?? "",
+    cycleStartDate: row.cycle_start_date ?? "",
+    cycleLengthWeeks: row.cycle_length_weeks ?? 0,
+    acwrLow: row.acwr_low ?? 0.8,
+    acwrHigh: row.acwr_high ?? 1.3,
+    createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
+  };
+};
+
+export async function getCachedClassById(
+  id: string,
+  options: { organizationId?: string | null } = {}
+): Promise<ClassGroup | null> {
+  const activeOrganizationId = options.organizationId ?? (await getActiveOrganizationId());
+  const cached = await readCache<ClassGroup[]>(buildClassesCacheKey(activeOrganizationId ?? null));
+  return cached?.find((item) => item.id === id) ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Seed
@@ -213,32 +283,15 @@ export async function seedStudentsIfEmpty() {
 export async function getClasses(options: { organizationId?: string | null } = {}): Promise<ClassGroup[]> {
   const startedAt = Date.now();
   try {
-    const units = await safeGetUnits();
-    const unitMap = new Map(units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)]));
     const activeOrganizationId = await getScopedOrganizationId(options.organizationId, "getClasses");
     if (!activeOrganizationId) return [];
     const cacheKey = buildClassesCacheKey(activeOrganizationId);
     const rows = await supabaseGet<ClassRow[]>(`/classes?select=*&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&order=name.asc`);
-    const mapped = sortClassesBySchedule(rows.map((row) => {
-      const unitFromId = row.unit_id ? unitMap.get(row.unit_id) : undefined;
-      const unitLabel = canonicalizeUnitLabel(unitFromId ?? row.unit ?? null) ?? canonicalizeUnitLabel(row.unit ?? "") ?? "Sem unidade";
-      const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
-      const resolvedStartTime = row.starttime ?? "14:00";
-      const resolvedEndTime = row.end_time ?? row.endtime ?? computeEndTime(row.starttime, row.duration ?? 60) ?? computeEndTime(resolvedStartTime, row.duration ?? 60) ?? resolvedStartTime;
-      const resolvedEquipment: ClassGroup["equipment"] = row.equipment === "quadra" || row.equipment === "funcional" || row.equipment === "academia" || row.equipment === "misto" ? row.equipment : "misto";
-      const resolvedModality: ClassGroup["modality"] = resolveClassModality(row.modality) ?? "fitness";
-      const resolvedGender: ClassGroup["gender"] = row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto";
-      const resolvedLevel: ClassGroup["level"] = row.level === 2 || row.level === 3 ? row.level : 1;
-      return {
-        id: row.id, name: row.name, organizationId: resolvedOrganizationId, unit: unitLabel, unitId: row.unit_id ?? "",
-        colorKey: row.color_key ?? "", modality: resolvedModality, ageBand: normalizeAgeBand(row.ageband),
-        gender: resolvedGender, startTime: resolvedStartTime, endTime: resolvedEndTime, durationMinutes: row.duration ?? 60,
-        daysOfWeek: Array.isArray(row.days) && row.days.length ? row.days : row.daysperweek === 3 ? [1, 3, 5] : [2, 4],
-        daysPerWeek: row.daysperweek, goal: row.goal, equipment: resolvedEquipment, level: resolvedLevel,
-        mvLevel: row.mv_level ?? "", cycleStartDate: row.cycle_start_date ?? "", cycleLengthWeeks: row.cycle_length_weeks ?? 0,
-        acwrLow: row.acwr_low ?? 0.8, acwrHigh: row.acwr_high ?? 1.3, createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
-      };
-    }));
+    const needsUnits = rows.some((row) => !canonicalizeUnitLabel(row.unit ?? null) && row.unit_id);
+    const unitMap = needsUnits ? buildUnitMap(await safeGetUnits()) : undefined;
+    const mapped = sortClassesBySchedule(
+      rows.map((row) => mapClassRowToGroup(row, activeOrganizationId, unitMap))
+    );
     await writeCache(cacheKey, mapped);
     Sentry.addBreadcrumb({ category: "sqlite-query", message: "getClasses", level: "info", data: { ms: Date.now() - startedAt, rows: mapped.length } });
     return mapped;
@@ -255,8 +308,6 @@ export async function getClasses(options: { organizationId?: string | null } = {
 export async function getClassById(id: string, options: { organizationId?: string | null } = {}): Promise<ClassGroup | null> {
   const activeOrganizationId = options.organizationId ?? (await getActiveOrganizationId());
   try {
-    const units = await safeGetUnits();
-    const unitMap = new Map(units.map((unit) => [unit.id, canonicalizeUnitLabel(unit.name)]));
     const rows = await supabaseGet<ClassRow[]>(
       activeOrganizationId
         ? "/classes?select=*&id=eq." + encodeURIComponent(id) + "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
@@ -264,26 +315,13 @@ export async function getClassById(id: string, options: { organizationId?: strin
     );
     const row = rows[0];
     if (!row) return null;
-    const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
-    return {
-      id: row.id, name: row.name, organizationId: resolvedOrganizationId,
-      unit: (row.unit_id ? unitMap.get(row.unit_id) : undefined) ?? canonicalizeUnitLabel(row.unit ?? null) ?? "Sem unidade",
-      unitId: row.unit_id ?? "", colorKey: row.color_key ?? "",
-      modality: resolveClassModality(row.modality) ?? "fitness",
-      ageBand: normalizeAgeBand(row.ageband),
-      gender: row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto",
-      startTime: row.starttime ?? "14:00",
-      endTime: row.end_time ?? row.endtime ?? computeEndTime(row.starttime, row.duration ?? 60) ?? (row.starttime ?? "14:00"),
-      durationMinutes: row.duration ?? 60,
-      daysOfWeek: Array.isArray(row.days) && row.days.length ? row.days : row.daysperweek === 3 ? [1, 3, 5] : [2, 4],
-      daysPerWeek: row.daysperweek, goal: row.goal,
-      equipment: row.equipment === "quadra" || row.equipment === "funcional" || row.equipment === "academia" || row.equipment === "misto" ? row.equipment : "misto",
-      level: row.level === 2 || row.level === 3 ? row.level : 1,
-      mvLevel: row.mv_level ?? "", cycleStartDate: row.cycle_start_date ?? "", cycleLengthWeeks: row.cycle_length_weeks ?? 0,
-      acwrLow: row.acwr_low ?? 0.8, acwrHigh: row.acwr_high ?? 1.3, createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
-    };
+    const needsUnits = !canonicalizeUnitLabel(row.unit ?? null) && row.unit_id;
+    const unitMap = needsUnits ? buildUnitMap(await safeGetUnits()) : undefined;
+    return mapClassRowToGroup(row, activeOrganizationId, unitMap);
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
+      const cached = await getCachedClassById(id, { organizationId: activeOrganizationId });
+      if (cached) return cached;
       const classes = await getClasses({ organizationId: activeOrganizationId });
       return classes.find((item) => item.id === id) ?? null;
     }

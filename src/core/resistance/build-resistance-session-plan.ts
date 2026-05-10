@@ -6,6 +6,7 @@
  */
 
 import type {
+    ResistanceTrainingContextDecision,
     ResistanceTrainingGoal,
     SessionComponentAcademiaResistido,
     TeamTrainingContext,
@@ -18,6 +19,7 @@ export type BuildResistanceSessionPlanParams = {
   teamContext: TeamTrainingContext;
   weeklyContext: WeeklyIntegratedTrainingContext;
   sessionRole: WeekSessionRole;
+  contextDecision?: ResistanceTrainingContextDecision;
 };
 
 /**
@@ -69,7 +71,7 @@ function resolveGoalForSession(
 export function buildResistanceSessionPlan(
   params: BuildResistanceSessionPlanParams
 ): SessionComponentAcademiaResistido {
-  const { teamContext, weeklyContext, sessionRole } = params;
+  const { teamContext, weeklyContext, sessionRole, contextDecision } = params;
 
   const goal = resolveGoalForSession(weeklyContext, sessionRole);
   const resistancePlan = resolveResistanceTemplate(
@@ -78,12 +80,27 @@ export function buildResistanceSessionPlan(
     {
       weeklyPhysicalEmphasis: weeklyContext.weeklyPhysicalEmphasis,
       courtGymRelationship: weeklyContext.courtGymRelationship,
+      trainingContext: contextDecision?.trainingContext ?? teamContext.trainingContext,
+      sportContext: contextDecision?.sportContext ?? teamContext.sportContext,
     }
   );
 
   return {
     type: "academia_resistido",
-    resistancePlan,
+    resistancePlan: {
+      ...resistancePlan,
+      trainingContext:
+        contextDecision?.trainingContext ?? resistancePlan.trainingContext,
+      sportContext: contextDecision?.sportContext ?? resistancePlan.sportContext,
+      contextSource: contextDecision?.source,
+      contextConfidence: contextDecision?.confidence,
+      contextReason: contextDecision?.reason,
+    },
     durationMin: resistancePlan.estimatedDurationMin,
+    trainingContext: contextDecision?.trainingContext ?? resistancePlan.trainingContext,
+    sportContext: contextDecision?.sportContext ?? resistancePlan.sportContext,
+    contextSource: contextDecision?.source,
+    contextConfidence: contextDecision?.confidence,
+    contextReason: contextDecision?.reason,
   };
 }

@@ -1,39 +1,55 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
-} from "react";
-import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    Share,
-    Text,
-    TextInput,
-    View
+  Alert,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Share,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Pressable } from "../../src/ui/Pressable";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { getValidAccessToken } from "../../src/auth/session";
 import type { Exercise } from "../../src/core/models";
 import {
-    deleteExercise,
-    getExercises,
-    saveExercise,
-    updateExercise,
+  listApprovedMediaAssets,
+  listDraftMediaAssets,
+} from "../../src/exercise-media/exercise-media-approval";
+import { bootstrapExerciseMediaStore } from "../../src/exercise-media/bootstrap-exercise-media-store";
+import type { ExerciseMediaAsset } from "../../src/exercise-media/exercise-media.types";
+import { bootstrapMediaGenerationHandoffStore } from "../../src/media-generation/handoff/bootstrap-media-generation-handoff-store";
+import {
+  deleteExercise,
+  getExercises,
+  saveExercise,
+  updateExercise,
 } from "../../src/db/seed";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
+import {
+  archiveExerciseMediaReviewAsset,
+  approveExerciseMediaReviewAsset,
+} from "../../src/screens/exercises/exercise-media-review-actions";
+import { ExerciseLibraryHeader } from "../../src/screens/exercises/components/ExerciseLibraryHeader";
+import { ExerciseMediaGenerateCard } from "../../src/screens/exercises/components/ExerciseMediaGenerateCard";
+import { ExerciseMediaGenerationJobsSection } from "../../src/screens/exercises/components/ExerciseMediaGenerationJobsSection";
+import { ExerciseMediaHandoffJobsSection } from "../../src/screens/exercises/components/ExerciseMediaHandoffJobsSection";
+import { ExerciseLinkForm } from "../../src/screens/exercises/components/ExerciseLinkForm";
+import { ExerciseListSection } from "../../src/screens/exercises/components/ExerciseListSection";
+import { ExerciseMediaReviewSection } from "../../src/screens/exercises/components/ExerciseMediaReviewSection";
+import { ExerciseSummaryCards } from "../../src/screens/exercises/components/ExerciseSummaryCards";
+import { cancelExerciseMediaHandoffJobForReview } from "../../src/screens/exercises/exercise-media-handoff-actions";
+import {
+  cancelExerciseMediaGenerationJobForReview,
+  retryExerciseMediaGenerationJobForReview,
+} from "../../src/screens/exercises/exercise-media-generation-job-actions";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -54,12 +70,36 @@ const getThumbnail = (url: string) => {
   return "";
 };
 
+function matchesMediaQuery(asset: ExerciseMediaAsset, query: string) {
+  const haystack = [
+    asset.title,
+    asset.exerciseKey,
+    asset.kind,
+    asset.source,
+    asset.modality,
+    asset.sport,
+    asset.ageBand,
+    asset.level,
+    ...(asset.tags ?? []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(query);
+}
+
 export default function ExercisesScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
+  const { width } = useWindowDimensions();
+  const isWideLayout = Platform.OS === "web" && width >= 1100;
+  const contentMaxWidth = isWideLayout ? 1420 : 960;
+
   const [items, setItems] = useState<Exercise[]>([]);
+  const [draftMedia, setDraftMedia] = useState<ExerciseMediaAsset[]>([]);
+  const [approvedMedia, setApprovedMedia] = useState<ExerciseMediaAsset[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [title, setTitle] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
@@ -72,10 +112,19 @@ export default function ExercisesScreen() {
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [metaStatus, setMetaStatus] = useState("");
   const [metaLoading, setMetaLoading] = useState(false);
+  const [formExpanded, setFormExpanded] = useState(isWideLayout);
+  const [jobsRefreshToken, setJobsRefreshToken] = useState(0);
+  const [handoffRefreshToken, setHandoffRefreshToken] = useState(0);
   const metaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
   const debouncedSearchText = useDebouncedValue(searchText, 250);
+
+  useEffect(() => {
+    if (isWideLayout) {
+      setFormExpanded(true);
+    }
+  }, [isWideLayout]);
 
   const load = useCallback(async () => {
     try {
@@ -88,17 +137,33 @@ export default function ExercisesScreen() {
     }
   }, []);
 
+  const reloadMediaSections = useCallback(() => {
+    setDraftMedia(listDraftMediaAssets());
+    setApprovedMedia(listApprovedMediaAssets());
+  }, []);
+
+  const reloadGeneratedArtifacts = useCallback(() => {
+    reloadMediaSections();
+    setJobsRefreshToken((current) => current + 1);
+    setHandoffRefreshToken((current) => current + 1);
+  }, [reloadMediaSections]);
+
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load])
+      void (async () => {
+        await bootstrapExerciseMediaStore();
+        await bootstrapMediaGenerationHandoffStore();
+        await load();
+        reloadGeneratedArtifacts();
+      })();
+    }, [load, reloadGeneratedArtifacts]),
   );
 
   const filteredItems = useMemo(() => {
-    let list = items;
     const query = debouncedSearchText.trim().toLowerCase();
-    if (!query) return list;
-    return list.filter((item) => {
+    if (!query) return items;
+
+    return items.filter((item) => {
       const haystack = [
         item.title,
         item.description,
@@ -111,7 +176,19 @@ export default function ExercisesScreen() {
     });
   }, [debouncedSearchText, items]);
 
-  const clearForm = () => {
+  const filteredDraftMedia = useMemo(() => {
+    const query = debouncedSearchText.trim().toLowerCase();
+    if (!query) return draftMedia;
+    return draftMedia.filter((asset) => matchesMediaQuery(asset, query));
+  }, [debouncedSearchText, draftMedia]);
+
+  const filteredApprovedMedia = useMemo(() => {
+    const query = debouncedSearchText.trim().toLowerCase();
+    if (!query) return approvedMedia;
+    return approvedMedia.filter((asset) => matchesMediaQuery(asset, query));
+  }, [debouncedSearchText, approvedMedia]);
+
+  const clearForm = useCallback(() => {
     setTitle("");
     setVideoUrl("");
     setSource("");
@@ -121,7 +198,10 @@ export default function ExercisesScreen() {
     setEditingId(null);
     setEditingCreatedAt(null);
     setMetaStatus("");
-  };
+    if (!isWideLayout) {
+      setFormExpanded(false);
+    }
+  }, [isWideLayout]);
 
   const isFormDirty =
     title.trim() ||
@@ -144,7 +224,7 @@ export default function ExercisesScreen() {
     const fallbackTitle = title.trim() || "Vídeo";
     const nowIso = new Date().toISOString();
     const exercise: Exercise = {
-      id: editingId ?? "ex_" + Date.now(),
+      id: editingId ?? `ex_${Date.now()}`,
       title: fallbackTitle,
       videoUrl: videoUrl.trim(),
       tags: [],
@@ -179,18 +259,15 @@ export default function ExercisesScreen() {
           setMetaStatus("Sessão expirada. Faça login novamente.");
           return;
         }
-        const response = await fetch(
-          `${SUPABASE_URL}/functions/v1/link-metadata`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-              apikey: SUPABASE_ANON_KEY,
-            },
-            body: JSON.stringify({ url: videoUrl.trim() }),
-          }
-        );
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/link-metadata`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            apikey: SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ url: videoUrl.trim() }),
+        });
         const text = await response.text();
         if (!response.ok) {
           throw new Error(text || "Falha ao buscar dados do link.");
@@ -211,9 +288,9 @@ export default function ExercisesScreen() {
         setMetaStatus("Informações preenchidas automaticamente.");
       } catch (error) {
         setMetaStatus(
-          error instanceof Error ?
-            error.message
-            : "Não foi possível ler o link."
+          error instanceof Error
+            ? error.message
+            : "Não foi possível ler o link.",
         );
       } finally {
         setMetaLoading(false);
@@ -235,13 +312,13 @@ export default function ExercisesScreen() {
     await Linking.openURL(normalized);
   };
 
-  const shareLink = async (url: string, title: string) => {
+  const shareLink = async (url: string, itemTitle: string) => {
     if (!url) {
       Alert.alert("Link vazio", "Adicione um link para compartilhar.");
       return;
     }
     const normalized = url.startsWith("http") ? url : `https://${url}`;
-    await Share.share({ message: `${title}\n${normalized}` });
+    await Share.share({ message: `${itemTitle}\n${normalized}` });
   };
 
   const confirmDelete = (exercise: Exercise) => {
@@ -271,6 +348,91 @@ export default function ExercisesScreen() {
     });
   };
 
+  const handleEditExercise = (item: Exercise) => {
+    setEditingId(item.id);
+    setEditingCreatedAt(item.createdAt);
+    setTitle(item.title);
+    setVideoUrl(item.videoUrl);
+    setSource(item.source ?? "");
+    setDescription(item.description ?? "");
+    setPublishedAt(item.publishedAt ?? "");
+    setNotes(item.notes);
+    setFormExpanded(true);
+  };
+
+  const handleApproveMedia = (asset: ExerciseMediaAsset) => {
+    void confirmDialog({
+      title: "Aprovar mídia?",
+      message: `Deseja liberar ${asset.title} para treinos e PDFs?`,
+      confirmLabel: "Aprovar",
+      cancelLabel: "Cancelar",
+      onConfirm: async () => {
+        try {
+          const updated = await approveExerciseMediaReviewAsset(asset.id);
+          if (!updated) {
+            Alert.alert("Não foi possível aprovar", "A mídia não está mais disponível.");
+            return;
+          }
+          reloadMediaSections();
+          setJobsRefreshToken((current) => current + 1);
+        } catch (error) {
+          Alert.alert(
+            "Não foi possível aprovar",
+            error instanceof Error ? error.message : "Erro ao persistir a mídia.",
+          );
+        }
+      },
+    });
+  };
+
+  const handleArchiveMedia = (asset: ExerciseMediaAsset) => {
+    void confirmDialog({
+      title: "Arquivar mídia?",
+      message: `Deseja arquivar ${asset.title}?`,
+      confirmLabel: "Arquivar",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        try {
+          const updated = await archiveExerciseMediaReviewAsset(asset.id);
+          if (!updated) {
+            Alert.alert("Não foi possível arquivar", "A mídia não está mais disponível.");
+            return;
+          }
+          reloadMediaSections();
+          setJobsRefreshToken((current) => current + 1);
+        } catch (error) {
+          Alert.alert(
+            "Não foi possível arquivar",
+            error instanceof Error ? error.message : "Erro ao persistir a mídia.",
+          );
+        }
+      },
+    });
+  };
+
+  const summaryItems = useMemo(
+    () => [
+      { label: "Para revisar", value: draftMedia.length, tone: "warning" as const },
+      { label: "Liberadas", value: approvedMedia.length, tone: "success" as const },
+      { label: "Links", value: items.length },
+    ],
+    [draftMedia.length, approvedMedia.length, items.length],
+  );
+
+  const listEmptyMessage = debouncedSearchText.trim()
+    ? "Nenhum exercício encontrado para essa busca."
+    : "Nenhum exercício cadastrado ainda.";
+  const draftEmptyMessage = debouncedSearchText.trim()
+    ? "Nenhuma mídia pendente encontrada para essa busca."
+    : "Nenhuma mídia pendente.";
+  const approvedEmptyMessage = debouncedSearchText.trim()
+    ? "Nenhuma mídia aprovada encontrada para essa busca."
+    : "Nenhuma mídia aprovada ainda.";
+
+  const isFormVisible =
+    isWideLayout || formExpanded || Boolean(editingId) || Boolean(videoUrl.trim());
+
   return (
     <SafeAreaView
       style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
@@ -279,126 +441,256 @@ export default function ExercisesScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <ScrollView
-        contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              try {
-                await load();
-              } finally {
-                setRefreshing(false);
-              }
-            }}
-            tintColor={colors.text}
-            colors={[colors.text]}
-          />
-        }
-      >
-        <View style={{ gap: 6 }}>
-          <Pressable
-            onPress={() => {
+        <ScrollView
+          contentContainerStyle={{
+            gap: 16,
+            paddingBottom: 28,
+            width: "100%",
+            maxWidth: contentMaxWidth,
+            alignSelf: "center",
+          }}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                try {
+                  await bootstrapExerciseMediaStore();
+                  await bootstrapMediaGenerationHandoffStore();
+                  await load();
+                  reloadGeneratedArtifacts();
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              tintColor={colors.text}
+              colors={[colors.text]}
+            />
+          }
+        >
+          <ExerciseLibraryHeader
+            colors={colors}
+            onBack={() => {
               if (router.canGoBack()) {
                 router.back();
                 return;
               }
               router.replace("/");
             }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              Exercícios
-            </Text>
-          </Pressable>
-          <Text style={{ color: colors.muted }}>
-            Biblioteca com vídeos e links
-          </Text>
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 6,
-            paddingHorizontal: 10,
-            borderRadius: 12,
-            backgroundColor: colors.card,
-          }}
-        >
-          <TextInput
-            placeholder="Buscar exercício, tag ou fonte..."
-            placeholderTextColor={colors.placeholder}
-            value={searchText}
-            onChangeText={setSearchText}
-            style={{ flex: 1, paddingVertical: 2, color: colors.inputText }}
+            onToggleForm={() => setFormExpanded((current) => !current)}
+            isFormExpanded={isFormVisible}
+            showToggleAction={!isWideLayout}
           />
-          <Text style={{ color: colors.text, fontSize: 16, marginLeft: 6 }}>
-            {"\uD83D\uDD0D"}
-          </Text>
-        </View>
 
-        <View
-          style={{
-            padding: 12,
-            borderRadius: 16,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 8,
-          }}
-        >
+          <View
+            style={{
+              padding: 14,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+            }}
+          >
             <TextInput
-              placeholder="Link do video (YouTube, Instagram, etc.)"
+              placeholder="Buscar exercício ou demonstração..."
               placeholderTextColor={colors.placeholder}
-              value={videoUrl}
-              onChangeText={setVideoUrl}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 8,
-                borderRadius: 10,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
+              value={searchText}
+              onChangeText={setSearchText}
+              style={{ color: colors.inputText, paddingVertical: 4 }}
             />
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={save}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 10,
-                  backgroundColor: canSave
-                    ? colors.primaryBg
-                    : colors.primaryDisabledBg,
-                  alignItems: "center",
+          </View>
+
+          <ExerciseSummaryCards colors={colors} items={summaryItems} />
+
+          <View
+            style={{
+              flexDirection: isWideLayout ? "row" : "column",
+              alignItems: "flex-start",
+              gap: 16,
+            }}
+          >
+            <View
+              style={{
+                flex: isWideLayout ? 2 : undefined,
+                width: "100%",
+                gap: 16,
+              }}
+            >
+              {!isWideLayout ? (
+                <ExerciseMediaGenerateCard
+                  colors={colors}
+                  onGenerated={reloadGeneratedArtifacts}
+                />
+              ) : null}
+
+              <ExerciseMediaReviewSection
+                colors={colors}
+                title="Demonstrações para revisar"
+                subtitle="Apenas mídias aprovadas aparecem no treino e no PDF."
+                emptyMessage={draftEmptyMessage}
+                items={filteredDraftMedia}
+                onView={() => {}}
+                onApprove={handleApproveMedia}
+                onArchive={handleArchiveMedia}
+                pills={[
+                  { label: "Pendentes", active: true },
+                  { label: "Liberadas" },
+                  { label: "Arquivadas" },
+                ]}
+                compactCards
+              />
+
+              <ExerciseMediaReviewSection
+                colors={colors}
+                title="Liberadas"
+                emptyMessage={approvedEmptyMessage}
+                items={filteredApprovedMedia}
+                onView={() => {}}
+                onArchive={handleArchiveMedia}
+                compactCards
+              />
+
+              <ExerciseListSection
+                colors={colors}
+                items={filteredItems}
+                emptyMessage={listEmptyMessage}
+                getThumbnail={getThumbnail}
+                onOpen={openLink}
+                onShare={shareLink}
+                onEdit={handleEditExercise}
+                onDelete={confirmDelete}
+              />
+            </View>
+
+            <View
+              style={{
+                width: isWideLayout ? 404 : "100%",
+                maxWidth: isWideLayout ? 440 : undefined,
+                gap: 16,
+                alignSelf: "stretch",
+              }}
+            >
+              {isWideLayout ? (
+                <ExerciseMediaGenerateCard
+                  colors={colors}
+                  onGenerated={reloadGeneratedArtifacts}
+                />
+              ) : null}
+
+              <ExerciseMediaHandoffJobsSection
+                colors={colors}
+                refreshToken={handoffRefreshToken}
+                onCancel={(job) => {
+                  void confirmDialog({
+                    title: "Cancelar pedido?",
+                    message: `Deseja cancelar o pedido de ${job.request.exerciseName ?? job.request.title ?? "demonstração"}?`,
+                    confirmLabel: "Cancelar pedido",
+                    cancelLabel: "Voltar",
+                    tone: "danger",
+                    onConfirm: async () => {
+                      const updated = await cancelExerciseMediaHandoffJobForReview(job.id);
+                      if (!updated) {
+                        Alert.alert("Não foi possível cancelar", "O pedido não está mais disponível.");
+                        return;
+                      }
+                      setHandoffRefreshToken((current) => current + 1);
+                    },
+                  });
                 }}
-              >
-                <Text
-                  style={{
-                    color: colors.primaryText,
-                    fontWeight: "700",
-                    fontSize: 12,
+              />
+
+              {!isWideLayout ? null : (
+                <ExerciseMediaGenerationJobsSection
+                  colors={colors}
+                  refreshToken={jobsRefreshToken}
+                  onCancel={(job) => {
+                    const updated = cancelExerciseMediaGenerationJobForReview(job.id);
+                    if (!updated) {
+                      Alert.alert("Não foi possível cancelar", "A geração não está mais disponível.");
+                      return;
+                    }
+                    setJobsRefreshToken((current) => current + 1);
                   }}
-                >
-                  {editingId ? "Salvar alterações" : "Salvar exercício"}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
+                  onRetry={(job) => {
+                    void confirmDialog({
+                      title: "Tentar novamente?",
+                      message: `Deseja gerar novamente ${job.request.exerciseName ?? job.request.title ?? "esta demonstração"}?`,
+                      confirmLabel: "Gerar novamente",
+                      cancelLabel: "Cancelar",
+                      onConfirm: async () => {
+                        const result = await retryExerciseMediaGenerationJobForReview(job.id);
+                        if (!result.ok) {
+                          Alert.alert("Não foi possível gerar", result.message);
+                          setJobsRefreshToken((current) => current + 1);
+                          return;
+                        }
+                        Alert.alert("Rascunho criado", result.message);
+                        reloadGeneratedArtifacts();
+                      },
+                    });
+                  }}
+                />
+              )}
+
+              {!isWideLayout ? (
+                <ExerciseMediaGenerationJobsSection
+                  colors={colors}
+                  refreshToken={jobsRefreshToken}
+                  onCancel={(job) => {
+                    const updated = cancelExerciseMediaGenerationJobForReview(job.id);
+                    if (!updated) {
+                      Alert.alert("Não foi possível cancelar", "A geração não está mais disponível.");
+                      return;
+                    }
+                    setJobsRefreshToken((current) => current + 1);
+                  }}
+                  onRetry={(job) => {
+                    void confirmDialog({
+                      title: "Tentar novamente?",
+                      message: `Deseja gerar novamente ${job.request.exerciseName ?? job.request.title ?? "esta demonstração"}?`,
+                      confirmLabel: "Gerar novamente",
+                      cancelLabel: "Cancelar",
+                      onConfirm: async () => {
+                        const result = await retryExerciseMediaGenerationJobForReview(job.id);
+                        if (!result.ok) {
+                          Alert.alert("Não foi possível gerar", result.message);
+                          setJobsRefreshToken((current) => current + 1);
+                          return;
+                        }
+                        Alert.alert("Rascunho criado", result.message);
+                        reloadGeneratedArtifacts();
+                      },
+                    });
+                  }}
+                />
+              ) : null}
+
+              <ExerciseLinkForm
+                colors={colors}
+                isVisible={isFormVisible}
+                isWideLayout={isWideLayout}
+                isEditing={Boolean(editingId)}
+                videoUrl={videoUrl}
+                title={title}
+                source={source}
+                notes={notes}
+                metaStatus={metaStatus}
+                metaLoading={metaLoading}
+                canSave={canSave}
+                onVideoUrlChange={setVideoUrl}
+                onTitleChange={setTitle}
+                onSourceChange={setSource}
+                onNotesChange={setNotes}
+                onSave={save}
+                onCancel={() => {
                   if (isFormDirty) {
-                    confirmDialog({
+                    void confirmDialog({
                       title: "Sair sem salvar?",
                       message: "Você tem alterações não salvas.",
                       confirmLabel: "Descartar",
                       cancelLabel: "Continuar",
-                      onConfirm: () => {
+                      onConfirm: async () => {
                         clearForm();
                       },
                     });
@@ -406,194 +698,10 @@ export default function ExercisesScreen() {
                   }
                   clearForm();
                 }}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 10,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    color: colors.secondaryText,
-                    fontWeight: "700",
-                    fontSize: 12,
-                  }}
-                >
-                  Cancelar
-                </Text>
-              </Pressable>
+              />
             </View>
-        </View>
-
-        <View style={{ gap: 10 }}>
-          {filteredItems.map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() =>
-                setExpandedId((prev) => (prev === item.id ? null : item.id))
-              }
-              style={{
-                padding: 10,
-                borderRadius: 14,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 6,
-              }}
-            >
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                { getThumbnail(item.videoUrl) ? (
-                  <Image
-                    source={{ uri: getThumbnail(item.videoUrl) }}
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 10,
-                      backgroundColor: colors.thumbFallback,
-                    }}
-                  />
-                ) : (
-                  <View
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 10,
-                      backgroundColor: colors.thumbFallback,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: "700", color: colors.muted }}>
-                      VIDEO
-                    </Text>
-                  </View>
-                )}
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
-                    {item.title}
-                  </Text>
-                  { item.source ? (
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      Fonte: {item.source}
-                    </Text>
-                  ) : null}
-                  { item.notes ? (
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {item.notes}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-              { expandedId === item.id ? (
-                <View style={{ gap: 8 }}>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <Pressable
-                      onPress={() => openLink(item.videoUrl)}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 8,
-                        borderRadius: 10,
-                        backgroundColor: colors.primaryBg,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.primaryText,
-                          fontWeight: "700",
-                          fontSize: 12,
-                        }}
-                      >
-                        Abrir
-                      </Text>
-                    </Pressable>
-                  <Pressable
-                    onPress={() => shareLink(item.videoUrl, item.title)}
-                    style={{
-                      flex: 1,
-                        paddingVertical: 8,
-                        borderRadius: 10,
-                        backgroundColor: colors.secondaryBg,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.secondaryText,
-                          fontWeight: "700",
-                          fontSize: 12,
-                        }}
-                      >
-                        Share
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <Pressable
-                      onPress={() => {
-                        setEditingId(item.id);
-                        setEditingCreatedAt(item.createdAt);
-                        setTitle(item.title);
-                        setVideoUrl(item.videoUrl);
-                        setSource(item.source ?? "");
-                        setDescription(item.description ?? "");
-                        setPublishedAt(item.publishedAt ?? "");
-                        setNotes(item.notes);
-                      }}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 8,
-                        borderRadius: 10,
-                        backgroundColor: colors.secondaryBg,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.secondaryText,
-                          fontWeight: "700",
-                          fontSize: 12,
-                        }}
-                      >
-                        Editar
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => confirmDelete(item)}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 8,
-                        borderRadius: 10,
-                        backgroundColor: colors.dangerBg,
-                        borderWidth: 1,
-                        borderColor: colors.dangerBorder,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.dangerText,
-                          fontWeight: "700",
-                          fontSize: 12,
-                        }}
-                      >
-                        Excluir
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
-            </Pressable>
-          ))}
-          { !filteredItems.length ? (
-            <Text style={{ color: colors.muted }}>
-              Nenhum exercício cadastrado.
-            </Text>
-          ) : null}
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

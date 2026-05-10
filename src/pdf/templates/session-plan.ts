@@ -7,6 +7,9 @@ export type SessionPlanActivity = LessonActivity & {
   description?: string;
   // Legacy fallback for migration.
   notes?: string;
+  demoUrl?: string;
+  demoQrDataUri?: string;
+  demoLabel?: string;
 };
 
 export type SessionBlock = Partial<LessonBlock> & {
@@ -95,6 +98,36 @@ const resolveBlockDescriptionLines = (block: SessionBlock) => {
   return blockSummary ? [blockSummary] : [];
 };
 
+const renderDemoQrHtml = (item: SessionPlanActivity) => {
+  const qr = String(item?.demoQrDataUri ?? "").trim();
+  if (!qr) return "";
+  const label = asText(item?.demoLabel) || "Demonstração";
+  return `
+    <div class="demo-qr">
+      <div class="demo-qr-label">${esc(label)}</div>
+      <img src="${esc(qr)}" alt="${esc(label)}" class="demo-qr-image" />
+    </div>
+  `;
+};
+
+const renderActivityCellHtml = (items: SessionPlanActivity[]) => {
+  if (!items.length) {
+    return "-";
+  }
+
+  return items
+    .map((item, index) => {
+      const name = asCoachingText(item?.name).trim() || `Atividade ${index + 1}`;
+      return `
+        <div class="activity-entry">
+          <div>${index + 1}. ${esc(name)}</div>
+          ${renderDemoQrHtml(item)}
+        </div>
+      `;
+    })
+    .join("");
+};
+
 export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const objective = asCoachingText(data?.objective);
   const generalObjective = asCoachingText(data?.generalObjective);
@@ -120,7 +153,6 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       const time = getBlockTime(block);
       const blockItems = getBlockActivities(block);
       const workoutBlock = isWorkoutBlock(block);
-      const activityRows = blockItems.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
       const descriptionRows = blockItems.length
         ? blockItems.map((item) => asCoachingText(item?.description || item?.notes).trim() || "-")
         : resolveBlockDescriptionLines(block);
@@ -141,7 +173,10 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
                 const rest = asText(item?.rest) || "-";
                 return `
                   <tr>
-                    <td>${esc(name)}</td>
+                    <td>
+                      <div>${esc(name)}</div>
+                      ${renderDemoQrHtml(item)}
+                    </td>
                     <td class="workout-center">${esc(sets)}</td>
                     <td class="workout-center">${esc(reps)}</td>
                     <td class="workout-center">${esc(rest)}</td>
@@ -156,7 +191,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       return `
       <tr>
         <td class="period"><strong>${esc(period)}</strong></td>
-        <td class="activities prewrap">${workoutBlock ? "-" : nl2br(buildNumberedLines(activityRows))}</td>
+        <td class="activities ${workoutBlock ? "" : "prewrap"}">${workoutBlock ? "-" : renderActivityCellHtml(blockItems)}</td>
         <td class="time">${esc(time)}</td>
         <td class="description ${workoutBlock ? "" : "prewrap"}">${workoutBlock ? workoutTableHtml : nl2br(buildNumberedLines(descriptionRows))}</td>
       </tr>
@@ -254,6 +289,13 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         .description {
           width: 48%;
         }
+        .activity-entry {
+          display: block;
+          margin-bottom: 10px;
+        }
+        .activity-entry:last-child {
+          margin-bottom: 0;
+        }
         .workout-table {
           width: 100%;
           border-collapse: collapse;
@@ -272,6 +314,23 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         .workout-center {
           text-align: center;
           white-space: nowrap;
+        }
+        .demo-qr {
+          margin-top: 6px;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+        .demo-qr-label {
+          font-size: 9px;
+          font-weight: 700;
+          color: #222;
+        }
+        .demo-qr-image {
+          width: 46px;
+          height: 46px;
+          display: block;
         }
         .notes-label {
           width: 20%;

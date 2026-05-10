@@ -55,7 +55,10 @@ import {
     toPlanningGraphFromClassPlans,
 } from "../../src/core/plan-engine";
 import { buildPeriodizationWeekSchedule } from "../../src/screens/periodization/application/build-auto-plan-for-cycle-day";
-import { getSessionEnvironmentDecisions } from "../../src/screens/periodization/application/session-environment-decisions";
+import {
+  getSessionEnvironmentDecisions,
+  getSessionTrainingContextDecisions,
+} from "../../src/screens/periodization/application/session-environment-decisions";
 import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState";
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
 import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
@@ -65,7 +68,12 @@ import { usePickerLayout } from "../../src/screens/periodization/hooks/usePicker
 import { useSaveWeek } from "../../src/screens/periodization/hooks/useSaveWeek";
 import { useWeekEditor } from "../../src/screens/periodization/hooks/useWeekEditor";
 import { getPlansWithinCycle, useWeekPlans } from "../../src/screens/periodization/hooks/useWeekPlans";
-import { buildMonthSegments, buildMonthWeekNumbers } from "../../src/screens/periodization/month-segments";
+import {
+  buildVisibleMonthWeekSlots,
+  buildMonthSegments,
+  buildMonthWeekNumbers,
+  buildWeekMonthKeys,
+} from "../../src/screens/periodization/month-segments";
 import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
 
   const DEFAULT_ANNUAL_CYCLE_LENGTH = annualCycleOptions[annualCycleOptions.length - 1];
@@ -635,10 +643,12 @@ export default function PeriodizationScreen() {
 
   const [showWeekEditor, setShowWeekEditor] = useState(false);
   const [agendaWeekNumber, setAgendaWeekNumber] = useState<number | null>(null);
+  const [selectedWeekSlotKey, setSelectedWeekSlotKey] = useState<string | null>(null);
 
   const {
     editor,
     setEditingWeek,
+    setEditingWeekDisplayNumber,
     setEditingPlanId,
     setEditPhase,
     setEditTheme,
@@ -651,13 +661,16 @@ export default function PeriodizationScreen() {
     setEditJumpTarget,
     setEditPSETarget,
     setEditSessionEnvironments,
+    setEditSessionTrainingContexts,
     setEditSessionEnvironment,
+    setEditSessionTrainingContext,
     setEditSource,
     setIsSavingWeek,
     resetWeekEditor,
   } = useWeekEditor();
   const {
     editingWeek,
+    editingWeekDisplayNumber,
     editingPlanId,
     editPhase,
     editTheme,
@@ -670,6 +683,7 @@ export default function PeriodizationScreen() {
     editJumpTarget,
     editPSETarget,
     editSessionEnvironments,
+    editSessionTrainingContexts,
     editSource,
     isSavingWeek,
   } = editor;
@@ -1288,24 +1302,6 @@ export default function PeriodizationScreen() {
     () => planningCycles.filter((c) => c.status === "archived"),
     [planningCycles]
   );
-
-  const weekSessions = useMemo(() => {
-    if (!editingWeek || !selectedClass || !activeCycleStartDate) return [];
-    const existingPlan = visibleClassPlans.find((p) => p.weekNumber === editingWeek);
-    const planStartDate = existingPlan?.startDate ?? (() => {
-      const base = new Date(`${activeCycleStartDate}T00:00:00`);
-      base.setDate(base.getDate() + (editingWeek - 1) * 7);
-      const y = base.getFullYear();
-      const m = String(base.getMonth() + 1).padStart(2, "0");
-      const d = String(base.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    })();
-    return buildWeekSessionPreview({
-      startDate: planStartDate,
-      daysOfWeek: selectedClass.daysOfWeek ?? [],
-      weeklySessions,
-    });
-  }, [activeCycleStartDate, editingWeek, selectedClass, visibleClassPlans, weeklySessions]);
 
   const periodizationKnowledgeGraph = useMemo(() => {
     if (!selectedClass || !periodizationKnowledgeSnapshot) return null;
@@ -2066,6 +2062,91 @@ export default function PeriodizationScreen() {
     });
   }, [activeCycleStartDate, selectedClass?.daysOfWeek, visibleClassPlans, weekPlans.length, weeklySessions]);
 
+  const weekMonthKeys = useMemo(() => {
+    return buildWeekMonthKeys({
+      weekCount: weekPlans.length,
+      cycleStartDate: activeCycleStartDate || visibleClassPlans[0]?.startDate || null,
+      plans: visibleClassPlans,
+      daysOfWeek: selectedClass?.daysOfWeek ?? [],
+      weeklySessions,
+    });
+  }, [activeCycleStartDate, selectedClass?.daysOfWeek, visibleClassPlans, weekPlans.length, weeklySessions]);
+
+  const visibleMonthWeekSlots = useMemo(() => {
+    return buildVisibleMonthWeekSlots({
+      weekCount: weekPlans.length,
+      cycleStartDate: activeCycleStartDate || visibleClassPlans[0]?.startDate || null,
+      plans: visibleClassPlans,
+      daysOfWeek: selectedClass?.daysOfWeek ?? [],
+      weeklySessions,
+    });
+  }, [activeCycleStartDate, selectedClass?.daysOfWeek, visibleClassPlans, weekPlans.length, weeklySessions]);
+
+  const editingVisibleWeekNumber = useMemo(() => {
+    if (!editingWeek) return editingWeekDisplayNumber;
+    const selectedSlot = selectedWeekSlotKey
+      ? visibleMonthWeekSlots.find((slot) => slot.key === selectedWeekSlotKey)
+      : null;
+    if (selectedSlot) return selectedSlot.monthWeekNumber;
+    const weekIndex = weekPlans.findIndex((week) => week.week === editingWeek);
+    if (weekIndex < 0) return editingWeekDisplayNumber || editingWeek;
+    return monthWeekNumbers[weekIndex] ?? editingWeekDisplayNumber ?? editingWeek;
+  }, [editingWeek, editingWeekDisplayNumber, monthWeekNumbers, selectedWeekSlotKey, visibleMonthWeekSlots, weekPlans]);
+
+  const editingVisibleMonthKey = useMemo(() => {
+    if (!editingWeek) return null;
+    const selectedSlot = selectedWeekSlotKey
+      ? visibleMonthWeekSlots.find((slot) => slot.key === selectedWeekSlotKey)
+      : null;
+    if (selectedSlot) return selectedSlot.monthKey;
+    const weekIndex = weekPlans.findIndex((week) => week.week === editingWeek);
+    if (weekIndex < 0) return null;
+    return weekMonthKeys[weekIndex] ?? null;
+  }, [editingWeek, selectedWeekSlotKey, visibleMonthWeekSlots, weekMonthKeys, weekPlans]);
+
+  const weekSessions = useMemo(() => {
+    if (!editingWeek || !selectedClass || !activeCycleStartDate) return [];
+    const selectedSlot = selectedWeekSlotKey
+      ? visibleMonthWeekSlots.find((slot) => slot.key === selectedWeekSlotKey)
+      : visibleMonthWeekSlots.find(
+          (slot) =>
+            slot.sourceWeekNumber === editingWeek &&
+            (editingVisibleMonthKey ? slot.monthKey === editingVisibleMonthKey : true)
+        );
+    if (selectedSlot?.sessionDates.length) {
+      return selectedSlot.sessionDates;
+    }
+
+    const existingPlan = visibleClassPlans.find((p) => p.weekNumber === editingWeek);
+    const planStartDate =
+      existingPlan?.startDate ??
+      (() => {
+        const base = new Date(`${activeCycleStartDate}T00:00:00`);
+        base.setDate(base.getDate() + (editingWeek - 1) * 7);
+        const y = base.getFullYear();
+        const m = String(base.getMonth() + 1).padStart(2, "0");
+        const d = String(base.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      })();
+
+    return buildWeekSessionPreview({
+      startDate: planStartDate,
+      daysOfWeek: selectedClass.daysOfWeek ?? [],
+      weeklySessions,
+      minDate: activeCycleStartDate,
+      visibleMonthKey: editingVisibleMonthKey,
+    });
+  }, [
+    activeCycleStartDate,
+    editingVisibleMonthKey,
+    editingWeek,
+    selectedClass,
+    selectedWeekSlotKey,
+    visibleMonthWeekSlots,
+    visibleClassPlans,
+    weeklySessions,
+  ]);
+
   const dominantBlockSegments = useMemo(() => {
     if (!weekPlans.length) return [] as Array<{ label: string; length: number }>;
 
@@ -2382,11 +2463,15 @@ export default function PeriodizationScreen() {
   }, [highLoadStreak, activeWeek.volume]);
 
 
-  const openWeekEditor = useCallback((weekNumber: number) => {
+  const openWeekEditor = useCallback((
+    weekNumber: number,
+    options?: { displayWeekNumber?: number; visibleMonthKey?: string; slotKey?: string }
+  ) => {
 
     if (!selectedClass) return;
 
     setAgendaWeekNumber(weekNumber);
+    setSelectedWeekSlotKey(options?.slotKey ?? null);
 
     const existing = visibleClassPlans.find((plan) => plan.weekNumber === weekNumber);
     const plan: ClassPlan =
@@ -2416,6 +2501,11 @@ export default function PeriodizationScreen() {
           }));
 
     setEditingWeek(weekNumber);
+    const weekIndex = weekPlans.findIndex((week) => week.week === weekNumber);
+    setEditingWeekDisplayNumber(
+      options?.displayWeekNumber ??
+        (weekIndex >= 0 ? monthWeekNumbers[weekIndex] ?? weekNumber : weekNumber)
+    );
 
     setEditingPlanId(existing?.id ?? null);
 
@@ -2445,6 +2535,12 @@ export default function PeriodizationScreen() {
         Math.max(1, weeklySessions || selectedClass.daysOfWeek?.length || 1)
       )
     );
+    setEditSessionTrainingContexts(
+      getSessionTrainingContextDecisions(
+        plan.generationContextSnapshotJson,
+        Math.max(1, weeklySessions || selectedClass.daysOfWeek?.length || 1)
+      )
+    );
 
     setEditSource(existing ? plan.source : "AUTO");
 
@@ -2457,11 +2553,15 @@ export default function PeriodizationScreen() {
     competitiveProfile,
     effectiveCycleLength,
     isCompetitiveMode,
+    monthWeekNumbers,
     periodizationModel,
     sportProfile,
     selectedClass,
+    setSelectedWeekSlotKey,
     setEditSessionEnvironments,
+    setEditingWeekDisplayNumber,
     visibleClassPlans,
+    weekPlans,
     weeklySessions,
   ]);
 
@@ -2796,10 +2896,23 @@ export default function PeriodizationScreen() {
     setEditJumpTarget(normalizeText(plan.jumpTarget));
 
     setEditPSETarget(normalizeText(plan.rpeTarget));
+    setEditSessionTrainingContexts(
+      getSessionTrainingContextDecisions(
+        plan.generationContextSnapshotJson,
+        Math.max(1, weeklySessions || selectedClass.daysOfWeek?.length || 1)
+      )
+    );
 
     setEditSource("AUTO");
 
-  }, [buildAutoPlanForWeek, editingWeek, selectedClass, visibleClassPlans]);
+  }, [
+    buildAutoPlanForWeek,
+    editingWeek,
+    selectedClass,
+    setEditSessionTrainingContexts,
+    visibleClassPlans,
+    weeklySessions,
+  ]);
 
 
   const { handleSaveWeek } = useSaveWeek({
@@ -2829,6 +2942,7 @@ export default function PeriodizationScreen() {
     editJumpTarget,
     editPSETarget,
     editSessionEnvironments,
+    editSessionTrainingContexts,
     hasPlanChanges,
     setEditSource,
     setIsSavingWeek,
@@ -4097,8 +4211,10 @@ export default function PeriodizationScreen() {
           cyclePanelTitle={displayedCyclePanelTitle}
           hasWeekPlans={hasWeekPlans}
           weekPlans={weekPlans}
+          visibleWeekSlots={visibleMonthWeekSlots}
           currentWeek={currentWeek}
           selectedWeekNumber={focusedWeekNumber}
+          selectedWeekSlotKey={selectedWeekSlotKey}
           monthWeekNumbers={monthWeekNumbers}
           monthSegments={monthSegments}
           macroSegments={macroSegments}
@@ -4108,6 +4224,7 @@ export default function PeriodizationScreen() {
           periodizationModel={periodizationModel}
           sportProfile={sportProfile}
           onSelectedWeekChange={setAgendaWeekNumber}
+          onSelectedWeekSlotChange={setSelectedWeekSlotKey}
           openWeekEditor={openWeekEditor}
           sectionOpen={sectionOpen}
           toggleSection={toggleSection}
@@ -4588,12 +4705,15 @@ export default function PeriodizationScreen() {
         modalCardStyle={modalCardStyle}
         colors={colors}
         editingWeek={editingWeek}
+        editingWeekDisplayNumber={editingVisibleWeekNumber}
         selectedClassName={selectedClass?.name ?? "Turma"}
         daysOfWeek={selectedClass?.daysOfWeek ?? []}
         weeklySessions={weeklySessions}
         weekSessions={weekSessions}
         sessionEnvironments={editSessionEnvironments}
+        sessionTrainingContexts={editSessionTrainingContexts}
         onSessionEnvironmentChange={setEditSessionEnvironment}
+        onSessionTrainingContextChange={setEditSessionTrainingContext}
         cycleLength={effectiveCycleLength}
         editPhase={editPhase}
         setEditPhase={setEditPhase}

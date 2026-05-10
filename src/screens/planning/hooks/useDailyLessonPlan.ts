@@ -6,6 +6,7 @@ import type {
   DailyLessonPlan,
   LessonBlock,
   ResistanceExerciseCategory,
+  ResistanceTrainingContextDecision,
   SessionComponent,
   SessionEnvironment,
   SessionPrimaryComponent,
@@ -21,6 +22,10 @@ import {
     ensureLessonBlocksMatchSessionEnvironment,
     serializeLessonBlocks,
 } from "../application/daily-lesson-blocks";
+import {
+  formatResistanceTrainingContextLabel,
+  resolveTrainingContextFromPlanningContext,
+} from "../../../core/resistance/training-context";
 import {
     buildAutoDailyLessonPlan,
     regenerateDailyLessonPlanFromWeek,
@@ -55,8 +60,12 @@ const resistanceCategoryByIndex: ResistanceExerciseCategory[] = [
 const buildSessionComponentsFromBlocks = (
   blocks: LessonBlock[],
   environment: SessionEnvironment,
+  contextDecision: ResistanceTrainingContextDecision,
 ): SessionComponent[] => {
   if (environment === "quadra") return [];
+  const trainingContext = contextDecision.trainingContext;
+  const sportContext = contextDecision.sportContext;
+  const isVolleyball = trainingContext === "volleyball" || sportContext === "volleyball";
 
   const mainBlock = blocks.find((block) => block.key === "main");
   const exercises = (mainBlock?.activities ?? [])
@@ -72,7 +81,9 @@ const buildSessionComponentsFromBlocks = (
         notes: activity.description?.trim() || undefined,
         transferTarget:
           environment === "mista"
-            ? "transferência para quadra"
+            ? isVolleyball
+              ? "transferência para quadra"
+              : "transferência prática da sessão"
             : "estabilidade, força e controle corporal",
       };
     })
@@ -86,16 +97,33 @@ const buildSessionComponentsFromBlocks = (
       type: "academia_resistido",
       durationMin,
       resistancePlan: {
-        id: `daily_resistance_${Date.now()}`,
-        label: environment === "mista" ? "Bloco resistido integrado" : "Treino resistido",
+        id: `daily_resistance_${environment}`,
+        label:
+          environment === "mista"
+            ? `Bloco resistido integrado · ${formatResistanceTrainingContextLabel(trainingContext)}`
+            : `Treino resistido · ${formatResistanceTrainingContextLabel(trainingContext)}`,
         primaryGoal: "forca_base",
         transferTarget:
           environment === "mista"
-            ? "transferência para ações de quadra"
-            : "estabilidade, impulsão e controle corporal",
+            ? isVolleyball
+              ? "transferência para ações de quadra"
+              : "transferência prática para a sessão"
+            : isVolleyball
+              ? "estabilidade, impulsão e controle corporal"
+              : "estabilidade, força e controle corporal",
+        trainingContext,
+        sportContext,
+        contextSource: contextDecision.source,
+        contextConfidence: contextDecision.confidence,
+        contextReason: contextDecision.reason,
         estimatedDurationMin: durationMin,
         exercises,
       },
+      trainingContext,
+      sportContext,
+      contextSource: contextDecision.source,
+      contextConfidence: contextDecision.confidence,
+      contextReason: contextDecision.reason,
     },
   ];
 };
@@ -183,6 +211,7 @@ export function useDailyLessonPlan(
       blocks: LessonBlock[];
       observations: string;
       sessionEnvironment: SessionEnvironment;
+      trainingContextDecision?: ResistanceTrainingContextDecision;
     }) => {
       if (!weeklyPlan || !session) return null;
 
@@ -200,6 +229,15 @@ export function useDailyLessonPlan(
           recentPlans,
         });
 
+      const trainingContextDecision =
+        payload.trainingContextDecision ??
+        resolveTrainingContextFromPlanningContext({
+          classGroup: options?.classGroup,
+          sessionEnvironment: payload.sessionEnvironment,
+          sessionPrimaryComponent: resolveSessionPrimaryComponent(
+            payload.sessionEnvironment
+          ),
+        });
       const durationForTemplate =
         payload.blocks.reduce((sum, block) => sum + Number(block.durationMinutes ?? 0), 0) ||
         options?.durationMinutes ||
@@ -207,7 +245,11 @@ export function useDailyLessonPlan(
       const environmentAlignedBlocks = ensureLessonBlocksMatchSessionEnvironment(
         payload.blocks,
         payload.sessionEnvironment,
-        durationForTemplate
+        durationForTemplate,
+        {
+          trainingContext: trainingContextDecision.trainingContext,
+          sportContext: trainingContextDecision.sportContext,
+        }
       );
       const legacySections = deriveLegacyDailySections(environmentAlignedBlocks);
       const manualMask = {
@@ -218,6 +260,16 @@ export function useDailyLessonPlan(
         observations: payload.observations.trim() !== (base.observations ?? "").trim(),
         sessionEnvironment:
           payload.sessionEnvironment !== (base.sessionEnvironment ?? "quadra"),
+        sessionComponents:
+          payload.sessionEnvironment !== "quadra" &&
+          JSON.stringify(base.sessionComponents ?? []) !==
+            JSON.stringify(
+              buildSessionComponentsFromBlocks(
+                environmentAlignedBlocks,
+                payload.sessionEnvironment,
+                trainingContextDecision
+              )
+            ),
       };
       const manualOverrideFields = (Object.keys(manualMask) as (keyof typeof manualMask)[]).filter(
         (key) => manualMask[key]
@@ -237,7 +289,11 @@ export function useDailyLessonPlan(
         sessionComponents:
           payload.sessionEnvironment === "quadra"
             ? []
-            : buildSessionComponentsFromBlocks(environmentAlignedBlocks, payload.sessionEnvironment),
+            : buildSessionComponentsFromBlocks(
+              environmentAlignedBlocks,
+              payload.sessionEnvironment,
+              trainingContextDecision
+              ),
         syncStatus: hasManualOverrides ? "overridden" : "in_sync",
         manualOverridesJson: JSON.stringify(manualMask),
         manualOverrideMaskJson: JSON.stringify(manualOverrideFields),

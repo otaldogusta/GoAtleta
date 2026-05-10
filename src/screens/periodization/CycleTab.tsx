@@ -6,6 +6,7 @@ import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
 import { type ThemeColors } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
+import type { VisibleMonthWeekSlot } from "./month-segments";
 import { CyclePlanTable, type CyclePlanTableProps, type WeekPlan } from "./CyclePlanTable";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
@@ -89,8 +90,10 @@ export type CycleTabProps = {
   cyclePanelTitle: string;
   hasWeekPlans: boolean;
   weekPlans: WeekPlan[];
+  visibleWeekSlots: VisibleMonthWeekSlot[];
   currentWeek: number;
   selectedWeekNumber: number;
+  selectedWeekSlotKey?: string | null;
   monthWeekNumbers: number[];
   monthSegments: Array<{ label: string; length: number }>;
   macroSegments: Array<{ label: string; length: number }>;
@@ -100,7 +103,8 @@ export type CycleTabProps = {
   periodizationModel: CyclePlanTableProps["periodizationModel"];
   sportProfile: CyclePlanTableProps["sportProfile"];
   onSelectedWeekChange: (week: number) => void;
-  openWeekEditor: (week: number) => void;
+  onSelectedWeekSlotChange?: (slotKey: string, week: number) => void;
+  openWeekEditor: CyclePlanTableProps["openWeekEditor"];
 
   // Carga semanal section
   sectionOpen: SectionOpenState;
@@ -148,8 +152,10 @@ export function CycleTab({
   cyclePanelTitle,
   hasWeekPlans,
   weekPlans,
+  visibleWeekSlots,
   currentWeek,
   selectedWeekNumber,
+  selectedWeekSlotKey,
   monthWeekNumbers,
   monthSegments,
   macroSegments,
@@ -159,6 +165,7 @@ export function CycleTab({
   periodizationModel,
   sportProfile,
   onSelectedWeekChange,
+  onSelectedWeekSlotChange,
   openWeekEditor,
   sectionOpen,
   toggleSection,
@@ -201,8 +208,10 @@ export function CycleTab({
         cyclePanelTitle={cyclePanelTitle}
         hasWeekPlans={hasWeekPlans}
         weekPlans={weekPlans}
+        visibleWeekSlots={visibleWeekSlots}
         currentWeek={currentWeek}
         selectedWeekNumber={selectedWeekNumber}
+        selectedWeekSlotKey={selectedWeekSlotKey}
         monthWeekNumbers={monthWeekNumbers}
         monthSegments={monthSegments}
         macroSegments={macroSegments}
@@ -211,7 +220,9 @@ export function CycleTab({
         weeklySessions={weeklySessions}
         periodizationModel={periodizationModel}
         sportProfile={sportProfile}
+        rawAgeBand={selectedClass?.ageBand}
         onSelectedWeekChange={onSelectedWeekChange}
+        onSelectedWeekSlotChange={onSelectedWeekSlotChange}
         openWeekEditor={openWeekEditor}
       />
 

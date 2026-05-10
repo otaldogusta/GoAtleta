@@ -1,17 +1,21 @@
 import type { ClassGroup } from "../../models";
 import {
     deriveIntegratedTrainingModel,
+    formatResistanceTrainingContextLabel,
     hasGymAccess,
+    resolveResistanceTrainingContext,
     resolveResistanceEligibilityMode,
+    resolveTrainingContextFromPlanningContext,
     resolveTeamTrainingContext,
     supportsResistanceTraining,
 } from "../training-context";
 
 const makeClass = (
   equipment: ClassGroup["equipment"],
-  overrides: Partial<Pick<ClassGroup, "integratedTrainingModel" | "resistanceTrainingProfile">> = {}
-): Pick<ClassGroup, "equipment" | "integratedTrainingModel" | "resistanceTrainingProfile"> => ({
+  overrides: Partial<Pick<ClassGroup, "integratedTrainingModel" | "resistanceTrainingProfile" | "modality">> = {}
+): Pick<ClassGroup, "equipment" | "integratedTrainingModel" | "resistanceTrainingProfile" | "modality"> => ({
   equipment,
+  modality: "voleibol",
   ...overrides,
 });
 
@@ -43,6 +47,8 @@ describe("resolveTeamTrainingContext", () => {
     expect(ctx.hasGymAccess).toBe(true);
     expect(ctx.integratedTrainingModel).toBe("academia_complementar");
     expect(ctx.resistanceTrainingProfile).toBe("iniciante");
+    expect(ctx.trainingContext).toBe("volleyball");
+    expect(ctx.sportContext).toBe("volleyball");
   });
 
   it("respects explicit integratedTrainingModel override", () => {
@@ -63,6 +69,78 @@ describe("resolveTeamTrainingContext", () => {
     const ctx = resolveTeamTrainingContext(makeClass("quadra"));
     expect(ctx.hasGymAccess).toBe(false);
     expect(ctx.integratedTrainingModel).toBe("quadra_apenas");
+  });
+
+  it("maps fitness classes to a universal general-fitness context", () => {
+    const ctx = resolveTeamTrainingContext(makeClass("academia", { modality: "fitness" }));
+
+    expect(ctx.trainingContext).toBe("general_fitness");
+    expect(ctx.sportContext).toBeUndefined();
+  });
+});
+
+describe("resolveResistanceTrainingContext", () => {
+  it("keeps volleyball as volleyball", () => {
+    expect(resolveResistanceTrainingContext("voleibol")).toBe("volleyball");
+  });
+
+  it("maps fitness to general_fitness", () => {
+    expect(resolveResistanceTrainingContext("fitness")).toBe("general_fitness");
+  });
+
+  it("maps football and futsal to soccer", () => {
+    expect(resolveResistanceTrainingContext("futebol")).toBe("soccer");
+    expect(resolveResistanceTrainingContext("futsal")).toBe("soccer");
+  });
+});
+
+describe("resolveTrainingContextFromPlanningContext", () => {
+  it("uses manual override ahead of modality", () => {
+    const decision = resolveTrainingContextFromPlanningContext({
+      classGroup: { modality: "voleibol", goal: "base" },
+      sessionEnvironment: "academia",
+      sessionPrimaryComponent: "resistido",
+      overrideTrainingContext: "hypertrophy",
+    });
+
+    expect(decision.trainingContext).toBe("hypertrophy");
+    expect(decision.source).toBe("manual_override");
+    expect(decision.confidence).toBe("high");
+  });
+
+  it("keeps volleyball for resisted volleyball sessions with explicit environment", () => {
+    const decision = resolveTrainingContextFromPlanningContext({
+      classGroup: { modality: "voleibol", goal: "base" },
+      sessionEnvironment: "academia",
+      sessionPrimaryComponent: "resistido",
+    });
+
+    expect(decision.trainingContext).toBe("volleyball");
+    expect(decision.sportContext).toBe("volleyball");
+    expect(decision.source).toBe("class_modality");
+  });
+
+  it("falls back to general fitness for generic resisted sessions", () => {
+    const decision = resolveTrainingContextFromPlanningContext({
+      classGroup: { modality: undefined, goal: "saúde" },
+      sessionEnvironment: "academia",
+      sessionPrimaryComponent: "resistido",
+    });
+
+    expect(decision.trainingContext).toBe("general_fitness");
+    expect(decision.sportContext).toBeUndefined();
+    expect(decision.source).toBe("fallback");
+  });
+});
+
+describe("formatResistanceTrainingContextLabel", () => {
+  it("renders user-facing label in Portuguese", () => {
+    expect(formatResistanceTrainingContextLabel("general_fitness")).toBe(
+      "Condicionamento geral"
+    );
+    expect(formatResistanceTrainingContextLabel("volleyball")).toBe("Vôlei");
+    expect(formatResistanceTrainingContextLabel("strength")).toBe("Força");
+    expect(formatResistanceTrainingContextLabel("other_sport")).toBe("Outro esporte");
   });
 });
 

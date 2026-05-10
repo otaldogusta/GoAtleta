@@ -20,11 +20,34 @@ export type ResistanceTrainingProfile =
   | "intermediario"
   | "avancado";
 
+/** High-level context that defines how universal resistance rules are adapted. */
+export type ResistanceTrainingContext =
+  | "general_fitness"
+  | "health"
+  | "strength"
+  | "hypertrophy"
+  | "weight_loss"
+  | "rehabilitation_light"
+  | "school"
+  | "volleyball"
+  | "soccer"
+  | "running"
+  | "basketball"
+  | "other_sport";
+
+export type ResistanceSportContext =
+  | "volleyball"
+  | "soccer"
+  | "running"
+  | "basketball";
+
 /** Encapsulates the training context of a class group (derived + explicit). */
 export type TeamTrainingContext = {
   hasGymAccess: boolean;
   integratedTrainingModel: IntegratedTrainingModel;
   resistanceTrainingProfile: ResistanceTrainingProfile;
+  trainingContext: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
 };
 
 // ─── Session Environment ──────────────────────────────────────────────────────
@@ -635,6 +658,11 @@ export type WeeklyOperationalDecision = {
   closingType: WeeklyOperationalClosingType;
   sessionEnvironment?: SessionEnvironment;
   sessionPrimaryComponent?: SessionPrimaryComponent;
+  trainingContext?: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
+  contextSource?: ResistanceTrainingContextSource;
+  contextConfidence?: ResistanceTrainingContextConfidence;
+  contextReason?: string;
 };
 
 export type WeeklyOperationalStrategySnapshot = {
@@ -788,6 +816,22 @@ export type ResistanceTrainingGoal =
   | "prevencao_lesao"
   | "ativacao_funcional";
 
+export type ResistanceTrainingContextSource =
+  | "manual_override"
+  | "weekly_strategy"
+  | "class_modality"
+  | "fallback";
+
+export type ResistanceTrainingContextConfidence = "high" | "medium" | "low";
+
+export type ResistanceTrainingContextDecision = {
+  trainingContext: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
+  source: ResistanceTrainingContextSource;
+  confidence: ResistanceTrainingContextConfidence;
+  reason: string;
+};
+
 export type ResistanceExercisePrescription = {
   name: string;
   category: ResistanceExerciseCategory;
@@ -796,14 +840,19 @@ export type ResistanceExercisePrescription = {
   rest: string;         // e.g. "90s", "2min"
   cadence?: string;     // e.g. "2-0-2"
   notes?: string;
-  transferTarget?: string;  // volleyball-specific carry-over
+  transferTarget?: string;
 };
 
 export type ResistanceTrainingPlan = {
   id: string;
   label: string;
   primaryGoal: ResistanceTrainingGoal;
-  transferTarget: string;       // e.g. "salto de ataque e bloqueio"
+  transferTarget: string;
+  trainingContext?: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
+  contextSource?: ResistanceTrainingContextSource;
+  contextConfidence?: ResistanceTrainingContextConfidence;
+  contextReason?: string;
   estimatedDurationMin: number;
   exercises: ResistanceExercisePrescription[];
 };
@@ -819,6 +868,11 @@ export type SessionComponentAcademiaResistido = {
   type: "academia_resistido";
   resistancePlan: ResistanceTrainingPlan;
   durationMin: number;
+  trainingContext?: ResistanceTrainingContext;
+  sportContext?: ResistanceSportContext;
+  contextSource?: ResistanceTrainingContextSource;
+  contextConfidence?: ResistanceTrainingContextConfidence;
+  contextReason?: string;
 };
 
 export type SessionComponentPreventivo = {

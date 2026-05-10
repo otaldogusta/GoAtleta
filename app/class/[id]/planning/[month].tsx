@@ -15,6 +15,7 @@ import {
     upsertDailyLessonPlan,
 } from "../../../../src/db/seed";
 import { exportPdf, safeFileName } from "../../../../src/pdf/export-pdf";
+import { enrichSessionPlanWithMedia } from "../../../../src/pdf/enrich-session-plan-with-media";
 import { SessionPlanDocument } from "../../../../src/pdf/session-plan-document";
 import { sessionPlanHtml } from "../../../../src/pdf/templates/session-plan";
 import type { WeekSessionPreview } from "../../../../src/screens/periodization/application/build-week-session-preview";
@@ -441,8 +442,9 @@ export default function ClassPlanningMonthRoute() {
       })),
     };
 
-    const html = sessionPlanHtml(pdfData);
-    const webDocument = Platform.OS === "web" ? <SessionPlanDocument data={pdfData} /> : undefined;
+    const enrichedData = await enrichSessionPlanWithMedia(pdfData).catch(() => pdfData);
+    const html = sessionPlanHtml(enrichedData);
+    const webDocument = Platform.OS === "web" ? <SessionPlanDocument data={enrichedData} /> : undefined;
     const safeClass = safeFileName(selectedClass.name);
     const safeDate = safeFileName(selectedDailyPlan.date);
     const fileName = `plano-aula-dia-${safeClass}-${safeDate}.pdf`;
@@ -725,6 +727,7 @@ export default function ClassPlanningMonthRoute() {
       <DayLessonPlanModal
         visible={Boolean(selectedWeekPlan && selectedSession)}
         initialPlan={selectedDailyPlan}
+        classGroup={selectedClass}
         dayLabel={selectedSession ? `${selectedSession.weekdayLabel} ${selectedSession.dateLabel}` : "Plano diário"}
         onClose={() => {
           setSelectedWeekPlan(null);

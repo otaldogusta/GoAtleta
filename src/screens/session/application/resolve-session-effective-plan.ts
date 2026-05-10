@@ -32,6 +32,8 @@ export type SessionEffectivePlanResult = {
   conflict: SessionPlanConflict | null;
 };
 
+export const CLEARED_DAILY_LESSON_PLAN_MODEL_VERSION = "manual-plan-cleared";
+
 const normalizeEnvironment = (value: string | null | undefined): SessionEnvironment | null => {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized === "quadra" || normalized === "academia" || normalized === "mista" || normalized === "preventiva") {
@@ -85,6 +87,17 @@ export async function resolveSessionEffectivePlan(input: {
   } = input;
 
   if (currentDailyLessonPlan) {
+    if (
+      currentDailyLessonPlan.generationModelVersion ===
+      CLEARED_DAILY_LESSON_PLAN_MODEL_VERSION
+    ) {
+      return {
+        plan: null,
+        source: "none",
+        conflict: null,
+      };
+    }
+
     const dailyEnvironment = normalizeEnvironment(currentDailyLessonPlan.sessionEnvironment) ?? "quadra";
     const trainingEnvironment = inferTrainingPlanEnvironment(currentTrainingPlan);
     const dailyUpdatedAt = toTimestamp(
