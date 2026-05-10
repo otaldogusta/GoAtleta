@@ -4,12 +4,21 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  DecisionEmptyState,
+  DecisionMainLayout,
+  DecisionPageHeader,
+  DecisionReasonCard,
+  DecisionSignalPanel,
+  DecisionSummaryCards,
+} from "../../../src/components/decision";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import type { ClassGroup, ScoutingLog, Student, StudentScoutingLog } from "../../../src/core/models";
 import { getCachedClassById, getClassById } from "../../../src/db/classes";
 import { getStudentScoutingByRange, listScoutingLogsByClass } from "../../../src/db/session";
 import { getStudentsByClass } from "../../../src/db/students";
 import type { ScoutingSession } from "../../../src/core/scouting-session";
+import { NewScoutingSessionPanel } from "../../../src/screens/scouting/components/NewScoutingSessionPanel";
 import { listScoutingSessionsByClass } from "../../../src/screens/scouting/scouting-session-actions";
 import {
   buildScoutingHistory,
@@ -46,7 +55,13 @@ const summarizeLatestScouting = (log: { mode: "treino" | "jogo"; date: string } 
 const modeToLabel = (value: string) => (value === "pre_match" ? "Pré-jogo" : value === "post_match" ? "Pós-jogo" : value === "recovery" ? "Recuperação" : value === "evaluation" ? "Avaliação" : "Normal");
 
 export default function ClassScoutingRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, openNew, date: dateParam, type: typeParam, source: sourceParam } = useLocalSearchParams<{
+    id: string;
+    openNew?: string;
+    date?: string;
+    type?: string;
+    source?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -62,6 +77,7 @@ export default function ClassScoutingRoute() {
   const [studentLogs, setStudentLogs] = useState<StudentScoutingLog[]>([]);
   const [summary, setSummary] = useState<Awaited<ReturnType<typeof buildTeamPlanningContextSummary>> | null>(null);
   const [hasRedirected, setHasRedirected] = useState(false);
+  const [showNewPanel, setShowNewPanel] = useState(openNew === "1");
 
   useEffect(() => {
     let alive = true;
@@ -107,6 +123,10 @@ export default function ClassScoutingRoute() {
       alive = false;
     };
   }, [classId]);
+
+  useEffect(() => {
+    setShowNewPanel(openNew === "1");
+  }, [openNew]);
 
   const latestScouting = scoutingSessions[0]
     ? {
@@ -184,13 +204,13 @@ export default function ClassScoutingRoute() {
   };
 
   useEffect(() => {
-    if (isLoading || error || !activeScoutingSession || hasRedirected) return;
+    if (isLoading || error || !activeScoutingSession || hasRedirected || showNewPanel) return;
     setHasRedirected(true);
     router.replace({
       pathname: "/class/[id]/scouting/[scoutingSessionId]",
       params: { id: classId, scoutingSessionId: activeScoutingSession.id },
     });
-  }, [activeScoutingSession, classId, error, hasRedirected, isLoading, router]);
+  }, [activeScoutingSession, classId, error, hasRedirected, isLoading, router, showNewPanel]);
 
   if (isLoading) {
     return (
@@ -200,7 +220,7 @@ export default function ClassScoutingRoute() {
     );
   }
 
-  if (activeScoutingSession && !hasRedirected) {
+  if (activeScoutingSession && !hasRedirected && !showNewPanel) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <ScreenLoadingState />
@@ -210,6 +230,23 @@ export default function ClassScoutingRoute() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <NewScoutingSessionPanel
+        visible={showNewPanel}
+        classId={classId}
+        initialDate={typeof dateParam === "string" ? dateParam : undefined}
+        initialSource={
+          sourceParam === "session" || sourceParam === "event" ? sourceParam : "manual"
+        }
+        initialType={typeParam === "game" ? "jogo" : typeParam === "friendly" ? "amistoso" : "treino"}
+        onClose={() => {
+          setShowNewPanel(false);
+          router.replace({ pathname: "/class/[id]/scouting", params: { id: classId } });
+        }}
+        onCreated={(route) => {
+          setShowNewPanel(false);
+          router.replace(route);
+        }}
+      />
       <ScrollView
         contentContainerStyle={{
           gap: 18,
@@ -221,61 +258,38 @@ export default function ClassScoutingRoute() {
           alignSelf: "center",
         }}
       >
-        <View
-          style={{
-            flexDirection: isDesktop ? "row" : "column",
-            alignItems: isDesktop ? "flex-start" : "stretch",
-            justifyContent: "space-between",
-            gap: 14,
-          }}
-        >
-          <View style={{ flex: 1, gap: 6 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <Pressable
-                onPress={handleBack}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="chevron-back" size={22} color={colors.text} />
-              </Pressable>
-              <Text style={{ color: colors.text, fontSize: isDesktop ? 30 : 26, fontWeight: "800" }}>
-                Scouting
-              </Text>
-            </View>
-            <Text style={{ color: colors.muted, fontSize: 14, marginLeft: 42 }}>
-              Análise técnica, jogo e evolução da equipe.
-            </Text>
-          </View>
-
-          <View style={{ alignItems: isDesktop ? "flex-end" : "flex-start", gap: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                {cls?.name ?? "Turma"}
-              </Text>
-              <ClassGenderBadge gender={cls?.gender ?? "misto"} size="md" />
-            </View>
-            <LocationBadge location={cls?.unit ?? "Unidade"} palette={classPalette} size="sm" showIcon />
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/class/[id]/scouting/new",
-                  params: { id: classId },
-                })
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+          <Pressable
+            onPress={handleBack}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 2,
+            }}
+          >
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <DecisionPageHeader
+              title="Scouting"
+              subtitle="Análise técnica, jogo e evolução da equipe."
+              actionLabel="+ Novo scouting"
+              onAction={() => setShowNewPanel(true)}
+              classMeta={
+                <>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                      {cls?.name ?? "Turma"}
+                    </Text>
+                    <ClassGenderBadge gender={cls?.gender ?? "misto"} size="md" />
+                  </View>
+                  <LocationBadge location={cls?.unit ?? "Unidade"} palette={classPalette} size="sm" showIcon />
+                </>
               }
-              style={{
-                paddingVertical: 10,
-                paddingHorizontal: 14,
-                borderRadius: 12,
-                backgroundColor: colors.text,
-              }}
-            >
-              <Text style={{ color: colors.background, fontWeight: "800" }}>+ Novo scouting</Text>
-            </Pressable>
+            />
           </View>
         </View>
 
@@ -286,39 +300,40 @@ export default function ClassScoutingRoute() {
           </View>
         ) : null}
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-          <TopInfoCard colors={colors} label="Última análise" value={summarizeLatestScouting(latestScouting)} />
-          <TopInfoCard
-            colors={colors}
-            label="Próximo contexto"
-            value={summary?.events?.[0] ? `${summary.events[0].title} · ${formatDate(summary.events[0].date)}` : "Sem evento próximo"}
-          />
-          <TopInfoCard
-            colors={colors}
-            label="Modo atual"
-            value={summary ? modeToLabel(summary.context.planningMode) : "Normal"}
-          />
-        </View>
+        <DecisionSummaryCards
+          items={[
+            {
+              label: "Última análise",
+              value: summarizeLatestScouting(latestScouting),
+            },
+            {
+              label: "Próximo contexto",
+              value: summary?.events?.[0]
+                ? `${summary.events[0].title} · ${formatDate(summary.events[0].date)}`
+                : "Sem evento próximo",
+            },
+            {
+              label: "Modo atual",
+              value: summary ? modeToLabel(summary.context.planningMode) : "Normal",
+            },
+          ]}
+        />
 
-        <View
-          style={{
-            flexDirection: isDesktop ? "row" : "column",
-            alignItems: "flex-start",
-            gap: 16,
-          }}
-        >
-          <View style={{ flex: isDesktop ? 1.8 : undefined, width: "100%", gap: 16 }}>
+        <DecisionMainLayout
+          main={
             <View style={getSectionCardStyle(colors, "neutral", { radius: 18 })}>
-              <SectionTitle
-                title="Últimos scoutings"
-                subtitle="Abra uma análise recente ou inicie um novo scouting de treino, amistoso ou jogo."
-                colors={colors}
-              />
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>Últimos scoutings</Text>
+                <Text style={{ color: colors.muted }}>
+                  Abra uma análise recente ou inicie um novo scouting de treino, amistoso ou jogo.
+                </Text>
+              </View>
               {!historyItems.length && !scoutingSessions.length ? (
-                <EmptyCard
-                  colors={colors}
-                  title="Nenhum scouting registrado"
-                  body="Crie uma análise para começar o histórico técnico da turma."
+                <DecisionEmptyState
+                  title="Iniciar primeiro scouting"
+                  description="Crie uma análise e entre direto no registro rápido da turma."
+                  actionLabel="Iniciar análise"
+                  onAction={() => setShowNewPanel(true)}
                 />
               ) : (
                 <>
@@ -336,11 +351,19 @@ export default function ClassScoutingRoute() {
                         { gap: 8 },
                       ]}
                     >
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                        }}
+                      >
                         <View style={{ gap: 4, flex: 1 }}>
                           <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>{item.title}</Text>
                           <Text style={{ color: colors.muted }}>
-                            {item.type === "training" ? "Treino" : item.type === "friendly" ? "Amistoso" : "Jogo"} · {formatDate(item.date)}
+                            {item.type === "training" ? "Treino" : item.type === "friendly" ? "Amistoso" : "Jogo"} ·{" "}
+                            {formatDate(item.date)}
                           </Text>
                         </View>
                         <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
@@ -371,7 +394,14 @@ export default function ClassScoutingRoute() {
                       key={item.id}
                       style={[getSectionCardStyle(colors, "neutral", { radius: 16, shadow: false }), { gap: 8 }]}
                     >
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                        }}
+                      >
                         <View style={{ gap: 4, flex: 1 }}>
                           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>{item.title}</Text>
                           <Text style={{ color: colors.muted }}>
@@ -393,177 +423,40 @@ export default function ClassScoutingRoute() {
                 </>
               )}
             </View>
-          </View>
+          }
+          side={
+            <>
+              <DecisionSignalPanel
+                title="Alertas da equipe"
+                subtitle="Sinais rápidos para leitura técnica."
+                items={alerts.map((alert) => ({ label: alert }))}
+                emptyTitle="Sem alertas críticos"
+                emptyDescription="Assim que houver volume suficiente de análise, os sinais técnicos aparecem aqui."
+              />
 
-          <View style={{ flex: isDesktop ? 0.95 : undefined, width: "100%", gap: 16 }}>
-            <SummaryPanel
-              title="Alertas da equipe"
-              subtitle="Sinais rápidos para leitura técnica."
-              colors={colors}
-              items={alerts.map((alert) => ({ title: alert }))}
-              emptyTitle="Sem alertas críticos"
-              emptyBody="Assim que houver volume suficiente de análise, os sinais técnicos aparecem aqui."
-              tone="warning"
-            />
+              <DecisionReasonCard title="Prioridades da semana" items={priorities} />
 
-            <SummaryPanel
-              title="Prioridades da semana"
-              subtitle="O que deve puxar a próxima decisão de treino."
-              colors={colors}
-              items={priorities.map((item) => ({ title: item.label, subtitle: `Origem: ${item.source}` }))}
-              emptyTitle="Sem prioridades resolvidas"
-              emptyBody="Eventos, intervenções e scouting recente vão aparecer aqui como prioridade semanal."
-              tone="primary"
-              chipMode
-            />
-
-            <View style={[getSectionCardStyle(colors, "neutral", { radius: 18 }), { gap: 12 }]}>
-              <SectionTitle
+              <DecisionSignalPanel
                 title="Evolução individual"
                 subtitle="Quem evoluiu e quem precisa de atenção no momento."
-                colors={colors}
+                items={[
+                  ...evolution.rising.map((item) => ({
+                    label: `${item.studentName} em destaque`,
+                    detail: `Score ${item.overallScore.toFixed(1)} · prioridade ${item.priorityLabel}`,
+                  })),
+                  ...evolution.attention.slice(0, 2).map((item) => ({
+                    label: `${item.studentName} precisa atenção`,
+                    detail: `Score ${item.overallScore.toFixed(1)} · prioridade ${item.priorityLabel}`,
+                  })),
+                ].slice(0, 5)}
+                emptyTitle="Sem leitura individual ainda"
+                emptyDescription="Quando houver lançamentos por atleta, esta área mostra evolução e atenção individual."
               />
-              {!individualSummary.length ? (
-                <EmptyCard
-                  colors={colors}
-                  title="Sem leitura individual ainda"
-                  body="Quando houver lançamentos por atleta, esta área mostra evolução e atenção individual."
-                />
-              ) : (
-                <>
-                  <EvolutionColumn
-                    title="Em destaque"
-                    items={evolution.rising}
-                    colors={colors}
-                    emptyLabel="Sem atletas em destaque ainda."
-                  />
-                  <EvolutionColumn
-                    title="Precisam atenção"
-                    items={evolution.attention}
-                    colors={colors}
-                    emptyLabel="Sem alertas individuais ainda."
-                  />
-                </>
-              )}
-            </View>
-          </View>
-        </View>
+            </>
+          }
+        />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function SectionTitle({
-  title,
-  subtitle,
-  colors,
-}: {
-  title: string;
-  subtitle: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  return (
-    <View style={{ gap: 4 }}>
-      <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>{title}</Text>
-      <Text style={{ color: colors.muted }}>{subtitle}</Text>
-    </View>
-  );
-}
-
-function TopInfoCard({
-  label,
-  value,
-  colors,
-}: {
-  label: string;
-  value: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  return (
-    <View
-      style={[
-        getSectionCardStyle(colors, "neutral", { radius: 16, shadow: false }),
-        { flexGrow: 1, flexBasis: 220 },
-      ]}
-    >
-      <Text style={{ color: colors.muted, fontWeight: "700" }}>{label}</Text>
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17 }}>{value}</Text>
-    </View>
-  );
-}
-
-function SummaryPanel({
-  title,
-  subtitle,
-  items,
-  colors,
-  emptyTitle,
-  emptyBody,
-  tone,
-  chipMode = false,
-}: {
-  title: string;
-  subtitle: string;
-  items: { title: string; subtitle?: string }[];
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  emptyTitle: string;
-  emptyBody: string;
-  tone: "primary" | "warning";
-  chipMode?: boolean;
-}) {
-  return (
-    <View style={[getSectionCardStyle(colors, "neutral", { radius: 18 }), { gap: 12 }]}>
-      <SectionTitle title={title} subtitle={subtitle} colors={colors} />
-      {!items.length ? (
-        <>
-          <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{emptyTitle}</Text>
-          <Text style={{ color: colors.muted }}>{emptyBody}</Text>
-        </>
-      ) : chipMode ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {items.map((item) => (
-            <View
-              key={item.title}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{item.title}</Text>
-              {item.subtitle ? <Text style={{ color: colors.muted, fontSize: 12 }}>{item.subtitle}</Text> : null}
-            </View>
-          ))}
-        </View>
-      ) : (
-        items.map((item) => (
-          <View key={item.title} style={{ gap: 2 }}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>{item.title}</Text>
-            {item.subtitle ? <Text style={{ color: colors.muted, fontSize: 12 }}>{item.subtitle}</Text> : null}
-          </View>
-        ))
-      )}
-    </View>
-  );
-}
-
-function EmptyCard({
-  title,
-  body,
-  colors,
-}: {
-  title: string;
-  body: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  return (
-    <View style={getSectionCardStyle(colors, "neutral", { radius: 16, shadow: false })}>
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{title}</Text>
-      <Text style={{ color: colors.muted }}>{body}</Text>
-    </View>
   );
 }
 
@@ -588,36 +481,6 @@ function Badge({
       <Text style={{ color: tone === "ok" ? colors.successText : colors.text, fontWeight: "700", fontSize: 12 }}>
         {label}
       </Text>
-    </View>
-  );
-}
-
-function EvolutionColumn({
-  title,
-  items,
-  colors,
-  emptyLabel,
-}: {
-  title: string;
-  items: ReturnType<typeof buildStudentScoutingSummary>;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  emptyLabel: string;
-}) {
-  return (
-    <View style={[getSectionCardStyle(colors, "neutral", { radius: 16, shadow: false }), { flex: 1, gap: 10 }]}>
-      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>{title}</Text>
-      {!items.length ? (
-        <Text style={{ color: colors.muted }}>{emptyLabel}</Text>
-      ) : (
-        items.map((item) => (
-          <View key={item.studentId} style={{ gap: 2 }}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>{item.studentName}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Score {item.overallScore.toFixed(1)} · prioridade {item.priorityLabel}
-            </Text>
-          </View>
-        ))
-      )}
     </View>
   );
 }

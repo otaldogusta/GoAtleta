@@ -1,21 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DecisionMainLayout } from "../../../../src/components/decision";
 import type { ClassGroup } from "../../../../src/core/models";
 import type { ScoutingSession } from "../../../../src/core/scouting-session";
 import {
   getDominantStrengths,
   getDominantWeaknesses,
   summarizeScoutingActions,
-  summarizeScoutingActionsByAthlete,
-  summarizeScoutingActionsBySkill,
   type ScoutingAction,
 } from "../../../../src/core/scouting-action";
 import { getCachedClassById, getClassById } from "../../../../src/db/classes";
 import { getStudentsByClass } from "../../../../src/db/students";
+import { ScoutingQuickRegister } from "../../../../src/screens/scouting/components/ScoutingQuickRegister";
+import { ScoutingRecentActions } from "../../../../src/screens/scouting/components/ScoutingRecentActions";
+import { ScoutingSessionContextBar } from "../../../../src/screens/scouting/components/ScoutingSessionContextBar";
+import { ScoutingSideSummary } from "../../../../src/screens/scouting/components/ScoutingSideSummary";
 import { getScoutingSession } from "../../../../src/screens/scouting/scouting-session-actions";
 import {
   createScoutingActionForSession,
@@ -23,8 +26,6 @@ import {
   listScoutingActionsBySession,
 } from "../../../../src/screens/scouting/scouting-action-actions";
 import {
-  formatScoutingActionTypeLabel,
-  formatScoutingSkillLabel,
   getDefaultQualityOptionForSkill,
   getScoutingQualityOptionsForSkill,
   resolveScoutingQualityOption,
@@ -32,17 +33,17 @@ import {
 import { buildLegacyScoutingRoute } from "../../../../src/screens/scouting/scouting-session-navigation";
 import { ScreenLoadingState } from "../../../../src/components/ui/ScreenLoadingState";
 import { useAppTheme } from "../../../../src/ui/app-theme";
-import { Button } from "../../../../src/ui/Button";
 import { getClassPalette } from "../../../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../../../src/ui/ClassGenderBadge";
 import { LocationBadge } from "../../../../src/ui/LocationBadge";
 import { Pressable } from "../../../../src/ui/Pressable";
 import { getSectionCardStyle } from "../../../../src/ui/section-styles";
 
+import { Button } from "../../../../src/ui/Button";
+import type { ScoutingActionGamePhase, ScoutingActionSkill } from "../../../../src/core/scouting-action";
+
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
-    new Date(`${value}T12:00:00`)
-  );
+  new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${value}T12:00:00`));
 
 const typeLabelMap: Record<ScoutingSession["type"], string> = {
   training: "Treino",
@@ -72,9 +73,9 @@ export default function ScoutingSessionRoute() {
   const [actions, setActions] = useState<ScoutingAction[]>([]);
   const [quickAthletes, setQuickAthletes] = useState<string[]>([]);
   const [athleteName, setAthleteName] = useState("");
-  const [skill, setSkill] = useState("receive");
+  const [skill, setSkill] = useState<ScoutingActionSkill>("receive");
   const [qualityOptionId, setQualityOptionId] = useState(getDefaultQualityOptionForSkill("receive").id);
-  const [gamePhase, setGamePhase] = useState<"serve" | "sideout" | "transition" | "freeball" | "out_of_system">("sideout");
+  const [gamePhase, setGamePhase] = useState<ScoutingActionGamePhase>("sideout");
   const [notes, setNotes] = useState("");
   const [isSavingAction, setIsSavingAction] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -111,18 +112,15 @@ export default function ScoutingSessionRoute() {
     [classId, session]
   );
   const actionsSummary = useMemo(() => summarizeScoutingActions(actions), [actions]);
-  const byAthlete = useMemo(() => summarizeScoutingActionsByAthlete(actions), [actions]);
-  const bySkill = useMemo(() => summarizeScoutingActionsBySkill(actions), [actions]);
-  const qualityOptions = useMemo(() => getScoutingQualityOptionsForSkill(skill), [skill]);
   const topAthletes = useMemo(() => {
     const names = Array.from(
       new Set([
         ...quickAthletes,
-        ...byAthlete.map((item) => item.athleteName).filter((name) => name !== "Equipe"),
+        ...actions.map((item) => item.athleteName).filter((name): name is string => Boolean(name) && name !== "Equipe"),
       ])
     );
     return names.slice(0, 5);
-  }, [byAthlete, quickAthletes]);
+  }, [actions, quickAthletes]);
 
   useEffect(() => {
     const nextOptions = getScoutingQualityOptionsForSkill(skill);
@@ -217,9 +215,9 @@ export default function ScoutingSessionRoute() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentContainerStyle={{
-          gap: 18,
+          gap: 14,
           paddingHorizontal: isDesktop ? 24 : 16,
-          paddingTop: 16,
+          paddingTop: 12,
           paddingBottom: Math.max(insets.bottom + 40, 56),
           width: "100%",
           maxWidth: 980,
@@ -231,10 +229,10 @@ export default function ScoutingSessionRoute() {
             flexDirection: isDesktop ? "row" : "column",
             justifyContent: "space-between",
             alignItems: isDesktop ? "flex-start" : "stretch",
-            gap: 12,
+            gap: 10,
           }}
         >
-          <View style={{ gap: 6, flex: 1 }}>
+          <View style={{ gap: 4, flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Pressable
                 onPress={() =>
@@ -253,14 +251,14 @@ export default function ScoutingSessionRoute() {
               >
                 <Ionicons name="chevron-back" size={22} color={colors.text} />
               </Pressable>
-              <Text style={{ color: colors.text, fontSize: isDesktop ? 30 : 26, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, fontSize: isDesktop ? 28 : 24, fontWeight: "800" }}>
                 Scouting
               </Text>
             </View>
-            <Text style={{ color: colors.text, fontSize: isDesktop ? 22 : 20, fontWeight: "800", marginLeft: 42 }}>
+            <Text style={{ color: colors.text, fontSize: isDesktop ? 20 : 18, fontWeight: "800", marginLeft: 42 }}>
               {session.title}
             </Text>
-            <Text style={{ color: colors.muted, marginLeft: 42 }}>
+            <Text style={{ color: colors.muted, fontSize: 13, marginLeft: 42 }}>
               {typeLabelMap[session.type]} · {formatDate(session.date)} · {statusLabelMap[session.status]}
             </Text>
           </View>
@@ -280,500 +278,46 @@ export default function ScoutingSessionRoute() {
           <LocationBadge location={cls?.unit ?? "Unidade"} palette={classPalette} size="sm" showIcon />
         </View>
 
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-          <MetaCard colors={colors} label="Data" value={formatDate(session.date)} />
-          <MetaCard colors={colors} label="Tipo" value={typeLabelMap[session.type]} />
-          <MetaCard colors={colors} label="Status" value={statusLabelMap[session.status]} />
-          {session.opponent ? <MetaCard colors={colors} label="Adversário" value={session.opponent} /> : null}
-        </View>
+        <ScoutingSessionContextBar
+          session={session}
+          athletesCount={Array.from(new Set(actions.map((item) => item.athleteName).filter(Boolean))).length}
+          totalActions={actionsSummary.totalActions}
+        />
 
-        <View
-          style={{
-            flexDirection: isDesktop ? "row" : "column",
-            alignItems: "flex-start",
-            gap: 16,
-          }}
-        >
-          <View style={{ flex: isDesktop ? 1.8 : undefined, width: "100%", gap: 16 }}>
-            <View style={getSectionCardStyle(colors, "neutral", { radius: 18 })}>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                Registro rápido
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                Marque uma ação em poucos toques. Depois refine se precisar.
-              </Text>
-
-              {topAthletes.length ? (
-                <PickerPills
-                  label="Atalhos de atleta"
-                  value={athleteName}
-                  onChange={setAthleteName}
-                  options={topAthletes.map((name) => ({ value: name, label: name }))}
-                  colors={colors}
-                  allowClearChip
-                />
-              ) : null}
-
-              <View
-                style={{
-                  flexDirection: isDesktop ? "row" : "column",
-                  gap: 12,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <FormField
-                    label="Atleta ou nome"
-                    value={athleteName}
-                    onChangeText={setAthleteName}
-                    placeholder="Ex.: Maria"
-                    colors={colors}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <PickerPills
-                    label="Fase do jogo"
-                    value={gamePhase}
-                    onChange={(value) => setGamePhase(value as typeof gamePhase)}
-                    options={[
-                      { value: "serve", label: "Saque" },
-                      { value: "sideout", label: "Side-out" },
-                      { value: "transition", label: "Transição" },
-                      { value: "freeball", label: "Freeball" },
-                      { value: "out_of_system", label: "Fora do sistema" },
-                    ]}
-                    colors={colors}
-                  />
-                </View>
-              </View>
-
-              <FormField
-                label="Observação rápida"
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Contexto rápido da ação"
-                colors={colors}
+        <DecisionMainLayout
+          main={
+            <>
+              <ScoutingQuickRegister
+                athleteName={athleteName}
+                gamePhase={gamePhase}
+                isDesktop={isDesktop}
+                isSavingAction={isSavingAction}
+                notes={notes}
+                onAthleteNameChange={setAthleteName}
+                onGamePhaseChange={setGamePhase}
+                onNotesChange={setNotes}
+                onQualityOptionChange={setQualityOptionId}
+                onRegister={handleRegisterAction}
+                onSkillChange={setSkill}
+                qualityOptionId={qualityOptionId}
+                quickAthletes={topAthletes}
+                skill={skill}
               />
-
-              <PickerPills
-                label="Fundamento"
-                value={skill}
-                    onChange={setSkill}
-                    options={[
-                      { value: "serve", label: "Saque" },
-                      { value: "receive", label: "Recepção" },
-                      { value: "set", label: "Levantamento" },
-                      { value: "attack", label: "Ataque" },
-                      { value: "block", label: "Bloqueio" },
-                      { value: "defense", label: "Defesa" },
-                      { value: "coverage", label: "Cobertura" },
-                      { value: "transition", label: "Transição" },
-                      { value: "communication", label: "Comunicação" },
-                    ]}
-                    colors={colors}
-                  />
-
-              <PickerPills
-                label="Qualidade"
-                value={qualityOptionId}
-                onChange={setQualityOptionId}
-                options={qualityOptions.map((item) => ({ value: item.id, label: item.label }))}
-                colors={colors}
+              <ScoutingRecentActions
+                actions={actions}
+                isDesktop={isDesktop}
+                onUndo={handleRemoveAction}
               />
-
-              <View style={{ alignSelf: isDesktop ? "flex-end" : "stretch", width: isDesktop ? 180 : "100%" }}>
-                <Button
-                  label="Registrar"
-                  onPress={handleRegisterAction}
-                  loading={isSavingAction}
-                  disabled={isSavingAction}
-                />
-              </View>
-            </View>
-
-            <View style={getSectionCardStyle(colors, "neutral", { radius: 18 })}>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                Últimas ações
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                Linha do tempo da análise.
-              </Text>
-              {!actions.length ? (
-                <Text style={{ color: colors.muted }}>
-                  Nenhuma ação registrada ainda.
-                </Text>
-              ) : (
-                actions.slice(0, 8).map((action, index) => (
-                  <View
-                    key={action.id}
-                    style={{
-                      paddingVertical: 12,
-                      borderBottomWidth: index === Math.min(actions.length, 8) - 1 ? 0 : 1,
-                      borderBottomColor: colors.border,
-                      gap: 6,
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: isDesktop ? "row" : "column",
-                        justifyContent: "space-between",
-                        alignItems: isDesktop ? "center" : "flex-start",
-                        gap: 8,
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-                        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                          {String(index + 1).padStart(2, "0")}
-                        </Text>
-                        <Text style={{ color: colors.text, fontWeight: "800" }}>
-                          {action.athleteName || "Equipe"}
-                        </Text>
-                        <Text style={{ color: colors.muted }}>{formatScoutingSkillLabel(action.skill)}</Text>
-                        <TimelineBadge
-                          label={action.label || formatScoutingActionTypeLabel(action.skill, action.actionType)}
-                          colors={colors}
-                          tone={timelineTone(action.quality)}
-                        />
-                        <Text style={{ color: colors.muted }}>{phaseLabel(action.gamePhase)}</Text>
-                      </View>
-                      <Pressable
-                        onPress={() => handleRemoveAction(action.id)}
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          Desfazer
-                        </Text>
-                      </Pressable>
-                    </View>
-                    {action.notes ? (
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>{action.notes}</Text>
-                    ) : null}
-                  </View>
-                ))
-              )}
-            </View>
-          </View>
-
-          <View style={{ flex: isDesktop ? 0.9 : undefined, width: "100%", gap: 16 }}>
-            <View style={getSectionCardStyle(colors, "neutral", { radius: 18 })}>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                Resumo da análise
-              </Text>
-              <SummaryRow label="Total" value={`${actionsSummary.totalActions} ações`} colors={colors} />
-              <SummaryRow label="Atletas" value={`${byAthlete.length} avaliadas`} colors={colors} />
-              <SummaryRow
-                label="Ponto forte"
-                value={getDominantStrengths(actions)[0] || "Sem destaque"}
-                colors={colors}
-              />
-              <SummaryRow
-                label="Atenção"
-                value={getDominantWeaknesses(actions)[0] || "Sem alerta"}
-                colors={colors}
-              />
-            </View>
-
-            <SummaryColumn
-              title="Atletas em destaque"
-              items={byAthlete.slice(0, 3).map((item) => ({
-                title: item.athleteName,
-                subtitle: `${item.weaknesses[0] || item.strengths[0] || "Sem recorte"} · ${item.totalActions} ações`,
-                rightValue: `${Math.round((item.averageScore / 3) * 100)}%`,
-              }))}
-              colors={colors}
+            </>
+          }
+          side={
+            <ScoutingSideSummary
+              actions={actions}
+              onOpenLegacy={legacyRoute ? () => router.push(legacyRoute) : undefined}
             />
-
-            <SummaryColumn
-              title="Sinais para o treino"
-              subtitle="Entram como pista para a semana."
-              items={actionsSummary.dominantWeaknesses.map((item) => ({
-                title: item,
-                subtitle: "Ponto de atenção recorrente",
-              }))}
-              colors={colors}
-              chipMode
-            />
-
-            <View style={getSectionCardStyle(colors, "primary", { radius: 18 })}>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                Vídeo e marcação
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                O vínculo com vídeo entra em pacote posterior. Os campos de timestamp já estão previstos no modelo.
-              </Text>
-            </View>
-
-            <View style={getSectionCardStyle(colors, "primary", { radius: 18 })}>
-              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                Registro técnico legado
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                O motor técnico antigo continua disponível como apoio durante a migração do módulo.
-              </Text>
-              {legacyRoute ? (
-                <Button label="Abrir legado" onPress={() => router.push(legacyRoute)} variant="secondary" />
-              ) : null}
-            </View>
-          </View>
-        </View>
+          }
+        />
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-function MetaCard({
-  label,
-  value,
-  colors,
-}: {
-  label: string;
-  value: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  return (
-    <View
-      style={[
-        getSectionCardStyle(colors, "neutral", { radius: 16, shadow: false }),
-        { flexGrow: 1, flexBasis: 180 },
-      ]}
-    >
-      <Text style={{ color: colors.muted, fontWeight: "700" }}>{label}</Text>
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>{value}</Text>
-    </View>
-  );
-}
-
-function FormField({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  colors,
-  multiline = false,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  placeholder: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  multiline?: boolean;
-}) {
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.text, fontWeight: "700" }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        multiline={multiline}
-        style={{
-          minHeight: multiline ? 96 : 48,
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.inputBg,
-          paddingHorizontal: 14,
-          paddingVertical: multiline ? 12 : 10,
-          color: colors.text,
-          textAlignVertical: multiline ? "top" : "center",
-        }}
-      />
-    </View>
-  );
-}
-
-function PickerPills({
-  label,
-  value,
-  onChange,
-  options,
-  colors,
-  allowClearChip = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  allowClearChip?: boolean;
-}) {
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.text, fontWeight: "700" }}>{label}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {options.map((option) => {
-          const active = option.value !== "" && option.value === value;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => onChange(option.value)}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: active ? colors.text : colors.border,
-                backgroundColor: active ? colors.text : colors.card,
-              }}
-            >
-              <Text style={{ color: active ? colors.background : colors.text, fontWeight: "700", fontSize: 12 }}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-        {allowClearChip ? (
-          <Pressable
-            onPress={() => onChange("")}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>+ Outro</Text>
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function SummaryColumn({
-  title,
-  subtitle,
-  items,
-  colors,
-  chipMode = false,
-}: {
-  title: string;
-  subtitle?: string;
-  items: { title: string; subtitle: string; rightValue?: string }[];
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  chipMode?: boolean;
-}) {
-  return (
-    <View style={[getSectionCardStyle(colors, "neutral", { radius: 18 }), { flex: 1 }]}>
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{title}</Text>
-      {subtitle ? <Text style={{ color: colors.muted }}>{subtitle}</Text> : null}
-      {!items.length ? (
-        <Text style={{ color: colors.muted }}>Sem dados suficientes ainda.</Text>
-      ) : (
-        chipMode ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {items.map((item) => (
-              <View
-                key={`${title}-${item.title}`}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: colors.successBg,
-                }}
-              >
-                <Text style={{ color: colors.successText, fontWeight: "700" }}>{item.title}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          items.map((item) => (
-            <View
-              key={`${title}-${item.title}`}
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                paddingVertical: 6,
-              }}
-            >
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>{item.title}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{item.subtitle}</Text>
-              </View>
-              {item.rightValue ? (
-                <Text style={{ color: colors.text, fontWeight: "800" }}>{item.rightValue}</Text>
-              ) : null}
-            </View>
-          ))
-        )
-      )}
-    </View>
-  );
-}
-
-function SummaryRow({
-  label,
-  value,
-  colors,
-}: {
-  label: string;
-  value: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  return (
-    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-      <Text style={{ color: colors.muted }}>{label}</Text>
-      <Text style={{ color: colors.text, fontWeight: "800" }}>{value}</Text>
-    </View>
-  );
-}
-
-function TimelineBadge({
-  label,
-  tone,
-  colors,
-}: {
-  label: string;
-  tone: "danger" | "warning" | "info" | "success";
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  const palette =
-    tone === "danger"
-      ? { bg: colors.dangerBg, text: colors.dangerText }
-      : tone === "warning"
-        ? { bg: colors.warningBg, text: colors.warningText }
-        : tone === "info"
-          ? { bg: colors.infoBg, text: colors.infoText }
-          : { bg: colors.successBg, text: colors.successText };
-  return (
-    <View
-      style={{
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 999,
-        backgroundColor: palette.bg,
-      }}
-    >
-      <Text style={{ color: palette.text, fontWeight: "700", fontSize: 12 }}>{label}</Text>
-    </View>
-  );
-}
-
-const phaseLabel = (phase?: string) =>
-  ({
-    serve: "Saque",
-    sideout: "Side-out",
-    transition: "Transição",
-    freeball: "Freeball",
-    out_of_system: "Fora do sistema",
-  } as Record<string, string>)[phase ?? ""] ?? "Sem fase";
-
-const timelineTone = (quality: string) =>
-  quality === "error"
-    ? "danger"
-    : quality === "low"
-      ? "warning"
-      : quality === "medium"
-        ? "info"
-        : "success";
