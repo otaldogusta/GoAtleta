@@ -1,6 +1,7 @@
 import type { LessonActivity, LessonBlock } from "../../core/models";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
 import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
+import type { SessionDecisionReportPdfSummary } from "../session-decision-report-summary";
 import { toPdfCoachingText, toPdfText } from "../pdf-coaching-text";
 
 export type SessionPlanActivity = LessonActivity & {
@@ -38,6 +39,7 @@ export type SessionPlanPdfData = {
   plannedLoad?: string;
   materials?: string[];
   notes?: string;
+  decisionReport?: SessionDecisionReportPdfSummary | null;
   blocks: SessionBlock[];
   coachName?: string;
 };
@@ -128,6 +130,27 @@ const renderActivityCellHtml = (items: SessionPlanActivity[]) => {
     .join("");
 };
 
+const renderDecisionReportHtml = (decisionReport?: SessionDecisionReportPdfSummary | null) => {
+  if (!decisionReport) return "";
+  const reason = asCoachingText(decisionReport.shortReason);
+  const signals = Array.isArray(decisionReport.signals) ? decisionReport.signals.slice(0, 3) : [];
+  const avoid = Array.isArray(decisionReport.avoid) ? decisionReport.avoid.slice(0, 3) : [];
+  const evidence = Array.isArray(decisionReport.evidence) ? decisionReport.evidence.slice(0, 2) : [];
+  if (!reason && !signals.length && !avoid.length && !evidence.length) return "";
+
+  return `
+    <tr>
+      <td colspan="4" class="decision-report">
+        <div class="decision-title">${esc(asCoachingText(decisionReport.title) || "Justificativa do planejamento")}</div>
+        ${reason ? `<div class="decision-line">${esc(reason)}</div>` : ""}
+        ${signals.length ? `<div class="decision-line"><strong>Sinais usados:</strong> ${esc(signals.map(asCoachingText).filter(Boolean).join(", "))}.</div>` : ""}
+        ${avoid.length ? `<div class="decision-line"><strong>Evitar hoje:</strong> ${esc(avoid.map(asCoachingText).filter(Boolean).join(", "))}.</div>` : ""}
+        ${evidence.length ? `<div class="decision-line"><strong>Base aplicada:</strong> ${esc(evidence.map(asCoachingText).filter(Boolean).join("; "))}.</div>` : ""}
+      </td>
+    </tr>
+  `;
+};
+
 export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const objective = asCoachingText(data?.objective);
   const generalObjective = asCoachingText(data?.generalObjective);
@@ -136,6 +159,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   const title = asCoachingText(data?.title);
   const notes = asCoachingText(data?.notes);
   const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
+  const decisionReportHtml = renderDecisionReportHtml(data?.decisionReport);
   const resolvedObjectives = resolveLearningObjectives({
     generalObjective,
     specificObjective: specificObjective || objective,
@@ -339,6 +363,18 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
         .notes-value {
           min-height: 96px;
         }
+        .decision-report {
+          background: #f8fafc;
+          border-color: #cfd8e3;
+          line-height: 1.35;
+        }
+        .decision-title {
+          font-weight: 700;
+          margin-bottom: 4px;
+        }
+        .decision-line {
+          margin-top: 2px;
+        }
         .footer {
           margin-top: 12px;
           font-size: 10px;
@@ -393,6 +429,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
             ? `<tr><td colspan="4"><strong>Objetivo específico:</strong> ${esc(resolvedSpecificObjective)}</td></tr>`
             : ""
         }
+        ${decisionReportHtml}
         <tr>
           <td colspan="4"><strong>Tempo total:</strong> ${esc(asText(data?.totalTime) || "")}</td>
         </tr>

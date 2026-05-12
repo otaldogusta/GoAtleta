@@ -1,5 +1,5 @@
 import { getValidAccessToken } from "../auth/session";
-import { normalizeProfilePhotoForUpload } from "../utils/profile-photo";
+import { normalizeProfileImage } from "../media/normalize-profile-image";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 
 const PROFILE_PHOTO_BUCKET = "profile-photos";
@@ -57,10 +57,12 @@ export const uploadMyProfilePhoto = async (params: {
   }
   const path = storageObjectPathForUser(normalizedUserId);
   const objectPath = encodeObjectPath(path);
-  const normalizedPhoto = await normalizeProfilePhotoForUpload(params.uri);
+  const normalizedPhoto = await normalizeProfileImage({
+    uri: params.uri,
+    mimeType: params.contentType ?? null,
+  });
   const body = await blobFromUri(normalizedPhoto.uri);
-  const finalContentType =
-    normalizedPhoto.contentType ?? params.contentType ?? "image/jpeg";
+  const finalContentType = normalizedPhoto.mimeType;
   const headers = await getAuthHeaders(finalContentType);
 
   const base = SUPABASE_URL.replace(/\/$/, "");

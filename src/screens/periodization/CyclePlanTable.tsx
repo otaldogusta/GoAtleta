@@ -78,6 +78,8 @@ const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type WeekPlan = {
+  classId?: string;
+  startDate?: string;
   week: number;
   title: string;
   focus: string;
@@ -90,6 +92,7 @@ export type WeekPlan = {
   plannedSessionLoad: number;
   plannedWeeklyLoad: number;
   source: "AUTO" | "MANUAL";
+  generationContextSnapshotJson?: string;
 };
 
 type Segment = { label: string; length: number };

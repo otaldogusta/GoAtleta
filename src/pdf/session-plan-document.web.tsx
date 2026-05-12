@@ -156,6 +156,19 @@ const styles = StyleSheet.create({
   workoutTextCenter: {
     textAlign: "center",
   },
+  decisionReport: {
+    backgroundColor: "#f8fafc",
+  },
+  decisionTitle: {
+    fontSize: 10,
+    fontWeight: "bold",
+    marginBottom: 3,
+  },
+  decisionLine: {
+    fontSize: 9.5,
+    lineHeight: 1.25,
+    marginTop: 2,
+  },
   activityEntry: {
     gap: 4,
     marginBottom: 8,
@@ -301,6 +314,42 @@ const WorkoutTable = ({ items }: { items: ReturnType<typeof getBlockActivities> 
   </View>
 );
 
+const DecisionReportSection = ({ data }: { data?: SessionPlanPdfData["decisionReport"] }) => {
+  if (!data) return null;
+  const reason = asCoachingText(data.shortReason);
+  const signals = Array.isArray(data.signals) ? data.signals.slice(0, 3).map(asCoachingText).filter(Boolean) : [];
+  const avoid = Array.isArray(data.avoid) ? data.avoid.slice(0, 3).map(asCoachingText).filter(Boolean) : [];
+  const evidence = Array.isArray(data.evidence) ? data.evidence.slice(0, 2).map(asCoachingText).filter(Boolean) : [];
+  if (!reason && !signals.length && !avoid.length && !evidence.length) return null;
+
+  return (
+    <View style={[styles.row, styles.decisionReport]}>
+      <View style={styles.cellSingle}>
+        <Text style={styles.decisionTitle}>{asCoachingText(data.title) || "Justificativa do planejamento"}</Text>
+        {reason ? <Text style={styles.decisionLine}>{reason}</Text> : null}
+        {signals.length ? (
+          <Text style={styles.decisionLine}>
+            <Text style={styles.strong}>Sinais usados: </Text>
+            {signals.join(", ")}.
+          </Text>
+        ) : null}
+        {avoid.length ? (
+          <Text style={styles.decisionLine}>
+            <Text style={styles.strong}>Evitar hoje: </Text>
+            {avoid.join(", ")}.
+          </Text>
+        ) : null}
+        {evidence.length ? (
+          <Text style={styles.decisionLine}>
+            <Text style={styles.strong}>Base aplicada: </Text>
+            {evidence.join("; ")}.
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+};
+
 export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
   const objective = asCoachingText(data?.objective);
   const generalObjective = asCoachingText(data?.generalObjective);
@@ -384,6 +433,8 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
               </View>
             </View>
           ) : null}
+
+          <DecisionReportSection data={data?.decisionReport} />
 
           <View style={styles.row}>
             <View style={styles.cellSingle}>

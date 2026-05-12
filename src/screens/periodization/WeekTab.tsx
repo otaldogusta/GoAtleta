@@ -17,7 +17,11 @@ import type {
 import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
 import { getSectionCardStyle } from "../../ui/section-styles";
+import { AppDecisionSummary } from "../../ui/AppDecisionSummary";
 import type { WeeklyOperationalTeacherIntent } from "./application/format-weekly-operational-intent-for-teacher";
+import {
+  buildWeekDecisionReportViewModel,
+} from "./application/build-week-decision-report-view-model";
 
 type WeekScheduleItem = {
   label: string;
@@ -28,6 +32,8 @@ type WeekScheduleItem = {
 };
 
 type WeekPlan = {
+  classId?: string;
+  startDate?: string;
   week: number;
   title: string;
   focus: string;
@@ -40,6 +46,7 @@ type WeekPlan = {
   plannedSessionLoad: number;
   plannedWeeklyLoad: number;
   source: "AUTO" | "MANUAL";
+  generationContextSnapshotJson?: string;
 };
 
 const formatSessionEnvironmentLabel = (value?: SessionEnvironment) => {
@@ -149,6 +156,25 @@ export function WeekTab({
   hasWeekPlans,
   competitiveAgendaCard,
 }: WeekTabProps) {
+  const weekDecisionReport = buildWeekDecisionReportViewModel({
+    classId: activeWeek.classId ?? "",
+    weekStartDate: activeWeek.startDate ?? activeWeek.dateRange ?? "",
+    weekPlan: {
+      classId: activeWeek.classId,
+      startDate: activeWeek.startDate,
+      weekNumber: activeWeek.week,
+      phase: activeWeek.title,
+      theme: activeWeek.focus,
+      specificObjective: activeWeek.focus,
+      technicalFocus: activeWeek.focus,
+      constraints: activeWeek.notes.join(" | "),
+      jumpTarget: activeWeek.jumpTarget,
+      rpeTarget: activeWeek.PSETarget,
+      source: activeWeek.source,
+      generationContextSnapshotJson: activeWeek.generationContextSnapshotJson,
+    },
+  });
+
   return (
     <View style={{ gap: 10 }}>
 
@@ -192,6 +218,24 @@ export function WeekTab({
             ))}
           </View>
         </View>
+      ) : null}
+
+      {weekDecisionReport.shouldShow ? (
+        <AppDecisionSummary
+          title="Foco da semana"
+          focusItems={[
+            ...(weekDecisionReport.sections.find((section) => section.title === "Focos aplicados")?.items ?? []),
+            ...(weekDecisionReport.sections.find((section) => section.title === "Sinais usados")?.items ?? []),
+          ]}
+          attentionItems={weekDecisionReport.sections.find((section) => section.title === "Evitar")?.items ?? []}
+          shortReason={
+            weekDecisionReport.manualOverridePreserved
+              ? "Sinais disponíveis, mas o plano manual foi preservado."
+              : weekDecisionReport.shortReason
+          }
+          evidenceItems={weekDecisionReport.evidenceItems}
+          manualOverridePreserved={weekDecisionReport.manualOverridePreserved}
+        />
       ) : null}
 
       {qaModeEnabled && weeklyObservabilitySummary ? (
@@ -244,7 +288,7 @@ export function WeekTab({
             }}
           >
             <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-              {showQaDebugPanel ? "Ocultar debug detalhado" : "Mostrar debug detalhado"}
+              {showQaDebugPanel ? "Ocultar detalhes" : "Ver detalhes"}
             </Text>
           </Pressable>
 
@@ -355,7 +399,7 @@ export function WeekTab({
           ]}
         >
           <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-            INSIGHTS AUTOMATICOS
+            SINAIS AUTOMÁTICOS
           </Text>
           {classObservabilityInsights.map((insight) => {
             const toneColor =

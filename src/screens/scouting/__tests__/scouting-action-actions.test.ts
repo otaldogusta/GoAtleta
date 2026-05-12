@@ -65,4 +65,22 @@ describe("scouting-action-actions", () => {
     const actions = await listScoutingActionsBySession("session_1");
     expect(actions).toHaveLength(0);
   });
+
+  test("actions can include video context", async () => {
+    const action = await createScoutingActionForSession({
+      scoutingSessionId: "session_1",
+      classId: "class_1",
+      skill: "serve",
+      actionType: "difficult",
+      quality: "medium",
+      videoTimestampMs: 1000,
+      videoLabel: "Saque no início do recorte",
+      clipReference: "serve_rally",
+    });
+
+    expect(action.videoTimestampMs).toBe(1000);
+    expect(action.videoLabel).toBe("Saque no início do recorte");
+    const actions = await listScoutingActionsBySession("session_1");
+    expect(actions[0]?.clipReference).toBe("serve_rally");
+  });
 });

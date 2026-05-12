@@ -30,6 +30,7 @@ import { useOrganization } from "../src/providers/OrganizationProvider";
 import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
+import { normalizeProfileImage } from "../src/media/normalize-profile-image";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { ModalSheet } from "../src/ui/ModalSheet";
@@ -79,6 +80,8 @@ export default function ProfileScreen() {
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoPreparing, setPhotoPreparing] = useState(false);
+  const [photoPrepareError, setPhotoPrepareError] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
   const [unlinkingGoogle, setUnlinkingGoogle] = useState(false);
@@ -453,10 +456,13 @@ export default function ProfileScreen() {
   };
 
   const pickPhoto = async (source: "camera" | "library") => {
+    if (photoPreparing) return;
+
     try {
+      setPhotoPrepareError("");
       const currentUserId = session?.user?.id ?? "";
       if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("Câmera indisponível", "Use a Galeria no navegador.");
+        Alert.alert("Câmera indisponível", "Use a galeria no navegador.");
         return;
       }
       if (source === "camera") {
@@ -474,18 +480,26 @@ export default function ProfileScreen() {
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset?.uri) {
+          setPhotoPreparing(true);
+          const normalized = await normalizeProfileImage({
+            uri: asset.uri,
+            width: asset.width,
+            height: asset.height,
+            fileName: asset.fileName ?? null,
+            mimeType: asset.mimeType ?? null,
+          });
           const uri = student?.id
             ? await uploadStudentPhoto({
                 organizationId: student.organizationId ?? "",
                 studentId: student.id,
-                uri: asset.uri,
-                contentType: asset.mimeType,
+                uri: normalized.uri,
+                contentType: normalized.mimeType,
               })
             : currentUserId
               ? await uploadMyProfilePhoto({
                   userId: currentUserId,
-                  uri: asset.uri,
-                  contentType: asset.mimeType,
+                  uri: normalized.uri,
+                  contentType: normalized.mimeType,
                 })
               : null;
           if (!uri && !student?.id) {
@@ -514,18 +528,26 @@ export default function ProfileScreen() {
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset?.uri) {
+        setPhotoPreparing(true);
+        const normalized = await normalizeProfileImage({
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          fileName: asset.fileName ?? null,
+          mimeType: asset.mimeType ?? null,
+        });
         const uri = student?.id
           ? await uploadStudentPhoto({
               organizationId: student.organizationId ?? "",
               studentId: student.id,
-              uri: asset.uri,
-              contentType: asset.mimeType,
+              uri: normalized.uri,
+              contentType: normalized.mimeType,
             })
           : currentUserId
             ? await uploadMyProfilePhoto({
                 userId: currentUserId,
-                uri: asset.uri,
-                contentType: asset.mimeType,
+                uri: normalized.uri,
+                contentType: normalized.mimeType,
               })
             : null;
         if (!uri && !student?.id) {
@@ -536,8 +558,9 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error("Failed to pick profile photo", error);
-      Alert.alert("Erro", "Não foi possível selecionar a foto.");
+      setPhotoPrepareError("Não foi possível preparar essa foto. Tente tirar novamente ou escolher outra imagem da galeria.");
     } finally {
+      setPhotoPreparing(false);
       setShowPhotoSheet(false);
     }
   };
@@ -765,7 +788,7 @@ export default function ProfileScreen() {
               <SettingsRow
                 icon="sync-outline"
                 iconBg="rgba(200, 200, 200, 0.16)"
-                label="Auto (backend)"
+                label="Automático"
                 onPress={() => applyProfilePreview("auto")}
                 rightContent={
                   devProfilePreview === "auto" ? (
@@ -1226,6 +1249,7 @@ export default function ProfileScreen() {
           ].map((item) => (
             <Pressable
               key={item.label}
+              disabled={photoPreparing}
               onPress={() => pickPhoto(item.value as "camera" | "library")}
               style={{
                 flexDirection: "row",
@@ -1237,6 +1261,7 @@ export default function ProfileScreen() {
                 backgroundColor: colors.card,
                 borderWidth: 1,
                 borderColor: colors.border,
+                opacity: photoPreparing ? 0.64 : 1,
               }}
             >
               <View
@@ -1254,8 +1279,17 @@ export default function ProfileScreen() {
               <Text style={{ color: colors.text, fontWeight: "600" }}>{item.label}</Text>
             </Pressable>
           ))}
+          {photoPreparing ? (
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>Preparando foto...</Text>
+          ) : null}
+          {photoPrepareError ? (
+            <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "600" }}>
+              {photoPrepareError}
+            </Text>
+          ) : null}
           {photoUri ? (
             <Pressable
+              disabled={photoPreparing}
               onPress={() => {
                 confirm({
                   title: "Remover foto",
@@ -1277,6 +1311,7 @@ export default function ProfileScreen() {
                 paddingHorizontal: 12,
                 borderRadius: 14,
                 backgroundColor: colors.dangerSolidBg,
+                opacity: photoPreparing ? 0.64 : 1,
               }}
             >
               <View
@@ -1301,9 +1336,6 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-
-
 
 
 

@@ -49,4 +49,21 @@ describe("scouting-action-factory", () => {
     expect(normalizeScoutingSkill("Comunicação")).toBe("communication");
     expect(normalizeScoutingQuality("excelente")).toBe("excellent");
   });
+
+  test("keeps optional video context", () => {
+    const action = createScoutingAction({
+      scoutingSessionId: "session_1",
+      classId: "class_1",
+      skill: "serve",
+      actionType: "difficult",
+      quality: "medium",
+      videoTimestampMs: 12345,
+      videoLabel: "Saque no início do recorte",
+      clipReference: "serve_rally",
+    });
+
+    expect(action.videoTimestampMs).toBe(12345);
+    expect(action.videoLabel).toBe("Saque no início do recorte");
+    expect(action.clipReference).toBe("serve_rally");
+  });
 });

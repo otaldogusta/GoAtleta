@@ -74,6 +74,8 @@ export type StudentEditModalProps = {
     photoUrl: string | null;
     setShowPhotoSheet: (value: boolean) => void;
     pickStudentPhoto: (source: "camera" | "library" | "remove") => Promise<void>;
+    photoPreparing?: boolean;
+    photoPrepareError?: string;
 
     // Section accordion
     openEditSection: string | null;
@@ -229,6 +231,8 @@ export function StudentEditModal({
     photoUrl,
     setShowPhotoSheet,
     pickStudentPhoto,
+    photoPreparing = false,
+    photoPrepareError = "",
     openEditSection,
     toggleEditSection,
     editStudentDataAnim,
@@ -432,6 +436,7 @@ export function StudentEditModal({
                         <View style={{ gap: 10 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 4 }}>
                                 <Pressable
+                                    disabled={photoPreparing}
                                     onPress={() => setShowPhotoSheet(true)}
                                     style={{
                                         width: 72,
@@ -443,6 +448,7 @@ export function StudentEditModal({
                                         alignItems: "center",
                                         justifyContent: "center",
                                         overflow: "hidden",
+                                        opacity: photoPreparing ? 0.64 : 1,
                                     }}
                                 >
                                     {photoUrl ? (
@@ -460,13 +466,21 @@ export function StudentEditModal({
                                         {photoUrl ? "Alterar foto" : "Adicionar foto"}
                                     </Text>
                                     <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
-                                        <Pressable onPress={() => void pickStudentPhoto("library")}>
-                                            <Text style={{ fontSize: 12, color: colors.text, fontWeight: "700" }}>Galeria</Text>
+                                        <Pressable disabled={photoPreparing} onPress={() => void pickStudentPhoto("library")}>
+                                            <Text style={{ fontSize: 12, color: photoPreparing ? colors.muted : colors.text, fontWeight: "700" }}>Galeria</Text>
                                         </Pressable>
-                                        <Pressable onPress={() => void pickStudentPhoto("camera")}>
-                                            <Text style={{ fontSize: 12, color: colors.text, fontWeight: "700" }}>Tirar foto</Text>
+                                        <Pressable disabled={photoPreparing} onPress={() => void pickStudentPhoto("camera")}>
+                                            <Text style={{ fontSize: 12, color: photoPreparing ? colors.muted : colors.text, fontWeight: "700" }}>Tirar foto</Text>
                                         </Pressable>
                                     </View>
+                                    {photoPreparing ? (
+                                        <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "600" }}>Preparando foto...</Text>
+                                    ) : null}
+                                    {photoPrepareError ? (
+                                        <Text style={{ fontSize: 11, color: colors.dangerText, fontWeight: "600", maxWidth: 360 }}>
+                                            {photoPrepareError}
+                                        </Text>
+                                    ) : null}
                                 </View>
                             </View>
 

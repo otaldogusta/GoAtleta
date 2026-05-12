@@ -36,6 +36,9 @@ export type ScoutingAction = {
   rotation?: string;
   zone?: string;
   videoTimestampSec?: number;
+  videoTimestampMs?: number;
+  videoLabel?: string;
+  clipReference?: string;
   notes?: string;
   source: ScoutingActionSource;
   createdAt: string;
@@ -56,6 +59,9 @@ export type CreateScoutingActionInput = {
   rotation?: string;
   zone?: string;
   videoTimestampSec?: number;
+  videoTimestampMs?: number;
+  videoLabel?: string;
+  clipReference?: string;
   notes?: string;
   source?: ScoutingActionSource;
 };

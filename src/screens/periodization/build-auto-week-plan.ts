@@ -8,6 +8,7 @@ import type {
     SessionPrimaryComponent,
     TeamTrainingContext,
 } from "../../core/models";
+import type { ScoutingImpact, TeamPlanningContext } from "../../core/team-context";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
 import {
     renderGameFormLabel,
@@ -30,6 +31,7 @@ import { getPlannedLoads } from "../../core/periodization-load";
 import { buildWeeklyIntegratedContext } from "../../core/resistance/resolve-session-environment";
 import { resolveTeamTrainingContext } from "../../core/resistance/training-context";
 import { buildPeriodizationWeekSchedule } from "./application/build-auto-plan-for-cycle-day";
+import { adaptWeekPlanWithScoutingImpact } from "./application/adapt-week-plan-with-scouting-impact";
 import {
     resolveWeekStrategyFromCycleContext,
     toWeeklyOperationalStrategySnapshot,
@@ -51,6 +53,8 @@ type BuildAutoWeekPlanParams = {
   recentDailyLessonPlans?: DailyLessonPlan[];
   /** Optional: pass when caller already has a resolved TeamTrainingContext */
   teamTrainingContext?: TeamTrainingContext;
+  teamPlanningContext?: TeamPlanningContext;
+  scoutingImpacts?: ScoutingImpact[];
 };
 
 const uniqueStrings = (values: (string | null | undefined)[]) =>
@@ -170,6 +174,14 @@ const resolveWeekMonthIndex = (cycleStartDate: string, weekNumber: number): numb
   const safeWeek = Number.isFinite(weekNumber) ? Math.max(1, weekNumber) : 1;
   const shifted = new Date(base.getTime() + (safeWeek - 1) * 7 * 24 * 60 * 60 * 1000);
   return shifted.getMonth() + 1;
+};
+
+const resolveWeekStartDate = (cycleStartDate: string, weekNumber: number): string => {
+  const baseIso = /^\d{4}-\d{2}-\d{2}$/.test(cycleStartDate) ? cycleStartDate : "";
+  const base = baseIso ? new Date(`${baseIso}T12:00:00`) : new Date();
+  const safeWeek = Number.isFinite(weekNumber) ? Math.max(1, weekNumber) : 1;
+  const shifted = new Date(base.getTime() + (safeWeek - 1) * 7 * 24 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
 };
 
 const normalizeSignalText = (value: string | undefined) =>
@@ -501,5 +513,11 @@ export const buildAutoWeekPlan = (
   });
   plan.weeklyIntegratedContextJson = JSON.stringify(integratedCtx);
 
-  return plan;
+  return adaptWeekPlanWithScoutingImpact({
+    classId: selectedClass.id,
+    weekStartDate: resolveWeekStartDate(params.activeCycleStartDate, params.weekNumber),
+    baseWeekPlan: plan,
+    teamPlanningContext: params.teamPlanningContext,
+    scoutingImpacts: params.scoutingImpacts,
+  }).adaptedWeekPlan;
 };

@@ -22,13 +22,16 @@ export function LocationBadge({
   const fontSize = size === "sm" ? 11 : 12;
   const iconSize = size === "sm" ? 12 : 14;
   const padding = size === "sm" ? 4 : 6;
+  const minHeight = size === "sm" ? 26 : 30;
 
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "center",
         gap: 4,
+        minHeight,
         paddingVertical: padding,
         paddingHorizontal: padding + 4,
         borderRadius: 999,
@@ -50,6 +53,7 @@ export function LocationBadge({
           color: palette?.text ?? "#333",
           fontWeight: "600",
           fontSize,
+          lineHeight: fontSize + 2,
           flexShrink: 1,
         }}
       >

@@ -1,6 +1,7 @@
 export type ScoutingSessionType = "training" | "friendly" | "official_match";
 export type ScoutingSessionStatus = "draft" | "in_progress" | "completed" | "archived";
 export type ScoutingSessionSource = "manual" | "session" | "event";
+export type ScoutingSessionSourceType = "live_training" | "live_match" | "video" | "manual";
 
 export type ScoutingSession = {
   id: string;
@@ -11,6 +12,9 @@ export type ScoutingSession = {
   opponent?: string;
   location?: string;
   videoUrl?: string;
+  sourceType?: ScoutingSessionSourceType;
+  videoClipType?: string;
+  videoNotes?: string;
   status: ScoutingSessionStatus;
   source?: ScoutingSessionSource;
   relatedEventId?: string;
@@ -26,6 +30,9 @@ export type CreateScoutingSessionDraftInput = {
   opponent?: string;
   location?: string;
   videoUrl?: string;
+  sourceType?: ScoutingSessionSourceType;
+  videoClipType?: string;
+  videoNotes?: string;
   source?: ScoutingSessionSource;
   relatedEventId?: string;
 };

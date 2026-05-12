@@ -511,6 +511,20 @@ Sequencia recomendada:
 4. adicionar QR opcional ao PDF
 5. integrar Higgsfield + FFmpeg somente depois de haver assets aprovados
 
+## Evidence Matrix
+
+A camada `src/core/evidence/` registra regras importantes do GoAtleta com tipo,
+confianca, racional, limites e fontes.
+
+Regras importantes:
+
+- nao inventar referencia bibliografica
+- fonte pendente usa `type: "pending_reference"` e `reviewRequired: true`
+- a matriz ainda nao altera UI, scouting, periodizacao ou Aula do Dia
+- a matriz prepara `evidenceRuleIds` e `EvidenceTrace` para snapshots futuros
+
+Veja tambem: `docs/science/evidence-matrix.md`.
+
 ## Contexto competitivo
 
 Agora existe uma camada de dominio em `src/core/team-context/` para representar sinais reais do ciclo da turma sem acoplar banco ou UI cedo demais.

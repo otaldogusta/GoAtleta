@@ -17,6 +17,22 @@ describe("scouting-session-factory", () => {
     expect(session.title).toBe("Scouting de treino");
   });
 
+  test("creates video based session metadata", () => {
+    const session = createScoutingSessionDraft({
+      classId: "class_1",
+      date: "2026-05-09",
+      type: "friendly",
+      opponent: "Regenerados",
+      sourceType: "video",
+      videoClipType: "serve_rally",
+      videoNotes: "Vídeo editado com lances de saque e rally.",
+    });
+
+    expect(session.sourceType).toBe("video");
+    expect(session.videoClipType).toBe("serve_rally");
+    expect(session.videoNotes).toBe("Vídeo editado com lances de saque e rally.");
+  });
+
   test("builds title for training", () => {
     expect(buildScoutingSessionTitle({ type: "training" })).toBe("Scouting de treino");
   });

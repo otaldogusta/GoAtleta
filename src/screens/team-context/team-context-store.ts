@@ -68,6 +68,14 @@ export async function listScoutingImpactRecords(classId: string) {
   return sortByDateDesc(impacts.filter((item) => item.classId === classId));
 }
 
+export async function createScoutingImpactRecord(input: ScoutingImpact) {
+  const impacts = await loadScoutingImpacts();
+  const next = sortByDateDesc([...impacts.filter((item) => item.id !== input.id), input]);
+  scoutingCache = next;
+  await writeCache(TEAM_CONTEXT_SCOUTING_KEY, next);
+  return input;
+}
+
 export async function seedScoutingImpactRecords(records: ScoutingImpact[]) {
   scoutingCache = [...records];
   await writeCache(TEAM_CONTEXT_SCOUTING_KEY, scoutingCache);

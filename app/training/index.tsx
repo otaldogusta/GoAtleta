@@ -2228,7 +2228,7 @@ export default function TrainingList() {
     setFormMode("plan");
     if (shouldApplyAiDraft && parsedAiDraft) {
       setPlanningTab("formulario");
-      setTitle(parsedAiDraft.title || "Planejamento com IA");
+      setTitle(parsedAiDraft.title || "Planejamento assistido");
       setTagsText(parsedAiDraft.tags.join(", "));
       setWarmup(parsedAiDraft.warmup.join("\n"));
       setMain(parsedAiDraft.main.join("\n"));
@@ -2237,7 +2237,7 @@ export default function TrainingList() {
       setMainTime(parsedAiDraft.mainTime);
       setCooldownTime(parsedAiDraft.cooldownTime);
       setHandledAiDraftRaw(aiDraftRaw);
-      showSaveToast("Planejamento da IA aplicado ao formulário.");
+      showSaveToast("Planejamento aplicado ao formulário.");
     } else {
       setTitle("");
       setTagsText("");

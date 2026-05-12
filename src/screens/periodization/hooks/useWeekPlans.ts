@@ -195,6 +195,8 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
           : null;
 
         weeks.push({
+          classId: plan.classId,
+          startDate: plan.startDate,
           week: i,
           title: normalizedPhase,
           focus: normalizedTheme,
@@ -210,6 +212,7 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
           plannedSessionLoad: plannedLoads.plannedSessionLoad,
           plannedWeeklyLoad: plannedLoads.plannedWeeklyLoad,
           source: plan.source || "AUTO",
+          generationContextSnapshotJson: plan.generationContextSnapshotJson,
         } as WeekPlan);
 
         continue;

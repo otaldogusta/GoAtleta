@@ -29,6 +29,9 @@ import {
 } from "../../../src/screens/session/application/build-persisted-generation-explanation";
 import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
 import { buildTeamPlanningContextSummary } from "../../../src/screens/team-context/team-context-actions";
+import { buildSessionDecisionReportViewModel } from "../../../src/screens/session/application/build-session-decision-report-view-model";
+import { buildSessionDecisionReportPdfSummary } from "../../../src/pdf/session-decision-report-summary";
+import { AppDecisionSummary } from "../../../src/ui/AppDecisionSummary";
 import {
     buildWeekSessionPreview,
     type WeekSessionPreview,
@@ -1935,7 +1938,6 @@ export default function SessionScreen() {
     sessionStudents,
     studentsCount,
     isLoadingSession,
-    isLoadingSessionExtras,
     sessionLog,
     setSessionLog,
     scoutingLog,
@@ -1968,7 +1970,7 @@ export default function SessionScreen() {
       : effectivePlanSource === "training_plan"
         ? "Plano salvo"
         : effectivePlanSource === "generated_fallback"
-          ? "Gerado automaticamente"
+          ? "Plano base"
           : appliedTrainingPlan && !currentDailyLessonPlan
             ? "Plano salvo"
             : "";
@@ -2009,6 +2011,28 @@ export default function SessionScreen() {
       cancelled = true;
     };
   }, [id, sessionDate]);
+  const sessionDecisionReport = useMemo(
+    () =>
+      buildSessionDecisionReportViewModel({
+        classId: id,
+        sessionDate,
+        sessionPlan: plan,
+        dailyPlan: currentDailyLessonPlan,
+        weeklyPlan: currentClassPlan,
+        teamPlanningContext: teamPlanningSummary?.context,
+        manualOverride:
+          currentDailyLessonPlan?.syncStatus === "overridden" ||
+          currentClassPlan?.syncStatus === "overridden",
+      }),
+    [
+      currentClassPlan,
+      currentDailyLessonPlan,
+      id,
+      plan,
+      sessionDate,
+      teamPlanningSummary?.context,
+    ]
+  );
   const {
     PSE,
     setPSE,
@@ -2091,7 +2115,7 @@ export default function SessionScreen() {
   const generationExplanation = plan?.pedagogy?.generationExplanation;
   const generationHistoryLabel =
     generationExplanation?.historyMode === "bootstrap"
-      ? "Bootstrap do ciclo"
+      ? "Primeiro plano do ciclo"
       : generationExplanation?.historyMode === "strong_history"
         ? "Historico forte"
         : generationExplanation?.historyMode === "partial_history"
@@ -3872,6 +3896,7 @@ export default function SessionScreen() {
       genderLabel,
       dateLabel: weekdayLabel,
       title: safePlanTitle,
+      decisionReport: buildSessionDecisionReportPdfSummary(sessionDecisionReport),
       totalTime: `${totalMinutes} min`,
       blocks: [
         {
@@ -4051,12 +4076,30 @@ export default function SessionScreen() {
     return <ScreenLoadingState />;
   }
 
-  if (isLoadingSessionExtras) {
-    return <ScreenLoadingState />;
-  }
-
   if (!cls) {
-    return <ScreenLoadingState />;
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, padding: 16 }}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
+          Turma não encontrada
+        </Text>
+        <Text style={{ color: colors.muted, marginTop: 6 }}>
+          Não foi possível carregar os dados desta turma agora.
+        </Text>
+        <View style={{ marginTop: 16, alignSelf: "flex-start" }}>
+          <Button
+            label="Voltar"
+            variant="secondary"
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/classes");
+            }}
+          />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -4078,17 +4121,15 @@ export default function SessionScreen() {
         }}
       >
         <View style={{ flex: 1, gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Pressable
             onPress={handleBackToClass}
-            style={{ flexDirection: "row", alignItems: "center" }}
+            style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8 }}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>
+              {title}
+            </Text>
           </Pressable>
-          <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>
-            {title}
-          </Text>
-          </View>
           {showNoPlanNotice ? (
             <Text style={{ color: colors.warningText, fontSize: 12 }}>
               {ptBR.session.noPlanNotice}
@@ -4328,42 +4369,15 @@ export default function SessionScreen() {
             ) : null}
           </View>
         ) : null}
-        {sessionTab === "treino" &&
-        teamPlanningSummary &&
-        (teamPlanningSummary.context.planningMode !== "normal" ||
-          teamPlanningSummary.context.focusHints.length > 0) ? (
-          <View
-            style={{
-              padding: 14,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              gap: 8,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                Contexto competitivo
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                {teamPlanningSummary.planningModeLabel}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                {teamPlanningSummary.loadBiasLabel}
-              </Text>
-            </View>
-            {teamPlanningSummary.context.focusHints.length ? (
-              <Text style={{ color: colors.text, fontSize: 12 }}>
-                Focar em {teamPlanningSummary.context.focusHints.slice(0, 3).join(", ")}.
-              </Text>
-            ) : null}
-            {teamPlanningSummary.context.avoidHints.length ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Evitar {teamPlanningSummary.context.avoidHints.slice(0, 2).join(", ")}.
-              </Text>
-            ) : null}
-          </View>
+        {sessionTab === "treino" && sessionDecisionReport.shouldShow ? (
+          <AppDecisionSummary
+            title="Foco de hoje"
+            focusItems={sessionDecisionReport.items}
+            attentionItems={sessionDecisionReport.avoidItems}
+            shortReason={sessionDecisionReport.shortReason}
+            evidenceItems={sessionDecisionReport.evidenceItems}
+            manualOverridePreserved={sessionDecisionReport.manualOverridePreserved}
+          />
         ) : null}
         {sessionTab === "treino" ? (
           <View
@@ -4380,7 +4394,7 @@ export default function SessionScreen() {
               Scouting desta sessão
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Registre análise técnica, jogo ou desempenho da turma no módulo de scouting.
+              Use quando quiser registrar ações do treino e transformar observações em sinais para o próximo planejamento.
             </Text>
             <Pressable
               onPress={() =>
@@ -4405,7 +4419,7 @@ export default function SessionScreen() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Abrir scouting
+                Iniciar scouting
               </Text>
             </Pressable>
           </View>

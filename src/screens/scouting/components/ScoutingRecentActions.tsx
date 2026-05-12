@@ -53,6 +53,11 @@ export function ScoutingRecentActions({
                   label={action.label || formatScoutingActionTypeLabel(action.skill, action.actionType)}
                   quality={action.quality}
                 />
+                {action.videoLabel ? (
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                    Vídeo · {action.videoLabel}
+                  </Text>
+                ) : null}
                 <Text style={{ color: colors.muted }}>{phaseLabel(action.gamePhase)}</Text>
               </View>
               <Pressable

@@ -254,7 +254,8 @@ const refreshSession = async (): Promise<AuthSession | null> => {
     await saveSession(next, remember);
     return next;
   } catch {
-    await saveSession(null, false);
+    // Network failures during refresh should not erase a valid stored session.
+    // The caller can surface an offline message and retry later.
     return null;
   }
 };

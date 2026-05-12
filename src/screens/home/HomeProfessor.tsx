@@ -112,6 +112,38 @@ function HomeProfessorBelowFoldFallback() {
   );
 }
 
+const HOME_BOOT_LOADING_MAX_MS = 4500;
+const HOME_SCHEDULE_LOAD_TIMEOUT_MS = 6000;
+
+function withHomeLoadTimeout<T>(
+  promise: Promise<T>,
+  fallback: T,
+  timeoutMs = HOME_SCHEDULE_LOAD_TIMEOUT_MS
+): Promise<T> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(fallback);
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
+}
+
 function buildScheduleSlots(items: HomeScheduleItem[]) {
   const slotMap = new Map<
     string,
@@ -211,6 +243,8 @@ export function HomeProfessorScreen({
 
   const [loadingEvents, setLoadingEvents] = useState(false);
 
+  const [homeBootTimedOut, setHomeBootTimedOut] = useState(false);
+
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
 
   const didInitialAgendaScroll = useRef(false);
@@ -248,7 +282,8 @@ export function HomeProfessorScreen({
   const showInitialLoading =
     (organizationLoading || loadingClasses || loadingEvents) &&
     classes.length === 0 &&
-    upcomingEvents.length === 0;
+    upcomingEvents.length === 0 &&
+    !homeBootTimedOut;
 
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
 
@@ -366,6 +401,30 @@ export function HomeProfessorScreen({
     profilePhotoCacheRef.current = { uri: null, updatedAt: 0 };
   }, [role, session?.user?.id]);
 
+  useEffect(() => {
+    if (!organizationLoading && !loadingClasses && !loadingEvents) {
+      setHomeBootTimedOut(false);
+      return;
+    }
+
+    if (classes.length > 0 || upcomingEvents.length > 0) {
+      setHomeBootTimedOut(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setHomeBootTimedOut(true);
+    }, HOME_BOOT_LOADING_MAX_MS);
+
+    return () => clearTimeout(timer);
+  }, [
+    classes.length,
+    loadingClasses,
+    loadingEvents,
+    organizationLoading,
+    upcomingEvents.length,
+  ]);
+
 
 
   useEffect(() => {
@@ -399,6 +458,7 @@ export function HomeProfessorScreen({
       }
 
       if (alive) {
+        setHomeBootTimedOut(false);
         setLoadingClasses(true);
         setLoadingEvents(true);
         setClasses([]);
@@ -420,14 +480,17 @@ export function HomeProfessorScreen({
             const organizationId = activeOrganization?.id ?? null;
 
             const [classListResult, eventsListResult] = await Promise.allSettled([
-              getClasses({ organizationId }),
-              organizationId
-                ? listUpcomingEvents({
-                    organizationId,
-                    userId: session.user.id,
-                    days: upcomingWindowDays,
-                  })
-                : Promise.resolve([] as EventListItem[]),
+              withHomeLoadTimeout(getClasses({ organizationId }), [] as ClassGroup[]),
+              withHomeLoadTimeout(
+                organizationId
+                  ? listUpcomingEvents({
+                      organizationId,
+                      userId: session.user.id,
+                      days: upcomingWindowDays,
+                    })
+                  : Promise.resolve([] as EventListItem[]),
+                [] as EventListItem[]
+              ),
             ]);
 
             if (alive) {
@@ -1343,13 +1406,17 @@ export function HomeProfessorScreen({
 
       setLoadingClasses(true);
       setLoadingEvents(true);
+      setHomeBootTimedOut(false);
 
       tasks.push(
 
         ensureSeedData()
 
           .then(() =>
-            getClasses({ organizationId: activeOrganization?.id ?? null })
+            withHomeLoadTimeout(
+              getClasses({ organizationId: activeOrganization?.id ?? null }),
+              [] as ClassGroup[]
+            )
           )
 
           .then(setClasses)
@@ -1360,13 +1427,15 @@ export function HomeProfessorScreen({
       );
 
       tasks.push(
-        (activeOrganization?.id
-          ? listUpcomingEvents({
-              organizationId: activeOrganization.id,
-              userId: session.user.id,
-              days: upcomingWindowDays,
-            })
-          : Promise.resolve([] as EventListItem[])
+        withHomeLoadTimeout(
+          activeOrganization?.id
+            ? listUpcomingEvents({
+                organizationId: activeOrganization.id,
+                userId: session.user.id,
+                days: upcomingWindowDays,
+              })
+            : Promise.resolve([] as EventListItem[]),
+          [] as EventListItem[]
         )
           .then(setUpcomingEvents)
           .catch(() => setUpcomingEvents([]))

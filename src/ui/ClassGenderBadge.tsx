@@ -29,16 +29,20 @@ export function ClassGenderBadge({
       : { bg: colors.secondaryBg, text: colors.text };
   const padding = size === "md" ? { y: 4, x: 8 } : { y: 2, x: 6 };
   const fontSize = size === "md" ? 11 : 10;
+  const minHeight = size === "md" ? 28 : 26;
   return (
     <View
       style={{
+        minHeight,
+        alignItems: "center",
+        justifyContent: "center",
         paddingVertical: padding.y,
         paddingHorizontal: padding.x,
         borderRadius: 999,
         backgroundColor: palette.bg,
       }}
     >
-      <Text style={{ color: palette.text, fontSize, fontWeight: "700" }}>
+      <Text style={{ color: palette.text, fontSize, fontWeight: "700", lineHeight: fontSize + 2 }}>
         {labelByGender[resolved]}
       </Text>
     </View>

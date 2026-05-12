@@ -28,6 +28,7 @@ import {
 } from "../dev/profile-preview";
 
 const ACTIVE_ORG_KEY = "active-org-id";
+const ORGANIZATION_FETCH_TIMEOUT_MS = 12000;
 
 const createAbortError = () => {
   const error = new Error("Aborted");
@@ -293,6 +294,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     const controller = new AbortController();
     fetchControllerRef.current = controller;
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, ORGANIZATION_FETCH_TIMEOUT_MS);
 
     try {
       const fetchOrganizationsWithToken = async (token: string) =>
@@ -347,6 +351,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       hasLoadedOrganizationsRef.current = true;
       lastFetchErrorAtRef.current = Date.now();
     } finally {
+      clearTimeout(timeout);
       if (fetchControllerRef.current === controller) {
         fetchControllerRef.current = null;
       }

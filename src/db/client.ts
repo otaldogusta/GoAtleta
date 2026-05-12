@@ -34,6 +34,7 @@ const summarizeResponse = (text: string) => {
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const SUPABASE_REQUEST_TIMEOUT_MS = 12000;
 
 const isTransientFetchError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -43,22 +44,40 @@ const isTransientFetchError = (error: unknown) => {
     message.includes("fetch failed") ||
     message.includes("NetworkError") ||
     message.includes("TypeError: Failed to fetch") ||
+    message.includes("AbortError") ||
+    message.toLowerCase().includes("aborted") ||
     message.includes("Timed out")
   );
 };
 
-const doFetch = (
+const doFetch = async (
   method: string,
   path: string,
   token: string,
   body?: unknown,
   extraHeaders?: Record<string, string>
-) =>
-  fetch(REST_BASE + path, {
-    method,
-    headers: makeAuthHeaders(token, extraHeaders),
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+) => {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), SUPABASE_REQUEST_TIMEOUT_MS)
+    : null;
+
+  try {
+    return await fetch(REST_BASE + path, {
+      method,
+      headers: makeAuthHeaders(token, extraHeaders),
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller?.signal,
+    });
+  } catch (error) {
+    if (controller?.signal.aborted) {
+      throw new Error(`Timed out after ${SUPABASE_REQUEST_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 
 // ---------------------------------------------------------------------------
 // supabaseRequest — authenticated request with token retry + 401 refresh
@@ -80,7 +99,7 @@ export const supabaseRequest = async (
   }
   if (!token) {
     throw new Error(
-      "Sessão expirada ou sem conexão com internet. Faça login novamente."
+      "Sessão expirada. Faça login novamente."
     );
   }
 
@@ -251,6 +270,8 @@ export const isNetworkError = (error: unknown) => {
     message.includes("Failed to fetch") ||
     message.includes("fetch failed") ||
     message.includes("NetworkError") ||
+    message.includes("AbortError") ||
+    message.toLowerCase().includes("aborted") ||
     message.includes("Timed out")
   );
 };

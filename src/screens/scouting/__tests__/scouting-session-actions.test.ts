@@ -74,4 +74,20 @@ describe("scouting-session-actions", () => {
     });
     expect(session.status).toBe("in_progress");
   });
+
+  test("creates video scouting session", async () => {
+    const session = await createAndStartScoutingSession({
+      classId: "class_1",
+      date: "2026-05-09",
+      type: "friendly",
+      opponent: "Regenerados",
+      sourceType: "video",
+      videoClipType: "serve_rally",
+      videoNotes: "Vídeo editado com lances de saque e rally.",
+    });
+
+    expect(session.status).toBe("in_progress");
+    expect(session.sourceType).toBe("video");
+    expect(session.videoClipType).toBe("serve_rally");
+  });
 });

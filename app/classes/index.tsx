@@ -3,8 +3,6 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Animated,
-    Easing,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -18,7 +16,9 @@ import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
+import { AppPageHeader } from "../../src/ui/AppPageHeader";
+import { AppScreenShell } from "../../src/ui/AppScreenShell";
+import { AppTabs } from "../../src/ui/AppTabs";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
@@ -155,10 +155,6 @@ export default function ClassesScreen() {
   const [mainTab, setMainTab] = useState<"lista" | "criar">("lista");
   const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
   const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
-  const mainTabAnim = useRef<Record<"lista" | "criar", Animated.Value>>({
-    lista: new Animated.Value(1),
-    criar: new Animated.Value(0),
-  }).current;
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomAgeBand, setEditShowCustomAgeBand] = useState(false);
@@ -931,17 +927,6 @@ export default function ClassesScreen() {
     [isCreateDirty, mainTab, resetCreateForm]
   );
 
-  useEffect(() => {
-    (["lista", "criar"] as const).forEach((tabKey) => {
-      Animated.timing(mainTabAnim[tabKey], {
-        toValue: mainTab === tabKey ? 1 : 0,
-        duration: 320,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
-    });
-  }, [mainTab, mainTabAnim]);
-
   const openEditModal = useCallback((item: ClassGroup) => {
     const nextAgeBand = item.ageBand ?? "08-09";
     const goalValue = item.goal ?? "Fundamentos";
@@ -1688,111 +1673,45 @@ export default function ClassesScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
-        <ScreenTopChrome
-          style={{
-            gap: 16,
-            paddingBottom: 8,
-            paddingHorizontal: 16,
-            paddingTop: 16,
+        <ConfirmCloseOverlay
+          visible={showCreateTabConfirm}
+          onCancel={() => {
+            setShowCreateTabConfirm(false);
+            setPendingMainTab(null);
           }}
-        >
-          <View style={{ marginBottom: 4 }}>
-            <Pressable
-              onPress={() => {
+          onConfirm={() => {
+            setShowCreateTabConfirm(false);
+            resetCreateForm();
+            setMainTab(pendingMainTab ?? "lista");
+            setPendingMainTab(null);
+          }}
+        />
+        <AppScreenShell
+          contentStyle={{ paddingHorizontal: 0 }}
+          header={
+            <AppPageHeader
+              title="Turmas"
+              subtitle="Gerencie suas turmas e mantenha o cadastro pronto para treino."
+              onBack={() => {
                 if (router.canGoBack()) {
                   router.back();
                   return;
                 }
                 router.replace("/");
               }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-                Turmas
-              </Text>
-            </Pressable>
-          </View>
-
-          <ConfirmCloseOverlay
-            visible={showCreateTabConfirm}
-            onCancel={() => {
-              setShowCreateTabConfirm(false);
-              setPendingMainTab(null);
-            }}
-            onConfirm={() => {
-              setShowCreateTabConfirm(false);
-              resetCreateForm();
-              setMainTab(pendingMainTab ?? "lista");
-              setPendingMainTab(null);
-            }}
-          />
-
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 6,
-              padding: 6,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-              {[
-                { id: "lista" as const, label: "Lista" },
-                { id: "criar" as const, label: "Criar turma" },
-              ].map((tab) => {
-                const tabProgress = mainTabAnim[tab.id];
-                const tabScale = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.95, 1],
-                });
-                const tabOpacity = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.68, 1],
-                });
-                const tabBackground = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [colors.card, colors.primaryBg],
-                });
-                const tabTextColor = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [colors.text, colors.primaryText],
-                });
-                return (
-                  <Animated.View
-                    key={tab.id}
-                    style={{
-                      flex: 1,
-                      borderRadius: 999,
-                      opacity: tabOpacity,
-                      transform: [{ scale: tabScale }],
-                      backgroundColor: tabBackground,
-                    }}
-                  >
-                  <Pressable
-                    onPress={() => requestSwitchMainTab(tab.id)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 999,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Animated.Text
-                      style={{
-                        color: tabTextColor,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      {tab.label}
-                    </Animated.Text>
-                  </Pressable>
-                  </Animated.View>
-                );
-              })}
-          </View>
-        </ScreenTopChrome>
+            />
+          }
+          tabs={
+            <AppTabs
+              value={mainTab}
+              onChange={requestSwitchMainTab}
+              tabs={[
+                { value: "lista", label: "Lista" },
+                { value: "criar", label: "Criar turma" },
+              ]}
+            />
+          }
+        >
 
         {mainTab === "lista" ? (
           <View style={{ flex: 1, minHeight: 0, gap: 12, paddingHorizontal: 16, paddingTop: 12 }}>
@@ -2139,6 +2058,7 @@ export default function ClassesScreen() {
         </View>
         </ScrollView>
         )}
+        </AppScreenShell>
 
         <AnchoredDropdown
           visible={showUnitFilterPickerContent}
@@ -2491,6 +2411,3 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
-
-
-

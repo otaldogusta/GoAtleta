@@ -154,7 +154,7 @@ export function DayModal({
   const [showDebugSignals, setShowDebugSignals] = useState(false);
   const historyModeLabel =
     selectedDay?.autoPlan?.historyMode === "bootstrap"
-      ? "Bootstrap do ciclo"
+      ? "Primeiro plano do ciclo"
       : selectedDay?.autoPlan?.historyMode === "strong_history"
         ? "Historico forte"
         : selectedDay?.autoPlan?.historyMode === "partial_history"
@@ -337,8 +337,8 @@ export function DayModal({
                         <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
                           {normalizeText(
                             showDebugSignals
-                              ? "Debug da periodização: ocultar"
-                              : "Debug da periodização: mostrar"
+                              ? "Ocultar detalhes da periodização"
+                              : "Ver detalhes da periodização"
                           )}
                         </Text>
                       </Pressable>
@@ -517,7 +517,7 @@ export function DayModal({
                         }}
                       >
                         <Text style={{ color: sourcePalette.text, fontSize: 11, fontWeight: "700" }}>
-                          {activeWeek.source}
+                          {activeWeek.source === "MANUAL" ? "Plano manual" : "Plano automático"}
                         </Text>
                       </View>
                     </>

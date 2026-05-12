@@ -1,3 +1,5 @@
+import type { EvidenceConfidence, EvidenceTrace } from "../evidence";
+
 export type TeamEventType =
   | "training"
   | "friendly"
@@ -52,6 +54,10 @@ export type ScoutingImpact = {
   tacticalNotes: string[];
   recommendedFocus: string[];
   loadImpact: ScoutingLoadImpact;
+  evidenceTrace?: EvidenceTrace;
+  evidenceRuleIds?: string[];
+  evidenceSummary?: string[];
+  evidenceConfidence?: EvidenceConfidence[];
   createdAt: string;
 };
 

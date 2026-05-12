@@ -56,6 +56,8 @@ export function NewScoutingSessionPanel({
   );
   const [opponent, setOpponent] = useState("");
   const [notes, setNotes] = useState("");
+  const [sourceType, setSourceType] = useState<"live" | "video">("live");
+  const [videoClipType, setVideoClipType] = useState("");
   const [error, setError] = useState("");
   const [isStarting, setIsStarting] = useState(false);
 
@@ -69,6 +71,8 @@ export function NewScoutingSessionPanel({
     );
     setOpponent("");
     setNotes("");
+    setSourceType("live");
+    setVideoClipType("");
     setError("");
   }, [initialDate, initialType, visible]);
 
@@ -90,6 +94,14 @@ export function NewScoutingSessionPanel({
           uiType: scoutingType,
           opponent: opponent.trim() || undefined,
           source: initialSource,
+          sourceType:
+            sourceType === "video"
+              ? "video"
+              : scoutingType === "treino"
+                ? "live_training"
+                : "live_match",
+          videoClipType: sourceType === "video" ? videoClipType.trim() || undefined : undefined,
+          videoNotes: sourceType === "video" ? notes.trim() || undefined : undefined,
         })
       );
       onCreated(buildScoutingSessionRoute({ classId, scoutingSessionId: session.id }));
@@ -136,6 +148,16 @@ export function NewScoutingSessionPanel({
             ]}
           />
 
+          <PickerPills
+            label="Origem"
+            value={sourceType}
+            onChange={(value) => setSourceType(value === "video" ? "video" : "live")}
+            options={[
+              { value: "live", label: "Ao vivo" },
+              { value: "video", label: "Por vídeo" },
+            ]}
+          />
+
           <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
             <View style={{ flex: 1, minWidth: 220 }}>
               <Field label="Data" value={date} onChangeText={setDate} placeholder="DD/MM/AAAA" />
@@ -150,11 +172,32 @@ export function NewScoutingSessionPanel({
             </View>
           </View>
 
+          {sourceType === "video" ? (
+            <PickerPills
+              label="Recorte do vídeo"
+              value={videoClipType}
+              onChange={setVideoClipType}
+              options={[
+                { value: "serve_rally", label: "Saque e rally" },
+                { value: "serve", label: "Saque" },
+                { value: "rally", label: "Rally" },
+                { value: "receive", label: "Recepção" },
+                { value: "attack", label: "Ataque" },
+                { value: "full_game", label: "Jogo completo" },
+                { value: "other", label: "Outro" },
+              ]}
+            />
+          ) : null}
+
           <Field
-            label="Observação rápida"
+            label={sourceType === "video" ? "Observação do vídeo" : "Observação rápida"}
             value={notes}
             onChangeText={setNotes}
-            placeholder="Ex.: recepção sob pressão e cobertura pós-ataque"
+            placeholder={
+              sourceType === "video"
+                ? "Ex.: vídeo editado com lances de saque e rally"
+                : "Ex.: recepção sob pressão e cobertura pós-ataque"
+            }
           />
 
           {error ? <Text style={{ color: colors.dangerText, fontWeight: "700" }}>{error}</Text> : null}

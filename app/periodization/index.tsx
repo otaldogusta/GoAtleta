@@ -173,9 +173,13 @@ import { DayModal } from "../../src/screens/periodization/modals/DayModal";
 import { WeekEditorModal } from "../../src/screens/periodization/modals/WeekEditorModal";
 import { OverviewTab } from "../../src/screens/periodization/OverviewTab";
 import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
+import { buildTeamPlanningContextSummary } from "../../src/screens/team-context/team-context-actions";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 
 type WeekPlan = {
+  classId?: string;
+
+  startDate?: string;
 
   week: number;
 
@@ -442,6 +446,8 @@ const formatDateForInput = (value: string | null) => {
   return `${day}/${month}/${year}`;
 };
 
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
 
 const nextDateForDayNumber = (dayNumber: number) => {
 
@@ -633,6 +639,9 @@ export default function PeriodizationScreen() {
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
   const [planningCycles, setPlanningCycles] = useState<PlanningCycle[]>([]);
   const [recentDailyLessonPlans, setRecentDailyLessonPlans] = useState<DailyLessonPlan[]>([]);
+  const [teamPlanningContextSummary, setTeamPlanningContextSummary] = useState<Awaited<
+    ReturnType<typeof buildTeamPlanningContextSummary>
+  > | null>(null);
   const [recentSessionSummaries, setRecentSessionSummaries] = useState<RecentSessionSummary[]>([]);
   const [planObservabilityHistory, setPlanObservabilityHistory] = useState<PlanObservabilityRecord[]>([]);
   const [periodizationKnowledgeSnapshot, setPeriodizationKnowledgeSnapshot] =
@@ -2728,19 +2737,22 @@ export default function PeriodizationScreen() {
     if (!selectedClass) {
       setClassPlans([]);
       setRecentDailyLessonPlans([]);
+      setTeamPlanningContextSummary(null);
       return;
     }
 
-    const [plans, recentDailyPlans] = await Promise.all([
+    const [plans, recentDailyPlans, planningContextSummary] = await Promise.all([
       getClassPlansByClass(selectedClass.id, {
         cycleId: activeCycle?.id ?? null,
         cycleYear: activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
       }),
       listRecentDailyLessonPlansByClass(selectedClass.id, 12),
+      buildTeamPlanningContextSummary(selectedClass.id, todayIso()).catch(() => null),
     ]);
 
     setClassPlans(plans);
     setRecentDailyLessonPlans(recentDailyPlans);
+    setTeamPlanningContextSummary(planningContextSummary);
 
   }, [activeCycle?.id, activeCycle?.year, activeCycleStartDate, selectedClass]);
 
@@ -2749,18 +2761,23 @@ export default function PeriodizationScreen() {
 
     if (!selectedClass) {
       setRecentDailyLessonPlans([]);
+      setTeamPlanningContextSummary(null);
       return;
     }
 
     (async () => {
-      const plans = await measureAsync(
+      const [plans, planningContextSummary] = await Promise.all([
+        measureAsync(
         "screen.periodization.load.recentDailyLessonPlans",
         () => listRecentDailyLessonPlansByClass(selectedClass.id, 12),
         { screen: "periodization", classId: selectedClass.id }
-      );
+        ),
+        buildTeamPlanningContextSummary(selectedClass.id, todayIso()).catch(() => null),
+      ]);
 
       if (!alive) return;
       setRecentDailyLessonPlans(plans);
+      setTeamPlanningContextSummary(planningContextSummary);
     })();
 
     return () => {
@@ -2796,6 +2813,8 @@ export default function PeriodizationScreen() {
         weeklySessions,
         sportProfile,
         recentDailyLessonPlans,
+        teamPlanningContext: teamPlanningContextSummary?.context,
+        scoutingImpacts: teamPlanningContextSummary?.scoutingImpacts,
       });
 
     },
@@ -2811,6 +2830,7 @@ export default function PeriodizationScreen() {
       recentDailyLessonPlans,
       sportProfile,
       selectedClass,
+      teamPlanningContextSummary,
       weeklySessions,
     ]
 
@@ -3351,7 +3371,7 @@ export default function PeriodizationScreen() {
 
           message:
 
-            "Isso substitui semanas AUTO e MANUAL. Use apenas se quiser recriar todo o ciclo.",
+            "Isso substitui semanas automáticas e manuais. Use apenas se quiser recriar todo o ciclo.",
 
           confirmLabel: "Regerar tudo",
 
@@ -4122,7 +4142,7 @@ export default function PeriodizationScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
                 <Ionicons name="shield-checkmark-outline" size={18} color={colors.primaryText} />
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                  Revisão científica
+                  Revisão do plano
                 </Text>
               </View>
               <View
@@ -4165,7 +4185,7 @@ export default function PeriodizationScreen() {
 
             {isLoadingPeriodizationKnowledge ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Carregando snapshot científico da turma.
+                Carregando base da turma.
               </Text>
             ) : periodizationKnowledgeSnapshot ? (
               <>

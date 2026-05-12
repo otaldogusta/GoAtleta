@@ -6,10 +6,10 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { type ClassGroup } from "../../../core/models";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
+import { AppCard } from "../../../ui/AppCard";
 import { DateInput } from "../../../ui/DateInput";
 import { FadeHorizontalScroll } from "../../../ui/FadeHorizontalScroll";
 import { useAppTheme } from "../../../ui/app-theme";
-import { getSectionCardStyle } from "../../../ui/section-styles";
 
 type PickerLayout = { x: number; y: number; width: number; height: number };
 type WindowPosition = { x: number; y: number };
@@ -150,14 +150,8 @@ const EditSectionCard = memo(function EditSectionCard({
   colors: ReturnType<typeof useAppTheme>["colors"];
   children: ReactNode;
 }) {
-  const sectionCardStyle = getSectionCardStyle(colors, "neutral", {
-    padding: 12,
-    radius: 16,
-    shadow: false,
-  });
-
   return (
-    <View style={sectionCardStyle}>
+    <AppCard compact>
       <Pressable
         onPress={() => onToggle(section)}
         style={{
@@ -181,7 +175,7 @@ const EditSectionCard = memo(function EditSectionCard({
       </Pressable>
       {isOpen ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
       {isOpen ? <View style={{ gap: 12, padding: 12 }}>{children}</View> : null}
-    </View>
+    </AppCard>
   );
 });
 EditSectionCard.displayName = "EditSectionCard";

@@ -25,6 +25,7 @@ import {
   deleteScoutingAction,
   listScoutingActionsBySession,
 } from "../../../../src/screens/scouting/scouting-action-actions";
+import { generateAndSaveScoutingImpactForSession } from "../../../../src/screens/scouting/scouting-impact-actions";
 import {
   getDefaultQualityOptionForSkill,
   getScoutingQualityOptionsForSkill,
@@ -38,6 +39,7 @@ import { ClassGenderBadge } from "../../../../src/ui/ClassGenderBadge";
 import { LocationBadge } from "../../../../src/ui/LocationBadge";
 import { Pressable } from "../../../../src/ui/Pressable";
 import { getSectionCardStyle } from "../../../../src/ui/section-styles";
+import { markRender, measureAsync } from "../../../../src/observability/perf";
 
 import { Button } from "../../../../src/ui/Button";
 import type { ScoutingActionGamePhase, ScoutingActionSkill } from "../../../../src/core/scouting-action";
@@ -77,8 +79,15 @@ export default function ScoutingSessionRoute() {
   const [qualityOptionId, setQualityOptionId] = useState(getDefaultQualityOptionForSkill("receive").id);
   const [gamePhase, setGamePhase] = useState<ScoutingActionGamePhase>("sideout");
   const [notes, setNotes] = useState("");
+  const [videoLabel, setVideoLabel] = useState("");
   const [isSavingAction, setIsSavingAction] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [impactMessage, setImpactMessage] = useState("");
+
+  markRender("screen.scoutingSession.render.root", {
+    hasSession: session ? 1 : 0,
+    actions: actions.length,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -86,12 +95,16 @@ export default function ScoutingSessionRoute() {
       try {
         const cached = await getCachedClassById(classId);
         if (alive && cached) setCls(cached);
-        const [classData, sessionData, sessionActions, students] = await Promise.all([
-          getClassById(classId),
-          getScoutingSession(sessionId),
-          listScoutingActionsBySession(sessionId),
-          getStudentsByClass(classId),
-        ]);
+        const [classData, sessionData, sessionActions, students] = await measureAsync(
+          "screen.scoutingSession.load.detail",
+          () =>
+            Promise.all([
+              getClassById(classId),
+              getScoutingSession(sessionId),
+              listScoutingActionsBySession(sessionId),
+              getStudentsByClass(classId),
+            ])
+        );
         if (!alive) return;
         setCls(classData);
         setSession(sessionData);
@@ -112,6 +125,7 @@ export default function ScoutingSessionRoute() {
     [classId, session]
   );
   const actionsSummary = useMemo(() => summarizeScoutingActions(actions), [actions]);
+  const isVideoSession = session?.sourceType === "video";
   const topAthletes = useMemo(() => {
     const names = Array.from(
       new Set([
@@ -144,12 +158,15 @@ export default function ScoutingSessionRoute() {
         score: selectedOption.score,
         label: selectedOption.label,
         gamePhase,
+        videoLabel: isVideoSession ? videoLabel.trim() || undefined : undefined,
+        clipReference: isVideoSession ? session.videoClipType || undefined : undefined,
         notes: notes.trim() || undefined,
       });
       const nextActions = [created, ...actions];
       setActions(nextActions);
       setAthleteName("");
       setNotes("");
+      setVideoLabel("");
       setQualityOptionId(getDefaultQualityOptionForSkill("receive").id);
       setSkill("receive");
       setGamePhase("sideout");
@@ -171,6 +188,14 @@ export default function ScoutingSessionRoute() {
       const { completeScoutingSessionById } = await import("../../../../src/screens/scouting/scouting-session-actions");
       const next = await completeScoutingSessionById(session.id);
       if (next) setSession(next);
+      const result = await generateAndSaveScoutingImpactForSession(session.id);
+      setImpactMessage(
+        result.saved
+          ? session.sourceType === "video"
+            ? "Sinais do vídeo salvos para apoiar o próximo planejamento."
+            : "Sinais salvos para apoiar o próximo planejamento."
+          : "Ainda não há sinais suficientes para ajustar o planejamento."
+      );
     } finally {
       setIsCompleting(false);
     }
@@ -233,14 +258,16 @@ export default function ScoutingSessionRoute() {
           }}
         >
           <View style={{ gap: 4, flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Pressable
-                onPress={() =>
-                  router.replace({
-                    pathname: "/class/[id]/scouting",
-                    params: { id: classId },
-                  })
-                }
+            <Pressable
+              onPress={() =>
+                router.replace({
+                  pathname: "/class/[id]/scouting",
+                  params: { id: classId },
+                })
+              }
+              style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <View
                 style={{
                   width: 34,
                   height: 34,
@@ -250,17 +277,39 @@ export default function ScoutingSessionRoute() {
                 }}
               >
                 <Ionicons name="chevron-back" size={22} color={colors.text} />
-              </Pressable>
+              </View>
               <Text style={{ color: colors.text, fontSize: isDesktop ? 28 : 24, fontWeight: "800" }}>
                 Scouting
               </Text>
-            </View>
+            </Pressable>
             <Text style={{ color: colors.text, fontSize: isDesktop ? 20 : 18, fontWeight: "800", marginLeft: 42 }}>
               {session.title}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 13, marginLeft: 42 }}>
               {typeLabelMap[session.type]} · {formatDate(session.date)} · {statusLabelMap[session.status]}
             </Text>
+            {session.sourceType === "video" ? (
+              <View
+                style={{
+                  alignSelf: "flex-start",
+                  marginLeft: 42,
+                  marginTop: 4,
+                  paddingVertical: 5,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  backgroundColor: colors.infoBg,
+                }}
+              >
+                <Text style={{ color: colors.infoText, fontWeight: "800", fontSize: 12 }}>
+                  Análise por vídeo
+                </Text>
+              </View>
+            ) : null}
+            {session.sourceType === "video" && session.videoNotes ? (
+              <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 42 }}>
+                {session.videoNotes}
+              </Text>
+            ) : null}
           </View>
           <Button
             label="Finalizar análise"
@@ -284,6 +333,12 @@ export default function ScoutingSessionRoute() {
           totalActions={actionsSummary.totalActions}
         />
 
+        {impactMessage ? (
+          <View style={getSectionCardStyle(colors, "neutral", { radius: 14, padding: 12, shadow: false })}>
+            <Text style={{ color: colors.muted, fontWeight: "700", fontSize: 13 }}>{impactMessage}</Text>
+          </View>
+        ) : null}
+
         <DecisionMainLayout
           main={
             <>
@@ -292,6 +347,7 @@ export default function ScoutingSessionRoute() {
                 gamePhase={gamePhase}
                 isDesktop={isDesktop}
                 isSavingAction={isSavingAction}
+                isVideoSession={isVideoSession}
                 notes={notes}
                 onAthleteNameChange={setAthleteName}
                 onGamePhaseChange={setGamePhase}
@@ -299,9 +355,11 @@ export default function ScoutingSessionRoute() {
                 onQualityOptionChange={setQualityOptionId}
                 onRegister={handleRegisterAction}
                 onSkillChange={setSkill}
+                onVideoLabelChange={setVideoLabel}
                 qualityOptionId={qualityOptionId}
                 quickAthletes={topAthletes}
                 skill={skill}
+                videoLabel={videoLabel}
               />
               <ScoutingRecentActions
                 actions={actions}

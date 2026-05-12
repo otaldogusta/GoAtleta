@@ -116,6 +116,12 @@ export const createScoutingAction = (input: CreateScoutingActionInput): Scouting
       typeof input.videoTimestampSec === "number" && Number.isFinite(input.videoTimestampSec)
         ? input.videoTimestampSec
         : undefined,
+    videoTimestampMs:
+      typeof input.videoTimestampMs === "number" && Number.isFinite(input.videoTimestampMs)
+        ? input.videoTimestampMs
+        : undefined,
+    videoLabel: cleanOptional(input.videoLabel),
+    clipReference: cleanOptional(input.clipReference),
     notes: cleanOptional(input.notes),
     source: input.source ?? "coach",
     createdAt: new Date().toISOString(),

@@ -17,6 +17,13 @@ const statusLabelMap: Record<ScoutingSession["status"], string> = {
   archived: "Arquivado",
 };
 
+const sourceTypeLabelMap: Record<NonNullable<ScoutingSession["sourceType"]>, string> = {
+  live_training: "Ao vivo",
+  live_match: "Ao vivo",
+  video: "Vídeo",
+  manual: "Manual",
+};
+
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(new Date(`${value}T12:00:00`));
 
@@ -35,6 +42,7 @@ export function ScoutingSessionContextBar({
     { label: "Data", value: formatDate(session.date) },
     { label: "Tipo", value: typeLabelMap[session.type] },
     { label: "Status", value: statusLabelMap[session.status] },
+    { label: "Origem", value: session.sourceType ? sourceTypeLabelMap[session.sourceType] : "Ao vivo" },
     { label: "Atletas", value: `${athletesCount} avaliadas` },
     { label: "Ações", value: String(totalActions) },
   ];

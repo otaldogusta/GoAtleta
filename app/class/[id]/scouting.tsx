@@ -1,13 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   DecisionEmptyState,
   DecisionMainLayout,
-  DecisionPageHeader,
   DecisionReasonCard,
   DecisionSignalPanel,
   DecisionSummaryCards,
@@ -27,11 +25,14 @@ import {
 } from "../../../src/screens/scouting/scouting-dashboard";
 import { buildTeamPlanningContextSummary } from "../../../src/screens/team-context/team-context-actions";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { AppPageHeader } from "../../../src/ui/AppPageHeader";
+import { AppScreenShell } from "../../../src/ui/AppScreenShell";
 import { getClassPalette } from "../../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
 import { LocationBadge } from "../../../src/ui/LocationBadge";
 import { Pressable } from "../../../src/ui/Pressable";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const addDays = (date: string, days: number) => {
@@ -64,10 +65,8 @@ export default function ClassScoutingRoute() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const classId = typeof id === "string" ? id : "";
-  const isDesktop = width >= 1040;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [cls, setCls] = useState<ClassGroup | null>(null);
@@ -76,8 +75,12 @@ export default function ClassScoutingRoute() {
   const [students, setStudents] = useState<Student[]>([]);
   const [studentLogs, setStudentLogs] = useState<StudentScoutingLog[]>([]);
   const [summary, setSummary] = useState<Awaited<ReturnType<typeof buildTeamPlanningContextSummary>> | null>(null);
-  const [hasRedirected, setHasRedirected] = useState(false);
   const [showNewPanel, setShowNewPanel] = useState(openNew === "1");
+
+  markRender("screen.scouting.render.root", {
+    hasClass: cls ? 1 : 0,
+    sessions: scoutingSessions.length,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -85,33 +88,35 @@ export default function ClassScoutingRoute() {
       try {
         setIsLoading(true);
         setError("");
-        const cached = await getCachedClassById(classId);
-        if (alive && cached) setCls(cached);
-        const classData = await getClassById(classId);
-        if (!alive) return;
-        setCls(classData);
+        await measureAsync("screen.scouting.load.dashboard", async () => {
+          const cached = await getCachedClassById(classId);
+          if (alive && cached) setCls(cached);
+          const classData = await getClassById(classId);
+          if (!alive) return;
+          setCls(classData);
 
-        const [logs, sessions] = await Promise.all([
-          listScoutingLogsByClass(classId, { limit: 20 }),
-          listScoutingSessionsByClass(classId),
-        ]);
-        if (!alive) return;
-        setScoutingLogs(logs);
-        setScoutingSessions(sessions);
+          const [logs, sessions] = await Promise.all([
+            listScoutingLogsByClass(classId, { limit: 20 }),
+            listScoutingSessionsByClass(classId),
+          ]);
+          if (!alive) return;
+          setScoutingLogs(logs);
+          setScoutingSessions(sessions);
 
-        const [allStudents, planningSummary] = await Promise.all([
-          getStudentsByClass(classId),
-          buildTeamPlanningContextSummary(classId, todayIso()),
-        ]);
-        if (!alive) return;
-        setStudents(allStudents);
-        setSummary(planningSummary);
+          const [allStudents, planningSummary] = await Promise.all([
+            getStudentsByClass(classId),
+            buildTeamPlanningContextSummary(classId, todayIso()),
+          ]);
+          if (!alive) return;
+          setStudents(allStudents);
+          setSummary(planningSummary);
 
-        const latestDate = logs[0]?.date ?? todayIso();
-        const fromDate = addDays(latestDate, -28);
-        const byStudent = await getStudentScoutingByRange(classId, fromDate, addDays(latestDate, 1));
-        if (!alive) return;
-        setStudentLogs(byStudent);
+          const latestDate = logs[0]?.date ?? todayIso();
+          const fromDate = addDays(latestDate, -28);
+          const byStudent = await getStudentScoutingByRange(classId, fromDate, addDays(latestDate, 1));
+          if (!alive) return;
+          setStudentLogs(byStudent);
+        });
       } catch (loadError) {
         if (!alive) return;
         setError(loadError instanceof Error ? loadError.message : "Falha ao carregar scouting.");
@@ -203,24 +208,7 @@ export default function ClassScoutingRoute() {
     router.replace({ pathname: "/class/[id]", params: { id: classId } });
   };
 
-  useEffect(() => {
-    if (isLoading || error || !activeScoutingSession || hasRedirected || showNewPanel) return;
-    setHasRedirected(true);
-    router.replace({
-      pathname: "/class/[id]/scouting/[scoutingSessionId]",
-      params: { id: classId, scoutingSessionId: activeScoutingSession.id },
-    });
-  }, [activeScoutingSession, classId, error, hasRedirected, isLoading, router, showNewPanel]);
-
   if (isLoading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScreenLoadingState />
-      </SafeAreaView>
-    );
-  }
-
-  if (activeScoutingSession && !hasRedirected && !showNewPanel) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <ScreenLoadingState />
@@ -247,51 +235,36 @@ export default function ClassScoutingRoute() {
           router.replace(route);
         }}
       />
+      <AppScreenShell
+        maxWidth={1320}
+        header={
+          <AppPageHeader
+            title="Scouting"
+            subtitle="Análise técnica, jogo e evolução da equipe."
+            onBack={handleBack}
+            actionLabel="+ Novo scouting"
+            onAction={() => setShowNewPanel(true)}
+            meta={
+              <View style={{ alignItems: "flex-end", gap: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                    {cls?.name ?? "Turma"}
+                  </Text>
+                  <ClassGenderBadge gender={cls?.gender ?? "misto"} size="sm" />
+                </View>
+                <LocationBadge location={cls?.unit ?? "Unidade"} palette={classPalette} size="sm" showIcon />
+              </View>
+            }
+          />
+        }
+      >
       <ScrollView
         contentContainerStyle={{
           gap: 18,
-          paddingHorizontal: isDesktop ? 24 : 16,
-          paddingTop: 16,
           paddingBottom: Math.max(insets.bottom + 40, 56),
-          width: "100%",
-          maxWidth: 1320,
-          alignSelf: "center",
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-          <Pressable
-            onPress={handleBack}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 999,
-              alignItems: "center",
-              justifyContent: "center",
-              marginTop: 2,
-            }}
-          >
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
-          </Pressable>
-          <View style={{ flex: 1 }}>
-            <DecisionPageHeader
-              title="Scouting"
-              subtitle="Análise técnica, jogo e evolução da equipe."
-              actionLabel="+ Novo scouting"
-              onAction={() => setShowNewPanel(true)}
-              classMeta={
-                <>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                      {cls?.name ?? "Turma"}
-                    </Text>
-                    <ClassGenderBadge gender={cls?.gender ?? "misto"} size="md" />
-                  </View>
-                  <LocationBadge location={cls?.unit ?? "Unidade"} palette={classPalette} size="sm" showIcon />
-                </>
-              }
-            />
-          </View>
-        </View>
 
         {error ? (
           <View style={[getSectionCardStyle(colors, "warning", { radius: 16 }), { gap: 6 }]}>
@@ -325,14 +298,35 @@ export default function ClassScoutingRoute() {
               <View style={{ gap: 4 }}>
                 <Text style={{ color: colors.text, fontSize: 24, fontWeight: "800" }}>Últimos scoutings</Text>
                 <Text style={{ color: colors.muted }}>
-                  Abra uma análise recente ou inicie um novo scouting de treino, amistoso ou jogo.
+                  Registre ações do treino ou jogo para acompanhar pontos fortes e pontos de atenção.
                 </Text>
               </View>
+              {activeScoutingSession ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/class/[id]/scouting/[scoutingSessionId]",
+                      params: { id: classId, scoutingSessionId: activeScoutingSession.id },
+                    })
+                  }
+                  style={[
+                    getSectionCardStyle(colors, "primary", { radius: 16, shadow: false }),
+                    { gap: 6 },
+                  ]}
+                >
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                    Continuar análise em andamento
+                  </Text>
+                  <Text style={{ color: colors.muted }}>
+                    {activeScoutingSession.title} · {formatDate(activeScoutingSession.date)}
+                  </Text>
+                </Pressable>
+              ) : null}
               {!historyItems.length && !scoutingSessions.length ? (
                 <DecisionEmptyState
-                  title="Iniciar primeiro scouting"
-                  description="Crie uma análise e entre direto no registro rápido da turma."
-                  actionLabel="Iniciar análise"
+                  title="Ainda não há análises desta turma"
+                  description="Comece registrando ações do treino ou jogo para enxergar pontos fortes e pontos de atenção."
+                  actionLabel="Iniciar primeiro scouting"
                   onAction={() => setShowNewPanel(true)}
                 />
               ) : (
@@ -430,8 +424,8 @@ export default function ClassScoutingRoute() {
                 title="Alertas da equipe"
                 subtitle="Sinais rápidos para leitura técnica."
                 items={alerts.map((alert) => ({ label: alert }))}
-                emptyTitle="Sem alertas críticos"
-                emptyDescription="Assim que houver volume suficiente de análise, os sinais técnicos aparecem aqui."
+                emptyTitle="Sem sinais de atenção"
+                emptyDescription="Os alertas aparecem quando o scouting indicar um padrão recorrente."
               />
 
               <DecisionReasonCard title="Prioridades da semana" items={priorities} />
@@ -449,13 +443,14 @@ export default function ClassScoutingRoute() {
                     detail: `Score ${item.overallScore.toFixed(1)} · prioridade ${item.priorityLabel}`,
                   })),
                 ].slice(0, 5)}
-                emptyTitle="Sem leitura individual ainda"
-                emptyDescription="Quando houver lançamentos por atleta, esta área mostra evolução e atenção individual."
+                emptyTitle="Aguardando ações por atleta"
+                emptyDescription="Quando houver registros individuais, esta área mostra evolução e pontos de atenção."
               />
             </>
           }
         />
       </ScrollView>
+      </AppScreenShell>
     </SafeAreaView>
   );
 }

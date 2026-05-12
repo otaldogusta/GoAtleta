@@ -344,7 +344,7 @@ export function WeekEditorModal({
             >
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-                  Revisão científica
+                  Revisão do plano
                 </Text>
                 <View
                   style={{

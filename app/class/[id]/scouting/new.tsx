@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { ScreenLoadingState } from "../../../../src/components/ui/ScreenLoadingState";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "../../../../src/ui/app-theme";
+import { markRender, measureAsync } from "../../../../src/observability/perf";
 
 export default function NewScoutingRoute() {
   const { id, date, type, source } = useLocalSearchParams<{
@@ -16,16 +17,20 @@ export default function NewScoutingRoute() {
   const { colors } = useAppTheme();
   const classId = typeof id === "string" ? id : "";
 
+  markRender("screen.scoutingNew.render.root", { hasClass: classId ? 1 : 0 });
+
   useEffect(() => {
-    router.replace({
-      pathname: "/class/[id]/scouting",
-      params: {
-        id: classId,
-        openNew: "1",
-        date: typeof date === "string" ? date : undefined,
-        type: typeof type === "string" ? type : undefined,
-        source: typeof source === "string" ? source : undefined,
-      },
+    void measureAsync("screen.scoutingNew.load.redirect", async () => {
+      router.replace({
+        pathname: "/class/[id]/scouting",
+        params: {
+          id: classId,
+          openNew: "1",
+          date: typeof date === "string" ? date : undefined,
+          type: typeof type === "string" ? type : undefined,
+          source: typeof source === "string" ? source : undefined,
+        },
+      });
     });
   }, [classId, date, router, source, type]);
 

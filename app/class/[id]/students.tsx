@@ -24,6 +24,7 @@ import { getClassModalityLabel, matchesClassModalityText } from "../../../src/co
 import { matchAthleteIntakeToStudents, type AthleteIntake } from "../../../src/core/athlete-intake";
 import { useEffectiveProfile } from "../../../src/core/effective-profile";
 import type { ClassGroup, Student } from "../../../src/core/models";
+import { normalizeProfileImage } from "../../../src/media/normalize-profile-image";
 import {
     deleteStudent,
     deleteStudents,
@@ -42,6 +43,9 @@ import { useIsOnline } from "../../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../../src/hooks/useDebouncedValue";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
+import { AppPageHeader } from "../../../src/ui/AppPageHeader";
+import { AppScreenShell } from "../../../src/ui/AppScreenShell";
+import { AppTabs } from "../../../src/ui/AppTabs";
 import { ConfirmCloseOverlay } from "../../../src/ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { Pressable } from "../../../src/ui/Pressable";
@@ -67,6 +71,9 @@ type Layout = { x: number; y: number; width: number; height: number };
 type StudentSectionKey = "studentData" | "academic" | "sportProfile" | "documents" | "health" | "guardian" | "links" | null;
 type CreateSectionKey = "studentData" | "academic" | "sportProfile" | "health" | "documents" | "guardian" | "links" | null;
 type ScreenTab = "alunos" | "cadastro";
+
+const PHOTO_PREPARE_ERROR_MESSAGE =
+  "Não foi possível preparar essa foto. Tente tirar novamente ou escolher outra imagem da galeria.";
 
 const inputStyle = (colors: ReturnType<typeof useAppTheme>["colors"]) => ({
   borderWidth: 1,
@@ -264,6 +271,8 @@ export default function ClassStudentsScreen() {
   const [photoMimeType, setPhotoMimeType] = useState<string | null>(null);
   const [photoChanged, setPhotoChanged] = useState(false);
   const [photoSaving, setPhotoSaving] = useState(false);
+  const [photoPreparing, setPhotoPreparing] = useState(false);
+  const [photoPrepareError, setPhotoPrepareError] = useState("");
   const [createName, setCreateName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createPhone, setCreatePhone] = useState("");
@@ -284,6 +293,8 @@ export default function ClassStudentsScreen() {
   const [createRg, setCreateRg] = useState("");
   const [createPhotoUrl, setCreatePhotoUrl] = useState<string | null>(null);
   const [createPhotoMimeType, setCreatePhotoMimeType] = useState<string | null>(null);
+  const [createPhotoPreparing, setCreatePhotoPreparing] = useState(false);
+  const [createPhotoPrepareError, setCreatePhotoPrepareError] = useState("");
   const [createError, setCreateError] = useState("");
   const [creatingStudent, setCreatingStudent] = useState(false);
   const [editSnapshot, setEditSnapshot] = useState<{
@@ -571,7 +582,10 @@ export default function ClassStudentsScreen() {
   }, [debouncedSearch, students]);
 
   const pickStudentPhoto = useCallback(async (source: "camera" | "library") => {
+    if (photoPreparing) return;
+
     try {
+      setPhotoPrepareError("");
       if (source === "camera") {
         if (Platform.OS === "web") {
           Alert.alert("Câmera indisponível", "Use a galeria no navegador.");
@@ -591,8 +605,16 @@ export default function ClassStudentsScreen() {
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset?.uri) {
-          setPhotoUrl(asset.uri);
-          setPhotoMimeType(asset.mimeType ?? null);
+          setPhotoPreparing(true);
+          const normalized = await normalizeProfileImage({
+            uri: asset.uri,
+            width: asset.width,
+            height: asset.height,
+            fileName: asset.fileName ?? null,
+            mimeType: asset.mimeType ?? null,
+          });
+          setPhotoUrl(normalized.uri);
+          setPhotoMimeType(normalized.mimeType);
           setPhotoChanged(true);
         }
         return;
@@ -612,18 +634,30 @@ export default function ClassStudentsScreen() {
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset?.uri) {
-        setPhotoUrl(asset.uri);
-        setPhotoMimeType(asset.mimeType ?? null);
+        setPhotoPreparing(true);
+        const normalized = await normalizeProfileImage({
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          fileName: asset.fileName ?? null,
+          mimeType: asset.mimeType ?? null,
+        });
+        setPhotoUrl(normalized.uri);
+        setPhotoMimeType(normalized.mimeType);
         setPhotoChanged(true);
       }
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      Alert.alert("Erro", detail);
+    } catch {
+      setPhotoPrepareError(PHOTO_PREPARE_ERROR_MESSAGE);
+    } finally {
+      setPhotoPreparing(false);
     }
-  }, []);
+  }, [photoPreparing]);
 
   const pickCreatePhoto = useCallback(async (source: "camera" | "library") => {
+    if (createPhotoPreparing) return;
+
     try {
+      setCreatePhotoPrepareError("");
       if (source === "camera") {
         if (Platform.OS === "web") {
           Alert.alert("Câmera indisponível", "Use a galeria no navegador.");
@@ -643,8 +677,16 @@ export default function ClassStudentsScreen() {
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset?.uri) {
-          setCreatePhotoUrl(asset.uri);
-          setCreatePhotoMimeType(asset.mimeType ?? null);
+          setCreatePhotoPreparing(true);
+          const normalized = await normalizeProfileImage({
+            uri: asset.uri,
+            width: asset.width,
+            height: asset.height,
+            fileName: asset.fileName ?? null,
+            mimeType: asset.mimeType ?? null,
+          });
+          setCreatePhotoUrl(normalized.uri);
+          setCreatePhotoMimeType(normalized.mimeType);
         }
         return;
       }
@@ -663,14 +705,23 @@ export default function ClassStudentsScreen() {
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset?.uri) {
-        setCreatePhotoUrl(asset.uri);
-        setCreatePhotoMimeType(asset.mimeType ?? null);
+        setCreatePhotoPreparing(true);
+        const normalized = await normalizeProfileImage({
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          fileName: asset.fileName ?? null,
+          mimeType: asset.mimeType ?? null,
+        });
+        setCreatePhotoUrl(normalized.uri);
+        setCreatePhotoMimeType(normalized.mimeType);
       }
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      Alert.alert("Erro", detail);
+    } catch {
+      setCreatePhotoPrepareError(PHOTO_PREPARE_ERROR_MESSAGE);
+    } finally {
+      setCreatePhotoPreparing(false);
     }
-  }, []);
+  }, [createPhotoPreparing]);
 
   const openEdit = (s: Student) => {
     setEditingStudent(s);
@@ -707,6 +758,8 @@ export default function ClassStudentsScreen() {
     setPhotoUrl(s.photoUrl ?? null);
     setPhotoMimeType(null);
     setPhotoChanged(false);
+    setPhotoPreparing(false);
+    setPhotoPrepareError("");
     setDocumentsError({});
     setEditSnapshot({
       name: s.name ?? "",
@@ -800,6 +853,8 @@ export default function ClassStudentsScreen() {
     setPhotoUrl(null);
     setPhotoMimeType(null);
     setPhotoChanged(false);
+    setPhotoPreparing(false);
+    setPhotoPrepareError("");
   }, []);
 
   const requestCloseEditModal = useCallback(() => {
@@ -831,6 +886,8 @@ export default function ClassStudentsScreen() {
     setCreateRg("");
     setCreatePhotoUrl(null);
     setCreatePhotoMimeType(null);
+    setCreatePhotoPreparing(false);
+    setCreatePhotoPrepareError("");
     setCreateError("");
     setOpenCreateSection("studentData");
     setCreateDropKey(null);
@@ -1680,18 +1737,26 @@ export default function ClassStudentsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Pressable
-            onPress={handleBackPress}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Alunos da turma</Text>
-          </Pressable>
-        </View>
-
-        <Text style={{ color: colors.muted, marginTop: 6 }}>{cls ? `${cls.name} • ${cls.unit}` : "Carregando turma..."}</Text>
+      <AppScreenShell
+        contentStyle={{ paddingHorizontal: 16 }}
+        header={
+          <AppPageHeader
+            title="Alunos"
+            subtitle={cls ? `${cls.name} · ${cls.unit || "Sem unidade"}` : "Carregando turma..."}
+            onBack={handleBackPress}
+          />
+        }
+        tabs={
+          <AppTabs
+            value={screenTab}
+            onChange={handleScreenTabChange}
+            tabs={[
+              { value: "alunos", label: "Alunos" },
+              { value: "cadastro", label: "Cadastro" },
+            ]}
+          />
+        }
+      >
 
         {loadError ? (
           <View
@@ -1736,48 +1801,6 @@ export default function ClassStudentsScreen() {
             </View>
           </View>
         ) : null}
-
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 6,
-            marginTop: 12,
-            padding: 6,
-            borderRadius: 999,
-            backgroundColor: colors.secondaryBg,
-          }}
-        >
-          <Pressable
-            onPress={() => handleScreenTabChange("alunos")}
-            style={{
-              flex: 1,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: screenTab === "alunos" ? colors.primaryBg : colors.card,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: screenTab === "alunos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-              Alunos
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleScreenTabChange("cadastro")}
-            style={{
-              flex: 1,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: screenTab === "cadastro" ? colors.primaryBg : colors.card,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: screenTab === "cadastro" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-              Cadastro
-            </Text>
-          </Pressable>
-        </View>
 
         {screenTab === "alunos" ? (
           <>
@@ -2120,6 +2143,7 @@ export default function ClassStudentsScreen() {
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 12 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Pressable
+                  disabled={createPhotoPreparing}
                   onPress={() => void pickCreatePhoto("library")}
                   style={{
                     width: 72,
@@ -2131,6 +2155,7 @@ export default function ClassStudentsScreen() {
                     backgroundColor: colors.secondaryBg,
                     alignItems: "center",
                     justifyContent: "center",
+                    opacity: createPhotoPreparing ? 0.64 : 1,
                   }}
                 >
                   {createPhotoUrl ? (
@@ -2142,13 +2167,21 @@ export default function ClassStudentsScreen() {
                 <View style={{ gap: 6 }}>
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{createPhotoUrl ? "Alterar foto" : "Adicionar foto"}</Text>
                   <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
-                    <Pressable onPress={() => void pickCreatePhoto("library")}>
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Galeria</Text>
+                    <Pressable disabled={createPhotoPreparing} onPress={() => void pickCreatePhoto("library")}>
+                      <Text style={{ color: createPhotoPreparing ? colors.muted : colors.text, fontSize: 12, fontWeight: "700" }}>Galeria</Text>
                     </Pressable>
-                    <Pressable onPress={() => void pickCreatePhoto("camera")}>
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Tirar foto</Text>
+                    <Pressable disabled={createPhotoPreparing} onPress={() => void pickCreatePhoto("camera")}>
+                      <Text style={{ color: createPhotoPreparing ? colors.muted : colors.text, fontSize: 12, fontWeight: "700" }}>Tirar foto</Text>
                     </Pressable>
                   </View>
+                  {createPhotoPreparing ? (
+                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>Preparando foto...</Text>
+                  ) : null}
+                  {createPhotoPrepareError ? (
+                    <Text style={{ color: colors.dangerText, fontSize: 11, fontWeight: "600", maxWidth: 360 }}>
+                      {createPhotoPrepareError}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -2450,7 +2483,7 @@ export default function ClassStudentsScreen() {
           </View>
           </View>
         )}
-      </View>
+      </AppScreenShell>
 
       <ModalSheet
         visible={Boolean(editingStudent)}
@@ -2494,6 +2527,7 @@ export default function ClassStudentsScreen() {
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 4, paddingBottom: 2 }}>
               <Pressable
+                disabled={photoPreparing}
                 onPress={() => void pickStudentPhoto("library")}
                 style={{
                   width: 72,
@@ -2505,6 +2539,7 @@ export default function ClassStudentsScreen() {
                   backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
+                  opacity: photoPreparing ? 0.64 : 1,
                 }}
               >
                 {photoUrl ? (
@@ -2518,13 +2553,21 @@ export default function ClassStudentsScreen() {
                   {photoUrl ? "Alterar foto" : "Adicionar foto"}
                 </Text>
                 <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
-                  <Pressable onPress={() => void pickStudentPhoto("library")}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Galeria</Text>
+                  <Pressable disabled={photoPreparing} onPress={() => void pickStudentPhoto("library")}>
+                    <Text style={{ color: photoPreparing ? colors.muted : colors.text, fontSize: 12, fontWeight: "700" }}>Galeria</Text>
                   </Pressable>
-                  <Pressable onPress={() => void pickStudentPhoto("camera")}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Tirar foto</Text>
+                  <Pressable disabled={photoPreparing} onPress={() => void pickStudentPhoto("camera")}>
+                    <Text style={{ color: photoPreparing ? colors.muted : colors.text, fontSize: 12, fontWeight: "700" }}>Tirar foto</Text>
                   </Pressable>
                 </View>
+                {photoPreparing ? (
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>Preparando foto...</Text>
+                ) : null}
+                {photoPrepareError ? (
+                  <Text style={{ color: colors.dangerText, fontSize: 11, fontWeight: "600", maxWidth: 360 }}>
+                    {photoPrepareError}
+                  </Text>
+                ) : null}
               </View>
             </View>
 

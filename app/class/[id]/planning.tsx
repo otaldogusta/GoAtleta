@@ -12,6 +12,8 @@ import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingStat
 import type { MonthPlanningSummary } from "../../../src/screens/planning/hooks/useClassPlanning";
 import { useClassPlanning } from "../../../src/screens/planning/hooks/useClassPlanning";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { AppPageHeader } from "../../../src/ui/AppPageHeader";
+import { AppScreenShell } from "../../../src/ui/AppScreenShell";
 import { getClassPalette } from "../../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
 import { LocationBadge } from "../../../src/ui/LocationBadge";
@@ -99,65 +101,39 @@ export default function ClassPlanningHubRoute() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <AppScreenShell
+        header={
+          <AppPageHeader
+            title="Planejamentos"
+            subtitle="Meses, semanas e aulas da turma em ordem cronológica."
+            onBack={handleBackToClass}
+            meta={
+              <View style={{ alignItems: isTablet ? "flex-end" : "flex-start", gap: 6, maxWidth: "100%" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                    Turma {classAgeBand}
+                  </Text>
+                  <ClassGenderBadge gender={classGender} size="md" />
+                </View>
+                <LocationBadge
+                  location={selectedClass?.unit || "Unidade"}
+                  palette={classPalette}
+                  size="sm"
+                  showIcon
+                />
+              </View>
+            }
+          />
+        }
+      >
       <ScrollView
         contentContainerStyle={{
           gap: 18,
-          paddingHorizontal: isDesktop ? 24 : 16,
-          paddingTop: 16,
+          paddingTop: 0,
           paddingBottom: Math.max(insets.bottom + 40, 56),
-          width: "100%",
-          maxWidth: 1280,
-          alignSelf: "center",
         }}
       >
-        <View
-          style={{
-            flexDirection: isTablet ? "row" : "column",
-            alignItems: isTablet ? "flex-start" : "stretch",
-            justifyContent: "space-between",
-            gap: 14,
-          }}
-        >
-          <View style={{ flex: 1, gap: 6 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Pressable
-                onPress={handleBackToClass}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="chevron-back" size={22} color={colors.text} />
-              </Pressable>
-              <Text style={{ color: colors.text, fontSize: isDesktop ? 30 : 26, fontWeight: "800" }}>
-                Planejamentos
-              </Text>
-            </View>
-            <Text style={{ color: colors.muted, fontSize: 14, marginLeft: isTablet ? 42 : 0 }}>
-              Meses, semanas e aulas da turma em ordem cronológica.
-            </Text>
-          </View>
-
-          <View style={{ alignItems: isTablet ? "flex-end" : "flex-start", gap: 6, maxWidth: "100%" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                Turma {classAgeBand}
-              </Text>
-              <ClassGenderBadge gender={classGender} size="md" />
-            </View>
-            <LocationBadge
-              location={selectedClass?.unit || "Unidade"}
-              palette={classPalette}
-              size="sm"
-              showIcon
-            />
-          </View>
-        </View>
-
         <View
           style={{
             paddingVertical: isDesktop ? 12 : 8,
@@ -197,7 +173,14 @@ export default function ClassPlanningHubRoute() {
           <EmptyState
             colors={colors}
             title="Nenhum planejamento disponível"
-            body="Gere ou edite semanas na periodização para começar a organizar os planejamentos por mês."
+            body="Monte o ciclo da turma na periodização para organizar as semanas e aulas por mês."
+            actionLabel="Abrir periodização"
+            onAction={() =>
+              router.push({
+                pathname: "/prof/periodization",
+                params: { classId, unit: selectedClass?.unit ?? "" },
+              })
+            }
           />
         ) : !selectedYearMonths.length ? (
           <EmptyState
@@ -227,6 +210,7 @@ export default function ClassPlanningHubRoute() {
           </View>
         )}
       </ScrollView>
+      </AppScreenShell>
     </SafeAreaView>
   );
 }
@@ -295,10 +279,14 @@ function EmptyState({
   title,
   body,
   colors,
+  actionLabel,
+  onAction,
 }: {
   title: string;
   body: string;
   colors: ReturnType<typeof useAppTheme>["colors"];
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <View
@@ -310,6 +298,23 @@ function EmptyState({
     >
       <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>{title}</Text>
       <Text style={{ color: colors.muted }}>{body}</Text>
+      {actionLabel && onAction ? (
+        <Pressable
+          onPress={onAction}
+          style={{
+            alignSelf: "flex-start",
+            marginTop: 6,
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.secondaryBg,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{actionLabel}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

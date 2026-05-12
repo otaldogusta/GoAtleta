@@ -38,6 +38,28 @@ type UseSessionDataParams = {
   compactTrainingPlans: (plans: TrainingPlan[]) => TrainingPlan[];
 };
 
+const SESSION_DATA_TIMEOUT_MS = 3500;
+
+const withSessionDataTimeout = async <T,>(
+  promise: Promise<T>,
+  fallback: T,
+  timeoutMs = SESSION_DATA_TIMEOUT_MS
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 const pickClassPlanForSessionDate = (plans: ClassPlan[], sessionDateValue: string) => {
   if (!plans.length) return null;
   const targetTime = Date.parse(`${sessionDateValue}T00:00:00`);
@@ -121,26 +143,36 @@ export function useSessionData({
         const data = await getClassById(classId);
         if (alive) setCls(data);
         if (data) {
-          const [classStudents, currentPlan, classTrainingPlans] = await Promise.all([
-            getStudentsByClass(data.id),
-            getLatestFinalPlanForSession(
-              data.organizationId ?? null,
-              data.id,
-              sessionDate,
-              weekdayId
-            ).catch(() => null),
-            getTrainingPlans({
-              organizationId: data.organizationId ?? null,
-              classId: data.id,
-              status: "final",
-              orderBy: "createdat_desc",
-              limit: 24,
-            }).catch(() => [] as TrainingPlan[]),
+          const [classStudents, currentPlan, classTrainingPlans, log, scouting] = await Promise.all([
+            withSessionDataTimeout(getStudentsByClass(data.id), [] as Student[]),
+            withSessionDataTimeout(
+              getLatestFinalPlanForSession(
+                data.organizationId ?? null,
+                data.id,
+                sessionDate,
+                weekdayId
+              ).catch(() => null),
+              null
+            ),
+            withSessionDataTimeout(
+              getTrainingPlans({
+                organizationId: data.organizationId ?? null,
+                classId: data.id,
+                status: "final",
+                orderBy: "createdat_desc",
+                limit: 24,
+              }).catch(() => [] as TrainingPlan[]),
+              [] as TrainingPlan[]
+            ),
+            withSessionDataTimeout(getSessionLogByDate(classId, sessionDate), null),
+            withSessionDataTimeout(getScoutingLogByDate(classId, sessionDate, scoutingMode), null),
           ]);
           if (alive) {
             setSessionStudents(classStudents);
             setSavedClassPlans(compactTrainingPlans(classTrainingPlans));
             setPlan(currentPlan);
+            setSessionLog(log);
+            setScoutingLog(scouting);
           }
           if (!alive) return;
         } else if (alive) {
@@ -149,16 +181,6 @@ export function useSessionData({
           setPlan(null);
         }
 
-        if (classId) {
-          const [log, scouting] = await Promise.all([
-            getSessionLogByDate(classId, sessionDate),
-            getScoutingLogByDate(classId, sessionDate, scoutingMode),
-          ]);
-          if (alive) {
-            setSessionLog(log);
-            setScoutingLog(scouting);
-          }
-        }
       } catch {
         if (alive) {
           setSavedClassPlans([]);
@@ -188,9 +210,12 @@ export function useSessionData({
       }
       setIsResolvingCurrentClassPlan(true);
       try {
-        const plans = await getClassPlansByClass(cls.id, {
-          organizationId: cls.organizationId ?? null,
-        });
+        const plans = await withSessionDataTimeout(
+          getClassPlansByClass(cls.id, {
+            organizationId: cls.organizationId ?? null,
+          }),
+          [] as ClassPlan[]
+        );
         if (cancelled) return;
         setCurrentClassPlan(pickClassPlanForSessionDate(plans, sessionDate));
       } catch {
@@ -213,11 +238,20 @@ export function useSessionData({
     const loadCurrentDailyLessonPlan = async () => {
       try {
         const dailyPlan = currentClassPlan?.id
-          ? await getDailyLessonPlanByWeekAndDate(currentClassPlan.id, sessionDate)
+          ? await withSessionDataTimeout(
+              getDailyLessonPlanByWeekAndDate(currentClassPlan.id, sessionDate),
+              null
+            )
           : null;
 
         const fallbackDailyPlan =
-          dailyPlan ?? (classId ? await getDailyLessonPlanByClassAndDate(classId, sessionDate) : null);
+          dailyPlan ??
+          (classId
+            ? await withSessionDataTimeout(
+                getDailyLessonPlanByClassAndDate(classId, sessionDate),
+                null
+              )
+            : null);
         if (!cancelled) {
           setCurrentDailyLessonPlan(fallbackDailyPlan);
         }
@@ -344,7 +378,10 @@ export function useSessionData({
       setIsLoadingSessionExtras(true);
       try {
         if (!classId) return;
-        const attendanceRecords = await getAttendanceByDate(classId, sessionDate);
+        const attendanceRecords = await withSessionDataTimeout(
+          getAttendanceByDate(classId, sessionDate),
+          []
+        );
         if (!alive) return;
         if (attendanceRecords.length) {
           const present = attendanceRecords.filter(

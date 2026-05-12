@@ -198,7 +198,7 @@ export default function NotificationsScreen() {
                 <SettingsRow
                   icon="sync-outline"
                   iconBg="rgba(200, 200, 200, 0.16)"
-                  label="Auto (backend)"
+                  label="Automático"
                   onPress={() => applyProfilePreview("auto")}
                   rightContent={
                     devProfilePreview === "auto" ? (

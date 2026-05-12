@@ -1605,7 +1605,7 @@ export default function ClassDetails() {
                 Aula do dia
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Planejamento, cronômetro e execução
+                Executar treino e registrar relatório
               </Text>
             </Pressable>
             <Pressable
@@ -1657,8 +1657,8 @@ export default function ClassDetails() {
                 }}
               >
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                  Scouting
-                </Text>
+                Scouting
+              </Text>
                 {scoutingFocus ? (
                   <View
                     style={{
@@ -1675,7 +1675,7 @@ export default function ClassDetails() {
                 ) : null}
               </View>
               <Text style={{ color: colors.muted, marginTop: 2 }}>
-                Análise técnica, jogo e evolução
+                Registrar ações e acompanhar pontos de atenção
               </Text>
             </Pressable>
             <Pressable
@@ -1721,7 +1721,7 @@ export default function ClassDetails() {
                 Planejamentos
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Semana, sessões e histórico
+                Semanas, aulas e documentos
               </Text>
             </Pressable>
             <Pressable
@@ -1785,7 +1785,7 @@ export default function ClassDetails() {
                 Relatórios
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Exportações e documentos
+                Lista de chamada e documentos da turma
               </Text>
             </Pressable>
             <Pressable
@@ -1824,7 +1824,7 @@ export default function ClassDetails() {
                 Scouting recente
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Análise técnica, jogo e evolução da turma.
+                Últimos sinais técnicos registrados para esta turma.
               </Text>
             </View>
             <Pressable
@@ -1905,7 +1905,7 @@ export default function ClassDetails() {
             </View>
           ) : (
             <Text style={{ color: colors.muted }}>
-              Nenhum scouting registrado ainda.
+              Ainda não há análises desta turma. Use Scouting para registrar ações do treino ou jogo.
             </Text>
           )}
         </View>

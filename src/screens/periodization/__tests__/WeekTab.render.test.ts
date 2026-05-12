@@ -420,7 +420,7 @@ describe("WeekTab render", () => {
 
     const text = collectText(element).join(" ");
 
-    expect(text).toContain("INSIGHTS AUTOMATICOS");
+    expect(text).toContain("SINAIS AUTOMÁTICOS");
     expect(text).toContain("[WARNING]");
     expect(text).toContain("repetition excess");
   });

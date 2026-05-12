@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { Text, TextInput, View } from "react-native";
 
 import { formatScoutingSkillLabel, getScoutingQualityOptionsForSkill } from "../scouting-action-labels";
 import type { ScoutingActionGamePhase, ScoutingActionSkill } from "../../../core/scouting-action";
+import { useAppTheme } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
 import { Pressable } from "../../../ui/Pressable";
-import { useAppTheme } from "../../../ui/app-theme";
 import { getSectionCardStyle } from "../../../ui/section-styles";
 
 type Props = {
@@ -13,12 +14,15 @@ type Props = {
   isDesktop: boolean;
   isSavingAction: boolean;
   notes: string;
+  videoLabel?: string;
+  isVideoSession?: boolean;
   onAthleteNameChange: (value: string) => void;
   onGamePhaseChange: (value: ScoutingActionGamePhase) => void;
   onNotesChange: (value: string) => void;
   onQualityOptionChange: (value: string) => void;
   onRegister: () => void;
   onSkillChange: (value: ScoutingActionSkill) => void;
+  onVideoLabelChange?: (value: string) => void;
   qualityOptionId: string;
   quickAthletes: string[];
   skill: ScoutingActionSkill;
@@ -29,6 +33,7 @@ export function ScoutingQuickRegister({
   gamePhase,
   isDesktop,
   isSavingAction,
+  isVideoSession = false,
   notes,
   onAthleteNameChange,
   onGamePhaseChange,
@@ -36,19 +41,27 @@ export function ScoutingQuickRegister({
   onQualityOptionChange,
   onRegister,
   onSkillChange,
+  onVideoLabelChange,
   qualityOptionId,
   quickAthletes,
   skill,
+  videoLabel = "",
 }: Props) {
   const { colors } = useAppTheme();
+  const [showNotes, setShowNotes] = useState(false);
   const qualityOptions = getScoutingQualityOptionsForSkill(skill);
+  const selectedQuickAthlete = quickAthletes.includes(athleteName);
+  const showManualAthleteField = !selectedQuickAthlete;
+  const showNotesField = showNotes || notes.trim().length > 0;
 
   return (
     <View style={[getSectionCardStyle(colors, "neutral", { radius: 18, padding: 16, shadow: false }), { gap: 10 }]}>
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>Registro rápido</Text>
         <Text style={{ color: colors.muted, fontSize: 13 }}>
-          Escolha atleta, fundamento e resultado. Um toque registra a ação.
+          {isVideoSession
+            ? "Registre os lances observados no vídeo."
+            : "Escolha atleta, fundamento e resultado. Um toque registra a ação."}
         </Text>
       </View>
 
@@ -57,32 +70,55 @@ export function ScoutingQuickRegister({
           label="Atleta"
           value={athleteName}
           onChange={onAthleteNameChange}
-          options={quickAthletes.map((name) => ({ value: name, label: name }))}
+          options={quickAthletes.slice(0, 5).map((name) => ({ value: name, label: name }))}
           allowClearChip
         />
       ) : null}
 
-      <View style={{ flexDirection: isDesktop ? "row" : "column", gap: 10 }}>
-        <View style={{ flex: 1 }}>
-          <Field
-            label="Atleta ou nome"
-            value={athleteName}
-            onChangeText={onAthleteNameChange}
-            placeholder="Ex.: Maria"
-          />
+      {showManualAthleteField || showNotesField ? (
+        <View style={{ flexDirection: isDesktop ? "row" : "column", gap: 10 }}>
+          {showManualAthleteField ? (
+            <View style={{ flex: 1 }}>
+              <Field
+                label="Atleta ou nome"
+                value={athleteName}
+                onChangeText={onAthleteNameChange}
+                placeholder="Ex.: Maria"
+              />
+            </View>
+          ) : null}
+          {showNotesField ? (
+            <View style={{ flex: 1 }}>
+              <Field
+                label="Observação rápida"
+                value={notes}
+                onChangeText={onNotesChange}
+                placeholder="Contexto rápido da ação"
+              />
+            </View>
+          ) : null}
         </View>
-        <View style={{ flex: 1 }}>
-          <Field
-            label="Observação rápida"
-            value={notes}
-            onChangeText={onNotesChange}
-            placeholder="Contexto rápido da ação"
-          />
+      ) : null}
+
+      {!showNotesField ? (
+        <View style={{ alignItems: "flex-start" }}>
+          <Pressable onPress={() => setShowNotes(true)}>
+            <Text style={{ color: colors.muted, fontWeight: "700", fontSize: 13 }}>+ Adicionar observação</Text>
+          </Pressable>
         </View>
-      </View>
+      ) : null}
+
+      {isVideoSession ? (
+        <Field
+          label="Lance do vídeo"
+          value={videoLabel}
+          onChangeText={onVideoLabelChange ?? (() => undefined)}
+          placeholder="Ex.: rally longo, saque no início do recorte"
+        />
+      ) : null}
 
       <View style={{ flexDirection: isDesktop ? "row" : "column", gap: 10 }}>
-        <View style={{ flex: 1.5 }}>
+        <View style={{ flex: 1.45 }}>
           <PickerPills
             label="Fundamento"
             value={skill}
@@ -98,9 +134,10 @@ export function ScoutingQuickRegister({
               { value: "transition", label: "Transição" },
               { value: "communication", label: "Comunicação" },
             ]}
+            maxRows={isDesktop ? 2 : undefined}
           />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 0.95 }}>
           <PickerPills
             label="Fase"
             value={gamePhase}
@@ -116,7 +153,13 @@ export function ScoutingQuickRegister({
         </View>
       </View>
 
-      <View style={{ flexDirection: isDesktop ? "row" : "column", gap: 10, alignItems: isDesktop ? "flex-end" : "stretch" }}>
+      <View
+        style={{
+          flexDirection: isDesktop ? "row" : "column",
+          gap: 10,
+          alignItems: isDesktop ? "flex-end" : "stretch",
+        }}
+      >
         <View style={{ flex: 1 }}>
           <PickerPills
             label={`Resultado da ${formatScoutingSkillLabel(skill).toLowerCase()}`}
@@ -186,6 +229,7 @@ function PickerPills({
   allowClearChip = false,
   colorModeByOption = false,
   label,
+  maxRows,
   onChange,
   options,
   value,
@@ -193,6 +237,7 @@ function PickerPills({
   allowClearChip?: boolean;
   colorModeByOption?: boolean;
   label: string;
+  maxRows?: number;
   onChange: (value: string) => void;
   options: { label: string; value: string }[];
   value: string;
@@ -201,7 +246,15 @@ function PickerPills({
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{label}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 8,
+          maxHeight: maxRows ? maxRows * 34 + (maxRows - 1) * 8 : undefined,
+          overflow: maxRows ? "hidden" : "visible",
+        }}
+      >
         {options.map((option) => {
           const active = option.value === value;
           const tone = optionTone(option.value);
@@ -218,8 +271,8 @@ function PickerPills({
               key={option.value}
               onPress={() => onChange(option.value)}
               style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
+                paddingVertical: 7,
+                paddingHorizontal: 11,
                 borderRadius: 999,
                 borderWidth: 1,
                 borderColor: active ? colors.text : colors.border,
@@ -230,7 +283,7 @@ function PickerPills({
                 style={{
                   color: colorModeByOption ? palette.text : active ? colors.background : colors.text,
                   fontWeight: "700",
-                  fontSize: 13,
+                  fontSize: 12,
                 }}
               >
                 {option.label}
@@ -242,15 +295,15 @@ function PickerPills({
           <Pressable
             onPress={() => onChange("")}
             style={{
-              paddingVertical: 8,
-              paddingHorizontal: 12,
+              paddingVertical: 7,
+              paddingHorizontal: 11,
               borderRadius: 999,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.card,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>+ Outro</Text>
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>+ Outro</Text>
           </Pressable>
         ) : null}
       </View>

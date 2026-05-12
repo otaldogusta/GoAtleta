@@ -14,6 +14,9 @@ export const buildScoutingSessionDraftInput = (params: {
   uiType: NewScoutingUiType;
   opponent?: string;
   source: "manual" | "session" | "event";
+  sourceType?: CreateScoutingSessionDraftInput["sourceType"];
+  videoClipType?: string;
+  videoNotes?: string;
 }) => {
   const input: CreateScoutingSessionDraftInput = {
     classId: params.classId,
@@ -21,6 +24,9 @@ export const buildScoutingSessionDraftInput = (params: {
     type: mapUiTypeToScoutingSessionType(params.uiType),
     opponent: params.opponent,
     source: params.source,
+    sourceType: params.sourceType,
+    videoClipType: params.videoClipType,
+    videoNotes: params.videoNotes,
   };
   return input;
 };

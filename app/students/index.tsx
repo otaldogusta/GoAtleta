@@ -63,6 +63,7 @@ import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
+import { normalizeProfileImage } from "../../src/media/normalize-profile-image";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
@@ -142,6 +143,9 @@ const monthNames = [
 ];
 
 const weekdayShortLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+const PHOTO_PREPARE_ERROR_MESSAGE =
+  "Não foi possível preparar essa foto. Tente tirar novamente ou escolher outra imagem da galeria.";
 
 const athletePositionOptions = [
   "indefinido",
@@ -334,6 +338,8 @@ export default function StudentsScreen() {
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const [photoPreparing, setPhotoPreparing] = useState(false);
+  const [photoPrepareError, setPhotoPrepareError] = useState("");
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<{ uri: string | null; name: string } | null>(null);
   markRender("screen.students.render.root");
@@ -876,14 +882,17 @@ export default function StudentsScreen() {
   }, [birthDate]);
 
   const pickStudentPhoto = async (source: "camera" | "library" | "remove") => {
+    if (photoPreparing) return;
+
     try {
+      setPhotoPrepareError("");
       if (source === "remove") {
         setPhotoUrl(null);
         setPhotoMimeType(null);
         return;
       }
       if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("Câmera indispoNível", "Use a Galeria no navegador.");
+        Alert.alert("Câmera indisponível", "Use a galeria no navegador.");
         return;
       }
       if (source === "camera") {
@@ -901,8 +910,16 @@ export default function StudentsScreen() {
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset?.uri) {
-          setPhotoUrl(asset.uri);
-          setPhotoMimeType(asset.mimeType ?? null);
+          setPhotoPreparing(true);
+          const normalized = await normalizeProfileImage({
+            uri: asset.uri,
+            width: asset.width,
+            height: asset.height,
+            fileName: asset.fileName ?? null,
+            mimeType: asset.mimeType ?? null,
+          });
+          setPhotoUrl(normalized.uri);
+          setPhotoMimeType(normalized.mimeType);
         }
         return;
       }
@@ -920,13 +937,21 @@ export default function StudentsScreen() {
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset?.uri) {
-        setPhotoUrl(asset.uri);
-        setPhotoMimeType(asset.mimeType ?? null);
+        setPhotoPreparing(true);
+        const normalized = await normalizeProfileImage({
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          fileName: asset.fileName ?? null,
+          mimeType: asset.mimeType ?? null,
+        });
+        setPhotoUrl(normalized.uri);
+        setPhotoMimeType(normalized.mimeType);
       }
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      Alert.alert("Erro", detail);
+    } catch {
+      setPhotoPrepareError(PHOTO_PREPARE_ERROR_MESSAGE);
     } finally {
+      setPhotoPreparing(false);
       setShowPhotoSheet(false);
     }
   };
@@ -1156,12 +1181,16 @@ export default function StudentsScreen() {
   const doResetForm = useCallback(() => {
     closeAllPickers();
     setShowForm(false);
+    setPhotoPreparing(false);
+    setPhotoPrepareError("");
     resetForm();
   }, [closeAllPickers, resetForm, setShowForm]);
 
   const doResetCreateForm = useCallback(() => {
     closeAllPickers();
     setDismissedExistingStudentProbe("");
+    setPhotoPreparing(false);
+    setPhotoPrepareError("");
     resetCreateForm();
   }, [closeAllPickers, resetCreateForm]);
 
@@ -3095,6 +3124,8 @@ export default function StudentsScreen() {
         photoUrl={photoUrl}
         setShowPhotoSheet={setShowPhotoSheet}
         pickStudentPhoto={pickStudentPhoto}
+        photoPreparing={photoPreparing}
+        photoPrepareError={photoPrepareError}
         openEditSection={openEditSection}
         toggleEditSection={toggleEditSection}
         editStudentDataAnim={editStudentDataAnim}
@@ -3250,6 +3281,7 @@ export default function StudentsScreen() {
             Foto do aluno
           </Text>
           <Pressable
+            disabled={photoPreparing}
             onPress={() => pickStudentPhoto("camera")}
             style={{
               paddingVertical: 10,
@@ -3258,13 +3290,15 @@ export default function StudentsScreen() {
               borderWidth: 1,
               borderColor: colors.border,
               alignItems: "center",
+              opacity: photoPreparing ? 0.64 : 1,
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Usar camera
+              Usar câmera
             </Text>
           </Pressable>
           <Pressable
+            disabled={photoPreparing}
             onPress={() => pickStudentPhoto("library")}
             style={{
               paddingVertical: 10,
@@ -3273,20 +3307,31 @@ export default function StudentsScreen() {
               borderWidth: 1,
               borderColor: colors.border,
               alignItems: "center",
+              opacity: photoPreparing ? 0.64 : 1,
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
               Escolher da galeria
             </Text>
           </Pressable>
+          {photoPreparing ? (
+            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>Preparando foto...</Text>
+          ) : null}
+          {photoPrepareError ? (
+            <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "600" }}>
+              {photoPrepareError}
+            </Text>
+          ) : null}
           {photoUrl ? (
             <Pressable
+              disabled={photoPreparing}
               onPress={() => pickStudentPhoto("remove")}
               style={{
                 paddingVertical: 10,
                 borderRadius: 12,
                 backgroundColor: colors.dangerSolidBg,
                 alignItems: "center",
+                opacity: photoPreparing ? 0.64 : 1,
               }}
             >
               <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
@@ -3374,7 +3419,3 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-

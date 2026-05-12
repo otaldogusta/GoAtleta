@@ -1,4 +1,4 @@
-﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useEffect,
@@ -33,26 +33,27 @@ import { isAuthError, isNetworkError } from "../../../src/db/client";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { AppBadge } from "../../../src/ui/AppBadge";
+import { AppCard } from "../../../src/ui/AppCard";
+import { AppPageHeader } from "../../../src/ui/AppPageHeader";
+import { AppScreenShell } from "../../../src/ui/AppScreenShell";
 import { Button } from "../../../src/ui/Button";
-import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
+import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
 import { DateInput } from "../../../src/ui/DateInput";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../../src/ui/FadeHorizontalScroll";
+import { LocationBadge } from "../../../src/ui/LocationBadge";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
+import { getClassPalette } from "../../../src/ui/class-colors";
+import { getUnitPalette } from "../../../src/ui/unit-colors";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
   const m = String(value.getMonth() + 1).padStart(2, "0");
   const d = String(value.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-};
-
-const formatDisplayDate = (value: string) => {
-  const parts = value.split("-");
-  if (parts.length !== 3) return value;
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
 export default function AttendanceScreen() {
@@ -83,21 +84,6 @@ export default function AttendanceScreen() {
   const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = useRef(false);
   const { showSaveToast } = useSaveToast();
-  const parseTime = (value: string) => {
-    if (!value) return null;
-    const match = value.match(/^(\d{2}):(\d{2})$/);
-    if (!match) return null;
-    return { hour: Number(match[1]), minute: Number(match[2]) };
-  };
-  const formatRange = (hour: number, minute: number, durationMinutes: number) => {
-    const start = String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0");
-    const endTotal = hour * 60 + minute + durationMinutes;
-    const endHour = Math.floor(endTotal / 60) % 24;
-    const endMinute = endTotal % 60;
-    const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
-    return start + " - " + end;
-  };
-
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -396,12 +382,8 @@ export default function AttendanceScreen() {
   if (!cls) {
     return <ScreenLoadingState />;
   }
-  const dateLabel = formatDisplayDate(date);
-  const parsedStart = parseTime(cls.startTime);
-  const timeLabel =
-    parsedStart && cls.durationMinutes
-      ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes)
-      : "";
+  const classPalette = getClassPalette(cls.colorKey, colors, cls.unit);
+  const unitPalette = cls.unit ? getUnitPalette(cls.unit, colors) : classPalette;
   const attendanceEmptyState = !isClassDay ? (
     <View
       style={{
@@ -438,37 +420,44 @@ export default function AttendanceScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
-        style={{ flex: 1, padding: 16 }}
+        style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <ClassContextHeader
-        title="Chamada"
-        className={cls.name}
-        unit={cls.unit}
-        ageBand={cls.ageBand}
-        gender={cls.gender}
-        classColorKey={cls.colorKey}
-        dateLabel={dateLabel}
-        timeLabel={timeLabel}
-        notice={loadMessage}
-      />
+        <AppScreenShell
+          header={
+            <AppPageHeader
+              title="Chamada"
+              subtitle="Presença, frequência e observações da turma."
+              onBack={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                  return;
+                }
+                router.replace({
+                  pathname: "/class/[id]",
+                  params: { id: cls.id },
+                });
+              }}
+              meta={
+              <View style={{ alignItems: "flex-end", gap: 7 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                    {cls.name}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <ClassGenderBadge gender={cls.gender} size="sm" />
+                  <LocationBadge location={cls.unit || "Unidade"} palette={unitPalette} size="sm" showIcon={false} />
+                  {cls.ageBand ? <AppBadge label={cls.ageBand} tone="neutral" /> : null}
+                </View>
+              </View>
+              }
+            />
+          }
+        >
 
-      <View
-        style={{
-          gap: 8,
-          padding: 14,
-          borderRadius: 20,
-          backgroundColor: colors.card,
-          borderWidth: 1,
-          borderColor: colors.border,
-          shadowColor: "#000",
-          shadowOpacity: 0.06,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 3,
-          marginBottom: 12,
-        }}
-      >
+      <AppCard compact style={{ marginBottom: 12 }}>
         <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
           Data da aula
         </Text>
@@ -497,7 +486,7 @@ export default function AttendanceScreen() {
             </Text>
           </View>
         ) : null}
-      </View>
+      </AppCard>
 
       <FlatList
         style={{ flex: 1, minHeight: 0 }}
@@ -716,11 +705,8 @@ export default function AttendanceScreen() {
         closeOnSelect
       />
 
-
+        </AppScreenShell>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
-
-
-

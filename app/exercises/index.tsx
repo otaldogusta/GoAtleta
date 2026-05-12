@@ -53,6 +53,7 @@ import {
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { markRender, measureAsync } from "../../src/observability/perf";
 
 const getYoutubeId = (url: string) => {
   const match =
@@ -120,6 +121,11 @@ export default function ExercisesScreen() {
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
   const debouncedSearchText = useDebouncedValue(searchText, 250);
 
+  markRender("screen.exercises.render.root", {
+    items: items.length,
+    media: draftMedia.length + approvedMedia.length,
+  });
+
   useEffect(() => {
     if (isWideLayout) {
       setFormExpanded(true);
@@ -128,7 +134,7 @@ export default function ExercisesScreen() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getExercises();
+      const data = await measureAsync("screen.exercises.load.library", () => getExercises());
       setItems(data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -234,14 +240,19 @@ export default function ExercisesScreen() {
       notes: notes.trim(),
       createdAt: editingCreatedAt ?? nowIso,
     };
-    if (editingId) {
-      await updateExercise(exercise);
-    } else {
-      await saveExercise(exercise);
+    try {
+      if (editingId) {
+        await updateExercise(exercise);
+      } else {
+        await saveExercise(exercise);
+      }
+      clearForm();
+      await load();
+      Alert.alert("Exercício salvo", "Exercício salvo com sucesso.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível salvar o exercício.";
+      Alert.alert("Não foi possível salvar", message);
     }
-    clearForm();
-    await load();
-    Alert.alert("Exercício salvo", "Exercício salvo com sucesso.");
   };
 
   useEffect(() => {

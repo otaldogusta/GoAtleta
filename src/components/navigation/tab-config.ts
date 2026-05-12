@@ -57,20 +57,20 @@ export const ROLE_RADIAL_ACTIONS: Record<AppRole, RadialAction[]> = {
     { id: "attendance", label: "Chamada", icon: "checkmark-done-outline", href: "/prof/classes" },
     { id: "planning", label: "Criar plano", icon: "clipboard-outline", href: "/prof/planning" },
     { id: "students", label: "Adicionar aluno", icon: "person-add-outline", href: "/prof/students" },
-    { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/prof/assistant" },
+    { id: "assistant", label: "Assistente", icon: "sparkles-outline", href: "/prof/assistant" },
   ],
   student: [
     { id: "plan", label: "Plano", icon: "fitness-outline", href: "/student-plan" },
     { id: "feedback", label: "Feedback", icon: "chatbox-ellipses-outline", href: "/absence-report" },
     { id: "communications", label: "Comunicados", icon: "megaphone-outline", href: "/communications" },
     { id: "scouting", label: "Scouting", icon: "analytics-outline", href: "/student-scouting" },
-    { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/assistant" },
+    { id: "assistant", label: "Assistente", icon: "sparkles-outline", href: "/assistant" },
   ],
   coord: [
     { id: "event", label: "Criar evento", icon: "calendar-clear-outline", href: "/coord/events" },
     { id: "members", label: "Membros", icon: "people-circle-outline", href: "/coord/org-members" },
     { id: "communications", label: "Comunicado", icon: "megaphone-outline", href: "/coord/communications" },
     { id: "cycle", label: "Turma/Ciclo", icon: "layers-outline", href: "/coord/periodization" },
-    { id: "assistant", label: "Assistente IA", icon: "sparkles-outline", href: "/coord/assistant" },
+    { id: "assistant", label: "Assistente", icon: "sparkles-outline", href: "/coord/assistant" },
   ],
 };
