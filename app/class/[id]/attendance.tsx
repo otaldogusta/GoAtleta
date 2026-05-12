@@ -31,7 +31,7 @@ import {
 } from "../../../src/db/seed";
 import { isAuthError, isNetworkError } from "../../../src/db/client";
 import { logAction } from "../../../src/observability/breadcrumbs";
-import { measure } from "../../../src/observability/perf";
+import { markRender, measure, measureAsync } from "../../../src/observability/perf";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { AppBadge } from "../../../src/ui/AppBadge";
 import { AppCard } from "../../../src/ui/AppCard";
@@ -84,15 +84,23 @@ export default function AttendanceScreen() {
   const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = useRef(false);
   const { showSaveToast } = useSaveToast();
+
+  markRender("screen.attendance.render.root", {
+    hasClass: cls ? 1 : 0,
+    students: students.length,
+  });
+
   useEffect(() => {
     let alive = true;
     (async () => {
-      const data = await getClassById(id);
-      if (alive) setCls(data);
-      if (data) {
-        const list = await getStudentsByClass(data.id);
-        if (alive) setStudents(list);
-      }
+      await measureAsync("screen.attendance.load.class", async () => {
+        const data = await getClassById(id);
+        if (alive) setCls(data);
+        if (data) {
+          const list = await getStudentsByClass(data.id);
+          if (alive) setStudents(list);
+        }
+      });
     })();
     return () => {
       alive = false;
@@ -276,7 +284,7 @@ export default function AttendanceScreen() {
     }
     let records: AttendanceRecord[] = [];
     try {
-      records = await getAttendanceByDate(cls.id, value);
+      records = await measureAsync("screen.attendance.load.date", () => getAttendanceByDate(cls.id, value));
     } catch (error) {
       if (isAuthError(error)) {
         setLoadMessage("Sessão expirada. Faça login novamente.");

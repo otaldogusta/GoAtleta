@@ -55,7 +55,7 @@ import { getSectionCardStyle } from "../../../src/ui/section-styles";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
-import { measureAsync } from "../../../src/observability/perf";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
 import { normalizeRaDigits, validateStudentRa } from "../../../src/utils/student-ra";
@@ -224,6 +224,11 @@ export default function ClassStudentsScreen() {
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const [selectionUiVisible, setSelectionUiVisible] = useState(false);
   const selectionModeAnim = useRef(new Animated.Value(0)).current;
+
+  markRender("screen.classStudents.render.root", {
+    tab: screenTab,
+    students: students.length,
+  });
   const debouncedSearch = useDebouncedValue(search, 250);
   const [dropKey, setDropKey] = useState<DropKey>(null);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);

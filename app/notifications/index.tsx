@@ -14,6 +14,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { SettingsRow } from "../../src/ui/SettingsRow";
 import { Typography } from "../../src/ui/Typography";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { markRender, measureAsync } from "../../src/observability/perf";
 
 const STORAGE_KEY = "notify_settings_v1";
 const isWeb = Platform.OS === "web";
@@ -27,10 +28,14 @@ export default function NotificationsScreen() {
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<string>("");
 
+  markRender("screen.notifications.render.root", { enabled: enabled ? 1 : 0 });
+
   useEffect(() => {
     let alive = true;
     (async () => {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const raw = await measureAsync("screen.notifications.load.settings", () =>
+        AsyncStorage.getItem(STORAGE_KEY)
+      );
       if (!raw || !alive) return;
       const data = JSON.parse(raw) as { enabled: boolean };
       setEnabled(Boolean(data.enabled));
