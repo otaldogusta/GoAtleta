@@ -1,3 +1,4 @@
+// perf-check: ignore-inline-row-style - linhas compactas do scouting usam cores dinâmicas do tema; extração estrutural fica para refatoração visual dedicada.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";

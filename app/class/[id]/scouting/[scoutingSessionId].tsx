@@ -1,3 +1,4 @@
+// perf-check: ignore-inline-row-style - timeline compacta do scouting usa estilos dependentes do tema e do estado da sessão.
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
