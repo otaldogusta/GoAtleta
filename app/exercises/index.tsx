@@ -32,6 +32,7 @@ import {
   saveExercise,
   updateExercise,
 } from "../../src/db/seed";
+import { isAuthError } from "../../src/db/client";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import {
   archiveExerciseMediaReviewAsset,
@@ -137,8 +138,11 @@ export default function ExercisesScreen() {
       const data = await measureAsync("screen.exercises.load.library", () => getExercises());
       setItems(data);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Missing auth token")) return;
+      if (isAuthError(err)) {
+        setItems([]);
+        setMetaStatus("Sessão expirada. Faça login novamente.");
+        return;
+      }
       throw err;
     }
   }, []);
@@ -251,7 +255,10 @@ export default function ExercisesScreen() {
       Alert.alert("Exercício salvo", "Exercício salvo com sucesso.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível salvar o exercício.";
-      Alert.alert("Não foi possível salvar", message);
+      Alert.alert(
+        "Não foi possível salvar",
+        isAuthError(error) ? "Sessão expirada. Faça login novamente." : message
+      );
     }
   };
 
