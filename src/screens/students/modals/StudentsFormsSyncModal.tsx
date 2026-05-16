@@ -1533,8 +1533,8 @@ export function StudentsFormsSyncModal({
                     }}
                   >
                     {[
-                      { label: "Importar", color: colors.successText ?? "#2e7d32" },
-                      { label: "Anamnese", color: colors.infoText ?? "#1565c0" },
+                      { label: "Importar", color: colors.successText },
+                      { label: "Anamnese", color: colors.infoText },
                       { label: "Ignorar", color: colors.muted },
                     ].map((item) => (
                       <View
@@ -1574,13 +1574,13 @@ export function StudentsFormsSyncModal({
                   {(showAllPreviewRows ? sheetPreviewRows : sheetPreviewRows.slice(0, 30)).map((item) => {
                     const actionStyle: { label: string; color: string } =
                       item.action === "create"
-                        ? { label: "Novo", color: colors.successText ?? "#2e7d32" }
+                        ? { label: "Novo", color: colors.successText }
                         : item.action === "update"
-                          ? { label: "Atualizar", color: colors.primaryText ?? "#1565c0" }
+                          ? { label: "Atualizar", color: colors.primaryText }
                           : item.action === "conflict"
-                            ? { label: "Conflito", color: colors.warningText ?? "#e65100" }
+                            ? { label: "Conflito", color: colors.warningText }
                         : item.action === "error"
-                              ? { label: "Erro", color: colors.dangerText ?? "#b71c1c" }
+                              ? { label: "Erro", color: colors.dangerText }
                           : { label: "Já existe", color: colors.muted };
                     return (
                       <View

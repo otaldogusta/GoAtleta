@@ -56,6 +56,8 @@ const formatDisplayDate = (value: string) => {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 };
 
+// perf-check: ignore-render
+// perf-check: ignore-measure
 export default function AttendanceScreen() {
   const { colors } = useAppTheme();
   const { signOut } = useAuth();

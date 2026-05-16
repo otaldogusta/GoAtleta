@@ -611,7 +611,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
                   Linha {row.rowNumber} - {row.action}
                 </Text>
                 <Text style={{ color: colors.muted }}>
-                  Match: {row.matchedBy ?? "-"} | Confiança: {row.confidence}
+                  Vínculo: {row.matchedBy ?? "-"} | Sinais disponíveis: {row.confidence}
                 </Text>
                 {row.flags?.length ? (
                   <Text style={{ color: colors.muted }}>Flags: {row.flags.join(", ")}</Text>

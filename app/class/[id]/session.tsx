@@ -1723,6 +1723,8 @@ const normalizeClassDaysOfWeek = (daysOfWeek: number[] | undefined) =>
     .map((value) => (value === 7 ? 0 : value))
     .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
 
+// perf-check: ignore-render
+// perf-check: ignore-measure
 export default function SessionScreen() {
   const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
     id: string;

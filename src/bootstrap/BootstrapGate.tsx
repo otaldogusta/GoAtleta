@@ -2,6 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Text, View } from "react-native";
 import { Pressable } from "../ui/Pressable";
 import { useAppTheme } from "../ui/app-theme";
+import { brandPalette, radius } from "../theme/tokens";
 
 import { useBootstrap } from "./BootstrapProvider";
 
@@ -13,7 +14,7 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
     return (
       <View style={{ flex: 1 }}>
         <LinearGradient
-          colors={["#0b1222", "#101b34", "#121a2a"]}
+          colors={[brandPalette.navyDeep, brandPalette.navy, brandPalette.graphite]}
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
         />
         <View
@@ -39,7 +40,7 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
     return (
       <View style={{ flex: 1 }}>
         <LinearGradient
-          colors={["#0b1222", "#101b34", "#121a2a"]}
+          colors={[brandPalette.navyDeep, brandPalette.navy, brandPalette.graphite]}
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
         />
         <View
@@ -62,7 +63,7 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
             style={{
               paddingVertical: 10,
               paddingHorizontal: 16,
-              borderRadius: 12,
+              borderRadius: radius.internal,
               backgroundColor: colors.primaryBg,
             }}
           >

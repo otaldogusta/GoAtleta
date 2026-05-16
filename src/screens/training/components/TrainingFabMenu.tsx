@@ -4,6 +4,7 @@ import { Animated, Easing, Platform, Text, View } from "react-native";
 
 import { useAppTheme } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
+import { brandPalette, radius, shadow } from "../../../theme/tokens";
 
 type TrainingFabMenuProps = {
   visible: boolean;
@@ -82,7 +83,7 @@ export function TrainingFabMenu({
             right: 0,
             bottom: 0,
             left: 0,
-            backgroundColor: "#000",
+            backgroundColor: brandPalette.navyDeep,
             opacity: anim.interpolate({
               inputRange: [0, 1],
               outputRange: [0, 0.08],
@@ -97,16 +98,12 @@ export function TrainingFabMenu({
             ? ({ position: "fixed", right: anchorRight, bottom: anchorBottom + 64 } as any)
             : { position: "absolute" as const, right: anchorRight, bottom: anchorBottom + 64 }),
           width: 220,
-          borderRadius: 14,
+          borderRadius: radius.card,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
           padding: 6,
-          shadowColor: "#000",
-          shadowOpacity: 0.16,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 6,
+          ...shadow.card,
           opacity: anim,
           gap: 8,
           transform: [
@@ -131,7 +128,7 @@ export function TrainingFabMenu({
             borderWidth: 1,
             borderColor: colors.primaryBg,
             backgroundColor: colors.primaryBg,
-            borderRadius: 10,
+            borderRadius: radius.internal,
             paddingHorizontal: 9,
             paddingVertical: 8,
             flexDirection: "row",
@@ -151,7 +148,7 @@ export function TrainingFabMenu({
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.background,
-            borderRadius: 10,
+            borderRadius: radius.internal,
             paddingHorizontal: 9,
             paddingVertical: 8,
             flexDirection: "row",

@@ -6,6 +6,7 @@ import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 import { webShellTokens } from "./web-shell-tokens";
+import { brandPalette, radius } from "../theme/tokens";
 
 type WebSidebarProps = {
   role: AppRole;
@@ -61,10 +62,10 @@ export function WebSidebar({ role }: WebSidebarProps) {
             justifyContent: "center",
           }}
         >
-          <Ionicons name="football-outline" size={22} color="#ffffff" />
+          <Ionicons name="football-outline" size={22} color={brandPalette.white} />
         </View>
         <View style={{ alignItems: "center", gap: 2 }}>
-          <Text style={{ color: "#ffffff", fontSize: 11, fontWeight: "800" }}>
+          <Text style={{ color: brandPalette.white, fontSize: 11, fontWeight: "800" }}>
             {roleTitle[role]}
           </Text>
           <Text
@@ -86,7 +87,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
               onPress={() => router.push(href as never)}
               style={{
                 minHeight: 58,
-                borderRadius: 18,
+                borderRadius: radius.card,
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 4,
