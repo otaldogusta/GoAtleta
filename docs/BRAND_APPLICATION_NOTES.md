@@ -76,3 +76,44 @@
 - Texto técnico como debug, snapshot, provider, fallback, confidence ou IA não aparece na UI final?
 - Mobile empilha sem esconder ação principal?
 - Web mantém largura, borda e densidade coerentes?
+
+## 11. Polimento Final Aplicado
+
+- Navegação mobile/web: FAB radial, tabs inferiores e sidebar passaram a usar tokens de radius, sombra e cor de marca em vez de preto/branco soltos.
+- Aula do Dia: aviso de ponte/contexto da sessão passou a usar `radius.card` e `radius.full`, mantendo superfície sólida e borda sutil.
+- Periodização: modal de geração deixou de expor `AUTO` na UI final e passou a falar em planos automáticos/manuais.
+- Alunos: importação trocou "Match/Confiança" por "Vínculo/Sinais disponíveis" em conflitos visíveis.
+- Perfil: avatar e ações circulares passaram a usar `shadow.card` e `radius.full`.
+- Treino: rascunho vindo do assistente agora aparece como "Planejamento assistido", e o FAB usa sombra do token.
+- Coordenação: painéis de consistência e sincronização reduziram radius solto e padronizaram pills com `radius.full`.
+- Bootstrap/loading: tela de carregamento e skeletons passaram a usar palette/radius centralizados.
+
+## 12. Dívidas Resolvidas
+
+- Redução de `#000`, `#FFFFFF` e sombras manuais em componentes finais compartilhados.
+- Remoção de microcopy técnica visível em pontos de treino, periodização e importação de alunos.
+- Menos radius 18/20/22 espalhado em navegação, loading, perfil e painéis de coordenação.
+- Menus flutuantes de alunos/treinos ficaram mais consistentes com superfície sólida, borda e sombra leve.
+
+## 13. Dívidas Restantes
+
+- Telas muito longas ainda possuem estilos inline por composição histórica, especialmente Aula do Dia, Perfil, Treinos e relatórios.
+- Blocos dev-only de QA/debug da Periodização permanecem por contrato de teste e devem continuar restritos a `__DEV__`.
+- Exportações PDF não foram alteradas neste pacote para evitar mexer em engine/conteúdo de relatório.
+- Algumas cores de integrações externas permanecem como exceção controlada, por exemplo WhatsApp.
+
+## 14. Onde Não Mexer Sem Pacote Próprio
+
+- Engines de PDF e dados exportados.
+- Domínios de Scouting, Evidence Matrix e Team Context.
+- Regras de geração de aula, periodização, chamada, alunos e treino.
+- Componentes dev-only de QA enquanto os testes dependerem da microcopy atual.
+
+## 15. QA Visual Final
+
+- Conferir navegação inferior e FAB em mobile.
+- Conferir sidebar e largura do conteúdo em web.
+- Conferir `/prof/home`, `/classes`, Aula do Dia, Alunos, Chamada, Periodização, Relatórios, Perfil, Treinos e Notificações.
+- Verificar que CTA primário não compete com ações secundárias.
+- Verificar que o verde aparece apenas em ação principal/sucesso/performance positiva.
+- Verificar que textos técnicos não aparecem em produção.
