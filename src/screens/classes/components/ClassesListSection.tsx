@@ -4,6 +4,7 @@ import { FlatList, RefreshControl, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
+import { radius } from "../../../theme/tokens";
 import { ClassCard } from "./ClassCard";
 
 type GroupedClasses = [string, ClassGroup[]][];
@@ -71,18 +72,18 @@ export const ClassesListSection = memo(function ClassesListSection({
             style={{
               paddingVertical: 6,
               paddingHorizontal: 8,
-              borderRadius: 10,
-              backgroundColor: colors.background,
+              borderRadius: radius.internal,
+              backgroundColor: colors.backgroundSubtle ?? colors.background,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.borderSubtle ?? colors.border,
               marginBottom: 10,
               marginTop: 2,
             }}
           >
-            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+            <Text style={{ fontSize: 14, fontWeight: "900", color: colors.textPrimary ?? colors.text }}>
               {item.unit}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+            <Text style={{ color: colors.textMuted ?? colors.muted, fontSize: 12, marginTop: 2 }}>
               Turmas: {item.count}
             </Text>
           </View>
@@ -109,13 +110,13 @@ export const ClassesListSection = memo(function ClassesListSection({
       <View
         style={{
           borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: 14,
-          backgroundColor: colors.secondaryBg,
+          borderColor: colors.borderSubtle ?? colors.border,
+          borderRadius: radius.card,
+          backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
           padding: 12,
         }}
       >
-        <Text style={{ color: colors.muted, fontSize: 13 }}>Nenhuma turma encontrada.</Text>
+        <Text style={{ color: colors.textMuted ?? colors.muted, fontSize: 13 }}>Nenhuma turma encontrada.</Text>
       </View>
     );
   }

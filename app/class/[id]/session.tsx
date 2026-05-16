@@ -645,8 +645,8 @@ const decisionReasonTypeLabels: Record<"health" | "readiness" | "context" | "oth
 const getActivityAiBadge = (activity: TrainingPlanActivity) => {
   if (activity.source !== "ai") return null;
   const score = typeof activity.confidence === "number" ? activity.confidence : 0;
-  if (score >= 0.84) return { label: "IA", tone: "strong" as const };
-  if (score >= 0.68) return { label: "IA*", tone: "soft" as const };
+  if (score >= 0.84) return { label: "Assistido", tone: "strong" as const };
+  if (score >= 0.68) return { label: "Sugestão", tone: "soft" as const };
   return null;
 };
 
@@ -4291,7 +4291,6 @@ export default function SessionScreen() {
               disabled={isRemovingAppliedPlan}
               style={{
                 alignSelf: "flex-start",
-                marginTop: 4,
                 paddingVertical: 8,
                 paddingHorizontal: 12,
                 borderRadius: 999,
@@ -4548,6 +4547,34 @@ export default function SessionScreen() {
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               {ptBR.scouting.operationHint}
             </Text>
+            <Pressable
+              onPress={() => {
+                if (!cls) return;
+                router.push({
+                  pathname: "/class/[id]/scouting/[scoutingSessionId]",
+                  params: {
+                    id: cls.id,
+                    scoutingSessionId: `${cls.id}-${sessionDate}`,
+                    teamName: cls.name,
+                    matchType: scoutingMode === "jogo" ? "friendly" : "training_game",
+                  },
+                });
+              }}
+              disabled={!cls}
+              style={{
+                marginTop: 6,
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                backgroundColor: colors.primaryBg,
+                alignSelf: "flex-start",
+                opacity: cls ? 1 : 0.65,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
+                Abrir scouting com leitura do jogo
+              </Text>
+            </Pressable>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
               {(["treino", "jogo"] as const).map((mode) => {
                 const isActive = scoutingMode === mode;

@@ -343,7 +343,7 @@ export function SyncSupportPanel({
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                      Classificar erro (IA)
+                      Classificar erro
                     </Text>
                   </Pressable>
                 </View>
@@ -360,7 +360,7 @@ export function SyncSupportPanel({
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                      IA • severidade {syncClassifications[item.id].severity}
+                      Leitura assistida • severidade {syncClassifications[item.id].severity}
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 11 }}>
                       {syncClassifications[item.id].probableCause}

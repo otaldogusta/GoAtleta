@@ -2,8 +2,10 @@ import { memo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { FlatList, Text, View } from "react-native";
 
+import { radius, shadow } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
+import { useAppTheme } from "../../../ui/app-theme";
 import type { HomeScheduleItem, HomeScheduleSlot } from "./homeScheduleTypes";
 
 type TodayScheduleRailProps = {
@@ -27,6 +29,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
   onOpenLesson,
   onOpenAttendance,
 }: TodayScheduleRailProps) {
+  const { colors } = useAppTheme();
   const durationHours = Math.round((totalDurationMinutes / 60) * 10) / 10;
 
   return (
@@ -34,34 +37,34 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
       style={{
         width,
         alignSelf: "stretch",
-        backgroundColor: "#FFFFFF",
-        borderRadius: 20,
+        backgroundColor: colors.surface,
+        borderRadius: radius.container,
         borderWidth: 1,
-        borderColor: "rgba(15,23,42,0.06)",
-        shadowColor: "#0F172A",
-        shadowOpacity: 0.06,
-        shadowRadius: 22,
-        shadowOffset: { width: 0, height: 12 },
+        borderColor: colors.borderSubtle,
+        shadowColor: shadow.card.shadowColor,
+        shadowOpacity: shadow.card.shadowOpacity,
+        shadowRadius: shadow.card.shadowRadius,
+        shadowOffset: shadow.card.shadowOffset,
         overflow: "hidden",
       }}
     >
       <View style={{ paddingHorizontal: compact ? 14 : 18, paddingTop: compact ? 14 : 18, paddingBottom: compact ? 12 : 16, gap: 4 }}>
-        <Text style={{ color: "#101827", fontSize: compact ? 16 : 18, fontWeight: "900" }}>
+        <Text style={{ color: colors.textPrimary, fontSize: compact ? 16 : 18, fontWeight: "900" }}>
           {title}
         </Text>
-        <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "700" }}>
+        <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "700" }}>
           {subtitle}
         </Text>
       </View>
 
-      <View style={{ height: 1, backgroundColor: "rgba(15,23,42,0.08)" }} />
+      <View style={{ height: 1, backgroundColor: colors.borderSubtle }} />
 
       {slots.length === 0 ? (
         <View style={{ padding: 24, gap: 10 }}>
-          <Text style={{ color: "#101827", fontSize: 15, fontWeight: "800" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "900" }}>
             Nenhuma aula neste dia
           </Text>
-          <Text style={{ color: "#667085", fontSize: 13 }}>
+          <Text style={{ color: colors.textMuted, fontSize: 13 }}>
             Selecione outro dia da semana para ver as aulas programadas.
           </Text>
         </View>
@@ -79,24 +82,24 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                     paddingHorizontal: compact ? 14 : 18,
                     paddingVertical: compact ? 10 : 13,
                     borderBottomWidth: 1,
-                    borderBottomColor: "rgba(15,23,42,0.08)",
+                    borderBottomColor: colors.borderSubtle,
                     gap: compact ? 8 : 10,
                   }}
                 >
                   <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-                      <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "800" }}>
+                      <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "800" }}>
                       {lesson.timeLabel}
                     </Text>
                     {lesson.gender ? <ClassGenderBadge gender={lesson.gender} size="sm" /> : null}
                   </View>
 
                   <View style={{ gap: 10 }}>
-                    <Text style={{ color: "#101827", fontSize: compact ? 17 : 19, fontWeight: "900" }} numberOfLines={1}>
+                    <Text style={{ color: colors.textPrimary, fontSize: compact ? 17 : 19, fontWeight: "900" }} numberOfLines={1}>
                       {lesson.className}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Ionicons name="location" size={15} color="#475467" />
-                      <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "600" }} numberOfLines={1}>
+                      <Ionicons name="location" size={15} color={colors.textMuted} />
+                      <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "600" }} numberOfLines={1}>
                         {lesson.unit}
                       </Text>
                     </View>
@@ -108,37 +111,37 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                       style={{
                         flex: 1,
                         height: compact ? 34 : 38,
-                        borderRadius: 10,
+                        borderRadius: radius.internal,
                         borderWidth: 1,
-                        borderColor: "rgba(15,23,42,0.10)",
+                        borderColor: colors.borderSubtle,
                         alignItems: "center",
                         justifyContent: "center",
                         flexDirection: "row",
                         gap: 8,
                       }}
                     >
-                      <Text style={{ color: "#101827", fontSize: compact ? 11 : 12, fontWeight: "800" }}>
+                      <Text style={{ color: colors.textPrimary, fontSize: compact ? 11 : 12, fontWeight: "800" }}>
                         Ver aula
                       </Text>
-                      <Ionicons name="arrow-forward" size={17} color="#101827" />
+                      <Ionicons name="arrow-forward" size={17} color={colors.textPrimary} />
                     </Pressable>
                     <Pressable
                       onPress={() => onOpenAttendance(lesson)}
                       style={{
                         flex: 1,
                         height: compact ? 34 : 38,
-                        borderRadius: 10,
+                        borderRadius: radius.internal,
                         borderWidth: 1,
-                        borderColor: "rgba(15,23,42,0.10)",
-                        backgroundColor: "#FFFFFF",
+                        borderColor: colors.borderSubtle,
+                        backgroundColor: colors.surface,
                         alignItems: "center",
                         justifyContent: "center",
                         flexDirection: "row",
                         gap: 8,
                       }}
                     >
-                      <Ionicons name="people-outline" size={17} color="#101827" />
-                      <Text style={{ color: "#101827", fontSize: compact ? 11 : 12, fontWeight: "800" }}>
+                      <Ionicons name="people-outline" size={17} color={colors.textPrimary} />
+                      <Text style={{ color: colors.textPrimary, fontSize: compact ? 11 : 12, fontWeight: "800" }}>
                         Chamada
                       </Text>
                     </Pressable>
@@ -151,8 +154,8 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
       )}
 
       <View style={{ padding: compact ? 12 : 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Ionicons name="calendar-outline" size={22} color="#475467" />
-        <Text style={{ color: "#667085", fontSize: compact ? 12 : 13, fontWeight: "700" }}>
+        <Ionicons name="calendar-outline" size={22} color={colors.textMuted} />
+        <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "700" }}>
           {slots.reduce((total, slot) => total + slot.items.length, 0)} aulas - {durationHours}h de duração
         </Text>
       </View>

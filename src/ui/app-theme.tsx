@@ -7,12 +7,27 @@ import {
     useState,
 } from "react";
 import { Platform, useColorScheme as useSystemColorScheme } from "react-native";
+import { brandPalette, semanticColors } from "../theme/tokens";
 import { figmaColors } from "./figma-colors";
 import { usePersistedState } from "./use-persisted-state";
 
 type ThemeMode = "light" | "dark";
 
 export type ThemeColors = {
+  backgroundSubtle: string;
+  surface: string;
+  surfaceElevated: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  borderSubtle: string;
+  borderStrong: string;
+  primary: string;
+  primaryPressed: string;
+  success: string;
+  warning: string;
+  danger: string;
+  info: string;
   background: string;
   card: string;
   border: string;
@@ -53,63 +68,65 @@ export const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 const isWeb = Platform.OS === "web";
 
 const baseLightColors: ThemeColors = {
-  background: isWeb ? "rgba(245, 247, 250, 0.98)" : "#f4f6fa",
-  card: isWeb ? "rgba(255, 255, 255, 0.88)" : "#ffffff",
-  border: isWeb ? "rgba(15, 23, 42, 0.14)" : "rgba(15, 23, 42, 0.08)",
-  text: "#0f172a",
-  muted: "#475569",
-  placeholder: "#64748b",
-  inputBg: isWeb ? "rgba(255, 255, 255, 0.76)" : "#ffffff",
-  inputText: "#0f172a",
-  primaryBg: "#0f172a",
-  primaryText: "#ffffff",
-  primaryDisabledBg: "#94a3b8",
-  secondaryBg: isWeb ? "rgba(248, 250, 252, 0.8)" : "#eef2f8",
-  secondaryText: "#0f172a",
-  dangerBg: "#fee2e2",
-  dangerBorder: "#fecaca",
-  dangerText: "#991b1b",
-  thumbFallback: "#f1f5f9",
-  successBg: "#22c55e",
-  successText: "#052e16",
-  successBorder: "#86efac",
-  warningBg: "#f59e0b",
-  warningText: "#111827",
-  warningBorder: "#fcd34d",
-  dangerSolidBg: "#ef4444",
-  dangerSolidText: "#fff",
-  infoBg: "#dbeafe",
-  infoText: "#1e293b",
+  ...semanticColors.light,
+  background: isWeb ? "rgba(245, 240, 232, 0.98)" : semanticColors.light.background,
+  card: semanticColors.light.surface,
+  border: semanticColors.light.borderSubtle,
+  text: semanticColors.light.textPrimary,
+  muted: semanticColors.light.textMuted,
+  placeholder: brandPalette.slateMuted,
+  inputBg: semanticColors.light.surfaceElevated,
+  inputText: semanticColors.light.textPrimary,
+  primaryBg: semanticColors.light.primary,
+  primaryText: brandPalette.white,
+  primaryDisabledBg: "rgba(90, 107, 130, 0.34)",
+  secondaryBg: semanticColors.light.backgroundSubtle,
+  secondaryText: semanticColors.light.textSecondary,
+  dangerBg: "rgba(229, 72, 77, 0.12)",
+  dangerBorder: "rgba(229, 72, 77, 0.32)",
+  dangerText: "#9F1D24",
+  thumbFallback: brandPalette.areiaDeep,
+  successBg: "rgba(61, 220, 132, 0.18)",
+  successText: "#145C39",
+  successBorder: "rgba(39, 184, 106, 0.34)",
+  warningBg: "rgba(242, 160, 61, 0.18)",
+  warningText: "#7A4309",
+  warningBorder: "rgba(242, 160, 61, 0.36)",
+  dangerSolidBg: semanticColors.light.danger,
+  dangerSolidText: brandPalette.white,
+  infoBg: "rgba(59, 130, 246, 0.12)",
+  infoText: "#1D4ED8",
 };
 
 const baseDarkColors: ThemeColors = {
-  background: isWeb ? "rgba(11, 18, 32, 0.95)" : "#0b1222",
-  card: isWeb ? "rgba(18, 28, 48, 0.38)" : "#111b30",
-  border: "rgba(255, 255, 255, 0.1)",
-  text: "#f8fafc",
-  muted: "#cbd5e1",
-  placeholder: "#cbd5e1",
-  inputBg: isWeb ? "rgba(18, 28, 48, 0.22)" : "#15233c",
-  inputText: "#f1f5f9",
-  primaryBg: "rgba(86, 214, 154, 0.28)",
-  primaryText: "#eafff5",
-  primaryDisabledBg: "rgba(148, 163, 184, 0.3)",
-  secondaryBg: isWeb ? "rgba(20, 30, 52, 0.28)" : "#1a2942",
-  secondaryText: "#e2e8f0",
-  dangerBg: "#3f1d1d",
-  dangerBorder: "#7f1d1d",
-  dangerText: "#fecaca",
-  thumbFallback: "#1f2937",
-  successBg: "#16a34a",
-  successText: "#052e16",
-  successBorder: "#4ade80",
-  warningBg: "#f59e0b",
-  warningText: "#111827",
-  warningBorder: "#fbbf24",
-  dangerSolidBg: "#dc2626",
-  dangerSolidText: "#fff",
-  infoBg: "#1e3a8a",
-  infoText: "#e2e8f0",
+  ...semanticColors.dark,
+  background: isWeb ? "rgba(14, 23, 41, 0.98)" : semanticColors.dark.background,
+  card: semanticColors.dark.surface,
+  border: semanticColors.dark.borderSubtle,
+  text: semanticColors.dark.textPrimary,
+  muted: semanticColors.dark.textMuted,
+  placeholder: semanticColors.dark.textMuted,
+  inputBg: semanticColors.dark.surfaceElevated,
+  inputText: semanticColors.dark.textPrimary,
+  primaryBg: semanticColors.dark.primary,
+  primaryText: brandPalette.navyDeep,
+  primaryDisabledBg: "rgba(138, 154, 179, 0.26)",
+  secondaryBg: semanticColors.dark.backgroundSubtle,
+  secondaryText: semanticColors.dark.textSecondary,
+  dangerBg: "rgba(248, 113, 113, 0.16)",
+  dangerBorder: "rgba(248, 113, 113, 0.36)",
+  dangerText: "#FCA5A5",
+  thumbFallback: brandPalette.graphite,
+  successBg: "rgba(61, 220, 132, 0.20)",
+  successText: "#BFF7D7",
+  successBorder: "rgba(61, 220, 132, 0.40)",
+  warningBg: "rgba(242, 160, 61, 0.20)",
+  warningText: "#F8D394",
+  warningBorder: "rgba(242, 160, 61, 0.42)",
+  dangerSolidBg: semanticColors.dark.danger,
+  dangerSolidText: brandPalette.navyDeep,
+  infoBg: "rgba(147, 197, 253, 0.16)",
+  infoText: "#BFDBFE",
 };
 
 const lightColors: ThemeColors = {

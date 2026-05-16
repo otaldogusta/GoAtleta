@@ -3,6 +3,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
+import { radius, shadow } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
 
@@ -67,15 +68,18 @@ export const ClassCard = memo(function ClassCard({
       style={[
         styles.container,
         {
-          backgroundColor: colors.background,
-          borderColor: colors.border,
+          backgroundColor: colors.surface ?? colors.background,
+          borderColor: colors.borderSubtle ?? colors.border,
         },
       ]}
     >
       {canIntegrate ? (
         <View style={styles.integrationWrap}>
           <Pressable
-            style={[styles.integrationPill, { backgroundColor: colors.primaryBg }]}
+            style={[
+              styles.integrationPill,
+              { backgroundColor: colors.successBg ?? colors.primaryBg, borderColor: colors.successBorder ?? colors.primaryBg },
+            ]}
             onHoverIn={() => {
               if (Platform.OS === "web") setShowIntegrationTooltip(true);
             }}
@@ -83,7 +87,7 @@ export const ClassCard = memo(function ClassCard({
               if (Platform.OS === "web") setShowIntegrationTooltip(false);
             }}
           >
-            <Text style={[styles.integrationPillText, { color: colors.primaryText }]}>
+            <Text style={[styles.integrationPillText, { color: colors.successText ?? colors.primaryText }]}>
               Integrado
             </Text>
           </Pressable>
@@ -92,8 +96,8 @@ export const ClassCard = memo(function ClassCard({
               style={[
                 styles.integrationTooltip,
                 {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
+                  backgroundColor: colors.surfaceElevated ?? colors.card,
+                  borderColor: colors.borderSubtle ?? colors.border,
                 },
               ]}
             >
@@ -104,7 +108,7 @@ export const ClassCard = memo(function ClassCard({
           ) : null}
         </View>
       ) : hasConflicts ? (
-        <View style={[styles.conflictPill, { backgroundColor: colors.dangerBg }]}>
+        <View style={[styles.conflictPill, { backgroundColor: colors.dangerBg, borderColor: colors.dangerBorder }]}>
           <Text style={[styles.conflictPillText, { color: colors.dangerText }]}>
             Conflito de horário
           </Text>
@@ -113,7 +117,7 @@ export const ClassCard = memo(function ClassCard({
 
       <View style={styles.headerRow}>
         <View style={styles.titleWrap}>
-          <Text style={[styles.title, { color: colors.text }]}>{timeLabel}</Text>
+          <Text style={[styles.title, { color: colors.textPrimary ?? colors.text }]}>{timeLabel}</Text>
           <ClassGenderBadge gender={item.gender} />
         </View>
       </View>
@@ -130,30 +134,32 @@ export const ClassCard = memo(function ClassCard({
 const styles = StyleSheet.create({
   container: {
     padding: 14,
-    borderRadius: 18,
+    borderRadius: radius.container,
     borderWidth: 1,
     ...(Platform.OS === "web"
-      ? { boxShadow: "0px 8px 12px rgba(0, 0, 0, 0.08)" }
+      ? { boxShadow: "0px 4px 10px rgba(10, 19, 34, 0.05)" }
       : {
-          shadowColor: "#000",
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 8 },
+          shadowColor: shadow.card.shadowColor,
+          shadowOpacity: shadow.card.shadowOpacity,
+          shadowRadius: shadow.card.shadowRadius,
+          shadowOffset: shadow.card.shadowOffset,
         }),
-    elevation: 3,
+    elevation: shadow.card.elevation,
   },
   conflictPill: {
     alignSelf: "flex-start",
     paddingVertical: 2,
     paddingHorizontal: 8,
-    borderRadius: 999,
+    borderRadius: radius.full,
+    borderWidth: 1,
     marginBottom: 6,
   },
   integrationPill: {
     alignSelf: "flex-start",
     paddingVertical: 2,
     paddingHorizontal: 8,
-    borderRadius: 999,
+    borderRadius: radius.full,
+    borderWidth: 1,
     marginBottom: 6,
   },
   integrationWrap: {
@@ -175,7 +181,7 @@ const styles = StyleSheet.create({
     left: 0,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 10,
+    borderRadius: radius.internal,
     minWidth: 180,
     maxWidth: 260,
     borderWidth: 1,

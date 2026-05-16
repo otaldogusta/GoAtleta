@@ -15,6 +15,7 @@ import type {
 import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
 import { getSectionCardStyle } from "../../ui/section-styles";
+import { radius } from "../../theme/tokens";
 import type { WeeklyOperationalTeacherIntent } from "./application/format-weekly-operational-intent-for-teacher";
 
 type WeekScheduleItem = {
@@ -118,13 +119,13 @@ export function WeekTab({
             alignSelf: "flex-start",
             paddingHorizontal: 12,
             paddingVertical: 7,
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
-            borderColor: qaModeEnabled ? colors.infoBg : colors.border,
-            backgroundColor: qaModeEnabled ? colors.infoBg : colors.card,
+            borderColor: qaModeEnabled ? colors.infoText : colors.borderSubtle,
+            backgroundColor: qaModeEnabled ? colors.infoBg : colors.surface,
           }}
         >
-          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: "800" }}>
             {qaModeEnabled ? "QA MODE: ON" : "QA MODE: OFF"}
           </Text>
         </Pressable>
@@ -133,19 +134,19 @@ export function WeekTab({
       {weeklyTeacherIntent ? (
         <View
           style={[
-            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: radius.card, shadow: false }),
             { gap: 8 },
           ]}
         >
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "900" }}>
             {weeklyTeacherIntent.title}
           </Text>
-          <Text style={{ color: colors.text, fontSize: 12, lineHeight: 18 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 18 }}>
             {weeklyTeacherIntent.summary}
           </Text>
           <View style={{ gap: 4 }}>
             {weeklyTeacherIntent.teacherNotes.map((note) => (
-              <Text key={note} style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
+              <Text key={note} style={{ color: colors.textMuted, fontSize: 11, lineHeight: 16 }}>
                 {`- ${note}`}
               </Text>
             ))}
@@ -156,7 +157,7 @@ export function WeekTab({
       {qaModeEnabled && weeklyObservabilitySummary ? (
         <View
           style={[
-            getSectionCardStyle(colors, "warning", { padding: 12, radius: 14, shadow: false }),
+            getSectionCardStyle(colors, "warning", { padding: 12, radius: radius.card, shadow: false }),
             { gap: 8 },
           ]}
         >
@@ -222,7 +223,7 @@ export function WeekTab({
       {qaModeEnabled && classObservabilityTrend && classObservabilityTrend.totalWeeks > 0 ? (
         <View
           style={[
-            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: radius.card, shadow: false }),
             { gap: 6 },
           ]}
         >
@@ -241,7 +242,7 @@ export function WeekTab({
       {qaModeEnabled && classObservabilityDriftFrequency.some((item) => item.total > 0) ? (
         <View
           style={[
-            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: radius.card, shadow: false }),
             { gap: 6 },
           ]}
         >
@@ -267,7 +268,7 @@ export function WeekTab({
       {qaModeEnabled && classRecentUnstableWeeks.length > 0 ? (
         <View
           style={[
-            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: radius.card, shadow: false }),
             { gap: 6 },
           ]}
         >
@@ -309,7 +310,7 @@ export function WeekTab({
       {qaModeEnabled && classObservabilityInsights.length > 0 ? (
         <View
           style={[
-            getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }),
+            getSectionCardStyle(colors, "neutral", { padding: 12, radius: radius.card, shadow: false }),
             { gap: 6 },
           ]}
         >
@@ -346,12 +347,12 @@ export function WeekTab({
               style={{
                 width: 34,
                 height: 34,
-                borderRadius: 999,
+                borderRadius: radius.full,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
+                backgroundColor: colors.backgroundSubtle,
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: colors.borderSubtle,
                 opacity: !hasWeekPlans || activeWeek.week <= 1 ? 0.45 : 1,
               }}
             >
@@ -368,12 +369,12 @@ export function WeekTab({
               style={{
                 width: 34,
                 height: 34,
-                borderRadius: 999,
+                borderRadius: radius.full,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
+                backgroundColor: colors.backgroundSubtle,
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: colors.borderSubtle,
                 opacity: !hasWeekPlans || activeWeek.week >= weekPlans.length ? 0.45 : 1,
               }}
             >

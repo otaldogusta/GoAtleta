@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Text, View } from "react-native";
 
 import { Pressable } from "../../../ui/Pressable";
+import { radius, shadow } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { WeekDaySummary } from "./homeScheduleTypes";
 
@@ -23,19 +24,19 @@ export const WeekDaySelector = memo(function WeekDaySelector({
   return (
     <View
       style={{
-        backgroundColor: "#FFFFFF",
-        borderRadius: 18,
+        backgroundColor: colors.surface,
+        borderRadius: radius.container,
         borderWidth: 1,
-        borderColor: "rgba(15,23,42,0.06)",
+        borderColor: colors.borderSubtle,
         padding: compact ? 14 : 16,
-        shadowColor: "#0F172A",
-        shadowOpacity: 0.05,
-        shadowRadius: 18,
-        shadowOffset: { width: 0, height: 8 },
+        shadowColor: shadow.card.shadowColor,
+        shadowOpacity: shadow.card.shadowOpacity,
+        shadowRadius: shadow.card.shadowRadius,
+        shadowOffset: shadow.card.shadowOffset,
         gap: compact ? 12 : 14,
       }}
     >
-        <Text style={{ color: "#101827", fontSize: compact ? 16 : 17, fontWeight: "800" }}>
+        <Text style={{ color: colors.textPrimary, fontSize: compact ? 16 : 17, fontWeight: "900" }}>
         Agenda da semana
       </Text>
 
@@ -50,10 +51,10 @@ export const WeekDaySelector = memo(function WeekDaySelector({
                 flex: 1,
                 minWidth: 0,
                 minHeight: compact ? 68 : 78,
-                borderRadius: 14,
-                backgroundColor: isSelected ? "#EEF5F1" : "#FFFFFF",
+                borderRadius: radius.card,
+                backgroundColor: isSelected ? colors.successBg : colors.surface,
                 borderWidth: isSelected ? 1 : 0,
-                borderColor: isSelected ? "rgba(28,112,84,0.18)" : "transparent",
+                borderColor: isSelected ? colors.successBorder : "transparent",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: compact ? 4 : 5,
@@ -63,7 +64,7 @@ export const WeekDaySelector = memo(function WeekDaySelector({
             >
               <Text
                 style={{
-                  color: isSelected ? "#1B7A5E" : "#222B38",
+                  color: isSelected ? colors.successText : colors.textPrimary,
                   fontSize: compact ? 11 : 12,
                   fontWeight: "800",
                 }}
@@ -71,10 +72,10 @@ export const WeekDaySelector = memo(function WeekDaySelector({
               >
                 {day.weekdayLabel}
               </Text>
-              <Text style={{ color: "#6B7280", fontSize: compact ? 12 : 13, fontWeight: "700" }}>
+              <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "700" }}>
                 {day.dateLabel}
               </Text>
-              <Text style={{ color: "#6B7280", fontSize: compact ? 11 : 12 }} numberOfLines={1}>
+              <Text style={{ color: colors.textMuted, fontSize: compact ? 11 : 12 }} numberOfLines={1}>
                 {day.lessonCount} {day.lessonCount === 1 ? "aula" : "aulas"}
               </Text>
               <View
@@ -82,7 +83,7 @@ export const WeekDaySelector = memo(function WeekDaySelector({
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: isSelected ? "#1B7A5E" : day.isToday ? colors.primaryBg : "transparent",
+                  backgroundColor: isSelected ? colors.success : day.isToday ? colors.primaryBg : "transparent",
                 }}
               />
             </Pressable>

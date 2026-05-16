@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import type { LessonActivity } from "../../../core/models";
+import { radius } from "../../../theme/tokens";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
@@ -125,20 +126,20 @@ export function BlockEditModal({
           width: "100%",
           maxWidth: 760,
           maxHeight: "85%",
-          borderRadius: 22,
-          backgroundColor: colors.background,
+          borderRadius: radius.container,
+          backgroundColor: colors.surface,
           borderWidth: 1,
-          borderColor: colors.border,
+          borderColor: colors.borderSubtle,
           padding: 16,
           gap: 12,
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: "900" }}>
               {title}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
               Edite duração, atividades e descrições.
             </Text>
           </View>
@@ -148,21 +149,21 @@ export function BlockEditModal({
             style={{
               width: 32,
               height: 32,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
+              borderRadius: radius.full,
+              backgroundColor: colors.backgroundSubtle,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.borderSubtle,
               alignItems: "center",
               justifyContent: "center",
               marginTop: 2,
             }}
           >
-            <Ionicons name="close" size={18} color={colors.text} />
+            <Ionicons name="close" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
             Duração (min)
           </Text>
           <TextInput
@@ -172,12 +173,12 @@ export function BlockEditModal({
             onChangeText={setDraftDuration}
             style={{
               borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 12,
+              borderColor: colors.borderSubtle,
+              borderRadius: radius.internal,
               paddingVertical: 10,
               paddingHorizontal: 12,
               backgroundColor: colors.inputBg,
-              color: colors.inputText,
+              color: colors.textPrimary,
               fontSize: 15,
               fontWeight: "600",
             }}

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Animated, ScrollView, Text, TextInput, View } from "react-native";
 
 import { Pressable } from "../../../src/ui/Pressable";
+import { radius } from "../../../src/theme/tokens";
 import type { ThemeColors } from "../../../src/ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../src/ui/confirm-dialog";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
@@ -91,16 +92,16 @@ export function CompetitiveAgendaCard({
   return (
     <View
       style={[
-        getSectionCardStyle(colors, "neutral", { padding: 24, radius: 16, shadow: false }),
-        { gap: 14, borderWidth: 1, borderColor: colors.border },
+        getSectionCardStyle(colors, "neutral", { padding: 20, radius: radius.container, shadow: false }),
+        { gap: 14, borderWidth: 1, borderColor: colors.borderSubtle },
       ]}
     >
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: "900" }}>
             {normalizeText("Modo competitivo da turma")}
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
             {normalizeText(
               isCompetitiveMode
                 ? "Perfil competitivo ativo para gerar semanas com datas reais."
@@ -117,16 +118,16 @@ export function CompetitiveAgendaCard({
             style={{
               height: 32,
               paddingHorizontal: 12,
-              borderRadius: 16,
+              borderRadius: radius.full,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
+              backgroundColor: colors.backgroundSubtle,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.borderSubtle,
               opacity: isSavingCompetitiveProfile ? 0.6 : 1,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: 12 }}>
               {normalizeText("Desativar")}
             </Text>
           </Pressable>
@@ -146,17 +147,17 @@ export function CompetitiveAgendaCard({
         style={{
           gap: 10,
           padding: competitiveBlockPadding,
-          borderRadius: 12,
-          backgroundColor: colors.secondaryBg,
+          borderRadius: radius.card,
+          backgroundColor: colors.backgroundSubtle,
           borderWidth: 1,
-          borderColor: colors.border,
+          borderColor: colors.borderSubtle,
         }}
       >
         <Pressable
           onPress={() => toggleCompetitiveBlock("profile")}
           style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
             {normalizeText("Dados da competição")}
           </Text>
           <Ionicons
@@ -170,7 +171,7 @@ export function CompetitiveAgendaCard({
         <Animated.View style={[{ gap: 10 }, competitiveProfileAnimStyle]}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
           <View style={{ flex: 1, minWidth: 160, flexBasis: 0, gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>{normalizeText("Competição-alvo")}</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "800" }}>{normalizeText("Competição-alvo")}</Text>
             <TextInput
               value={competitiveProfile?.targetCompetition ?? ""}
               onChangeText={(value) => updateCompetitiveProfileDraft({ targetCompetition: value })}
@@ -178,17 +179,17 @@ export function CompetitiveAgendaCard({
               placeholderTextColor={colors.placeholder}
               style={{
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: colors.borderSubtle,
                 padding: 10,
                 fontSize: 13,
-                borderRadius: 12,
-                backgroundColor: colors.background,
-                color: colors.inputText,
+                borderRadius: radius.internal,
+                backgroundColor: colors.inputBg,
+                color: colors.textPrimary,
               }}
             />
           </View>
           <View style={{ flex: 1, minWidth: 160, flexBasis: 0, gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>{normalizeText("Data-alvo")}</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "800" }}>{normalizeText("Data-alvo")}</Text>
             <TextInput
               value={competitiveTargetDateInput}
               onChangeText={(value) => setCompetitiveTargetDateInput(formatDateInputMask(value))}
@@ -196,12 +197,12 @@ export function CompetitiveAgendaCard({
               placeholderTextColor={colors.placeholder}
               style={{
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: colors.borderSubtle,
                 padding: 10,
                 fontSize: 13,
-                borderRadius: 12,
-                backgroundColor: colors.background,
-                color: colors.inputText,
+                borderRadius: radius.internal,
+                backgroundColor: colors.inputBg,
+                color: colors.textPrimary,
               }}
             />
           </View>
