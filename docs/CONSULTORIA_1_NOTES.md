@@ -118,7 +118,7 @@ Quando o perfil e salvo, o card recolhe para um resumo clicavel. O professor pod
 A secao `Aluno` agora funciona como uma ficha de entrada:
 
 - mostra a aluna selecionada com contato e origem;
-- permite buscar uma aluna ja cadastrada no sistema;
+- permite buscar uma aluna ja cadastrada no sistema com lista de resultados apenas quando ha texto digitado;
 - permite preencher nome e contato de uma nova aluna para o piloto local.
 
 A nova aluna criada nessa ficha nao vira cadastro oficial e nao grava no Supabase. Ela serve apenas para testar o fluxo local da consultoria antes da modelagem canonica.

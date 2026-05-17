@@ -220,6 +220,47 @@ const createPilotStudent = ({ name, contact }: { name: string; contact: string }
   };
 };
 
+type ConsultationFieldColors = Pick<
+  ReturnType<typeof useAppTheme>["colors"],
+  "border" | "inputBg" | "inputText" | "placeholder" | "text"
+>;
+
+const ConsultationField = ({
+  colors,
+  label,
+  value,
+  onChangeText,
+  multiline,
+}: {
+  colors: ConsultationFieldColors;
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  multiline?: boolean;
+}) => (
+  <View style={{ gap: 6 }}>
+    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>{label}</Text>
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      multiline={multiline}
+      placeholderTextColor={colors.placeholder}
+      scrollEnabled={false}
+      style={{
+        minHeight: multiline ? 58 : 42,
+        borderRadius: radius.internal,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.inputBg,
+        color: colors.inputText,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        textAlignVertical: multiline ? "top" : "center",
+      }}
+    />
+  </View>
+);
+
 export default function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
@@ -616,40 +657,6 @@ export default function ConsultationScreen() {
     </Pressable>
   );
 
-  const Field = ({
-    label,
-    value,
-    onChangeText,
-    multiline,
-  }: {
-    label: string;
-    value: string;
-    onChangeText: (value: string) => void;
-    multiline?: boolean;
-  }) => (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        multiline={multiline}
-        placeholderTextColor={colors.placeholder}
-        scrollEnabled={false}
-        style={{
-          minHeight: multiline ? 58 : 42,
-          borderRadius: radius.internal,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.inputBg,
-          color: colors.inputText,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          textAlignVertical: multiline ? "top" : "center",
-        }}
-      />
-    </View>
-  );
-
   const ProfileSection = ({
     title,
     children,
@@ -800,23 +807,50 @@ export default function ConsultationScreen() {
           )}
 
           <View style={{ gap: 10 }}>
-            <Field label="Buscar aluna cadastrada" value={studentSearch} onChangeText={setStudentSearch} />
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {filteredStudents.length ? (
-                filteredStudents.map((student) => (
-                  <Chip
-                    key={student.id}
-                    label={student.name}
-                    active={student.id === selectedStudentId}
-                    onPress={() => setSelectedStudentId(student.id)}
-                  />
-                ))
-              ) : (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Nenhuma aluna encontrada. Preencha uma nova ficha abaixo para o piloto.
-                </Text>
-              )}
-            </View>
+            <ConsultationField colors={colors} label="Buscar aluna cadastrada" value={studentSearch} onChangeText={setStudentSearch} />
+            {studentSearch.trim() ? (
+              <View
+                style={{
+                  borderRadius: radius.internal,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.inputBg,
+                  overflow: "hidden",
+                }}
+              >
+                {filteredStudents.length ? (
+                  filteredStudents.map((student, index) => (
+                    <Pressable
+                      key={student.id}
+                      onPress={() => {
+                        setSelectedStudentId(student.id);
+                        setStudentSearch("");
+                      }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        borderTopWidth: index === 0 ? 0 : 1,
+                        borderTopColor: colors.border,
+                        backgroundColor: student.id === selectedStudentId ? colors.secondaryBg : colors.inputBg,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "900" }}>{student.name}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {student.loginEmail || student.phone || "Sem contato informado"}
+                      </Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text style={{ color: colors.muted, fontSize: 12, padding: 12 }}>
+                    Nenhuma aluna encontrada. Preencha uma nova ficha abaixo para o piloto.
+                  </Text>
+                )}
+              </View>
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Digite nome, e-mail ou telefone para procurar no cadastro.
+              </Text>
+            )}
           </View>
 
           <View
@@ -830,10 +864,10 @@ export default function ConsultationScreen() {
             <Text style={{ color: colors.text, fontWeight: "900", fontSize: 13 }}>Nova aluna no piloto</Text>
             <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
               <View style={{ flex: 1 }}>
-                <Field label="Nome" value={pilotStudentName} onChangeText={setPilotStudentName} />
+                <ConsultationField colors={colors} label="Nome" value={pilotStudentName} onChangeText={setPilotStudentName} />
               </View>
               <View style={{ flex: 1 }}>
-                <Field label="E-mail ou telefone" value={pilotStudentContact} onChangeText={setPilotStudentContact} />
+                <ConsultationField colors={colors} label="E-mail ou telefone" value={pilotStudentContact} onChangeText={setPilotStudentContact} />
               </View>
             </View>
             <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", alignItems: Platform.OS === "web" ? "center" : "stretch", gap: 10 }}>
@@ -936,10 +970,10 @@ export default function ConsultationScreen() {
                 </View>
                 <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
+                    <ConsultationField colors={colors} label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Field label="Duração média" value={duration} onChangeText={setDuration} />
+                    <ConsultationField colors={colors} label="Duração média" value={duration} onChangeText={setDuration} />
                   </View>
                 </View>
               </ProfileSection>
@@ -966,16 +1000,16 @@ export default function ConsultationScreen() {
               <ProfileSection title="Cuidados" attention={Boolean(restrictions.trim() || injuries.trim())}>
                 <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
+                    <ConsultationField colors={colors} label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+                    <ConsultationField colors={colors} label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
                   </View>
                 </View>
               </ProfileSection>
 
               <ProfileSection title="Observações">
-                <Field label="Observações" value={profileNotes} onChangeText={setProfileNotes} multiline />
+                <ConsultationField colors={colors} label="Observações" value={profileNotes} onChangeText={setProfileNotes} multiline />
               </ProfileSection>
 
               <View style={{ flexDirection: Platform.OS === "web" && hasSavedProfile ? "row" : "column", gap: 10 }}>
@@ -1333,16 +1367,16 @@ export default function ConsultationScreen() {
                 <View style={{ gap: 12 }}>
                   <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Field label="Título" value={title} onChangeText={setTitle} />
+                      <ConsultationField colors={colors} label="Título" value={title} onChangeText={setTitle} />
                     </View>
                     <View style={{ flex: 0.8 }}>
-                      <Field label="Dia" value={dayLabel} onChangeText={setDayLabel} />
+                      <ConsultationField colors={colors} label="Dia" value={dayLabel} onChangeText={setDayLabel} />
                     </View>
                     <View style={{ flex: 0.7 }}>
-                      <Field label="Duração" value={duration} onChangeText={setDuration} />
+                      <ConsultationField colors={colors} label="Duração" value={duration} onChangeText={setDuration} />
                     </View>
                   </View>
-                  <Field label="Objetivo do treino" value={objective} onChangeText={setObjective} />
+                  <ConsultationField colors={colors} label="Objetivo do treino" value={objective} onChangeText={setObjective} />
 
                   <View style={{ gap: 8 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -1501,7 +1535,7 @@ export default function ConsultationScreen() {
               {activePrescriptionBlock === "notes" ? (
                 <View style={{ gap: 12 }}>
                   <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Observações</Text>
-                  <Field label="Observações do professor" value={coachNotes} onChangeText={setCoachNotes} multiline />
+                  <ConsultationField colors={colors} label="Observações do professor" value={coachNotes} onChangeText={setCoachNotes} multiline />
                 </View>
               ) : null}
             </View>
