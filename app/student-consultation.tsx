@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
 import {
+  buildConsultationProgressSummary,
   createWorkoutExecutionLog,
   findNextStudentWorkout,
   getWorkoutAttentionSignal,
@@ -71,6 +72,17 @@ export default function StudentConsultationScreen() {
   const profile = state.profiles.find((item) => item.studentId === student?.id);
   const latestLog = state.executionLogs.find((item) => item.workoutId === doneWorkoutId);
   const attention = latestLog ? getWorkoutAttentionSignal(latestLog) : null;
+  const progressSummary = useMemo(
+    () =>
+      student?.id
+        ? buildConsultationProgressSummary({
+            studentId: student.id,
+            workouts: state.workouts,
+            executionLogs: state.executionLogs,
+          })
+        : null,
+    [state.executionLogs, state.workouts, student?.id]
+  );
   const currentAttention =
     pain >= 7
       ? { tone: "danger" as const, label: "Dor alta", description: "Interrompa se a dor estiver forte e avise o profissional." }
@@ -317,6 +329,24 @@ export default function StudentConsultationScreen() {
                 {persistenceStatus.message}
               </Text>
             ) : null}
+          </View>
+        ) : null}
+
+        {progressSummary ? (
+          <View style={{ gap: 8, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Seu histórico</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {progressSummary.workoutsCompleted} treino(s) concluído(s) · adesão {progressSummary.adherencePercent}%
+            </Text>
+            {progressSummary.attentionFlags.includes("initial_history") ? (
+              <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                Ainda há poucos treinos para apontar tendência. Continue enviando seu feedback.
+              </Text>
+            ) : (
+              <Text style={{ color: colors.text, lineHeight: 20 }}>
+                PSE médio {progressSummary.averageRpe ?? "-"} · Dor média {progressSummary.averagePain ?? "-"}
+              </Text>
+            )}
           </View>
         ) : null}
       </ScrollView>

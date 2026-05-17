@@ -1,5 +1,6 @@
 import {
   buildWorkoutFeedbackSummary,
+  buildConsultationProgressSummary,
   createConsultationProfile,
   createPrescribedWorkout,
   createWorkoutExecutionLog,
@@ -138,5 +139,62 @@ describe("online consultation domain", () => {
       completedAt: "2026-05-18T12:00:00.000Z",
     });
     expect(log.completedExercises[0]?.completed).toBe(true);
+  });
+
+  test("progress summary starts as initial history with no executions", () => {
+    const summary = buildConsultationProgressSummary({
+      studentId: "s1",
+      workouts: [workout],
+      executionLogs: [],
+    });
+    expect(summary.workoutsPublished).toBe(1);
+    expect(summary.workoutsCompleted).toBe(0);
+    expect(summary.adherencePercent).toBe(0);
+    expect(summary.averageRpe).toBeNull();
+    expect(summary.attentionFlags).toContain("initial_history");
+  });
+
+  test("progress summary calculates adherence and averages conservatively", () => {
+    const log = createWorkoutExecutionLog({
+      id: "log1",
+      workout,
+      completedAt: "2026-05-18T12:00:00.000Z",
+      perceivedExertion: 6,
+      painLevel: 2,
+    });
+    const summary = buildConsultationProgressSummary({
+      studentId: "s1",
+      workouts: [workout],
+      executionLogs: [log],
+    });
+    expect(summary.workoutsCompleted).toBe(1);
+    expect(summary.adherencePercent).toBe(100);
+    expect(summary.averageRpe).toBe(6);
+    expect(summary.averagePain).toBe(2);
+    expect(summary.lastCompletedAt).toBe("2026-05-18T12:00:00.000Z");
+  });
+
+  test("progress summary flags high pain, high PSE and low adherence only with enough data", () => {
+    const workouts = [
+      workout,
+      createPrescribedWorkout({ ...workout, id: "w2", status: "published" }),
+      createPrescribedWorkout({ ...workout, id: "w3", status: "published" }),
+    ];
+    const log = createWorkoutExecutionLog({
+      id: "log1",
+      workout,
+      completedAt: "2026-05-18T12:00:00.000Z",
+      perceivedExertion: 9,
+      painLevel: 8,
+    });
+    const summary = buildConsultationProgressSummary({
+      studentId: "s1",
+      workouts,
+      executionLogs: [log],
+    });
+    expect(summary.adherencePercent).toBe(33);
+    expect(summary.attentionFlags).toContain("high_pain_recent");
+    expect(summary.attentionFlags).toContain("high_rpe_recent");
+    expect(summary.attentionFlags).toContain("low_adherence");
   });
 });

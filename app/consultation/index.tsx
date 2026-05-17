@@ -7,12 +7,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type {
   AvailableEquipment,
   ConsultationGoal,
+  ConsultationProgressAttentionFlag,
   OnlineConsultationProfile,
   PrescribedExercise,
   PrescribedWorkout,
   TrainingEnvironment,
 } from "../../src/core/consultation";
 import {
+  buildConsultationProgressSummary,
   buildWorkoutFeedbackSummary,
   createConsultationProfile,
   createPrescribedWorkout,
@@ -83,6 +85,20 @@ const formatDisplayDate = (value: string) => {
   if (!match) return value;
   const [, year, month, day] = match;
   return `${day}/${month}/${year}`;
+};
+
+const formatDateTime = (value: string | null) => {
+  if (!value) return "Sem execução";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+};
+
+const progressFlagCopy: Record<ConsultationProgressAttentionFlag, string> = {
+  high_pain_recent: "Atenção: dor alta relatada recentemente",
+  high_rpe_recent: "Atenção: esforço alto relatado recentemente",
+  low_adherence: "Adesão abaixo do esperado",
+  initial_history: "Ainda há poucos treinos para apontar tendência",
 };
 
 const parseList = (value: string) =>
@@ -373,6 +389,15 @@ export default function ConsultationScreen() {
   const hasPublishedWorkout = publishedWorkouts.length > 0;
   const hasReceivedFeedback = studentLogs.length > 0;
   const hasReviewedFeedback = hasReceivedFeedback && pendingLogs.length === 0;
+  const progressSummary = useMemo(
+    () =>
+      buildConsultationProgressSummary({
+        studentId: selectedStudentId,
+        workouts: state.workouts,
+        executionLogs: state.executionLogs,
+      }),
+    [selectedStudentId, state.executionLogs, state.workouts]
+  );
 
   useEffect(() => {
     if (!selectedProfile) return;
@@ -1415,14 +1440,77 @@ export default function ConsultationScreen() {
             <View style={{ gap: 4 }}>
               <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Evolução da aluna</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                A evolução será exibida depois dos primeiros feedbacks.
+                Indicadores simples com base nos treinos publicados e feedbacks recebidos.
               </Text>
             </View>
+            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", flexWrap: "wrap", gap: 10 }}>
+              {[
+                { label: "Adesão", value: `${progressSummary.adherencePercent}%`, detail: `${progressSummary.workoutsCompleted}/${progressSummary.workoutsPublished} treino(s)` },
+                { label: "PSE médio", value: progressSummary.averageRpe === null ? "-" : String(progressSummary.averageRpe), detail: "Esforço percebido" },
+                { label: "Dor média", value: progressSummary.averagePain === null ? "-" : String(progressSummary.averagePain), detail: "Relatos da aluna" },
+                { label: "Última execução", value: formatDateTime(progressSummary.lastCompletedAt), detail: "Feedback mais recente" },
+              ].map((item) => (
+                <View
+                  key={item.label}
+                  style={{
+                    flex: Platform.OS === "web" ? 1 : undefined,
+                    minWidth: Platform.OS === "web" ? 150 : undefined,
+                    gap: 5,
+                    padding: 12,
+                    borderRadius: radius.internal,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>{item.label}</Text>
+                  <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>{item.value}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>{item.detail}</Text>
+                </View>
+              ))}
+            </View>
             <View style={{ gap: 8, padding: 12, borderRadius: radius.internal, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-              <Text style={{ color: colors.text, fontWeight: "900" }}>Histórico inicial</Text>
-              <Text style={{ color: colors.muted, lineHeight: 20 }}>
-                Depois de alguns treinos, aqui entram adesão, PSE médio, dor média, últimos feedbacks e pontos de atenção.
-              </Text>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>Pontos de atenção</Text>
+              {progressSummary.attentionFlags.length ? (
+                progressSummary.attentionFlags.map((flag) => {
+                  const warning = flag !== "initial_history";
+                  return (
+                    <View
+                      key={flag}
+                      style={{
+                        padding: 10,
+                        borderRadius: radius.internal,
+                        backgroundColor: warning ? colors.warningBg : colors.card,
+                        borderWidth: 1,
+                        borderColor: warning ? colors.warningBorder : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: warning ? colors.warningText : colors.muted, fontWeight: "800", fontSize: 12 }}>
+                        {progressFlagCopy[flag]}
+                      </Text>
+                    </View>
+                  );
+                })
+              ) : (
+                <Text style={{ color: colors.successText, fontWeight: "800" }}>
+                  Sem sinais de atenção nos feedbacks recebidos.
+                </Text>
+              )}
+            </View>
+            <View style={{ gap: 8, padding: 12, borderRadius: radius.internal, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>Últimos feedbacks</Text>
+              {studentLogs.length ? (
+                studentLogs.slice(0, 3).map((log) => (
+                  <Text key={log.id} style={{ color: colors.text, fontSize: 12, lineHeight: 18 }}>
+                    {formatDateTime(log.completedAt)} · PSE {log.perceivedExertion ?? 0}/10 · Dor {log.painLevel ?? 0}/10
+                    {log.studentFeedback ? ` · ${log.studentFeedback}` : ""}
+                  </Text>
+                ))
+              ) : (
+                <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                  Nenhum feedback recebido ainda. A evolução será refinada depois das primeiras execuções.
+                </Text>
+              )}
             </View>
           </View>
         ) : null}

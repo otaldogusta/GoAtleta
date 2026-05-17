@@ -167,13 +167,26 @@ As telas `/consultation` e `/student-consultation` passam a usar a camada canoni
 
 Detalhes tecnicos estao em `docs/CONSULTORIA_2_SUPABASE.md`.
 
+## CONSULTORIA 3 - Historico e progresso
+
+O CONSULTORIA 3 adiciona um resumo conservador de progresso com base nos treinos publicados e execucoes recebidas.
+
+Entrou:
+
+- `ConsultationProgressSummary` no dominio core;
+- calculo de adesao, PSE medio, dor media e ultima execucao;
+- flags `initial_history`, `high_pain_recent`, `high_rpe_recent` e `low_adherence`;
+- aba `Evolucao` preenchida em `/consultation`;
+- resumo simples `Seu histórico` em `/student-consultation`;
+- documentacao em `docs/CONSULTORIA_3_PROGRESS.md`.
+
 ### Limitacoes conhecidas
 
 - O fallback local continua existindo para ambientes sem migration/sessao.
 - Nao ha notificacao de treino publicado ou feedback recebido.
 - Nao ha midia de exercicio.
 - Nao ha PDF ou relatorio formal.
-- Nao ha historico visual de progresso.
+- Nao ha grafico/snapshot visual de progresso.
 - Permissoes aluno/professor robustas ficam para CONSULTORIA 7.
 
 ### Criterios para avancar para CONSULTORIA 2

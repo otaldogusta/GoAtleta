@@ -1,5 +1,6 @@
 import type {
   AvailableEquipment,
+  ConsultationProgressSummary,
   CompletedExerciseLog,
   ConsultationGoal,
   OnlineConsultationProfile,
@@ -193,4 +194,52 @@ export function findNextStudentWorkout(
       .filter((workout) => workout.studentId === studentId && workout.status === "published")
       .sort((a, b) => a.weekStartDate.localeCompare(b.weekStartDate))[0] ?? null
   );
+}
+
+const averageScale = (values: Array<number | undefined>) => {
+  const validValues = values.filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value)
+  );
+  if (!validValues.length) return null;
+  return Math.round((validValues.reduce((sum, value) => sum + value, 0) / validValues.length) * 10) / 10;
+};
+
+export function buildConsultationProgressSummary(params: {
+  studentId: string;
+  workouts: PrescribedWorkout[];
+  executionLogs: WorkoutExecutionLog[];
+}): ConsultationProgressSummary {
+  const studentWorkouts = params.workouts.filter((workout) => workout.studentId === params.studentId);
+  const trackedWorkouts = studentWorkouts.filter((workout) =>
+    workout.status === "published" || workout.status === "completed"
+  );
+  const studentLogs = params.executionLogs
+    .filter((log) => log.studentId === params.studentId)
+    .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+  const completedWorkoutIds = new Set(studentLogs.map((log) => log.workoutId));
+  const workoutsCompleted = Array.from(completedWorkoutIds).filter((workoutId) =>
+    trackedWorkouts.some((workout) => workout.id === workoutId)
+  ).length;
+  const workoutsPublished = trackedWorkouts.length;
+  const adherencePercent = workoutsPublished > 0
+    ? Math.round((workoutsCompleted / workoutsPublished) * 100)
+    : 0;
+  const recentLogs = studentLogs.slice(0, 3);
+  const attentionFlags: ConsultationProgressSummary["attentionFlags"] = [];
+
+  if (studentLogs.length < 3) attentionFlags.push("initial_history");
+  if (recentLogs.some((log) => (log.painLevel ?? 0) >= 7)) attentionFlags.push("high_pain_recent");
+  if (recentLogs.some((log) => (log.perceivedExertion ?? 0) >= 8)) attentionFlags.push("high_rpe_recent");
+  if (workoutsPublished >= 3 && adherencePercent < 60) attentionFlags.push("low_adherence");
+
+  return {
+    studentId: params.studentId,
+    workoutsPublished,
+    workoutsCompleted,
+    adherencePercent,
+    averageRpe: averageScale(studentLogs.map((log) => log.perceivedExertion)),
+    averagePain: averageScale(studentLogs.map((log) => log.painLevel)),
+    lastCompletedAt: studentLogs[0]?.completedAt ?? null,
+    attentionFlags,
+  };
 }

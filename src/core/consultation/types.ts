@@ -91,3 +91,20 @@ export type WorkoutAttentionSignal = {
   label: string;
   description: string;
 };
+
+export type ConsultationProgressAttentionFlag =
+  | "high_pain_recent"
+  | "high_rpe_recent"
+  | "low_adherence"
+  | "initial_history";
+
+export type ConsultationProgressSummary = {
+  studentId: string;
+  workoutsPublished: number;
+  workoutsCompleted: number;
+  adherencePercent: number;
+  averageRpe: number | null;
+  averagePain: number | null;
+  lastCompletedAt: string | null;
+  attentionFlags: ConsultationProgressAttentionFlag[];
+};
