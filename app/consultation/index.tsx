@@ -139,6 +139,9 @@ const exerciseColumnWidths = {
   remove: 28,
 };
 
+const defaultExerciseLines =
+  "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração";
+
 const formatExerciseLine = (exercise: PrescribedExercise) =>
   [
     exercise.name,
@@ -170,9 +173,7 @@ export default function ConsultationScreen() {
   const [title, setTitle] = useState("Treino A - Casa");
   const [dayLabel, setDayLabel] = useState("Segunda");
   const [objective, setObjective] = useState("Força geral e controle corporal");
-  const [exerciseLines, setExerciseLines] = useState(
-    "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração"
-  );
+  const [exerciseLines, setExerciseLines] = useState(defaultExerciseLines);
   const [coachNotes, setCoachNotes] = useState(
     "Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional."
   );
@@ -351,6 +352,18 @@ export default function ConsultationScreen() {
   const openWorkoutModal = (block: PrescriptionBlock = "prescription") => {
     setActivePrescriptionBlock(block);
     setModalInitialSnapshot(modalDraftSnapshot);
+    setShowConfirmClose(false);
+    setShowWorkoutModal(true);
+  };
+
+  const openNewWorkoutModal = () => {
+    setTitle(`Treino ${studentWorkouts.length + 1} - Casa`);
+    setDayLabel("Segunda");
+    setObjective("Força geral e controle corporal");
+    setExerciseLines(defaultExerciseLines);
+    setCoachNotes("Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional.");
+    setActivePrescriptionBlock("prescription");
+    setModalInitialSnapshot("");
     setShowConfirmClose(false);
     setShowWorkoutModal(true);
   };
@@ -567,11 +580,30 @@ export default function ConsultationScreen() {
         </View>
 
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Prescrição da semana</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Toque no treino para editar a prescrição.
-            </Text>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Prescrição da semana</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Toque no treino para editar a prescrição.
+              </Text>
+            </View>
+            <Pressable
+              disabled={!selectedStudentId}
+              onPress={openNewWorkoutModal}
+              style={{
+                alignItems: "center",
+                backgroundColor: colors.secondaryBg,
+                borderColor: colors.border,
+                borderRadius: radius.full,
+                borderWidth: 1,
+                height: 36,
+                justifyContent: "center",
+                opacity: selectedStudentId ? 1 : 0.65,
+                width: 36,
+              }}
+            >
+              <Ionicons name="add" size={19} color={colors.text} />
+            </Pressable>
           </View>
           <Pressable
             disabled={!selectedStudentId}
@@ -926,9 +958,7 @@ export default function ConsultationScreen() {
 
                   <Pressable
                     onPress={() => {
-                      setExerciseLines(
-                        "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração"
-                      );
+                      setExerciseLines(defaultExerciseLines);
                     }}
                     style={{
                       alignSelf: Platform.OS === "web" ? "center" : "stretch",
