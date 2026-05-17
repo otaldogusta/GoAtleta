@@ -189,13 +189,28 @@ Entrou:
 - Nao ha grafico/snapshot visual de progresso.
 - Permissoes aluno/professor robustas ficam para CONSULTORIA 7.
 
-### Criterios para avancar para CONSULTORIA 2
+## CONSULTORIA 4 - Notificacoes internas e push preparado
+
+O CONSULTORIA 4 adiciona eventos de notificacao para o ciclo da consultoria:
+
+- treino publicado;
+- treino concluido;
+- dor alta reportada;
+- devolutiva revisada.
+
+A entrega principal usa o inbox interno existente. O push remoto fica preparado via Edge Function `send-push`, mas so e acionado quando houver `organizationId` e `targetUserId` seguros.
+
+O pacote nao expoe nivel de dor nem comentario completo da aluna em notificacoes. Detalhes sensiveis continuam dentro do app.
+
+Documentacao tecnica: `docs/CONSULTORIA_4_NOTIFICATIONS.md`.
+
+### Criterios para piloto real e proximos pacotes
 
 - Pelo menos um ciclo semanal testado com uma aluna real.
 - Contrato de perfil, treino, execucao e revisao validado.
 - Campos obrigatorios e microcopy revisados com uso real.
 - Decisao sobre RLS/permissoes antes de abrir uso multi-cliente.
-- Migração Supabase desenhada com base no contrato validado.
+- Supabase canonico aplicado e validado antes de ativar notificacoes remotas completas.
 
 ## Regras de seguranca
 

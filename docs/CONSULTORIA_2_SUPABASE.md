@@ -106,8 +106,8 @@ Ao salvar uma prescricao, os exercicios do treino sao recriados dentro do mesmo 
 
 ## Fica para os proximos pacotes
 
-- CONSULTORIA 3: historico e progresso.
-- CONSULTORIA 4: notificacoes internas/push.
+- CONSULTORIA 3: historico e progresso. Concluido no PR da consultoria.
+- CONSULTORIA 4: notificacoes internas/push preparado. Ver `docs/CONSULTORIA_4_NOTIFICATIONS.md`.
 - CONSULTORIA 5: midia de exercicios.
 - CONSULTORIA 6: relatorio/devolutiva.
 - CONSULTORIA 7: permissoes robustas aluno/professor.
