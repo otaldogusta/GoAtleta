@@ -21,10 +21,12 @@ import {
 import type { Student } from "../../src/core/models";
 import {
   deletePrescribedWorkout,
+  getLastConsultationPersistenceStatus,
   getConsultationLocalState,
   markExecutionLogReviewed,
   saveConsultationProfile,
   savePrescribedWorkout,
+  type ConsultationPersistenceStatus,
   type ConsultationLocalState,
 } from "../../src/db/consultation";
 import { getStudents } from "../../src/db/seed";
@@ -35,6 +37,7 @@ import { useAppTheme } from "../../src/ui/app-theme";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { Pressable } from "../../src/ui/Pressable";
+import { SyncStatusBadge } from "../../src/ui/SyncStatusBadge";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
@@ -311,6 +314,21 @@ export default function ConsultationScreen() {
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(true);
   const [activeConsultationTab, setActiveConsultationTab] =
     useState<ConsultationPanelTab>("prescription");
+  const [persistenceStatus, setPersistenceStatus] = useState<ConsultationPersistenceStatus>(
+    getLastConsultationPersistenceStatus()
+  );
+
+  const syncBadgeStatus = persistenceStatus.mode === "supabase" ? "synced" : "saved_local";
+  const syncBadgeMessage =
+    persistenceStatus.mode === "supabase" ? "Servidor sincronizado" : "Salvo localmente";
+
+  const updatePersistenceNotice = (
+    successMessage: string,
+    status: ConsultationPersistenceStatus
+  ) => {
+    setPersistenceStatus(status);
+    setNotice(status.mode === "supabase" ? successMessage : status.message);
+  };
 
   const reload = async () => {
     const [studentItems, consultationState] = await measureAsync(
@@ -319,6 +337,7 @@ export default function ConsultationScreen() {
     );
     setStudents(studentItems);
     setState(consultationState);
+    setPersistenceStatus(getLastConsultationPersistenceStatus());
     setSelectedStudentId((current) => current || studentItems[0]?.id || "");
   };
 
@@ -489,8 +508,8 @@ export default function ConsultationScreen() {
 
   const saveProfile = async () => {
     if (!profileDraft) return;
-    await saveConsultationProfile(profileDraft);
-    setNotice("Perfil de treino salvo.");
+    const status = await saveConsultationProfile(profileDraft);
+    updatePersistenceNotice("Perfil de treino salvo no servidor.", status);
     animateLayout();
     setIsProfileEditorOpen(false);
     await reload();
@@ -527,8 +546,8 @@ export default function ConsultationScreen() {
       status: "draft",
     });
     try {
-      await savePrescribedWorkout(workout);
-      setNotice("Treino salvo. Revise a ficha antes de publicar.");
+      const status = await savePrescribedWorkout(workout);
+      updatePersistenceNotice("Treino salvo no servidor. Revise a ficha antes de publicar.", status);
       setModalInitialSnapshot("");
       setEditingWorkoutId(workout.id);
       setShowWorkoutModal(false);
@@ -540,21 +559,21 @@ export default function ConsultationScreen() {
 
   const publishSavedWorkout = async (workout: PrescribedWorkout | null = latestWorkout) => {
     if (!workout) return;
-    await savePrescribedWorkout({ ...workout, status: "published" });
-    setNotice("Treino publicado para a aluna.");
+    const status = await savePrescribedWorkout({ ...workout, status: "published" });
+    updatePersistenceNotice("Treino publicado para a aluna no servidor.", status);
     await reload();
   };
 
   const reviewLog = async (logId: string) => {
-    await markExecutionLogReviewed(logId);
-    setNotice("Feedback marcado como revisado.");
+    const status = await markExecutionLogReviewed(logId);
+    updatePersistenceNotice("Feedback marcado como revisado no servidor.", status);
     await reload();
   };
 
   const deleteWorkout = async () => {
     if (!editingWorkoutId) return;
-    await deletePrescribedWorkout(editingWorkoutId);
-    setNotice("Treino excluído.");
+    const status = await deletePrescribedWorkout(editingWorkoutId);
+    updatePersistenceNotice("Treino excluído no servidor.", status);
     setShowConfirmDeleteWorkout(false);
     closeWorkoutModal();
     await reload();
@@ -724,6 +743,11 @@ export default function ConsultationScreen() {
                 </Text>
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", alignContent: "flex-start", gap: 8 }}>
+                <SyncStatusBadge
+                  status={syncBadgeStatus}
+                  message={syncBadgeMessage}
+                  size="sm"
+                />
                 <View
                   style={{
                     borderRadius: radius.full,

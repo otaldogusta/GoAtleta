@@ -4,8 +4,10 @@ import {
   buildPrescribedExercisePayloads,
   buildPrescribedWorkoutPayload,
   buildWorkoutExecutionPayload,
+  getConsultationFallbackStatus,
   mapConsultationProfileRow,
   mapPrescribedWorkoutRows,
+  buildConsultationStateFromRows,
   mapWorkoutExecutionRows,
 } from "../../../db/consultation";
 import {
@@ -111,5 +113,45 @@ describe("consultation Supabase mappers", () => {
     expect(mapped?.estimatedDurationMin).toBe(45);
     expect(mapped?.coachNotes).toBe("");
     expect(mapped?.exercises).toEqual([]);
+  });
+
+  test("row groups build the complete consultation state without duplicating IDs", () => {
+    const profile = createConsultationProfile({ studentId: "student-1" });
+    const workout = createPrescribedWorkout({
+      id: "workout-1",
+      studentId: "student-1",
+      title: "Treino A",
+      weekStartDate: "2026-05-18",
+      dayLabel: "Segunda",
+      objective: "Força geral",
+      exercises: [{ id: "ex-1", name: "Agachamento", sets: 3, reps: "12" }],
+      status: "published",
+    });
+    const log = createWorkoutExecutionLog({
+      id: "log-1",
+      workout,
+      completedAt: "2026-05-18T12:00:00.000Z",
+    });
+
+    const state = buildConsultationStateFromRows({
+      profiles: [buildConsultationProfilePayload(profile, organizationId)],
+      workouts: [buildPrescribedWorkoutPayload(workout, organizationId)],
+      exercises: buildPrescribedExercisePayloads(workout, organizationId),
+      logs: [buildWorkoutExecutionPayload(log, organizationId)],
+      completedExercises: buildCompletedExercisePayloads(log, organizationId),
+    });
+
+    expect(state.profiles).toHaveLength(1);
+    expect(state.workouts.map((item) => item.id)).toEqual(["workout-1"]);
+    expect(state.executionLogs.map((item) => item.id)).toEqual(["log-1"]);
+  });
+
+  test("fallback status explains migration, auth, permission and network paths", () => {
+    expect(
+      getConsultationFallbackStatus(new Error('relation "public.consultation_profiles" does not exist'))?.reason
+    ).toBe("missing_schema");
+    expect(getConsultationFallbackStatus(new Error("Supabase GET error: 401 token"))?.reason).toBe("auth");
+    expect(getConsultationFallbackStatus(new Error("row-level security policy"))?.reason).toBe("permission");
+    expect(getConsultationFallbackStatus(new Error("Network request failed"))?.reason).toBe("network");
   });
 });

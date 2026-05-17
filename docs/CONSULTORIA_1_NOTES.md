@@ -161,6 +161,7 @@ Entrou neste pacote:
 - repositorio `src/db/consultation.ts`;
 - mappers/testes de roundtrip para perfil, treino, exercicios e execucao;
 - fallback local quando a migration ainda nao existe, a sessao falha, a rede cai ou a RLS bloqueia.
+- status discreto de sincronizacao para diferenciar `Servidor sincronizado` de `Salvo localmente`.
 
 As telas `/consultation` e `/student-consultation` passam a usar a camada canonica sem mudar o contrato visual do piloto.
 

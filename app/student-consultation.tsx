@@ -12,14 +12,17 @@ import {
 } from "../src/core/consultation";
 import type { PrescribedWorkout } from "../src/core/consultation";
 import {
+  getLastConsultationPersistenceStatus,
   getConsultationLocalState,
   saveWorkoutExecutionLog,
+  type ConsultationPersistenceStatus,
   type ConsultationLocalState,
 } from "../src/db/consultation";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { radius } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Pressable } from "../src/ui/Pressable";
+import { SyncStatusBadge } from "../src/ui/SyncStatusBadge";
 
 const scaleValues = Array.from({ length: 11 }, (_, index) => index);
 
@@ -41,6 +44,9 @@ export default function StudentConsultationScreen() {
   const [pain, setPain] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [doneWorkoutId, setDoneWorkoutId] = useState("");
+  const [persistenceStatus, setPersistenceStatus] = useState<ConsultationPersistenceStatus>(
+    getLastConsultationPersistenceStatus()
+  );
 
   const reload = async () => {
     setLoading(true);
@@ -49,6 +55,7 @@ export default function StudentConsultationScreen() {
       () => getConsultationLocalState()
     );
     setState(consultationState);
+    setPersistenceStatus(getLastConsultationPersistenceStatus());
     setLoading(false);
   };
 
@@ -81,7 +88,8 @@ export default function StudentConsultationScreen() {
       painLevel: pain,
       studentFeedback: feedback,
     });
-    await saveWorkoutExecutionLog(log);
+    const status = await saveWorkoutExecutionLog(log);
+    setPersistenceStatus(status);
     setDoneWorkoutId(workout.id);
     setStarted(false);
     setFeedback("");
@@ -137,6 +145,11 @@ export default function StudentConsultationScreen() {
           <Text style={{ color: colors.muted }}>
             Siga o treino publicado e envie como foi para o professor.
           </Text>
+          <SyncStatusBadge
+            status={persistenceStatus.mode === "supabase" ? "synced" : "saved_local"}
+            message={persistenceStatus.mode === "supabase" ? "Servidor sincronizado" : "Salvo localmente"}
+            size="sm"
+          />
         </View>
 
         <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
@@ -299,6 +312,11 @@ export default function StudentConsultationScreen() {
               Feedback enviado · {attention.label}
             </Text>
             <Text style={{ color: colors.text, marginTop: 4 }}>{attention.description}</Text>
+            {persistenceStatus.mode === "local" ? (
+              <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12 }}>
+                {persistenceStatus.message}
+              </Text>
+            ) : null}
           </View>
         ) : null}
       </ScrollView>

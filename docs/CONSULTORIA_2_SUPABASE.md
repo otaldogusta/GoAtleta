@@ -41,6 +41,34 @@ Se Supabase nao estiver disponivel, a tela continua usando o fallback local cont
 - erro de rede;
 - bloqueio de RLS/permissao.
 
+## CONSULTORIA 2.1 - hardening de fallback
+
+O hardening 2.1 adiciona estado explicito de persistencia para evitar falso sucesso na UI.
+
+Estados tratados:
+
+- `supabase`: dados lidos/salvos no servidor.
+- `missing_organization`: sem organizacao ativa, usa fallback local.
+- `missing_schema`: migration ainda nao aplicada, usa fallback local.
+- `auth`: sessao ausente/expirada, usa fallback local e orienta login.
+- `permission`: RLS/permissao bloqueou, usa fallback local e sinaliza revisao.
+- `network`: conexao indisponivel, usa fallback local.
+
+Mensagens usadas pela UI:
+
+- `Salvo no servidor`
+- `Salvo localmente neste dispositivo. A sincronização com o servidor ainda não está disponível.`
+- `Salvo localmente neste dispositivo. Faça login novamente para sincronizar.`
+- `Salvo localmente neste dispositivo. A permissão no servidor precisa ser revisada.`
+- `Salvo localmente neste dispositivo. A conexão com o servidor não está disponível agora.`
+
+As telas `/consultation` e `/student-consultation` exibem um badge discreto:
+
+- `Servidor sincronizado`
+- `Salvo localmente`
+
+Isso preserva o piloto sem dizer que algo foi sincronizado quando apenas o fallback local foi usado.
+
 Funcoes expostas:
 
 - `saveConsultationProfile`
@@ -59,6 +87,22 @@ Funcoes expostas:
 A migration habilita RLS e permite acesso apenas a membros da organizacao. Policies especificas para o papel da aluna ficam para o CONSULTORIA 7, porque dependem do contrato final de login/vinculo aluno-professor.
 
 Nao foi criada policy aberta para anon.
+
+Risco atual documentado:
+
+- a protecao por organizacao ja existe;
+- o recorte fino por papel `professor` versus `aluna` ainda nao esta fechado;
+- uso multi-cliente com login de aluna precisa passar pelo CONSULTORIA 7 antes de producao ampla.
+
+## Duplicidade
+
+Operacoes de perfil e treino usam upsert por id/estudante:
+
+- perfil: `organization_id + student_id`;
+- treino: `id`;
+- execucao: `id`.
+
+Ao salvar uma prescricao, os exercicios do treino sao recriados dentro do mesmo `workout_id`, evitando linhas antigas sobrando. Ao salvar uma execucao, os exercicios concluidos sao recriados dentro do mesmo `execution_log_id`.
 
 ## Fica para os proximos pacotes
 

@@ -32,6 +32,20 @@ import {
 
 export type { ConsultationLocalState };
 
+export type ConsultationPersistenceReason =
+  | "supabase"
+  | "missing_organization"
+  | "missing_schema"
+  | "auth"
+  | "permission"
+  | "network";
+
+export type ConsultationPersistenceStatus = {
+  mode: "supabase" | "local";
+  reason: ConsultationPersistenceReason;
+  message: string;
+};
+
 type ConsultationProfileRow = {
   id: string;
   organization_id: string;
@@ -119,14 +133,61 @@ const CONSULTATION_TABLES = [
   "completed_exercise_logs",
 ];
 
-const isConsultationSchemaUnavailable = (error: unknown) =>
+const SUPABASE_STATUS: ConsultationPersistenceStatus = {
+  mode: "supabase",
+  reason: "supabase",
+  message: "Salvo no servidor",
+};
+
+const LOCAL_NO_ORG_STATUS: ConsultationPersistenceStatus = {
+  mode: "local",
+  reason: "missing_organization",
+  message: "Salvo localmente neste dispositivo. A organização ativa não está disponível agora.",
+};
+
+let lastConsultationPersistenceStatus: ConsultationPersistenceStatus = LOCAL_NO_ORG_STATUS;
+
+export const getLastConsultationPersistenceStatus = () => lastConsultationPersistenceStatus;
+
+const setConsultationPersistenceStatus = (status: ConsultationPersistenceStatus) => {
+  lastConsultationPersistenceStatus = status;
+  return status;
+};
+
+export const isConsultationSchemaUnavailable = (error: unknown) =>
   CONSULTATION_TABLES.some((table) => isMissingRelation(error, table));
 
-const shouldUseLocalFallback = (error: unknown) =>
-  isConsultationSchemaUnavailable(error) ||
-  isAuthError(error) ||
-  isNetworkError(error) ||
-  isPermissionError(error);
+export const getConsultationFallbackStatus = (error: unknown): ConsultationPersistenceStatus | null => {
+  if (isConsultationSchemaUnavailable(error)) {
+    return {
+      mode: "local",
+      reason: "missing_schema",
+      message: "Salvo localmente neste dispositivo. A sincronização com o servidor ainda não está disponível.",
+    };
+  }
+  if (isAuthError(error)) {
+    return {
+      mode: "local",
+      reason: "auth",
+      message: "Salvo localmente neste dispositivo. Faça login novamente para sincronizar.",
+    };
+  }
+  if (isPermissionError(error)) {
+    return {
+      mode: "local",
+      reason: "permission",
+      message: "Salvo localmente neste dispositivo. A permissão no servidor precisa ser revisada.",
+    };
+  }
+  if (isNetworkError(error)) {
+    return {
+      mode: "local",
+      reason: "network",
+      message: "Salvo localmente neste dispositivo. A conexão com o servidor não está disponível agora.",
+    };
+  }
+  return null;
+};
 
 const asStringList = (value: unknown): string[] =>
   Array.isArray(value)
@@ -323,6 +384,18 @@ export const mapWorkoutExecutionRows = (
   }));
 };
 
+export const buildConsultationStateFromRows = (rows: {
+  profiles: ConsultationProfileRow[];
+  workouts: PrescribedWorkoutRow[];
+  exercises: PrescribedExerciseRow[];
+  logs: WorkoutExecutionLogRow[];
+  completedExercises: CompletedExerciseLogRow[];
+}): ConsultationLocalState => ({
+  profiles: rows.profiles.map(mapConsultationProfileRow),
+  workouts: mapPrescribedWorkoutRows(rows.workouts, rows.exercises),
+  executionLogs: mapWorkoutExecutionRows(rows.logs, rows.completedExercises),
+});
+
 async function getOrganizationIdOrFallback() {
   const organizationId = await getActiveOrganizationId();
   return organizationId?.trim() || null;
@@ -330,7 +403,10 @@ async function getOrganizationIdOrFallback() {
 
 export async function getConsultationLocalState(): Promise<ConsultationLocalState> {
   const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) return getLocalConsultationState();
+  if (!organizationId) {
+    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
+    return getLocalConsultationState();
+  }
 
   try {
     const filter = orgFilter(organizationId);
@@ -342,20 +418,25 @@ export async function getConsultationLocalState(): Promise<ConsultationLocalStat
       supabaseGet<CompletedExerciseLogRow[]>(`/completed_exercise_logs?${filter}&select=*`),
     ]);
 
-    return {
-      profiles: profiles.map(mapConsultationProfileRow),
-      workouts: mapPrescribedWorkoutRows(workouts, exercises),
-      executionLogs: mapWorkoutExecutionRows(logs, completedExercises),
-    };
+    setConsultationPersistenceStatus(SUPABASE_STATUS);
+    return buildConsultationStateFromRows({ profiles, workouts, exercises, logs, completedExercises });
   } catch (error) {
-    if (shouldUseLocalFallback(error)) return getLocalConsultationState();
+    const fallbackStatus = getConsultationFallbackStatus(error);
+    if (fallbackStatus) {
+      setConsultationPersistenceStatus(fallbackStatus);
+      return getLocalConsultationState();
+    }
     throw error;
   }
 }
 
 export async function saveConsultationProfile(profile: OnlineConsultationProfile) {
   const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) return saveLocalConsultationProfile(profile);
+  if (!organizationId) {
+    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
+    await saveLocalConsultationProfile(profile);
+    return getLastConsultationPersistenceStatus();
+  }
 
   try {
     await supabasePost(
@@ -363,8 +444,14 @@ export async function saveConsultationProfile(profile: OnlineConsultationProfile
       [buildConsultationProfilePayload(profile, organizationId)],
       { Prefer: "resolution=merge-duplicates" }
     );
+    return setConsultationPersistenceStatus(SUPABASE_STATUS);
   } catch (error) {
-    if (shouldUseLocalFallback(error)) return saveLocalConsultationProfile(profile);
+    const fallbackStatus = getConsultationFallbackStatus(error);
+    if (fallbackStatus) {
+      setConsultationPersistenceStatus(fallbackStatus);
+      await saveLocalConsultationProfile(profile);
+      return getLastConsultationPersistenceStatus();
+    }
     throw error;
   }
 }
@@ -376,7 +463,11 @@ export async function getConsultationProfileByStudent(studentId: string) {
 
 export async function savePrescribedWorkout(workout: PrescribedWorkout) {
   const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) return saveLocalPrescribedWorkout(workout);
+  if (!organizationId) {
+    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
+    await saveLocalPrescribedWorkout(workout);
+    return getLastConsultationPersistenceStatus();
+  }
 
   try {
     await supabasePost(
@@ -393,8 +484,14 @@ export async function savePrescribedWorkout(workout: PrescribedWorkout) {
         Prefer: "resolution=merge-duplicates",
       });
     }
+    return setConsultationPersistenceStatus(SUPABASE_STATUS);
   } catch (error) {
-    if (shouldUseLocalFallback(error)) return saveLocalPrescribedWorkout(workout);
+    const fallbackStatus = getConsultationFallbackStatus(error);
+    if (fallbackStatus) {
+      setConsultationPersistenceStatus(fallbackStatus);
+      await saveLocalPrescribedWorkout(workout);
+      return getLastConsultationPersistenceStatus();
+    }
     throw error;
   }
 }
@@ -405,14 +502,24 @@ export async function publishWorkout(workout: PrescribedWorkout) {
 
 export async function deletePrescribedWorkout(workoutId: string) {
   const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) return deleteLocalPrescribedWorkout(workoutId);
+  if (!organizationId) {
+    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
+    await deleteLocalPrescribedWorkout(workoutId);
+    return getLastConsultationPersistenceStatus();
+  }
 
   try {
     await supabaseDelete(
       `/prescribed_workouts?id=eq.${encodeURIComponent(workoutId)}&${orgFilter(organizationId)}`
     );
+    return setConsultationPersistenceStatus(SUPABASE_STATUS);
   } catch (error) {
-    if (shouldUseLocalFallback(error)) return deleteLocalPrescribedWorkout(workoutId);
+    const fallbackStatus = getConsultationFallbackStatus(error);
+    if (fallbackStatus) {
+      setConsultationPersistenceStatus(fallbackStatus);
+      await deleteLocalPrescribedWorkout(workoutId);
+      return getLastConsultationPersistenceStatus();
+    }
     throw error;
   }
 }
@@ -426,7 +533,11 @@ export async function listPublishedWorkoutsForStudent(studentId: string) {
 
 export async function saveWorkoutExecutionLog(log: WorkoutExecutionLog) {
   const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) return saveLocalWorkoutExecutionLog(log);
+  if (!organizationId) {
+    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
+    await saveLocalWorkoutExecutionLog(log);
+    return getLastConsultationPersistenceStatus();
+  }
 
   try {
     await supabasePost(
@@ -447,8 +558,14 @@ export async function saveWorkoutExecutionLog(log: WorkoutExecutionLog) {
       `/prescribed_workouts?id=eq.${encodeURIComponent(log.workoutId)}&${orgFilter(organizationId)}`,
       { status: "completed", updated_at: new Date().toISOString() }
     );
+    return setConsultationPersistenceStatus(SUPABASE_STATUS);
   } catch (error) {
-    if (shouldUseLocalFallback(error)) return saveLocalWorkoutExecutionLog(log);
+    const fallbackStatus = getConsultationFallbackStatus(error);
+    if (fallbackStatus) {
+      setConsultationPersistenceStatus(fallbackStatus);
+      await saveLocalWorkoutExecutionLog(log);
+      return getLastConsultationPersistenceStatus();
+    }
     throw error;
   }
 }
@@ -462,7 +579,11 @@ export async function listExecutionsForCoach() {
 
 export async function markExecutionLogReviewed(logId: string) {
   const organizationId = await getOrganizationIdOrFallback();
-  if (!organizationId) return markLocalExecutionLogReviewed(logId);
+  if (!organizationId) {
+    setConsultationPersistenceStatus(LOCAL_NO_ORG_STATUS);
+    await markLocalExecutionLogReviewed(logId);
+    return getLastConsultationPersistenceStatus();
+  }
 
   try {
     await supabasePatch(
@@ -472,8 +593,14 @@ export async function markExecutionLogReviewed(logId: string) {
         reviewed_at: new Date().toISOString(),
       }
     );
+    return setConsultationPersistenceStatus(SUPABASE_STATUS);
   } catch (error) {
-    if (shouldUseLocalFallback(error)) return markLocalExecutionLogReviewed(logId);
+    const fallbackStatus = getConsultationFallbackStatus(error);
+    if (fallbackStatus) {
+      setConsultationPersistenceStatus(fallbackStatus);
+      await markLocalExecutionLogReviewed(logId);
+      return getLastConsultationPersistenceStatus();
+    }
     throw error;
   }
 }
