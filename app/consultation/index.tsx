@@ -677,13 +677,8 @@ export default function ConsultationScreen() {
           <View style={{ gap: 14 }}>
             <View
               style={{
-                backgroundColor: colors.secondaryBg,
-                borderColor: colors.border,
-                borderRadius: radius.card,
-                borderWidth: 1,
                 flexDirection: Platform.OS === "web" ? "row" : "column",
-                gap: 8,
-                padding: 8,
+                gap: 10,
               }}
             >
               {[
@@ -697,14 +692,14 @@ export default function ConsultationScreen() {
                   key={item.label}
                   onPress={() => setActivePrescriptionBlock(item.id)}
                   style={{
-                    backgroundColor: active ? colors.card : "transparent",
-                    borderColor: active ? colors.primaryBg : "transparent",
-                    borderRadius: radius.card,
+                    backgroundColor: active ? colors.primaryBg : colors.card,
+                    borderColor: active ? colors.primaryBg : colors.border,
+                    borderRadius: radius.full,
                     borderWidth: 1,
                     flex: 1,
                     alignItems: "center",
                     paddingHorizontal: 12,
-                    paddingVertical: 12,
+                    paddingVertical: 14,
                   }}
                 >
                   <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "900" }}>
