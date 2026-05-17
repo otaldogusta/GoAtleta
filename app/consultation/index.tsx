@@ -674,16 +674,16 @@ export default function ConsultationScreen() {
           keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
           style={{ width: "100%" }}
         >
-          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 14 }}>
+          <View style={{ gap: 14 }}>
             <View
               style={{
                 backgroundColor: colors.secondaryBg,
                 borderColor: colors.border,
                 borderRadius: radius.card,
                 borderWidth: 1,
-                gap: 10,
-                padding: 12,
-                width: Platform.OS === "web" ? 320 : "100%",
+                flexDirection: Platform.OS === "web" ? "row" : "column",
+                gap: 8,
+                padding: 8,
               }}
             >
               {[
@@ -711,15 +711,17 @@ export default function ConsultationScreen() {
                   key={item.label}
                   onPress={() => setActivePrescriptionBlock(item.id)}
                   style={{
-                    backgroundColor: active ? colors.card : colors.secondaryBg,
-                    borderColor: active ? colors.primaryBg : colors.border,
+                    backgroundColor: active ? colors.card : "transparent",
+                    borderColor: active ? colors.primaryBg : "transparent",
                     borderRadius: radius.card,
                     borderWidth: 1,
-                    gap: 4,
-                    padding: 12,
+                    flex: 1,
+                    gap: 3,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
                   }}
                 >
-                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>{item.label}</Text>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>{item.label}</Text>
                   <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }} numberOfLines={2}>
                     {item.value}
                   </Text>
@@ -728,7 +730,7 @@ export default function ConsultationScreen() {
               })}
             </View>
 
-            <View style={{ flex: 1, gap: 12 }}>
+            <View style={{ gap: 12 }}>
               {activePrescriptionBlock === "profile" ? (
                 <View style={{ gap: 12 }}>
                   <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
