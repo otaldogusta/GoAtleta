@@ -795,23 +795,23 @@ export default function ConsultationScreen() {
                         <Ionicons name="add" size={17} color={colors.text} />
                       </Pressable>
                     </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      <Text style={{ color: colors.muted, flex: 2, fontSize: 11, fontWeight: "900" }}>Exercício/atividade</Text>
-                      <Text style={{ color: colors.muted, flex: 0.7, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Séries</Text>
-                      <Text style={{ color: colors.muted, flex: 0.9, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Reps</Text>
-                      <Text style={{ color: colors.muted, flex: 0.8, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Interv.</Text>
-                      <Text style={{ color: colors.muted, flex: 1.2, fontSize: 11, fontWeight: "900" }}>Obs.</Text>
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <Text style={{ color: colors.muted, flex: 2.8, fontSize: 11, fontWeight: "900" }}>Exercício/atividade</Text>
+                      <Text style={{ color: colors.muted, flex: 0.45, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Séries</Text>
+                      <Text style={{ color: colors.muted, flex: 0.55, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Repet.</Text>
+                      <Text style={{ color: colors.muted, flex: 0.55, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Inter.</Text>
+                      <Text style={{ color: colors.muted, flex: 1.8, fontSize: 11, fontWeight: "900" }}>Obs.</Text>
                       <View style={{ width: 28 }} />
                     </View>
                     {exerciseDraftRows.map((row, index) => (
-                      <View key={`exercise-row-${index}`} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                      <View key={`exercise-row-${index}`} style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
                         <TextInput
                           value={row.name}
                           onChangeText={(value) => updateExerciseDraftRow(index, "name", value)}
                           placeholder="Exercício"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 2,
+                            flex: 2.8,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
@@ -827,14 +827,14 @@ export default function ConsultationScreen() {
                           placeholder="3"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 0.7,
+                            flex: 0.45,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
                             backgroundColor: colors.inputBg,
                             color: colors.inputText,
                             minHeight: 42,
-                            paddingHorizontal: 10,
+                            paddingHorizontal: 6,
                             textAlign: "center",
                           }}
                         />
@@ -844,14 +844,14 @@ export default function ConsultationScreen() {
                           placeholder="8-12"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 0.9,
+                            flex: 0.55,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
                             backgroundColor: colors.inputBg,
                             color: colors.inputText,
                             minHeight: 42,
-                            paddingHorizontal: 10,
+                            paddingHorizontal: 6,
                             textAlign: "center",
                           }}
                         />
@@ -861,14 +861,14 @@ export default function ConsultationScreen() {
                           placeholder="60"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 0.8,
+                            flex: 0.55,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
                             backgroundColor: colors.inputBg,
                             color: colors.inputText,
                             minHeight: 42,
-                            paddingHorizontal: 10,
+                            paddingHorizontal: 6,
                             textAlign: "center",
                           }}
                         />
@@ -878,7 +878,7 @@ export default function ConsultationScreen() {
                           placeholder="Obs."
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 1.2,
+                            flex: 1.8,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
