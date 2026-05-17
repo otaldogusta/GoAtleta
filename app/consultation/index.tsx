@@ -9,6 +9,7 @@ import type {
   ConsultationGoal,
   OnlineConsultationProfile,
   PrescribedExercise,
+  PrescribedWorkout,
   TrainingEnvironment,
 } from "../../src/core/consultation";
 import {
@@ -360,9 +361,9 @@ export default function ConsultationScreen() {
     }
   };
 
-  const publishSavedWorkout = async () => {
-    if (!latestWorkout) return;
-    await savePrescribedWorkout({ ...latestWorkout, status: "published" });
+  const publishSavedWorkout = async (workout: PrescribedWorkout | null = latestWorkout) => {
+    if (!workout) return;
+    await savePrescribedWorkout({ ...workout, status: "published" });
     setNotice("Treino publicado para a aluna.");
     await reload();
   };
@@ -373,15 +374,18 @@ export default function ConsultationScreen() {
     await reload();
   };
 
-  const openWorkoutModal = (block: PrescriptionBlock = "prescription") => {
-    if (latestWorkout) {
-      setEditingWorkoutId(latestWorkout.id);
-      setTitle(latestWorkout.title);
-      setDayLabel(latestWorkout.dayLabel);
-      setDuration(String(latestWorkout.estimatedDurationMin ?? 45));
-      setObjective(latestWorkout.objective);
-      setExerciseLines(serializeWorkoutExercises(latestWorkout.exercises));
-      setCoachNotes(latestWorkout.coachNotes ?? "");
+  const openWorkoutModal = (
+    block: PrescriptionBlock = "prescription",
+    workout: PrescribedWorkout | null = latestWorkout
+  ) => {
+    if (workout) {
+      setEditingWorkoutId(workout.id);
+      setTitle(workout.title);
+      setDayLabel(workout.dayLabel);
+      setDuration(String(workout.estimatedDurationMin ?? 45));
+      setObjective(workout.objective);
+      setExerciseLines(serializeWorkoutExercises(workout.exercises));
+      setCoachNotes(workout.coachNotes ?? "");
     }
     setActivePrescriptionBlock(block);
     setModalInitialSnapshot(modalDraftSnapshot);
@@ -640,52 +644,94 @@ export default function ConsultationScreen() {
               <Ionicons name="add" size={19} color={colors.text} />
             </Pressable>
           </View>
-          <Pressable
-            disabled={!selectedStudentId}
-            onPress={() => openWorkoutModal("prescription")}
-            style={{
-              gap: 8,
-              borderRadius: radius.internal,
-              backgroundColor: colors.secondaryBg,
-              borderColor: colors.border,
-              borderWidth: 1,
-              opacity: selectedStudentId ? 1 : 0.65,
-              padding: 12,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "900" }}>{title}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {dayLabel} · {duration || "45"} min · {parseExercises(exerciseLines).length} exercício(s)
-            </Text>
-            <Text style={{ color: colors.text, lineHeight: 19 }}>{objective}</Text>
-          </Pressable>
-          <Pressable
-            disabled={!latestWorkout || latestWorkout.status === "published"}
-            onPress={() => {
-              void publishSavedWorkout();
-            }}
-            style={{
-              alignItems: "center",
-              backgroundColor:
-                latestWorkout && latestWorkout.status !== "published"
-                  ? colors.primaryBg
-                  : colors.primaryDisabledBg,
-              borderRadius: radius.full,
-              padding: 12,
-            }}
-          >
-            <Text
+          {studentWorkouts.length ? (
+            <View style={{ gap: 10 }}>
+              {studentWorkouts.map((workout) => {
+                const isPublished = workout.status === "published";
+                return (
+                  <View
+                    key={workout.id}
+                    style={{
+                      gap: 10,
+                      borderRadius: radius.internal,
+                      backgroundColor: colors.secondaryBg,
+                      borderColor: colors.border,
+                      borderWidth: 1,
+                      padding: 12,
+                    }}
+                  >
+                    <Pressable
+                      onPress={() => openWorkoutModal("prescription", workout)}
+                      style={{ gap: 8 }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <Text style={{ color: colors.text, flex: 1, fontWeight: "900" }}>{workout.title}</Text>
+                        <View
+                          style={{
+                            borderRadius: radius.full,
+                            backgroundColor: isPublished ? colors.successBg : colors.warningBg,
+                            borderColor: isPublished ? colors.successBorder : colors.warningBorder,
+                            borderWidth: 1,
+                            paddingHorizontal: 9,
+                            paddingVertical: 4,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: isPublished ? colors.successText : colors.warningText,
+                              fontSize: 11,
+                              fontWeight: "900",
+                            }}
+                          >
+                            {isPublished ? "Publicado" : "Rascunho"}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        {workout.dayLabel} · {workout.estimatedDurationMin || 45} min · {workout.exercises.length} exercício(s)
+                      </Text>
+                      <Text style={{ color: colors.text, lineHeight: 19 }}>{workout.objective}</Text>
+                    </Pressable>
+                    {!isPublished ? (
+                      <Pressable
+                        onPress={() => {
+                          void publishSavedWorkout(workout);
+                        }}
+                        style={{
+                          alignItems: "center",
+                          backgroundColor: colors.primaryBg,
+                          borderRadius: radius.full,
+                          padding: 11,
+                        }}
+                      >
+                        <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Publicar treino</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Pressable
+              disabled={!selectedStudentId}
+              onPress={openNewWorkoutModal}
               style={{
-                color:
-                  latestWorkout && latestWorkout.status !== "published"
-                    ? colors.primaryText
-                    : colors.secondaryText,
-                fontWeight: "900",
+                gap: 8,
+                borderRadius: radius.internal,
+                backgroundColor: colors.secondaryBg,
+                borderColor: colors.border,
+                borderWidth: 1,
+                opacity: selectedStudentId ? 1 : 0.65,
+                padding: 12,
               }}
             >
-              {latestWorkout?.status === "published" ? "Treino publicado" : "Publicar treino"}
-            </Text>
-          </Pressable>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>{title}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {dayLabel} · {duration || "45"} min · {parseExercises(exerciseLines).length} exercício(s)
+              </Text>
+              <Text style={{ color: colors.text, lineHeight: 19 }}>{objective}</Text>
+            </Pressable>
+          )}
           {!selectedProfile ? (
             <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
               <Text style={{ color: colors.warningText, fontSize: 12, fontWeight: "800" }}>
