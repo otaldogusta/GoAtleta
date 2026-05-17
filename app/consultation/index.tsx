@@ -151,6 +151,19 @@ const formatExerciseLine = (exercise: PrescribedExercise) =>
     exercise.instructions ?? "-",
   ].join(" | ");
 
+const serializeWorkoutExercises = (exercises: PrescribedExercise[]) =>
+  exercises
+    .map((exercise) =>
+      [
+        exercise.name,
+        exercise.sets ? String(exercise.sets) : "",
+        exercise.reps ?? (exercise.durationSec ? `${exercise.durationSec}s` : ""),
+        exercise.restSec ? String(exercise.restSec) : "",
+        exercise.instructions ?? "",
+      ].join(" | ")
+    )
+    .join("\n");
+
 export default function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
@@ -180,6 +193,7 @@ export default function ConsultationScreen() {
   const [notice, setNotice] = useState("");
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [editingWorkoutId, setEditingWorkoutId] = useState("");
   const [activePrescriptionBlock, setActivePrescriptionBlock] =
     useState<PrescriptionBlock>("prescription");
   const [modalInitialSnapshot, setModalInitialSnapshot] = useState("");
@@ -202,9 +216,11 @@ export default function ConsultationScreen() {
   const selectedStudent = students.find((student) => student.id === selectedStudentId) ?? null;
   const selectedProfile = state.profiles.find((item) => item.studentId === selectedStudentId);
   const studentWorkouts = state.workouts.filter((item) => item.studentId === selectedStudentId);
+  const publishedWorkouts = studentWorkouts.filter((item) => item.status === "published");
   const studentLogs = state.executionLogs.filter((item) => item.studentId === selectedStudentId);
   const pendingLogs = studentLogs.filter((log) => log.coachReviewStatus !== "reviewed");
   const latestWorkout = studentWorkouts[0] ?? null;
+  const latestPublishedWorkout = publishedWorkouts[0] ?? null;
 
   useEffect(() => {
     if (!selectedProfile) return;
@@ -315,13 +331,13 @@ export default function ConsultationScreen() {
     await reload();
   };
 
-  const publishWorkout = async () => {
+  const saveWorkoutDraft = async () => {
     if (!selectedStudentId) return;
     const exercises = parseExercises(exerciseLines);
     if (!exercises.length) return;
     setIsPublishing(true);
     const workout = createPrescribedWorkout({
-      id: `consult_${selectedStudentId}_${Date.now()}`,
+      id: editingWorkoutId || `consult_${selectedStudentId}_${Date.now()}`,
       studentId: selectedStudentId,
       title,
       weekStartDate: weekStart(),
@@ -330,17 +346,25 @@ export default function ConsultationScreen() {
       estimatedDurationMin: Number(duration),
       exercises,
       coachNotes,
-      status: "published",
+      status: "draft",
     });
     try {
       await savePrescribedWorkout(workout);
-      setNotice("Treino publicado para a aluna.");
+      setNotice("Treino salvo. Revise a ficha antes de publicar.");
       setModalInitialSnapshot("");
+      setEditingWorkoutId(workout.id);
       setShowWorkoutModal(false);
       await reload();
     } finally {
       setIsPublishing(false);
     }
+  };
+
+  const publishSavedWorkout = async () => {
+    if (!latestWorkout) return;
+    await savePrescribedWorkout({ ...latestWorkout, status: "published" });
+    setNotice("Treino publicado para a aluna.");
+    await reload();
   };
 
   const reviewLog = async (logId: string) => {
@@ -350,6 +374,15 @@ export default function ConsultationScreen() {
   };
 
   const openWorkoutModal = (block: PrescriptionBlock = "prescription") => {
+    if (latestWorkout) {
+      setEditingWorkoutId(latestWorkout.id);
+      setTitle(latestWorkout.title);
+      setDayLabel(latestWorkout.dayLabel);
+      setDuration(String(latestWorkout.estimatedDurationMin ?? 45));
+      setObjective(latestWorkout.objective);
+      setExerciseLines(serializeWorkoutExercises(latestWorkout.exercises));
+      setCoachNotes(latestWorkout.coachNotes ?? "");
+    }
     setActivePrescriptionBlock(block);
     setModalInitialSnapshot(modalDraftSnapshot);
     setShowConfirmClose(false);
@@ -357,13 +390,14 @@ export default function ConsultationScreen() {
   };
 
   const openNewWorkoutModal = () => {
+    setEditingWorkoutId("");
     setTitle(`Treino ${studentWorkouts.length + 1} - Casa`);
     setDayLabel("Segunda");
     setObjective("Força geral e controle corporal");
     setExerciseLines(defaultExerciseLines);
     setCoachNotes("Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional.");
     setActivePrescriptionBlock("prescription");
-    setModalInitialSnapshot("");
+    setModalInitialSnapshot("new-workout");
     setShowConfirmClose(false);
     setShowWorkoutModal(true);
   };
@@ -371,6 +405,7 @@ export default function ConsultationScreen() {
   const closeWorkoutModal = () => {
     setShowConfirmClose(false);
     setModalInitialSnapshot("");
+    setEditingWorkoutId("");
     setShowWorkoutModal(false);
   };
 
@@ -383,7 +418,7 @@ export default function ConsultationScreen() {
   };
 
   const runModalPrimaryAction = async () => {
-    await publishWorkout();
+    await saveWorkoutDraft();
   };
 
   const Chip = ({
@@ -495,7 +530,7 @@ export default function ConsultationScreen() {
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <Step index={1} label="Selecionar aluna" done={!!selectedStudentId} />
             <Step index={2} label="Perfil de treino" done={!!selectedProfile} />
-            <Step index={3} label="Publicar treino" done={studentWorkouts.length > 0} />
+            <Step index={3} label="Publicar treino" done={publishedWorkouts.length > 0} />
             <Step index={4} label="Receber feedback" done={studentLogs.length > 0} />
             <Step index={5} label="Revisar devolutiva" done={studentLogs.length > 0 && pendingLogs.length === 0} />
           </View>
@@ -624,6 +659,33 @@ export default function ConsultationScreen() {
             </Text>
             <Text style={{ color: colors.text, lineHeight: 19 }}>{objective}</Text>
           </Pressable>
+          <Pressable
+            disabled={!latestWorkout || latestWorkout.status === "published"}
+            onPress={() => {
+              void publishSavedWorkout();
+            }}
+            style={{
+              alignItems: "center",
+              backgroundColor:
+                latestWorkout && latestWorkout.status !== "published"
+                  ? colors.primaryBg
+                  : colors.primaryDisabledBg,
+              borderRadius: radius.full,
+              padding: 12,
+            }}
+          >
+            <Text
+              style={{
+                color:
+                  latestWorkout && latestWorkout.status !== "published"
+                    ? colors.primaryText
+                    : colors.secondaryText,
+                fontWeight: "900",
+              }}
+            >
+              {latestWorkout?.status === "published" ? "Treino publicado" : "Publicar treino"}
+            </Text>
+          </Pressable>
           {!selectedProfile ? (
             <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
               <Text style={{ color: colors.warningText, fontSize: 12, fontWeight: "800" }}>
@@ -635,18 +697,18 @@ export default function ConsultationScreen() {
 
         <View style={{ gap: 10, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Treino publicado</Text>
-          {latestWorkout ? (
+          {latestPublishedWorkout ? (
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "900" }}>{latestWorkout.title}</Text>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>{latestPublishedWorkout.title}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {latestWorkout.dayLabel} · {latestWorkout.estimatedDurationMin} min · {latestWorkout.status === "published" ? "Publicado" : latestWorkout.status}
+                {latestPublishedWorkout.dayLabel} · {latestPublishedWorkout.estimatedDurationMin} min · Publicado
               </Text>
-              <Text style={{ color: colors.text, lineHeight: 19 }}>{latestWorkout.objective}</Text>
+              <Text style={{ color: colors.text, lineHeight: 19 }}>{latestPublishedWorkout.objective}</Text>
               <View style={{ gap: 6, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
                 <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>
                   Atividade | Séries | Repet. | Interv. | Obs.
                 </Text>
-                {latestWorkout.exercises.map((exercise) => (
+                {latestPublishedWorkout.exercises.map((exercise) => (
                   <Text key={exercise.id} style={{ color: colors.text, fontSize: 12, lineHeight: 18 }}>
                     {formatExerciseLine(exercise)}
                   </Text>
@@ -667,7 +729,7 @@ export default function ConsultationScreen() {
         <View style={{ gap: 10, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Execuções e feedback</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {studentWorkouts.length} treino(s) publicado(s) · {pendingLogs.length} feedback(s) pendente(s)
+            {studentWorkouts.length} treino(s) salvo(s) · {pendingLogs.length} feedback(s) pendente(s)
           </Text>
           {studentLogs.length ? (
             studentLogs.map((log) => {
@@ -763,7 +825,7 @@ export default function ConsultationScreen() {
                   fontWeight: "900",
                 }}
               >
-                {isPublishing ? "Publicando..." : "Publicar treino"}
+                {isPublishing ? "Salvando..." : "Salvar treino"}
               </Text>
             </Pressable>
           </View>
