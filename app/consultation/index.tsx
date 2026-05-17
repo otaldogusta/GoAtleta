@@ -94,6 +94,36 @@ const parseExercises = (value: string): PrescribedExercise[] =>
     })
     .filter((item) => item.name);
 
+type PrescriptionBlock = "profile" | "prescription" | "notes";
+
+type ExerciseDraftRow = {
+  name: string;
+  sets: string;
+  reps: string;
+  rest: string;
+  note: string;
+};
+
+const parseExerciseDraftRows = (value: string): ExerciseDraftRow[] => {
+  const rows = value
+    .split("\n")
+    .map((line) => {
+      const [name = "", sets = "", reps = "", rest = "", note = ""] = line
+        .split("|")
+        .map((item) => item.trim());
+      return { name, sets, reps, rest, note };
+    })
+    .filter((row) => row.name || row.sets || row.reps || row.rest || row.note);
+
+  return rows.length ? rows : [{ name: "", sets: "", reps: "", rest: "", note: "" }];
+};
+
+const serializeExerciseDraftRows = (rows: ExerciseDraftRow[]) =>
+  rows
+    .filter((row) => row.name || row.sets || row.reps || row.rest || row.note)
+    .map((row) => [row.name, row.sets, row.reps, row.rest, row.note].join(" | "))
+    .join("\n");
+
 const formatExerciseLine = (exercise: PrescribedExercise) =>
   [
     exercise.name,
@@ -134,6 +164,8 @@ export default function ConsultationScreen() {
   const [notice, setNotice] = useState("");
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [activePrescriptionBlock, setActivePrescriptionBlock] =
+    useState<PrescriptionBlock>("prescription");
 
   const reload = async () => {
     const [studentItems, consultationState] = await measureAsync(
@@ -182,6 +214,36 @@ export default function ConsultationScreen() {
       notes: profileNotes,
     });
   }, [duration, environment, equipment, goal, injuries, profileNotes, restrictions, selectedStudentId, trainingDays]);
+
+  const exerciseDraftRows = useMemo(
+    () => parseExerciseDraftRows(exerciseLines),
+    [exerciseLines]
+  );
+
+  const updateExerciseDraftRow = (
+    index: number,
+    field: keyof ExerciseDraftRow,
+    value: string
+  ) => {
+    const nextRows = exerciseDraftRows.map((row, rowIndex) =>
+      rowIndex === index ? { ...row, [field]: value } : row
+    );
+    setExerciseLines(serializeExerciseDraftRows(nextRows));
+  };
+
+  const addExerciseDraftRow = () => {
+    setExerciseLines(
+      serializeExerciseDraftRows([
+        ...exerciseDraftRows,
+        { name: "", sets: "", reps: "", rest: "", note: "" },
+      ])
+    );
+  };
+
+  const removeExerciseDraftRow = (index: number) => {
+    const nextRows = exerciseDraftRows.filter((_, rowIndex) => rowIndex !== index);
+    setExerciseLines(serializeExerciseDraftRows(nextRows));
+  };
 
   const toggleEquipment = (value: AvailableEquipment) => {
     setEquipment((current) =>
@@ -617,77 +679,269 @@ export default function ConsultationScreen() {
                 width: Platform.OS === "web" ? 320 : "100%",
               }}
             >
-              <View
-                style={{
-                  backgroundColor: colors.card,
-                  borderColor: colors.primaryBg,
-                  borderRadius: radius.card,
-                  borderWidth: 1,
-                  gap: 4,
-                  padding: 12,
-                }}
-              >
-                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Perfil de treino</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {selectedProfile
+              {[
+                {
+                  id: "profile" as const,
+                  label: "Perfil do treino",
+                  value: selectedProfile
                     ? `${selectedProfile.environment} · ${selectedProfile.trainingDaysPerWeek}x/semana`
-                    : "Perfil ainda não salvo"}
-                </Text>
-              </View>
-              <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderRadius: radius.card, borderWidth: 1, gap: 4, padding: 12 }}>
-                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Prescrição</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {duration || "45"} min · {parseExercises(exerciseLines).length} exercício(s)
-                </Text>
-              </View>
-              <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderRadius: radius.card, borderWidth: 1, gap: 4, padding: 12 }}>
-                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Cuidados</Text>
-                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-                  Restrição, dor forte, tontura ou mal-estar precisam ser sinalizados ao profissional.
-                </Text>
-              </View>
+                    : "Perfil ainda não salvo",
+                },
+                {
+                  id: "prescription" as const,
+                  label: "Prescrição",
+                  value: `${parseExercises(exerciseLines).length} exercício(s) · ${duration || "45"} min`,
+                },
+                {
+                  id: "notes" as const,
+                  label: "Observações",
+                  value: coachNotes || "Sem observações",
+                },
+              ].map((item) => {
+                const active = activePrescriptionBlock === item.id;
+                return (
+                <Pressable
+                  key={item.label}
+                  onPress={() => setActivePrescriptionBlock(item.id)}
+                  style={{
+                    backgroundColor: active ? colors.card : colors.secondaryBg,
+                    borderColor: active ? colors.primaryBg : colors.border,
+                    borderRadius: radius.card,
+                    borderWidth: 1,
+                    gap: 4,
+                    padding: 12,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>{item.label}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }} numberOfLines={2}>
+                    {item.value}
+                  </Text>
+                </Pressable>
+                );
+              })}
             </View>
 
             <View style={{ flex: 1, gap: 12 }}>
-              <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Título" value={title} onChangeText={setTitle} />
+              {activePrescriptionBlock === "profile" ? (
+                <View style={{ gap: 12 }}>
+                  <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
+                    Perfil do treino
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {goalOptions.map((item) => (
+                      <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {environmentOptions.map((item) => (
+                      <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
+                    ))}
+                  </View>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {equipmentOptions.map((item) => (
+                      <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
+                    ))}
+                  </View>
+                  <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
+                  <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+                  <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Field label="Duração média" value={duration} onChangeText={setDuration} />
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={saveProfile}
+                    style={{ alignItems: "center", padding: 12, borderRadius: radius.full, backgroundColor: colors.primaryBg }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Salvar perfil de treino</Text>
+                  </Pressable>
                 </View>
-                <View style={{ flex: 0.8 }}>
-                  <Field label="Dia" value={dayLabel} onChangeText={setDayLabel} />
+              ) : null}
+
+              {activePrescriptionBlock === "prescription" ? (
+                <View style={{ gap: 12 }}>
+                  <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Field label="Título" value={title} onChangeText={setTitle} />
+                    </View>
+                    <View style={{ flex: 0.8 }}>
+                      <Field label="Dia" value={dayLabel} onChangeText={setDayLabel} />
+                    </View>
+                    <View style={{ flex: 0.7 }}>
+                      <Field label="Duração" value={duration} onChangeText={setDuration} />
+                    </View>
+                  </View>
+                  <Field label="Objetivo do treino" value={objective} onChangeText={setObjective} />
+
+                  <View style={{ gap: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                      <Text style={{ color: colors.text, fontWeight: "900" }}>Exercícios</Text>
+                      <Pressable
+                        onPress={addExerciseDraftRow}
+                        style={{
+                          alignItems: "center",
+                          backgroundColor: colors.secondaryBg,
+                          borderColor: colors.border,
+                          borderRadius: radius.full,
+                          borderWidth: 1,
+                          height: 30,
+                          justifyContent: "center",
+                          width: 30,
+                        }}
+                      >
+                        <Ionicons name="add" size={17} color={colors.text} />
+                      </Pressable>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: colors.muted, flex: 2, fontSize: 11, fontWeight: "900" }}>Exercício/atividade</Text>
+                      <Text style={{ color: colors.muted, flex: 0.7, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Séries</Text>
+                      <Text style={{ color: colors.muted, flex: 0.9, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Reps</Text>
+                      <Text style={{ color: colors.muted, flex: 0.8, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Interv.</Text>
+                      <Text style={{ color: colors.muted, flex: 1.2, fontSize: 11, fontWeight: "900" }}>Obs.</Text>
+                      <View style={{ width: 28 }} />
+                    </View>
+                    {exerciseDraftRows.map((row, index) => (
+                      <View key={`exercise-row-${index}`} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                        <TextInput
+                          value={row.name}
+                          onChangeText={(value) => updateExerciseDraftRow(index, "name", value)}
+                          placeholder="Exercício"
+                          placeholderTextColor={colors.placeholder}
+                          style={{
+                            flex: 2,
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                            minHeight: 42,
+                            paddingHorizontal: 10,
+                          }}
+                        />
+                        <TextInput
+                          value={row.sets}
+                          onChangeText={(value) => updateExerciseDraftRow(index, "sets", value)}
+                          placeholder="3"
+                          placeholderTextColor={colors.placeholder}
+                          style={{
+                            flex: 0.7,
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                            minHeight: 42,
+                            paddingHorizontal: 10,
+                            textAlign: "center",
+                          }}
+                        />
+                        <TextInput
+                          value={row.reps}
+                          onChangeText={(value) => updateExerciseDraftRow(index, "reps", value)}
+                          placeholder="8-12"
+                          placeholderTextColor={colors.placeholder}
+                          style={{
+                            flex: 0.9,
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                            minHeight: 42,
+                            paddingHorizontal: 10,
+                            textAlign: "center",
+                          }}
+                        />
+                        <TextInput
+                          value={row.rest}
+                          onChangeText={(value) => updateExerciseDraftRow(index, "rest", value)}
+                          placeholder="60"
+                          placeholderTextColor={colors.placeholder}
+                          style={{
+                            flex: 0.8,
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                            minHeight: 42,
+                            paddingHorizontal: 10,
+                            textAlign: "center",
+                          }}
+                        />
+                        <TextInput
+                          value={row.note}
+                          onChangeText={(value) => updateExerciseDraftRow(index, "note", value)}
+                          placeholder="Obs."
+                          placeholderTextColor={colors.placeholder}
+                          style={{
+                            flex: 1.2,
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.inputBg,
+                            color: colors.inputText,
+                            minHeight: 42,
+                            paddingHorizontal: 10,
+                          }}
+                        />
+                        <Pressable
+                          onPress={() => removeExerciseDraftRow(index)}
+                          style={{
+                            alignItems: "center",
+                            backgroundColor: colors.secondaryBg,
+                            borderColor: colors.border,
+                            borderRadius: radius.full,
+                            borderWidth: 1,
+                            height: 28,
+                            justifyContent: "center",
+                            width: 28,
+                          }}
+                        >
+                          <Ionicons name="close" size={14} color={colors.muted} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+
+                  <Pressable
+                    onPress={() => {
+                      setExerciseLines(
+                        "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração"
+                      );
+                    }}
+                    style={{
+                      alignSelf: Platform.OS === "web" ? "center" : "stretch",
+                      backgroundColor: colors.dangerBg,
+                      borderColor: colors.dangerBorder,
+                      borderRadius: radius.card,
+                      borderWidth: 1,
+                      paddingHorizontal: 22,
+                      paddingVertical: 11,
+                    }}
+                  >
+                    <Text style={{ color: colors.dangerText, fontWeight: "900", textAlign: "center" }}>
+                      Restaurar exemplo
+                    </Text>
+                  </Pressable>
                 </View>
-                <View style={{ flex: 0.7 }}>
-                  <Field label="Duração" value={duration} onChangeText={setDuration} />
+              ) : null}
+
+              {activePrescriptionBlock === "notes" ? (
+                <View style={{ gap: 12 }}>
+                  <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Observações</Text>
+                  <Field label="Observações do professor" value={coachNotes} onChangeText={setCoachNotes} multiline />
+                  <Field label="Observações do perfil" value={profileNotes} onChangeText={setProfileNotes} multiline />
+                  <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
+                    <Text style={{ color: colors.warningText, fontWeight: "800", lineHeight: 18 }}>
+                      Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional.
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <Field label="Objetivo do treino" value={objective} onChangeText={setObjective} />
-              <Field
-                label="Exercícios: Atividade | Séries | Repet. | Interv. | Obs."
-                value={exerciseLines}
-                onChangeText={setExerciseLines}
-                multiline
-              />
-              <Field label="Observações do professor" value={coachNotes} onChangeText={setCoachNotes} multiline />
-              <Pressable
-                onPress={() => {
-                  setExerciseLines(
-                    "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração"
-                  );
-                }}
-                style={{
-                  alignSelf: Platform.OS === "web" ? "center" : "stretch",
-                  backgroundColor: colors.dangerBg,
-                  borderColor: colors.dangerBorder,
-                  borderRadius: radius.card,
-                  borderWidth: 1,
-                  paddingHorizontal: 22,
-                  paddingVertical: 11,
-                }}
-              >
-                <Text style={{ color: colors.dangerText, fontWeight: "900", textAlign: "center" }}>
-                  Restaurar exemplo
-                </Text>
-              </Pressable>
+              ) : null}
             </View>
           </View>
         </KeyboardAvoidingView>
