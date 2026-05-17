@@ -687,23 +687,9 @@ export default function ConsultationScreen() {
               }}
             >
               {[
-                {
-                  id: "profile" as const,
-                  label: "Perfil do treino",
-                  value: selectedProfile
-                    ? `${selectedProfile.environment} · ${selectedProfile.trainingDaysPerWeek}x/semana`
-                    : "Perfil ainda não salvo",
-                },
-                {
-                  id: "prescription" as const,
-                  label: "Prescrição",
-                  value: `${parseExercises(exerciseLines).length} exercício(s) · ${duration || "45"} min`,
-                },
-                {
-                  id: "notes" as const,
-                  label: "Observações",
-                  value: coachNotes || "Sem observações",
-                },
+                { id: "profile" as const, label: "Perfil do treino" },
+                { id: "prescription" as const, label: "Prescrição" },
+                { id: "notes" as const, label: "Observações" },
               ].map((item) => {
                 const active = activePrescriptionBlock === item.id;
                 return (
@@ -716,14 +702,13 @@ export default function ConsultationScreen() {
                     borderRadius: radius.card,
                     borderWidth: 1,
                     flex: 1,
-                    gap: 3,
+                    alignItems: "center",
                     paddingHorizontal: 12,
-                    paddingVertical: 10,
+                    paddingVertical: 12,
                   }}
                 >
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>{item.label}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }} numberOfLines={2}>
-                    {item.value}
+                  <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 14, fontWeight: "900" }}>
+                    {item.label}
                   </Text>
                 </Pressable>
                 );
