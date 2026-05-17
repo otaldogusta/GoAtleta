@@ -102,7 +102,7 @@ const parseExercises = (value: string): PrescribedExercise[] =>
     })
     .filter((item) => item.name);
 
-type PrescriptionBlock = "profile" | "prescription" | "notes";
+type PrescriptionBlock = "prescription" | "notes";
 
 type ExerciseDraftRow = {
   name: string;
@@ -370,11 +370,6 @@ export default function ConsultationScreen() {
   };
 
   const runModalPrimaryAction = async () => {
-    if (activePrescriptionBlock === "profile") {
-      await saveProfile();
-      setModalInitialSnapshot(modalDraftSnapshot);
-      return;
-    }
     await publishWorkout();
   };
 
@@ -525,33 +520,39 @@ export default function ConsultationScreen() {
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Onde ela treina, objetivo, materiais e cuidados.
           </Text>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>Objetivo principal</Text>
+          <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Objetivo principal</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {goalOptions.map((item) => (
                 <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
               ))}
             </View>
           </View>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>Onde ela treina?</Text>
+          <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Onde ela treina?</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {environmentOptions.map((item) => (
                 <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
               ))}
             </View>
           </View>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>Materiais disponíveis</Text>
+          <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Materiais disponíveis</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {equipmentOptions.map((item) => (
                 <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
               ))}
             </View>
           </View>
-          <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
-          <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+            </View>
+          </View>
+          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
             <View style={{ flex: 1 }}>
               <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
             </View>
@@ -699,8 +700,8 @@ export default function ConsultationScreen() {
               disabled={
                 isPublishing ||
                 !hasModalChanges ||
-                (activePrescriptionBlock !== "profile" &&
-                  (!selectedStudentId || !parseExercises(exerciseLines).length))
+                !selectedStudentId ||
+                !parseExercises(exerciseLines).length
               }
               onPress={() => {
                 void runModalPrimaryAction();
@@ -710,8 +711,8 @@ export default function ConsultationScreen() {
                 backgroundColor:
                   isPublishing ||
                   !hasModalChanges ||
-                  (activePrescriptionBlock !== "profile" &&
-                    (!selectedStudentId || !parseExercises(exerciseLines).length))
+                  !selectedStudentId ||
+                  !parseExercises(exerciseLines).length
                     ? colors.primaryDisabledBg
                     : colors.primaryBg,
                 borderRadius: radius.card,
@@ -723,18 +724,14 @@ export default function ConsultationScreen() {
                   color:
                     isPublishing ||
                     !hasModalChanges ||
-                    (activePrescriptionBlock !== "profile" &&
-                      (!selectedStudentId || !parseExercises(exerciseLines).length))
+                    !selectedStudentId ||
+                    !parseExercises(exerciseLines).length
                       ? colors.secondaryText
                       : colors.primaryText,
                   fontWeight: "900",
                 }}
               >
-                {isPublishing
-                  ? "Salvando..."
-                  : activePrescriptionBlock === "profile"
-                    ? "Salvar perfil de treino"
-                    : "Publicar treino"}
+                {isPublishing ? "Publicando..." : "Publicar treino"}
               </Text>
             </Pressable>
           </View>
@@ -753,7 +750,6 @@ export default function ConsultationScreen() {
               }}
             >
               {[
-                { id: "profile" as const, label: "Perfil do treino" },
                 { id: "prescription" as const, label: "Prescrição" },
                 { id: "notes" as const, label: "Observações" },
               ].map((item) => {
@@ -782,54 +778,6 @@ export default function ConsultationScreen() {
             </View>
 
             <View style={{ gap: 12 }}>
-              {activePrescriptionBlock === "profile" ? (
-                <View style={{ gap: 14 }}>
-                  <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
-                    Perfil do treino
-                  </Text>
-                  <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Objetivo principal</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      {goalOptions.map((item) => (
-                        <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
-                      ))}
-                    </View>
-                  </View>
-                  <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Onde ela treina?</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      {environmentOptions.map((item) => (
-                        <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
-                      ))}
-                    </View>
-                  </View>
-                  <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Materiais disponíveis</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      {equipmentOptions.map((item) => (
-                        <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
-                      ))}
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
-                    <View style={{ flex: 1 }}>
-                      <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
-                    <View style={{ flex: 1 }}>
-                      <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Field label="Duração média" value={duration} onChangeText={setDuration} />
-                    </View>
-                  </View>
-                </View>
-              ) : null}
-
               {activePrescriptionBlock === "prescription" ? (
                 <View style={{ gap: 12 }}>
                   <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
