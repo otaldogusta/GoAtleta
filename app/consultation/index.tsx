@@ -190,17 +190,51 @@ const serializeWorkoutExercises = (exercises: PrescribedExercise[]) =>
     )
     .join("\n");
 
+const createPilotStudent = ({ name, contact }: { name: string; contact: string }): Student => {
+  const normalizedContact = contact.trim();
+  const isEmail = normalizedContact.includes("@");
+
+  return {
+    id: `pilot_${Date.now()}`,
+    name,
+    organizationId: "local",
+    classId: "consultation",
+    age: 0,
+    phone: isEmail ? "" : normalizedContact,
+    loginEmail: isEmail ? normalizedContact : "",
+    guardianName: "",
+    guardianPhone: "",
+    guardianRelation: "",
+    birthDate: "",
+    healthIssue: false,
+    healthIssueNotes: "",
+    medicationUse: false,
+    medicationNotes: "",
+    healthObservations: "",
+    positionPrimary: "indefinido",
+    positionSecondary: "indefinido",
+    athleteObjective: "rendimento",
+    learningStyle: "misto",
+    isExperimental: true,
+    createdAt: new Date().toISOString(),
+  };
+};
+
 export default function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
   const modalCardStyle = useModalCardStyle({ maxWidth: 1120, maxHeight: "92%", radius: 18, padding: 18 });
   const [students, setStudents] = useState<Student[]>([]);
+  const [pilotStudent, setPilotStudent] = useState<Student | null>(null);
   const [state, setState] = useState<ConsultationLocalState>({
     profiles: [],
     workouts: [],
     executionLogs: [],
   });
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
+  const [pilotStudentName, setPilotStudentName] = useState("");
+  const [pilotStudentContact, setPilotStudentContact] = useState("");
   const [goal, setGoal] = useState<ConsultationGoal>("saude");
   const [environment, setEnvironment] = useState<TrainingEnvironment>("casa");
   const [equipment, setEquipment] = useState<AvailableEquipment[]>(["peso_corporal"]);
@@ -241,7 +275,23 @@ export default function ConsultationScreen() {
     void reload();
   }, []);
 
-  const selectedStudent = students.find((student) => student.id === selectedStudentId) ?? null;
+  const consultationStudents = useMemo(
+    () => (pilotStudent ? [pilotStudent, ...students] : students),
+    [pilotStudent, students]
+  );
+  const normalizedStudentSearch = studentSearch.trim().toLocaleLowerCase("pt-BR");
+  const filteredStudents = useMemo(() => {
+    const list = normalizedStudentSearch
+      ? consultationStudents.filter((student) =>
+          [student.name, student.loginEmail, student.phone]
+            .filter(Boolean)
+            .some((value) => value.toLocaleLowerCase("pt-BR").includes(normalizedStudentSearch))
+        )
+      : consultationStudents;
+
+    return list.slice(0, 12);
+  }, [consultationStudents, normalizedStudentSearch]);
+  const selectedStudent = consultationStudents.find((student) => student.id === selectedStudentId) ?? null;
   const selectedProfile = state.profiles.find((item) => item.studentId === selectedStudentId);
   const studentWorkouts = state.workouts.filter((item) => item.studentId === selectedStudentId);
   const publishedWorkouts = studentWorkouts.filter((item) => item.status === "published");
@@ -393,6 +443,19 @@ export default function ConsultationScreen() {
     animateLayout();
     setIsProfileEditorOpen(false);
     await reload();
+  };
+
+  const addPilotStudent = () => {
+    const name = pilotStudentName.trim();
+    if (!name) return;
+
+    const student = createPilotStudent({ name, contact: pilotStudentContact });
+    setPilotStudent(student);
+    setSelectedStudentId(student.id);
+    setStudentSearch("");
+    setPilotStudentName("");
+    setPilotStudentContact("");
+    setNotice("Aluna adicionada ao piloto local.");
   };
 
   const saveWorkoutDraft = async () => {
@@ -660,11 +723,11 @@ export default function ConsultationScreen() {
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <Text style={{ color: colors.text, fontWeight: "900" }}>Fluxo do piloto</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <Step index={1} label="Selecionar aluna" done={!!selectedStudentId} />
+            <Step index={1} label="Aluno" done={!!selectedStudentId} />
             <Step index={2} label="Perfil de treino" done={hasSavedProfile} />
-            <Step index={3} label="Publicar treino" done={hasPublishedWorkout} />
-            <Step index={4} label="Receber feedback" done={hasReceivedFeedback} />
-            <Step index={5} label="Revisar devolutiva" done={hasReviewedFeedback} />
+            <Step index={3} label="Prescrição" done={hasPublishedWorkout} />
+            <Step index={4} label="Feedback" done={hasReceivedFeedback} />
+            <Step index={5} label="Devolutiva" done={hasReviewedFeedback} />
           </View>
         </View>
 
@@ -674,25 +737,125 @@ export default function ConsultationScreen() {
           </View>
         ) : null}
 
-        <View style={{ gap: 10, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <Text style={{ color: colors.text, fontWeight: "900" }}>Aluna</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {students.map((student) => (
-              <Chip
-                key={student.id}
-                label={student.name}
-                active={student.id === selectedStudentId}
-                onPress={() => setSelectedStudentId(student.id)}
-              />
-            ))}
-          </ScrollView>
-          {selectedStudent ? (
+        <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 17 }}>Aluno</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {selectedStudent.name} · {selectedStudent.loginEmail || selectedStudent.phone || "sem contato"}
+              Busque uma aluna cadastrada ou preencha uma nova ficha para o piloto.
             </Text>
+          </View>
+          {selectedStudent ? (
+            <View
+              style={{
+                gap: 8,
+                padding: 12,
+                borderRadius: radius.internal,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <View style={{ gap: 3, flex: 1 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>Aluna selecionada</Text>
+                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>{selectedStudent.name}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {selectedStudent.loginEmail || selectedStudent.phone || "Sem contato informado"}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    borderRadius: radius.full,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    backgroundColor: selectedStudent.id.startsWith("pilot_") ? colors.warningBg : colors.successBg,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: selectedStudent.id.startsWith("pilot_") ? colors.warningText : colors.successText,
+                      fontSize: 11,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {selectedStudent.id.startsWith("pilot_") ? "Piloto local" : "Cadastro do sistema"}
+                  </Text>
+                </View>
+              </View>
+            </View>
           ) : (
-            <Text style={{ color: colors.muted }}>Selecione uma aluna para começar.</Text>
+            <View
+              style={{
+                padding: 12,
+                borderRadius: radius.internal,
+                backgroundColor: colors.warningBg,
+                borderWidth: 1,
+                borderColor: colors.warningBorder,
+              }}
+            >
+              <Text style={{ color: colors.warningText, fontWeight: "800" }}>
+                Selecione uma aluna para começar.
+              </Text>
+            </View>
           )}
+
+          <View style={{ gap: 10 }}>
+            <Field label="Buscar aluna cadastrada" value={studentSearch} onChangeText={setStudentSearch} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {filteredStudents.length ? (
+                filteredStudents.map((student) => (
+                  <Chip
+                    key={student.id}
+                    label={student.name}
+                    active={student.id === selectedStudentId}
+                    onPress={() => setSelectedStudentId(student.id)}
+                  />
+                ))
+              ) : (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Nenhuma aluna encontrada. Preencha uma nova ficha abaixo para o piloto.
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View
+            style={{
+              gap: 10,
+              paddingTop: 10,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 13 }}>Nova aluna no piloto</Text>
+            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label="Nome" value={pilotStudentName} onChangeText={setPilotStudentName} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="E-mail ou telefone" value={pilotStudentContact} onChangeText={setPilotStudentContact} />
+              </View>
+            </View>
+            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", alignItems: Platform.OS === "web" ? "center" : "stretch", gap: 10 }}>
+              <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
+                Esta ficha nova vale apenas para o piloto local. O cadastro oficial fica fora deste pacote.
+              </Text>
+              <Pressable
+                disabled={!pilotStudentName.trim()}
+                onPress={addPilotStudent}
+                style={{
+                  borderRadius: radius.full,
+                  backgroundColor: colors.primaryBg,
+                  opacity: pilotStudentName.trim() ? 1 : 0.5,
+                  paddingHorizontal: 16,
+                  paddingVertical: 11,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Usar no piloto</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
 
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>

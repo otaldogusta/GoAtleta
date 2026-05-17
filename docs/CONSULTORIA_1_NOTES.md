@@ -103,15 +103,25 @@ O resumo do perfil pode exibir um badge discreto:
 - `Perfil pronto`, quando objetivo, ambiente, material, frequencia e duracao estao definidos.
 - `Perfil incompleto`, quando o perfil existe mas ainda faltam dados operacionais.
 
-O stepper do piloto usa os dados reais do fallback local:
+O stepper do piloto usa os dados reais do fallback local e segue o fluxo:
 
-- aluna selecionada;
-- perfil salvo;
-- treino publicado;
-- feedback recebido;
-- feedback revisado.
+- Aluno;
+- Perfil do treino;
+- Prescricao;
+- Feedback;
+- Devolutiva.
 
 Quando o perfil e salvo, o card recolhe para um resumo clicavel. O professor pode tocar no resumo para editar novamente, mantendo a tela mais curta durante a prescricao.
+
+### Selecao de aluno no piloto
+
+A secao `Aluno` agora funciona como uma ficha de entrada:
+
+- mostra a aluna selecionada com contato e origem;
+- permite buscar uma aluna ja cadastrada no sistema;
+- permite preencher nome e contato de uma nova aluna para o piloto local.
+
+A nova aluna criada nessa ficha nao vira cadastro oficial e nao grava no Supabase. Ela serve apenas para testar o fluxo local da consultoria antes da modelagem canonica.
 
 ### Limitacoes conhecidas
 
