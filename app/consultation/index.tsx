@@ -330,7 +330,7 @@ export default function ConsultationScreen() {
   const [showConfirmDeleteWorkout, setShowConfirmDeleteWorkout] = useState(false);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(true);
   const [activeConsultationTab, setActiveConsultationTab] =
-    useState<ConsultationPanelTab>("prescription");
+    useState<ConsultationPanelTab>("profile");
   const [persistenceStatus, setPersistenceStatus] = useState<ConsultationPersistenceStatus>(
     getLastConsultationPersistenceStatus()
   );
@@ -847,8 +847,8 @@ export default function ConsultationScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 2 }}>
           {[
-            { id: "prescription" as const, label: "Prescrição" },
             { id: "profile" as const, label: "Perfil" },
+            { id: "prescription" as const, label: "Prescrição" },
             { id: "feedback" as const, label: "Feedback" },
             { id: "evolution" as const, label: "Evolução" },
           ].map((item) => {
