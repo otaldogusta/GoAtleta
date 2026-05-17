@@ -122,15 +122,13 @@ const parseExerciseDraftRows = (value: string): ExerciseDraftRow[] => {
         .split("|")
         .map((item) => item.trim());
       return { name, sets, reps, rest, note };
-    })
-    .filter((row) => row.name || row.sets || row.reps || row.rest || row.note);
+    });
 
   return rows.length ? rows : [{ name: "", sets: "", reps: "", rest: "", note: "" }];
 };
 
 const serializeExerciseDraftRows = (rows: ExerciseDraftRow[]) =>
   rows
-    .filter((row) => row.name || row.sets || row.reps || row.rest || row.note)
     .map((row) => [row.name, row.sets, row.reps, row.rest, row.note].join(" | "))
     .join("\n");
 
