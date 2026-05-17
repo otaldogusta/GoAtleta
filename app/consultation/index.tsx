@@ -29,6 +29,7 @@ import { getStudents } from "../../src/db/seed";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { radius } from "../../src/theme/tokens";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { Pressable } from "../../src/ui/Pressable";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -68,6 +69,13 @@ const weekStart = () => {
   const diff = day === 0 ? -6 : 1 - day;
   date.setDate(date.getDate() + diff);
   return date.toISOString().slice(0, 10);
+};
+
+const formatDisplayDate = (value: string) => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return value;
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
 };
 
 const parseList = (value: string) =>
@@ -143,7 +151,7 @@ const formatExerciseLine = (exercise: PrescribedExercise) =>
 export default function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
-  const modalCardStyle = useModalCardStyle({ maxWidth: 1120, maxHeight: "92%", radius: 18 });
+  const modalCardStyle = useModalCardStyle({ maxWidth: 1120, maxHeight: "92%", radius: 18, padding: 18 });
   const [students, setStudents] = useState<Student[]>([]);
   const [state, setState] = useState<ConsultationLocalState>({
     profiles: [],
@@ -173,6 +181,8 @@ export default function ConsultationScreen() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [activePrescriptionBlock, setActivePrescriptionBlock] =
     useState<PrescriptionBlock>("prescription");
+  const [modalInitialSnapshot, setModalInitialSnapshot] = useState("");
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
 
   const reload = async () => {
     const [studentItems, consultationState] = await measureAsync(
@@ -226,6 +236,43 @@ export default function ConsultationScreen() {
     () => parseExerciseDraftRows(exerciseLines),
     [exerciseLines]
   );
+
+  const modalDraftSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        goal,
+        environment,
+        equipment,
+        restrictions,
+        injuries,
+        trainingDays,
+        duration,
+        title,
+        dayLabel,
+        objective,
+        exerciseLines,
+        coachNotes,
+      }),
+    [
+      coachNotes,
+      dayLabel,
+      duration,
+      environment,
+      equipment,
+      exerciseLines,
+      goal,
+      injuries,
+      objective,
+      restrictions,
+      title,
+      trainingDays,
+    ]
+  );
+
+  const hasModalChanges =
+    showWorkoutModal &&
+    Boolean(modalInitialSnapshot) &&
+    modalInitialSnapshot !== modalDraftSnapshot;
 
   const updateExerciseDraftRow = (
     index: number,
@@ -287,6 +334,7 @@ export default function ConsultationScreen() {
     try {
       await savePrescribedWorkout(workout);
       setNotice("Treino publicado para a aluna.");
+      setModalInitialSnapshot("");
       setShowWorkoutModal(false);
       await reload();
     } finally {
@@ -298,6 +346,36 @@ export default function ConsultationScreen() {
     await markExecutionLogReviewed(logId);
     setNotice("Feedback marcado como revisado.");
     await reload();
+  };
+
+  const openWorkoutModal = (block: PrescriptionBlock = "prescription") => {
+    setActivePrescriptionBlock(block);
+    setModalInitialSnapshot(modalDraftSnapshot);
+    setShowConfirmClose(false);
+    setShowWorkoutModal(true);
+  };
+
+  const closeWorkoutModal = () => {
+    setShowConfirmClose(false);
+    setModalInitialSnapshot("");
+    setShowWorkoutModal(false);
+  };
+
+  const requestCloseWorkoutModal = () => {
+    if (hasModalChanges) {
+      setShowConfirmClose(true);
+      return;
+    }
+    closeWorkoutModal();
+  };
+
+  const runModalPrimaryAction = async () => {
+    if (activePrescriptionBlock === "profile") {
+      await saveProfile();
+      setModalInitialSnapshot(modalDraftSnapshot);
+      return;
+    }
+    await publishWorkout();
   };
 
   const Chip = ({
@@ -344,8 +422,9 @@ export default function ConsultationScreen() {
         onChangeText={onChangeText}
         multiline={multiline}
         placeholderTextColor={colors.placeholder}
+        scrollEnabled={false}
         style={{
-          minHeight: multiline ? 76 : 42,
+          minHeight: multiline ? 58 : 42,
           borderRadius: radius.internal,
           borderWidth: 1,
           borderColor: colors.border,
@@ -496,7 +575,7 @@ export default function ConsultationScreen() {
             </View>
             <Pressable
               disabled={!selectedStudentId}
-              onPress={() => setShowWorkoutModal(true)}
+              onPress={() => openWorkoutModal("prescription")}
               style={{
                 alignItems: "center",
                 backgroundColor: selectedStudentId ? colors.primaryBg : colors.secondaryBg,
@@ -614,56 +693,56 @@ export default function ConsultationScreen() {
 
       <ModalDialogFrame
         visible={showWorkoutModal}
-        onClose={() => setShowWorkoutModal(false)}
+        onClose={requestCloseWorkoutModal}
         cardStyle={modalCardStyle}
         position="center"
         colors={colors}
         title="Editar prescrição individual"
-        subtitle={`${selectedStudent?.name ?? "Aluna"} · ${weekStart()} · ${dayLabel}`}
-        contentContainerStyle={{ gap: 14, paddingBottom: 24, paddingTop: 12 }}
+        subtitle={`${selectedStudent?.name ?? "Aluna"} · ${formatDisplayDate(weekStart())} · ${dayLabel}`}
+        contentContainerStyle={{ gap: 18, paddingBottom: 26, paddingTop: 16 }}
         footerStyle={{ paddingTop: 12, paddingBottom: 4 }}
         footer={
-          <View style={{ flexDirection: "row", gap: 10 }}>
+          <View>
             <Pressable
-              onPress={() => setShowWorkoutModal(false)}
-              style={{
-                alignItems: "center",
-                backgroundColor: colors.secondaryBg,
-                borderColor: colors.border,
-                borderRadius: radius.card,
-                borderWidth: 1,
-                flex: 1,
-                paddingVertical: 12,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "900" }}>Cancelar</Text>
-            </Pressable>
-            <Pressable
-              disabled={isPublishing || !selectedStudentId || !parseExercises(exerciseLines).length}
+              disabled={
+                isPublishing ||
+                !hasModalChanges ||
+                (activePrescriptionBlock !== "profile" &&
+                  (!selectedStudentId || !parseExercises(exerciseLines).length))
+              }
               onPress={() => {
-                void publishWorkout();
+                void runModalPrimaryAction();
               }}
               style={{
                 alignItems: "center",
                 backgroundColor:
-                  isPublishing || !selectedStudentId || !parseExercises(exerciseLines).length
+                  isPublishing ||
+                  !hasModalChanges ||
+                  (activePrescriptionBlock !== "profile" &&
+                    (!selectedStudentId || !parseExercises(exerciseLines).length))
                     ? colors.primaryDisabledBg
                     : colors.primaryBg,
                 borderRadius: radius.card,
-                flex: 1,
                 paddingVertical: 12,
               }}
             >
               <Text
                 style={{
                   color:
-                    isPublishing || !selectedStudentId || !parseExercises(exerciseLines).length
+                    isPublishing ||
+                    !hasModalChanges ||
+                    (activePrescriptionBlock !== "profile" &&
+                      (!selectedStudentId || !parseExercises(exerciseLines).length))
                       ? colors.secondaryText
                       : colors.primaryText,
                   fontWeight: "900",
                 }}
               >
-                {isPublishing ? "Publicando..." : "Publicar treino"}
+                {isPublishing
+                  ? "Salvando..."
+                  : activePrescriptionBlock === "profile"
+                    ? "Salvar perfil de treino"
+                    : "Publicar treino"}
               </Text>
             </Pressable>
           </View>
@@ -712,27 +791,42 @@ export default function ConsultationScreen() {
 
             <View style={{ gap: 12 }}>
               {activePrescriptionBlock === "profile" ? (
-                <View style={{ gap: 12 }}>
+                <View style={{ gap: 14 }}>
                   <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
                     Perfil do treino
                   </Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {goalOptions.map((item) => (
-                      <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
-                    ))}
+                  <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Objetivo principal</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {goalOptions.map((item) => (
+                        <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
+                      ))}
+                    </View>
                   </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {environmentOptions.map((item) => (
-                      <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
-                    ))}
+                  <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Onde ela treina?</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {environmentOptions.map((item) => (
+                        <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
+                      ))}
+                    </View>
                   </View>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {equipmentOptions.map((item) => (
-                      <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
-                    ))}
+                  <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Materiais disponíveis</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      {equipmentOptions.map((item) => (
+                        <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
+                      ))}
+                    </View>
                   </View>
-                  <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
-                  <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+                  <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+                    </View>
+                  </View>
                   <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
                     <View style={{ flex: 1 }}>
                       <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
@@ -741,12 +835,6 @@ export default function ConsultationScreen() {
                       <Field label="Duração média" value={duration} onChangeText={setDuration} />
                     </View>
                   </View>
-                  <Pressable
-                    onPress={saveProfile}
-                    style={{ alignItems: "center", padding: 12, borderRadius: radius.full, backgroundColor: colors.primaryBg }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Salvar perfil de treino</Text>
-                  </Pressable>
                 </View>
               ) : null}
 
@@ -923,18 +1011,22 @@ export default function ConsultationScreen() {
                 <View style={{ gap: 12 }}>
                   <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Observações</Text>
                   <Field label="Observações do professor" value={coachNotes} onChangeText={setCoachNotes} multiline />
-                  <Field label="Observações do perfil" value={profileNotes} onChangeText={setProfileNotes} multiline />
-                  <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
-                    <Text style={{ color: colors.warningText, fontWeight: "800", lineHeight: 18 }}>
-                      Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional.
-                    </Text>
-                  </View>
                 </View>
               ) : null}
             </View>
           </View>
         </KeyboardAvoidingView>
       </ModalDialogFrame>
+
+      <ConfirmCloseOverlay
+        visible={showConfirmClose}
+        title="Sair sem salvar?"
+        message="Você tem alterações não salvas nesta prescrição."
+        confirmLabel="Sair sem salvar"
+        cancelLabel="Continuar editando"
+        onConfirm={closeWorkoutModal}
+        onCancel={() => setShowConfirmClose(false)}
+      />
     </SafeAreaView>
   );
 }
