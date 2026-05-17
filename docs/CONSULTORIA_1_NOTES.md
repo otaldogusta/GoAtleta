@@ -150,15 +150,30 @@ A aba `Evolucao` fica como placeholder conservador para CONSULTORIA 3. Ela nao c
 
 Nao houve mudanca de dominio, fallback local, Supabase, tela da aluna ou regra de treino.
 
+## CONSULTORIA 2 - Supabase canonico
+
+O CONSULTORIA 2 adiciona persistencia canonica no Supabase mantendo o fallback local como seguranca operacional.
+
+Entrou neste pacote:
+
+- migration `202605170900_create_consultation_online.sql`;
+- tabelas `consultation_profiles`, `prescribed_workouts`, `prescribed_exercises`, `workout_execution_logs` e `completed_exercise_logs`;
+- repositorio `src/db/consultation.ts`;
+- mappers/testes de roundtrip para perfil, treino, exercicios e execucao;
+- fallback local quando a migration ainda nao existe, a sessao falha, a rede cai ou a RLS bloqueia.
+
+As telas `/consultation` e `/student-consultation` passam a usar a camada canonica sem mudar o contrato visual do piloto.
+
+Detalhes tecnicos estao em `docs/CONSULTORIA_2_SUPABASE.md`.
+
 ### Limitacoes conhecidas
 
-- Os dados ficam no fallback local do dispositivo/browser.
-- Ainda nao ha sincronizacao Supabase canonica.
+- O fallback local continua existindo para ambientes sem migration/sessao.
 - Nao ha notificacao de treino publicado ou feedback recebido.
 - Nao ha midia de exercicio.
 - Nao ha PDF ou relatorio formal.
 - Nao ha historico visual de progresso.
-- Permissoes robustas ficam para uma etapa posterior.
+- Permissoes aluno/professor robustas ficam para CONSULTORIA 7.
 
 ### Criterios para avancar para CONSULTORIA 2
 
@@ -176,9 +191,8 @@ A interface inclui orientacao curta:
 
 O pacote nao faz diagnostico, nao substitui avaliacao presencial e trata restricoes/lesoes como cuidados de treino.
 
-## O que ficou para CONSULTORIA 2
+## O que ficou para os proximos pacotes
 
-- Persistencia Supabase canonica.
 - Historico por event log e snapshots.
 - Notificacoes de treino publicado e feedback recebido.
 - Midias de exercicio com armazenamento externo.

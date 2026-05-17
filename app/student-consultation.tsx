@@ -15,7 +15,7 @@ import {
   getConsultationLocalState,
   saveWorkoutExecutionLog,
   type ConsultationLocalState,
-} from "../src/db/consultation-local";
+} from "../src/db/consultation";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { radius } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";

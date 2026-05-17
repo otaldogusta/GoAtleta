@@ -26,7 +26,7 @@ import {
   saveConsultationProfile,
   savePrescribedWorkout,
   type ConsultationLocalState,
-} from "../../src/db/consultation-local";
+} from "../../src/db/consultation";
 import { getStudents } from "../../src/db/seed";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { radius } from "../../src/theme/tokens";
