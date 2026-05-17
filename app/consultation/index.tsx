@@ -566,39 +566,31 @@ export default function ConsultationScreen() {
         </View>
 
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Prescrição da semana</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Edite o treino no mesmo padrão de planejamento usado nas turmas.
-              </Text>
-            </View>
-            <Pressable
-              disabled={!selectedStudentId}
-              onPress={() => openWorkoutModal("prescription")}
-              style={{
-                alignItems: "center",
-                backgroundColor: selectedStudentId ? colors.primaryBg : colors.secondaryBg,
-                borderRadius: radius.full,
-                flexDirection: "row",
-                gap: 6,
-                paddingHorizontal: 14,
-                paddingVertical: 10,
-              }}
-            >
-              <Ionicons name="create-outline" size={15} color={selectedStudentId ? colors.primaryText : colors.muted} />
-              <Text style={{ color: selectedStudentId ? colors.primaryText : colors.muted, fontWeight: "900", fontSize: 12 }}>
-                Editar prescrição
-              </Text>
-            </Pressable>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Prescrição da semana</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Toque no treino para editar a prescrição.
+            </Text>
           </View>
-          <View style={{ gap: 8, borderRadius: radius.internal, backgroundColor: colors.secondaryBg, padding: 12 }}>
+          <Pressable
+            disabled={!selectedStudentId}
+            onPress={() => openWorkoutModal("prescription")}
+            style={{
+              gap: 8,
+              borderRadius: radius.internal,
+              backgroundColor: colors.secondaryBg,
+              borderColor: colors.border,
+              borderWidth: 1,
+              opacity: selectedStudentId ? 1 : 0.65,
+              padding: 12,
+            }}
+          >
             <Text style={{ color: colors.text, fontWeight: "900" }}>{title}</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               {dayLabel} · {duration || "45"} min · {parseExercises(exerciseLines).length} exercício(s)
             </Text>
             <Text style={{ color: colors.text, lineHeight: 19 }}>{objective}</Text>
-          </View>
+          </Pressable>
           {!selectedProfile ? (
             <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
               <Text style={{ color: colors.warningText, fontSize: 12, fontWeight: "800" }}>
