@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { Animated, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type {
@@ -30,10 +30,12 @@ import {
 import { getStudents } from "../../src/db/seed";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { radius } from "../../src/theme/tokens";
+import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { Pressable } from "../../src/ui/Pressable";
+import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 const goalOptions: { value: ConsultationGoal; label: string }[] = [
@@ -297,6 +299,14 @@ export default function ConsultationScreen() {
     showWorkoutModal &&
     Boolean(modalInitialSnapshot) &&
     modalInitialSnapshot !== modalDraftSnapshot;
+  const {
+    animatedStyle: profileEditorAnimStyle,
+    isVisible: isProfileEditorVisible,
+  } = useCollapsibleAnimation(isProfileEditorOpen, {
+    durationIn: 220,
+    durationOut: 180,
+    translateY: -6,
+  });
 
   const goalLabel = goalOptions.find((item) => item.value === goal)?.label ?? "";
   const environmentLabel = environmentOptions.find((item) => item.value === environment)?.label ?? "";
@@ -380,6 +390,7 @@ export default function ConsultationScreen() {
     if (!profileDraft) return;
     await saveConsultationProfile(profileDraft);
     setNotice("Perfil de treino salvo.");
+    animateLayout();
     setIsProfileEditorOpen(false);
     await reload();
   };
@@ -692,8 +703,12 @@ export default function ConsultationScreen() {
             </Text>
           </View>
           <Pressable
-            disabled={isProfileEditorOpen}
-            onPress={() => setIsProfileEditorOpen(true)}
+            onPress={() => {
+              if (hasSavedProfile) {
+                animateLayout();
+                setIsProfileEditorOpen((current) => !current);
+              }
+            }}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 10,
@@ -701,7 +716,6 @@ export default function ConsultationScreen() {
               backgroundColor: colors.secondaryBg,
               borderWidth: 1,
               borderColor: colors.border,
-              opacity: isProfileEditorOpen ? 1 : 0.98,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -729,8 +743,12 @@ export default function ConsultationScreen() {
                     </Text>
                   </View>
                 ) : null}
-                {!isProfileEditorOpen ? (
-                  <Ionicons name="chevron-forward" size={15} color={colors.muted} />
+                {hasSavedProfile ? (
+                  <Ionicons
+                    name={isProfileEditorOpen ? "chevron-down" : "chevron-forward"}
+                    size={15}
+                    color={colors.muted}
+                  />
                 ) : null}
               </View>
             </View>
@@ -739,8 +757,11 @@ export default function ConsultationScreen() {
             </Text>
           </Pressable>
 
-          {isProfileEditorOpen ? (
-            <>
+          {isProfileEditorVisible ? (
+            <Animated.View
+              pointerEvents={isProfileEditorOpen ? "auto" : "none"}
+              style={[profileEditorAnimStyle, { gap: 12, overflow: "hidden" }]}
+            >
               <ProfileSection title="Objetivo e rotina">
                 <View style={{ gap: 8 }}>
                   <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Objetivo principal</Text>
@@ -797,7 +818,10 @@ export default function ConsultationScreen() {
               <View style={{ flexDirection: Platform.OS === "web" && hasSavedProfile ? "row" : "column", gap: 10 }}>
                 {hasSavedProfile ? (
                   <Pressable
-                    onPress={() => setIsProfileEditorOpen(false)}
+                    onPress={() => {
+                      animateLayout();
+                      setIsProfileEditorOpen(false);
+                    }}
                     style={{
                       alignItems: "center",
                       padding: 12,
@@ -824,7 +848,7 @@ export default function ConsultationScreen() {
                   <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Salvar perfil de treino</Text>
                 </Pressable>
               </View>
-            </>
+            </Animated.View>
           ) : null}
         </View>
 
