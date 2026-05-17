@@ -87,6 +87,30 @@ Os campos foram agrupados em quatro blocos:
 
 O objetivo e reduzir a sensacao de formulario longo sem remover campos do piloto.
 
+## CONSULTORIA 1.4 - Estados do piloto
+
+O polimento 1.4 ajusta os avisos do piloto para evitar mensagens contraditorias.
+
+### Estados de perfil
+
+- Perfil nao salvo: mostra `Salve o perfil de treino antes de usar com uma aluna real.`
+- Perfil salvo sem treino publicado: mostra `Perfil salvo. Publique o primeiro treino para a aluna visualizar.`
+- Perfil salvo e treino publicado: nao mostra aviso de salvar perfil.
+- Perfil publicado com dados incompletos: mostra `Complete o perfil para orientar melhor os proximos treinos.`
+
+O resumo do perfil pode exibir um badge discreto:
+
+- `Perfil pronto`, quando objetivo, ambiente, material, frequencia e duracao estao definidos.
+- `Perfil incompleto`, quando o perfil existe mas ainda faltam dados operacionais.
+
+O stepper do piloto usa os dados reais do fallback local:
+
+- aluna selecionada;
+- perfil salvo;
+- treino publicado;
+- feedback recebido;
+- feedback revisado.
+
 ### Limitacoes conhecidas
 
 - Os dados ficam no fallback local do dispositivo/browser.

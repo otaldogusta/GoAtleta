@@ -246,6 +246,10 @@ export default function ConsultationScreen() {
   const pendingLogs = studentLogs.filter((log) => log.coachReviewStatus !== "reviewed");
   const latestWorkout = studentWorkouts[0] ?? null;
   const latestPublishedWorkout = publishedWorkouts[0] ?? null;
+  const hasSavedProfile = Boolean(selectedProfile);
+  const hasPublishedWorkout = publishedWorkouts.length > 0;
+  const hasReceivedFeedback = studentLogs.length > 0;
+  const hasReviewedFeedback = hasReceivedFeedback && pendingLogs.length === 0;
 
   useEffect(() => {
     if (!selectedProfile) return;
@@ -309,6 +313,30 @@ export default function ConsultationScreen() {
     profileSummaryParts.length > 0
       ? profileSummaryParts.join(" · ")
       : "Complete o perfil para orientar melhor a prescrição.";
+  const isProfileReady = Boolean(
+    selectedProfile &&
+      selectedProfile.goal &&
+      selectedProfile.environment &&
+      selectedProfile.availableEquipment.length > 0 &&
+      selectedProfile.trainingDaysPerWeek > 0 &&
+      selectedProfile.preferredSessionDurationMin
+  );
+  const profilePilotMessage = !hasSavedProfile
+    ? {
+        tone: "warning" as const,
+        text: "Salve o perfil de treino antes de usar com uma aluna real.",
+      }
+    : !isProfileReady && hasPublishedWorkout
+      ? {
+          tone: "warning" as const,
+          text: "Complete o perfil para orientar melhor os próximos treinos.",
+        }
+      : hasSavedProfile && !hasPublishedWorkout
+        ? {
+            tone: "success" as const,
+            text: "Perfil salvo. Publique o primeiro treino para a aluna visualizar.",
+          }
+        : null;
 
   const updateExerciseDraftRow = (
     index: number,
@@ -616,10 +644,10 @@ export default function ConsultationScreen() {
           <Text style={{ color: colors.text, fontWeight: "900" }}>Fluxo do piloto</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <Step index={1} label="Selecionar aluna" done={!!selectedStudentId} />
-            <Step index={2} label="Perfil de treino" done={!!selectedProfile} />
-            <Step index={3} label="Publicar treino" done={publishedWorkouts.length > 0} />
-            <Step index={4} label="Receber feedback" done={studentLogs.length > 0} />
-            <Step index={5} label="Revisar devolutiva" done={studentLogs.length > 0 && pendingLogs.length === 0} />
+            <Step index={2} label="Perfil de treino" done={hasSavedProfile} />
+            <Step index={3} label="Publicar treino" done={hasPublishedWorkout} />
+            <Step index={4} label="Receber feedback" done={hasReceivedFeedback} />
+            <Step index={5} label="Revisar devolutiva" done={hasReviewedFeedback} />
           </View>
         </View>
 
@@ -667,7 +695,31 @@ export default function ConsultationScreen() {
               borderColor: colors.border,
             }}
           >
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>Resumo do perfil</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>Resumo do perfil</Text>
+              {hasSavedProfile ? (
+                <View
+                  style={{
+                    borderRadius: radius.full,
+                    backgroundColor: isProfileReady ? colors.successBg : colors.warningBg,
+                    borderColor: isProfileReady ? colors.successBorder : colors.warningBorder,
+                    borderWidth: 1,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: isProfileReady ? colors.successText : colors.warningText,
+                      fontSize: 10,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {isProfileReady ? "Perfil pronto" : "Perfil incompleto"}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
               {profileSummary}
             </Text>
@@ -845,10 +897,24 @@ export default function ConsultationScreen() {
               <Text style={{ color: colors.text, lineHeight: 19 }}>{objective}</Text>
             </Pressable>
           )}
-          {!selectedProfile ? (
-            <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
-              <Text style={{ color: colors.warningText, fontSize: 12, fontWeight: "800" }}>
-                Salve o perfil de treino antes de usar com uma aluna real.
+          {profilePilotMessage ? (
+            <View
+              style={{
+                padding: 10,
+                borderRadius: radius.internal,
+                backgroundColor: profilePilotMessage.tone === "success" ? colors.successBg : colors.warningBg,
+                borderWidth: 1,
+                borderColor: profilePilotMessage.tone === "success" ? colors.successBorder : colors.warningBorder,
+              }}
+            >
+              <Text
+                style={{
+                  color: profilePilotMessage.tone === "success" ? colors.successText : colors.warningText,
+                  fontSize: 12,
+                  fontWeight: "800",
+                }}
+              >
+                {profilePilotMessage.text}
               </Text>
             </View>
           ) : null}
