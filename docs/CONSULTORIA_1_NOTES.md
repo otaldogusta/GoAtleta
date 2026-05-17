@@ -123,6 +123,33 @@ A secao `Aluno` agora funciona como uma ficha de entrada:
 
 A nova aluna criada nessa ficha nao vira cadastro oficial e nao grava no Supabase. Ela serve apenas para testar o fluxo local da consultoria antes da modelagem canonica.
 
+## CONSULTORIA 1.5 - Tela em abas
+
+O polimento 1.5 reorganiza `/consultation` como painel de acompanhamento individual.
+
+Estrutura atual:
+
+- header da pagina com `Consultoria online`;
+- header contextual da aluna com contato, origem, resumo do perfil e status;
+- progresso compacto: Aluno, Perfil, Prescricao, Feedback e Devolutiva;
+- tabs internas: `Prescricao`, `Perfil`, `Feedback` e `Evolucao`.
+
+A aba inicial e `Prescricao`, porque e o trabalho principal do professor. Ela concentra:
+
+- prescricao da semana;
+- criacao de novo treino;
+- cards de rascunho/publicado;
+- card de treino publicado;
+- resumo de feedback com atalho para a aba completa.
+
+A aba `Perfil` concentra selecao/troca de aluna, busca, nova ficha local de piloto e edicao completa do perfil de treino.
+
+A aba `Feedback` concentra execucoes, PSE, dor, observacao e revisao do professor.
+
+A aba `Evolucao` fica como placeholder conservador para CONSULTORIA 3. Ela nao calcula historico real neste pacote.
+
+Nao houve mudanca de dominio, fallback local, Supabase, tela da aluna ou regra de treino.
+
 ### Limitacoes conhecidas
 
 - Os dados ficam no fallback local do dispositivo/browser.

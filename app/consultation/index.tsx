@@ -107,6 +107,7 @@ const parseExercises = (value: string): PrescribedExercise[] =>
     .filter((item) => item.name);
 
 type PrescriptionBlock = "prescription" | "notes";
+type ConsultationPanelTab = "prescription" | "profile" | "feedback" | "evolution";
 
 type ExerciseDraftRow = {
   name: string;
@@ -308,6 +309,8 @@ export default function ConsultationScreen() {
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [showConfirmDeleteWorkout, setShowConfirmDeleteWorkout] = useState(false);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(true);
+  const [activeConsultationTab, setActiveConsultationTab] =
+    useState<ConsultationPanelTab>("prescription");
 
   const reload = async () => {
     const [studentItems, consultationState] = await measureAsync(
@@ -690,38 +693,6 @@ export default function ConsultationScreen() {
     </View>
   );
 
-  const Step = ({
-    index,
-    label,
-    done,
-  }: {
-    index: number;
-    label: string;
-    done: boolean;
-  }) => (
-    <View style={{ alignItems: "center", flex: 1, gap: 6, minWidth: 92 }}>
-      <View
-        style={{
-          alignItems: "center",
-          backgroundColor: done ? colors.successBg : colors.secondaryBg,
-          borderColor: done ? colors.successBorder : colors.border,
-          borderRadius: radius.full,
-          borderWidth: 1,
-          height: 30,
-          justifyContent: "center",
-          width: 30,
-        }}
-      >
-        <Text style={{ color: done ? colors.successText : colors.muted, fontSize: 12, fontWeight: "900" }}>
-          {done ? "✓" : index}
-        </Text>
-      </View>
-      <Text style={{ color: done ? colors.text : colors.muted, fontSize: 11, fontWeight: "800", textAlign: "center" }}>
-        {label}
-      </Text>
-    </View>
-  );
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 32 }}>
@@ -734,23 +705,121 @@ export default function ConsultationScreen() {
           </Text>
         </View>
 
-        <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <Text style={{ color: colors.text, fontWeight: "900" }}>Fluxo do piloto</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            <Step index={1} label="Aluno" done={!!selectedStudentId} />
-            <Step index={2} label="Perfil de treino" done={hasSavedProfile} />
-            <Step index={3} label="Prescrição" done={hasPublishedWorkout} />
-            <Step index={4} label="Feedback" done={hasReceivedFeedback} />
-            <Step index={5} label="Devolutiva" done={hasReviewedFeedback} />
-          </View>
-        </View>
-
         {notice ? (
           <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.successBg }}>
             <Text style={{ color: colors.successText, fontWeight: "800" }}>{notice}</Text>
           </View>
         ) : null}
 
+        <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+          {selectedStudent ? (
+            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", justifyContent: "space-between", gap: 12 }}>
+              <View style={{ flex: 1, gap: 5 }}>
+                <Text style={{ color: colors.text, fontSize: 19, fontWeight: "900" }}>{selectedStudent.name}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {selectedStudent.loginEmail || selectedStudent.phone || "Sem contato informado"}
+                </Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
+                  {profileSummary}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignContent: "flex-start", gap: 8 }}>
+                <View
+                  style={{
+                    borderRadius: radius.full,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    backgroundColor: selectedStudent.id.startsWith("pilot_") ? colors.warningBg : colors.successBg,
+                    borderWidth: 1,
+                    borderColor: selectedStudent.id.startsWith("pilot_") ? colors.warningBorder : colors.successBorder,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: selectedStudent.id.startsWith("pilot_") ? colors.warningText : colors.successText,
+                      fontSize: 11,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {selectedStudent.id.startsWith("pilot_") ? "Piloto local" : "Cadastro do sistema"}
+                  </Text>
+                </View>
+                {hasSavedProfile ? (
+                  <View
+                    style={{
+                      borderRadius: radius.full,
+                      backgroundColor: isProfileReady ? colors.successBg : colors.warningBg,
+                      borderColor: isProfileReady ? colors.successBorder : colors.warningBorder,
+                      borderWidth: 1,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: isProfileReady ? colors.successText : colors.warningText,
+                        fontSize: 11,
+                        fontWeight: "900",
+                      }}
+                    >
+                      {isProfileReady ? "Perfil pronto" : "Perfil incompleto"}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          ) : (
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontSize: 19, fontWeight: "900" }}>Selecione uma aluna</Text>
+              <Text style={{ color: colors.muted }}>
+                Use a aba Perfil para buscar uma aluna cadastrada ou criar uma ficha local para o piloto.
+              </Text>
+            </View>
+          )}
+          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
+            Aluno {selectedStudentId ? "✓" : "○"} · Perfil {hasSavedProfile ? "✓" : "○"} · Prescrição {hasPublishedWorkout ? "✓" : "○"} · Feedback {hasReceivedFeedback ? "✓" : "○"} · Devolutiva {hasReviewedFeedback ? "✓" : "○"}
+          </Text>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 2 }}>
+          {[
+            { id: "prescription" as const, label: "Prescrição" },
+            { id: "profile" as const, label: "Perfil" },
+            { id: "feedback" as const, label: "Feedback" },
+            { id: "evolution" as const, label: "Evolução" },
+          ].map((item) => {
+            const active = activeConsultationTab === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => {
+                  setActiveConsultationTab(item.id);
+                  if (item.id === "profile") {
+                    animateLayout();
+                    setIsProfileEditorOpen(true);
+                  }
+                }}
+                style={{
+                  minWidth: 132,
+                  alignItems: "center",
+                  borderRadius: radius.full,
+                  borderWidth: 1,
+                  borderColor: active ? colors.primaryBg : colors.border,
+                  backgroundColor: active ? colors.primaryBg : colors.card,
+                  paddingHorizontal: 18,
+                  paddingVertical: 12,
+                }}
+              >
+                <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "900" }}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {activeConsultationTab === "profile" ? (
+          <>
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <View style={{ gap: 4 }}>
             <Text style={{ color: colors.text, fontWeight: "900", fontSize: 17 }}>Aluno</Text>
@@ -898,7 +967,6 @@ export default function ConsultationScreen() {
             </View>
           </View>
         </View>
-
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <View style={{ gap: 5 }}>
             <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Perfil de treino</Text>
@@ -1055,7 +1123,11 @@ export default function ConsultationScreen() {
             </Animated.View>
           ) : null}
         </View>
+          </>
+        ) : null}
 
+        {activeConsultationTab === "prescription" ? (
+          <>
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
             <View style={{ flex: 1, gap: 4 }}>
@@ -1225,6 +1297,44 @@ export default function ConsultationScreen() {
         </View>
 
         <View style={{ gap: 10, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", justifyContent: "space-between", gap: 8 }}>
+            <View style={{ gap: 4, flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Feedback resumido</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {studentWorkouts.length} treino(s) salvo(s) · {pendingLogs.length} feedback(s) pendente(s)
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setActiveConsultationTab("feedback")}
+              style={{
+                alignItems: "center",
+                alignSelf: Platform.OS === "web" ? "flex-start" : "stretch",
+                borderRadius: radius.full,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+              }}
+            >
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Ver feedback</Text>
+            </Pressable>
+          </View>
+          {studentLogs.length ? (
+            <Text style={{ color: colors.text, lineHeight: 20 }}>
+              Último feedback recebido. Abra a aba Feedback para revisar PSE, dor e observação.
+            </Text>
+          ) : (
+            <Text style={{ color: colors.muted, lineHeight: 20 }}>
+              Nenhum feedback recebido ainda. Quando a aluna concluir o treino, aparece aqui.
+            </Text>
+          )}
+        </View>
+          </>
+        ) : null}
+
+        {activeConsultationTab === "feedback" ? (
+        <View style={{ gap: 10, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
           <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Execuções e feedback</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             {studentWorkouts.length} treino(s) salvo(s) · {pendingLogs.length} feedback(s) pendente(s)
@@ -1274,6 +1384,24 @@ export default function ConsultationScreen() {
             </View>
           )}
         </View>
+        ) : null}
+
+        {activeConsultationTab === "evolution" ? (
+          <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ gap: 4 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Evolução da aluna</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                A evolução será exibida depois dos primeiros feedbacks.
+              </Text>
+            </View>
+            <View style={{ gap: 8, padding: 12, borderRadius: radius.internal, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>Histórico inicial</Text>
+              <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                Depois de alguns treinos, aqui entram adesão, PSE médio, dor média, últimos feedbacks e pontos de atenção.
+              </Text>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
 
       <ModalDialogFrame
