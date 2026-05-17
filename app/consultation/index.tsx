@@ -20,6 +20,7 @@ import {
 } from "../../src/core/consultation";
 import type { Student } from "../../src/core/models";
 import {
+  deletePrescribedWorkout,
   getConsultationLocalState,
   markExecutionLogReviewed,
   saveConsultationProfile,
@@ -199,6 +200,7 @@ export default function ConsultationScreen() {
     useState<PrescriptionBlock>("prescription");
   const [modalInitialSnapshot, setModalInitialSnapshot] = useState("");
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [showConfirmDeleteWorkout, setShowConfirmDeleteWorkout] = useState(false);
 
   const reload = async () => {
     const [studentItems, consultationState] = await measureAsync(
@@ -374,6 +376,15 @@ export default function ConsultationScreen() {
     await reload();
   };
 
+  const deleteWorkout = async () => {
+    if (!editingWorkoutId) return;
+    await deletePrescribedWorkout(editingWorkoutId);
+    setNotice("Treino excluído.");
+    setShowConfirmDeleteWorkout(false);
+    closeWorkoutModal();
+    await reload();
+  };
+
   const openWorkoutModal = (
     block: PrescriptionBlock = "prescription",
     workout: PrescribedWorkout | null = latestWorkout
@@ -408,6 +419,7 @@ export default function ConsultationScreen() {
 
   const closeWorkoutModal = () => {
     setShowConfirmClose(false);
+    setShowConfirmDeleteWorkout(false);
     setModalInitialSnapshot("");
     setEditingWorkoutId("");
     setShowWorkoutModal(false);
@@ -1064,24 +1076,26 @@ export default function ConsultationScreen() {
                     ))}
                   </View>
 
-                  <Pressable
-                    onPress={() => {
-                      setExerciseLines(defaultExerciseLines);
-                    }}
-                    style={{
-                      alignSelf: Platform.OS === "web" ? "center" : "stretch",
-                      backgroundColor: colors.dangerBg,
-                      borderColor: colors.dangerBorder,
-                      borderRadius: radius.card,
-                      borderWidth: 1,
-                      paddingHorizontal: 22,
-                      paddingVertical: 11,
-                    }}
-                  >
-                    <Text style={{ color: colors.dangerText, fontWeight: "900", textAlign: "center" }}>
-                      Restaurar exemplo
-                    </Text>
-                  </Pressable>
+                  {editingWorkoutId ? (
+                    <Pressable
+                      onPress={() => {
+                        setShowConfirmDeleteWorkout(true);
+                      }}
+                      style={{
+                        alignSelf: Platform.OS === "web" ? "center" : "stretch",
+                        backgroundColor: colors.dangerBg,
+                        borderColor: colors.dangerBorder,
+                        borderRadius: radius.card,
+                        borderWidth: 1,
+                        paddingHorizontal: 22,
+                        paddingVertical: 11,
+                      }}
+                    >
+                      <Text style={{ color: colors.dangerText, fontWeight: "900", textAlign: "center" }}>
+                        Excluir treino
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -1104,6 +1118,17 @@ export default function ConsultationScreen() {
         cancelLabel="Continuar editando"
         onConfirm={closeWorkoutModal}
         onCancel={() => setShowConfirmClose(false)}
+      />
+      <ConfirmCloseOverlay
+        visible={showConfirmDeleteWorkout}
+        title="Excluir treino?"
+        message="Este treino e os feedbacks vinculados serão removidos do piloto local."
+        confirmLabel="Excluir"
+        cancelLabel="Manter"
+        onConfirm={() => {
+          void deleteWorkout();
+        }}
+        onCancel={() => setShowConfirmDeleteWorkout(false)}
       />
     </SafeAreaView>
   );

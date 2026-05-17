@@ -56,6 +56,15 @@ export async function savePrescribedWorkout(workout: PrescribedWorkout) {
   });
 }
 
+export async function deletePrescribedWorkout(workoutId: string) {
+  const state = await getConsultationLocalState();
+  await writeConsultationLocalState({
+    ...state,
+    workouts: state.workouts.filter((item) => item.id !== workoutId),
+    executionLogs: state.executionLogs.filter((item) => item.workoutId !== workoutId),
+  });
+}
+
 export async function saveWorkoutExecutionLog(log: WorkoutExecutionLog) {
   const state = await getConsultationLocalState();
   await writeConsultationLocalState({
