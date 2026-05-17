@@ -144,6 +144,30 @@ const exerciseColumnWidths = {
 const defaultExerciseLines =
   "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração";
 
+const buildWorkoutDraftSnapshot = ({
+  title,
+  dayLabel,
+  duration,
+  objective,
+  exerciseLines,
+  coachNotes,
+}: {
+  title: string;
+  dayLabel: string;
+  duration: string;
+  objective: string;
+  exerciseLines: string;
+  coachNotes: string;
+}) =>
+  JSON.stringify({
+    title,
+    dayLabel,
+    duration,
+    objective,
+    exerciseLines,
+    coachNotes,
+  });
+
 const formatExerciseLine = (exercise: PrescribedExercise) =>
   [
     exercise.name,
@@ -258,35 +282,8 @@ export default function ConsultationScreen() {
   );
 
   const modalDraftSnapshot = useMemo(
-    () =>
-      JSON.stringify({
-        goal,
-        environment,
-        equipment,
-        restrictions,
-        injuries,
-        trainingDays,
-        duration,
-        title,
-        dayLabel,
-        objective,
-        exerciseLines,
-        coachNotes,
-      }),
-    [
-      coachNotes,
-      dayLabel,
-      duration,
-      environment,
-      equipment,
-      exerciseLines,
-      goal,
-      injuries,
-      objective,
-      restrictions,
-      title,
-      trainingDays,
-    ]
+    () => buildWorkoutDraftSnapshot({ title, dayLabel, duration, objective, exerciseLines, coachNotes }),
+    [coachNotes, dayLabel, duration, exerciseLines, objective, title]
   );
 
   const hasModalChanges =
@@ -390,29 +387,58 @@ export default function ConsultationScreen() {
     workout: PrescribedWorkout | null = latestWorkout
   ) => {
     if (workout) {
+      const nextExerciseLines = serializeWorkoutExercises(workout.exercises);
+      const nextCoachNotes = workout.coachNotes ?? "";
       setEditingWorkoutId(workout.id);
       setTitle(workout.title);
       setDayLabel(workout.dayLabel);
       setDuration(String(workout.estimatedDurationMin ?? 45));
       setObjective(workout.objective);
-      setExerciseLines(serializeWorkoutExercises(workout.exercises));
-      setCoachNotes(workout.coachNotes ?? "");
+      setExerciseLines(nextExerciseLines);
+      setCoachNotes(nextCoachNotes);
+      setModalInitialSnapshot(
+        buildWorkoutDraftSnapshot({
+          title: workout.title,
+          dayLabel: workout.dayLabel,
+          duration: String(workout.estimatedDurationMin ?? 45),
+          objective: workout.objective,
+          exerciseLines: nextExerciseLines,
+          coachNotes: nextCoachNotes,
+        })
+      );
+    } else {
+      setModalInitialSnapshot(modalDraftSnapshot);
     }
     setActivePrescriptionBlock(block);
-    setModalInitialSnapshot(modalDraftSnapshot);
     setShowConfirmClose(false);
     setShowWorkoutModal(true);
   };
 
   const openNewWorkoutModal = () => {
+    const nextTitle = "";
+    const nextDayLabel = "";
+    const nextDuration = "";
+    const nextObjective = "";
+    const nextExerciseLines = "";
+    const nextCoachNotes = "";
     setEditingWorkoutId("");
-    setTitle(`Treino ${studentWorkouts.length + 1} - Casa`);
-    setDayLabel("Segunda");
-    setObjective("Força geral e controle corporal");
-    setExerciseLines(defaultExerciseLines);
-    setCoachNotes("Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional.");
+    setTitle(nextTitle);
+    setDayLabel(nextDayLabel);
+    setDuration(nextDuration);
+    setObjective(nextObjective);
+    setExerciseLines(nextExerciseLines);
+    setCoachNotes(nextCoachNotes);
     setActivePrescriptionBlock("prescription");
-    setModalInitialSnapshot("new-workout");
+    setModalInitialSnapshot(
+      buildWorkoutDraftSnapshot({
+        title: nextTitle,
+        dayLabel: nextDayLabel,
+        duration: nextDuration,
+        objective: nextObjective,
+        exerciseLines: nextExerciseLines,
+        coachNotes: nextCoachNotes,
+      })
+    );
     setShowConfirmClose(false);
     setShowWorkoutModal(true);
   };
