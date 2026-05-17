@@ -124,6 +124,13 @@ const serializeExerciseDraftRows = (rows: ExerciseDraftRow[]) =>
     .map((row) => [row.name, row.sets, row.reps, row.rest, row.note].join(" | "))
     .join("\n");
 
+const exerciseColumnWidths = {
+  sets: 62,
+  reps: 72,
+  rest: 72,
+  remove: 28,
+};
+
 const formatExerciseLine = (exercise: PrescribedExercise) =>
   [
     exercise.name,
@@ -795,12 +802,12 @@ export default function ConsultationScreen() {
                         <Ionicons name="add" size={17} color={colors.text} />
                       </Pressable>
                     </View>
-                    <View style={{ flexDirection: "row", gap: 6 }}>
-                      <Text style={{ color: colors.muted, flex: 2.8, fontSize: 11, fontWeight: "900" }}>Exercício/atividade</Text>
-                      <Text style={{ color: colors.muted, flex: 0.45, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Séries</Text>
-                      <Text style={{ color: colors.muted, flex: 0.55, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Repet.</Text>
-                      <Text style={{ color: colors.muted, flex: 0.55, fontSize: 11, fontWeight: "900", textAlign: "center" }}>Inter.</Text>
-                      <Text style={{ color: colors.muted, flex: 1.8, fontSize: 11, fontWeight: "900" }}>Obs.</Text>
+                    <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                      <Text style={{ color: colors.muted, flex: 1.4, fontSize: 11, fontWeight: "900" }}>Exercício/atividade</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900", textAlign: "center", width: exerciseColumnWidths.sets }}>Séries</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900", textAlign: "center", width: exerciseColumnWidths.reps }}>Repet.</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900", textAlign: "center", width: exerciseColumnWidths.rest }}>Inter.</Text>
+                      <Text style={{ color: colors.muted, flex: 1, fontSize: 11, fontWeight: "900" }}>Obs.</Text>
                       <View style={{ width: 28 }} />
                     </View>
                     {exerciseDraftRows.map((row, index) => (
@@ -811,7 +818,7 @@ export default function ConsultationScreen() {
                           placeholder="Exercício"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 2.8,
+                            flex: 1.4,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
@@ -827,7 +834,7 @@ export default function ConsultationScreen() {
                           placeholder="3"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 0.45,
+                            width: exerciseColumnWidths.sets,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
@@ -844,7 +851,7 @@ export default function ConsultationScreen() {
                           placeholder="8-12"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 0.55,
+                            width: exerciseColumnWidths.reps,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
@@ -861,7 +868,7 @@ export default function ConsultationScreen() {
                           placeholder="60"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 0.55,
+                            width: exerciseColumnWidths.rest,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
@@ -878,7 +885,7 @@ export default function ConsultationScreen() {
                           placeholder="Obs."
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 1.8,
+                            flex: 1,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
