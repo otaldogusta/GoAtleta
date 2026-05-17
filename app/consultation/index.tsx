@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+// perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type {
@@ -28,7 +29,9 @@ import { getStudents } from "../../src/db/seed";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { radius } from "../../src/theme/tokens";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { Pressable } from "../../src/ui/Pressable";
+import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 const goalOptions: { value: ConsultationGoal; label: string }[] = [
   { value: "emagrecimento", label: "Emagrecimento" },
@@ -103,6 +106,7 @@ const formatExerciseLine = (exercise: PrescribedExercise) =>
 export default function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
+  const modalCardStyle = useModalCardStyle({ maxWidth: 1120, maxHeight: "92%", radius: 18 });
   const [students, setStudents] = useState<Student[]>([]);
   const [state, setState] = useState<ConsultationLocalState>({
     profiles: [],
@@ -128,6 +132,8 @@ export default function ConsultationScreen() {
     "Interrompa o exercício se sentir dor forte, tontura ou mal-estar e avise o profissional."
   );
   const [notice, setNotice] = useState("");
+  const [showWorkoutModal, setShowWorkoutModal] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const reload = async () => {
     const [studentItems, consultationState] = await measureAsync(
@@ -194,6 +200,9 @@ export default function ConsultationScreen() {
 
   const publishWorkout = async () => {
     if (!selectedStudentId) return;
+    const exercises = parseExercises(exerciseLines);
+    if (!exercises.length) return;
+    setIsPublishing(true);
     const workout = createPrescribedWorkout({
       id: `consult_${selectedStudentId}_${Date.now()}`,
       studentId: selectedStudentId,
@@ -202,13 +211,18 @@ export default function ConsultationScreen() {
       dayLabel,
       objective,
       estimatedDurationMin: Number(duration),
-      exercises: parseExercises(exerciseLines),
+      exercises,
       coachNotes,
       status: "published",
     });
-    await savePrescribedWorkout(workout);
-    setNotice("Treino publicado para a aluna.");
-    await reload();
+    try {
+      await savePrescribedWorkout(workout);
+      setNotice("Treino publicado para a aluna.");
+      setShowWorkoutModal(false);
+      await reload();
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const reviewLog = async (logId: string) => {
@@ -404,55 +418,50 @@ export default function ConsultationScreen() {
         </View>
 
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Prescrever treino</Text>
-          {selectedProfile ? (
-            <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.secondaryBg }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Prescrição da semana</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Base do perfil: {selectedProfile.environment} · {selectedProfile.trainingDaysPerWeek}x/semana · {selectedProfile.availableEquipment.join(", ")}
+                Edite o treino no mesmo padrão de planejamento usado nas turmas.
               </Text>
             </View>
-          ) : (
+            <Pressable
+              disabled={!selectedStudentId}
+              onPress={() => setShowWorkoutModal(true)}
+              style={{
+                alignItems: "center",
+                backgroundColor: selectedStudentId ? colors.primaryBg : colors.secondaryBg,
+                borderRadius: radius.full,
+                flexDirection: "row",
+                gap: 6,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+              }}
+            >
+              <Ionicons name="create-outline" size={15} color={selectedStudentId ? colors.primaryText : colors.muted} />
+              <Text style={{ color: selectedStudentId ? colors.primaryText : colors.muted, fontWeight: "900", fontSize: 12 }}>
+                Editar prescrição
+              </Text>
+            </Pressable>
+          </View>
+          <View style={{ gap: 8, borderRadius: radius.internal, backgroundColor: colors.secondaryBg, padding: 12 }}>
+            <Text style={{ color: colors.text, fontWeight: "900" }}>{title}</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {dayLabel} · {duration || "45"} min · {parseExercises(exerciseLines).length} exercício(s)
+            </Text>
+            <Text style={{ color: colors.text, lineHeight: 19 }}>{objective}</Text>
+          </View>
+          {!selectedProfile ? (
             <View style={{ padding: 10, borderRadius: radius.internal, backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningBorder }}>
               <Text style={{ color: colors.warningText, fontSize: 12, fontWeight: "800" }}>
                 Salve o perfil de treino antes de usar com uma aluna real.
               </Text>
             </View>
-          )}
-          <Field label="Título" value={title} onChangeText={setTitle} />
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Dia" value={dayLabel} onChangeText={setDayLabel} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Duração" value={duration} onChangeText={setDuration} />
-            </View>
-          </View>
-          <Field label="Objetivo do treino" value={objective} onChangeText={setObjective} />
-          <Field
-            label="Exercícios: Atividade | Séries | Repet. | Interv. | Obs."
-            value={exerciseLines}
-            onChangeText={setExerciseLines}
-            multiline
-          />
-          <Field label="Observações do professor" value={coachNotes} onChangeText={setCoachNotes} multiline />
-          <Pressable
-            disabled={!selectedStudentId || !parseExercises(exerciseLines).length}
-            onPress={publishWorkout}
-            style={{
-              alignItems: "center",
-              padding: 12,
-              borderRadius: radius.full,
-              backgroundColor: selectedStudentId && parseExercises(exerciseLines).length ? colors.primaryBg : colors.secondaryBg,
-            }}
-          >
-            <Text style={{ color: selectedStudentId && parseExercises(exerciseLines).length ? colors.primaryText : colors.muted, fontWeight: "900" }}>
-              Publicar treino
-            </Text>
-          </Pressable>
+          ) : null}
         </View>
 
         <View style={{ gap: 10, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Prescrição da semana</Text>
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Treino publicado</Text>
           {latestWorkout ? (
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontWeight: "900" }}>{latestWorkout.title}</Text>
@@ -533,6 +542,156 @@ export default function ConsultationScreen() {
           )}
         </View>
       </ScrollView>
+
+      <ModalDialogFrame
+        visible={showWorkoutModal}
+        onClose={() => setShowWorkoutModal(false)}
+        cardStyle={modalCardStyle}
+        position="center"
+        colors={colors}
+        title="Editar prescrição individual"
+        subtitle={`${selectedStudent?.name ?? "Aluna"} · ${weekStart()} · ${dayLabel}`}
+        contentContainerStyle={{ gap: 14, paddingBottom: 24, paddingTop: 12 }}
+        footerStyle={{ paddingTop: 12, paddingBottom: 4 }}
+        footer={
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable
+              onPress={() => setShowWorkoutModal(false)}
+              style={{
+                alignItems: "center",
+                backgroundColor: colors.secondaryBg,
+                borderColor: colors.border,
+                borderRadius: radius.card,
+                borderWidth: 1,
+                flex: 1,
+                paddingVertical: 12,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "900" }}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              disabled={isPublishing || !selectedStudentId || !parseExercises(exerciseLines).length}
+              onPress={() => {
+                void publishWorkout();
+              }}
+              style={{
+                alignItems: "center",
+                backgroundColor:
+                  isPublishing || !selectedStudentId || !parseExercises(exerciseLines).length
+                    ? colors.primaryDisabledBg
+                    : colors.primaryBg,
+                borderRadius: radius.card,
+                flex: 1,
+                paddingVertical: 12,
+              }}
+            >
+              <Text
+                style={{
+                  color:
+                    isPublishing || !selectedStudentId || !parseExercises(exerciseLines).length
+                      ? colors.secondaryText
+                      : colors.primaryText,
+                  fontWeight: "900",
+                }}
+              >
+                {isPublishing ? "Publicando..." : "Publicar treino"}
+              </Text>
+            </Pressable>
+          </View>
+        }
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+          style={{ width: "100%" }}
+        >
+          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 14 }}>
+            <View
+              style={{
+                backgroundColor: colors.secondaryBg,
+                borderColor: colors.border,
+                borderRadius: radius.card,
+                borderWidth: 1,
+                gap: 10,
+                padding: 12,
+                width: Platform.OS === "web" ? 320 : "100%",
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: colors.card,
+                  borderColor: colors.primaryBg,
+                  borderRadius: radius.card,
+                  borderWidth: 1,
+                  gap: 4,
+                  padding: 12,
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Perfil de treino</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {selectedProfile
+                    ? `${selectedProfile.environment} · ${selectedProfile.trainingDaysPerWeek}x/semana`
+                    : "Perfil ainda não salvo"}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderRadius: radius.card, borderWidth: 1, gap: 4, padding: 12 }}>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Prescrição</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {duration || "45"} min · {parseExercises(exerciseLines).length} exercício(s)
+                </Text>
+              </View>
+              <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderRadius: radius.card, borderWidth: 1, gap: 4, padding: 12 }}>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Cuidados</Text>
+                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+                  Restrição, dor forte, tontura ou mal-estar precisam ser sinalizados ao profissional.
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flex: 1, gap: 12 }}>
+              <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Field label="Título" value={title} onChangeText={setTitle} />
+                </View>
+                <View style={{ flex: 0.8 }}>
+                  <Field label="Dia" value={dayLabel} onChangeText={setDayLabel} />
+                </View>
+                <View style={{ flex: 0.7 }}>
+                  <Field label="Duração" value={duration} onChangeText={setDuration} />
+                </View>
+              </View>
+              <Field label="Objetivo do treino" value={objective} onChangeText={setObjective} />
+              <Field
+                label="Exercícios: Atividade | Séries | Repet. | Interv. | Obs."
+                value={exerciseLines}
+                onChangeText={setExerciseLines}
+                multiline
+              />
+              <Field label="Observações do professor" value={coachNotes} onChangeText={setCoachNotes} multiline />
+              <Pressable
+                onPress={() => {
+                  setExerciseLines(
+                    "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração"
+                  );
+                }}
+                style={{
+                  alignSelf: Platform.OS === "web" ? "center" : "stretch",
+                  backgroundColor: colors.dangerBg,
+                  borderColor: colors.dangerBorder,
+                  borderRadius: radius.card,
+                  borderWidth: 1,
+                  paddingHorizontal: 22,
+                  paddingVertical: 11,
+                }}
+              >
+                <Text style={{ color: colors.dangerText, fontWeight: "900", textAlign: "center" }}>
+                  Restaurar exemplo
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </ModalDialogFrame>
     </SafeAreaView>
   );
 }

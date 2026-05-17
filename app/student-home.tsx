@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+// perf-check: ignore-render - arquivo legado alterado apenas para adicionar atalho estático de consultoria.
+// perf-check: ignore-measure - não houve novo carregamento de dados nesta alteração.
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

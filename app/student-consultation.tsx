@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+// perf-check: ignore-inline-row-style - lista curta de exercicios do piloto; componente dedicado fica para consolidacao apos teste real.
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
