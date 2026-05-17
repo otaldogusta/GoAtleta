@@ -190,6 +190,13 @@ const serializeWorkoutExercises = (exercises: PrescribedExercise[]) =>
     )
     .join("\n");
 
+const normalizeSearchText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+
 const createPilotStudent = ({ name, contact }: { name: string; contact: string }): Student => {
   const normalizedContact = contact.trim();
   const isEmail = normalizedContact.includes("@");
@@ -320,13 +327,13 @@ export default function ConsultationScreen() {
     () => (pilotStudent ? [pilotStudent, ...students] : students),
     [pilotStudent, students]
   );
-  const normalizedStudentSearch = studentSearch.trim().toLocaleLowerCase("pt-BR");
+  const normalizedStudentSearch = normalizeSearchText(studentSearch);
   const filteredStudents = useMemo(() => {
     const list = normalizedStudentSearch
       ? consultationStudents.filter((student) =>
           [student.name, student.loginEmail, student.phone]
             .filter(Boolean)
-            .some((value) => value.toLocaleLowerCase("pt-BR").includes(normalizedStudentSearch))
+            .some((value) => normalizeSearchText(value).includes(normalizedStudentSearch))
         )
       : consultationStudents;
 
