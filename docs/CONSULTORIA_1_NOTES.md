@@ -64,6 +64,29 @@ O polimento 1.1 organiza o MVP para uso com uma aluna real em fase piloto.
 - Dor alta ou PSE alta aparece como sinal de atencao.
 - O professor consegue marcar a devolutiva como revisada.
 
+## CONSULTORIA 1.3 - Perfil compacto
+
+O polimento 1.3 reorganiza o `Perfil de treino` como uma anamnese operacional compacta.
+
+### Organizacao visual
+
+O card passa a mostrar um resumo no topo com os principais dados selecionados:
+
+`Objetivo · ambiente · materiais · frequencia · duracao`
+
+Exemplo:
+
+`Saude · Casa · Peso corporal · 3x/semana · 45min`
+
+Os campos foram agrupados em quatro blocos:
+
+- Objetivo e rotina: objetivo principal, dias por semana e duracao media.
+- Ambiente e materiais: local de treino e materiais disponiveis.
+- Cuidados: restricoes e lesoes informadas.
+- Observacoes: observacoes gerais do professor.
+
+O objetivo e reduzir a sensacao de formulario longo sem remover campos do piloto.
+
 ### Limitacoes conhecidas
 
 - Os dados ficam no fallback local do dispositivo/browser.

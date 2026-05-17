@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -289,6 +289,27 @@ export default function ConsultationScreen() {
     Boolean(modalInitialSnapshot) &&
     modalInitialSnapshot !== modalDraftSnapshot;
 
+  const goalLabel = goalOptions.find((item) => item.value === goal)?.label ?? "";
+  const environmentLabel = environmentOptions.find((item) => item.value === environment)?.label ?? "";
+  const equipmentLabels = equipment
+    .map((value) => equipmentOptions.find((item) => item.value === value)?.label)
+    .filter(Boolean) as string[];
+  const equipmentSummary =
+    equipmentLabels.length > 2
+      ? `${equipmentLabels.slice(0, 2).join(", ")} +${equipmentLabels.length - 2}`
+      : equipmentLabels.join(", ");
+  const profileSummaryParts = [
+    goalLabel,
+    environmentLabel,
+    equipmentSummary,
+    trainingDays ? `${trainingDays}x/semana` : "",
+    duration ? `${duration}min` : "",
+  ].filter(Boolean);
+  const profileSummary =
+    profileSummaryParts.length > 0
+      ? profileSummaryParts.join(" · ")
+      : "Complete o perfil para orientar melhor a prescrição.";
+
   const updateExerciseDraftRow = (
     index: number,
     field: keyof ExerciseDraftRow,
@@ -521,6 +542,32 @@ export default function ConsultationScreen() {
     </View>
   );
 
+  const ProfileSection = ({
+    title,
+    children,
+    attention,
+  }: {
+    title: string;
+    children: ReactNode;
+    attention?: boolean;
+  }) => (
+    <View
+      style={{
+        gap: 10,
+        padding: 12,
+        borderRadius: radius.internal,
+        backgroundColor: attention ? colors.warningBg : colors.secondaryBg,
+        borderWidth: 1,
+        borderColor: attention ? colors.warningBorder : colors.border,
+      }}
+    >
+      <Text style={{ color: attention ? colors.warningText : colors.text, fontWeight: "900", fontSize: 13 }}>
+        {title}
+      </Text>
+      {children}
+    </View>
+  );
+
   const Step = ({
     index,
     label,
@@ -604,51 +651,81 @@ export default function ConsultationScreen() {
         </View>
 
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Perfil de treino</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Onde ela treina, objetivo, materiais e cuidados.
-          </Text>
-          <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Objetivo principal</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {goalOptions.map((item) => (
-                <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
-              ))}
-            </View>
+          <View style={{ gap: 5 }}>
+            <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Perfil de treino</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Onde ela treina, objetivo, materiais e cuidados.
+            </Text>
           </View>
-          <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Onde ela treina?</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {environmentOptions.map((item) => (
-                <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
-              ))}
-            </View>
+          <View
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              borderRadius: radius.internal,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>Resumo do perfil</Text>
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
+              {profileSummary}
+            </Text>
           </View>
-          <View style={{ gap: 8, padding: 12, borderRadius: radius.card, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Materiais disponíveis</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {equipmentOptions.map((item) => (
-                <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
-              ))}
+
+          <ProfileSection title="Objetivo e rotina">
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Objetivo principal</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {goalOptions.map((item) => (
+                  <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
+                ))}
+              </View>
             </View>
-          </View>
-          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
+            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Duração média" value={duration} onChangeText={setDuration} />
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+          </ProfileSection>
+
+          <ProfileSection title="Ambiente e materiais">
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Onde ela treina?</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {environmentOptions.map((item) => (
+                  <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
+                ))}
+              </View>
             </View>
-          </View>
-          <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Materiais disponíveis</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {equipmentOptions.map((item) => (
+                  <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
+                ))}
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Field label="Duração média" value={duration} onChangeText={setDuration} />
+          </ProfileSection>
+
+          <ProfileSection title="Cuidados" attention={Boolean(restrictions.trim() || injuries.trim())}>
+            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+              </View>
             </View>
-          </View>
-          <Field label="Observações" value={profileNotes} onChangeText={setProfileNotes} multiline />
+          </ProfileSection>
+
+          <ProfileSection title="Observações">
+            <Field label="Observações" value={profileNotes} onChangeText={setProfileNotes} multiline />
+          </ProfileSection>
+
           <Pressable onPress={saveProfile} style={{ alignItems: "center", padding: 12, borderRadius: radius.full, backgroundColor: colors.primaryBg }}>
             <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Salvar perfil de treino</Text>
           </Pressable>
