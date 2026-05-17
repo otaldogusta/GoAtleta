@@ -111,6 +111,8 @@ O stepper do piloto usa os dados reais do fallback local:
 - feedback recebido;
 - feedback revisado.
 
+Quando o perfil e salvo, o card recolhe para um resumo clicavel. O professor pode tocar no resumo para editar novamente, mantendo a tela mais curta durante a prescricao.
+
 ### Limitacoes conhecidas
 
 - Os dados ficam no fallback local do dispositivo/browser.

@@ -223,6 +223,7 @@ export default function ConsultationScreen() {
   const [modalInitialSnapshot, setModalInitialSnapshot] = useState("");
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [showConfirmDeleteWorkout, setShowConfirmDeleteWorkout] = useState(false);
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(true);
 
   const reload = async () => {
     const [studentItems, consultationState] = await measureAsync(
@@ -262,6 +263,10 @@ export default function ConsultationScreen() {
     setDuration(String(selectedProfile.preferredSessionDurationMin ?? 45));
     setProfileNotes(selectedProfile.notes ?? "");
   }, [selectedProfile?.studentId]);
+
+  useEffect(() => {
+    setIsProfileEditorOpen(!selectedProfile && Boolean(selectedStudentId));
+  }, [selectedProfile?.studentId, selectedStudentId]);
 
   const profileDraft = useMemo<OnlineConsultationProfile | null>(() => {
     if (!selectedStudentId) return null;
@@ -375,6 +380,7 @@ export default function ConsultationScreen() {
     if (!profileDraft) return;
     await saveConsultationProfile(profileDraft);
     setNotice("Perfil de treino salvo.");
+    setIsProfileEditorOpen(false);
     await reload();
   };
 
@@ -682,10 +688,12 @@ export default function ConsultationScreen() {
           <View style={{ gap: 5 }}>
             <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Perfil de treino</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Onde ela treina, objetivo, materiais e cuidados.
+              {isProfileEditorOpen ? "Onde ela treina, objetivo, materiais e cuidados." : "Toque no perfil para editar os dados da aluna."}
             </Text>
           </View>
-          <View
+          <Pressable
+            disabled={isProfileEditorOpen}
+            onPress={() => setIsProfileEditorOpen(true)}
             style={{
               paddingHorizontal: 12,
               paddingVertical: 10,
@@ -693,94 +701,131 @@ export default function ConsultationScreen() {
               backgroundColor: colors.secondaryBg,
               borderWidth: 1,
               borderColor: colors.border,
+              opacity: isProfileEditorOpen ? 1 : 0.98,
             }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "900" }}>Resumo do perfil</Text>
-              {hasSavedProfile ? (
-                <View
-                  style={{
-                    borderRadius: radius.full,
-                    backgroundColor: isProfileReady ? colors.successBg : colors.warningBg,
-                    borderColor: isProfileReady ? colors.successBorder : colors.warningBorder,
-                    borderWidth: 1,
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
-                  }}
-                >
-                  <Text
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {hasSavedProfile ? (
+                  <View
                     style={{
-                      color: isProfileReady ? colors.successText : colors.warningText,
-                      fontSize: 10,
-                      fontWeight: "900",
+                      borderRadius: radius.full,
+                      backgroundColor: isProfileReady ? colors.successBg : colors.warningBg,
+                      borderColor: isProfileReady ? colors.successBorder : colors.warningBorder,
+                      borderWidth: 1,
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
                     }}
                   >
-                    {isProfileReady ? "Perfil pronto" : "Perfil incompleto"}
-                  </Text>
-                </View>
-              ) : null}
+                    <Text
+                      style={{
+                        color: isProfileReady ? colors.successText : colors.warningText,
+                        fontSize: 10,
+                        fontWeight: "900",
+                      }}
+                    >
+                      {isProfileReady ? "Perfil pronto" : "Perfil incompleto"}
+                    </Text>
+                  </View>
+                ) : null}
+                {!isProfileEditorOpen ? (
+                  <Ionicons name="chevron-forward" size={15} color={colors.muted} />
+                ) : null}
+              </View>
             </View>
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800", lineHeight: 19 }}>
               {profileSummary}
             </Text>
-          </View>
-
-          <ProfileSection title="Objetivo e rotina">
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Objetivo principal</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {goalOptions.map((item) => (
-                  <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
-                ))}
-              </View>
-            </View>
-            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Duração média" value={duration} onChangeText={setDuration} />
-              </View>
-            </View>
-          </ProfileSection>
-
-          <ProfileSection title="Ambiente e materiais">
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Onde ela treina?</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {environmentOptions.map((item) => (
-                  <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
-                ))}
-              </View>
-            </View>
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Materiais disponíveis</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {equipmentOptions.map((item) => (
-                  <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
-                ))}
-              </View>
-            </View>
-          </ProfileSection>
-
-          <ProfileSection title="Cuidados" attention={Boolean(restrictions.trim() || injuries.trim())}>
-            <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
-              </View>
-            </View>
-          </ProfileSection>
-
-          <ProfileSection title="Observações">
-            <Field label="Observações" value={profileNotes} onChangeText={setProfileNotes} multiline />
-          </ProfileSection>
-
-          <Pressable onPress={saveProfile} style={{ alignItems: "center", padding: 12, borderRadius: radius.full, backgroundColor: colors.primaryBg }}>
-            <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Salvar perfil de treino</Text>
           </Pressable>
+
+          {isProfileEditorOpen ? (
+            <>
+              <ProfileSection title="Objetivo e rotina">
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Objetivo principal</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {goalOptions.map((item) => (
+                      <Chip key={item.value} label={item.label} active={goal === item.value} onPress={() => setGoal(item.value)} />
+                    ))}
+                  </View>
+                </View>
+                <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Dias por semana" value={trainingDays} onChangeText={setTrainingDays} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Duração média" value={duration} onChangeText={setDuration} />
+                  </View>
+                </View>
+              </ProfileSection>
+
+              <ProfileSection title="Ambiente e materiais">
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Onde ela treina?</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {environmentOptions.map((item) => (
+                      <Chip key={item.value} label={item.label} active={environment === item.value} onPress={() => setEnvironment(item.value)} />
+                    ))}
+                  </View>
+                </View>
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>Materiais disponíveis</Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {equipmentOptions.map((item) => (
+                      <Chip key={item.value} label={item.label} active={equipment.includes(item.value)} onPress={() => toggleEquipment(item.value)} />
+                    ))}
+                  </View>
+                </View>
+              </ProfileSection>
+
+              <ProfileSection title="Cuidados" attention={Boolean(restrictions.trim() || injuries.trim())}>
+                <View style={{ flexDirection: Platform.OS === "web" ? "row" : "column", gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Restrições e cuidados" value={restrictions} onChangeText={setRestrictions} multiline />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Lesões informadas" value={injuries} onChangeText={setInjuries} multiline />
+                  </View>
+                </View>
+              </ProfileSection>
+
+              <ProfileSection title="Observações">
+                <Field label="Observações" value={profileNotes} onChangeText={setProfileNotes} multiline />
+              </ProfileSection>
+
+              <View style={{ flexDirection: Platform.OS === "web" && hasSavedProfile ? "row" : "column", gap: 10 }}>
+                {hasSavedProfile ? (
+                  <Pressable
+                    onPress={() => setIsProfileEditorOpen(false)}
+                    style={{
+                      alignItems: "center",
+                      padding: 12,
+                      borderRadius: radius.full,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      flex: Platform.OS === "web" ? 1 : undefined,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "900" }}>Recolher perfil</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  onPress={saveProfile}
+                  style={{
+                    alignItems: "center",
+                    padding: 12,
+                    borderRadius: radius.full,
+                    backgroundColor: colors.primaryBg,
+                    flex: Platform.OS === "web" && hasSavedProfile ? 1 : undefined,
+                  }}
+                >
+                  <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Salvar perfil de treino</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
         </View>
 
         <View style={{ gap: 12, padding: 14, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
