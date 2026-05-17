@@ -77,7 +77,7 @@ import { TimeInput } from "../../src/ui/TimeInput";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
-import { shadow } from "../../src/theme/tokens";
+import { radius, shadow } from "../../src/theme/tokens";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
 
 const TemplateEditorModalContent = lazy(() =>
@@ -2375,6 +2375,42 @@ export default function TrainingList() {
               </Text>
             </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => router.push({ pathname: "/consultation" })}
+            style={{
+              alignItems: "center",
+              backgroundColor: colors.surface,
+              borderColor: colors.borderSubtle,
+              borderRadius: radius.card,
+              borderWidth: 1,
+              flexDirection: "row",
+              gap: 12,
+              padding: 14,
+            }}
+          >
+            <View
+              style={{
+                alignItems: "center",
+                backgroundColor: colors.primaryBg,
+                borderRadius: radius.full,
+                height: 40,
+                justifyContent: "center",
+                width: 40,
+              }}
+            >
+              <Ionicons name="person-outline" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                Consultoria online
+              </Text>
+              <Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 17 }}>
+                Prescrever treino individual e acompanhar feedback
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
 
           <View
             style={{

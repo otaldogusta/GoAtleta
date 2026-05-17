@@ -787,6 +787,24 @@ export default function StudentHome() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() => router.push({ pathname: "/student-consultation" })}
+              style={{
+                flexBasis: "48%",
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+                Treino online
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Executar e enviar feedback
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => router.push({ pathname: "/communications" })}
               style={{
                 flexBasis: "48%",
