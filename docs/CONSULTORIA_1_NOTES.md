@@ -1,0 +1,231 @@
+# CONSULTORIA 1 - Fluxo minimo de treino online individual
+
+## Decisao arquitetural
+
+O pacote CONSULTORIA 1 cria uma camada minima de treino online individual sem alterar os dominios atuais de aula, periodizacao, scouting ou Supabase.
+
+O app ja possui estruturas de planejamento e treinos para turmas, mas nao havia um contrato claro para:
+
+- perfil de treino individual;
+- treino prescrito por aluno;
+- execucao remota do treino;
+- feedback da aluna com PSE, dor e observacao;
+- revisao simples pelo professor.
+
+Por isso, este pacote cria o dominio puro em `src/core/consultation` e uma persistencia local/fallback em `src/db/consultation-local.ts`. A migracao Supabase fica propositalmente para CONSULTORIA 2, quando o contrato estiver validado em uso real.
+
+## Fluxo entregue
+
+### Professor
+
+O professor acessa `Consultoria online` a partir de Treinos e pode:
+
+- selecionar uma aluna;
+- preencher o perfil de treino;
+- informar objetivo, ambiente, materiais, restricoes e cuidados;
+- prescrever um treino simples da semana;
+- publicar o treino;
+- acompanhar execucoes, PSE, dor e comentario;
+- marcar a devolutiva como revisada.
+
+### Aluna
+
+A aluna acessa `Treino online` na area do aluno e pode:
+
+- ver o treino publicado;
+- entender objetivo, duracao e exercicios;
+- iniciar o treino;
+- concluir o treino;
+- informar esforco percebido;
+- informar dor;
+- enviar observacao para o profissional.
+
+## CONSULTORIA 1.1 - Piloto real
+
+O polimento 1.1 organiza o MVP para uso com uma aluna real em fase piloto.
+
+### Como usar no piloto
+
+1. Abrir `Treinos` e acessar `Consultoria online`.
+2. Selecionar a aluna.
+3. Criar o perfil de treino com objetivo, ambiente, materiais, restricoes e cuidados.
+4. Publicar o treino da semana.
+5. Entrar na area da aluna e abrir `Treino online`.
+6. Visualizar objetivo, duracao e exercicios.
+7. Tocar em `Iniciar treino`.
+8. Concluir o treino e enviar esforco percebido, dor e observacao.
+9. O professor revisa o feedback e ajusta manualmente a proxima semana.
+
+### Criterios para piloto
+
+- A aluna consegue entender o treino sem explicacao externa.
+- O professor consegue publicar o treino em menos de alguns minutos.
+- O feedback volta com PSE, dor e observacao.
+- Dor alta ou PSE alta aparece como sinal de atencao.
+- O professor consegue marcar a devolutiva como revisada.
+
+## CONSULTORIA 1.3 - Perfil compacto
+
+O polimento 1.3 reorganiza o `Perfil de treino` como uma anamnese operacional compacta.
+
+### Organizacao visual
+
+O card passa a mostrar um resumo no topo com os principais dados selecionados:
+
+`Objetivo · ambiente · materiais · frequencia · duracao`
+
+Exemplo:
+
+`Saude · Casa · Peso corporal · 3x/semana · 45min`
+
+Os campos foram agrupados em quatro blocos:
+
+- Objetivo e rotina: objetivo principal, dias por semana e duracao media.
+- Ambiente e materiais: local de treino e materiais disponiveis.
+- Cuidados: restricoes e lesoes informadas.
+- Observacoes: observacoes gerais do professor.
+
+O objetivo e reduzir a sensacao de formulario longo sem remover campos do piloto.
+
+## CONSULTORIA 1.4 - Estados do piloto
+
+O polimento 1.4 ajusta os avisos do piloto para evitar mensagens contraditorias.
+
+### Estados de perfil
+
+- Perfil nao salvo: mostra `Salve o perfil de treino antes de usar com uma aluna real.`
+- Perfil salvo sem treino publicado: mostra `Perfil salvo. Publique o primeiro treino para a aluna visualizar.`
+- Perfil salvo e treino publicado: nao mostra aviso de salvar perfil.
+- Perfil publicado com dados incompletos: mostra `Complete o perfil para orientar melhor os proximos treinos.`
+
+O resumo do perfil pode exibir um badge discreto:
+
+- `Perfil pronto`, quando objetivo, ambiente, material, frequencia e duracao estao definidos.
+- `Perfil incompleto`, quando o perfil existe mas ainda faltam dados operacionais.
+
+O stepper do piloto usa os dados reais do fallback local e segue o fluxo:
+
+- Aluno;
+- Perfil do treino;
+- Prescricao;
+- Feedback;
+- Devolutiva.
+
+Quando o perfil e salvo, o card recolhe para um resumo clicavel. O professor pode tocar no resumo para editar novamente, mantendo a tela mais curta durante a prescricao.
+
+### Selecao de aluno no piloto
+
+A secao `Aluno` agora funciona como uma ficha de entrada:
+
+- mostra a aluna selecionada com contato e origem;
+- permite buscar uma aluna ja cadastrada no sistema com lista de resultados apenas quando ha texto digitado;
+- permite preencher nome e contato de uma nova aluna para o piloto local.
+
+A nova aluna criada nessa ficha nao vira cadastro oficial e nao grava no Supabase. Ela serve apenas para testar o fluxo local da consultoria antes da modelagem canonica.
+
+## CONSULTORIA 1.5 - Tela em abas
+
+O polimento 1.5 reorganiza `/consultation` como painel de acompanhamento individual.
+
+Estrutura atual:
+
+- header da pagina com `Consultoria online`;
+- header contextual da aluna com contato, origem, resumo do perfil e status;
+- progresso compacto: Aluno, Perfil, Prescricao, Feedback e Devolutiva;
+- tabs internas: `Prescricao`, `Perfil`, `Feedback` e `Evolucao`.
+
+A aba inicial e `Prescricao`, porque e o trabalho principal do professor. Ela concentra:
+
+- prescricao da semana;
+- criacao de novo treino;
+- cards de rascunho/publicado;
+- card de treino publicado;
+- resumo de feedback com atalho para a aba completa.
+
+A aba `Perfil` concentra selecao/troca de aluna, busca, nova ficha local de piloto e edicao completa do perfil de treino.
+
+A aba `Feedback` concentra execucoes, PSE, dor, observacao e revisao do professor.
+
+A aba `Evolucao` fica como placeholder conservador para CONSULTORIA 3. Ela nao calcula historico real neste pacote.
+
+Nao houve mudanca de dominio, fallback local, Supabase, tela da aluna ou regra de treino.
+
+## CONSULTORIA 2 - Supabase canonico
+
+O CONSULTORIA 2 adiciona persistencia canonica no Supabase mantendo o fallback local como seguranca operacional.
+
+Entrou neste pacote:
+
+- migration `202605170900_create_consultation_online.sql`;
+- tabelas `consultation_profiles`, `prescribed_workouts`, `prescribed_exercises`, `workout_execution_logs` e `completed_exercise_logs`;
+- repositorio `src/db/consultation.ts`;
+- mappers/testes de roundtrip para perfil, treino, exercicios e execucao;
+- fallback local quando a migration ainda nao existe, a sessao falha, a rede cai ou a RLS bloqueia.
+- status discreto de sincronizacao para diferenciar `Servidor sincronizado` de `Salvo localmente`.
+
+As telas `/consultation` e `/student-consultation` passam a usar a camada canonica sem mudar o contrato visual do piloto.
+
+Detalhes tecnicos estao em `docs/CONSULTORIA_2_SUPABASE.md`.
+
+## CONSULTORIA 3 - Historico e progresso
+
+O CONSULTORIA 3 adiciona um resumo conservador de progresso com base nos treinos publicados e execucoes recebidas.
+
+Entrou:
+
+- `ConsultationProgressSummary` no dominio core;
+- calculo de adesao, PSE medio, dor media e ultima execucao;
+- flags `initial_history`, `high_pain_recent`, `high_rpe_recent` e `low_adherence`;
+- aba `Evolucao` preenchida em `/consultation`;
+- resumo simples `Seu histórico` em `/student-consultation`;
+- documentacao em `docs/CONSULTORIA_3_PROGRESS.md`.
+
+### Limitacoes conhecidas
+
+- O fallback local continua existindo para ambientes sem migration/sessao.
+- Nao ha notificacao de treino publicado ou feedback recebido.
+- Nao ha midia de exercicio.
+- Nao ha PDF ou relatorio formal.
+- Nao ha grafico/snapshot visual de progresso.
+- Permissoes aluno/professor robustas ficam para CONSULTORIA 7.
+
+### Criterios para avancar para CONSULTORIA 2
+
+- Pelo menos um ciclo semanal testado com uma aluna real.
+- Contrato de perfil, treino, execucao e revisao validado.
+- Campos obrigatorios e microcopy revisados com uso real.
+- Decisao sobre RLS/permissoes antes de abrir uso multi-cliente.
+- Migração Supabase desenhada com base no contrato validado.
+
+## Regras de seguranca
+
+A interface inclui orientacao curta:
+
+> Interrompa o exercicio se sentir dor forte, tontura ou mal-estar e avise o profissional.
+
+O pacote nao faz diagnostico, nao substitui avaliacao presencial e trata restricoes/lesoes como cuidados de treino.
+
+## O que ficou para os proximos pacotes
+
+- Historico por event log e snapshots.
+- Notificacoes de treino publicado e feedback recebido.
+- Midias de exercicio com armazenamento externo.
+- Devolutiva em PDF.
+- Relatorio visual de evolucao.
+- Ajuste semanal conectado a progresso real.
+- Controle de permissao aluno/professor mais completo.
+
+## Limites preservados
+
+Este pacote nao altera:
+
+- Scouting;
+- ScoutingAction, ScoutingSession ou ScoutingImpact;
+- Evidence Matrix;
+- Team Context;
+- Supabase migrations;
+- geracao de plano;
+- periodizacao;
+- chamada;
+- PDF/exportacao;
+- regras de treino existentes para turmas.

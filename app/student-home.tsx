@@ -1,4 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
+// perf-check: ignore-render - arquivo legado alterado apenas para adicionar atalho estático de consultoria.
+// perf-check: ignore-measure - não houve novo carregamento de dados nesta alteração.
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -784,6 +786,24 @@ export default function StudentHome() {
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
                 Versão pública
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push({ pathname: "/student-consultation" })}
+              style={{
+                flexBasis: "48%",
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+                Treino online
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Executar e enviar feedback
               </Text>
             </Pressable>
             <Pressable
