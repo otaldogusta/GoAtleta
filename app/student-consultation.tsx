@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 // perf-check: ignore-inline-row-style - lista curta de exercicios do piloto; componente dedicado fica para consolidacao apos teste real.
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Linking, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
@@ -30,6 +30,12 @@ const scaleValues = Array.from({ length: 11 }, (_, index) => index);
 
 const exerciseCell = (value: string | number | undefined) =>
   value === undefined || value === "" ? "-" : String(value);
+
+const normalizeMediaUrl = (url: string) => {
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
 
 export default function StudentConsultationScreen() {
   markRender("screen.studentConsultation.render.root");
@@ -123,6 +129,21 @@ export default function StudentConsultationScreen() {
     setStarted(false);
     setFeedback("");
     await reload();
+  };
+
+  const openExerciseMedia = async (url: string) => {
+    const normalized = normalizeMediaUrl(url);
+    if (!normalized) return;
+    try {
+      const canOpen = await Linking.canOpenURL(normalized);
+      if (!canOpen) {
+        Alert.alert("Link indisponível", "Não foi possível abrir a demonstração deste exercício.");
+        return;
+      }
+      await Linking.openURL(normalized);
+    } catch {
+      Alert.alert("Link indisponível", "Não foi possível abrir a demonstração deste exercício.");
+    }
   };
 
   const ScalePicker = ({
@@ -248,6 +269,27 @@ export default function StudentConsultationScreen() {
                     <Text style={{ color: colors.text, fontSize: 12, marginTop: 4 }}>
                       Obs.: {exercise.instructions}
                     </Text>
+                  ) : null}
+                  {exercise.mediaUrl ? (
+                    <Pressable
+                      onPress={() => {
+                        void openExerciseMedia(exercise.mediaUrl ?? "");
+                      }}
+                      style={{
+                        alignSelf: "flex-start",
+                        borderRadius: radius.full,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.secondaryBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        marginTop: 4,
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>
+                        Ver demonstração
+                      </Text>
+                    </Pressable>
                   ) : null}
                 </View>
               ))}

@@ -204,6 +204,21 @@ O pacote nao expoe nivel de dor nem comentario completo da aluna em notificacoes
 
 Documentacao tecnica: `docs/CONSULTORIA_4_NOTIFICATIONS.md`.
 
+## CONSULTORIA 5 - Midia demonstrativa minima
+
+O CONSULTORIA 5 adiciona demonstracao opcional por exercicio prescrito.
+
+Entrou:
+
+- campo de link de demonstracao no modal de prescricao;
+- persistencia em `PrescribedExercise.mediaUrl`, ja suportada pelo Supabase em `media_url`;
+- botao `Ver demonstracao` na tela da aluna quando o exercicio possui link;
+- abertura do link fora do app com tratamento amigavel de erro.
+
+Este pacote nao cria catalogo de exercicios nem baixa videos para o app. Catalogo, musculos, equipamento, dificuldade e thumbnails ficam para CONSULTORIA 5.2.
+
+Documentacao tecnica: `docs/CONSULTORIA_5_MEDIA.md`.
+
 ### Criterios para piloto real e proximos pacotes
 
 - Pelo menos um ciclo semanal testado com uma aluna real.
