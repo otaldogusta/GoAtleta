@@ -112,7 +112,7 @@ const parseExercises = (value: string): PrescribedExercise[] =>
   value
     .split("\n")
     .map((line, index) => {
-      const [name = "", sets = "", reps = "", rest = "", note = ""] = line
+      const [name = "", sets = "", reps = "", rest = "", note = "", mediaUrl = ""] = line
         .split("|")
         .map((item) => item.trim());
       return {
@@ -122,6 +122,7 @@ const parseExercises = (value: string): PrescribedExercise[] =>
         reps: reps || undefined,
         restSec: Number(rest) > 0 ? Number(rest) : undefined,
         instructions: note || undefined,
+        mediaUrl: mediaUrl || undefined,
       };
     })
     .filter((item) => item.name);
@@ -135,24 +136,25 @@ type ExerciseDraftRow = {
   reps: string;
   rest: string;
   note: string;
+  mediaUrl: string;
 };
 
 const parseExerciseDraftRows = (value: string): ExerciseDraftRow[] => {
   const rows = value
     .split("\n")
     .map((line) => {
-      const [name = "", sets = "", reps = "", rest = "", note = ""] = line
+      const [name = "", sets = "", reps = "", rest = "", note = "", mediaUrl = ""] = line
         .split("|")
         .map((item) => item.trim());
-      return { name, sets, reps, rest, note };
+      return { name, sets, reps, rest, note, mediaUrl };
     });
 
-  return rows.length ? rows : [{ name: "", sets: "", reps: "", rest: "", note: "" }];
+  return rows.length ? rows : [{ name: "", sets: "", reps: "", rest: "", note: "", mediaUrl: "" }];
 };
 
 const serializeExerciseDraftRows = (rows: ExerciseDraftRow[]) =>
   rows
-    .map((row) => [row.name, row.sets, row.reps, row.rest, row.note].join(" | "))
+    .map((row) => [row.name, row.sets, row.reps, row.rest, row.note, row.mediaUrl].join(" | "))
     .join("\n");
 
 const exerciseColumnWidths = {
@@ -163,7 +165,7 @@ const exerciseColumnWidths = {
 };
 
 const defaultExerciseLines =
-  "Agachamento livre | 3 | 12 | 60 | movimento controlado\nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira\nPrancha | 3 | 30s | 45 | manter respiração";
+  "Agachamento livre | 3 | 12 | 60 | movimento controlado | \nFlexão inclinada | 3 | 8-10 | 60 | usar banco/cadeira | \nPrancha | 3 | 30s | 45 | manter respiração | ";
 
 const buildWorkoutDraftSnapshot = ({
   title,
@@ -207,6 +209,7 @@ const serializeWorkoutExercises = (exercises: PrescribedExercise[]) =>
         exercise.reps ?? (exercise.durationSec ? `${exercise.durationSec}s` : ""),
         exercise.restSec ? String(exercise.restSec) : "",
         exercise.instructions ?? "",
+        exercise.mediaUrl ?? "",
       ].join(" | ")
     )
     .join("\n");
@@ -514,7 +517,7 @@ export default function ConsultationScreen() {
     setExerciseLines(
       serializeExerciseDraftRows([
         ...exerciseDraftRows,
-        { name: "", sets: "", reps: "", rest: "", note: "" },
+        { name: "", sets: "", reps: "", rest: "", note: "", mediaUrl: "" },
       ])
     );
   };
@@ -1668,105 +1671,130 @@ export default function ConsultationScreen() {
                       <View style={{ width: 28 }} />
                     </View>
                     {exerciseDraftRows.map((row, index) => (
-                      <View key={`exercise-row-${index}`} style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                      <View
+                        key={`exercise-row-${index}`}
+                        style={{
+                          gap: 6,
+                          borderBottomWidth: 1,
+                          borderBottomColor: colors.border,
+                          paddingBottom: 8,
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                          <TextInput
+                            value={row.name}
+                            onChangeText={(value) => updateExerciseDraftRow(index, "name", value)}
+                            placeholder="Exercício"
+                            placeholderTextColor={colors.placeholder}
+                            style={{
+                              flex: 1.4,
+                              borderRadius: radius.internal,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.inputBg,
+                              color: colors.inputText,
+                              minHeight: 42,
+                              paddingHorizontal: 10,
+                            }}
+                          />
+                          <TextInput
+                            value={row.sets}
+                            onChangeText={(value) => updateExerciseDraftRow(index, "sets", value)}
+                            placeholder="3"
+                            placeholderTextColor={colors.placeholder}
+                            style={{
+                              width: exerciseColumnWidths.sets,
+                              borderRadius: radius.internal,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.inputBg,
+                              color: colors.inputText,
+                              minHeight: 42,
+                              paddingHorizontal: 6,
+                              textAlign: "center",
+                            }}
+                          />
+                          <TextInput
+                            value={row.reps}
+                            onChangeText={(value) => updateExerciseDraftRow(index, "reps", value)}
+                            placeholder="8-12"
+                            placeholderTextColor={colors.placeholder}
+                            style={{
+                              width: exerciseColumnWidths.reps,
+                              borderRadius: radius.internal,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.inputBg,
+                              color: colors.inputText,
+                              minHeight: 42,
+                              paddingHorizontal: 6,
+                              textAlign: "center",
+                            }}
+                          />
+                          <TextInput
+                            value={row.rest}
+                            onChangeText={(value) => updateExerciseDraftRow(index, "rest", value)}
+                            placeholder="60"
+                            placeholderTextColor={colors.placeholder}
+                            style={{
+                              width: exerciseColumnWidths.rest,
+                              borderRadius: radius.internal,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.inputBg,
+                              color: colors.inputText,
+                              minHeight: 42,
+                              paddingHorizontal: 6,
+                              textAlign: "center",
+                            }}
+                          />
+                          <TextInput
+                            value={row.note}
+                            onChangeText={(value) => updateExerciseDraftRow(index, "note", value)}
+                            placeholder="Obs."
+                            placeholderTextColor={colors.placeholder}
+                            style={{
+                              flex: 1,
+                              borderRadius: radius.internal,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              backgroundColor: colors.inputBg,
+                              color: colors.inputText,
+                              minHeight: 42,
+                              paddingHorizontal: 10,
+                            }}
+                          />
+                          <Pressable
+                            onPress={() => removeExerciseDraftRow(index)}
+                            style={{
+                              alignItems: "center",
+                              backgroundColor: colors.secondaryBg,
+                              borderColor: colors.border,
+                              borderRadius: radius.full,
+                              borderWidth: 1,
+                              height: 28,
+                              justifyContent: "center",
+                              width: 28,
+                            }}
+                          >
+                            <Ionicons name="close" size={14} color={colors.muted} />
+                          </Pressable>
+                        </View>
                         <TextInput
-                          value={row.name}
-                          onChangeText={(value) => updateExerciseDraftRow(index, "name", value)}
-                          placeholder="Exercício"
+                          value={row.mediaUrl}
+                          onChangeText={(value) => updateExerciseDraftRow(index, "mediaUrl", value)}
+                          placeholder="Demonstração opcional: link de vídeo, GIF ou imagem"
                           placeholderTextColor={colors.placeholder}
                           style={{
-                            flex: 1.4,
                             borderRadius: radius.internal,
                             borderWidth: 1,
                             borderColor: colors.border,
                             backgroundColor: colors.inputBg,
                             color: colors.inputText,
-                            minHeight: 42,
+                            minHeight: 38,
                             paddingHorizontal: 10,
                           }}
                         />
-                        <TextInput
-                          value={row.sets}
-                          onChangeText={(value) => updateExerciseDraftRow(index, "sets", value)}
-                          placeholder="3"
-                          placeholderTextColor={colors.placeholder}
-                          style={{
-                            width: exerciseColumnWidths.sets,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.inputBg,
-                            color: colors.inputText,
-                            minHeight: 42,
-                            paddingHorizontal: 6,
-                            textAlign: "center",
-                          }}
-                        />
-                        <TextInput
-                          value={row.reps}
-                          onChangeText={(value) => updateExerciseDraftRow(index, "reps", value)}
-                          placeholder="8-12"
-                          placeholderTextColor={colors.placeholder}
-                          style={{
-                            width: exerciseColumnWidths.reps,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.inputBg,
-                            color: colors.inputText,
-                            minHeight: 42,
-                            paddingHorizontal: 6,
-                            textAlign: "center",
-                          }}
-                        />
-                        <TextInput
-                          value={row.rest}
-                          onChangeText={(value) => updateExerciseDraftRow(index, "rest", value)}
-                          placeholder="60"
-                          placeholderTextColor={colors.placeholder}
-                          style={{
-                            width: exerciseColumnWidths.rest,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.inputBg,
-                            color: colors.inputText,
-                            minHeight: 42,
-                            paddingHorizontal: 6,
-                            textAlign: "center",
-                          }}
-                        />
-                        <TextInput
-                          value={row.note}
-                          onChangeText={(value) => updateExerciseDraftRow(index, "note", value)}
-                          placeholder="Obs."
-                          placeholderTextColor={colors.placeholder}
-                          style={{
-                            flex: 1,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            backgroundColor: colors.inputBg,
-                            color: colors.inputText,
-                            minHeight: 42,
-                            paddingHorizontal: 10,
-                          }}
-                        />
-                        <Pressable
-                          onPress={() => removeExerciseDraftRow(index)}
-                          style={{
-                            alignItems: "center",
-                            backgroundColor: colors.secondaryBg,
-                            borderColor: colors.border,
-                            borderRadius: radius.full,
-                            borderWidth: 1,
-                            height: 28,
-                            justifyContent: "center",
-                            width: 28,
-                          }}
-                        >
-                          <Ionicons name="close" size={14} color={colors.muted} />
-                        </Pressable>
                       </View>
                     ))}
                   </View>

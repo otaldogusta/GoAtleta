@@ -55,6 +55,29 @@ describe("online consultation domain", () => {
     expect(log.painLevel).toBe(2);
   });
 
+  test("keeps optional exercise media url trimmed", () => {
+    const mediaWorkout = createPrescribedWorkout({
+      id: "w-media",
+      studentId: "s1",
+      title: "Treino com mídia",
+      weekStartDate: "2026-05-18",
+      dayLabel: "Segunda",
+      objective: "Orientação visual",
+      exercises: [
+        {
+          id: "e-media",
+          name: "Agachamento",
+          sets: 3,
+          reps: "12",
+          mediaUrl: " https://example.com/agachamento.gif ",
+        },
+      ],
+      status: "draft",
+    });
+
+    expect(mediaWorkout.exercises[0]?.mediaUrl).toBe("https://example.com/agachamento.gif");
+  });
+
   test("high pain creates attention danger signal", () => {
     const log = createWorkoutExecutionLog({
       id: "log1",
