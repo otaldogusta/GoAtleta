@@ -32,6 +32,7 @@ import {
   type ConsultationLocalState,
 } from "../../src/db/consultation";
 import { getStudents } from "../../src/db/seed";
+import { notifyConsultationEvent } from "../../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { radius } from "../../src/theme/tokens";
 import { animateLayout } from "../../src/ui/animate-layout";
@@ -329,7 +330,7 @@ export default function ConsultationScreen() {
   const [showConfirmDeleteWorkout, setShowConfirmDeleteWorkout] = useState(false);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(true);
   const [activeConsultationTab, setActiveConsultationTab] =
-    useState<ConsultationPanelTab>("prescription");
+    useState<ConsultationPanelTab>("profile");
   const [persistenceStatus, setPersistenceStatus] = useState<ConsultationPersistenceStatus>(
     getLastConsultationPersistenceStatus()
   );
@@ -585,12 +586,26 @@ export default function ConsultationScreen() {
   const publishSavedWorkout = async (workout: PrescribedWorkout | null = latestWorkout) => {
     if (!workout) return;
     const status = await savePrescribedWorkout({ ...workout, status: "published" });
+    await notifyConsultationEvent({
+      event: "consultation_workout_published",
+      studentId: workout.studentId,
+      studentName: selectedStudent?.name,
+      workoutId: workout.id,
+    });
     updatePersistenceNotice("Treino publicado para a aluna no servidor.", status);
     await reload();
   };
 
   const reviewLog = async (logId: string) => {
+    const reviewedLog = state.executionLogs.find((log) => log.id === logId);
     const status = await markExecutionLogReviewed(logId);
+    await notifyConsultationEvent({
+      event: "consultation_execution_reviewed",
+      studentId: reviewedLog?.studentId ?? selectedStudentId,
+      studentName: selectedStudent?.name,
+      workoutId: reviewedLog?.workoutId,
+      executionLogId: logId,
+    });
     updatePersistenceNotice("Feedback marcado como revisado no servidor.", status);
     await reload();
   };
@@ -832,8 +847,8 @@ export default function ConsultationScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 2 }}>
           {[
-            { id: "prescription" as const, label: "Prescrição" },
             { id: "profile" as const, label: "Perfil" },
+            { id: "prescription" as const, label: "Prescrição" },
             { id: "feedback" as const, label: "Feedback" },
             { id: "evolution" as const, label: "Evolução" },
           ].map((item) => {

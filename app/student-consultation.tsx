@@ -19,6 +19,7 @@ import {
   type ConsultationPersistenceStatus,
   type ConsultationLocalState,
 } from "../src/db/consultation";
+import { notifyConsultationEvent } from "../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { radius } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -101,6 +102,22 @@ export default function StudentConsultationScreen() {
       studentFeedback: feedback,
     });
     const status = await saveWorkoutExecutionLog(log);
+    await notifyConsultationEvent({
+      event: "consultation_workout_completed",
+      studentId: log.studentId,
+      studentName: student?.name,
+      workoutId: log.workoutId,
+      executionLogId: log.id,
+    });
+    if ((log.painLevel ?? 0) >= 7) {
+      await notifyConsultationEvent({
+        event: "consultation_high_pain_reported",
+        studentId: log.studentId,
+        studentName: student?.name,
+        workoutId: log.workoutId,
+        executionLogId: log.id,
+      });
+    }
     setPersistenceStatus(status);
     setDoneWorkoutId(workout.id);
     setStarted(false);
