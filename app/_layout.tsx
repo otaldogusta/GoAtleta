@@ -210,6 +210,15 @@ function RootLayoutContent() {
   const publicPrefixes = ["/invite"];
   const normalizedPathname =
     pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const isDevStudentConsultationPreview =
+    __DEV__ &&
+    Platform.OS === "web" &&
+    normalizedPathname === "/student-consultation" &&
+    typeof window !== "undefined" &&
+    (() => {
+      const searchParams = new URLSearchParams(window.location.search);
+      return searchParams.has("devStudentId") || searchParams.has("devStudentEmail");
+    })();
   const isInviteRoute =
     normalizedPathname === "/invite" || normalizedPathname.startsWith("/invite/");
   const emailConfirmedAt =
@@ -452,6 +461,7 @@ function RootLayoutContent() {
     if (
       session &&
       role === "trainer" &&
+      !isDevStudentConsultationPreview &&
       (studentOnlyRoutes.includes(normalizedPathname) ||
         normalizedPathname.startsWith("/student"))
     ) {
@@ -489,6 +499,7 @@ function RootLayoutContent() {
     isPublicRoute,
     hasCredentialLoginBypass,
     isUnlocked,
+    isDevStudentConsultationPreview,
     loading,
     memberPermissions,
     navReady,

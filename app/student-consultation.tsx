@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams } from "expo-router";
 // perf-check: ignore-inline-row-style - lista curta de exercicios do piloto; componente dedicado fica para consolidacao apos teste real.
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Linking, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
+import type { Student } from "../src/core/models";
 import {
   buildConsultationProgressSummary,
   createWorkoutExecutionLog,
@@ -19,6 +21,7 @@ import {
   type ConsultationPersistenceStatus,
   type ConsultationLocalState,
 } from "../src/db/consultation";
+import { getStudents } from "../src/db/seed";
 import { notifyConsultationEvent } from "../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { radius } from "../src/theme/tokens";
@@ -41,11 +44,16 @@ export default function StudentConsultationScreen() {
   markRender("screen.studentConsultation.render.root");
   const { colors } = useAppTheme();
   const { student } = useRole();
+  const params = useLocalSearchParams<{
+    devStudentEmail?: string | string[];
+    devStudentId?: string | string[];
+  }>();
   const [state, setState] = useState<ConsultationLocalState>({
     profiles: [],
     workouts: [],
     executionLogs: [],
   });
+  const [devStudent, setDevStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [started, setStarted] = useState(false);
   const [pse, setPse] = useState(5);
@@ -56,12 +64,37 @@ export default function StudentConsultationScreen() {
     getLastConsultationPersistenceStatus()
   );
 
+  const devStudentId = Array.isArray(params.devStudentId)
+    ? params.devStudentId[0]
+    : params.devStudentId;
+  const devStudentEmail = Array.isArray(params.devStudentEmail)
+    ? params.devStudentEmail[0]
+    : params.devStudentEmail;
+  const activeStudent = __DEV__ && devStudent ? devStudent : student;
+  const shouldLoadDevStudent = __DEV__ && Boolean(devStudentId || devStudentEmail);
+
   const reload = async () => {
     setLoading(true);
-    const consultationState = await measureAsync(
+    const [consultationState, studentItems] = await measureAsync(
       "screen.studentConsultation.load.localState",
-      () => getConsultationLocalState()
+      () =>
+        Promise.all([
+          getConsultationLocalState(),
+          shouldLoadDevStudent ? getStudents() : Promise.resolve([]),
+        ])
     );
+    if (shouldLoadDevStudent) {
+      const normalizedEmail = devStudentEmail?.trim().toLocaleLowerCase("pt-BR") ?? "";
+      const matchedStudent =
+        studentItems.find((item) => item.id === devStudentId) ??
+        studentItems.find(
+          (item) => item.loginEmail?.trim().toLocaleLowerCase("pt-BR") === normalizedEmail
+        ) ??
+        null;
+      setDevStudent(matchedStudent);
+    } else {
+      setDevStudent(null);
+    }
     setState(consultationState);
     setPersistenceStatus(getLastConsultationPersistenceStatus());
     setLoading(false);
@@ -69,26 +102,26 @@ export default function StudentConsultationScreen() {
 
   useEffect(() => {
     void reload();
-  }, []);
+  }, [devStudentEmail, devStudentId]);
 
   const workout = useMemo<PrescribedWorkout | null>(() => {
-    if (!student?.id) return null;
-    return findNextStudentWorkout(state.workouts, student.id);
-  }, [state.workouts, student?.id]);
+    if (!activeStudent?.id) return null;
+    return findNextStudentWorkout(state.workouts, activeStudent.id);
+  }, [state.workouts, activeStudent?.id]);
 
-  const profile = state.profiles.find((item) => item.studentId === student?.id);
+  const profile = state.profiles.find((item) => item.studentId === activeStudent?.id);
   const latestLog = state.executionLogs.find((item) => item.workoutId === doneWorkoutId);
   const attention = latestLog ? getWorkoutAttentionSignal(latestLog) : null;
   const progressSummary = useMemo(
     () =>
-      student?.id
+      activeStudent?.id
         ? buildConsultationProgressSummary({
-            studentId: student.id,
+            studentId: activeStudent.id,
             workouts: state.workouts,
             executionLogs: state.executionLogs,
           })
         : null,
-    [state.executionLogs, state.workouts, student?.id]
+    [state.executionLogs, state.workouts, activeStudent?.id]
   );
   const currentAttention =
     pain >= 7
@@ -111,7 +144,7 @@ export default function StudentConsultationScreen() {
     await notifyConsultationEvent({
       event: "consultation_workout_completed",
       studentId: log.studentId,
-      studentName: student?.name,
+      studentName: activeStudent?.name,
       workoutId: log.workoutId,
       executionLogId: log.id,
     });
@@ -119,7 +152,7 @@ export default function StudentConsultationScreen() {
       await notifyConsultationEvent({
         event: "consultation_high_pain_reported",
         studentId: log.studentId,
-        studentName: student?.name,
+        studentName: activeStudent?.name,
         workoutId: log.workoutId,
         executionLogId: log.id,
       });
@@ -197,7 +230,13 @@ export default function StudentConsultationScreen() {
           </Text>
           <SyncStatusBadge
             status={persistenceStatus.mode === "supabase" ? "synced" : "saved_local"}
-            message={persistenceStatus.mode === "supabase" ? "Servidor sincronizado" : "Salvo localmente"}
+            message={
+              __DEV__ && devStudent
+                ? `Modo teste: ${devStudent.name}`
+                : persistenceStatus.mode === "supabase"
+                  ? "Servidor sincronizado"
+                  : "Salvo localmente"
+            }
             size="sm"
           />
         </View>
