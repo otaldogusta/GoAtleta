@@ -11,6 +11,7 @@ import {
 import type { Student } from "../../core/models";
 import type { ExistingStudentMatch } from "../../core/students/find-possible-existing-students";
 import { deriveStudentHealthAssessment } from "../../core/student-health";
+import { radius } from "../../theme/tokens";
 import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
@@ -297,12 +298,12 @@ export function StudentRegistrationTab({
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Pressable
                   onPress={() => setShowPhotoSheet(true)}
-                  style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", overflow: "hidden" }}
+                  style={{ width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.backgroundSubtle, borderWidth: 1, borderColor: colors.borderSubtle, alignItems: "center", justifyContent: "center", overflow: "hidden" }}
                 >
-                  {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" /> : <Ionicons name="person" size={22} color={colors.text} />}
+                  {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" /> : <Ionicons name="person" size={22} color={colors.textPrimary} />}
                 </Pressable>
-                <Pressable onPress={() => setShowPhotoSheet(true)} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>Adicionar foto</Text>
+                <Pressable onPress={() => setShowPhotoSheet(true)} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.internal, backgroundColor: colors.backgroundSubtle, borderWidth: 1, borderColor: colors.borderSubtle }}>
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: colors.textPrimary }}>Adicionar foto</Text>
                 </Pressable>
               </View>
               <View style={{ width: 190, maxWidth: "100%" }}>
@@ -315,19 +316,19 @@ export function StudentRegistrationTab({
               </View>
             </View>
 
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
+            <View style={{ borderWidth: 1, borderColor: colors.borderSubtle, borderRadius: radius.card, backgroundColor: colors.surface, overflow: "hidden" }}>
               <Pressable onPress={() => toggleCreateSection("studentData")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Dados do aluno</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{name.trim() || "Nome, unidade, turma..."}</Text>
+                  <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "900" }}>Dados do aluno</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11 }}>{name.trim() || "Nome, unidade, turma..."}</Text>
                 </View>
                 <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
               </Pressable>
-              {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
+              {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.borderSubtle, marginHorizontal: 12 }} /> : null}
               {createStudentDataAnim.isVisible ? (
                 <Animated.View style={[createStudentDataAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
-                    <TextInput placeholder="Nome do aluno" value={name} onChangeText={setName} onBlur={() => setName(formatName(name))} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
+                    <TextInput placeholder="Nome do aluno" value={name} onChangeText={setName} onBlur={() => setName(formatName(name))} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.borderSubtle, padding: 12, borderRadius: radius.internal, backgroundColor: colors.inputBg, color: colors.textPrimary }} />
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                       <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>

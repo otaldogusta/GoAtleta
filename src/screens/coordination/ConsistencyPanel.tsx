@@ -6,6 +6,7 @@ import {
 } from "../../api/reports";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { radius } from "../../theme/tokens";
 
 type AppColors = ReturnType<typeof useAppTheme>["colors"];
 
@@ -41,7 +42,7 @@ export function ConsistencyPanel({
     <>
       <View
         style={{
-          borderRadius: 18,
+          borderRadius: radius.card,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
@@ -55,7 +56,7 @@ export function ConsistencyPanel({
           </Text>
           <View
             style={{
-              borderRadius: 999,
+              borderRadius: radius.full,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.secondaryBg,
@@ -110,7 +111,7 @@ export function ConsistencyPanel({
 
       <View
         style={{
-          borderRadius: 18,
+          borderRadius: radius.card,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
@@ -124,7 +125,7 @@ export function ConsistencyPanel({
           </Text>
           <View
             style={{
-              borderRadius: 999,
+              borderRadius: radius.full,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.secondaryBg,
@@ -160,7 +161,7 @@ export function ConsistencyPanel({
               const subtitleColor = isCritical ? colors.dangerText : colors.muted;
               const badgeLabel = `${daysSinceReport}d`;
               const metaBadgeStyle = {
-                borderRadius: 999,
+                borderRadius: radius.full,
                 borderWidth: 1,
                 borderColor: colors.border,
                 backgroundColor: colors.secondaryBg,
@@ -212,7 +213,7 @@ export function ConsistencyPanel({
                       style={{
                         paddingVertical: 3,
                         paddingHorizontal: 7,
-                        borderRadius: 999,
+                        borderRadius: radius.full,
                         borderWidth: isCritical ? 0 : 1,
                         borderColor: isCritical ? colors.dangerSolidBg : colors.border,
                         backgroundColor: isCritical ? colors.dangerSolidBg : colors.secondaryBg,

@@ -5,6 +5,7 @@ import type {
   SessionEnvironment,
   WeeklyPhysicalEmphasis,
 } from "../../../core/models";
+import { radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 
 type Props = {
@@ -95,15 +96,15 @@ const MetaItem = ({
       flex: 1,
       minWidth: 130,
       padding: 12,
-      borderRadius: 14,
-      backgroundColor: colors.card,
+      borderRadius: radius.card,
+      backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSubtle,
       gap: 4,
     }}
   >
-    <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
-    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{value}</Text>
+    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "800" }}>{label}</Text>
+    <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>{value}</Text>
   </View>
 );
 
@@ -144,18 +145,18 @@ export function SessionContextHeader({
     <View
       style={{
         padding: 14,
-        borderRadius: 18,
-        backgroundColor: colors.secondaryBg,
+        borderRadius: radius.container,
+        backgroundColor: colors.backgroundSubtle,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: colors.borderSubtle,
         gap: 12,
       }}
     >
       <View style={{ gap: 4 }}>
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+        <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: "900" }}>
           {sessionTitle}
         </Text>
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: "700" }}>
           Função na semana: {weeklyFunctionLabel}
         </Text>
       </View>
@@ -168,20 +169,20 @@ export function SessionContextHeader({
       </View>
 
       <View style={{ gap: 2 }}>
-        <Text style={{ color: colors.muted, fontSize: 11 }}>Transferência para a quadra</Text>
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "800" }}>Transferência para a quadra</Text>
+        <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
           {normalizedTransferTarget}
         </Text>
       </View>
 
       <View style={{ gap: 2 }}>
-        <Text style={{ color: colors.muted, fontSize: 11 }}>Foco físico</Text>
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "800" }}>Foco físico</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: "700" }}>
           {emphasisLabel}
         </Text>
       </View>
 
-      <Text style={{ color: colors.muted, fontSize: 11 }}>
+      <Text style={{ color: colors.textMuted, fontSize: 11 }}>
         Contexto integrado da sessão
       </Text>
     </View>

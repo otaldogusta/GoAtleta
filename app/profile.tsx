@@ -37,6 +37,7 @@ import { Pressable } from "../src/ui/Pressable";
 import { SettingsRow } from "../src/ui/SettingsRow";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
+import { radius, shadow } from "../src/theme/tokens";
 
 
 // perf-check: ignore-render
@@ -591,11 +592,7 @@ export default function ProfileScreen() {
                     borderColor: colors.border,
                     alignItems: "center",
                     justifyContent: "center",
-                    shadowColor: "#000",
-                    shadowOpacity: 0.12,
-                    shadowRadius: 14,
-                    shadowOffset: { width: 0, height: 7 },
-                    elevation: 5,
+                    ...shadow.card,
                   }}
                 >
                   { photoUri ? (
@@ -1129,7 +1126,7 @@ export default function ProfileScreen() {
               style={{
                 width: 36,
                 height: 36,
-                borderRadius: 18,
+                borderRadius: radius.full,
                 backgroundColor: colors.secondaryBg,
                 alignItems: "center",
                 justifyContent: "center",
@@ -1149,7 +1146,7 @@ export default function ProfileScreen() {
                 style={{
                   width: 36,
                   height: 36,
-                  borderRadius: 18,
+                  borderRadius: radius.full,
                   backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
@@ -1162,7 +1159,7 @@ export default function ProfileScreen() {
                 style={{
                   width: 36,
                   height: 36,
-                  borderRadius: 18,
+                  borderRadius: radius.full,
                   backgroundColor: colors.secondaryBg,
                   alignItems: "center",
                   justifyContent: "center",
@@ -1208,7 +1205,7 @@ export default function ProfileScreen() {
             style={{
               width: 36,
               height: 36,
-              borderRadius: 18,
+              borderRadius: radius.full,
               backgroundColor: colors.secondaryBg,
               alignItems: "center",
               justifyContent: "center",

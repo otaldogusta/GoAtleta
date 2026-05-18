@@ -8,6 +8,7 @@ import type {
   PedagogicalPlanBlockName,
   PedagogicalPlanPackage,
 } from "../../../core/pedagogical-planning";
+import { radius } from "../../../theme/tokens";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { useAppTheme } from "../../../ui/app-theme";
@@ -216,10 +217,10 @@ export function PedagogicalPlanPreviewModal({
         width: "100%",
         maxWidth: 980,
         maxHeight: "90%",
-        borderRadius: 24,
-        backgroundColor: colors.background,
+        borderRadius: radius.container,
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: colors.borderSubtle,
         padding: 16,
         gap: 12,
       }}
@@ -227,25 +228,25 @@ export function PedagogicalPlanPreviewModal({
       <View style={{ gap: 6 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 20, fontWeight: "900" }}>
               Prévia pedagógica
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{summaryLine || "Plano da sessão"}</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{summaryLine || "Plano da sessão"}</Text>
           </View>
           <Pressable
             onPress={onClose}
             style={{
               height: 32,
               width: 32,
-              borderRadius: 16,
+              borderRadius: radius.full,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: colors.secondaryBg,
+              backgroundColor: colors.backgroundSubtle,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.borderSubtle,
             }}
           >
-            <Ionicons name="close" size={18} color={colors.text} />
+            <Ionicons name="close" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
         {contextWarning ? (
@@ -261,12 +262,12 @@ export function PedagogicalPlanPreviewModal({
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={() => setSelectedBlockName(null)}
       >
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+        <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
           Plano da aula
         </Text>
 
         {objectiveLabel ? (
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
             {objectiveLabel}
           </Text>
         ) : null}
@@ -281,25 +282,25 @@ export function PedagogicalPlanPreviewModal({
                   onPress={() => setSelectedBlockName(block.name)}
                   style={{
                     padding: 14,
-                    borderRadius: 16,
-                    backgroundColor: colors.card,
+                    borderRadius: radius.card,
+                    backgroundColor: colors.backgroundSubtle,
                     borderWidth: 1,
-                    borderColor: colors.border,
+                    borderColor: colors.borderSubtle,
                     gap: 6,
                   }}
                 >
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+                    <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: "900" }}>
                       {blockTitleMap[block.name]}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
+                      <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "800" }}>
                         {block.duration} min
                       </Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                     </View>
                   </View>
-                  <Text style={{ color: colors.muted, fontSize: 14 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
                     {leadText}
                   </Text>
                 </Pressable>
@@ -309,7 +310,7 @@ export function PedagogicalPlanPreviewModal({
         ) : null}
 
         {(planPackage?.draft.manualReviewFlags.length || planPackage?.draft.adaptations.length || planPackage?.draft.explanations.length) ? (
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700", marginTop: 6 }}>
+          <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: "800", marginTop: 6 }}>
             Sugestões do sistema (não entram no plano)
           </Text>
         ) : null}
@@ -318,10 +319,10 @@ export function PedagogicalPlanPreviewModal({
           <View
             style={{
               padding: 14,
-              borderRadius: 18,
+              borderRadius: radius.card,
               backgroundColor: colors.warningBg,
               borderWidth: 1,
-              borderColor: colors.warningBg,
+              borderColor: colors.warningBorder,
               gap: 8,
             }}
           >
@@ -339,10 +340,10 @@ export function PedagogicalPlanPreviewModal({
         <View
           style={{
             padding: 14,
-            borderRadius: 18,
-            backgroundColor: colors.card,
+            borderRadius: radius.card,
+            backgroundColor: colors.backgroundSubtle,
             borderWidth: 1,
-            borderColor: colors.border,
+            borderColor: colors.borderSubtle,
             gap: 8,
           }}
         >
@@ -354,10 +355,10 @@ export function PedagogicalPlanPreviewModal({
               alignItems: "center",
             }}
           >
-            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
-              Ver lógica pedagógica →
+            <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "800" }}>
+              Ver lógica da sugestão
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>
               {showLogicDetails ? "Ocultar" : ""}
             </Text>
           </Pressable>
@@ -366,13 +367,13 @@ export function PedagogicalPlanPreviewModal({
             <View style={{ gap: 8 }}>
               {planPackage?.draft.adaptations.length ? (
                 <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
                     Adaptações aplicadas
                   </Text>
                   {planPackage.draft.adaptations.map((adaptation, index) => (
                     <Text
                       key={`${adaptation.target}_${index}`}
-                      style={{ color: colors.muted, fontSize: 12 }}
+                      style={{ color: colors.textSecondary, fontSize: 12 }}
                     >
                       • {cleanUiText(adaptation.action)}
                     </Text>
@@ -382,11 +383,11 @@ export function PedagogicalPlanPreviewModal({
 
               {planPackage?.draft.explanations.length ? (
                 <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                    Justificativas do motor
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
+                    Motivo da decisão
                   </Text>
                   {planPackage.draft.explanations.map((item, index) => (
-                    <Text key={`${item.source}_${index}`} style={{ color: colors.muted, fontSize: 12 }}>
+                    <Text key={`${item.source}_${index}`} style={{ color: colors.textSecondary, fontSize: 12 }}>
                       • {cleanUiText(item.message)}
                     </Text>
                   ))}
@@ -395,11 +396,11 @@ export function PedagogicalPlanPreviewModal({
 
               {hardConstraintLabels.length || softConstraintLabels.length ? (
                 <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
                     Restrições consideradas
                   </Text>
                   {[...hardConstraintLabels, ...softConstraintLabels].map((item, index) => (
-                    <Text key={`${item}_${index}`} style={{ color: colors.muted, fontSize: 12 }}>
+                    <Text key={`${item}_${index}`} style={{ color: colors.textSecondary, fontSize: 12 }}>
                       • {cleanUiText(item)}
                     </Text>
                   ))}
@@ -421,16 +422,16 @@ export function PedagogicalPlanPreviewModal({
             width: "100%",
             maxWidth: 760,
             maxHeight: "85%",
-            borderRadius: 22,
-            backgroundColor: colors.background,
+            borderRadius: radius.container,
+            backgroundColor: colors.surface,
             borderWidth: 1,
-            borderColor: colors.border,
+            borderColor: colors.borderSubtle,
             padding: 16,
             gap: 12,
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: "900" }}>
               {blockTitleMap[selectedBlock.name]}
             </Text>
             <Pressable
@@ -438,20 +439,20 @@ export function PedagogicalPlanPreviewModal({
               style={{
                 height: 30,
                 width: 30,
-                borderRadius: 15,
+                borderRadius: radius.full,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
+                backgroundColor: colors.backgroundSubtle,
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: colors.borderSubtle,
               }}
             >
-              <Ionicons name="close" size={16} color={colors.text} />
+              <Ionicons name="close" size={16} color={colors.textPrimary} />
             </Pressable>
           </View>
 
           <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
               Duração (min)
             </Text>
             <TextInput
@@ -460,12 +461,12 @@ export function PedagogicalPlanPreviewModal({
               onChangeText={(text) => updateDurationText(selectedBlock.name, text)}
               style={{
                 borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
+                borderColor: colors.borderSubtle,
+                borderRadius: radius.internal,
                 paddingVertical: 10,
                 paddingHorizontal: 12,
                 backgroundColor: colors.inputBg,
-                color: colors.inputText,
+                color: colors.textPrimary,
                 fontSize: 15,
                 fontWeight: "600",
               }}
@@ -473,7 +474,7 @@ export function PedagogicalPlanPreviewModal({
           </View>
 
           <View style={{ gap: 6 }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
               Resumo
             </Text>
             <TextInput
@@ -491,12 +492,12 @@ export function PedagogicalPlanPreviewModal({
               placeholderTextColor={colors.muted}
               style={{
                 borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
+                borderColor: colors.borderSubtle,
+                borderRadius: radius.internal,
                 paddingVertical: 10,
                 paddingHorizontal: 12,
                 backgroundColor: colors.inputBg,
-                color: colors.inputText,
+                color: colors.textPrimary,
                 fontSize: 14,
                 minHeight: 72,
               }}
@@ -504,7 +505,7 @@ export function PedagogicalPlanPreviewModal({
           </View>
 
           <View style={{ gap: 8, flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "800" }}>
               Atividades
             </Text>
             <ScrollView
@@ -524,19 +525,19 @@ export function PedagogicalPlanPreviewModal({
                     placeholderTextColor={colors.muted}
                     style={{
                       borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 12,
+                      borderColor: colors.borderSubtle,
+                      borderRadius: radius.internal,
                       paddingVertical: 10,
                       paddingHorizontal: 12,
                       backgroundColor: colors.inputBg,
-                      color: colors.inputText,
+                      color: colors.textPrimary,
                       fontSize: 14,
                       minHeight: 64,
                     }}
                   />
                 ))
               ) : (
-                <Text style={{ color: colors.muted, fontSize: 13 }}>
+                <Text style={{ color: colors.textMuted, fontSize: 13 }}>
                   Sem atividades sugeridas.
                 </Text>
               )}

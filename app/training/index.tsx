@@ -77,6 +77,7 @@ import { TimeInput } from "../../src/ui/TimeInput";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { shadow } from "../../src/theme/tokens";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
 
 const TemplateEditorModalContent = lazy(() =>
@@ -2228,7 +2229,7 @@ export default function TrainingList() {
     setFormMode("plan");
     if (shouldApplyAiDraft && parsedAiDraft) {
       setPlanningTab("formulario");
-      setTitle(parsedAiDraft.title || "Planejamento com IA");
+      setTitle(parsedAiDraft.title || "Planejamento assistido");
       setTagsText(parsedAiDraft.tags.join(", "));
       setWarmup(parsedAiDraft.warmup.join("\n"));
       setMain(parsedAiDraft.main.join("\n"));
@@ -2237,7 +2238,7 @@ export default function TrainingList() {
       setMainTime(parsedAiDraft.mainTime);
       setCooldownTime(parsedAiDraft.cooldownTime);
       setHandledAiDraftRaw(aiDraftRaw);
-      showSaveToast("Planejamento da IA aplicado ao formulário.");
+      showSaveToast("Planejamento assistido aplicado ao formulário.");
     } else {
       setTitle("");
       setTagsText("");
@@ -3068,11 +3069,7 @@ export default function TrainingList() {
           borderWidth: 1,
           borderColor: colors.border,
           zIndex: 3200,
-          shadowColor: "#000",
-          shadowOpacity: 0.2,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 12,
+          ...shadow.elevated,
         }}
       >
         <Animated.View

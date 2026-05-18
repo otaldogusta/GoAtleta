@@ -12,6 +12,7 @@ import Animated, {
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { radius, shadow } from "../../theme/tokens";
 import type { RadialAction } from "./tab-config";
 
 type FabRadialMenuProps = {
@@ -39,12 +40,12 @@ function RadialActionButton({
   const { colors } = useAppTheme();
   const arcStart = -160;
   const arcEnd = -20;
-  const radius = 118;
+  const arcRadius = 118;
   const normalized = total <= 1 ? 0.5 : index / (total - 1);
   const angleDeg = arcStart + (arcEnd - arcStart) * normalized;
   const angle = (angleDeg * Math.PI) / 180;
-  const targetX = Math.cos(angle) * radius;
-  const targetY = Math.sin(angle) * radius;
+  const targetX = Math.cos(angle) * arcRadius;
+  const targetY = Math.sin(angle) * arcRadius;
 
   const animatedStyle = useAnimatedStyle(() => {
     const scale = interpolate(progress.value, [0, 1], [0.6, 1]);
@@ -76,17 +77,13 @@ function RadialActionButton({
         style={{
           width: 56,
           height: 56,
-          borderRadius: 28,
+          borderRadius: radius.full,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: colors.card,
           borderWidth: 1,
           borderColor: colors.border,
-          shadowColor: "#000",
-          shadowOpacity: 0.18,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 8,
+          ...shadow.card,
         }}
       >
         <Ionicons name={action.icon} size={21} color={colors.text} />
@@ -97,7 +94,7 @@ function RadialActionButton({
           marginTop: 6,
           paddingHorizontal: 8,
           paddingVertical: 3,
-          borderRadius: 999,
+          borderRadius: radius.full,
           overflow: "hidden",
           backgroundColor: colors.card,
           borderWidth: 1,

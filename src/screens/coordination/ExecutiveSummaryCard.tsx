@@ -5,6 +5,7 @@ import {
     type DataFixSuggestionsResult,
     type ExecutiveSummaryResult,
 } from "../../api/ai";
+import { radius } from "../../theme/tokens";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 
@@ -48,35 +49,35 @@ export function ExecutiveSummaryCard({
   return (
     <View
       style={{
-        borderRadius: 18,
+        borderRadius: radius.container,
         borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.card,
+        borderColor: colors.borderSubtle,
+        backgroundColor: colors.surface,
         padding: isCompactLayout ? 12 : 16,
         gap: isCompactLayout ? 8 : 10,
       }}
     >
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: isCompactLayout ? "flex-start" : "center", gap: 8 }}>
         <View style={{ gap: 2, flex: 1 }}>
-          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>
-            IA Assistiva
+          <Text style={{ color: colors.textPrimary, fontSize: 17, fontWeight: "900" }}>
+            Assistente
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
             Resumo executivo, classificação de erro e sugestões de correção.
           </Text>
         </View>
         <View
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
+            borderColor: colors.borderSubtle,
+            backgroundColor: colors.backgroundSubtle,
             paddingHorizontal: 10,
             paddingVertical: isCompactLayout ? 5 : 6,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-            Copilot
+          <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: 11 }}>
+            Planejamento assistido
           </Text>
         </View>
       </View>
@@ -85,9 +86,9 @@ export function ExecutiveSummaryCard({
           onPress={onGenerateExecutiveSummary}
           disabled={aiLoading}
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
-            borderColor: colors.border,
+            borderColor: colors.borderSubtle,
             backgroundColor: aiLoading ? colors.secondaryBg : colors.primaryBg,
             paddingHorizontal: 10,
             paddingVertical: isCompactLayout ? 8 : 9,
@@ -101,30 +102,30 @@ export function ExecutiveSummaryCard({
           onPress={onSuggestDataFixes}
           disabled={aiLoading}
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
+            borderColor: colors.borderSubtle,
+            backgroundColor: colors.backgroundSubtle,
             paddingHorizontal: 10,
             paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: isCompactLayout ? 11 : 12 }}>
             Sugerir correções
           </Text>
         </Pressable>
         <Pressable
           onPress={() => setShowAdvancedActions((current) => !current)}
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
+            borderColor: colors.borderSubtle,
+            backgroundColor: colors.backgroundSubtle,
             paddingHorizontal: 10,
             paddingVertical: isCompactLayout ? 8 : 9,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: isCompactLayout ? 11 : 12 }}>
             {showAdvancedActions ? "Ocultar ações" : "Mais ações"}
           </Text>
         </Pressable>
@@ -136,15 +137,15 @@ export function ExecutiveSummaryCard({
             onPress={onCopyWhatsappMessage}
             disabled={aiLoading || aiExportLoading}
             style={{
-              borderRadius: 999,
+              borderRadius: radius.full,
               borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
+              borderColor: colors.borderSubtle,
+              backgroundColor: colors.backgroundSubtle,
               paddingHorizontal: 10,
               paddingVertical: isCompactLayout ? 8 : 9,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: isCompactLayout ? 11 : 12 }}>
               Copiar WhatsApp
             </Text>
           </Pressable>
@@ -152,15 +153,15 @@ export function ExecutiveSummaryCard({
             onPress={onExportMarkdown}
             disabled={aiLoading || aiExportLoading}
             style={{
-              borderRadius: 999,
+              borderRadius: radius.full,
               borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
+              borderColor: colors.borderSubtle,
+              backgroundColor: colors.backgroundSubtle,
               paddingHorizontal: 10,
               paddingVertical: isCompactLayout ? 8 : 9,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: isCompactLayout ? 11 : 12 }}>
               Exportar Markdown
             </Text>
           </Pressable>
@@ -168,38 +169,38 @@ export function ExecutiveSummaryCard({
             onPress={onExportPdf}
             disabled={aiLoading || aiExportLoading}
             style={{
-              borderRadius: 999,
+              borderRadius: radius.full,
               borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
+              borderColor: colors.borderSubtle,
+              backgroundColor: colors.backgroundSubtle,
               paddingHorizontal: 10,
               paddingVertical: isCompactLayout ? 8 : 9,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: isCompactLayout ? 11 : 12 }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: isCompactLayout ? 11 : 12 }}>
               Exportar PDF
             </Text>
           </Pressable>
         </View>
       ) : null}
       {aiMessage ? (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{aiMessage}</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 12 }}>{aiMessage}</Text>
       ) : null}
       {executiveSummary ? (
         <View
           style={{
-            borderRadius: 14,
+            borderRadius: radius.card,
             borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
+            borderColor: colors.borderSubtle,
+            backgroundColor: colors.backgroundSubtle,
             padding: 12,
             gap: 4,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: 12 }}>
             Resumo: {executiveSummary.headline}
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 11 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
             {executiveSummary.recommendedActions.slice(0, 2).join(" • ") || "Sem ações sugeridas."}
           </Text>
         </View>
@@ -207,18 +208,18 @@ export function ExecutiveSummaryCard({
       {dataFixSuggestions ? (
         <View
           style={{
-            borderRadius: 14,
+            borderRadius: radius.card,
             borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
+            borderColor: colors.borderSubtle,
+            backgroundColor: colors.backgroundSubtle,
             padding: 12,
             gap: 4,
           }}
         >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+          <Text style={{ color: colors.textPrimary, fontWeight: "800", fontSize: 12 }}>
             Correções sugeridas
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 11 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 11 }}>
             {dataFixSuggestions.summary}
           </Text>
         </View>

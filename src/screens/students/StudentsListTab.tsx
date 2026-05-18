@@ -3,6 +3,7 @@ import { memo, type ReactElement } from "react";
 import { Text, TextInput, View } from "react-native";
 import type { ClassGender } from "../../core/models";
 import type { Student } from "../../core/models";
+import { radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
 import { Pressable } from "../../ui/Pressable";
@@ -75,19 +76,19 @@ export const StudentsListTab = memo(function StudentsListTab({
           gap: 8,
           paddingVertical: 10,
           paddingHorizontal: 12,
-          borderRadius: 14,
-          backgroundColor: colors.card,
+          borderRadius: radius.card,
+          backgroundColor: colors.surface,
           borderWidth: 1,
-          borderColor: colors.border,
+          borderColor: colors.borderSubtle,
         }}
       >
-                <Ionicons name="search" size={16} color={colors.muted} />
+        <Ionicons name="search" size={16} color={colors.textMuted} />
         <TextInput
           placeholder="Buscar aluno, responsável, turma ou unidade"
           value={studentsSearch}
           onChangeText={setStudentsSearch}
           placeholderTextColor={colors.placeholder}
-          style={{ flex: 1, color: colors.inputText, fontSize: 13 }}
+          style={{ flex: 1, color: colors.textPrimary, fontSize: 13 }}
         />
         <Pressable
           onPress={() => setStudentsSearch("")}
@@ -96,14 +97,14 @@ export const StudentsListTab = memo(function StudentsListTab({
           style={{
             width: 26,
             height: 26,
-            borderRadius: 13,
-            backgroundColor: colors.secondaryBg,
+            borderRadius: radius.full,
+            backgroundColor: colors.backgroundSubtle,
             alignItems: "center",
             justifyContent: "center",
             opacity: studentsSearch ? 1 : 0,
           }}
         >
-          <Ionicons name="close" size={14} color={colors.muted} />
+          <Ionicons name="close" size={14} color={colors.textMuted} />
         </Pressable>
       </View>
 
@@ -115,10 +116,10 @@ export const StudentsListTab = memo(function StudentsListTab({
             alignItems: "center",
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+          <Text style={{ fontSize: 16, fontWeight: "900", color: colors.textPrimary }}>
             Alunos
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
             {studentsFiltered.length} resultado(s)
           </Text>
         </View>
@@ -136,24 +137,24 @@ export const StudentsListTab = memo(function StudentsListTab({
                         style={{
                           paddingVertical: 7,
                           paddingHorizontal: 10,
-                          borderRadius: 12,
-                          backgroundColor: colors.background,
+                          borderRadius: radius.internal,
+                          backgroundColor: colors.backgroundSubtle,
                           borderWidth: 1,
-                          borderColor: colors.border,
+                          borderColor: colors.borderSubtle,
                           flexDirection: "row",
                           alignItems: "center",
                           justifyContent: "space-between",
                         }}
                       >
                         <Text
-                          style={{ fontSize: 14, fontWeight: "800", color: colors.text }}
+                          style={{ fontSize: 14, fontWeight: "900", color: colors.textPrimary }}
                         >
                           {unitName}
                         </Text>
                         <Ionicons
                           name={unitExpanded ? "chevron-down" : "chevron-forward"}
                           size={16}
-                          color={colors.muted}
+                          color={colors.textMuted}
                         />
                       </Pressable>
                       { unitExpanded ? (
@@ -164,7 +165,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                             paddingLeft: 10,
                             paddingTop: 6,
                             borderLeftWidth: 2,
-                            borderLeftColor: colors.border,
+                            borderLeftColor: colors.borderSubtle,
                           }}
                         >
                           {unitClasses.map((group) => {
@@ -181,10 +182,10 @@ export const StudentsListTab = memo(function StudentsListTab({
                                   style={{
                                     paddingVertical: 6,
                                     paddingHorizontal: 8,
-                                    borderRadius: 10,
-                                    backgroundColor: colors.background,
+                                    borderRadius: radius.internal,
+                                    backgroundColor: colors.surface,
                                     borderWidth: 1,
-                                    borderColor: colors.border,
+                                    borderColor: colors.borderSubtle,
                                     flexDirection: "row",
                                     alignItems: "center",
                                     justifyContent: "space-between",
@@ -200,7 +201,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                                             style={{
                                               fontSize: 13,
                                               fontWeight: "800",
-                                              color: colors.text,
+                                              color: colors.textPrimary,
                                             }}
                                             numberOfLines={1}
                                           >
@@ -223,7 +224,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                                             style={{
                                               fontSize: 11,
                                               fontWeight: "700",
-                                              color: colors.muted,
+                                              color: colors.textMuted,
                                             }}
                                           >
                                             {group.scheduleLabel}
@@ -246,7 +247,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                                           style={{
                                             width: 8,
                                             height: 8,
-                                            borderRadius: 999,
+                                            borderRadius: radius.full,
                                             backgroundColor: groupPalette.bg,
                                             marginRight: 2,
                                           }}
@@ -266,8 +267,8 @@ export const StudentsListTab = memo(function StudentsListTab({
                                                 style={{
                                                   width: 4,
                                                   height: 4,
-                                                  borderRadius: 999,
-                                                  backgroundColor: colors.muted,
+                                                  borderRadius: radius.full,
+                                                  backgroundColor: colors.textMuted,
                                                   opacity: 0.9,
                                                   marginHorizontal: 2,
                                                 }}
@@ -282,7 +283,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                                   <Ionicons
                                     name={classExpanded ? "chevron-down" : "chevron-forward"}
                                     size={16}
-                                    color={colors.muted}
+                                    color={colors.textMuted}
                                   />
                                 </Pressable>
                                 { classExpanded ? (
@@ -310,14 +311,14 @@ export const StudentsListTab = memo(function StudentsListTab({
                                       <View
                                         style={{
                                           borderWidth: 1,
-                                          borderColor: colors.border,
-                                          backgroundColor: colors.secondaryBg,
-                                          borderRadius: 10,
+                                          borderColor: colors.borderSubtle,
+                                          backgroundColor: colors.backgroundSubtle,
+                                          borderRadius: radius.internal,
                                           paddingVertical: 10,
                                           paddingHorizontal: 12,
                                         }}
                                       >
-                                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                                        <Text style={{ color: colors.textMuted, fontSize: 12 }}>
                                           Nenhum aluno nesta turma.
                                         </Text>
                                       </View>
@@ -339,18 +340,18 @@ export const StudentsListTab = memo(function StudentsListTab({
           <View
             style={{
               padding: 16,
-              borderRadius: 16,
-              backgroundColor: colors.secondaryBg,
+              borderRadius: radius.container,
+              backgroundColor: colors.backgroundSubtle,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.borderSubtle,
               alignItems: "center",
               gap: 8,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
+            <Text style={{ color: colors.textPrimary, fontWeight: "900" }}>
               Nenhum aluno encontrado
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 12 }}>
               {studentsUnitFilter === "Todas"
                  ? "Comece adicionando alunos"
                 : "Nenhum aluno nesta unidade"}

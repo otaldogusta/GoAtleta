@@ -21,6 +21,7 @@ import { formatPlannedLoad } from "../../core/periodization-load";
 import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
 import { getSectionCardStyle } from "../../ui/section-styles";
+import { radius } from "../../theme/tokens";
 
 // ── Local helpers (mirror of parent-file helpers) ───────────────────────────
 
@@ -291,10 +292,10 @@ export function CyclePlanTable({
               autoFocus
               style={{
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: colors.borderSubtle,
                 backgroundColor: colors.inputBg,
-                borderRadius: 10,
-                color: colors.text,
+                borderRadius: radius.internal,
+                color: colors.textPrimary,
                 fontSize: 14,
                 fontWeight: "700",
                 paddingHorizontal: 10,
@@ -307,7 +308,7 @@ export function CyclePlanTable({
                 style={{
                   paddingHorizontal: 10,
                   paddingVertical: 6,
-                  borderRadius: 8,
+                  borderRadius: radius.internal,
                   backgroundColor: colors.primaryBg,
                 }}
               >
@@ -320,7 +321,7 @@ export function CyclePlanTable({
                 style={{
                   paddingHorizontal: 10,
                   paddingVertical: 6,
-                  borderRadius: 8,
+                  borderRadius: radius.internal,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,

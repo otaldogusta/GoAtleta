@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
+import { radius } from "../../theme/tokens";
 
 type AppHeaderProps = {
   title: string;
@@ -32,7 +33,7 @@ export function AppHeader({ title, subtitle }: AppHeaderProps) {
         style={{
           width: 40,
           height: 40,
-          borderRadius: 20,
+          borderRadius: radius.full,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,

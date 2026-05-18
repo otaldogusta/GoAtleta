@@ -16,6 +16,7 @@ import { useOptionalOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
 import { WEB_SHELL_MIN_WIDTH, shouldHideWebShellForPath } from "../../ui/AppShell";
 import { useAppTheme } from "../../ui/app-theme";
+import { radius, shadow } from "../../theme/tokens";
 import { FabRadialMenu } from "./FabRadialMenu";
 import { ROLE_RADIAL_ACTIONS, ROLE_TABS, type AppRole } from "./tab-config";
 
@@ -138,21 +139,15 @@ export function AnimatedBottomTabs({
           flexDirection: "row",
           alignItems: "flex-end",
           justifyContent: "space-between",
-          borderRadius: 999,
+          borderRadius: radius.full,
           borderWidth: 1,
           borderColor: colors.border,
           backgroundColor: colors.card,
           paddingVertical: 6,
           paddingHorizontal: 8,
           ...(Platform.OS === "web"
-            ? { boxShadow: "0px 8px 14px rgba(0, 0, 0, 0.16)" }
-            : {
-                shadowColor: "#000",
-                shadowOpacity: 0.16,
-                shadowRadius: 14,
-                shadowOffset: { width: 0, height: 8 },
-              }),
-          elevation: 14,
+            ? { boxShadow: "0px 8px 18px rgba(10, 19, 34, 0.10)" }
+            : shadow.elevated),
         }}
       >
         {tabs.map((tab) => {
@@ -165,7 +160,7 @@ export function AnimatedBottomTabs({
                 style={{
                   width: 58,
                   height: 58,
-                  borderRadius: 29,
+                  borderRadius: radius.full,
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: colors.primaryBg,

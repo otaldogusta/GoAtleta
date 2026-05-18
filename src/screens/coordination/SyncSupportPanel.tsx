@@ -8,6 +8,7 @@ import {
 } from "../../db/seed";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { radius } from "../../theme/tokens";
 
 type AppColors = ReturnType<typeof useAppTheme>["colors"];
 
@@ -70,7 +71,7 @@ export function SyncSupportPanel({
   return (
     <View
       style={{
-        borderRadius: 18,
+        borderRadius: radius.card,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
@@ -84,7 +85,7 @@ export function SyncSupportPanel({
         </Text>
         <View
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
@@ -103,7 +104,7 @@ export function SyncSupportPanel({
       {syncPausedReason ? (
         <View
           style={{
-            borderRadius: 14,
+            borderRadius: radius.card,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
@@ -119,7 +120,7 @@ export function SyncSupportPanel({
               onPress={onResumePausedSync}
               disabled={syncActionLoading}
               style={{
-                borderRadius: 999,
+                borderRadius: radius.full,
                 borderWidth: 1,
                 borderColor: colors.border,
                 backgroundColor: colors.primaryBg,
@@ -135,7 +136,7 @@ export function SyncSupportPanel({
               <Pressable
                 onPress={onGoLogin}
                 style={{
-                  borderRadius: 999,
+                  borderRadius: radius.full,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
@@ -173,7 +174,7 @@ export function SyncSupportPanel({
           onPress={onReprocessQueueNow}
           disabled={syncActionLoading}
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: syncActionLoading ? colors.secondaryBg : colors.primaryBg,
@@ -194,7 +195,7 @@ export function SyncSupportPanel({
         <Pressable
           onPress={() => setShowAdvancedSyncActions((current) => !current)}
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
@@ -214,7 +215,7 @@ export function SyncSupportPanel({
             onPress={onReprocessNetworkFailures}
             disabled={syncActionLoading}
             style={{
-              borderRadius: 999,
+              borderRadius: radius.full,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.secondaryBg,
@@ -230,7 +231,7 @@ export function SyncSupportPanel({
           onPress={onClearDeadLetterCandidates}
           disabled={syncActionLoading}
           style={{
-            borderRadius: 999,
+            borderRadius: radius.full,
             borderWidth: 1,
             borderColor: colors.border,
             backgroundColor: colors.secondaryBg,
@@ -277,7 +278,7 @@ export function SyncSupportPanel({
             renderItem={({ item }) => (
               <View
                 style={{
-                  borderRadius: 14,
+                  borderRadius: radius.card,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
@@ -302,7 +303,7 @@ export function SyncSupportPanel({
                     onPress={() => onReprocessSingleItem(item.id)}
                     disabled={syncActionLoading}
                     style={{
-                      borderRadius: 999,
+                      borderRadius: radius.full,
                       borderWidth: 1,
                       borderColor: colors.border,
                       backgroundColor: colors.primaryBg,
@@ -318,7 +319,7 @@ export function SyncSupportPanel({
                     onPress={() => onCopyFailedPayload(item.id)}
                     disabled={syncActionLoading}
                     style={{
-                      borderRadius: 999,
+                      borderRadius: radius.full,
                       borderWidth: 1,
                       borderColor: colors.border,
                       backgroundColor: colors.secondaryBg,
@@ -334,7 +335,7 @@ export function SyncSupportPanel({
                     onPress={() => onClassifySyncError(item)}
                     disabled={aiLoading}
                     style={{
-                      borderRadius: 999,
+                      borderRadius: radius.full,
                       borderWidth: 1,
                       borderColor: colors.border,
                       backgroundColor: colors.secondaryBg,
@@ -343,7 +344,7 @@ export function SyncSupportPanel({
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                      Classificar erro (IA)
+                      Classificar erro
                     </Text>
                   </Pressable>
                 </View>
@@ -360,7 +361,7 @@ export function SyncSupportPanel({
                     }}
                   >
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>
-                      IA • severidade {syncClassifications[item.id].severity}
+                      Leitura assistida • severidade {syncClassifications[item.id].severity}
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 11 }}>
                       {syncClassifications[item.id].probableCause}

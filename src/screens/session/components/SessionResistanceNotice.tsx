@@ -2,6 +2,7 @@ import { Text, View } from "react-native";
 
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { radius } from "../../../theme/tokens";
 
 type NoticeAction = {
   label: string;
@@ -31,7 +32,7 @@ export function SessionResistanceNotice({
     <View
       style={{
         padding: 14,
-        borderRadius: 18,
+        borderRadius: radius.card,
         backgroundColor: colors.card,
         borderWidth: 1,
         borderColor: colors.border,
@@ -43,7 +44,7 @@ export function SessionResistanceNotice({
           alignSelf: "flex-start",
           paddingHorizontal: 10,
           paddingVertical: 5,
-          borderRadius: 999,
+          borderRadius: radius.full,
           backgroundColor: tintColor,
         }}
       >
@@ -64,7 +65,7 @@ export function SessionResistanceNotice({
               style={{
                 paddingVertical: 8,
                 paddingHorizontal: 12,
-                borderRadius: 999,
+                borderRadius: radius.full,
                 backgroundColor:
                   action.variant === "primary" ? colors.primaryBg : colors.secondaryBg,
               }}

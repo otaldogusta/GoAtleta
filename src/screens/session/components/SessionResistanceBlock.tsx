@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
 
 import type { ResistanceExercisePrescription, ResistanceTrainingPlan } from "../../../core/models";
+import { radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 
 type Props = {
@@ -36,13 +37,13 @@ const Chip = ({
     style={{
       paddingHorizontal: 10,
       paddingVertical: 5,
-      borderRadius: 999,
-      backgroundColor: colors.secondaryBg,
+      borderRadius: radius.full,
+      backgroundColor: colors.backgroundSubtle,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSubtle,
     }}
   >
-    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{label}</Text>
+    <Text style={{ color: colors.textPrimary, fontSize: 11, fontWeight: "800" }}>{label}</Text>
   </View>
 );
 
@@ -59,18 +60,18 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
     <View
       style={{
         padding: 14,
-        borderRadius: 18,
-        backgroundColor: colors.card,
+        borderRadius: radius.container,
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: colors.borderSubtle,
         gap: 12,
       }}
     >
       <View style={{ gap: 4 }}>
-        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+        <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: "900" }}>
           Sessão resistida
         </Text>
-        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600" }}>
+        <Text style={{ color: colors.textSecondary, fontSize: 15, fontWeight: "800" }}>
           {headerLabel}
         </Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -78,12 +79,12 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
           {transferTarget ? <Chip colors={colors} label="Transferência direta" /> : null}
         </View>
         {transferTarget ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
             Impacto principal na quadra: {transferTarget}
           </Text>
         ) : null}
         {resolvedDuration > 0 ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
             Duração prevista: {resolvedDuration} min
           </Text>
         ) : null}
@@ -110,27 +111,27 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
                 style={{
                   paddingHorizontal: 12,
                   paddingVertical: 12,
-                  borderRadius: 16,
+                  borderRadius: radius.card,
                   borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
+                  borderColor: colors.borderSubtle,
+                  backgroundColor: colors.backgroundSubtle,
                   gap: 8,
                 }}
               >
                 <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
+                  <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "900" }}>
                     {name}
                   </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                     <Chip colors={colors} label={categoryLabel} />
                     {exerciseTransferTarget ? <Chip colors={colors} label="Impacto na quadra" /> : null}
                   </View>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: "800" }}>
                     {formatExerciseLine(exercise)}
                   </Text>
                 </View>
                 {cadence ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 11 }}>
                     Cadência: {cadence}
                   </Text>
                 ) : null}
@@ -138,19 +139,19 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
                   <View
                     style={{
                       padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
+                      borderRadius: radius.internal,
+                      backgroundColor: colors.surface,
                       gap: 3,
                     }}
                   >
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>Impacto na quadra</Text>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "800" }}>Impacto na quadra</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: "700" }}>
                       {exerciseTransferTarget}
                     </Text>
                   </View>
                 ) : null}
                 {notes ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 11 }}>
                     Observação: {notes}
                   </Text>
                 ) : null}
@@ -159,7 +160,7 @@ export function SessionResistanceBlock({ resistancePlan, durationMin, colors }: 
           })
         ) : (
           <View style={{ paddingHorizontal: 12, paddingVertical: 12 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 12 }}>
               Nenhum exercício definido para esta sessão.
             </Text>
           </View>

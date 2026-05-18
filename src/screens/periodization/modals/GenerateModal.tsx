@@ -70,7 +70,7 @@ export function GenerateModal({
             backgroundColor: colors.primaryBg,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Regerar apenas AUTO</Text>
+          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Regerar apenas automáticos</Text>
         </Pressable>
 
         <Pressable
@@ -84,7 +84,7 @@ export function GenerateModal({
           }}
         >
           <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
-            Regerar tudo (AUTO + MANUAL)
+            Regerar tudo (automáticos + manuais)
           </Text>
         </Pressable>
       </View>
