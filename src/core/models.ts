@@ -338,6 +338,63 @@ export type PedagogicalIntent =
   | "technical_adjustment"
   | "pressure_adaptation";
 
+export type PedagogicalApproachIntent = {
+  primary: "cognitivista" | "sociocultural" | "combinada";
+  rationale: string;
+  cues: string[];
+};
+
+export type PedagogicalRiskFlag = {
+  code:
+    | "early_formal_game"
+    | "excessive_technical_drill"
+    | "emotional_conflict"
+    | "low_participation"
+    | "recurring_technical_difficulty"
+    | "excessive_competition"
+    | "low_frequency"
+    | "load_complexity_mismatch";
+  severity: "low" | "medium" | "high";
+  reason: string;
+};
+
+export type PedagogicalFeedbackSignal =
+  | "emotional_conflict"
+  | "class_agitation"
+  | "low_participation"
+  | "recurring_technical_difficulty"
+  | "excessive_competition"
+  | "low_frequency";
+
+export type PedagogicalFeedbackSignalSource =
+  | "report"
+  | "attendance"
+  | "executed_plan"
+  | "teacher";
+
+export type PedagogicalFeedbackSignalConfidence = "low" | "medium" | "high";
+
+export type PedagogicalFeedbackSignalEvidence = {
+  type: PedagogicalFeedbackSignal;
+  source: PedagogicalFeedbackSignalSource;
+  confidence: PedagogicalFeedbackSignalConfidence;
+  evidence: string;
+  teacherFacingReason: string;
+};
+
+export type PedagogicalDecisionSupport = {
+  capIntent: {
+    conceitual: string[];
+    procedimental: string[];
+    atitudinal: string[];
+  };
+  pedagogicalApproachIntent: PedagogicalApproachIntent;
+  decisionRationale: string;
+  riskFlags: PedagogicalRiskFlag[];
+  teacherFacingSummary: string;
+  sessionConstraintSuggestions: string[];
+};
+
 export type DominantGapType =
   | "tecnica"
   | "consistencia"
@@ -387,6 +444,7 @@ export type TrainingPlanSessionBlock = {
 export type TrainingPlanPedagogy = {
   generationExplanation?: TrainingPlanGenerationExplanation;
   periodizationContext?: PeriodizationContext;
+  pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
   periodization?: {
     phase: string;
     theme: string;
@@ -592,6 +650,8 @@ export type RecentSessionSummary = {
   structuralFingerprint?: string;
   methodologyApproach?: KnownMethodologyApproach | string;
   teacherEditedFields?: TeacherEditedField[];
+  pedagogicalFeedbackSignals?: PedagogicalFeedbackSignal[];
+  pedagogicalFeedbackSignalEvidence?: PedagogicalFeedbackSignalEvidence[];
   teacherOverrideWeight: TeacherOverrideWeight;
 };
 
@@ -715,6 +775,8 @@ export type CycleDayPlanningContext = {
   secondarySkill?: VolleyballSkill;
   progressionDimensionTarget: ProgressionDimension;
   pedagogicalIntent: PedagogicalIntent;
+  sourcePedagogicalDecisionSupport?: PedagogicalDecisionSupport;
+  pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
   recentSessions: RecentSessionSummary[];
   weeklyOperationalDecision?: WeeklyOperationalDecision;
   dominantGapSkill?: VolleyballSkill;
@@ -738,6 +800,7 @@ export type SessionStrategy = {
   secondarySkill?: VolleyballSkill;
   progressionDimension: ProgressionDimension;
   pedagogicalIntent: PedagogicalIntent;
+  pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
   loadIntent: WeeklyLoadIntent;
   drillFamilies: string[];
   forbiddenDrillFamilies: string[];

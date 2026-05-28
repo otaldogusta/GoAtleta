@@ -106,6 +106,8 @@ describe("buildAutoWeekPlan", () => {
     expect(snapshot?.weeklyOperationalStrategy?.decisions?.length).toBeGreaterThan(0);
     expect(snapshot?.weeklyOperationalStrategy?.decisions?.[0]?.sessionRole).toBeTruthy();
     expect(Array.isArray(snapshot?.weeklyOperationalStrategy?.weekRulesApplied)).toBe(true);
+    expect(snapshot?.pedagogicalDecisionSupport?.teacherFacingSummary).toContain("Intenção:");
+    expect(snapshot?.pedagogicalDecisionSupport?.capIntent?.conceitual?.length).toBeGreaterThan(0);
     expect(plan?.weekNotes ?? "").toContain("Foco da semana:");
     expect(plan?.pedagogicalRule ?? "").toContain("Foco do trimestre:");
   });

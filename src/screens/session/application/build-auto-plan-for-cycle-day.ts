@@ -1,6 +1,7 @@
 import { applyPlanGuards } from "../../../core/cycle-day-planning/apply-plan-guards";
 import { buildCycleDayPlanningContext } from "../../../core/cycle-day-planning/build-cycle-day-planning-context";
 import { formatGenerationExplanation, type CycleDayGenerationExplanation } from "../../../core/cycle-day-planning/format-generation-explanation";
+import { resolvePedagogicalDecisionSupport } from "../../../core/cycle-day-planning/resolve-pedagogical-decision-support";
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type { TeacherOverrideInfluence } from "../../../core/cycle-day-planning/resolve-teacher-override-weight";
 import { detectSessionPedagogicalApproach } from "../../../core/methodology/session-pedagogical-language";
@@ -162,7 +163,13 @@ export const buildAutoPlanForCycleDay = (
     recentSessions,
     recentPlanHashes: uniqueStrings(recentPlans.map((plan) => plan.inputHash)).slice(0, 5),
   });
-  const strategy = guardResult.strategy;
+  const strategy = {
+    ...guardResult.strategy,
+    pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
+      context: cycleContext,
+      strategy: guardResult.strategy,
+    }),
+  };
   const generationContext = adaptCycleStrategyToGenerationContext({
     cycleContext,
     strategy,

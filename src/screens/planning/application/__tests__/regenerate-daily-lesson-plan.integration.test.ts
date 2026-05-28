@@ -1,4 +1,33 @@
 import { buildAutoDailyLessonPlan } from "../regenerate-daily-lesson-plan";
+import { buildAutoWeekPlan } from "../../../periodization/build-auto-week-plan";
+import type { ClassGroup } from "../../../../core/models";
+
+const buildClassGroup = (overrides: Partial<ClassGroup> = {}): ClassGroup => ({
+  id: "class-longitudinal",
+  name: "Turma 09-11",
+  organizationId: "org-1",
+  unit: "Centro",
+  unitId: "unit-1",
+  colorKey: "blue",
+  modality: "voleibol",
+  ageBand: "09-11",
+  gender: "misto",
+  startTime: "18:00",
+  endTime: "19:00",
+  durationMinutes: 60,
+  daysOfWeek: [2, 4],
+  daysPerWeek: 2,
+  goal: "Jogos reduzidos, comunicação e continuidade",
+  equipment: "quadra",
+  level: 1,
+  mvLevel: "MV2",
+  cycleStartDate: "2026-06-01",
+  cycleLengthWeeks: 12,
+  acwrLow: 0.8,
+  acwrHigh: 1.3,
+  createdAt: "2026-06-01T00:00:00.000Z",
+  ...overrides,
+});
 
 describe("buildAutoDailyLessonPlan integration fields", () => {
   it("persists resistance session fields when class context supports gym integration", () => {
@@ -19,6 +48,22 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
       constraints: "",
       generationVersion: 2,
       generationContextSnapshotJson: JSON.stringify({
+        pedagogicalDecisionSupport: {
+          capIntent: {
+            conceitual: ["Compreender ocupação de espaço."],
+            procedimental: ["Aplicar passe em 3x3."],
+            atitudinal: ["Cooperar e respeitar o erro."],
+          },
+          pedagogicalApproachIntent: {
+            primary: "combinada",
+            rationale: "Jogo reduzido com mediação coletiva.",
+            cues: ["tomada de decisão", "cooperação"],
+          },
+          decisionRationale: "Fase e carga direcionam jogo reduzido.",
+          riskFlags: [],
+          teacherFacingSummary: "Intenção: combinada; passe com tomada de decisão; carga moderado.",
+          sessionConstraintSuggestions: ["Usar jogo reduzido com regra simples."],
+        },
         weeklyOperationalStrategy: {
           decisions: [
             {
@@ -88,6 +133,9 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(plan.sessionEnvironment).toBe("academia");
     expect(plan.sessionPrimaryComponent).toBe("resistido");
     expect(plan.sessionComponents?.[0]?.type).toBe("academia_resistido");
+    const snapshot = JSON.parse(plan.generationContextSnapshotJson ?? "{}");
+    expect(snapshot.pedagogicalDecisionSupport.teacherFacingSummary).toContain("Intenção:");
+    expect(snapshot.pedagogicalDecisionSupport.capIntent.atitudinal[0]).toContain("Cooperar");
   });
 
   it("keeps snapshot environment fallback when class context is absent", () => {
@@ -230,5 +278,47 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(plan.sessionEnvironment).toBe("quadra");
     expect(plan.sessionPrimaryComponent).toBe("tecnico_tatico");
     expect(plan.sessionComponents).toBeUndefined();
+  });
+
+  it("keeps the same pedagogical support structure from week to daily snapshot", () => {
+    const classGroup = buildClassGroup();
+    const weeklyPlan = buildAutoWeekPlan({
+      selectedClass: classGroup,
+      weekNumber: 3,
+      cycleLength: 12,
+      activeCycleStartDate: "2026-06-01",
+      isCompetitiveMode: false,
+      calendarExceptions: [],
+      competitiveProfile: null,
+      ageBand: "09-11",
+      periodizationModel: "formacao",
+      weeklySessions: 2,
+      sportProfile: "voleibol",
+    });
+    expect(weeklyPlan).toBeTruthy();
+
+    const session = {
+      sessionIndex: 1,
+      weekday: 2,
+      weekdayLabel: "Ter",
+      date: "2026-06-16",
+      dateLabel: "16/06/2026",
+      shortLabel: "Ter 16/06",
+    };
+    const dailyPlan = buildAutoDailyLessonPlan(
+      weeklyPlan as NonNullable<typeof weeklyPlan>,
+      session,
+      "2026-06-15T12:00:00.000Z",
+      null,
+      { classGroup, ageBand: classGroup.ageBand, durationMinutes: classGroup.durationMinutes },
+    );
+
+    const weeklySnapshot = JSON.parse(weeklyPlan?.generationContextSnapshotJson ?? "{}");
+    const dailySnapshot = JSON.parse(dailyPlan.generationContextSnapshotJson ?? "{}");
+    expect(dailySnapshot.pedagogicalDecisionSupport).toEqual(
+      weeklySnapshot.pedagogicalDecisionSupport
+    );
+    expect(dailySnapshot.pedagogicalDecisionSupport.capIntent.conceitual.length).toBeGreaterThan(0);
+    expect(dailySnapshot.pedagogicalDecisionSupport.teacherFacingSummary).toContain("Intenção:");
   });
 });

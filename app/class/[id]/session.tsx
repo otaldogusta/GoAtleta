@@ -1311,6 +1311,7 @@ const buildAutoPlanPedagogy = (
     scoutingCounts?: ScoutingCounts;
     skillHistoryBySkill?: Partial<Record<VolleyballSkill, SessionSkillHistoryEntry[]>>;
     generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+    pedagogicalDecisionSupport?: TrainingPlanPedagogy["pedagogicalDecisionSupport"];
     decisionOverride?: {
       appliedAdjustment: "increase" | "maintain" | "regress";
       reasonType?: "health" | "readiness" | "context" | "other";
@@ -1413,14 +1414,30 @@ const buildAutoPlanPedagogy = (
     ...explicitObjectives,
     specific: explicitObjectives.specific ?? [],
     cap: {
-      conceitual: capObjectives.conceitual,
-      procedimental: capObjectives.procedimental,
-      atitudinal: capObjectives.atitudinal,
+      conceitual: Array.from(new Set([
+        ...capObjectives.conceitual,
+        ...(options?.pedagogicalDecisionSupport?.capIntent.conceitual ?? []),
+      ])),
+      procedimental: Array.from(new Set([
+        ...capObjectives.procedimental,
+        ...(options?.pedagogicalDecisionSupport?.capIntent.procedimental ?? []),
+      ])),
+      atitudinal: Array.from(new Set([
+        ...capObjectives.atitudinal,
+        ...(options?.pedagogicalDecisionSupport?.capIntent.atitudinal ?? []),
+      ])),
     },
     pedagogicalGuidelines: Array.from(
       new Set([
         ...(explicitObjectives.pedagogicalGuidelines ?? []),
         ...dimensionGuidelines,
+        ...(options?.pedagogicalDecisionSupport
+          ? [
+              options.pedagogicalDecisionSupport.teacherFacingSummary,
+              options.pedagogicalDecisionSupport.decisionRationale,
+              ...options.pedagogicalDecisionSupport.sessionConstraintSuggestions,
+            ]
+          : []),
         ...(outcome
           ? [
               `Ajuste sugerido: ${
@@ -1468,6 +1485,7 @@ const buildAutoPlanPedagogy = (
 
   return {
     generationExplanation: options?.generationExplanation,
+    pedagogicalDecisionSupport: options?.pedagogicalDecisionSupport,
     sessionObjective: explicitObjectives.general,
     learningObjectives,
     adaptation: outcome
@@ -2371,6 +2389,7 @@ export default function SessionScreen() {
 
   const totalMinutes = durations.reduce((sum, value) => sum + value, 0);
   const activeDimensions = plan?.pedagogy?.dimensions?.refined ?? plan?.pedagogy?.dimensions?.base ?? null;
+  const pedagogicalDecisionSupport = plan?.pedagogy?.pedagogicalDecisionSupport;
   const highlightedGuideline = plan?.pedagogy?.learningObjectives?.pedagogicalGuidelines?.[0] ?? "";
   const sessionPedagogicalApproach = useMemo<PedagogicalApproachDetection | null>(() => {
     if (plan?.pedagogy?.pedagogicalApproach) {
@@ -2938,6 +2957,7 @@ export default function SessionScreen() {
     options?: {
       successMessage?: string;
       generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+      pedagogicalDecisionSupport?: TrainingPlanPedagogy["pedagogicalDecisionSupport"];
       targetPrimarySkill?: VolleyballSkill;
       targetSecondarySkill?: VolleyballSkill;
     }
@@ -3063,6 +3083,7 @@ export default function SessionScreen() {
           scoutingCounts,
           skillHistoryBySkill,
           generationExplanation: options?.generationExplanation,
+          pedagogicalDecisionSupport: options?.pedagogicalDecisionSupport,
         }
       ),
     });
@@ -4116,6 +4137,16 @@ export default function SessionScreen() {
                     Sinais lidos: {pedagogicalPanelSignals}
                   </Text>
                 ) : null}
+              </>
+            ) : null}
+            {pedagogicalDecisionSupport ? (
+              <>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Por que esta aula: {pedagogicalDecisionSupport.teacherFacingSummary}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Critério da decisão: {pedagogicalDecisionSupport.decisionRationale}
+                </Text>
               </>
             ) : null}
             <Text style={{ color: colors.muted, fontSize: 12 }}>

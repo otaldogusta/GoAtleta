@@ -7,6 +7,7 @@ import type {
   SessionPrimaryComponent,
   WeekSessionRole,
   WeeklyOperationalDecision,
+  PedagogicalDecisionSupport,
 } from "../../../core/models";
 import { buildSessionResistancePreview } from "../../session/application/build-session-resistance-preview";
 import { checkLessonAlignmentWithPeriodization } from "../../../core/pedagogy/lesson-periodization-alignment";
@@ -108,6 +109,22 @@ const parseWeeklyOperationalDecision = (
     return matched as WeeklyOperationalDecision;
   } catch {
     return null;
+  }
+};
+
+const parsePedagogicalDecisionSupport = (
+  snapshotJson: string | undefined
+): PedagogicalDecisionSupport | undefined => {
+  if (!snapshotJson) return undefined;
+  try {
+    const parsed = JSON.parse(snapshotJson) as {
+      pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
+    };
+    const support = parsed?.pedagogicalDecisionSupport;
+    if (!support?.teacherFacingSummary || !support.capIntent) return undefined;
+    return support;
+  } catch {
+    return undefined;
   }
 };
 
@@ -1075,6 +1092,9 @@ export const buildAutoDailyLessonPlan = (
     },
     nextPedagogicalStep,
   });
+  const pedagogicalDecisionSupport = parsePedagogicalDecisionSupport(
+    weeklyPlan.generationContextSnapshotJson
+  );
   const contextSnapshot = {
     source: "daily-generator-v5-teacher-language",
     profile,
@@ -1086,6 +1106,7 @@ export const buildAutoDailyLessonPlan = (
     nextPedagogicalStep,
     qaSummary: rendered.qaSummary,
     periodizationAlignment: alignmentCheck,
+    pedagogicalDecisionSupport,
     dailyDecision: {
       lessonKind: decision.lessonKind,
       organization: decision.organization,

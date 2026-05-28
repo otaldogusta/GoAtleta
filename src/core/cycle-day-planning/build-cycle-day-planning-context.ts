@@ -10,12 +10,14 @@ import type {
   VolleyballSkill,
   WeeklyLoadIntent,
   WeeklyOperationalStrategySnapshot,
+  PedagogicalDecisionSupport,
 } from "../models";
 import type { PlanningPhase } from "../pedagogical-planning";
 import { getPlannedLoads } from "../periodization-load";
 import { getSkillMetrics, scoutingSkills, type ScoutingCounts } from "../scouting";
 import { resolveDominantBlockStrategyProfile } from "./resolve-block-dominant-strategy";
 import { resolveHistoricalConfidence } from "./resolve-historical-confidence";
+import { resolvePedagogicalDecisionSupport } from "./resolve-pedagogical-decision-support";
 import { resolveSessionIndexInWeek } from "./resolve-session-index-in-week";
 
 export type BuildCycleDayPlanningContextParams = {
@@ -478,6 +480,21 @@ const resolveWeeklyOperationalDecision = (params: {
   }
 };
 
+const parseSourcePedagogicalDecisionSupport = (
+  classPlan?: ClassPlan | null
+): PedagogicalDecisionSupport | undefined => {
+  const raw = String(classPlan?.generationContextSnapshotJson ?? "").trim();
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as { pedagogicalDecisionSupport?: PedagogicalDecisionSupport };
+    const support = parsed.pedagogicalDecisionSupport;
+    if (!support?.teacherFacingSummary || !support.capIntent) return undefined;
+    return support;
+  } catch {
+    return undefined;
+  }
+};
+
 export const buildCycleDayPlanningContext = (
   params: BuildCycleDayPlanningContextParams
 ): CycleDayPlanningContext => {
@@ -522,8 +539,9 @@ export const buildCycleDayPlanningContext = (
     classPlan: params.classPlan,
     sessionIndexInWeek,
   });
+  const sourcePedagogicalDecisionSupport = parseSourcePedagogicalDecisionSupport(params.classPlan);
 
-  return {
+  const context: CycleDayPlanningContext = {
     classId: params.classGroup.id,
     classGoal: params.classGroup.goal,
     sessionDate: params.sessionDate,
@@ -552,6 +570,7 @@ export const buildCycleDayPlanningContext = (
       progressionDimensionTarget,
       primarySkill,
     }),
+    sourcePedagogicalDecisionSupport,
     recentSessions,
     weeklyOperationalDecision,
     dominantGapSkill: dominantGapSkill ?? undefined,
@@ -579,5 +598,10 @@ export const buildCycleDayPlanningContext = (
       developmentStage: pickDevelopmentStage(params.classGroup),
       phaseIntent,
     }),
+  };
+
+  return {
+    ...context,
+    pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({ context }),
   };
 };

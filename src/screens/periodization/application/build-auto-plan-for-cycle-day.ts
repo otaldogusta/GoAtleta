@@ -1,6 +1,7 @@
 import { applyPlanGuards } from "../../../core/cycle-day-planning/apply-plan-guards";
 import type { GenerationHistoryMode } from "../../../core/cycle-day-planning/format-generation-explanation";
 import { formatGenerationExplanation } from "../../../core/cycle-day-planning/format-generation-explanation";
+import { resolvePedagogicalDecisionSupport } from "../../../core/cycle-day-planning/resolve-pedagogical-decision-support";
 import { resolveOrderedTrainingDays } from "../../../core/cycle-day-planning/resolve-session-index-in-week";
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type {
@@ -118,6 +119,7 @@ export type PeriodizationDebugSignals = {
     phaseIntent: string;
     weeklyLoadIntent: string;
     pedagogicalIntent: string;
+    pedagogicalDecisionSupport?: NonNullable<SessionStrategy["pedagogicalDecisionSupport"]>;
     classLevel: number;
     developmentStage: string;
     targetPse?: number;
@@ -258,6 +260,7 @@ const buildPeriodizationDebugSignals = (params: BuildPeriodizationAutoPlanForCyc
     phaseIntent: result.cycleContext.phaseIntent,
     weeklyLoadIntent: result.cycleContext.weeklyLoadIntent,
     pedagogicalIntent: result.cycleContext.pedagogicalIntent,
+    pedagogicalDecisionSupport: result.strategy.pedagogicalDecisionSupport,
     classLevel: result.cycleContext.classLevel,
     developmentStage: result.cycleContext.developmentStage,
     targetPse: result.cycleContext.targetPse,
@@ -306,10 +309,17 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     strategy: strategyDecision.strategy,
     recentSessions: context.cycleContext.recentSessions,
   });
+  const finalStrategy = {
+    ...guardResult.strategy,
+    pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
+      context: context.cycleContext,
+      strategy: guardResult.strategy,
+    }),
+  };
   const explanation = formatGenerationExplanation({
     cycleContext: context.cycleContext,
     baseStrategy: strategyDecision.baseStrategy,
-    strategy: guardResult.strategy,
+    strategy: finalStrategy,
     fingerprint: guardResult.fingerprint,
     structuralFingerprint: guardResult.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
@@ -322,10 +332,10 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     operationalAdjusted: strategyDecision.operationalAdjusted,
     operationalInfluence: strategyDecision.operationalInfluence,
   });
-  const primarySkillLabel = formatSkillLabel(guardResult.strategy.primarySkill);
-  const progressionLabel = formatProgressionLabel(guardResult.strategy.progressionDimension);
+  const primarySkillLabel = formatSkillLabel(finalStrategy.primarySkill);
+  const progressionLabel = formatProgressionLabel(finalStrategy.progressionDimension);
   const pedagogicalIntentLabel = formatPedagogicalIntentLabel(
-    guardResult.strategy.pedagogicalIntent
+    finalStrategy.pedagogicalIntent
   );
 
   return {
@@ -336,17 +346,17 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     fingerprint: guardResult.fingerprint,
     structuralFingerprint: guardResult.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
-    strategy: guardResult.strategy,
+    strategy: finalStrategy,
     sessionLabel: `${primarySkillLabel} · ${progressionLabel}`,
     primarySkillLabel,
     progressionLabel,
     pedagogicalIntentLabel,
     coachSummary: explanation.coachSummary,
     explanationSummary: explanation.summary,
-    drillFamiliesLabel: guardResult.strategy.drillFamilies.join(", "),
+    drillFamiliesLabel: finalStrategy.drillFamilies.join(", "),
     debugSignals: buildPeriodizationDebugSignals(params, {
       cycleContext: context.cycleContext,
-      strategy: guardResult.strategy,
+      strategy: finalStrategy,
     }),
     ...resolveResistanceOutputForSession(params, context.sessionIndexInWeek),
   };

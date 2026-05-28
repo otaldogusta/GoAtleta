@@ -156,6 +156,7 @@ import { buildWeekSessionPreview } from "../../src/screens/periodization/applica
 import { buildWeeklyObservabilitySummary } from "../../src/screens/periodization/application/build-weekly-observability-summary";
 import {
     formatWeeklyOperationalIntentForTeacher,
+    parsePedagogicalDecisionSupportSnapshot,
     parseWeeklyOperationalStrategySnapshot,
 } from "../../src/screens/periodization/application/format-weekly-operational-intent-for-teacher";
 import { buildAutoWeekPlan } from "../../src/screens/periodization/build-auto-week-plan";
@@ -3356,9 +3357,17 @@ export default function PeriodizationScreen() {
     [activeClassPlan?.generationContextSnapshotJson]
   );
 
+  const weeklyPedagogicalSupport = useMemo(
+    () => parsePedagogicalDecisionSupportSnapshot(activeClassPlan?.generationContextSnapshotJson),
+    [activeClassPlan?.generationContextSnapshotJson]
+  );
+
   const weeklyTeacherIntent = useMemo(() => {
-    return formatWeeklyOperationalIntentForTeacher(weeklyOperationalSnapshot);
-  }, [weeklyOperationalSnapshot]);
+    return formatWeeklyOperationalIntentForTeacher(
+      weeklyOperationalSnapshot,
+      weeklyPedagogicalSupport
+    );
+  }, [weeklyOperationalSnapshot, weeklyPedagogicalSupport]);
 
   const weeklyObservabilitySummary = useMemo(
     () =>

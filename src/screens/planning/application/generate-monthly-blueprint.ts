@@ -32,28 +32,28 @@ const competitiveIntentByLevel: Record<string, string> = {
 
 const pedagogicalProgressionByLevel: Record<string, string[]> = {
   beginner: [
-    "Aquecimento e mobilidade específica",
-    "Fundamentos de toque (passe e levantamento)",
-    "Segurança em defesa (recepção e bloqueio)",
-    "Jogo recreativo com regras simplificadas",
+    "Exploração de fundamentos com cooperação e controle da bola",
+    "Passe e levantamento em tarefa cooperativa",
+    "Continuidade em jogo reduzido com regra simples",
+    "Síntese com fair play, comunicação e respeito ao erro",
   ],
   intermediate: [
-    "Técnica de escada (progredindo dificuldade)",
-    "Sistemas táticos básicos (3v3 progressivo)",
-    "Força funcional e coordenação",
-    "Competição estruturada com retrospectiva",
+    "Estabilização técnica com progressão de precisão",
+    "3x3 progressivo com tomada de decisão",
+    "Integração físico-técnica com controle de carga",
+    "Aplicação em jogo reduzido com mediação coletiva",
   ],
   advanced: [
-    "Combinações tático-técnicas (1v1, 2v2, 3v3)",
-    "Especificidade por posição",
-    "Preparação física periodizada",
-    "Análise de vídeo e autoconsciência",
+    "Combinações técnico-táticas em oposição progressiva",
+    "Organização coletiva por função e transição",
+    "Preparação física integrada à transferência para o jogo",
+    "Leitura de jogo, autonomia e síntese coletiva",
   ],
   elite: [
-    "Macrociclo competitivo (base, intensidade, tapering)",
-    "Periodização de força em bloco",
-    "Tática de contraataque e pressão",
-    "Recuperação ativa e prevenção de lesão",
+    "Macrociclo competitivo com intenção de carga explícita",
+    "Bloco físico-técnico com transferência controlada",
+    "Contra-ataque, pressão e adaptação decisional",
+    "Tapering, recuperação ativa e prevenção de lesão",
   ],
 };
 
@@ -81,6 +81,38 @@ const inferCalendarPhase = (month: number): string => {
   return "off-season";
 };
 
+const buildMonthlyPedagogicalVocabulary = (params: {
+  competitiveLevel: string;
+  calendarPhase: string;
+}) => {
+  const isBeginner = params.competitiveLevel === "beginner";
+  const isCompetitive = params.calendarPhase === "in-season";
+  return {
+    capIntent: {
+      conceitual: isCompetitive
+        ? "Compreender a relação entre fase, carga e tomada de decisão."
+        : "Compreender os fundamentos e regras simples que sustentam o jogo reduzido.",
+      procedimental: isBeginner
+        ? "Aplicar fundamentos em tarefas cooperativas e jogos reduzidos."
+        : "Aplicar habilidades em progressões com oposição, pressão e transferência para o jogo.",
+      atitudinal: "Cooperar, comunicar combinados e respeitar erro, colega e regra da atividade.",
+    },
+    pedagogicalApproachIntent: isBeginner
+      ? "sociocultural"
+      : isCompetitive
+        ? "combinada"
+        : "cognitivista",
+    decisionVocabulary: [
+      "fase",
+      "carga",
+      "jogo reduzido",
+      "tomada de decisão",
+      "cooperação",
+      "fair play",
+    ],
+  };
+};
+
 export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams): MonthlyPlanningBlueprint => {
   const { classGroup, monthKey, existing } = params;
   const nowIso = new Date().toISOString();
@@ -96,6 +128,10 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
   const levelIntent = competitiveIntentByLevel[competitiveLevel] || competitiveIntentByLevel.beginner;
   const phaseIntent = monthIntentByCalendarPhase[calendarPhase] || monthIntentByCalendarPhase["in-season"];
   const macroIntent = `${levelIntent} · Fase: ${calendarPhase}`;
+  const pedagogicalVocabulary = buildMonthlyPedagogicalVocabulary({
+    competitiveLevel,
+    calendarPhase,
+  });
 
   // Build pedagogical progression (4 key focuses for typical 4-5 week month)
   const basePedagogy = pedagogicalProgressionByLevel[competitiveLevel] || pedagogicalProgressionByLevel.beginner;
@@ -125,6 +161,7 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
     contextSnapshotJson: JSON.stringify({
       competitiveLevel,
       calendarPhase,
+      pedagogicalVocabulary,
       classGroupName: classGroup.name,
       generatedAt: nowIso,
     }),

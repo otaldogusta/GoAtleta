@@ -1,5 +1,7 @@
 import type {
     KnownMethodologyApproach,
+    PedagogicalFeedbackSignal,
+    PedagogicalFeedbackSignalEvidence,
     RecentSessionSummary,
     SessionExecutionState,
     SessionLog,
@@ -246,6 +248,125 @@ const hasSessionLogEvidence = (logs: SessionLog[]) =>
     );
   });
 
+const normalizeSignalText = (value: string | null | undefined) =>
+  normalizeText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const uniqueSignalEvidence = (
+  signals: PedagogicalFeedbackSignalEvidence[]
+): PedagogicalFeedbackSignalEvidence[] => {
+  const priority = { high: 3, medium: 2, low: 1 } as const;
+  const byType = new Map<PedagogicalFeedbackSignal, PedagogicalFeedbackSignalEvidence>();
+  signals.forEach((signal) => {
+    const current = byType.get(signal.type);
+    if (!current || priority[signal.confidence] > priority[current.confidence]) {
+      byType.set(signal.type, signal);
+    }
+  });
+  return [...byType.values()];
+};
+
+const buildSignal = (params: PedagogicalFeedbackSignalEvidence): PedagogicalFeedbackSignalEvidence => ({
+  ...params,
+  evidence: params.evidence.trim(),
+  teacherFacingReason: params.teacherFacingReason.trim(),
+});
+
+const resolvePedagogicalFeedbackSignalEvidence = (
+  group: SummaryGroup
+): PedagogicalFeedbackSignalEvidence[] => {
+  const signals: PedagogicalFeedbackSignalEvidence[] = [];
+  const logText = normalizeSignalText(
+    group.sessionLogs.map((log) => [log.activity, log.conclusion].join(" ")).join(" ")
+  );
+  const planText = normalizeSignalText(
+    group.plans
+      .map((plan) =>
+        [
+          plan.title,
+          plan.pedagogy?.sessionObjective,
+          plan.pedagogy?.pedagogicalDecisionSupport?.teacherFacingSummary,
+          ...(plan.pedagogy?.pedagogicalDecisionSupport?.riskFlags.map((risk) => risk.reason) ?? []),
+        ].join(" ")
+      )
+      .join(" ")
+  );
+  const text = `${logText} ${planText}`;
+  const attendanceValues = group.sessionLogs
+    .map((log) => log.attendance)
+    .filter((value) => typeof value === "number" && Number.isFinite(value));
+  const hasLowAttendanceLog = attendanceValues.some((value) => value > 0 && value < 0.65);
+  const attendanceAbsences = group.attendance.filter((entry) => entry.status === "absent").length;
+  const hasLowAttendanceRows =
+    group.attendance.length >= 6 && attendanceAbsences / group.attendance.length >= 0.35;
+
+  if (/(discuss|conflit|briga|choro|desrespeit|fair play|fairplay)/.test(logText)) {
+    signals.push(buildSignal({
+      type: "emotional_conflict",
+      source: "report",
+      confidence: /(choro|briga|discuss|desrespeit)/.test(logText) ? "high" : "medium",
+      evidence: "relatório mencionou conflito, choro ou discussão",
+      teacherFacingReason: "Sinal lido: houve conflito ou choro no relato anterior.",
+    }));
+  } else if (/(turma agitada|aula agitada|muito agitada|agitação|agitacao)/.test(logText)) {
+    signals.push(buildSignal({
+      type: "class_agitation",
+      source: "report",
+      confidence: "low",
+      evidence: "relatório mencionou turma agitada",
+      teacherFacingReason: "Sinal leve: turma agitada no relato anterior.",
+    }));
+  }
+  if (hasLowAttendanceRows || (hasLowAttendanceLog && /(baixa particip|pouca particip|faltas|ausencia|ausência)/.test(logText))) {
+    signals.push(buildSignal({
+      type: "low_participation",
+      source: hasLowAttendanceRows ? "attendance" : "report",
+      confidence: hasLowAttendanceRows || hasLowAttendanceLog ? "high" : "medium",
+      evidence: hasLowAttendanceRows ? "chamada teve muitas ausências" : "relatório indicou baixa participação",
+      teacherFacingReason: "Sinal lido: participação baixa na aula anterior.",
+    }));
+  } else if (/(baixa particip|pouca particip)/.test(logText)) {
+    signals.push(buildSignal({
+      type: "low_participation",
+      source: "report",
+      confidence: "medium",
+      evidence: "relatório indicou baixa participação",
+      teacherFacingReason: "Sinal lido: participação baixa na aula anterior.",
+    }));
+  }
+  if (/(tecnica ruim|técnica ruim|dificuldade tecnica|dificuldade técnica|erro recorrente|muita falha|nao conseguiu|não conseguiu)/.test(text)) {
+    signals.push(buildSignal({
+      type: "recurring_technical_difficulty",
+      source: /tecnica ruim|técnica ruim/.test(logText) ? "report" : "executed_plan",
+      confidence: /erro recorrente|muita falha|dificuldade tecnica|dificuldade técnica/.test(text) ? "high" : "medium",
+      evidence: "histórico indicou dificuldade técnica",
+      teacherFacingReason: "Sinal lido: dificuldade técnica recorrente.",
+    }));
+  }
+  if (/(competicao excessiva|competição excessiva|muito competitivo|pressao demais|pressão demais|ganhar a qualquer custo)/.test(logText)) {
+    signals.push(buildSignal({
+      type: "excessive_competition",
+      source: "report",
+      confidence: /(pressao demais|pressão demais|ganhar a qualquer custo|muito competitivo)/.test(logText) ? "high" : "medium",
+      evidence: "relatório indicou competição excessiva",
+      teacherFacingReason: "Sinal lido: competição passou do ponto na aula anterior.",
+    }));
+  }
+  if (/(baixa frequencia|baixa frequência|faltou muito|turma esvaziada)/.test(text)) {
+    signals.push(buildSignal({
+      type: "low_frequency",
+      source: "report",
+      confidence: "medium",
+      evidence: "histórico mencionou baixa frequência",
+      teacherFacingReason: "Sinal lido: baixa frequência recente.",
+    }));
+  }
+
+  return uniqueSignalEvidence(signals);
+};
+
 const resolveExecutionState = (params: {
   wasPlanned: boolean;
   wasApplied: boolean;
@@ -388,6 +509,7 @@ export const buildRecentSessionSummary = (
       const teacherEditedFields = wasEditedByTeacher
         ? resolveTeacherEditedFields(baselinePlan, latestPlan)
         : [];
+      const pedagogicalFeedbackSignalEvidence = resolvePedagogicalFeedbackSignalEvidence(group);
 
       return {
         sessionDate: group.date,
@@ -403,6 +525,8 @@ export const buildRecentSessionSummary = (
         fingerprint: buildFingerprint(latestPlan, dominantBlock),
         methodologyApproach: resolveMethodologyApproach(latestPlan),
         teacherEditedFields,
+        pedagogicalFeedbackSignals: pedagogicalFeedbackSignalEvidence.map((signal) => signal.type),
+        pedagogicalFeedbackSignalEvidence,
         teacherOverrideWeight: inferTeacherOverrideWeight(orderedPlans, wasEditedByTeacher),
       } satisfies RecentSessionSummary;
     })

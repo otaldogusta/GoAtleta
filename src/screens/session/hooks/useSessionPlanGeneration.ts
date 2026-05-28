@@ -12,6 +12,7 @@ import type { AutoPlanForCycleDayResult } from "../application/build-auto-plan-f
 type PersistGeneratedPlanOptions = {
   successMessage?: string;
   generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+  pedagogicalDecisionSupport?: TrainingPlanPedagogy["pedagogicalDecisionSupport"];
   targetPrimarySkill?: VolleyballSkill;
   targetSecondarySkill?: VolleyballSkill;
 };
@@ -112,6 +113,7 @@ export function useSessionPlanGeneration({
           ),
           targetPrimarySkill: autoPlanResult.strategy.primarySkill,
           targetSecondarySkill: autoPlanResult.strategy.secondarySkill,
+          pedagogicalDecisionSupport: autoPlanResult.strategy.pedagogicalDecisionSupport,
         });
         setPlanGenerationPhase("settling");
         await waitForInteractionIdle();

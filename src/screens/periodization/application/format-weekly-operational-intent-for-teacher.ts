@@ -1,4 +1,7 @@
-import type { WeeklyOperationalStrategySnapshot } from "../../../core/models";
+import type {
+  PedagogicalDecisionSupport,
+  WeeklyOperationalStrategySnapshot,
+} from "../../../core/models";
 
 export type WeeklyOperationalTeacherIntent = {
   title: string;
@@ -54,6 +57,16 @@ const deriveSummary = (snapshot: WeeklyOperationalStrategySnapshot): string => {
     return "A semana organiza uma progressao clara entre as sessoes.";
   }
   return `${snapshot.quarterFocus} Distribuicao da semana: ${roleSummary}.`;
+};
+
+const isPedagogicalDecisionSupport = (value: unknown): value is PedagogicalDecisionSupport => {
+  const candidate = value as PedagogicalDecisionSupport | undefined;
+  return Boolean(
+    candidate &&
+      typeof candidate.teacherFacingSummary === "string" &&
+      candidate.capIntent &&
+      candidate.pedagogicalApproachIntent
+  );
 };
 
 const driftRiskNote = (risk: string): string | null => {
@@ -115,14 +128,39 @@ export const parseWeeklyOperationalStrategySnapshot = (
   }
 };
 
+export const parsePedagogicalDecisionSupportSnapshot = (
+  rawJson: string | undefined
+): PedagogicalDecisionSupport | null => {
+  const raw = String(rawJson ?? "").trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      pedagogicalDecisionSupport?: unknown;
+    };
+    return isPedagogicalDecisionSupport(parsed.pedagogicalDecisionSupport)
+      ? parsed.pedagogicalDecisionSupport
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export const formatWeeklyOperationalIntentForTeacher = (
-  snapshot: WeeklyOperationalStrategySnapshot | null
+  snapshot: WeeklyOperationalStrategySnapshot | null,
+  pedagogicalSupport?: PedagogicalDecisionSupport | null
 ): WeeklyOperationalTeacherIntent | null => {
   if (!snapshot) return null;
 
   return {
-    title: deriveTitle(snapshot),
-    summary: deriveSummary(snapshot),
-    teacherNotes: deriveTeacherNotes(snapshot),
+    title: pedagogicalSupport ? "Intenção da semana" : deriveTitle(snapshot),
+    summary: pedagogicalSupport?.teacherFacingSummary
+      ? `${deriveSummary(snapshot)} ${pedagogicalSupport.teacherFacingSummary}`
+      : deriveSummary(snapshot),
+    teacherNotes: uniqueStrings([
+      ...(pedagogicalSupport?.sessionConstraintSuggestions ?? []),
+      ...(pedagogicalSupport?.riskFlags.map((risk) => risk.reason) ?? []),
+      ...deriveTeacherNotes(snapshot),
+    ]).slice(0, 5),
   };
 };

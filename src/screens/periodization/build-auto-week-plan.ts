@@ -389,6 +389,7 @@ export const buildAutoWeekPlan = (
     });
     const snapshot = {
       ...parseSnapshot(plan.generationContextSnapshotJson),
+      pedagogicalDecisionSupport: autoPlans[0]?.strategy.pedagogicalDecisionSupport,
       weeklyOperationalStrategy: toWeeklyOperationalStrategySnapshot({
         ...weeklyOperationalStrategy,
         decisions: decisionsWithEnvironment,

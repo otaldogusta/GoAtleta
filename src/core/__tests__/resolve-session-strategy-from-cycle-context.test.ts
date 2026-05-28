@@ -319,4 +319,151 @@ describe("resolveSessionStrategyFromCycleContext", () => {
     expect(strategy.progressionDimension).toBe("tomada_decisao");
     expect(strategy.gameTransferLevel).toBe("high");
   });
+
+  it("derives CAP intent and fair play risk from conflict history", () => {
+    const strategy = resolveSessionStrategyFromCycleContext(
+      buildContext({
+        ageBand: "09-11",
+        developmentStage: "fundamental",
+        phaseIntent: "exploracao_fundamentos",
+        planningPhase: "base",
+        weeklyLoadIntent: "baixo",
+        classGoal: "Retomar cooperação após conflito e choro na última aula",
+        constraints: ["Evitar 6x6 formal", "mediação de fair play"],
+        pedagogicalIntent: "team_organization",
+        allowedDrillFamilies: ["cooperacao", "jogo_condicionado", "bloco_tecnico"],
+      })
+    );
+
+    expect(strategy.pedagogicalDecisionSupport?.capIntent.atitudinal[0]).toContain("fair play");
+    expect(strategy.pedagogicalDecisionSupport?.pedagogicalApproachIntent.primary).toBe("sociocultural");
+    expect(strategy.pedagogicalDecisionSupport?.riskFlags.map((risk) => risk.code)).toContain(
+      "emotional_conflict"
+    );
+    expect(strategy.pedagogicalDecisionSupport?.riskFlags.map((risk) => risk.code)).toContain(
+      "early_formal_game"
+    );
+    expect(strategy.pedagogicalDecisionSupport?.sessionConstraintSuggestions.join(" ")).toContain(
+      "fair play"
+    );
+  });
+
+  it("prioritizes combined approach for reduced games with decision making", () => {
+    const strategy = resolveSessionStrategyFromCycleContext(
+      buildContext({
+        phaseIntent: "transferencia_jogo",
+        planningPhase: "competitivo",
+        progressionDimensionTarget: "tomada_decisao",
+        pedagogicalIntent: "decision_making",
+        allowedDrillFamilies: ["jogo_condicionado", "cooperacao", "deslocamento"],
+        weeklyLoadIntent: "moderado",
+      })
+    );
+
+    expect(strategy.drillFamilies).toContain("jogo_condicionado");
+    expect(strategy.pedagogicalDecisionSupport?.pedagogicalApproachIntent.primary).toBe("combinada");
+    expect(strategy.pedagogicalDecisionSupport?.teacherFacingSummary).toContain("Intenção:");
+    expect(strategy.pedagogicalDecisionSupport?.capIntent.conceitual[0]).toContain("resolver");
+  });
+
+  it("uses recent feedback signals to reduce complexity and add participation safeguards", () => {
+    const strategy = resolveSessionStrategyFromCycleContext(
+      buildContext({
+        phaseIntent: "transferencia_jogo",
+        planningPhase: "competitivo",
+        progressionDimensionTarget: "tomada_decisao",
+        pedagogicalIntent: "decision_making",
+        weeklyLoadIntent: "baixo",
+        allowedDrillFamilies: ["jogo_condicionado", "cooperacao", "deslocamento"],
+        recentSessions: [
+          {
+            sessionDate: "2026-04-08",
+            wasPlanned: true,
+            wasApplied: true,
+            wasEditedByTeacher: false,
+            wasConfirmedExecuted: true,
+            executionState: "confirmed_executed",
+            primarySkill: "passe",
+            progressionDimension: "tomada_decisao",
+            teacherOverrideWeight: "none",
+            pedagogicalFeedbackSignals: [
+              "low_participation",
+              "recurring_technical_difficulty",
+              "excessive_competition",
+            ],
+            pedagogicalFeedbackSignalEvidence: [
+              {
+                type: "low_participation",
+                source: "attendance",
+                confidence: "high",
+                evidence: "chamada teve muitas ausências",
+                teacherFacingReason: "Sinal lido: participação baixa na aula anterior.",
+              },
+              {
+                type: "recurring_technical_difficulty",
+                source: "report",
+                confidence: "high",
+                evidence: "histórico indicou dificuldade técnica",
+                teacherFacingReason: "Sinal lido: dificuldade técnica recorrente.",
+              },
+              {
+                type: "excessive_competition",
+                source: "report",
+                confidence: "high",
+                evidence: "relatório indicou competição excessiva",
+                teacherFacingReason: "Sinal lido: competição passou do ponto na aula anterior.",
+              },
+            ],
+          },
+        ],
+      })
+    );
+
+    const support = strategy.pedagogicalDecisionSupport;
+    expect(strategy.loadIntent).toBe("baixo");
+    expect(support?.riskFlags.map((risk) => risk.code)).toEqual(
+      expect.arrayContaining([
+        "low_participation",
+        "recurring_technical_difficulty",
+        "excessive_competition",
+      ])
+    );
+    expect(support?.sessionConstraintSuggestions.join(" ")).toContain("duplas");
+    expect(support?.sessionConstraintSuggestions.join(" ")).toContain("fundamento");
+  });
+
+  it("keeps low-confidence agitation as a light suggestion instead of a conflict alert", () => {
+    const strategy = resolveSessionStrategyFromCycleContext(
+      buildContext({
+        pedagogicalIntent: "technical_adjustment",
+        recentSessions: [
+          {
+            sessionDate: "2026-04-08",
+            wasPlanned: true,
+            wasApplied: true,
+            wasEditedByTeacher: false,
+            wasConfirmedExecuted: true,
+            executionState: "confirmed_executed",
+            teacherOverrideWeight: "none",
+            pedagogicalFeedbackSignalEvidence: [
+              {
+                type: "class_agitation",
+                source: "report",
+                confidence: "low",
+                evidence: "relatório mencionou turma agitada",
+                teacherFacingReason: "Sinal leve: turma agitada no relato anterior.",
+              },
+            ],
+          },
+        ],
+      })
+    );
+
+    expect(strategy.pedagogicalDecisionSupport?.riskFlags.map((risk) => risk.code)).not.toContain(
+      "emotional_conflict"
+    );
+    expect(strategy.pedagogicalDecisionSupport?.sessionConstraintSuggestions.join(" ")).toContain(
+      "combinados curtos"
+    );
+  });
 });

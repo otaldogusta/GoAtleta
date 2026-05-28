@@ -140,6 +140,92 @@ describe("buildRecentSessionSummary", () => {
     });
   });
 
+  it("extracts compact pedagogical feedback signals from reports and attendance", () => {
+    const summaries = buildRecentSessionSummary({
+      classId: "class_1",
+      plans: [buildPlan({ status: "final" })],
+      sessions: [buildSession({ status: "completed" })],
+      attendance: [
+        buildAttendance({ id: "a1", studentId: "s1", status: "absent" }),
+        buildAttendance({ id: "a2", studentId: "s2", status: "absent" }),
+        buildAttendance({ id: "a3", studentId: "s3", status: "present" }),
+        buildAttendance({ id: "a4", studentId: "s4", status: "present" }),
+      ],
+      sessionLogs: [
+        buildSessionLog({
+          attendance: 0.5,
+          technique: "ruim",
+          activity: "Jogo reduzido ficou muito competitivo.",
+          conclusion: "Houve conflito e choro; técnica ruim no passe e baixa participação.",
+        }),
+      ],
+    });
+
+    expect(summaries[0].pedagogicalFeedbackSignals).toEqual(
+      expect.arrayContaining([
+        "emotional_conflict",
+        "low_participation",
+        "recurring_technical_difficulty",
+        "excessive_competition",
+      ])
+    );
+    expect(summaries[0].pedagogicalFeedbackSignalEvidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "emotional_conflict",
+          source: "report",
+          confidence: "high",
+        }),
+        expect.objectContaining({
+          type: "low_participation",
+          confidence: "high",
+        }),
+      ])
+    );
+  });
+
+  it("keeps class agitation as a low-confidence signal instead of emotional conflict", () => {
+    const summaries = buildRecentSessionSummary({
+      classId: "class_1",
+      plans: [buildPlan({ status: "final" })],
+      sessionLogs: [
+        buildSessionLog({
+          activity: "Jogo reduzido de passe.",
+          conclusion: "Turma agitada, mas participou bem.",
+        }),
+      ],
+    });
+
+    expect(summaries[0].pedagogicalFeedbackSignals).toContain("class_agitation");
+    expect(summaries[0].pedagogicalFeedbackSignals).not.toContain("emotional_conflict");
+    expect(summaries[0].pedagogicalFeedbackSignalEvidence?.[0]).toMatchObject({
+      type: "class_agitation",
+      confidence: "low",
+    });
+  });
+
+  it("does not treat healthy competition or isolated absence as strong warning signals", () => {
+    const summaries = buildRecentSessionSummary({
+      classId: "class_1",
+      plans: [buildPlan({ status: "final" })],
+      attendance: [
+        buildAttendance({ id: "a1", studentId: "s1", status: "absent" }),
+        buildAttendance({ id: "a2", studentId: "s2", status: "present" }),
+        buildAttendance({ id: "a3", studentId: "s3", status: "present" }),
+        buildAttendance({ id: "a4", studentId: "s4", status: "present" }),
+      ],
+      sessionLogs: [
+        buildSessionLog({
+          activity: "Jogo competitivo saudável em 3x3.",
+          conclusion: "Boa participação e respeito às regras.",
+        }),
+      ],
+    });
+
+    expect(summaries[0].pedagogicalFeedbackSignals ?? []).not.toContain("excessive_competition");
+    expect(summaries[0].pedagogicalFeedbackSignals ?? []).not.toContain("low_participation");
+  });
+
   it("counts all-absent attendance as execution evidence instead of breaking continuity", () => {
     const summaries = buildRecentSessionSummary({
       classId: "class_1",

@@ -22,6 +22,7 @@ import {
     applyTeacherOverrideInfluence,
     type TeacherOverrideInfluence,
 } from "./resolve-teacher-override-weight";
+import { resolvePedagogicalDecisionSupport } from "./resolve-pedagogical-decision-support";
 
 export type SessionStrategyResolution = {
   baseStrategy: SessionStrategy;
@@ -330,7 +331,7 @@ const buildBaseSessionStrategy = (context: CycleDayPlanningContext): SessionStra
   const drillFamilies = resolveDrillFamilies(context, progressionDimension);
   const levels = resolveLevels(context);
 
-  return {
+  const strategy: SessionStrategy = {
     primarySkill,
     secondarySkill,
     progressionDimension,
@@ -341,6 +342,11 @@ const buildBaseSessionStrategy = (context: CycleDayPlanningContext): SessionStra
     oppositionLevel: levels.oppositionLevel,
     timePressureLevel: levels.timePressureLevel,
     gameTransferLevel: levels.gameTransferLevel,
+  };
+
+  return {
+    ...strategy,
+    pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({ context, strategy }),
   };
 };
 
@@ -366,13 +372,21 @@ export const resolveSessionStrategyDecisionFromCycleContext = (
     strategy: overrideResult.strategy,
   });
 
+  const finalStrategy = {
+    ...operationalResult.strategy,
+    pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
+      context,
+      strategy: operationalResult.strategy,
+    }),
+  };
+
   return {
     baseStrategy,
     dominantBlockAdjusted: dominantBlockResult.adjusted,
     dominantBlockInfluence: dominantBlockResult.influence,
     loadAdjusted: loadResult.adjusted,
     loadInfluence: loadResult.influence,
-    strategy: operationalResult.strategy,
+    strategy: finalStrategy,
     overrideAdjusted: overrideResult.adjusted,
     overrideInfluence: overrideResult.influence,
     operationalAdjusted: operationalResult.influence.applied,
