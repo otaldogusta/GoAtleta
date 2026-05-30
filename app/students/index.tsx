@@ -194,7 +194,7 @@ export default function StudentsScreen() {
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
   const canRevealCpf = effectiveProfile === "admin";
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const { activeOrganization } = useOrganization();
   const canManageStudentInvites = (activeOrganization?.role_level ?? 0) >= 50;
@@ -2840,14 +2840,21 @@ export default function StudentsScreen() {
             borderRadius: 20,
             borderWidth: 1,
             borderColor: colors.border,
-            backgroundColor: Platform.OS === "web" ? "rgba(255,255,255,0.94)" : colors.card,
+            backgroundColor:
+              Platform.OS === "web"
+                ? mode === "dark"
+                  ? "rgba(17, 27, 48, 0.94)"
+                  : "rgba(255,255,255,0.94)"
+                : colors.card,
             padding: 12,
             ...(Platform.OS === "web"
               ? {
                   backdropFilter: "blur(18px) saturate(165%)",
                   WebkitBackdropFilter: "blur(18px) saturate(165%)",
                   backgroundImage:
-                    "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%)",
+                    mode === "dark"
+                      ? "linear-gradient(180deg, rgba(24,34,55,0.98) 0%, rgba(13,21,37,0.94) 100%)"
+                      : "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%)",
                 }
               : {}),
             shadowColor: "#000",
