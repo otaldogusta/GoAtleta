@@ -1,5 +1,6 @@
 import {
   normalizeStudentSearchText,
+  normalizedTextMatchesToken,
   studentMatchesSearch,
 } from "../student-search";
 import type { ClassGroup, Student } from "../../../../core/models";
@@ -33,6 +34,19 @@ describe("student search", () => {
     expect(studentMatchesSearch({ student, classGroup, query: "flavia" })).toBe(true);
     expect(studentMatchesSearch({ student, classGroup, query: "Flávia" })).toBe(true);
     expect(studentMatchesSearch({ student, classGroup, query: "sara" })).toBe(true);
+  });
+
+  it("does not match text in the middle of a word", () => {
+    expect(normalizedTextMatchesToken("Gonçalves", "goncalves")).toBe(true);
+    expect(normalizedTextMatchesToken("Gonçalves", "gonc")).toBe(true);
+    expect(normalizedTextMatchesToken("Gonçalves", "alves")).toBe(false);
+    expect(
+      studentMatchesSearch({
+        student: { ...student, name: "Isabela Fisher Gonçalves" },
+        classGroup,
+        query: "alves",
+      })
+    ).toBe(false);
   });
 
   it("matches class and unit context with multiple tokens", () => {

@@ -12,6 +12,17 @@ export const normalizeStudentSearchText = (value: string | null | undefined) =>
 export const splitStudentSearchTokens = (query: string) =>
   normalizeStudentSearchText(query).split(" ").filter(Boolean);
 
+const isNumericToken = (value: string) => /^\d+$/.test(value);
+
+export const normalizedTextMatchesToken = (text: string, token: string) => {
+  const words = splitStudentSearchTokens(text);
+  if (!words.length) return false;
+  if (isNumericToken(token)) {
+    return words.some((word) => word.includes(token));
+  }
+  return words.some((word) => word === token || word.startsWith(token));
+};
+
 export const studentMatchesSearch = (params: {
   student: Student;
   classGroup?: ClassGroup | null;
@@ -40,5 +51,5 @@ export const studentMatchesSearch = (params: {
       .join(" ")
   );
 
-  return tokens.every((token) => haystack.includes(token));
+  return tokens.every((token) => normalizedTextMatchesToken(haystack, token));
 };
