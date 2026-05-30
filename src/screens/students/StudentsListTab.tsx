@@ -60,6 +60,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   renderStudentItem,
 }: StudentsListTabProps) {
   const { colors } = useAppTheme();
+  const hasSearch = studentsSearch.trim().length > 0;
 
   return (
     <View style={{ gap: 12 }}>
@@ -129,7 +130,7 @@ export const StudentsListTab = memo(function StudentsListTab({
             {studentsGrouped.map(({ unitName, classes: unitClasses }) => (
               <View key={unitName} style={{ gap: 8 }}>
                 {(() => {
-                  const unitExpanded = !!expandedUnits[unitName];
+                  const unitExpanded = hasSearch || !!expandedUnits[unitName];
                   return (
                     <>
                       <Pressable
@@ -169,7 +170,9 @@ export const StudentsListTab = memo(function StudentsListTab({
                           }}
                         >
                           {unitClasses.map((group) => {
-                            const classExpanded = !!expandedClasses[group.classId];
+                            const classExpanded =
+                              (hasSearch && group.students.length > 0) ||
+                              !!expandedClasses[group.classId];
                             const groupPalette =
                               group.palette ?? {
                                 bg: colors.primaryBg,
@@ -362,4 +365,3 @@ export const StudentsListTab = memo(function StudentsListTab({
     </View>
   );
 });
-

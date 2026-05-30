@@ -66,6 +66,10 @@ import { markRender, measure, measureAsync } from "../../src/observability/perf"
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
+import {
+    normalizeStudentSearchText,
+    studentMatchesSearch,
+} from "../../src/screens/students/application/student-search";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
 import { useBuildStudentMessage } from "../../src/screens/students/hooks/useBuildStudentMessage";
 import { useOnEditStudent } from "../../src/screens/students/hooks/useOnEditStudent";
@@ -1629,15 +1633,7 @@ export default function StudentsScreen() {
     setOpenEditSection,
   });
 
-  const normalizeSearch = useCallback(
-    (value: string) =>
-      value
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .trim(),
-    []
-  );
+  const normalizeSearch = useCallback(normalizeStudentSearchText, []);
 
   const getDaysUntilBirthday = (birthDate: Date, today: Date) => {
     const thisYear = today.getFullYear();
@@ -1974,13 +1970,15 @@ export default function StudentsScreen() {
     return filteredByUnit.filter((student) => {
       const cls = classById.get(student.classId) ?? null;
       const unitName = unitLabel(cls?.unit ?? "");
-      const className = cls?.name ?? "";
-      const haystack = normalizeSearch(
-        `${student.name} ${student.guardianName ?? ""} ${student.guardianPhone ?? ""} ${unitName} ${className}`
-      );
-      return haystack.includes(query);
+      return studentMatchesSearch({
+        student,
+        classGroup: cls,
+        unitName,
+        query,
+      });
     });
   }, [studentsUnitFilter, classById, students, unitLabel, normalizeSearch, debouncedStudentsSearch]);
+  const hasActiveStudentsSearch = normalizeSearch(debouncedStudentsSearch).length > 0;
   const studentsByClassId = useMemo(() => {
     const byClass = new Map<string, Student[]>();
     studentsFiltered.forEach((student) => {
@@ -2024,13 +2022,15 @@ export default function StudentsScreen() {
     classes.forEach((cls) => {
       const unitName = unitLabel(cls.unit);
       if (filteredUnits && !filteredUnits.has(unitName)) return;
+      const classStudents = [...(studentsByClassId.get(cls.id) ?? [])];
+      if (hasActiveStudentsSearch && !classStudents.length) return;
       if (!unitMap.has(unitName)) {
         unitMap.set(unitName, { classes: new Map() });
       }
       unitMap.get(unitName)!.classes.set(cls.id, {
         cls,
         className: cls.name?.trim() || "Sem turma",
-        students: [...(studentsByClassId.get(cls.id) ?? [])],
+        students: classStudents,
       });
     });
 
@@ -2089,7 +2089,15 @@ export default function StudentsScreen() {
         return { unitName, classes: classesInUnit };
       })
       .sort((a, b) => a.unitName.localeCompare(b.unitName, "pt-BR"));
-  }, [classById, classes, colors, studentsByClassId, studentsUnitFilter, unitLabel]);
+  }, [
+    classById,
+    classes,
+    colors,
+    hasActiveStudentsSearch,
+    studentsByClassId,
+    studentsUnitFilter,
+    unitLabel,
+  ]);
   const birthdayTodayAll = useMemo(() => {
     return students.filter((student) => {
       if (!student.birthDate) return false;
