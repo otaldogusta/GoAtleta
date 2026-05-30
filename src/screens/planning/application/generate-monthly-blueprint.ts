@@ -1,5 +1,13 @@
 import { buildClassContextSnapshot } from "../../../core/class-context-snapshot";
-import type { ClassCalendarException, ClassGroup, MonthlyPlanningBlueprint, Student } from "../../../core/models";
+import type {
+  AttendanceRecord,
+  ClassCalendarException,
+  ClassGroup,
+  DecisionReason,
+  MonthlyPlanningBlueprint,
+  SessionLog,
+  Student,
+} from "../../../core/models";
 import { buildSessionCalendar } from "../../../core/session-calendar-engine";
 
 /**
@@ -25,6 +33,8 @@ export interface GenerateMonthlyBlueprintParams {
   existing?: MonthlyPlanningBlueprint | null;
   calendarExceptions?: ClassCalendarException[];
   students?: Student[];
+  recentAttendance?: AttendanceRecord[];
+  recentSessionLogs?: SessionLog[];
 }
 
 const competitiveIntentByLevel: Record<string, string> = {
@@ -117,6 +127,56 @@ const buildMonthlyPedagogicalVocabulary = (params: {
   };
 };
 
+const buildBlueprintDecisionReasons = (params: {
+  plannedSessions: number;
+  skippedSessions: number;
+  densityProfile: string;
+  hasRosterData: boolean;
+  hasRecentAttendanceData: boolean;
+  hasRecentSessionLogs: boolean;
+  hasIncompleteHealthData: boolean;
+}): DecisionReason[] => {
+  const aulaLabel = (count: number) => (count === 1 ? "aula" : "aulas");
+  const removidaLabel = (count: number) => (count === 1 ? "removida" : "removidas");
+  const reasons: DecisionReason[] = [
+    {
+      kind: "calendar",
+      source: "calendar_engine",
+      confidence: "high",
+      message: `${params.plannedSessions} ${aulaLabel(params.plannedSessions)} reais planejadas no mes.`,
+    },
+  ];
+
+  if (params.skippedSessions > 0) {
+    reasons.push({
+      kind: "calendar",
+      source: "calendar_engine",
+      confidence: "high",
+      message: `${params.skippedSessions} ${aulaLabel(params.skippedSessions)} ${removidaLabel(params.skippedSessions)} por excecao de calendario.`,
+    });
+  }
+
+  reasons.push({
+    kind: "context",
+    source: params.hasRosterData ? "class_profile" : "safe_default",
+    confidence: params.hasRosterData ? "medium" : "low",
+    message: params.hasRosterData
+      ? `Densidade da turma: ${params.densityProfile}.`
+      : "Roster nao carregado; densidade da turma nao foi presumida.",
+  });
+
+  if (!params.hasRecentAttendanceData || !params.hasRecentSessionLogs || params.hasIncompleteHealthData) {
+    reasons.push({
+      kind: "safety",
+      source: "safe_default",
+      confidence: "low",
+      message: "Dados parciais: planejamento mensal usa leitura conservadora.",
+    });
+  }
+
+  return reasons;
+};
+
 export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams): MonthlyPlanningBlueprint => {
   const { classGroup, monthKey, existing } = params;
   const nowIso = new Date().toISOString();
@@ -139,8 +199,20 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
   const classContextSnapshot = buildClassContextSnapshot({
     classGroup,
     sessions: sessionCalendar.sessions,
+    skippedSessions: sessionCalendar.skippedSessions,
     students: params.students,
+    recentAttendance: params.recentAttendance,
+    recentSessionLogs: params.recentSessionLogs,
     generatedAt: nowIso,
+  });
+  const blueprintDecisionReasons = buildBlueprintDecisionReasons({
+    plannedSessions: sessionCalendar.sessions.length,
+    skippedSessions: sessionCalendar.skippedSessions.length,
+    densityProfile: classContextSnapshot.roster.densityProfile,
+    hasRosterData: classContextSnapshot.evidenceQuality.hasRosterData,
+    hasRecentAttendanceData: classContextSnapshot.evidenceQuality.hasRecentAttendanceData,
+    hasRecentSessionLogs: classContextSnapshot.evidenceQuality.hasRecentSessionLogs,
+    hasIncompleteHealthData: classContextSnapshot.health.hasIncompleteHealthData,
   });
 
   // Build macro intent combining level + calendar phase
@@ -184,7 +256,11 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
       phaseIntent,
       pedagogicalVocabulary,
       classContextSnapshot,
-      decisionReasons: [...sessionCalendar.reasons, ...classContextSnapshot.reasons],
+      decisionReasons: [
+        ...sessionCalendar.reasons,
+        ...classContextSnapshot.reasons,
+        ...blueprintDecisionReasons,
+      ],
       classGroupName: classGroup.name,
       generatedAt: nowIso,
     }),

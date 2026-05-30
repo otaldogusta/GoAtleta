@@ -14,6 +14,8 @@ export type PlannedSession = {
 
 export type SessionCalendarEngineResult = {
   sessions: PlannedSession[];
+  skippedSessions: PlannedSession[];
+  allSessions: PlannedSession[];
   reasons: DecisionReason[];
 };
 
@@ -72,6 +74,8 @@ export const buildSessionCalendar = (
   if (!start || !end || end.getTime() < start.getTime()) {
     return {
       sessions: [],
+      skippedSessions: [],
+      allSessions: [],
       reasons: [
         {
           kind: "calendar",
@@ -91,6 +95,8 @@ export const buildSessionCalendar = (
   if (!daysOfWeek.length) {
     return {
       sessions: [],
+      skippedSessions: [],
+      allSessions: [],
       reasons: [
         {
           kind: "calendar",
@@ -148,6 +154,8 @@ export const buildSessionCalendar = (
 
   return {
     sessions: sessions.filter((session) => session.status === "planned"),
+    skippedSessions: sessions.filter((session) => session.status === "skipped"),
+    allSessions: sessions,
     reasons,
   };
 };

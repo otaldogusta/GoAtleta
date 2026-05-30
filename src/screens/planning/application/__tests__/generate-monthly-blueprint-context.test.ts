@@ -1,4 +1,4 @@
-import type { ClassGroup } from "../../../../core/models";
+import type { ClassCalendarException, ClassGroup } from "../../../../core/models";
 import { generateMonthlyBlueprint } from "../generate-monthly-blueprint";
 
 const classGroup: ClassGroup = {
@@ -46,5 +46,36 @@ describe("generateMonthlyBlueprint", () => {
       ])
     );
   });
-});
 
+  it("preserva razao mensal para aula removida por calendario", () => {
+    const exceptions: ClassCalendarException[] = [
+      {
+        id: "ex_1",
+        classId: "class_1",
+        organizationId: "org_1",
+        date: "2026-06-04",
+        reason: "Feriado",
+        kind: "no_training",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const blueprint = generateMonthlyBlueprint({
+      classGroup,
+      monthKey: "2026-06",
+      calendarExceptions: exceptions,
+    });
+
+    const snapshot = JSON.parse(blueprint.contextSnapshotJson);
+
+    expect(snapshot.classContextSnapshot.calendar.sessionCount).toBe(8);
+    expect(snapshot.classContextSnapshot.calendar.skippedSessionCount).toBe(1);
+    expect(snapshot.decisionReasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "1 aula removida por excecao de calendario.",
+        }),
+      ])
+    );
+  });
+});

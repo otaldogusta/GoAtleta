@@ -1,4 +1,11 @@
-import type { ClassCalendarException, ClassGroup, ClassPlan } from "../../../core/models";
+import type {
+  AttendanceRecord,
+  ClassCalendarException,
+  ClassGroup,
+  ClassPlan,
+  SessionLog,
+  Student,
+} from "../../../core/models";
 import { resolveLearningObjectives } from "../../../core/pedagogy/objective-language";
 import {
     parseWeeklyPeriodizationSnapshot,
@@ -27,6 +34,9 @@ export interface RegenerateMonthPlansParams {
   activeCycleStartDate?: string;
   activeCycleEndDate?: string;
   calendarExceptions?: ClassCalendarException[];
+  students?: Student[];
+  recentAttendance?: AttendanceRecord[];
+  recentSessionLogs?: SessionLog[];
   onProgress?: (progress: MonthRegenerationProgress) => void;
 }
 
@@ -62,6 +72,9 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
     classGroup,
     monthKey,
     calendarExceptions: params.calendarExceptions,
+    students: params.students,
+    recentAttendance: params.recentAttendance,
+    recentSessionLogs: params.recentSessionLogs,
   });
   // Note: Blueprint storage deferred to backend sync phase; for now, keep in context
 

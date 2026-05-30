@@ -71,6 +71,8 @@ describe("SessionCalendarEngine", () => {
     });
 
     expect(result.sessions.map((session) => session.date)).toEqual(["2026-06-02"]);
+    expect(result.skippedSessions.map((session) => session.date)).toEqual(["2026-06-04"]);
+    expect(result.allSessions.map((session) => session.status)).toEqual(["planned", "skipped"]);
     expect(result.reasons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -89,6 +91,8 @@ describe("SessionCalendarEngine", () => {
     });
 
     expect(result.sessions).toEqual([]);
+    expect(result.skippedSessions).toEqual([]);
+    expect(result.allSessions).toEqual([]);
     expect(result.reasons[0]).toMatchObject({
       source: "safe_default",
       confidence: "low",
@@ -108,15 +112,65 @@ describe("ClassContextSnapshot", () => {
     const snapshot = buildClassContextSnapshot({
       classGroup,
       sessions: calendar.sessions,
+      skippedSessions: calendar.skippedSessions,
       generatedAt: "2026-06-01T00:00:00.000Z",
     });
 
     expect(snapshot.schemaVersion).toBe(1);
     expect(snapshot.calendar.sessionCount).toBe(2);
+    expect(snapshot.roster.densityProfile).toBe("unknown");
+    expect(snapshot.evidenceQuality.hasRosterData).toBe(false);
     expect(snapshot.reasons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ source: "class_profile", confidence: "high" }),
         expect.objectContaining({ source: "calendar_engine", confidence: "high" }),
+      ])
+    );
+  });
+
+  it("marca densidade alta e saude agregada sem criar diagnostico clinico", () => {
+    const classGroup = buildClassGroup();
+    const students = Array.from({ length: 30 }, (_, index) => ({
+      id: `student_${index}`,
+      name: `Atleta ${index}`,
+      organizationId: "org_1",
+      classId: "class_1",
+      age: 10,
+      phone: "",
+      loginEmail: "",
+      guardianName: "",
+      guardianPhone: "",
+      guardianRelation: "",
+      birthDate: "",
+      healthIssue: index === 0,
+      healthIssueNotes: index === 0 ? "Asma controlada" : "",
+      medicationUse: index === 1,
+      medicationNotes: index === 1 ? "Medicação informada" : "",
+      healthObservations: "",
+      positionPrimary: "indefinido" as const,
+      positionSecondary: "indefinido" as const,
+      athleteObjective: "base" as const,
+      learningStyle: "misto" as const,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const calendar = buildSessionCalendar({
+      classGroup,
+      startDate: "2026-06-01",
+      endDate: "2026-06-07",
+    });
+
+    const snapshot = buildClassContextSnapshot({
+      classGroup,
+      sessions: calendar.sessions,
+      students,
+    });
+
+    expect(snapshot.roster).toMatchObject({ studentCount: 30, densityProfile: "large" });
+    expect(snapshot.health.studentsWithHealthIssueCount).toBe(1);
+    expect(snapshot.health.studentsWithMedicationUseCount).toBe(1);
+    expect(snapshot.reasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "health_summary", confidence: "medium" }),
       ])
     );
   });

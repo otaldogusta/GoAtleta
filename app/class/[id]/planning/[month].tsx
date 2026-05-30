@@ -17,6 +17,7 @@ import { SessionPlanDocument } from "../../../../src/pdf/session-plan-document";
 import { sessionPlanHtml } from "../../../../src/pdf/templates/session-plan";
 import type { WeekSessionPreview } from "../../../../src/screens/periodization/application/build-week-session-preview";
 import { resolveLessonBlocksFromDailyPlan } from "../../../../src/screens/planning/application/daily-lesson-blocks";
+import { buildMonthPlanningInsightBullets } from "../../../../src/screens/planning/application/month-planning-insights";
 import { regenerateDailyLessonPlanFromWeek } from "../../../../src/screens/planning/application/regenerate-daily-lesson-plan";
 import type { MonthRegenerationProgress } from "../../../../src/screens/planning/application/regenerate-month-plans";
 import { regenerateMonthPlans } from "../../../../src/screens/planning/application/regenerate-month-plans";
@@ -162,7 +163,19 @@ export default function ClassPlanningMonthRoute() {
   const [monthRegenProgress, setMonthRegenProgress] = useState<MonthRegenerationProgress | null>(null);
   const [isRegeneratingMonth, setIsRegeneratingMonth] = useState(false);
 
-  const { selectedClass, activeCycle, weeklyItems, dailyPlansByKey, isLoading, error, reload } = useMonthlyPlans(classId, monthKey);
+  const {
+    selectedClass,
+    activeCycle,
+    calendarExceptions,
+    students,
+    recentAttendance,
+    recentSessionLogs,
+    weeklyItems,
+    dailyPlansByKey,
+    isLoading,
+    error,
+    reload,
+  } = useMonthlyPlans(classId, monthKey);
 
   const {
     plan: selectedDailyPlan,
@@ -237,6 +250,10 @@ export default function ClassPlanningMonthRoute() {
         classPlans: weeklyItems.map((item) => item.plan),
         activeCycleStartDate: activeCycle?.startDate,
         activeCycleEndDate: activeCycle?.endDate,
+        calendarExceptions,
+        students,
+        recentAttendance,
+        recentSessionLogs,
         onProgress: (progress) => {
           setMonthRegenProgress(progress);
         },
@@ -253,11 +270,26 @@ export default function ClassPlanningMonthRoute() {
     } finally {
       setIsRegeneratingMonth(false);
     }
-  }, [activeCycle?.endDate, activeCycle?.startDate, classId, monthKey, weeklyItems, reload]);
+  }, [
+    activeCycle?.endDate,
+    activeCycle?.startDate,
+    calendarExceptions,
+    classId,
+    monthKey,
+    recentAttendance,
+    recentSessionLogs,
+    students,
+    weeklyItems,
+    reload,
+  ]);
 
   const monthTitle = useMemo(
     () => toMonthTitle(monthKey).replace(/^./, (char) => char.toUpperCase()),
     [monthKey]
+  );
+  const monthInsightBullets = useMemo(
+    () => buildMonthPlanningInsightBullets({ weeklyItems, selectedClass }),
+    [selectedClass, weeklyItems]
   );
 
   const handleExportDailyPdf = useCallback(async () => {
@@ -459,6 +491,22 @@ export default function ClassPlanningMonthRoute() {
             </View>
           ) : null}
         </View>
+
+        {monthInsightBullets.length ? (
+          <View style={[getSectionCardStyle(colors, "primary", { radius: 16 }), { gap: 8 }]}>
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+              Por que este mês?
+            </Text>
+            <View style={{ gap: 6 }}>
+              {monthInsightBullets.map((item) => (
+                <View key={item} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+                  <Text style={{ color: colors.primaryText, fontWeight: "900", lineHeight: 18 }}>•</Text>
+                  <Text style={{ color: colors.text, flex: 1, lineHeight: 18 }}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {error ? (
           <View style={[getSectionCardStyle(colors, "primary", { radius: 14 }), { gap: 6 }]}>
