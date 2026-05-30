@@ -2957,6 +2957,7 @@ export default function StudentsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[unitTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           { unitOptions.length ? (
@@ -2986,6 +2987,7 @@ export default function StudentsScreen() {
           maxHeight={240}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[classTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {classOptions.length ? (
@@ -3027,6 +3029,7 @@ export default function StudentsScreen() {
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[guardianRelationTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {guardianRelationOptions.map((item, index) => (
@@ -3049,6 +3052,7 @@ export default function StudentsScreen() {
           maxHeight={120}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[typeTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {([{ label: "Aluno regular", value: "regular" }, { label: "Experimental", value: "experimental" }] as const).map((item, index) => (

@@ -659,6 +659,7 @@ textarea:-webkit-autofill:active {
 html, body {
   scrollbar-width: thin;
   scrollbar-color: ${colors.border} transparent;
+  scrollbar-gutter: stable;
 }
 * {
   scrollbar-gutter: auto;
@@ -684,7 +685,7 @@ body.dropdown-scrollbars {
   scrollbar-color: ${colors.border} transparent;
 }
 body.dropdown-scrollbars,
-body.dropdown-scrollbars * {
+html.dropdown-scrollbars {
   scrollbar-gutter: stable;
 }
 body.dropdown-scrollbars *::-webkit-scrollbar {
