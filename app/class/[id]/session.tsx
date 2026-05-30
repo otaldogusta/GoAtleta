@@ -1,4 +1,3 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,6 +14,7 @@ import {
     ScrollView,
     Text,
     TextInput,
+    type TextStyle,
     View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,6 +28,10 @@ import {
     toGenerationMode,
 } from "../../../src/screens/session/application/build-persisted-generation-explanation";
 import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
+import {
+    buildSessionObjectiveFromPlanContent,
+    resolveSessionObjectiveText,
+} from "../../../src/screens/session/application/session-objective-summary";
 import {
     buildPedagogicalPlanDraft,
     convertPedagogicalPackageToTrainingPlan,
@@ -170,10 +174,64 @@ const sessionTabs = [
 type SessionTabId = (typeof sessionTabs)[number]["id"];
 type SessionBlockKey = "warmup" | "main" | "cooldown";
 type SessionPedagogicalApproach = NonNullable<TrainingPlanPedagogy["pedagogicalApproach"]>;
+type LocalIconName =
+  | "back"
+  | "next"
+  | "down"
+  | "plus"
+  | "play"
+  | "download"
+  | "upload"
+  | "sparkle"
+  | "loading"
+  | "edit";
 const REPORT_REWRITE_MAX_CHARS = 1200;
 const REPORT_RELEVANT_MIN_CHARS = 24;
 const REPORT_RELEVANT_MIN_WORDS = 5;
 const REPORT_PHOTO_LIMIT = 3;
+
+const localIconLabels: Record<LocalIconName, string> = {
+  back: "<",
+  next: ">",
+  down: "v",
+  plus: "+",
+  play: ">",
+  download: "PDF",
+  upload: "Imp",
+  sparkle: "AI",
+  loading: "...",
+  edit: "Ed",
+};
+
+const LocalIcon = ({
+  name,
+  color,
+  size = 16,
+  style,
+}: {
+  name: LocalIconName;
+  color: string;
+  size?: number;
+  style?: TextStyle;
+}) => (
+  <Text
+    style={[
+      {
+        color,
+        fontSize: name === "download" || name === "upload" || name === "sparkle" || name === "edit"
+          ? Math.max(10, Math.round(size * 0.62))
+          : size,
+        lineHeight: Math.max(14, size + 2),
+        fontWeight: "900",
+        textAlign: "center",
+        minWidth: Math.max(14, size),
+      },
+      style,
+    ]}
+  >
+    {localIconLabels[name]}
+  </Text>
+);
 
 const parseReportPhotoUris = (raw: string): string[] => {
   const value = raw.trim();
@@ -1875,6 +1933,20 @@ export default function SessionScreen() {
     scoutingMode,
     compactTrainingPlans,
   });
+  const visibleSessionObjective = useMemo(
+    () => resolveSessionObjectiveText(plan),
+    [plan]
+  );
+  const [isEditingSessionObjective, setIsEditingSessionObjective] = useState(false);
+  const [sessionObjectiveDraft, setSessionObjectiveDraft] = useState("");
+  const [isSavingSessionObjective, setIsSavingSessionObjective] = useState(false);
+
+  useEffect(() => {
+    if (!isEditingSessionObjective) {
+      setSessionObjectiveDraft(visibleSessionObjective);
+    }
+  }, [isEditingSessionObjective, visibleSessionObjective]);
+
   const {
     PSE,
     setPSE,
@@ -2761,6 +2833,74 @@ export default function SessionScreen() {
     });
   };
 
+  const handleSaveSessionObjective = async () => {
+    if (!plan || !cls || isSavingSessionObjective) return;
+    const objective = sessionObjectiveDraft.trim();
+    if (!objective) {
+      showSaveToast({
+        message: "Informe um objetivo para a aula.",
+        variant: "warning",
+      });
+      return;
+    }
+
+    setIsSavingSessionObjective(true);
+    try {
+      const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
+        organizationId: cls.organizationId ?? null,
+      });
+      const latestVersion = latestVersionPlan?.version ?? 0;
+      const nowIso = new Date().toISOString();
+      const updatedPedagogy: TrainingPlanPedagogy = {
+        ...(plan.pedagogy ?? {}),
+        sessionObjective: objective,
+        sessionObjectiveSource: "manual",
+        learningObjectives: {
+          ...(plan.pedagogy?.learningObjectives ?? {
+            specific: [],
+          }),
+          general: objective,
+        },
+        objective: {
+          type: plan.pedagogy?.objective?.type ?? "tecnico",
+          description: objective,
+        },
+      };
+      const nextPlan = createTrainingPlanVersion({
+        classId: plan.classId,
+        version: Math.max(plan.version ?? 0, latestVersion) + 1,
+        origin: "manual",
+        draft: buildTrainingPlanDraftFromPlan(plan),
+        applyDays: plan.applyDays ?? [],
+        applyDate: plan.applyDate ?? sessionDate,
+        inputHash: plan.inputHash,
+        nowIso,
+        idPrefix: "plan_objective",
+        status: "final",
+        generatedAt: plan.generatedAt,
+        finalizedAt: nowIso,
+        parentPlanId: plan.parentPlanId ?? plan.id,
+        previousVersionId: plan.id,
+        pedagogy: updatedPedagogy,
+      });
+
+      await saveTrainingPlan(nextPlan);
+      setPlan(nextPlan);
+      setIsEditingSessionObjective(false);
+      showSaveToast({
+        message: "Objetivo da aula atualizado.",
+        variant: "success",
+      });
+    } catch {
+      showSaveToast({
+        message: "Não foi possível atualizar o objetivo.",
+        variant: "error",
+      });
+    } finally {
+      setIsSavingSessionObjective(false);
+    }
+  };
+
   const handleBackToClass = () => {
     if (!cls) return;
     router.replace({
@@ -3297,7 +3437,7 @@ export default function SessionScreen() {
 
       const activityNames = activities.map((item) => item.name);
 
-      const nextPlan: TrainingPlan = {
+      const nextPlanDraft: TrainingPlan = {
         ...plan,
         warmup: selectedBlockKey === "warmup" ? activityNames : plan.warmup,
         main: selectedBlockKey === "main" ? activityNames : plan.main,
@@ -3317,6 +3457,29 @@ export default function SessionScreen() {
         pedagogy: {
           ...(plan.pedagogy ?? {}),
           blocks: nextPedagogyBlocks,
+        },
+      };
+      const syncedObjective = buildSessionObjectiveFromPlanContent(nextPlanDraft);
+      const nextPlan: TrainingPlan = {
+        ...nextPlanDraft,
+        pedagogy: {
+          ...(nextPlanDraft.pedagogy ?? {}),
+          ...(syncedObjective
+            ? {
+                sessionObjective: syncedObjective,
+                sessionObjectiveSource: "auto_from_plan",
+                learningObjectives: {
+                  ...(nextPlanDraft.pedagogy?.learningObjectives ?? {
+                    specific: [],
+                  }),
+                  general: syncedObjective,
+                },
+                objective: {
+                  type: nextPlanDraft.pedagogy?.objective?.type ?? "tecnico",
+                  description: syncedObjective,
+                },
+              }
+            : {}),
         },
       };
 
@@ -3715,7 +3878,7 @@ export default function SessionScreen() {
             onPress={handleBackToClass}
             style={{ flexDirection: "row", alignItems: "center" }}
           >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <LocalIcon name="back" size={20} color={colors.text} />
           </Pressable>
           <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>
             {title}
@@ -3740,7 +3903,7 @@ export default function SessionScreen() {
             location={cls?.unit || "Unidade"}
             palette={classPalette}
             size="sm"
-            showIcon
+            showIcon={false}
           />
         </View>
       </View>
@@ -3770,7 +3933,7 @@ export default function SessionScreen() {
               justifyContent: "center",
             }}
           >
-            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <LocalIcon name="back" size={18} color={colors.text} />
           </Pressable>
 
           <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
@@ -3795,7 +3958,7 @@ export default function SessionScreen() {
               justifyContent: "center",
             }}
           >
-            <Ionicons name="chevron-forward" size={18} color={colors.text} />
+            <LocalIcon name="next" size={18} color={colors.text} />
           </Pressable>
         </View>
       </View>
@@ -3898,14 +4061,96 @@ export default function SessionScreen() {
             <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
               {ptBR.session.objective}
             </Text>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              {plan.pedagogy?.sessionObjective || block || "Conduzir treino do dia"}
-            </Text>
-            {highlightedGuideline ? (
+            {isEditingSessionObjective ? (
+              <TextInput
+                value={sessionObjectiveDraft}
+                onChangeText={setSessionObjectiveDraft}
+                placeholder="Objetivo da aula"
+                placeholderTextColor={colors.placeholder}
+                multiline
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  color: colors.inputText,
+                  padding: 10,
+                  minHeight: 72,
+                  textAlignVertical: "top",
+                  fontSize: 15,
+                  fontWeight: "700",
+                }}
+              />
+            ) : (
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                {visibleSessionObjective || block || "Conduzir treino do dia"}
+              </Text>
+            )}
+            {!isEditingSessionObjective && highlightedGuideline ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {highlightedGuideline}
               </Text>
             ) : null}
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              {isEditingSessionObjective ? (
+                <>
+                  <Pressable
+                    onPress={handleSaveSessionObjective}
+                    disabled={isSavingSessionObjective}
+                    style={{
+                      paddingVertical: 7,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: colors.primaryBg,
+                      opacity: isSavingSessionObjective ? 0.65 : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
+                      {isSavingSessionObjective ? "Salvando" : "Salvar objetivo"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setSessionObjectiveDraft(visibleSessionObjective);
+                      setIsEditingSessionObjective(false);
+                    }}
+                    disabled={isSavingSessionObjective}
+                    style={{
+                      paddingVertical: 7,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      opacity: isSavingSessionObjective ? 0.65 : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                      Cancelar
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    setSessionObjectiveDraft(visibleSessionObjective);
+                    setIsEditingSessionObjective(true);
+                  }}
+                  style={{
+                    paddingVertical: 7,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                    Editar objetivo
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         ) : null}
         {sessionTab === "treino" && isPlanGenerationBusy && plan ? (
@@ -4083,8 +4328,8 @@ export default function SessionScreen() {
             <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
               {showPedagogicalPanel ? ptBR.session.hideSuggestionLogic : ptBR.session.viewSuggestionLogic}
             </Text>
-            <Ionicons
-              name="chevron-down"
+            <LocalIcon
+              name="down"
               size={16}
               color={colors.muted}
               style={{ transform: [{ rotate: showPedagogicalPanel ? "180deg" : "0deg" }] }}
@@ -4311,7 +4556,7 @@ export default function SessionScreen() {
                           </Text>
                         </View>
                       ) : null}
-                      <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                      <LocalIcon name="next" size={16} color={colors.muted} />
                     </View>
                   </View>
                   {previewItems.length ? (
@@ -4654,8 +4899,8 @@ export default function SessionScreen() {
               <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
                 {showScoutingGuide ? ptBR.scouting.hideGuide : ptBR.scouting.showGuide}
               </Text>
-              <Ionicons
-                name="chevron-down"
+              <LocalIcon
+                name="down"
                 size={14}
                 color={colors.muted}
                 style={{ transform: [{ rotate: showScoutingGuide ? "180deg" : "0deg" }] }}
@@ -4876,8 +5121,8 @@ export default function SessionScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {String(PSE)}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <LocalIcon
+                    name="down"
                     size={16}
                     color={colors.muted}
                     style={{ transform: [{ rotate: showPsePicker ? "180deg" : "0deg" }] }}
@@ -4907,8 +5152,8 @@ export default function SessionScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {technique}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <LocalIcon
+                    name="down"
                     size={16}
                     color={colors.muted}
                     style={{
@@ -4983,8 +5228,8 @@ export default function SessionScreen() {
                       opacity: isRewritingActivity ? 0.65 : 1,
                     }}
                   >
-                    <Ionicons
-                      name={isRewritingActivity ? "hourglass-outline" : "sparkles-outline"}
+                    <LocalIcon
+                      name={isRewritingActivity ? "loading" : "sparkle"}
                       size={14}
                       color={colors.primaryText}
                     />
@@ -5041,8 +5286,8 @@ export default function SessionScreen() {
                     </Pressable>
                   </View>
                   <Pressable onPress={() => setShowAppliedPreview((prev) => !prev)}>
-                    <Ionicons
-                      name="chevron-down"
+                    <LocalIcon
+                      name="down"
                       size={16}
                       color={colors.muted}
                       style={{
@@ -5107,8 +5352,8 @@ export default function SessionScreen() {
                       opacity: isRewritingConclusion ? 0.65 : 1,
                     }}
                   >
-                    <Ionicons
-                      name={isRewritingConclusion ? "hourglass-outline" : "sparkles-outline"}
+                    <LocalIcon
+                      name={isRewritingConclusion ? "loading" : "sparkle"}
                       size={14}
                       color={colors.primaryText}
                     />
@@ -5222,7 +5467,7 @@ export default function SessionScreen() {
                             justifyContent: "center",
                           }}
                         >
-                          <Ionicons name="create-outline" size={12} color={colors.primaryText} />
+                          <LocalIcon name="edit" size={12} color={colors.primaryText} />
                         </View>
                       </Pressable>
                     )}
@@ -5606,7 +5851,7 @@ export default function SessionScreen() {
                 gap: 8,
               }}
             >
-              <Ionicons name="play-outline" size={16} color={colors.text} />
+              <LocalIcon name="play" size={16} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 {ptBR.session.actions.startTraining}
               </Text>
@@ -5631,7 +5876,7 @@ export default function SessionScreen() {
                 gap: 8,
               }}
             >
-              <Ionicons name="download-outline" size={16} color={colors.text} />
+              <LocalIcon name="download" size={16} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 {ptBR.session.actions.export}
               </Text>
@@ -5663,7 +5908,7 @@ export default function SessionScreen() {
               opacity: cls ? 1 : 0.65,
             }}
           >
-            <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
+            <LocalIcon name="upload" size={16} color={colors.text} />
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
               {ptBR.session.actions.importPlan}
             </Text>
@@ -5712,7 +5957,7 @@ export default function SessionScreen() {
               ],
             }}
           >
-            <MaterialCommunityIcons name="plus" size={24} color={colors.primaryText} />
+            <LocalIcon name="plus" size={24} color={colors.primaryText} />
           </Animated.View>
         </Pressable>
       ) : null}

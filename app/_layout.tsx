@@ -266,10 +266,37 @@ function RootLayoutContent() {
         --inset: auto 0 calc(env(safe-area-inset-bottom, 0px) + 108px) auto !important;
         --actor-inset: var(--inset) !important;
       }
+      button[aria-label="Abrir chat"] {
+        font-size: 0 !important;
+      }
+      button[aria-label="Abrir chat"]::after {
+        content: "?";
+        font-size: 22px;
+        line-height: 1;
+        font-weight: 900;
+      }
     `;
     document.head.appendChild(style);
 
+    const normalizeChatButtonIcon = () => {
+      document
+        .querySelectorAll<HTMLButtonElement>('button[aria-label="Abrir chat"]')
+        .forEach((button) => {
+          if (/[\uf000-\uf8ff]/.test(button.textContent ?? "")) {
+            button.textContent = "?";
+          }
+        });
+    };
+    normalizeChatButtonIcon();
+    const observer = new MutationObserver(normalizeChatButtonIcon);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
     return () => {
+      observer.disconnect();
       style.remove();
     };
   }, []);

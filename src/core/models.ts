@@ -484,6 +484,7 @@ export type TrainingPlanPedagogy = {
     startDate?: string;
   };
   sessionObjective?: string;
+  sessionObjectiveSource?: "generated" | "auto_from_plan" | "manual";
   learningObjectives?: {
     general: string;
     specific: string[];
