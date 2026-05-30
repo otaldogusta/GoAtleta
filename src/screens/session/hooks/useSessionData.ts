@@ -32,6 +32,8 @@ type UseSessionDataParams = {
   compactTrainingPlans: (plans: TrainingPlan[]) => TrainingPlan[];
 };
 
+export type SessionDataStatus = "loading" | "ready" | "not_found" | "error";
+
 const pickClassPlanForSessionDate = (plans: ClassPlan[], sessionDateValue: string) => {
   if (!plans.length) return null;
   const targetTime = Date.parse(`${sessionDateValue}T00:00:00`);
@@ -87,6 +89,9 @@ export function useSessionData({
   const [sessionStudents, setSessionStudents] = useState<Student[]>([]);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [isLoadingSessionExtras, setIsLoadingSessionExtras] = useState(true);
+  const [sessionDataStatus, setSessionDataStatus] =
+    useState<SessionDataStatus>("loading");
+  const [sessionDataError, setSessionDataError] = useState<string | null>(null);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
   const [scoutingLog, setScoutingLog] = useState<ScoutingLog | null>(null);
   const [attendancePercent, setAttendancePercent] = useState<number | null>(null);
@@ -104,6 +109,8 @@ export function useSessionData({
   useEffect(() => {
     let alive = true;
     setIsLoadingSession(true);
+    setSessionDataStatus("loading");
+    setSessionDataError(null);
 
     (async () => {
       try {
@@ -130,12 +137,19 @@ export function useSessionData({
             setSessionStudents(classStudents);
             setSavedClassPlans(compactTrainingPlans(classTrainingPlans));
             setPlan(currentPlan);
+            setSessionDataStatus("ready");
+            setSessionDataError(null);
           }
           if (!alive) return;
         } else if (alive) {
           setSavedClassPlans([]);
           setSessionStudents([]);
           setPlan(null);
+          setSessionLog(null);
+          setScoutingLog(null);
+          setSessionDataStatus("not_found");
+          setSessionDataError(null);
+          return;
         }
 
         if (classId) {
@@ -155,6 +169,8 @@ export function useSessionData({
           setPlan(null);
           setSessionLog(null);
           setScoutingLog(null);
+          setSessionDataStatus("error");
+          setSessionDataError("Nao foi possivel carregar a aula do dia.");
         }
       } finally {
         if (alive) setIsLoadingSession(false);
@@ -331,6 +347,8 @@ export function useSessionData({
     studentsCount: sessionStudents.length,
     isLoadingSession,
     isLoadingSessionExtras,
+    sessionDataStatus,
+    sessionDataError,
     sessionLog,
     setSessionLog,
     scoutingLog,

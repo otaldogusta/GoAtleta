@@ -21,6 +21,10 @@ import { useAppTheme } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
+import {
+  assertImportAssetWithinLimits,
+  normalizeSpreadsheetMatrixForImport,
+} from "../../utils/import-file-guards";
 
 type Props = {
   organizationId: string | null;
@@ -313,6 +317,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
       if (!asset?.uri) {
         throw new Error("Arquivo inválido.");
       }
+      assertImportAssetWithinLimits(asset);
 
       const fileName = String(asset.name ?? "").trim() || "students-import.xlsx";
       const lowerName = fileName.toLowerCase();
@@ -339,7 +344,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
           raw: false,
           defval: "",
         }) as unknown[][];
-        rowsMatrix = parseSpreadsheetRows(rows);
+        rowsMatrix = parseSpreadsheetRows(normalizeSpreadsheetMatrixForImport(rows));
       } else {
         const text = await readAsStringAsync(asset.uri, { encoding: EncodingType.UTF8 });
         rowsMatrix = parseCsvRows(text);

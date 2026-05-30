@@ -9,6 +9,7 @@ import type {
   WeeklyOperationalDecision,
   PedagogicalDecisionSupport,
 } from "../../../core/models";
+import { parseWeeklyPeriodizationSnapshot } from "../../../core/periodization-snapshots";
 import { buildSessionResistancePreview } from "../../session/application/build-session-resistance-preview";
 import { checkLessonAlignmentWithPeriodization } from "../../../core/pedagogy/lesson-periodization-alignment";
 import {
@@ -1095,7 +1096,11 @@ export const buildAutoDailyLessonPlan = (
   const pedagogicalDecisionSupport = parsePedagogicalDecisionSupport(
     weeklyPlan.generationContextSnapshotJson
   );
+  const weeklySnapshot = parseWeeklyPeriodizationSnapshot(
+    weeklyPlan.generationContextSnapshotJson
+  );
   const contextSnapshot = {
+    schemaVersion: 1,
     source: "daily-generator-v5-teacher-language",
     profile,
     generatedAt: nowIso,
@@ -1107,6 +1112,16 @@ export const buildAutoDailyLessonPlan = (
     qaSummary: rendered.qaSummary,
     periodizationAlignment: alignmentCheck,
     pedagogicalDecisionSupport,
+    decisionReasons: [
+      ...weeklySnapshot.decisionReasons,
+      {
+        kind: "pedagogy",
+        source: "periodization",
+        confidence: "high",
+        message: "Aula derivada da intencao semanal persistida.",
+        evidence: weeklyPlan.theme,
+      },
+    ],
     dailyDecision: {
       lessonKind: decision.lessonKind,
       organization: decision.organization,

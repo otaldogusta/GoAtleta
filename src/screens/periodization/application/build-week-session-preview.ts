@@ -1,3 +1,5 @@
+import { buildSessionCalendar } from "../../../core/session-calendar-engine";
+
 const DAY_LABELS: Record<number, string> = {
   0: "Dom",
   1: "Seg",
@@ -28,32 +30,28 @@ export const buildWeekSessionPreview = (params: {
 }): WeekSessionPreview[] => {
   const start = new Date(`${params.startDate}T00:00:00`);
   if (Number.isNaN(start.getTime())) return [];
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  const calendar = buildSessionCalendar({
+    classGroup: {
+      daysOfWeek: params.daysOfWeek,
+      daysPerWeek: params.weeklySessions,
+      durationMinutes: 60,
+    },
+    startDate: params.startDate,
+    endDate,
+  });
 
-  const allowedDays = new Set(
-    [...params.daysOfWeek].sort((a, b) => a - b).slice(0, params.weeklySessions)
-  );
-
-  const results: WeekSessionPreview[] = [];
-
-  for (let offset = 0; offset < 7; offset += 1) {
-    const current = new Date(start);
-    current.setDate(start.getDate() + offset);
-    const weekday = current.getDay();
-    if (!allowedDays.has(weekday)) continue;
-
-    const day = String(current.getDate()).padStart(2, "0");
-    const month = String(current.getMonth() + 1).padStart(2, "0");
-    const year = current.getFullYear();
-
-    results.push({
-      sessionIndex: results.length + 1,
-      weekday,
-      weekdayLabel: DAY_LABELS[weekday] ?? "?",
-      date: `${year}-${month}-${day}`,
+  return calendar.sessions.map((session, index) => {
+    const [year, month, day] = session.date.split("-");
+    return {
+      sessionIndex: index + 1,
+      weekday: session.weekday,
+      weekdayLabel: DAY_LABELS[session.weekday] ?? "?",
+      date: session.date,
       dateLabel: `${day}/${month}/${year}`,
-      shortLabel: `${DAY_LABELS[weekday] ?? "?"} ${day}/${month}`,
-    });
-  }
-
-  return results;
+      shortLabel: `${DAY_LABELS[session.weekday] ?? "?"} ${day}/${month}`,
+    };
+  });
 };

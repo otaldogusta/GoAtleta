@@ -41,6 +41,7 @@ import {
 import { SessionContextHeader } from "../../../src/screens/session/components/SessionContextHeader";
 import { SessionResistanceNotice } from "../../../src/screens/session/components/SessionResistanceNotice";
 import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
+import { SessionUnavailableState } from "../../../src/screens/session/components/SessionUnavailableState";
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
 import { useSessionData } from "../../../src/screens/session/hooks/useSessionData";
 import { useSessionPlanGeneration } from "../../../src/screens/session/hooks/useSessionPlanGeneration";
@@ -1855,7 +1856,8 @@ export default function SessionScreen() {
     sessionStudents,
     studentsCount,
     isLoadingSession,
-    isLoadingSessionExtras,
+    sessionDataStatus,
+    sessionDataError,
     sessionLog,
     setSessionLog,
     scoutingLog,
@@ -1865,6 +1867,7 @@ export default function SessionScreen() {
     currentDailyLessonPlan,
     isResolvingCurrentClassPlan,
     methodologyEvidence,
+    reload,
   } = useSessionData({
     classId: id,
     sessionDate,
@@ -3676,12 +3679,16 @@ export default function SessionScreen() {
     return <ScreenLoadingState />;
   }
 
-  if (isLoadingSessionExtras) {
-    return <ScreenLoadingState />;
-  }
-
-  if (!cls) {
-    return <ScreenLoadingState />;
+  if (sessionDataStatus === "not_found" || sessionDataStatus === "error" || !cls) {
+    return (
+      <SessionUnavailableState
+        colors={colors}
+        status={cls ? sessionDataStatus : "not_found"}
+        errorMessage={sessionDataError}
+        onBack={handleBackToClass}
+        onRetry={reload}
+      />
+    );
   }
 
   return (

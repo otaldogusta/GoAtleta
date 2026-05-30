@@ -10,8 +10,6 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { buildTeamIntelligenceSnapshot } from "../../src/api/reports";
-import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
@@ -19,26 +17,27 @@ import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import type {
-    AttendanceRecord,
     ClassGroup,
-    SessionLog,
-    Student,
-    StudentScoutingLog,
 } from "../../src/core/models";
-import {
-    countsFromStudentLog,
-    createEmptyCounts,
-    getTechnicalPerformanceScore,
-} from "../../src/core/scouting";
-import {
-    getAttendanceAll,
-    getClasses,
-    getSessionLogsByRange,
-    getStudentScoutingByRange,
-    getStudents,
-} from "../../src/db/seed";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import {
+    buildAttendanceSummaryByClass,
+    buildAvgPresenceByClass,
+    buildClassRows,
+    buildEntityMap,
+    buildMonthAttendance,
+    buildPerformanceRows,
+    buildPseSummary,
+    buildSessionLogRows,
+    buildSimulationHighlights,
+    buildTrainerReportSummary,
+    buildTrainerReportUnits,
+    buildTrainerTeamIntelligence,
+    buildUniqueSessionLogs,
+    buildWeeklySummary,
+} from "../../src/screens/reports/application/trainer-report-selectors";
+import { useTrainerReportsData } from "../../src/screens/reports/hooks/useTrainerReportsData";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { REPORT_ATTENDANCE_EXPORT_HEADERS_PTBR } from "../../src/utils/export-schemas";
@@ -51,13 +50,6 @@ const formatMonthKey = (date: Date) =>
 
 const nextMonth = (date: Date, delta: number) =>
   new Date(date.getFullYear(), date.getMonth() + delta, 1);
-
-const formatIsoDate = (value: Date) => {
-  const y = value.getFullYear();
-  const m = pad2(value.getMonth() + 1);
-  const d = pad2(value.getDate());
-  return `${y}-${m}-${d}`;
-};
 
 const monthLabel = (date: Date) => {
   const names = [
@@ -93,26 +85,12 @@ const badgeDefs = [
   { id: "master", label: "Mestre", threshold: 100, icon: "?" },
 ];
 
-const formatDateLabel = (iso: string) => {
-  const date = iso.split("T")[0];
-  const parts = date.split("-");
-  if (parts.length !== 3) return date;
-  return parts.reverse().join("/");
-};
-
 export default function ReportsScreen() {
   markRender("screen.reportsTrainer.render.root");
 
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
   const router = useRouter();
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [loadingBase, setLoadingBase] = useState(true);
-  const [loadingAttendance, setLoadingAttendance] = useState(true);
-  const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
-  const [studentScoutingLogs, setStudentScoutingLogs] = useState<StudentScoutingLog[]>([]);
   const [month, setMonth] = useState(new Date());
   const [unitFilter, setUnitFilter] = useState<string>("");
   const [classId, setClassId] = useState<string>("");
@@ -131,7 +109,7 @@ export default function ReportsScreen() {
   ];
   type ReportTabId = (typeof reportTabs)[number]["id"];
   const [reportTab, setReportTab] = useState<ReportTabId>("month");
-  const loading = loadingBase || loadingAttendance;
+  const monthKey = useMemo(() => formatMonthKey(month), [month]);
   const cardStyle = {
     padding: 16,
     borderRadius: 22,
@@ -165,86 +143,6 @@ export default function ReportsScreen() {
     opacity: 0.5,
   };
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [cls, st] = await measureAsync(
-          "screen.reportsTrainer.load.base",
-          () =>
-            Promise.all([
-              getClasses({ organizationId: activeOrganization?.id }),
-              getStudents({ organizationId: activeOrganization?.id }),
-            ]),
-          { screen: "reportsTrainer", organizationId: activeOrganization?.id ?? "" }
-        );
-        if (!alive) return;
-        setClasses(cls);
-        setStudents(st);
-      } finally {
-        if (alive) setLoadingBase(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [activeOrganization?.id]);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        setLoadingAttendance(true);
-        const start = new Date(month.getFullYear(), month.getMonth(), 1);
-        const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-        const monthKeyLocal = formatMonthKey(month);
-        const att = await measureAsync(
-          "screen.reportsTrainer.load.attendance",
-          () =>
-            getAttendanceAll({
-              organizationId: activeOrganization?.id,
-              startIso: start.toISOString(),
-              endIso: end.toISOString(),
-            }),
-          {
-            screen: "reportsTrainer",
-            organizationId: activeOrganization?.id ?? "",
-            month: monthKeyLocal,
-          }
-        );
-        if (!alive) return;
-        setAttendance(att);
-      } finally {
-        if (alive) setLoadingAttendance(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [activeOrganization?.id, month]);
-
-  useEffect(() => {
-    let alive = true;
-    const start = new Date(month.getFullYear(), month.getMonth(), 1);
-    const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-    (async () => {
-      const logs = await measureAsync(
-        "screen.reportsTrainer.load.sessionLogs",
-        () =>
-          getSessionLogsByRange(
-            start.toISOString(),
-            end.toISOString()
-          ),
-        { screen: "reportsTrainer", month: monthKey }
-      );
-      if (!alive) return;
-      setSessionLogs(logs);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [month]);
-
   const rangeBounds = useMemo(() => {
     const now = new Date();
     if (rankRange === "day") {
@@ -266,115 +164,53 @@ export default function ReportsScreen() {
     return { start, end };
   }, [month, rankRange]);
 
-  useEffect(() => {
-    let alive = true;
-    if (reportTab !== "students") {
-      setStudentScoutingLogs([]);
-      return () => {
-        alive = false;
-      };
-    }
-    if (!classId) {
-      setStudentScoutingLogs([]);
-      return () => {
-        alive = false;
-      };
-    }
-    const startKey = formatIsoDate(rangeBounds.start);
-    const endKey = formatIsoDate(rangeBounds.end);
-    (async () => {
-      const logs = await measureAsync(
-        "screen.reportsTrainer.load.studentScouting",
-        () => getStudentScoutingByRange(classId, startKey, endKey),
-        { screen: "reportsTrainer", classId, startKey, endKey }
-      );
-      if (!alive) return;
-      setStudentScoutingLogs(logs);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [classId, rangeBounds, reportTab]);
-
-  const monthKey = useMemo(() => formatMonthKey(month), [month]);
+  const {
+    classes,
+    students,
+    attendance,
+    loading,
+    sessionLogs,
+    studentScoutingLogs,
+    loadError,
+  } = useTrainerReportsData({
+    organizationId: activeOrganization?.id ?? null,
+    month,
+    monthKey,
+    classId,
+    reportTab,
+    rangeBounds,
+  });
 
   const monthAttendance = useMemo(
-    () => attendance.filter((r) => r.date.startsWith(monthKey)),
+    () => buildMonthAttendance(attendance, monthKey),
     [attendance, monthKey]
   );
 
-  const attendanceSummaryByClass = useMemo(() => {
-    const map: Record<string, { total: number; present: number }> = {};
-    monthAttendance.forEach((record) => {
-      const current = map[record.classId] ?? { total: 0, present: 0 };
-      current.total += 1;
-      if (record.status === "presente") current.present += 1;
-      map[record.classId] = current;
-    });
-    return map;
-  }, [monthAttendance]);
+  const attendanceSummaryByClass = useMemo(
+    () => buildAttendanceSummaryByClass(monthAttendance),
+    [monthAttendance]
+  );
 
-  const studentMap = useMemo(() => {
-    const map: Record<string, Student> = {};
-    students.forEach((s) => {
-      map[s.id] = s;
-    });
-    return map;
-  }, [students]);
+  const studentMap = useMemo(() => buildEntityMap(students), [students]);
 
-  const classMap = useMemo(() => {
-    const map: Record<string, ClassGroup> = {};
-    classes.forEach((c) => {
-      map[c.id] = c;
-    });
-    return map;
-  }, [classes]);
+  const classMap = useMemo(() => buildEntityMap<ClassGroup>(classes), [classes]);
 
-  const summary = useMemo(() => {
-    const total = monthAttendance.length;
-    const present = monthAttendance.filter((r) => r.status === "presente").length;
-    const absent = total - present;
-    const percent = total ? Math.round((present / total) * 100) : 0;
-    return { total, present, absent, percent };
-  }, [monthAttendance]);
+  const summary = useMemo(
+    () => buildTrainerReportSummary(monthAttendance),
+    [monthAttendance]
+  );
 
-  const uniqueSessionLogs = useMemo(() => {
-    const sorted = [...sessionLogs].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt)
-    );
-    const unique: SessionLog[] = [];
-    const seen = new Set<string>();
-    sorted.forEach((log) => {
-      const dateKey = log.createdAt.split("T")[0];
-      const key = `${log.classId}_${dateKey}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      unique.push(log);
-    });
-    return unique;
-  }, [sessionLogs]);
+  const uniqueSessionLogs = useMemo(
+    () => buildUniqueSessionLogs(sessionLogs),
+    [sessionLogs]
+  );
 
-  const pseSummary = useMemo(() => {
-    const valid = uniqueSessionLogs.filter(
-      (log) => typeof log.PSE === "number"
-    );
-    if (!valid.length) {
-      return { avg: null, total: 0 };
-    }
-    const sum = valid.reduce((acc, log) => acc + (log.PSE ?? 0), 0);
-    return { avg: sum / valid.length, total: valid.length };
-  }, [uniqueSessionLogs]);
+  const pseSummary = useMemo(
+    () => buildPseSummary(uniqueSessionLogs),
+    [uniqueSessionLogs]
+  );
 
-  const units = useMemo(() => {
-    const seen = new Set<string>();
-    return classes
-      .map((cls) => cls.unit || "Sem unidade")
-      .filter((unit) => {
-        if (seen.has(unit)) return false;
-        seen.add(unit);
-        return true;
-      });
-  }, [classes]);
+  const units = useMemo(() => buildTrainerReportUnits(classes), [classes]);
 
   useEffect(() => {
     if (!unitFilter && units.length) {
@@ -406,41 +242,20 @@ export default function ReportsScreen() {
     return students.filter((s) => s.classId === classId);
   }, [students, classId]);
 
-  const classRows = useMemo(() => {
-    return classes.map((cls) => {
-      const classSummary = attendanceSummaryByClass[cls.id] ?? {
-        total: 0,
-        present: 0,
-      };
-      const total = classSummary.total;
-      const present = classSummary.present;
-      const percent = total ? Math.round((present / total) * 100) : 0;
-      return { cls, total, present, percent };
-    });
-  }, [attendanceSummaryByClass, classes]);
+  const classRows = useMemo(
+    () => buildClassRows(classes, attendanceSummaryByClass),
+    [attendanceSummaryByClass, classes]
+  );
 
-  const sessionLogRows = useMemo(() => {
-    if (reportTab !== "reports") return [];
-    return uniqueSessionLogs
-      .map((log) => {
-        const cls = classMap[log.classId];
-        const className = cls?.name ?? "Turma";
-        const dateKey = log.createdAt.split("T")[0];
-        return {
-          log,
-          className,
-          classGender: cls?.gender,
-          dateKey,
-          dateLabel: formatDateLabel(log.createdAt),
-        };
-      });
-  }, [classMap, reportTab, uniqueSessionLogs]);
+  const sessionLogRows = useMemo(
+    () => buildSessionLogRows(reportTab, uniqueSessionLogs, classMap),
+    [classMap, reportTab, uniqueSessionLogs]
+  );
 
-  const avgPresenceByClass = useMemo(() => {
-    if (!classRows.length) return null;
-    const sum = classRows.reduce((acc, row) => acc + row.percent, 0);
-    return sum / classRows.length;
-  }, [classRows]);
+  const avgPresenceByClass = useMemo(
+    () => buildAvgPresenceByClass(classRows),
+    [classRows]
+  );
 
   const exportXlsx = async () => {
     try {
@@ -481,48 +296,21 @@ export default function ReportsScreen() {
     }
   };
 
-  const weeklySummary = useMemo(() => {
-    const weeks = Array.from({ length: 5 }).map(() => ({ total: 0, present: 0 }));
-    monthAttendance.forEach((record) => {
-      const day = Number(record.date.slice(8, 10));
-      const weekIndex = Math.min(Math.floor((day - 1) / 7), weeks.length - 1);
-      weeks[weekIndex].total += 1;
-      if (record.status === "presente") weeks[weekIndex].present += 1;
-    });
-    return weeks
-      .map((week, index) => {
-        const percent = week.total
-          ? Math.round((week.present / week.total) * 100)
-          : 0;
-        return { label: `S${index + 1}`, percent, total: week.total };
-      })
-      .filter((week) => week.total > 0);
-  }, [monthAttendance]);
+  const weeklySummary = useMemo(
+    () => buildWeeklySummary(monthAttendance),
+    [monthAttendance]
+  );
 
-  const performanceRows = useMemo(() => {
-    if (reportTab !== "students") return [];
-    if (!classId) return [];
-    const countsByStudent: Record<string, ReturnType<typeof createEmptyCounts>> = {};
-    studentScoutingLogs.forEach((log) => {
-      if (!countsByStudent[log.studentId]) {
-        countsByStudent[log.studentId] = createEmptyCounts();
-      }
-      const base = countsByStudent[log.studentId];
-      const next = countsFromStudentLog(log);
-      (Object.keys(base) as (keyof typeof base)[]).forEach((skill) => {
-        base[skill][0] += next[skill][0];
-        base[skill][1] += next[skill][1];
-        base[skill][2] += next[skill][2];
-      });
-    });
-    return studentsForClass
-      .map((student) => {
-        const counts = countsByStudent[student.id] ?? createEmptyCounts();
-        const score = getTechnicalPerformanceScore(counts);
-        return { student, score, counts };
-      })
-      .sort((a, b) => b.score - a.score);
-  }, [classId, reportTab, studentScoutingLogs, studentsForClass]);
+  const performanceRows = useMemo(
+    () =>
+      buildPerformanceRows({
+        reportTab,
+        classId,
+        studentScoutingLogs,
+        studentsForClass,
+      }),
+    [classId, reportTab, studentScoutingLogs, studentsForClass]
+  );
 
   const topStudents = useMemo(() => performanceRows.slice(0, 10), [performanceRows]);
 
@@ -544,45 +332,14 @@ export default function ReportsScreen() {
   ];
 
   const teamIntelligence = useMemo(
-    () =>
-      buildTeamIntelligenceSnapshot({
-        classes: classes.map((item) => ({ id: item.id, name: item.name, unit: item.unit })),
-        sessionLogs: uniqueSessionLogs.map((item) => ({
-          classId: item.classId,
-          attendance: Number(item.attendance || 0),
-          PSE: Number(item.PSE || 0),
-        })),
-      }),
+    () => buildTrainerTeamIntelligence(classes, uniqueSessionLogs),
     [classes, uniqueSessionLogs]
   );
 
-  const simulationHighlights = useMemo(() => {
-    return classes
-      .map((cls) => {
-        const logs = uniqueSessionLogs
-          .filter((item) => item.classId === cls.id)
-          .slice(0, 8);
-        if (!logs.length) return null;
-        const simulation = simulateClassEvolution({
-          classId: cls.id,
-          logs,
-          horizonWeeks: 6,
-          interventionIntensity: "balanced",
-        });
-        const lastPoint = simulation.points[simulation.points.length - 1];
-        if (!lastPoint) return null;
-        return {
-          classId: cls.id,
-          className: cls.name,
-          baseline: simulation.baselineScore,
-          projected: lastPoint.projectedScore,
-          confidence: lastPoint.confidence,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
-      .sort((a, b) => b.projected - a.projected)
-      .slice(0, 5);
-  }, [classes, uniqueSessionLogs]);
+  const simulationHighlights = useMemo(
+    () => buildSimulationHighlights(classes, uniqueSessionLogs),
+    [classes, uniqueSessionLogs]
+  );
 
   if (loading) {
     return <ScreenLoadingState />;
@@ -612,6 +369,24 @@ export default function ReportsScreen() {
             Dashboard de presença e desempenho
           </Text>
         </View>
+
+        {loadError ? (
+          <View
+            style={{
+              padding: 12,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              gap: 4,
+            }}
+          >
+            <Text style={{ color: colors.dangerText, fontWeight: "800" }}>
+              Nao foi possivel carregar tudo
+            </Text>
+            <Text style={{ color: colors.muted, lineHeight: 20 }}>{loadError}</Text>
+          </View>
+        ) : null}
 
         <View
           style={{

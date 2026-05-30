@@ -16,6 +16,10 @@ import {
   deleteTrainingPlansByClassAndDate,
   saveTrainingPlan,
 } from "../../../db/seed";
+import {
+  assertImportAssetWithinLimits,
+  normalizeSpreadsheetMatrixForImport,
+} from "../../../utils/import-file-guards";
 
 // ---------------------------------------------------------------------------
 // Local helper (mirrors splitImportList in app/periodization/index.tsx)
@@ -69,6 +73,7 @@ export function useImportPlansFile({
 
       const asset = result.assets?.[0];
       if (!asset?.uri) throw new Error("Arquivo invalido.");
+      assertImportAssetWithinLimits(asset);
       const fileName = String(asset.name ?? "").trim().toLowerCase();
       if (fileName.endsWith(".pdf") || asset.mimeType === "application/pdf") {
         Alert.alert("Importacao", "PDF nao e suportado para importacao direta. Use CSV/XLSX.");
@@ -98,9 +103,7 @@ export function useImportPlansFile({
           raw: false,
           defval: "",
         }) as unknown[][];
-        const matrix = rows.map((row) =>
-          Array.isArray(row) ? row.map((cell) => String(cell ?? "").trim()) : []
-        );
+        const matrix = normalizeSpreadsheetMatrixForImport(rows);
         importedRows = parseImportRowsFromMatrix(matrix);
       } else {
         const csvText =

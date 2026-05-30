@@ -19,6 +19,10 @@ import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useConfirmDialog } from "../../../ui/confirm-dialog";
 import { useModalCardStyle } from "../../../ui/use-modal-card-style";
+import {
+  assertImportAssetWithinLimits,
+  normalizeSpreadsheetMatrixForImport,
+} from "../../../utils/import-file-guards";
 
 type StudentsImportModalProps = {
   visible: boolean;
@@ -312,6 +316,7 @@ const pickImportFileRows = async (): Promise<LoadedImportFile | null> => {
   if (result.canceled) return null;
   const asset = result.assets?.[0];
   if (!asset?.uri) throw new Error("Arquivo invalido.");
+  assertImportAssetWithinLimits(asset);
 
   const sourceFilename = String(asset.name ?? "").trim() || "students-import.xlsx";
   const lowerName = sourceFilename.toLowerCase();
@@ -338,7 +343,7 @@ const pickImportFileRows = async (): Promise<LoadedImportFile | null> => {
       raw: false,
       defval: "",
     }) as unknown[][];
-    rowsMatrix = parseSpreadsheetRows(rows);
+    rowsMatrix = parseSpreadsheetRows(normalizeSpreadsheetMatrixForImport(rows));
   } else {
     const text =
       Platform.OS === "web"

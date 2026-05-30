@@ -1,4 +1,6 @@
-import type { ClassGroup, MonthlyPlanningBlueprint } from "../../../core/models";
+import { buildClassContextSnapshot } from "../../../core/class-context-snapshot";
+import type { ClassCalendarException, ClassGroup, MonthlyPlanningBlueprint, Student } from "../../../core/models";
+import { buildSessionCalendar } from "../../../core/session-calendar-engine";
 
 /**
  * Generate or update a MonthlyPlanningBlueprint based on class context.
@@ -21,6 +23,8 @@ export interface GenerateMonthlyBlueprintParams {
   classGroup: ClassGroup;
   monthKey: string; // "YYYY-MM"
   existing?: MonthlyPlanningBlueprint | null;
+  calendarExceptions?: ClassCalendarException[];
+  students?: Student[];
 }
 
 const competitiveIntentByLevel: Record<string, string> = {
@@ -123,6 +127,21 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
 
   const competitiveLevel = classGroup.competitiveLevel || "beginner";
   const calendarPhase = inferCalendarPhase(month);
+  const monthStartDate = `${yearText}-${monthText}-01`;
+  const lastDay = new Date(year, month, 0);
+  const monthEndDate = `${yearText}-${monthText}-${String(lastDay.getDate()).padStart(2, "0")}`;
+  const sessionCalendar = buildSessionCalendar({
+    classGroup,
+    startDate: monthStartDate,
+    endDate: monthEndDate,
+    exceptions: params.calendarExceptions,
+  });
+  const classContextSnapshot = buildClassContextSnapshot({
+    classGroup,
+    sessions: sessionCalendar.sessions,
+    students: params.students,
+    generatedAt: nowIso,
+  });
 
   // Build macro intent combining level + calendar phase
   const levelIntent = competitiveIntentByLevel[competitiveLevel] || competitiveIntentByLevel.beginner;
@@ -159,9 +178,13 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
     weeklyFocusDistributionJson: JSON.stringify(weeklyFocusDistribution),
     constraintsJson: existing?.constraintsJson ?? "{}",
     contextSnapshotJson: JSON.stringify({
+      schemaVersion: 1,
       competitiveLevel,
       calendarPhase,
+      phaseIntent,
       pedagogicalVocabulary,
+      classContextSnapshot,
+      decisionReasons: [...sessionCalendar.reasons, ...classContextSnapshot.reasons],
       classGroupName: classGroup.name,
       generatedAt: nowIso,
     }),

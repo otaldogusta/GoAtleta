@@ -16,6 +16,7 @@ const IGNORE_DIRS = new Set([
   "dist",
   "ios",
   "node_modules",
+  "storybook-static",
   "tmp",
 ]);
 const IGNORE_FILES = new Set(["scripts/check-encoding.js"]);

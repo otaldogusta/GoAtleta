@@ -19,6 +19,10 @@ import { markRender } from "../../src/observability/perf";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useSaveToast } from "../../src/ui/save-toast";
+import {
+    assertImportAssetWithinLimits,
+    normalizeSpreadsheetMatrixForImport,
+} from "../../src/utils/import-file-guards";
 
 type CsvRow = Record<string, string>;
 
@@ -495,6 +499,7 @@ export default function ImportTrainingCsvScreen() {
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset?.uri) throw new Error("Arquivo invalido.");
+      assertImportAssetWithinLimits(asset);
 
       const sourceFilename = String(asset.name ?? "").trim().toLowerCase();
       if (sourceFilename.endsWith(".pdf") || asset.mimeType === "application/pdf") {
@@ -528,7 +533,9 @@ export default function ImportTrainingCsvScreen() {
           raw: false,
           defval: "",
         }) as unknown[][];
-        rows = mapRawRowsToImportRows(parseSpreadsheetRows(matrix));
+        rows = mapRawRowsToImportRows(
+          parseSpreadsheetRows(normalizeSpreadsheetMatrixForImport(matrix))
+        );
       } else {
         const text =
           Platform.OS === "web"

@@ -382,6 +382,33 @@ export type PedagogicalFeedbackSignalEvidence = {
   teacherFacingReason: string;
 };
 
+export type DecisionReasonKind =
+  | "calendar"
+  | "context"
+  | "load"
+  | "pedagogy"
+  | "safety"
+  | "persistence";
+
+export type DecisionReasonSource =
+  | "class_profile"
+  | "attendance"
+  | "health_summary"
+  | "periodization"
+  | "calendar_engine"
+  | "teacher_override"
+  | "safe_default";
+
+export type DecisionConfidence = "low" | "medium" | "high";
+
+export type DecisionReason = {
+  kind: DecisionReasonKind;
+  source: DecisionReasonSource;
+  confidence: DecisionConfidence;
+  message: string;
+  evidence?: string;
+};
+
 export type PedagogicalDecisionSupport = {
   capIntent: {
     conceitual: string[];
@@ -393,6 +420,7 @@ export type PedagogicalDecisionSupport = {
   riskFlags: PedagogicalRiskFlag[];
   teacherFacingSummary: string;
   sessionConstraintSuggestions: string[];
+  decisionReasons?: DecisionReason[];
 };
 
 export type DominantGapType =

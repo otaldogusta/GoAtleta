@@ -5,6 +5,7 @@ import type {
     ClassGroup,
     ClassPlan,
     DailyLessonPlan,
+    DecisionReason,
     SessionPrimaryComponent,
     TeamTrainingContext,
 } from "../../core/models";
@@ -27,6 +28,10 @@ import type {
 import { getDemandIndexForModel } from "../../core/periodization-basics";
 import { buildClassPlan, getVolumeFromTargets } from "../../core/periodization-generator";
 import { getPlannedLoads } from "../../core/periodization-load";
+import {
+    parseWeeklyPeriodizationSnapshot,
+    serializeWeeklyPeriodizationSnapshot,
+} from "../../core/periodization-snapshots";
 import { buildWeeklyIntegratedContext } from "../../core/resistance/resolve-session-environment";
 import { resolveTeamTrainingContext } from "../../core/resistance/training-context";
 import { buildPeriodizationWeekSchedule } from "./application/build-auto-plan-for-cycle-day";
@@ -272,15 +277,6 @@ const extractWeeklyPedagogicalSignals = (plans: DailyLessonPlan[] | undefined) =
   };
 };
 
-const parseSnapshot = (value: string | undefined) => {
-  try {
-    const parsed = JSON.parse(value ?? "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-};
-
 export const buildAutoWeekPlan = (
   params: BuildAutoWeekPlanParams
 ): ClassPlan | null => {
@@ -387,15 +383,42 @@ export const buildAutoWeekPlan = (
             : decision.sessionPrimaryComponent,
       };
     });
+    const weeklyDecisionReasons: DecisionReason[] = [
+      {
+        kind: "pedagogy",
+        source: "periodization",
+        confidence: "high",
+        message: "Intencao semanal derivada da periodizacao e do contexto do ciclo.",
+        evidence: `Semana ${params.weekNumber} · ${plan.phase}`,
+      },
+      {
+        kind: "calendar",
+        source: "calendar_engine",
+        confidence: "high",
+        message: "Sessoes da semana alinhadas aos dias reais da turma.",
+        evidence: `${params.weeklySessions} sessoes previstas`,
+      },
+    ];
+    const existingSnapshot = parseWeeklyPeriodizationSnapshot(plan.generationContextSnapshotJson);
+    const pedagogicalDecisionSupport = autoPlans[0]?.strategy.pedagogicalDecisionSupport
+      ? {
+          ...autoPlans[0].strategy.pedagogicalDecisionSupport,
+          decisionReasons: [
+            ...(autoPlans[0].strategy.pedagogicalDecisionSupport.decisionReasons ?? []),
+            ...weeklyDecisionReasons,
+          ],
+        }
+      : undefined;
     const snapshot = {
-      ...parseSnapshot(plan.generationContextSnapshotJson),
-      pedagogicalDecisionSupport: autoPlans[0]?.strategy.pedagogicalDecisionSupport,
+      ...existingSnapshot,
+      decisionReasons: [...existingSnapshot.decisionReasons, ...weeklyDecisionReasons],
+      pedagogicalDecisionSupport,
       weeklyOperationalStrategy: toWeeklyOperationalStrategySnapshot({
         ...weeklyOperationalStrategy,
         decisions: decisionsWithEnvironment,
       }),
     };
-    plan.generationContextSnapshotJson = JSON.stringify(snapshot);
+    plan.generationContextSnapshotJson = serializeWeeklyPeriodizationSnapshot(snapshot);
     plan.weekNotes = sanitizeVolleyballLanguage(weeklyOperationalStrategy.weekIntentSummary);
 
     if (autoPlans.length) {

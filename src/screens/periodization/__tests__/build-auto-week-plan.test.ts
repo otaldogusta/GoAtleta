@@ -108,6 +108,17 @@ describe("buildAutoWeekPlan", () => {
     expect(Array.isArray(snapshot?.weeklyOperationalStrategy?.weekRulesApplied)).toBe(true);
     expect(snapshot?.pedagogicalDecisionSupport?.teacherFacingSummary).toContain("Intenção:");
     expect(snapshot?.pedagogicalDecisionSupport?.capIntent?.conceitual?.length).toBeGreaterThan(0);
+    expect(snapshot?.pedagogicalDecisionSupport?.decisionReasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "periodization", confidence: "high" }),
+        expect.objectContaining({ source: "calendar_engine", confidence: "high" }),
+      ])
+    );
+    expect(snapshot?.decisionReasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "pedagogy", source: "periodization" }),
+      ])
+    );
     expect(plan?.weekNotes ?? "").toContain("Foco da semana:");
     expect(plan?.pedagogicalRule ?? "").toContain("Foco do trimestre:");
   });
