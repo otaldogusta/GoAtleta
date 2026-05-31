@@ -90,7 +90,10 @@ export function AnimatedSegmentedTabs<T extends string>({
             }}
           >
             <Pressable
-              onPress={() => onChange(tab.id)}
+              onPress={(event) => {
+                event.stopPropagation?.();
+                onChange(tab.id);
+              }}
               style={{
                 paddingVertical: 8,
                 borderRadius: 999,

@@ -1271,9 +1271,12 @@ export default function StudentsScreen() {
         doResetForm();
         resetPreRegistrationForm();
       }
+      if (nextTab === "cadastro") {
+        setShowForm(true);
+      }
       setStudentsTab(nextTab);
     },
-    [isFormDirty, resetForm, resetPreRegistrationForm, studentsTab]
+    [doResetForm, isFormDirty, resetPreRegistrationForm, setShowForm, studentsTab]
   );
 
   const showSaveNotice = (message: string) => {
@@ -1474,7 +1477,7 @@ export default function StudentsScreen() {
     const focusName = existingStudentMatches[0]?.studentName ?? name.trim();
     setStudentsTab("alunos");
     setStudentsSearch(focusName);
-    setShowForm(false);
+    setShowForm(true);
   }, [existingStudentMatches, name, setStudentsTab, setShowForm]);
   const selectedClassLabel = useMemo(() => {
     const cls = classById.get(classId) ?? null;
@@ -2572,15 +2575,25 @@ export default function StudentsScreen() {
             paddingBottom: 6,
           }}
         >
-          <Pressable
-            onPress={goBackFromStudents}
-            style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-          >
-            <Ionicons name="chevron-back" size={18} color={colors.text} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voltar"
+              onPress={goBackFromStudents}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="chevron-back" size={18} color={colors.text} />
+            </Pressable>
             <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
               Alunos
             </Text>
-          </Pressable>
+          </View>
           <AnimatedSegmentedTabs
             tabs={studentsTabMeta}
             activeTab={studentsTab}
