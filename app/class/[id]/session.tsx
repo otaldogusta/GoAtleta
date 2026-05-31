@@ -30,10 +30,7 @@ import {
     toGenerationMode,
 } from "../../../src/screens/session/application/build-persisted-generation-explanation";
 import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
-import {
-    buildCompactSessionPlanDetails,
-    shouldShowUnavailableResistanceNotice,
-} from "../../../src/screens/session/application/session-ui-policy";
+import { shouldShowUnavailableResistanceNotice } from "../../../src/screens/session/application/session-ui-policy";
 import {
     buildSessionObjectiveFromPlanContent,
     resolveSessionObjectiveText,
@@ -66,7 +63,6 @@ import { usePedagogicalConfig } from "../../../src/bootstrap/pedagogical-config-
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import type { PedagogicalDimensionsConfig } from "../../../src/config/pedagogical-dimensions-config";
 import { ptBR } from "../../../src/constants/copy/pt-br";
-import { toVisibleCoachingText } from "../../../src/core/methodology/coaching-lexicon";
 import type { PedagogicalApproachDetection } from "../../../src/core/methodology/pedagogical-approach-detector";
 import { parseWeeklyIntegratedContext } from "../../../src/core/resistance/weekly-integrated-context";
 import {
@@ -76,11 +72,6 @@ import {
     buildSessionPedagogicalApproachInput,
     detectSessionPedagogicalApproach as detectSessionPedagogicalApproachCore,
 } from "../../../src/core/methodology/session-pedagogical-language";
-import {
-    formatSessionAdjustmentLabel,
-    formatSessionDecisionReasonTypeLabel,
-    formatSessionPedagogicalFocusSkill,
-} from "../../../src/core/methodology/session-pedagogical-panel-language";
 import type {
     ClassGroup,
     ClassPlan,
@@ -651,16 +642,6 @@ const formatCriterionSummary = (criterion: TrainingPlanCriterion) => {
     return `${typeLabel} >= ${criterion.threshold}`;
   }
   return typeLabel;
-};
-
-const formatAdjustmentLabel = (value: "increase" | "maintain" | "regress") =>
-  formatSessionAdjustmentLabel(value);
-
-const decisionReasonTypeLabels: Record<"health" | "readiness" | "context" | "other", string> = {
-  health: formatSessionDecisionReasonTypeLabel("health"),
-  readiness: formatSessionDecisionReasonTypeLabel("readiness"),
-  context: formatSessionDecisionReasonTypeLabel("context"),
-  other: formatSessionDecisionReasonTypeLabel("other"),
 };
 
 const getActivityAiBadge = (activity: TrainingPlanActivity) => {
@@ -1791,20 +1772,7 @@ export default function SessionScreen() {
   const [selectedBlockKey, setSelectedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
   const [isSavingBlockEdit, setIsSavingBlockEdit] = useState(false);
   const [lastUpdatedBlockKey, setLastUpdatedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
-  const [showPedagogicalPanel, setShowPedagogicalPanel] = useState(false);
-  const pedagogicalPanelCollapse = useCollapsibleAnimation(showPedagogicalPanel, {
-    translateY: -6,
-  });
-  const [showDecisionOverrideModal, setShowDecisionOverrideModal] = useState(false);
   const [showMissingPeriodizationModal, setShowMissingPeriodizationModal] = useState(false);
-  const [isApplyingDecisionOverride, setIsApplyingDecisionOverride] = useState(false);
-  const [decisionAppliedAdjustment, setDecisionAppliedAdjustment] = useState<
-    "increase" | "maintain" | "regress"
-  >("maintain");
-  const [decisionReasonType, setDecisionReasonType] = useState<
-    "health" | "readiness" | "context" | "other" | null
-  >(null);
-  const [decisionReasonNote, setDecisionReasonNote] = useState("");
   const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const [pseTriggerLayout, setPseTriggerLayout] = useState<{
     x: number;
@@ -2025,12 +1993,6 @@ export default function SessionScreen() {
     setShowSavedClassPlans(false);
     setIsApplyingSavedPlanId(null);
   }, [id, sessionDate]);
-
-  useEffect(() => {
-    setShowDecisionOverrideModal(false);
-    setDecisionReasonType(null);
-    setDecisionReasonNote("");
-  }, [plan?.id]);
 
   const togglePicker = (target: "pse" | "technique") => {
     setShowPsePicker((prev) => (target === "pse" ? !prev : false));
@@ -2429,31 +2391,6 @@ export default function SessionScreen() {
     plan?.pedagogy?.objective?.description,
     plan?.title,
   ]);
-  const pedagogicalFocusSkillLabel = formatSessionPedagogicalFocusSkill(
-    plan?.pedagogy?.focus?.skill ?? null
-  );
-  const progressionCriterionLabel = toVisibleCoachingText(
-    plan?.pedagogy?.learningObjectives?.successCriteria?.[0] ?? ""
-  );
-  const suggestedAdjustmentLabel = plan?.pedagogy?.adaptation
-    ? formatAdjustmentLabel(plan.pedagogy.adaptation.adjustment)
-    : "";
-  const compactPlanDetails = useMemo(
-    () =>
-      buildCompactSessionPlanDetails({
-        focusLabel: pedagogicalFocusSkillLabel,
-        successCriterionLabel: progressionCriterionLabel,
-        suggestedAdjustmentLabel,
-        noDataLabel: ptBR.session.suggestionLogic.noData,
-      }),
-    [pedagogicalFocusSkillLabel, progressionCriterionLabel, suggestedAdjustmentLabel]
-  );
-  const suggestedDecisionAdjustmentLabel = plan?.pedagogy?.adaptation
-    ? formatAdjustmentLabel(
-        plan.pedagogy.adaptation.telemetry?.decision.suggested ??
-          plan.pedagogy.adaptation.adjustment
-      )
-    : "";
   const [dismissResistanceUnavailable, setDismissResistanceUnavailable] = useState(false);
   const persistedResistanceData = useMemo(
     () => getResistancePlanFromSessionComponents(currentDailyLessonPlan?.sessionComponents),
@@ -2728,7 +2665,6 @@ export default function SessionScreen() {
           setPlan(null);
           setSavedClassPlans(compactTrainingPlans(remainingClassPlans));
           setAutoActivity("");
-          setShowPedagogicalPanel(false);
           setShowSavedClassPlans(false);
           setSelectedBlockKey(null);
           setLastUpdatedBlockKey(null);
@@ -3451,119 +3387,6 @@ export default function SessionScreen() {
     }
   };
 
-  const openDecisionOverrideModal = () => {
-    const adaptation = plan?.pedagogy?.adaptation;
-    if (!adaptation) return;
-    const suggested = adaptation.telemetry?.decision.suggested ?? adaptation.adjustment;
-    const applied = adaptation.telemetry?.decision.applied ?? suggested;
-    setDecisionAppliedAdjustment(applied);
-    setDecisionReasonType(adaptation.telemetry?.reason?.type ?? null);
-    setDecisionReasonNote(adaptation.telemetry?.reason?.note ?? "");
-    setShowDecisionOverrideModal(true);
-  };
-
-  const handleApplyDecisionOverride = async () => {
-    if (!plan || !cls || !plan.pedagogy?.adaptation) return;
-
-    const adaptation = plan.pedagogy.adaptation;
-    const telemetry = adaptation.telemetry;
-    const suggested = telemetry?.decision.suggested ?? adaptation.adjustment;
-    const applied = decisionAppliedAdjustment;
-    const wasFollowed = suggested === applied;
-    const reasonType = wasFollowed ? undefined : decisionReasonType ?? undefined;
-    const reasonNote = wasFollowed ? undefined : decisionReasonNote.trim() || undefined;
-
-    setIsApplyingDecisionOverride(true);
-    try {
-      const latestVersionPlan = await getLatestTrainingPlanByClass(cls.id, {
-        organizationId: cls.organizationId ?? null,
-      });
-      const latestVersion = latestVersionPlan?.version ?? 0;
-      const nowIso = new Date().toISOString();
-      const sessionId = `${cls.id}:${sessionDate}`;
-
-      const updatedPedagogy: TrainingPlanPedagogy = {
-        ...(plan.pedagogy ?? {}),
-        adaptation: {
-          ...adaptation,
-          adjustment: applied,
-          telemetry: {
-            decisionId:
-              telemetry?.decisionId ??
-              `dec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            decision: {
-              suggested,
-              applied,
-              wasFollowed,
-            },
-            context: telemetry?.context ?? {
-              gapLevel: adaptation.gap?.level ?? "moderado",
-              trend: plan.pedagogy?.skillLearningState?.trend ?? "estagnado",
-              sampleConfidence: adaptation.sampleConfidence ?? "medio",
-              consistencyScore: adaptation.consistencyScore ?? 0,
-              learningVelocity: adaptation.learningVelocity ?? 0,
-            },
-            reason:
-              reasonType || reasonNote
-                ? {
-                    type: reasonType,
-                    note: reasonNote,
-                  }
-                : undefined,
-            meta: {
-              sessionId,
-              classId: cls.id,
-            },
-            timestamp: nowIso,
-          },
-        },
-      };
-
-      const nextPlan = createTrainingPlanVersion({
-        classId: plan.classId,
-        version: Math.max(plan.version ?? 0, latestVersion) + 1,
-        origin: "edited_auto",
-        draft: buildTrainingPlanDraftFromPlan(plan),
-        applyDays: plan.applyDays ?? [],
-        applyDate: plan.applyDate ?? "",
-        inputHash: plan.inputHash,
-        nowIso,
-        idPrefix: "plan_override",
-        status: "final",
-        generatedAt: plan.generatedAt,
-        finalizedAt: nowIso,
-        parentPlanId: plan.parentPlanId ?? plan.id,
-        previousVersionId: plan.id,
-        pedagogy: updatedPedagogy,
-      });
-
-      await saveTrainingPlan(nextPlan);
-      setPlan(nextPlan);
-      setShowDecisionOverrideModal(false);
-      showSaveToast({
-        message: wasFollowed
-          ? ptBR.session.success.decisionSaved
-          : ptBR.session.success.decisionAdjusted,
-        variant: "success",
-      });
-      logAction("pedagogical decision override applied", {
-        classId: cls.id,
-        sessionId,
-        suggested,
-        applied,
-        wasFollowed,
-        reasonType,
-      });
-    } catch {
-      showSaveToast({
-        message: ptBR.session.errors.decisionSaveFailed,
-        variant: "error",
-      });
-    } finally {
-      setIsApplyingDecisionOverride(false);
-    }
-  };
-
   const monthLabel = (value: string) => {
     const [year, month] = value.split("-");
     const names = [
@@ -4221,68 +4044,6 @@ export default function SessionScreen() {
               </Animated.View>
             ))}
           </>
-        ) : null}
-        {sessionTab === "treino" && plan?.pedagogy ? (
-          <Pressable
-            onPress={() => setShowPedagogicalPanel((prev) => !prev)}
-            style={{
-              padding: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-              {showPedagogicalPanel ? ptBR.session.hideSuggestionLogic : ptBR.session.viewSuggestionLogic}
-            </Text>
-            <LocalIcon
-              name="down"
-              size={16}
-              color={colors.muted}
-              style={{ transform: [{ rotate: showPedagogicalPanel ? "180deg" : "0deg" }] }}
-            />
-          </Pressable>
-        ) : null}
-        {sessionTab === "treino" && plan?.pedagogy && pedagogicalPanelCollapse.isVisible ? (
-          <Animated.View
-            style={{
-              ...pedagogicalPanelCollapse.animatedStyle,
-              padding: 12,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              gap: 8,
-            }}
-          >
-            {compactPlanDetails.map((detail) => (
-              <Text key={detail.label} style={{ color: colors.muted, fontSize: 12 }}>
-                {detail.label}: {detail.value}
-              </Text>
-            ))}
-            {plan.pedagogy?.adaptation ? (
-              <Pressable
-                onPress={openDecisionOverrideModal}
-                style={{
-                  alignSelf: "flex-start",
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                  {ptBR.session.applyManualAdjustment}
-                </Text>
-              </Pressable>
-            ) : null}
-          </Animated.View>
         ) : null}
         {sessionTab === "treino" && plan ? (
           <>
@@ -5481,142 +5242,6 @@ export default function SessionScreen() {
         onClose={() => setSelectedBlockKey(null)}
         onSave={handleSaveBlockEdit}
       />
-
-      <ModalSheet
-        visible={showDecisionOverrideModal}
-        onClose={() => setShowDecisionOverrideModal(false)}
-        position="center"
-        overlayZIndex={30000}
-        backdropOpacity={0.7}
-        cardStyle={{
-          width: "100%",
-          maxWidth: 460,
-          borderRadius: 18,
-          backgroundColor: colors.background,
-          borderWidth: 1,
-          borderColor: colors.border,
-          padding: 16,
-          gap: 10,
-        }}
-      >
-        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-          {ptBR.session.decisionOverride.title}
-        </Text>
-        <Text style={{ color: colors.muted, fontSize: 13 }}>
-          {ptBR.session.decisionOverride.description}
-        </Text>
-        {suggestedDecisionAdjustmentLabel ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Leitura do sistema para esta aula: {suggestedDecisionAdjustmentLabel}
-          </Text>
-        ) : null}
-
-        <View style={{ gap: 8, marginTop: 4 }}>
-          {(["increase", "maintain", "regress"] as const).map((value) => {
-            const selected = decisionAppliedAdjustment === value;
-            return (
-              <Pressable
-                key={value}
-                onPress={() => setDecisionAppliedAdjustment(value)}
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: selected ? colors.primaryBg : colors.border,
-                  backgroundColor: selected ? colors.secondaryBg : colors.card,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {formatAdjustmentLabel(value)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {plan?.pedagogy?.adaptation &&
-        decisionAppliedAdjustment !==
-          (plan.pedagogy.adaptation.telemetry?.decision.suggested ?? plan.pedagogy.adaptation.adjustment) ? (
-          <View style={{ gap: 8, marginTop: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-              {ptBR.session.decisionOverride.reason}
-            </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {(["health", "readiness", "context", "other"] as const).map((item) => {
-                const selected = decisionReasonType === item;
-                return (
-                  <Pressable
-                    key={item}
-                    onPress={() => setDecisionReasonType(item)}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: selected ? colors.primaryBg : colors.border,
-                      backgroundColor: selected ? colors.secondaryBg : colors.card,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                      {decisionReasonTypeLabels[item]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <TextInput
-              value={decisionReasonNote}
-              onChangeText={setDecisionReasonNote}
-              placeholder={ptBR.session.decisionOverride.optionalNote}
-              placeholderTextColor={colors.placeholder}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                padding: 10,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                color: colors.inputText,
-              }}
-            />
-          </View>
-        ) : null}
-
-        <View style={{ gap: 8, marginTop: 6 }}>
-          <Pressable
-            onPress={() => void handleApplyDecisionOverride()}
-            disabled={isApplyingDecisionOverride}
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.primaryBg,
-              backgroundColor: colors.primaryBg,
-              paddingVertical: 10,
-              alignItems: "center",
-              opacity: isApplyingDecisionOverride ? 0.65 : 1,
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              {isApplyingDecisionOverride ? ptBR.session.actions.saving : ptBR.session.decisionOverride.saveFinalDecision}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setShowDecisionOverrideModal(false)}
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              paddingVertical: 10,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              {ptBR.session.actions.cancel}
-            </Text>
-          </Pressable>
-        </View>
-      </ModalSheet>
 
       {sessionTab === "treino" && showPlanFabMenu ? (
         <Pressable

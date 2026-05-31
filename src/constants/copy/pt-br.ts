@@ -61,10 +61,7 @@ export const ptBR = {
       optionalNote: "Observação (opcional)",
       saveFinalDecision: "Salvar decisão final",
     },
-    viewSuggestionLogic: "Detalhes do plano",
-    hideSuggestionLogic: "Ocultar detalhes",
     objective: "Objetivo da aula",
-    applyManualAdjustment: "Aplicar ajuste manual",
     alerts: {
       saveFailedTitle: "Falha ao salvar",
       exportPdfFailedTitle: "Falha ao exportar PDF",
@@ -96,15 +93,6 @@ export const ptBR = {
       pdfGenerateFailed: "Não foi possível gerar o PDF.",
       reportGenerateFailed: "Não foi possível gerar o relatório.",
       scoutingSaveFailed: "Não foi possível salvar o scouting.",
-    },
-    suggestionLogic: {
-      methodology: "Metodologia",
-      rationale: "Justificativa",
-      sessionFocus: "Foco",
-      progressionCriterion: "Critério de sucesso",
-      adherenceScore: "Score de aderência",
-      lastOverride: "Ajuste recente do professor",
-      noData: "Sem dado",
     },
   },
   scouting: {
