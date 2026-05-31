@@ -16,11 +16,19 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
 
   return (
     <View style={[{ marginBottom: 4 }, style]}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-          onPress={onBack}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Voltar de ${title}`}
+        onPress={onBack}
+        style={{
+          alignSelf: "flex-start",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          borderRadius: 16,
+        }}
+      >
+        <View
           style={{
             width: 30,
             height: 30,
@@ -30,11 +38,11 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
           }}
         >
           <Ionicons name="chevron-back" size={20} color={colors.text} />
-        </Pressable>
+        </View>
         <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
           {title}
         </Text>
-      </View>
+      </Pressable>
     </View>
   );
 }
