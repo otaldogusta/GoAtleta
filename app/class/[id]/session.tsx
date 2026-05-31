@@ -19,6 +19,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
 import { ScreenBackdrop } from "../../../src/components/ui/ScreenBackdrop";
 import {
     buildAutoPlanForCycleDay,
@@ -3856,17 +3857,7 @@ export default function SessionScreen() {
         }}
       >
         <View style={{ flex: 1, gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable
-            onPress={handleBackToClass}
-            style={{ flexDirection: "row", alignItems: "center" }}
-          >
-            <LocalIcon name="back" size={20} color={colors.text} />
-          </Pressable>
-          <Text style={{ color: colors.text, fontSize: 28, fontWeight: "800" }}>
-            {title}
-          </Text>
-          </View>
+          <BackTitleHeader title={title} onBack={handleBackToClass} style={{ marginBottom: 0 }} />
           {showNoPlanNotice ? (
             <Text style={{ color: colors.warningText, fontSize: 12 }}>
               {ptBR.session.noPlanNotice}
