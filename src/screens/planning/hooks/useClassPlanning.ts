@@ -1,30 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ClassGroup, ClassPlan } from "../../../core/models";
+import type { ClassGroup, ClassPlan, PlanningCycle } from "../../../core/models";
 import { ensureActiveCycleForYear, getActivePlanningCycle } from "../../../db/cycles";
 import { getClassById, getClassPlansByClass } from "../../../db/seed";
-
-export type MonthPlanningSummary = {
-  monthKey: string;
-  label: string;
-  year: number;
-  month: number;
-  weekCount: number;
-  estimatedLessonCount: number;
-};
-
-const parseMonthKey = (startDate: string) => {
-  const date = new Date(`${startDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return null;
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  return {
-    year,
-    month,
-    monthKey: `${year}-${String(month).padStart(2, "0")}`,
-    label: new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date),
-  };
-};
+import { buildMonthPlanningSummaries } from "../application/month-planning-summary";
 
 const toIsoDate = (value: string | null | undefined) => {
   const raw = String(value ?? "").trim();
@@ -74,34 +53,9 @@ const dedupeWeeklyPlans = (plans: ClassPlan[]) => {
   return [...byWeek.values()].sort((a, b) => a.weekNumber - b.weekNumber);
 };
 
-const toMonthSummary = (plans: ClassPlan[], selectedClass: ClassGroup | null): MonthPlanningSummary[] => {
-  const byMonth = new Map<string, MonthPlanningSummary>();
-  const sessionsPerWeek = selectedClass?.daysOfWeek?.length || selectedClass?.daysPerWeek || 0;
-
-  for (const plan of plans) {
-    const month = parseMonthKey(plan.startDate);
-    if (!month) continue;
-    const existing = byMonth.get(month.monthKey);
-    if (existing) {
-      existing.weekCount += 1;
-      existing.estimatedLessonCount += sessionsPerWeek;
-      continue;
-    }
-    byMonth.set(month.monthKey, {
-      monthKey: month.monthKey,
-      label: month.label,
-      year: month.year,
-      month: month.month,
-      weekCount: 1,
-      estimatedLessonCount: sessionsPerWeek,
-    });
-  }
-
-  return [...byMonth.values()].sort((a, b) => (a.monthKey < b.monthKey ? 1 : -1));
-};
-
 export function useClassPlanning(classId: string) {
   const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
+  const [activeCycle, setActiveCycle] = useState<PlanningCycle | null>(null);
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +63,7 @@ export function useClassPlanning(classId: string) {
   const load = useCallback(async () => {
     if (!classId) {
       setSelectedClass(null);
+      setActiveCycle(null);
       setClassPlans([]);
       setError(null);
       setIsLoading(false);
@@ -139,6 +94,7 @@ export function useClassPlanning(classId: string) {
       });
 
       setSelectedClass(cls);
+      setActiveCycle(activeCycle);
       setClassPlans(dedupeWeeklyPlans(scopedPlans));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Falha ao carregar planejamentos.");
@@ -152,12 +108,13 @@ export function useClassPlanning(classId: string) {
   }, [load]);
 
   const months = useMemo(
-    () => toMonthSummary(classPlans, selectedClass),
-    [classPlans, selectedClass]
+    () => buildMonthPlanningSummaries(classPlans, selectedClass, activeCycle),
+    [activeCycle, classPlans, selectedClass]
   );
 
   return {
     selectedClass,
+    activeCycle,
     classPlans,
     months,
     isLoading,
