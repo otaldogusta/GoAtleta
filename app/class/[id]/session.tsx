@@ -1,7 +1,8 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Animated,
@@ -190,17 +191,17 @@ const REPORT_RELEVANT_MIN_CHARS = 24;
 const REPORT_RELEVANT_MIN_WORDS = 5;
 const REPORT_PHOTO_LIMIT = 3;
 
-const localIconLabels: Record<LocalIconName, string> = {
-  back: "<",
-  next: ">",
-  down: "v",
-  plus: "+",
-  play: ">",
-  download: "PDF",
-  upload: "Imp",
-  sparkle: "AI",
-  loading: "...",
-  edit: "Ed",
+const localIconNames: Record<LocalIconName, ComponentProps<typeof Ionicons>["name"]> = {
+  back: "chevron-back",
+  next: "chevron-forward",
+  down: "chevron-down",
+  plus: "add",
+  play: "play-circle-outline",
+  download: "download-outline",
+  upload: "cloud-upload-outline",
+  sparkle: "sparkles-outline",
+  loading: "ellipsis-horizontal",
+  edit: "pencil-outline",
 };
 
 const LocalIcon = ({
@@ -213,25 +214,7 @@ const LocalIcon = ({
   color: string;
   size?: number;
   style?: TextStyle;
-}) => (
-  <Text
-    style={[
-      {
-        color,
-        fontSize: name === "download" || name === "upload" || name === "sparkle" || name === "edit"
-          ? Math.max(10, Math.round(size * 0.62))
-          : size,
-        lineHeight: Math.max(14, size + 2),
-        fontWeight: "900",
-        textAlign: "center",
-        minWidth: Math.max(14, size),
-      },
-      style,
-    ]}
-  >
-    {localIconLabels[name]}
-  </Text>
-);
+}) => <Ionicons name={localIconNames[name]} size={size} color={color} style={style} />;
 
 const parseReportPhotoUris = (raw: string): string[] => {
   const value = raw.trim();
