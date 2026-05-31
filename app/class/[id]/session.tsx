@@ -31,13 +31,16 @@ import {
 } from "../../../src/screens/session/application/build-persisted-generation-explanation";
 import { buildSessionResistancePreview } from "../../../src/screens/session/application/build-session-resistance-preview";
 import {
+    buildCompactSessionPlanDetails,
+    shouldShowUnavailableResistanceNotice,
+} from "../../../src/screens/session/application/session-ui-policy";
+import {
     buildSessionObjectiveFromPlanContent,
     resolveSessionObjectiveText,
 } from "../../../src/screens/session/application/session-objective-summary";
 import {
     buildPedagogicalPlanDraft,
     convertPedagogicalPackageToTrainingPlan,
-    pickPedagogicalObjectiveLabel,
 } from "../../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
 import {
     BlockEditModal,
@@ -67,30 +70,15 @@ import { toVisibleCoachingText } from "../../../src/core/methodology/coaching-le
 import type { PedagogicalApproachDetection } from "../../../src/core/methodology/pedagogical-approach-detector";
 import { parseWeeklyIntegratedContext } from "../../../src/core/resistance/weekly-integrated-context";
 import {
-    resolveTeamTrainingContext,
-    supportsResistanceTraining,
-} from "../../../src/core/resistance/training-context";
-import {
     buildSessionApproachAwareBlockDescription,
     buildSessionApproachAwareGeneralObjective,
     buildSessionApproachGuideline,
     buildSessionPedagogicalApproachInput,
     detectSessionPedagogicalApproach as detectSessionPedagogicalApproachCore,
-    formatSessionPedagogicalRiskLabel,
 } from "../../../src/core/methodology/session-pedagogical-language";
 import {
-    buildSessionPedagogicalPanelIntent,
-    buildSessionPedagogicalPanelRisk,
-    buildSessionPedagogicalPanelSecondary,
-    buildSessionPedagogicalPanelSignals,
-    buildSessionPedagogicalPanelSummary,
     formatSessionAdjustmentLabel,
     formatSessionDecisionReasonTypeLabel,
-    formatSessionMethodologyApproachLabel,
-    formatSessionMethodologyEvidenceExcerpt,
-    formatSessionMethodologyEvidenceSource,
-    formatSessionMethodologyScoreSummary,
-    formatSessionOverrideSummary,
     formatSessionPedagogicalFocusSkill,
 } from "../../../src/core/methodology/session-pedagogical-panel-language";
 import type {
@@ -647,16 +635,6 @@ const buildApproachAwareBlockDescription = (options: {
   detailText?: string;
 }) => buildSessionApproachAwareBlockDescription(options);
 
-const formatPedagogicalRiskLabel = (
-  value: SessionPedagogicalApproach["traditionalConductionRisk"] | undefined
-) => formatSessionPedagogicalRiskLabel(value);
-
-const formatMethodologyApproach = (value: string | undefined) =>
-  formatSessionMethodologyApproachLabel(value);
-
-const formatMethodologyScore = (score: number) =>
-  formatSessionMethodologyScoreSummary(score);
-
 const criterionTypeLabels: Record<TrainingPlanCriterion["type"], string> = {
   consistencia: "Consistência",
   precisao: "Precisão",
@@ -692,22 +670,6 @@ const getActivityAiBadge = (activity: TrainingPlanActivity) => {
   if (score >= 0.68) return { label: "Sugestão", tone: "soft" as const };
   return null;
 };
-
-const buildHumanMethodologyExplanation = (
-  reasoning: MethodologyReasoning | undefined
-) => {
-  if (!reasoning) return "Entrou pelo padrão que mais encaixa na turma.";
-  const parts: string[] = [];
-  if (reasoning.matchedContext) parts.push("contexto do treino");
-  if (reasoning.matchedModality) parts.push("modalidade");
-  if (reasoning.matchedLevel) parts.push("nível da turma");
-  if (!parts.length) return "Entrou pelo padrão que mais encaixa na turma.";
-  return toVisibleCoachingText(`Entrou pela combinação de ${parts.join(", ")}.`);
-};
-
-type MethodologyReasoning = NonNullable<
-  NonNullable<NonNullable<TrainingPlan["pedagogy"]>["methodology"]>["reasoning"]
->;
 
 const buildTrainingPlanDraftFromPlan = (plan: TrainingPlan) => ({
   title: plan.title,
@@ -1908,7 +1870,6 @@ export default function SessionScreen() {
     currentClassPlan,
     currentDailyLessonPlan,
     isResolvingCurrentClassPlan,
-    methodologyEvidence,
     reload,
   } = useSessionData({
     classId: id,
@@ -2447,8 +2408,6 @@ export default function SessionScreen() {
   }, [defaultBlockTimes.cooldownMinutes, defaultBlockTimes.mainMinutes, defaultBlockTimes.warmupMinutes, plan]);
 
   const totalMinutes = durations.reduce((sum, value) => sum + value, 0);
-  const activeDimensions = plan?.pedagogy?.dimensions?.refined ?? plan?.pedagogy?.dimensions?.base ?? null;
-  const pedagogicalDecisionSupport = plan?.pedagogy?.pedagogicalDecisionSupport;
   const highlightedGuideline = plan?.pedagogy?.learningObjectives?.pedagogicalGuidelines?.[0] ?? "";
   const sessionPedagogicalApproach = useMemo<PedagogicalApproachDetection | null>(() => {
     if (plan?.pedagogy?.pedagogicalApproach) {
@@ -2470,37 +2429,25 @@ export default function SessionScreen() {
     plan?.pedagogy?.objective?.description,
     plan?.title,
   ]);
-  const pedagogicalPanelSummary = sessionPedagogicalApproach
-    ? buildSessionPedagogicalPanelSummary(sessionPedagogicalApproach)
-    : "";
-  const pedagogicalPanelIntent = sessionPedagogicalApproach
-    ? buildSessionPedagogicalPanelIntent(sessionPedagogicalApproach)
-    : "";
-  const pedagogicalPanelSecondary = sessionPedagogicalApproach
-    ? buildSessionPedagogicalPanelSecondary(sessionPedagogicalApproach)
-    : "";
-  const pedagogicalPanelRisk = sessionPedagogicalApproach
-    ? buildSessionPedagogicalPanelRisk(sessionPedagogicalApproach)
-    : "";
-  const pedagogicalPanelSignals = sessionPedagogicalApproach
-    ? buildSessionPedagogicalPanelSignals(sessionPedagogicalApproach)
-    : "";
   const pedagogicalFocusSkillLabel = formatSessionPedagogicalFocusSkill(
     plan?.pedagogy?.focus?.skill ?? null
   );
   const progressionCriterionLabel = toVisibleCoachingText(
     plan?.pedagogy?.learningObjectives?.successCriteria?.[0] ?? ""
   );
-  const methodologyEvidenceSourceLabel = formatSessionMethodologyEvidenceSource(
-    methodologyEvidence
-  );
-  const methodologyEvidenceExcerptLabel = formatSessionMethodologyEvidenceExcerpt(
-    methodologyEvidence
-  );
-  const lastOverrideLabel = formatSessionOverrideSummary(plan?.pedagogy?.override);
   const suggestedAdjustmentLabel = plan?.pedagogy?.adaptation
     ? formatAdjustmentLabel(plan.pedagogy.adaptation.adjustment)
     : "";
+  const compactPlanDetails = useMemo(
+    () =>
+      buildCompactSessionPlanDetails({
+        focusLabel: pedagogicalFocusSkillLabel,
+        successCriterionLabel: progressionCriterionLabel,
+        suggestedAdjustmentLabel,
+        noDataLabel: ptBR.session.suggestionLogic.noData,
+      }),
+    [pedagogicalFocusSkillLabel, progressionCriterionLabel, suggestedAdjustmentLabel]
+  );
   const suggestedDecisionAdjustmentLabel = plan?.pedagogy?.adaptation
     ? formatAdjustmentLabel(
         plan.pedagogy.adaptation.telemetry?.decision.suggested ??
@@ -2508,10 +2455,6 @@ export default function SessionScreen() {
       )
     : "";
   const [dismissResistanceUnavailable, setDismissResistanceUnavailable] = useState(false);
-  const teamTrainingContext = useMemo(
-    () => (cls ? resolveTeamTrainingContext(cls) : null),
-    [cls],
-  );
   const persistedResistanceData = useMemo(
     () => getResistancePlanFromSessionComponents(currentDailyLessonPlan?.sessionComponents),
     [currentDailyLessonPlan?.sessionComponents],
@@ -2520,17 +2463,11 @@ export default function SessionScreen() {
     () => parseWeeklyIntegratedContext(currentClassPlan?.weeklyIntegratedContextJson),
     [currentClassPlan?.weeklyIntegratedContextJson],
   );
-  const shouldShowResistanceGuardNotice = Boolean(
-    cls &&
-      teamTrainingContext?.hasGymAccess &&
-      !supportsResistanceTraining(teamTrainingContext, cls),
-  );
-  const hasUnavailableResistanceSession = Boolean(
-    !dismissResistanceUnavailable &&
-      currentDailyLessonPlan?.sessionEnvironment &&
-      currentDailyLessonPlan.sessionEnvironment !== "quadra" &&
-      !persistedResistanceData,
-  );
+  const hasUnavailableResistanceSession = shouldShowUnavailableResistanceNotice({
+    dismissed: dismissResistanceUnavailable,
+    sessionEnvironment: currentDailyLessonPlan?.sessionEnvironment,
+    hasPersistedResistanceData: Boolean(persistedResistanceData),
+  });
 
   useEffect(() => {
     setDismissResistanceUnavailable(false);
@@ -4322,117 +4259,33 @@ export default function SessionScreen() {
               gap: 8,
             }}
           >
-            {plan.pedagogy?.methodology ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {ptBR.session.suggestionLogic.methodology}: {formatMethodologyApproach(plan.pedagogy.methodology.approach)}
+            {compactPlanDetails.map((detail) => (
+              <Text key={detail.label} style={{ color: colors.muted, fontSize: 12 }}>
+                {detail.label}: {detail.value}
               </Text>
-            ) : null}
-            {plan.pedagogy?.methodology?.reasoning ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {ptBR.session.suggestionLogic.rationale}: {buildHumanMethodologyExplanation(plan.pedagogy.methodology.reasoning)}
-              </Text>
-            ) : null}
-            {methodologyEvidenceSourceLabel ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Base consultada: {methodologyEvidenceSourceLabel}
-              </Text>
-            ) : null}
-            {methodologyEvidenceExcerptLabel ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Trecho usado: {methodologyEvidenceExcerptLabel}
-              </Text>
-            ) : null}
-            {sessionPedagogicalApproach ? (
-              <>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Leitura pedagógica: {pedagogicalPanelSummary}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Condução sugerida: {pedagogicalPanelIntent}
-                </Text>
-                {pedagogicalPanelSecondary ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Traços secundários: {pedagogicalPanelSecondary}
-                  </Text>
-                ) : null}
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Ponto de atenção: {pedagogicalPanelRisk || formatPedagogicalRiskLabel(sessionPedagogicalApproach.traditionalConductionRisk)}
-                </Text>
-                {pedagogicalPanelSignals ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Sinais lidos: {pedagogicalPanelSignals}
-                  </Text>
-                ) : null}
-              </>
-            ) : null}
-            {pedagogicalDecisionSupport ? (
-              <>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Por que esta aula: {pedagogicalDecisionSupport.teacherFacingSummary}
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Critério da decisão: {pedagogicalDecisionSupport.decisionRationale}
-                </Text>
-              </>
-            ) : null}
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {ptBR.session.suggestionLogic.sessionFocus}: {pedagogicalFocusSkillLabel || ptBR.session.suggestionLogic.noData}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {ptBR.session.suggestionLogic.progressionCriterion}: {progressionCriterionLabel || ptBR.session.suggestionLogic.noData}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {ptBR.session.suggestionLogic.adherenceScore}: {typeof plan.pedagogy?.methodology?.reasoning?.score === "number"
-                ? formatMethodologyScore(plan.pedagogy.methodology.reasoning.score)
-                : ptBR.session.suggestionLogic.noData}
-            </Text>
-            {plan.pedagogy?.override?.type ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {ptBR.session.suggestionLogic.lastOverride}: {lastOverrideLabel || ptBR.session.suggestionLogic.noData}
-              </Text>
-            ) : null}
+            ))}
             {plan.pedagogy?.adaptation ? (
-              <>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sugestão do sistema: {suggestedAdjustmentLabel}
+              <Pressable
+                onPress={openDecisionOverrideModal}
+                style={{
+                  alignSelf: "flex-start",
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                  {ptBR.session.applyManualAdjustment}
                 </Text>
-                <Pressable
-                  onPress={openDecisionOverrideModal}
-                  style={{
-                    alignSelf: "flex-start",
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                    {ptBR.session.applyManualAdjustment}
-                  </Text>
-                </Pressable>
-              </>
-            ) : null}
-            {activeDimensions ? (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Variabilidade: {activeDimensions.variability}</Text>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Decisão: {activeDimensions.decisionMaking}</Text>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Feedback: {activeDimensions.feedbackFrequency}</Text>
-              </View>
+              </Pressable>
             ) : null}
           </Animated.View>
         ) : null}
         {sessionTab === "treino" && plan ? (
           <>
-            {!resistancePreview && shouldShowResistanceGuardNotice ? (
-              <SessionResistanceNotice
-                colors={colors}
-                tone="warning"
-                title="Academia não priorizada nesta sessão"
-                description="Apesar do acesso à academia, o foco permanece em quadra porque este momento da turma pede controle corporal, coordenação e aprendizagem do jogo."
-              />
-            ) : null}
             {hasUnavailableResistanceSession ? (
               <SessionResistanceNotice
                 colors={colors}
@@ -4575,14 +4428,6 @@ export default function SessionScreen() {
         ) : null}
         {sessionTab === "treino" && !plan && !isPlanGenerationBusy ? (
           <>
-            {!resistancePreview && shouldShowResistanceGuardNotice ? (
-              <SessionResistanceNotice
-                colors={colors}
-                tone="warning"
-                title="Academia não priorizada nesta sessão"
-                description="Apesar do acesso à academia, o foco permanece em quadra porque este momento da turma pede controle corporal, coordenação e aprendizagem do jogo."
-              />
-            ) : null}
             {hasUnavailableResistanceSession ? (
               <SessionResistanceNotice
                 colors={colors}
