@@ -983,7 +983,7 @@ export function HomeProfessorScreen({
 
     const target =
       Platform.OS === "web"
-        ? Math.max(176, Math.min(agendaWidth * 0.28, 204))
+        ? Math.max(220, Math.min(agendaWidth * 0.42, 252))
         : Math.max(160, Math.min(agendaWidth * 0.62, 220));
 
     return Math.round(target);
@@ -1022,7 +1022,7 @@ export function HomeProfessorScreen({
   );
 
   const agendaShimmerCardStyle = useMemo(
-    () => ({ width: agendaCardWidth, height: 92, borderRadius: 14 } as const),
+    () => ({ width: agendaCardWidth, height: 112, borderRadius: 14 } as const),
     [agendaCardWidth]
   );
 

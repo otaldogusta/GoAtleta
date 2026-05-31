@@ -53,18 +53,19 @@ export const AgendaCard = memo(function AgendaCard({
   markRender("screen.home.render.agendaCard", { classId: item.classId, index });
 
   const handlePress = useCallback(() => onCardPress(index), [index, onCardPress]);
-  const badgeLabel = useMemo(() => label || item.timeLabel, [item.timeLabel, label]);
   const isCompactCard = agendaCardWidth <= 260;
   const isVeryCompactCard = agendaCardWidth <= 200;
   const isWebCard = Platform.OS === "web";
-  const showTimeLabel = Boolean(item.timeLabel && item.timeLabel !== badgeLabel);
+  const dateTimeLabel = useMemo(
+    () => [item.dateLabel, item.timeLabel].filter(Boolean).join("  •  "),
+    [item.dateLabel, item.timeLabel]
+  );
   const isDark = mode === "dark";
   const cardBackground = isDark ? colors.surfaceElevated : colors.card;
   const inactiveBadgeBackground = isDark ? "rgba(148, 163, 184, 0.14)" : colors.secondaryBg;
   const badgeBackground = isActive ? colors.primaryBg : inactiveBadgeBackground;
   const badgeBorder = isActive ? colors.primaryBg : colors.border;
   const badgeText = isActive ? colors.primaryText : colors.text;
-  const supportingText = isPast ? colors.muted : colors.textSecondary;
   const cardText = isPast ? colors.muted : colors.text;
 
   const containerStyle = useMemo(
@@ -113,17 +114,7 @@ export const AgendaCard = memo(function AgendaCard({
             pointerEvents="none"
             style={[styles.statusBadgeSlot, Platform.OS === "web" ? styles.webOpticalShift : null]}
           >
-            <View
-              style={[
-                styles.statusBadge,
-                isCompactCard ? styles.statusBadgeCompact : null,
-                {
-                  backgroundColor: badgeBackground,
-                  borderColor: badgeBorder,
-                  opacity: isPast ? 0.78 : 1,
-                },
-              ]}
-            >
+            <View style={[styles.statusBadge, isCompactCard ? styles.statusBadgeCompact : null, { backgroundColor: badgeBackground, borderColor: badgeBorder, opacity: isPast ? 0.78 : 1 }]}>
               <Text
                 style={[
                   styles.statusBadgeText,
@@ -138,7 +129,7 @@ export const AgendaCard = memo(function AgendaCard({
                 ]}
                 numberOfLines={1}
               >
-                {badgeLabel}
+                {dateTimeLabel}
               </Text>
             </View>
           </View>
@@ -161,20 +152,6 @@ export const AgendaCard = memo(function AgendaCard({
                 isWebCard ? styles.webOpticalShift : null,
               ]}
             >
-              <View style={[styles.headerRow, showTimeLabel ? styles.headerRowWithTime : null]}>
-                <Text
-                  style={[styles.dateText, isCompactCard ? styles.dateTextCompact : null, { color: supportingText }]}
-                  numberOfLines={1}
-                >
-                  {item.dateLabel}
-                </Text>
-                {showTimeLabel ? (
-                  <Text style={[styles.timeLabel, { color: supportingText }]} numberOfLines={1}>
-                    {item.timeLabel}
-                  </Text>
-                ) : null}
-              </View>
-
               <View style={[styles.classRow, isCompactCard ? styles.classRowCompact : null]}>
                 <Text
                   style={[styles.className, isCompactCard ? styles.classNameCompact : null, { color: cardText }]}
@@ -222,26 +199,26 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   innerCard: {
-    paddingTop: 16,
+    paddingTop: 28,
     paddingHorizontal: 14,
-    paddingBottom: 14,
+    paddingBottom: 16,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
   },
   innerCardCompact: {
-    paddingTop: 14,
-    paddingHorizontal: 10,
-    paddingBottom: 12,
+    paddingTop: 26,
+    paddingHorizontal: 12,
+    paddingBottom: 14,
   },
   innerCardWeb: {
-    paddingTop: 14,
-    paddingHorizontal: 11,
-    paddingBottom: 11,
+    paddingTop: 28,
+    paddingHorizontal: 13,
+    paddingBottom: 14,
   },
   statusBadge: {
     position: "relative",
-    minWidth: 100,
+    minWidth: 150,
     maxWidth: "92%",
     height: 28,
     borderRadius: 16,
@@ -253,8 +230,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   statusBadgeCompact: {
-    minWidth: 0,
-    maxWidth: "88%",
+    minWidth: 132,
+    maxWidth: "92%",
     height: 26,
     paddingHorizontal: 8,
   },
@@ -295,10 +272,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
-    marginBottom: 1,
-  },
-  headerRowWithTime: {
-    justifyContent: "space-between",
+    marginBottom: 2,
   },
   timeLabel: {
     fontSize: 12,
