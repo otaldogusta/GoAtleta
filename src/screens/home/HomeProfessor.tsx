@@ -974,6 +974,10 @@ export function HomeProfessorScreen({
   const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
   const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
+  const ux2CPageBackground = mode === "dark" ? colors.background : "#F3F5F7";
+  const ux2CShortcutSurface = mode === "dark" ? colors.card : "#FFFFFF";
+  const ux2CShortcutBorder = mode === "dark" ? colors.border : "rgba(15,23,42,0.06)";
+  const ux2CShortcutShadow = mode === "dark" ? 0.12 : 0.05;
 
   const agendaCardGap = isWebHome ? 8 : 10;
 
@@ -1523,7 +1527,7 @@ export function HomeProfessorScreen({
 
     <SafeAreaView
 
-      style={{ flex: 1, backgroundColor: isUx2CWebHome ? "#F3F5F7" : colors.background }}
+      style={{ flex: 1, backgroundColor: isUx2CWebHome ? ux2CPageBackground : colors.background }}
 
     >
 
@@ -1875,13 +1879,13 @@ export function HomeProfessorScreen({
 
               <View
                 style={{
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: ux2CShortcutSurface,
                   borderRadius: 18,
                   borderWidth: 1,
-                  borderColor: "rgba(15,23,42,0.06)",
+                  borderColor: ux2CShortcutBorder,
                   padding: isUx2CCompact ? 12 : 16,
                   shadowColor: "#0F172A",
-                  shadowOpacity: 0.05,
+                  shadowOpacity: ux2CShortcutShadow,
                   shadowRadius: 18,
                   shadowOffset: { width: 0, height: 8 },
                 }}
