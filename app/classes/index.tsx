@@ -19,6 +19,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
@@ -1696,23 +1697,16 @@ export default function ClassesScreen() {
             paddingTop: 16,
           }}
         >
-          <View style={{ marginBottom: 4 }}>
-            <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
-              }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-                Turmas
-              </Text>
-            </Pressable>
-          </View>
+          <BackTitleHeader
+            title="Turmas"
+            onBack={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/");
+            }}
+          />
 
           <ConfirmCloseOverlay
             visible={showCreateTabConfirm}
@@ -2491,6 +2485,5 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
-
 
 

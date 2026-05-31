@@ -35,6 +35,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import { getClassModalityLabel } from "../../src/core/class-modality";
 import {
     compareClassesBySchedule,
@@ -2575,25 +2576,7 @@ export default function StudentsScreen() {
             paddingBottom: 6,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Voltar"
-              onPress={goBackFromStudents}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="chevron-back" size={18} color={colors.text} />
-            </Pressable>
-            <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-              Alunos
-            </Text>
-          </View>
+          <BackTitleHeader title="Alunos" onBack={goBackFromStudents} />
           <AnimatedSegmentedTabs
             tabs={studentsTabMeta}
             activeTab={studentsTab}
