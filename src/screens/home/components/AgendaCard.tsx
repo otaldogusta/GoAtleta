@@ -8,7 +8,6 @@ import { LocationBadge } from "../../../ui/LocationBadge";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { getUnitPalette } from "../../../ui/unit-colors";
-import { webShellTokens } from "../../../ui/web-shell-tokens";
 
 type AgendaCardItem = {
   classId: string;
@@ -59,6 +58,14 @@ export const AgendaCard = memo(function AgendaCard({
   const isVeryCompactCard = agendaCardWidth <= 200;
   const isWebCard = Platform.OS === "web";
   const showTimeLabel = Boolean(item.timeLabel && item.timeLabel !== badgeLabel);
+  const isDark = mode === "dark";
+  const cardBackground = isDark ? colors.surfaceElevated : colors.card;
+  const inactiveBadgeBackground = isDark ? "rgba(148, 163, 184, 0.14)" : colors.secondaryBg;
+  const badgeBackground = isActive ? colors.primaryBg : inactiveBadgeBackground;
+  const badgeBorder = isActive ? colors.primaryBg : colors.border;
+  const badgeText = isActive ? colors.primaryText : colors.text;
+  const supportingText = isPast ? colors.muted : colors.textSecondary;
+  const cardText = isPast ? colors.muted : colors.text;
 
   const containerStyle = useMemo(
     () => [
@@ -111,9 +118,9 @@ export const AgendaCard = memo(function AgendaCard({
                 styles.statusBadge,
                 isCompactCard ? styles.statusBadgeCompact : null,
                 {
-                  backgroundColor: isActive ? webShellTokens.primary : webShellTokens.surfaceSoft,
-                  borderColor: isActive ? webShellTokens.primary : webShellTokens.border,
-                  opacity: isPast ? 0.72 : 1,
+                  backgroundColor: badgeBackground,
+                  borderColor: badgeBorder,
+                  opacity: isPast ? 0.78 : 1,
                 },
               ]}
             >
@@ -126,7 +133,7 @@ export const AgendaCard = memo(function AgendaCard({
                       ? styles.statusBadgeTextCompact
                       : null,
                   {
-                    color: isActive ? "#FFFFFF" : webShellTokens.text,
+                    color: badgeText,
                   },
                 ]}
                 numberOfLines={1}
@@ -141,9 +148,9 @@ export const AgendaCard = memo(function AgendaCard({
               isCompactCard ? styles.innerCardCompact : null,
               isWebCard ? styles.innerCardWeb : null,
               {
-                backgroundColor: webShellTokens.surface,
-                borderColor: isActive ? webShellTokens.primary : webShellTokens.border,
-                opacity: isPast ? 0.6 : 1,
+                backgroundColor: cardBackground,
+                borderColor: isActive ? activeBorderColor : colors.border,
+                opacity: isPast ? 0.78 : 1,
               },
             ]}
           >
@@ -156,13 +163,13 @@ export const AgendaCard = memo(function AgendaCard({
             >
               <View style={[styles.headerRow, showTimeLabel ? styles.headerRowWithTime : null]}>
                 <Text
-                  style={[styles.dateText, isCompactCard ? styles.dateTextCompact : null, { color: colors.muted }]}
+                  style={[styles.dateText, isCompactCard ? styles.dateTextCompact : null, { color: supportingText }]}
                   numberOfLines={1}
                 >
                   {item.dateLabel}
                 </Text>
                 {showTimeLabel ? (
-                  <Text style={[styles.timeLabel, { color: colors.muted }]} numberOfLines={1}>
+                  <Text style={[styles.timeLabel, { color: supportingText }]} numberOfLines={1}>
                     {item.timeLabel}
                   </Text>
                 ) : null}
@@ -170,7 +177,7 @@ export const AgendaCard = memo(function AgendaCard({
 
               <View style={[styles.classRow, isCompactCard ? styles.classRowCompact : null]}>
                 <Text
-                  style={[styles.className, isCompactCard ? styles.classNameCompact : null, { color: colors.text }]}
+                  style={[styles.className, isCompactCard ? styles.classNameCompact : null, { color: cardText }]}
                   numberOfLines={1}
                 >
                   {item.className}
