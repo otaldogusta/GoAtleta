@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BackTitleHeader } from "../../../../src/components/ui/BackTitleHeader";
 import { ScreenLoadingState } from "../../../../src/components/ui/ScreenLoadingState";
 import type { ClassGroup, ClassPlan } from "../../../../src/core/models";
 import { resolveLearningObjectives } from "../../../../src/core/pedagogy/objective-language";
@@ -416,27 +417,8 @@ export default function ClassPlanningMonthRoute() {
           paddingBottom: Math.max(insets.bottom + 40, 56),
         }}
       >
-        <View style={{ gap: 10 }}>
-          <Pressable
-            onPress={handleBackToMonths}
-            style={{
-              alignSelf: "flex-start",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              paddingHorizontal: 10,
-              paddingVertical: 8,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Ionicons name="chevron-back" size={14} color={colors.text} />
-            <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar para meses</Text>
-          </Pressable>
-
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 22 }}>{monthTitle}</Text>
+        <View style={{ gap: 8 }}>
+          <BackTitleHeader title={monthTitle} onBack={handleBackToMonths} />
           <Text style={{ color: colors.muted }}>
             {selectedClass?.name ? `${selectedClass.name} · visão semanal e diária` : "Visão semanal e diária"}
           </Text>

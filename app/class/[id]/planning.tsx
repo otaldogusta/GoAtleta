@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import { useClassPlanning } from "../../../src/screens/planning/hooks/useClassPlanning";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -49,29 +49,8 @@ export default function ClassPlanningHubRoute() {
           paddingBottom: Math.max(insets.bottom + 40, 56),
         }}
       >
-        <View style={{ gap: 10 }}>
-          <Pressable
-            onPress={handleBackToClass}
-            style={{
-              alignSelf: "flex-start",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              paddingHorizontal: 10,
-              paddingVertical: 8,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            <Ionicons name="chevron-back" size={14} color={colors.text} />
-            <Text style={{ color: colors.text, fontWeight: "600" }}>Voltar para turma</Text>
-          </Pressable>
-
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 22 }}>
-            Planejamentos da turma
-          </Text>
+        <View style={{ gap: 8 }}>
+          <BackTitleHeader title="Planejamentos da turma" onBack={handleBackToClass} />
           <Text style={{ color: colors.muted }}>
             {selectedClass?.name ? `${selectedClass.name} · visão mês > semana > aulas` : "Visão mês > semana > aulas"}
           </Text>
