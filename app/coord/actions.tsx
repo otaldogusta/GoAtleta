@@ -1,3 +1,5 @@
+import { Redirect } from "expo-router";
+
 export default function CoordinationActionsTab() {
-  return null;
+  return <Redirect href="/coord/assistant" />;
 }

@@ -1,3 +1,5 @@
+import { Redirect } from "expo-router";
+
 export default function ProfActionsTab() {
-  return null;
+  return <Redirect href="/prof/assistant" />;
 }
