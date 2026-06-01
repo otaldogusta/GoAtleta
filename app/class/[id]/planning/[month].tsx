@@ -414,7 +414,7 @@ export default function ClassPlanningMonthRoute() {
           gap: 12,
           paddingHorizontal: 16,
           paddingTop: 12,
-          paddingBottom: Math.max(insets.bottom + 40, 56),
+          paddingBottom: Math.max(insets.bottom + 104, 128),
         }}
       >
         <View style={{ gap: 8 }}>

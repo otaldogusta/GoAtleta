@@ -66,7 +66,7 @@ export default function ClassPlanningHubRoute() {
           gap: 14,
           paddingHorizontal: 16,
           paddingTop: 12,
-          paddingBottom: Math.max(insets.bottom + 40, 56),
+          paddingBottom: Math.max(insets.bottom + 104, 128),
         }}
       >
         <View style={{ gap: 8 }}>

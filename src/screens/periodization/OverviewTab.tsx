@@ -7,22 +7,7 @@ import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
 
 import type { ClassGroup, ClassPlan, PlanningCycle } from "../../core/models";
-import { isAnnualCycle, type VolumeLevel } from "../../core/periodization-basics";
-
-type WeekPlan = {
-  week: number;
-  title: string;
-  focus: string;
-  volume: VolumeLevel;
-  notes: string[];
-  dateRange?: string;
-  sessionDatesLabel?: string;
-  jumpTarget: string;
-  PSETarget: string;
-  plannedSessionLoad: number;
-  plannedWeeklyLoad: number;
-  source: "AUTO" | "MANUAL";
-};
+import { isAnnualCycle } from "../../core/periodization-basics";
 
 type OverviewTabProps = {
   colors: ThemeColors;
@@ -708,6 +693,12 @@ export function OverviewTab({
 
         </Text>
 
+        <Text style={{ marginTop: 6, color: colors.muted, fontSize: 12, lineHeight: 17 }}>
+          {selectedClass
+            ? "Gere ou atualize o ciclo de semanas desta turma."
+            : "Selecione uma turma para visualizar ou gerar o ciclo."}
+        </Text>
+
         <Pressable
 
           onPress={() => {
@@ -760,7 +751,7 @@ export function OverviewTab({
 
           >
 
-            {isSavingPlans ? "Salvando..." : "Gerar ciclo"}
+            {isSavingPlans ? "Salvando..." : selectedClass ? "Gerar ciclo" : "Selecione uma turma"}
 
           </Text>
 

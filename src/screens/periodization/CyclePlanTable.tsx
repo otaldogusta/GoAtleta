@@ -354,7 +354,7 @@ export function CyclePlanTable({
         <View style={{ flexDirection: "row" }}>
           {/* ── Coluna de labels fixada ── */}
           <View style={{ gap: cyclePanelRowGap, marginRight: 8 }}>
-            {(["Mês", "Semana", "Frequência", "Período", "Mesociclo", "Bloco dominante", "Carga planejada", "Índice de demanda", "PSE alvo", "Carga interna"] as const).map((label) => (
+            {(["Mês", "Semana", "Frequência", "Período", "Mesociclo", "Bloco dominante", "Carga por aula", "Demanda", "PSE alvo", "Carga semanal"] as const).map((label) => (
               <View
                 key={label}
                 style={{

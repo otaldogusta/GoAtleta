@@ -360,7 +360,7 @@ export function CycleTab({
 
           <Text style={{ color: colors.muted, fontSize: 12 }}>
 
-            Limites de alerta (ACWR)
+            Limites de alerta de carga
 
           </Text>
 

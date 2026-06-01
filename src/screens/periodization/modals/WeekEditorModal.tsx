@@ -1,4 +1,4 @@
-﻿import { KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
 import type { WeeklyAutopilotPlanReview } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { ConfirmDialogOptions } from "../../../ui/confirm-dialog";
@@ -237,7 +237,7 @@ export function WeekEditorModal({
             >
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
-                  Revisão científica
+                  Revisão do plano
                 </Text>
                 <View
                   style={{
@@ -329,7 +329,7 @@ export function WeekEditorModal({
                 </View>
               ) : (
                 <Text style={{ color: colors.successText, fontSize: 12, fontWeight: "600" }}>
-                  Sem alertas na base científica ativa.
+                  Sem alertas na base ativa.
                 </Text>
               )}
             </View>

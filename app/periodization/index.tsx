@@ -3819,7 +3819,12 @@ export default function PeriodizationScreen() {
 
         <ScrollView
 
-          contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}
+          contentContainerStyle={{
+            gap: 16,
+            paddingBottom: Math.max(insets.bottom + 120, 144),
+            paddingHorizontal: 16,
+            paddingTop: 16,
+          }}
 
           style={{ zIndex: 1, backgroundColor: colors.background }}
           stickyHeaderIndices={[0]}
@@ -3895,7 +3900,7 @@ export default function PeriodizationScreen() {
             formatShortDate={formatShortDate}
             nextSessionDate={nextSessionDate}
             classStartTimeLabel={classStartTimeLabel}
-            hasInitialClass={hasInitialClass}
+            hasInitialClass={hasInitialClass && Boolean(selectedClass)}
             showClassPicker={showClassPicker}
             classTriggerRef={classTriggerRef}
             hasUnitSelected={hasUnitSelected}
@@ -3982,20 +3987,19 @@ export default function PeriodizationScreen() {
           >
             <View
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
+                gap: 8,
+                alignItems: "flex-start",
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}>
                 <Ionicons name="shield-checkmark-outline" size={18} color={colors.primaryText} />
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                  Revisão científica
+                  Revisão do ciclo
                 </Text>
               </View>
               <View
                 style={{
+                  alignSelf: "flex-start",
                   paddingHorizontal: 10,
                   paddingVertical: 5,
                   borderRadius: 999,
@@ -4034,7 +4038,7 @@ export default function PeriodizationScreen() {
 
             {isLoadingPeriodizationKnowledge ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Carregando snapshot científico da turma.
+                Carregando base de referência da turma.
               </Text>
             ) : periodizationKnowledgeSnapshot ? (
               <>
@@ -4048,14 +4052,14 @@ export default function PeriodizationScreen() {
                     ? normalizeText(
                         periodizationPlanReview.issues.length
                           ? `${periodizationPlanReview.issues.length} alerta(s) para revisar antes de fechar o ciclo.`
-                          : "Plano alinhado com a base científica ativa."
+                          : "Plano alinhado com a base ativa."
                       )
                     : normalizeText("Base ativa, sem resumo de revisão disponível neste momento.")}
                 </Text>
               </>
             ) : (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Nenhuma base científica ativa para esta turma.
+                Nenhuma base de referência ativa para esta turma.
               </Text>
             )}
           </View>
