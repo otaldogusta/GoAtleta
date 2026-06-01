@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Animated, Text, View } from "react-native";
+import { Animated, Text, useWindowDimensions, View } from "react-native";
 
 import { type ThemeColors } from "../../ui/app-theme";
 import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
@@ -84,6 +84,8 @@ export function OverviewTab({
   onRemoveCycle,
   unitMismatchWarning,
 }: OverviewTabProps) {
+  const { width } = useWindowDimensions();
+  const reserveFloatingActionSpace = width < 760;
   const coveredWeeks = new Set(
     classPlans
       .map((plan) => plan.weekNumber)
@@ -714,6 +716,7 @@ export function OverviewTab({
           style={{
 
             marginTop: 10,
+            marginRight: reserveFloatingActionSpace ? 72 : 0,
 
             paddingVertical: 10,
 
@@ -766,6 +769,7 @@ export function OverviewTab({
             disabled={!selectedClass || isSavingPlans}
             style={{
               marginTop: 8,
+              marginRight: reserveFloatingActionSpace ? 72 : 0,
               paddingVertical: 10,
               borderRadius: 12,
               alignItems: "center",
