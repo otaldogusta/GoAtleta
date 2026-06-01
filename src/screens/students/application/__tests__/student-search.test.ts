@@ -1,4 +1,5 @@
 import {
+  filterStudentsForList,
   normalizeStudentSearchText,
   normalizedTextMatchesToken,
   studentMatchesSearch,
@@ -62,5 +63,33 @@ describe("student search", () => {
 
   it("rejects unrelated tokens", () => {
     expect(studentMatchesSearch({ student, classGroup, query: "joao" })).toBe(false);
+  });
+
+  it("filters list by unit and accent-insensitive query", () => {
+    const otherStudent = {
+      ...student,
+      id: "student_2",
+      name: "João Alves",
+      classId: "class_2",
+    } as Student;
+    const otherClass = {
+      ...classGroup,
+      id: "class_2",
+      unit: "Outra unidade",
+    } as ClassGroup;
+    const classById = new Map<string, ClassGroup>([
+      [classGroup.id, { ...classGroup, unit: "Rede Esportes Pinhais" } as ClassGroup],
+      [otherClass.id, otherClass],
+    ]);
+
+    expect(
+      filterStudentsForList({
+        students: [student, otherStudent],
+        classById,
+        unitFilter: "Rede Esportes Pinhais",
+        unitLabel: (value) => String(value || "Sem unidade"),
+        query: "flavia",
+      }).map((item) => item.id)
+    ).toEqual(["student_1"]);
   });
 });

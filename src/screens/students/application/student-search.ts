@@ -1,5 +1,7 @@
 import type { ClassGroup, Student } from "../../../core/models";
 
+export const ALL_STUDENTS_UNITS_LABEL = "Todas";
+
 export const normalizeStudentSearchText = (value: string | null | undefined) =>
   String(value ?? "")
     .toLocaleLowerCase("pt-BR")
@@ -52,4 +54,37 @@ export const studentMatchesSearch = (params: {
   );
 
   return tokens.every((token) => normalizedTextMatchesToken(haystack, token));
+};
+
+export const hasActiveStudentSearch = (query: string | null | undefined) =>
+  normalizeStudentSearchText(query).length > 0;
+
+export const filterStudentsForList = (params: {
+  students: Student[];
+  classById: ReadonlyMap<string, ClassGroup>;
+  unitFilter: string;
+  unitLabel: (value: string) => string;
+  query: string;
+}) => {
+  const filteredByUnit =
+    params.unitFilter === ALL_STUDENTS_UNITS_LABEL
+      ? params.students
+      : params.students.filter((student) => {
+          const cls = params.classById.get(student.classId) ?? null;
+          return params.unitLabel(cls?.unit ?? "") === params.unitFilter;
+        });
+
+  const query = normalizeStudentSearchText(params.query);
+  if (!query) return filteredByUnit;
+
+  return filteredByUnit.filter((student) => {
+    const cls = params.classById.get(student.classId) ?? null;
+    const unitName = params.unitLabel(cls?.unit ?? "");
+    return studentMatchesSearch({
+      student,
+      classGroup: cls,
+      unitName,
+      query,
+    });
+  });
 };
