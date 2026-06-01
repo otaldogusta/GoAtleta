@@ -3,6 +3,7 @@ import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenBackdrop } from "../../../components/ui/ScreenBackdrop";
+import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { SessionDataStatus } from "../hooks/useSessionData";
@@ -52,7 +53,7 @@ export function SessionUnavailableState({
           }}
         >
           <Ionicons name="chevron-back" size={16} color={colors.text} />
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Voltar</Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>{ptBR.common.actions.back}</Text>
         </Pressable>
 
         <View
@@ -66,12 +67,12 @@ export function SessionUnavailableState({
           }}
         >
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-            {isNotFound ? "Turma não encontrada" : "Falha ao carregar a aula"}
+            {isNotFound ? ptBR.session.unavailable.classNotFoundTitle : ptBR.session.unavailable.loadFailedTitle}
           </Text>
           <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>
             {isNotFound
-              ? "Esta turma não está disponível no ambiente local ou a sessão expirou. Volte para turmas e selecione uma turma ativa."
-              : errorMessage ?? "Não foi possível carregar os dados da Aula do Dia."}
+              ? ptBR.session.unavailable.classNotFoundDescription
+              : errorMessage ?? ptBR.session.unavailable.loadFailedDescription}
           </Text>
           <Pressable
             onPress={onRetry}
@@ -85,7 +86,7 @@ export function SessionUnavailableState({
             }}
           >
             <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-              Tentar novamente
+              {ptBR.common.actions.retry}
             </Text>
           </Pressable>
         </View>

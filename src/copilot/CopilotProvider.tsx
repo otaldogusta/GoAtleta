@@ -588,7 +588,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       const rawMessage = error instanceof Error ? error.message : "";
       const embeddedMessage = extractEmbeddedErrorMessage(rawMessage);
       const result: CopilotActionResult = {
-        message: toFriendlyContextError(embeddedMessage || rawMessage || "Falha ao executar a a??o."),
+        message: toFriendlyContextError(embeddedMessage || rawMessage || "Falha ao executar a ação."),
       };
       setState((prev) => ({ ...prev, runningActionId: null }));
       enqueueContextReply(action.title, result, "error");

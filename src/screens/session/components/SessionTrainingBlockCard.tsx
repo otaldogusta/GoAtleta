@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
+import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { SessionTrainingBlockPreview } from "./session-training-ui-types";
@@ -53,7 +54,7 @@ export function SessionTrainingBlockCard({ colors, block, onPress }: Props) {
               }}
             >
               <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "700" }}>
-                Atualizado
+                {ptBR.common.status.updated}
               </Text>
             </View>
           ) : null}

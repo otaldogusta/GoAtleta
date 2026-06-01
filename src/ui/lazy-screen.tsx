@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { ScreenLoadingState } from "../components/ui/ScreenLoadingState";
+import { ptBR } from "../constants/copy/pt-br";
 
 type RouteScreenFallbackProps = {
   title?: string;
@@ -7,8 +8,8 @@ type RouteScreenFallbackProps = {
 };
 
 export function RouteScreenFallback({
-  title = "Carregando...",
-  subtitle = "Preparando a tela.",
+  title = ptBR.loading.generic,
+  subtitle = ptBR.loading.preparingScreen,
 }: RouteScreenFallbackProps) {
   void title;
   void subtitle;
@@ -16,7 +17,7 @@ export function RouteScreenFallback({
 }
 
 export function createLoadingFallback(subtitle: string) {
-  return <RouteScreenFallback title="Carregando" subtitle={subtitle} />;
+  return <RouteScreenFallback title={ptBR.loading.title} subtitle={subtitle} />;
 }
 
 export function createLazyRoute<P extends object = Record<string, never>>(

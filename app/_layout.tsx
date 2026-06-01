@@ -51,6 +51,7 @@ import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
 import { SaveToastProvider } from "../src/ui/save-toast";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
+import { ptBR } from "../src/constants/copy/pt-br";
 
 const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
@@ -143,7 +144,7 @@ function RootErrorFallback({
         }}
       >
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700", marginBottom: 2 }}>
-          Algo deu errado
+          {ptBR.errors.appCrashed}
         </Text>
         <Pressable
           onPress={() => {
@@ -158,7 +159,7 @@ function RootErrorFallback({
           }}
         >
           <Text style={{ color: colors.primaryText, fontWeight: "600" }}>
-            {isRetrying ? "Recarregando..." : "Tentar novamente"}
+            {isRetrying ? ptBR.common.feedback.reloading : ptBR.common.actions.retry}
           </Text>
         </Pressable>
       </View>

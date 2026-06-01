@@ -1,5 +1,6 @@
 import { Text, TextInput, View } from "react-native";
 
+import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 
@@ -93,7 +94,7 @@ export function SessionObjectiveCard({
               }}
             >
               <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
-                {isSaving ? "Salvando" : "Salvar objetivo"}
+                {isSaving ? ptBR.session.objectiveActions.saving : ptBR.session.objectiveActions.save}
               </Text>
             </Pressable>
             <Pressable
@@ -110,7 +111,7 @@ export function SessionObjectiveCard({
               }}
             >
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                Cancelar
+                {ptBR.common.actions.cancel}
               </Text>
             </Pressable>
           </>
@@ -127,7 +128,7 @@ export function SessionObjectiveCard({
             }}
           >
             <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-              Editar objetivo
+              {ptBR.session.objectiveActions.edit}
             </Text>
           </Pressable>
         )}

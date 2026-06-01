@@ -3,6 +3,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { Pressable } from "../ui/Pressable";
 import { useAppTheme } from "../ui/app-theme";
 import { brandPalette, radius } from "../theme/tokens";
+import { ptBR } from "../constants/copy/pt-br";
 
 import { useBootstrap } from "./BootstrapProvider";
 
@@ -30,7 +31,7 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
             size="large"
             color={colors.text}
           />
-          <Text style={{ color: colors.text, fontWeight: "600" }}>Carregando...</Text>
+          <Text style={{ color: colors.text, fontWeight: "600" }}>{ptBR.loading.generic}</Text>
         </View>
       </View>
     );
@@ -53,10 +54,10 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
           }}
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Ocorreu um erro ao iniciar
+            {ptBR.errors.startupTitle}
           </Text>
           <Text style={{ color: colors.muted, textAlign: "center" }}>
-            Tente novamente. Se persistir, reinicie o app.
+            {ptBR.errors.startupDescription}
           </Text>
           <Pressable
             onPress={retry}
@@ -68,7 +69,7 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
             }}
           >
             <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              Tentar novamente
+              {ptBR.common.actions.retry}
             </Text>
           </Pressable>
         </View>

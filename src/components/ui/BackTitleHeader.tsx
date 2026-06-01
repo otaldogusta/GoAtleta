@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Text, View } from "react-native";
 
+import { ptBR } from "../../constants/copy/pt-br";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 
@@ -18,7 +19,7 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
     <View style={[{ marginBottom: 4 }, style]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Voltar de ${title}`}
+        accessibilityLabel={`${ptBR.common.accessibility.backFromPrefix} ${title}`}
         onPress={onBack}
         style={{
           alignSelf: "flex-start",

@@ -1,9 +1,10 @@
 import { markRender } from "../../src/observability/perf";
+import { ptBR } from "../../src/constants/copy/pt-br";
 import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const ProfileScreen = createLazyRoute(
   () => import("../profile"),
-  createLoadingFallback("Carregando perfil...")
+  createLoadingFallback(ptBR.loading.routes.profile)
 );
 
 export default function StudentProfileTab() {

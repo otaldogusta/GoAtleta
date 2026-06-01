@@ -1,4 +1,87 @@
 export const ptBR = {
+  common: {
+    actions: {
+      add: "Adicionar",
+      apply: "Aplicar",
+      back: "Voltar",
+      cancel: "Cancelar",
+      close: "Fechar",
+      remove: "Remover",
+      retry: "Tentar novamente",
+      save: "Salvar",
+      update: "Atualizar",
+    },
+    feedback: {
+      applying: "Aplicando...",
+      generating: "Gerando...",
+      generatingPlan: "Gerando plano...",
+      loading: "Carregando...",
+      reloading: "Recarregando...",
+      saving: "Salvando...",
+      savingPlan: "Salvando plano...",
+    },
+    status: {
+      updated: "Atualizado",
+    },
+    accessibility: {
+      backFromPrefix: "Voltar de",
+      previousClass: "Aula anterior",
+      nextClass: "Próxima aula",
+    },
+  },
+  navigation: {
+    back: "Voltar",
+  },
+  actions: {
+    add: "Adicionar",
+    apply: "Aplicar",
+    back: "Voltar",
+    cancel: "Cancelar",
+    close: "Fechar",
+    remove: "Remover",
+    retry: "Tentar novamente",
+    save: "Salvar",
+    update: "Atualizar",
+  },
+  forms: {
+    required: "Obrigatório",
+    select: "Selecione",
+  },
+  loading: {
+    title: "Carregando",
+    generic: "Carregando...",
+    preparingScreen: "Preparando a tela.",
+    routes: {
+      absenceNotices: "Carregando avisos...",
+      achievements: "Carregando conquistas...",
+      agenda: "Carregando agenda...",
+      assistant: "Carregando assistente...",
+      calendar: "Carregando calendário...",
+      classes: "Carregando turmas...",
+      communication: "Carregando comunicação...",
+      dashboard: "Carregando painel...",
+      events: "Carregando eventos...",
+      exercises: "Carregando exercícios...",
+      management: "Carregando gestão...",
+      members: "Carregando membros...",
+      nfc: "Carregando NFC...",
+      periodization: "Carregando periodização...",
+      planning: "Carregando planejamento...",
+      profile: "Carregando perfil...",
+      reports: "Carregando relatórios...",
+      students: "Carregando alunos...",
+    },
+  },
+  errors: {
+    appCrashed: "Algo deu errado",
+    startupTitle: "Ocorreu um erro ao iniciar",
+    startupDescription: "Tente novamente. Se persistir, reinicie o app.",
+    unknown: "Erro desconhecido",
+  },
+  emptyStates: {
+    noData: "Nenhum dado encontrado.",
+    noResults: "Nenhum resultado encontrado.",
+  },
   session: {
     title: "Aula do dia",
     tabs: {
@@ -15,6 +98,11 @@ export const ptBR = {
       description: "Escolha um treino salvo ou crie um novo plano de aula.",
       applyTraining: "Aplicar treino",
       createPlan: "Criar plano",
+      hidePlans: "Ocultar planos",
+      savedPlansTitle: "Planos salvos desta turma",
+      savedPlansDescription: "Escolha um plano já salvo para aplicar somente nesta aula.",
+      applyThisDay: "Aplicar neste dia",
+      noSavedPlans: "Esta turma ainda não tem planos finais salvos para reutilizar aqui.",
     },
     actions: {
       startTraining: "Fazer chamada",
@@ -62,6 +150,18 @@ export const ptBR = {
       saveFinalDecision: "Salvar decisão final",
     },
     objective: "Objetivo da aula",
+    objectiveActions: {
+      edit: "Editar objetivo",
+      save: "Salvar objetivo",
+      saving: "Salvando",
+    },
+    unavailable: {
+      classNotFoundTitle: "Turma não encontrada",
+      loadFailedTitle: "Falha ao carregar a aula",
+      classNotFoundDescription:
+        "Esta turma não está disponível no ambiente local ou a sessão expirou. Volte para turmas e selecione uma turma ativa.",
+      loadFailedDescription: "Não foi possível carregar os dados da Aula do Dia.",
+    },
     alerts: {
       saveFailedTitle: "Falha ao salvar",
       exportPdfFailedTitle: "Falha ao exportar PDF",

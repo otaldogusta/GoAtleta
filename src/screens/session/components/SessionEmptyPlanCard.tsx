@@ -1,5 +1,6 @@
 import { Text, View } from "react-native";
 
+import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 import type { SessionSavedPlanPreview } from "./session-training-ui-types";
@@ -68,7 +69,7 @@ export function SessionEmptyPlanCard({
           }}
         >
           <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            {showSavedClassPlans ? "Ocultar planos" : applyTrainingLabel}
+            {showSavedClassPlans ? ptBR.session.emptyPlan.hidePlans : applyTrainingLabel}
           </Text>
         </Pressable>
         <Pressable
@@ -84,9 +85,9 @@ export function SessionEmptyPlanCard({
         >
           <Text style={{ color: colors.text, fontWeight: "700" }}>
             {isSavingPlan
-              ? "Salvando plano..."
+              ? ptBR.common.feedback.savingPlan
               : isGeneratingPlan
-                ? "Gerando plano..."
+                ? ptBR.common.feedback.generatingPlan
                 : generateAutomaticPlanLabel}
           </Text>
         </Pressable>
@@ -102,10 +103,10 @@ export function SessionEmptyPlanCard({
         >
           <View style={{ gap: 2 }}>
             <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-              Planos salvos desta turma
+              {ptBR.session.emptyPlan.savedPlansTitle}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Escolha um plano já salvo para aplicar somente nesta aula.
+              {ptBR.session.emptyPlan.savedPlansDescription}
             </Text>
           </View>
           {savedPlans.length ? (
@@ -155,7 +156,7 @@ export function SessionEmptyPlanCard({
                         fontWeight: "800",
                       }}
                     >
-                      {savedPlan.isApplying ? "Aplicando..." : "Aplicar neste dia"}
+                      {savedPlan.isApplying ? ptBR.common.feedback.applying : ptBR.session.emptyPlan.applyThisDay}
                     </Text>
                   </Pressable>
                 </View>
@@ -172,7 +173,7 @@ export function SessionEmptyPlanCard({
               }}
             >
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Esta turma ainda não tem planos finais salvos para reutilizar aqui.
+                {ptBR.session.emptyPlan.noSavedPlans}
               </Text>
             </View>
           )}

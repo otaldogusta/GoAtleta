@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
+import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
 
@@ -36,7 +37,7 @@ export function SessionDateNavigator({
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Aula anterior"
+          accessibilityLabel={ptBR.common.accessibility.previousClass}
           onPress={onPrevious}
           style={{
             width: 42,
@@ -63,7 +64,7 @@ export function SessionDateNavigator({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Próxima aula"
+          accessibilityLabel={ptBR.common.accessibility.nextClass}
           onPress={onNext}
           style={{
             width: 42,

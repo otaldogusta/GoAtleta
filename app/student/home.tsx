@@ -1,9 +1,10 @@
 import { markRender } from "../../src/observability/perf";
+import { ptBR } from "../../src/constants/copy/pt-br";
 import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const StudentHomeScreen = createLazyRoute(
   () => import("../student-home"),
-  createLoadingFallback("Carregando painel...")
+  createLoadingFallback(ptBR.loading.routes.dashboard)
 );
 
 export default function StudentHomeTab() {
