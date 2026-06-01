@@ -528,7 +528,7 @@ npm run jest src/core/recommendation/__tests__/gym-court-observables.test.ts
 
 ---
 
-## VALIDAÇÃO FINAL
+## Validação final
 
 ```bash
 # Todos os testes?

@@ -15,7 +15,7 @@ Definir uma direção visual mínima para relatórios e PDFs sem alterar dados, 
 ## Cores Semânticas
 
 - Verde quadra: foco, sucesso, presença, performance positiva.
-- Âmbar: atenção, pendência, revisão, carga que pede cuidado.
+- Cor âmbar: atenção, pendência, revisão, carga que pede cuidado.
 - Vermelho: ausência, erro, risco, exclusão.
 - Navy/grafite: títulos, metadados e estrutura.
 

@@ -1,4 +1,4 @@
-# GoAtleta: Integração de Treinamento Resistido — VERSÃO CONDENSADA
+# GoAtleta: Integração de Treinamento Resistido — Versão condensada
 
 **Use isto quando o contexto ficar apertado. Mesmo DNA da versão completa, 30% do tamanho.**
 
@@ -8,7 +8,7 @@
 
 **Missão:** Evoluir GoAtleta de "planejador de aula" para "planejador de microciclo integrado" onde quadra + academia seguem a mesma lógica de periodização.
 
-**NÃO é:** app de musculação, ficha hiper detalhada, biblioteca infinita de exercícios.
+**Não é:** app de musculação, ficha hiper detalhada, biblioteca infinita de exercícios.
 
 **É:** academia como *componente do microciclo*, governada pela semana.
 
@@ -16,7 +16,7 @@ Regra operacional desta fase: usar os campos reais já definidos em `src/core/mo
 
 ---
 
-## 🎯 O QUE JÁ EXISTE (NÃO REFAZER)
+## 🎯 O que já existe (não refazer)
 
 - ✅ Modelos: `IntegratedTrainingModel`, `ResistanceTrainingProfile`, `SessionEnvironment`
 - ✅ Contexto: `training-context.ts` com `resolveTeamTrainingContext()`
@@ -37,9 +37,9 @@ Regra operacional desta fase: usar os campos reais já definidos em `src/core/mo
 
 ---
 
-## 🏗️ TRÊS BLOCOS DE IMPLEMENTAÇÃO
+## 🏗️ Três blocos de implementação
 
-### BLOCO A — EXPRESSÃO DE PRODUTO
+### Bloco A — expressão de produto
 Renderizar sessão resistida como sessão **de verdade**.
 
 **A1.** Componente `SessionResistanceBlock` + render de tabela exercícios
@@ -51,7 +51,7 @@ Renderizar sessão resistida como sessão **de verdade**.
 - Ambiente | Foco físico | Relação semana | Transferência
 - Ex: "Academia — Potência de MMII — Sustenta quadra — Transferência: salto/bloqueio"
 
-### BLOCO B — PERIODIZAÇÃO REAL DO RESISTIDO
+### Bloco B — periodização real do resistido
 Garantir que academia *obedece* a semana.
 
 **B1.** Gerador escreve `weeklyIntegratedContext` em cada ClassPlan
@@ -87,14 +87,14 @@ Sinais QA que veem coerência/incoerência (SEM auto-recalibragem).
 
 ## 🛑 LIMITES DUROS (ESTA FASE)
 
-❌ NÃO fazer:
+❌ Não fazer:
 - %1RM, VBT, auto-regulação avançada
 - Dashboards de tonelagem
 - Recommendation que reprograma academia sozinha
 - Biblioteca infinita de exercícios (A-E controlados)
 - Multimodalidade geral
 
-❌ NÃO virar:
+❌ Não virar:
 - App de musculação
 - App de S&C separado
 - Camada paralela à periodização
@@ -103,7 +103,7 @@ Sinais QA que veem coerência/incoerência (SEM auto-recalibragem).
 
 ---
 
-## 🎬 IMPLEMENTAÇÃO: SLICES
+## 🎬 Implementação: slices
 
 ### SLICE A1: UI Academia Básica
 **Arquivos:** `SessionResistanceBlock.tsx` (NOVO) | `session.tsx` (refator)
@@ -180,7 +180,7 @@ Sinais QA que veem coerência/incoerência (SEM auto-recalibragem).
 
 ---
 
-## 📊 ORDEM DE EXECUÇÃO RECOMENDADA
+## 📊 Ordem de execução recomendada
 
 ```
 Semana 1: SLICE A1 + A2 (UI da sessão resistida)
@@ -191,7 +191,7 @@ Semana 4: SLICE C1 (Sinais QA) + validação com treinador
 
 ---
 
-## 🎯 PRIORIZAÇÃO
+## 🎯 Priorização
 
 **RENDER + GERADOR PRIMEIRO** (crítico para produto)
 1. Sessão renderiza bem
@@ -245,7 +245,7 @@ Quando tudo estiver pronto, o treinador deve poder:
 
 ---
 
-## 🚀 PRÓXIMA AÇÃO
+## 🚀 Próxima ação
 
 1. Propor ordem exata de implementação em slices
 2. Identificar arquivos-alvo prováveis

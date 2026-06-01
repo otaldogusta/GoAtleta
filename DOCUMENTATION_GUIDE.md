@@ -335,15 +335,14 @@ Ler em ordem:
 - `docs/expansao-catalogo-pedagogico.md`
 - `docs/ficha-validacao-pedagogica-humana.md`
 
-### Documentos legados e operacionais
+### Documentos operacionais canônicos
 
-Estes documentos ainda podem ser úteis, mas nao definem mais o norte do produto:
+Use estes documentos para operação, segurança e NFC:
 
-- `docs/NFC_ARCHITECTURE_REFACTOR.md`
-- `PRODUCTION_READINESS.md`
+- `docs/operations/production.md`
+- `docs/security/overview.md`
+- `docs/nfc/overview.md`
 - `RELEASE_CHECKLIST.md`
-- `POST_DEPLOY_MONITORING.md`
-- `SIGN_OFF_PRODUCTION.md`
 
 ## 📖 Quando Ler Cada Um
 
@@ -382,10 +381,10 @@ Tempo: ~30-40 min
 
 Leia em ordem:
 
-1. `PRODUCTION_READINESS.md`
+1. `docs/operations/production.md`
 2. `RELEASE_CHECKLIST.md`
-3. `POST_DEPLOY_MONITORING.md`
-4. `SIGN_OFF_PRODUCTION.md`
+3. `docs/security/overview.md`
+4. `docs/nfc/overview.md` quando houver NFC ou presença
 
 Tempo: ~1 hora
 
@@ -410,17 +409,19 @@ O centro atual do GoAtleta e:
 
 ## Observação
 
-O bloco antigo de NFC, deploy e operacao continua disponivel no repositório, mas agora deve ser tratado como documentacao auxiliar ou legado de infraestrutura, nao como espinha dorsal da evolucao do produto pedagógico.
+O bloco antigo de NFC, deploy e operação continua disponível em
+`docs/archive/`, mas agora deve ser tratado como documentação histórica, não
+como espinha dorsal da evolução do produto pedagógico.
 
 ## ✅ Checklist de Higiene
 
 **Passou?** → Docs estão limpas!
 
 - [x] Nenhum MD duplicado
-- [ ] Reduzir gradualmente MDs legados na raiz
+- [x] Reduzir MDs legados na raiz para ponteiros de compatibilidade
 - [x] Índice canônico criado em `docs/README.md`
 - [x] README aponta para o índice canônico
-- [ ] Mover ou consolidar docs históricos apenas em fatias revisáveis
+- [x] Mover docs históricos de operação, segurança e NFC em fatia revisável
 - [x] Tamanho total < 60KB
 - [x] Onboarding < 30 min
 

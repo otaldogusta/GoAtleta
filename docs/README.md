@@ -10,7 +10,7 @@ de entrada antes de abrir arquivos antigos soltos na raiz.
 | Entender o projeto e rodar localmente | [README.md](../README.md) |
 | Ver prioridades de produto | [ROADMAP.md](../ROADMAP.md) |
 | Acompanhar mudanças entregues | [CHANGELOG.md](../CHANGELOG.md) |
-| Rodar checklist antes de deploy | [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) |
+| Rodar checklist antes de deploy | [production.md](operations/production.md) |
 | Regras de performance/refatoração | [perf-hygiene.md](perf-hygiene.md) |
 
 ## Produto e pedagogia
@@ -35,27 +35,20 @@ de entrada antes de abrir arquivos antigos soltos na raiz.
 
 ## Operação, segurança e deploy
 
-Estes documentos são históricos/operacionais. Antes de criar outro `.md` sobre
-deploy, segurança ou validação, atualize um dos arquivos abaixo.
+Antes de criar outro `.md` sobre deploy, segurança ou validação, atualize um
+dos documentos canônicos abaixo.
 
 | Tema | Documento |
 | --- | --- |
-| Prontidão de produção | [PRODUCTION_READINESS.md](../PRODUCTION_READINESS.md) |
-| Resumo de deploy | [PRODUCTION_DEPLOYMENT_SUMMARY.md](../PRODUCTION_DEPLOYMENT_SUMMARY.md) |
-| Monitoramento pós-deploy | [POST_DEPLOY_MONITORING.md](../POST_DEPLOY_MONITORING.md) |
-| Sign-off de produção | [SIGN_OFF_PRODUCTION.md](../SIGN_OFF_PRODUCTION.md) |
-| Validação final | [VALIDACAO_FINAL_PRODUCAO.md](../VALIDACAO_FINAL_PRODUCAO.md) |
-| Auditoria técnica completa | [SECURITY_AUDIT_AND_PERFORMANCE.md](../SECURITY_AUDIT_AND_PERFORMANCE.md) |
-| Plano de execução de segurança | [SECURITY_FIXES_EXECUTION_PLAN.md](../SECURITY_FIXES_EXECUTION_PLAN.md) |
-| Resumo executivo de segurança | [SECURITY_AUDIT_EXECUTIVE_SUMMARY.md](../SECURITY_AUDIT_EXECUTIVE_SUMMARY.md) |
-| Árvore de ataque | [SECURITY_AUDIT_ATTACK_TREE.md](../SECURITY_AUDIT_ATTACK_TREE.md) |
-| Referência rápida de segurança | [SECURITY_AUDIT_QUICK_REFERENCE.md](../SECURITY_AUDIT_QUICK_REFERENCE.md) |
+| Produção, deploy e rollback | [production.md](operations/production.md) |
+| Segurança | [overview.md](security/overview.md) |
+| Checklist curto de release | [RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md) |
 
 ## NFC
 
 | Documento | Uso |
 | --- | --- |
-| [NFC_ARCHITECTURE_AND_FIXES.md](../NFC_ARCHITECTURE_AND_FIXES.md) | Análise completa e correções implementadas |
+| [overview.md](nfc/overview.md) | Estado atual e links canônicos |
 | [NFC_ARCHITECTURE_REFACTOR.md](NFC_ARCHITECTURE_REFACTOR.md) | Direção técnica do refactor |
 
 ## Consultoria
@@ -68,6 +61,6 @@ individual. Eles ficam em `docs/` e não devem ser duplicados na raiz.
 - Use `docs/README.md` como índice antes de criar novo arquivo.
 - Evite duplicar assunto já coberto por outro `.md`; atualize o documento
   existente.
-- Documentos operacionais antigos podem continuar na raiz por compatibilidade,
-  mas novos documentos de produto/engenharia devem ficar em `docs/`.
-- Texto novo deve ficar em portugues brasileiro e UTF-8 real, sem mojibake.
+- Documentos operacionais antigos continuam na raiz apenas como ponteiros de
+  compatibilidade.
+- Texto novo deve ficar em português brasileiro e UTF-8 real, sem mojibake.

@@ -156,7 +156,7 @@ SLICE C1 ────→ Sinais QA (Observacional)
 
 ---
 
-## 📊 CHECKLIST PRÉ-IMPLEMENTAÇÃO
+## 📊 Checklist pré-implementação
 
 Antes de começar:
 
@@ -180,7 +180,7 @@ Antes de começar:
 - Observar coerência quadra × academia
 - Permitir que treinador override o plano
 
-❌ **NÃO:**
+❌ **Não:**
 - Abrir biblioteca de 100+ exercícios
 - Deixar coach "montar ficha" manualmente
 - Auto-recalibração automática de academia
@@ -290,7 +290,7 @@ Quando tudo estiver pronto:
 - ✅ Vê sessões claras: quadra | academia | mista
 - ✅ Clica em academia, vê tabela de exercícios
 - ✅ Lê topo: "Academia — Potência — Sustenta quadra — Salto/bloqueio"
-- ✅ Entende que academia NÃO é anexo
+- ✅ Entende que academia não é anexo
 - ✅ Sistema mostra sinais se houver interferência (observacional)
 - ✅ Quadra continua funcionando igual
 - ✅ Nada foi auto-recalibrado sem decisão humana
