@@ -1,4 +1,4 @@
-﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -65,7 +65,9 @@ import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
+import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
+import { StudentsOverviewCard } from "../../src/screens/students/components/StudentsOverviewCard";
 import {
     filterStudentsForList,
     hasActiveStudentSearch,
@@ -99,7 +101,6 @@ import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
-import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { useSaveToast } from "../../src/ui/save-toast";
@@ -1431,11 +1432,6 @@ export default function StudentsScreen() {
     isCpfVisible,
   ]);
 
-  const getClassName = useCallback(
-    (id: string) =>
-      classById.get(id)?.name ?? "Selecione a turma",
-    [classById]
-  );
   const selectedClassName = useMemo(
     () => classById.get(classId)?.name ?? "",
     [classById, classId]
@@ -2112,200 +2108,6 @@ export default function StudentsScreen() {
     };
   }, []);
 
-  const StudentRow = useMemo(
-    () =>
-      memo(function StudentRowItem({
-        item,
-        onPress,
-        onWhatsApp,
-        onInvite,
-        onPhotoPress,
-        className,
-        unitName,
-        classPalette,
-        healthAssessment,
-      }: {
-        item: Student;
-        onPress: (student: Student) => void;
-        onWhatsApp: (student: Student) => void;
-        onInvite: (student: Student) => void;
-        onPhotoPress: (student: Student) => void;
-        className: string;
-        unitName: string;
-        classPalette: { bg: string; text: string };
-        healthAssessment: ReturnType<typeof deriveStudentHealthAssessment>;
-      }) {
-        const contact = getContactPhone(item);
-        const disabled = contact.status === "missing";
-        const birthDateWarning = hasBirthDateWarning(item.birthDate);
-        const nameParts = item.name.trim().split(/\s+/);
-        const shortName = nameParts.slice(0, 2).join(" ");
-        const restName = nameParts.slice(2).join(" ");
-        return (
-          <Pressable
-            onPress={() => onPress(item)}
-            style={{
-              padding: 14,
-              borderRadius: 18,
-              backgroundColor: colors.background,
-              borderWidth: 1,
-              borderColor: birthDateWarning ? colors.dangerSolidBg : classPalette.bg,
-              shadowColor: "#000",
-              shadowOpacity: 0.08,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 3,
-              gap: 6,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={{ flex: 1, gap: 6, minWidth: 0 }}>
-                {birthDateWarning ? (
-                  <View
-                    style={{
-                      alignSelf: "flex-start",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 4,
-                      borderWidth: 1,
-                      borderColor: colors.dangerSolidBg,
-                      backgroundColor: colors.dangerBg,
-                      borderRadius: 999,
-                      paddingHorizontal: 8,
-                      paddingVertical: 2,
-                    }}
-                  >
-                    <Ionicons name="alert-circle" size={12} color={colors.dangerText} />
-                    <Text style={{ color: colors.dangerText, fontSize: 10, fontWeight: "800" }}>
-                      Data suspeita
-                    </Text>
-                  </View>
-                ) : null}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Pressable
-                    onPress={() => onPhotoPress(item)}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {item.photoUrl ? (
-                      <Image
-                        source={{ uri: item.photoUrl }}
-                        style={{ width: "100%", height: "100%" }}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <Ionicons name="person" size={18} color={colors.text} />
-                    )}
-                  </Pressable>
-                  <FadeHorizontalScroll
-                    containerStyle={{ flex: 1, minWidth: 0 }}
-                    fadeColor={colors.card}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "700",
-                        color: colors.text,
-                      }}
-                      numberOfLines={1}
-                    >
-                      {shortName}
-                      {restName ? " " + restName : ""}
-                    </Text>
-                  </FadeHorizontalScroll>
-                  {item.isExperimental ? (
-                    <View
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                      }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>
-                          Experimental
-                        </Text>
-                      </View>
-                  ) : null}
-                  {healthAssessment.level !== "apto" ? (
-                    <View
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor:
-                          healthAssessment.level === "revisar"
-                            ? colors.dangerBorder
-                            : colors.warningBg,
-                        backgroundColor:
-                          healthAssessment.level === "revisar"
-                            ? colors.dangerBg
-                            : colors.warningBg,
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color:
-                            healthAssessment.level === "revisar"
-                              ? colors.dangerText
-                              : colors.warningText,
-                          fontSize: 10,
-                          fontWeight: "700",
-                        }}
-                      >
-                        {healthAssessment.label}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-              <Pressable
-                onPress={() => onInvite(item)}
-                style={{
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
-                  backgroundColor: colors.primaryBg,
-                }}
-              >
-                <Ionicons name="link-outline" size={16} color={colors.primaryText} />
-              </Pressable>
-              <Pressable
-                onPress={() => onWhatsApp(item)}
-                disabled={disabled}
-                style={{
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 999,
-                  backgroundColor: disabled ? colors.secondaryBg : "#25D366",
-                  opacity: disabled ? 0.5 : 1,
-                }}
-              >
-                <MaterialCommunityIcons
-                  name="whatsapp"
-                  size={18}
-                  color={disabled ? colors.muted : "white"}
-                />
-              </Pressable>
-            </View>
-          </Pressable>
-        );
-      }),
-    [colors]
-  );
-
   const SelectOption = useMemo(
     () =>
       memo(function SelectOptionItem({
@@ -2387,7 +2189,6 @@ export default function StudentsScreen() {
     ({
       item,
       paletteOverride,
-      classNameOverride,
       unitNameOverride,
     }: {
       item: Student;
@@ -2407,35 +2208,27 @@ export default function StudentsScreen() {
             });
       const healthAssessment = deriveStudentHealthAssessment(item);
         return (
-          <StudentRow
-            item={item}
+          <StudentListRow
+            student={item}
             onPress={onEdit}
             onWhatsApp={openStudentWhatsApp}
             onInvite={onGenerateInviteFromList}
             onPhotoPress={openPhotoPreview}
-            className={classNameOverride}
-            unitName={unitName}
             classPalette={classPalette}
             healthAssessment={healthAssessment}
+            hasBirthDateWarning={hasBirthDateWarning(item.birthDate)}
           />
         );
     },
     [
-      StudentRow,
       classById,
       colors,
-      getClassName,
       onEdit,
       onGenerateInviteFromList,
       openPhotoPreview,
       openStudentWhatsApp,
       unitLabel,
     ]
-  );
-
-  const studentKeyExtractor = useCallback(
-    (item: Student) => String(item.id),
-    []
   );
 
   const goBackFromStudents = useCallback(() => {
@@ -2515,73 +2308,12 @@ export default function StudentsScreen() {
         />
 
         {studentsTab === "alunos" ? (
-          <View
-            style={{
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: 12,
-              gap: 10,
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                Visão geral
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                {activeOrganization?.name ?? "Sem organização"}
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <View
-                style={{
-                  flex: 1,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  padding: 10,
-                  gap: 2,
-                }}
-              >
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Alunos ativos</Text>
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{students.length}</Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  padding: 10,
-                  gap: 2,
-                }}
-              >
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Convites pendentes</Text>
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                  {pendingStudentInvites.length}
-                </Text>
-              </View>
-              <View
-                style={{
-                  flex: 1,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  padding: 10,
-                  gap: 2,
-                }}
-              >
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Aniversários hoje</Text>
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>
-                  {birthdayTodayAll.length}
-                </Text>
-              </View>
-            </View>
-          </View>
+          <StudentsOverviewCard
+            organizationName={activeOrganization?.name ?? "Sem organização"}
+            activeStudentsCount={students.length}
+            pendingInvitesCount={pendingStudentInvites.length}
+            todayBirthdaysCount={birthdayTodayAll.length}
+          />
         ) : null}
 
         <Suspense
