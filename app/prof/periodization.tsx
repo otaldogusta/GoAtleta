@@ -1,8 +1,8 @@
-import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
+import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const ProfPeriodizationRoute = createLazyRoute(
   () => import("../periodization"),
-  <RouteScreenFallback title="Carregando" subtitle="Carregando periodização..." />
+  createLoadingFallback("Carregando periodização...")
 );
 
 export default ProfPeriodizationRoute;

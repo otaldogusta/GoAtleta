@@ -1,8 +1,8 @@
-import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
+import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const ProfNfcAttendanceRoute = createLazyRoute(
   () => import("../nfc-attendance"),
-  <RouteScreenFallback title="Carregando" subtitle="Carregando NFC..." />
+  createLoadingFallback("Carregando NFC...")
 );
 
 export default ProfNfcAttendanceRoute;

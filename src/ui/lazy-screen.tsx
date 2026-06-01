@@ -15,6 +15,10 @@ export function RouteScreenFallback({
   return <ScreenLoadingState />;
 }
 
+export function createLoadingFallback(subtitle: string) {
+  return <RouteScreenFallback title="Carregando" subtitle={subtitle} />;
+}
+
 export function createLazyRoute<P extends object = Record<string, never>>(
   loader: () => Promise<{ default: ComponentType<unknown> }>,
   fallback: ReactNode

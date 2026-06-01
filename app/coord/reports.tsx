@@ -1,8 +1,8 @@
-import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
+import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const CoordinationReportsTab = createLazyRoute(
   () => import("../reports"),
-  <RouteScreenFallback title="Carregando" subtitle="Carregando relatórios..." />
+  createLoadingFallback("Carregando relatórios...")
 );
 
 export default CoordinationReportsTab;

@@ -2,18 +2,18 @@
 
 Uso o GoAtleta para planejar, registrar e acompanhar treinos com meus alunos.
 
-## 📚 Documentation
+## Documentação
 
-**Strategic Docs (Production-Ready):**
-- [`ROADMAP.md`](ROADMAP.md) — Long-term vision & Sprint planning
-- [`NFC_ARCHITECTURE_AND_FIXES.md`](NFC_ARCHITECTURE_AND_FIXES.md) — All 15 NFC issues identified + 8 fixes implemented ✅
-- [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — Production sign-off criteria & risk assessment
-- [`POST_DEPLOY_MONITORING.md`](POST_DEPLOY_MONITORING.md) — Sentry/observability setup & dashboards
-- [`PRODUCTION_DEPLOYMENT_SUMMARY.md`](PRODUCTION_DEPLOYMENT_SUMMARY.md) — Live deployment quick-reference
+O índice canônico dos documentos fica em [`docs/README.md`](docs/README.md).
+Antes de criar um novo `.md`, confira esse índice e atualize um documento
+existente quando o assunto já estiver coberto.
 
-**Operations:**
-- [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) — Manual deployment checklist
-- [`SIGN_OFF_PRODUCTION.md`](SIGN_OFF_PRODUCTION.md) — Production approval gate
+Leitura principal:
+
+- [`ROADMAP.md`](ROADMAP.md) — prioridades de produto.
+- [`CHANGELOG.md`](CHANGELOG.md) — histórico de entregas.
+- [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) — checklist antes de deploy.
+- [`docs/perf-hygiene.md`](docs/perf-hygiene.md) — regras de performance e refatoração.
 
 ---
 
@@ -132,7 +132,7 @@ Deploy:
 supabase functions deploy auto-link-student
 ```
 
-## Importacao de planejamento (CSV)
+## Importação de planejamento (CSV)
 
 O importador resolve a turma pelo `title` e pela `date` no CSV.
 

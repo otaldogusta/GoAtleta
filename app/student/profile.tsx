@@ -1,9 +1,9 @@
 import { markRender } from "../../src/observability/perf";
-import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
+import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const ProfileScreen = createLazyRoute(
   () => import("../profile"),
-  <RouteScreenFallback title="Carregando" subtitle="Carregando perfil..." />
+  createLoadingFallback("Carregando perfil...")
 );
 
 export default function StudentProfileTab() {

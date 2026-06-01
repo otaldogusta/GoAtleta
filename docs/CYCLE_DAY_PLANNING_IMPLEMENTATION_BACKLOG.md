@@ -2,7 +2,7 @@
 
 ## Goal
 
-Execution checklist for the next implementation wave lives in [docs/CYCLE_DAY_PLANNING_PR_CHECKLIST.md](docs/CYCLE_DAY_PLANNING_PR_CHECKLIST.md).
+Execution checklist for the next implementation wave lives in [docs/CYCLE_DAY_PLANNING_PR_CHECKLIST.md](CYCLE_DAY_PLANNING_PR_CHECKLIST.md).
 
 Implement a resilient training-generation engine that:
 
@@ -24,26 +24,26 @@ The codebase already has useful foundations. The implementation should extend th
 
 ### Existing context and generation modules
 
-- [src/screens/session/application/build-class-generation-context.ts](src/screens/session/application/build-class-generation-context.ts)
+- [src/screens/session/application/build-class-generation-context.ts](../src/screens/session/application/build-class-generation-context.ts)
   - already derives `phaseIntent`, `weeklyLoadIntent`, `primarySkill`, `secondarySkill`, `progressionDimensionTarget`, `mustAvoidRepeating`, `mustProgressFrom`.
-- [src/screens/session/application/build-pedagogical-input-from-context.ts](src/screens/session/application/build-pedagogical-input-from-context.ts)
+- [src/screens/session/application/build-pedagogical-input-from-context.ts](../src/screens/session/application/build-pedagogical-input-from-context.ts)
   - already turns a generation context into a structured pedagogical package.
-- [src/screens/periodization/resolve-periodization-screen-context.ts](src/screens/periodization/resolve-periodization-screen-context.ts)
+- [src/screens/periodization/resolve-periodization-screen-context.ts](../src/screens/periodization/resolve-periodization-screen-context.ts)
   - already resolves active week and periodization context from cycle data.
-- [src/screens/periodization/build-auto-week-plan.ts](src/screens/periodization/build-auto-week-plan.ts)
+- [src/screens/periodization/build-auto-week-plan.ts](../src/screens/periodization/build-auto-week-plan.ts)
   - already centralizes week-plan creation for periodization.
 
 ### Existing persistence and learning signals
 
-- [src/db/training.ts](src/db/training.ts)
+- [src/db/training.ts](../src/db/training.ts)
   - training plan versioning fields already exist: `version`, `status`, `origin`, `inputHash`, `generatedAt`, `finalizedAt`, `parentPlanId`, `previousVersionId`, `pedagogy`.
-- [src/core/models.ts](src/core/models.ts)
+- [src/core/models.ts](../src/core/models.ts)
   - `TrainingPlan.pedagogy.override` already stores methodology override metadata.
-- [src/db/training-sessions.ts](src/db/training-sessions.ts)
+- [src/db/training-sessions.ts](../src/db/training-sessions.ts)
   - already models scheduled/applied training sessions and their attendance linkage.
-- [src/core/override-learning.ts](src/core/override-learning.ts)
+- [src/core/override-learning.ts](../src/core/override-learning.ts)
   - already implements conservative learning from teacher override behavior.
-- [src/db/knowledge-base.ts](src/db/knowledge-base.ts)
+- [src/db/knowledge-base.ts](../src/db/knowledge-base.ts)
   - already integrates override learning into methodology resolution.
 
 ## Recommended Module Placement
@@ -60,7 +60,7 @@ This keeps the decision engine reusable by both session generation and later per
 
 ## Core Types To Add
 
-Add these shared types first, preferably in [src/core/models.ts](src/core/models.ts) unless they become too noisy, in which case move them to `src/core/cycle-day-planning/types.ts` and re-export as needed.
+Add these shared types first, preferably in [src/core/models.ts](../src/core/models.ts) unless they become too noisy, in which case move them to `src/core/cycle-day-planning/types.ts` and re-export as needed.
 
 ### `HistoricalConfidence`
 
@@ -156,7 +156,7 @@ Recommended helper:
 
 #### Files
 
-- [src/core/models.ts](src/core/models.ts)
+- [src/core/models.ts](../src/core/models.ts)
 - `src/core/cycle-day-planning/resolve-historical-confidence.ts`
 - `src/core/__tests__/cycle-day-planning-confidence.test.ts`
 
@@ -184,8 +184,8 @@ Recommended helper:
 #### Files
 
 - `src/screens/session/application/build-recent-session-summary.ts`
-- optionally [src/db/training.ts](src/db/training.ts)
-- optionally [src/db/training-sessions.ts](src/db/training-sessions.ts)
+- optionally [src/db/training.ts](../src/db/training.ts)
+- optionally [src/db/training-sessions.ts](../src/db/training-sessions.ts)
 - `src/core/__tests__/build-recent-session-summary.test.ts`
 
 #### Scope
@@ -213,8 +213,8 @@ Recommended helper:
 #### Files
 
 - `src/core/cycle-day-planning/build-cycle-day-planning-context.ts`
- - optionally [src/screens/periodization/resolve-periodization-screen-context.ts](src/screens/periodization/resolve-periodization-screen-context.ts)
-- optionally [src/screens/session/application/build-class-generation-context.ts](src/screens/session/application/build-class-generation-context.ts)
+ - optionally [src/screens/periodization/resolve-periodization-screen-context.ts](../src/screens/periodization/resolve-periodization-screen-context.ts)
+- optionally [src/screens/session/application/build-class-generation-context.ts](../src/screens/session/application/build-class-generation-context.ts)
 - `src/core/__tests__/build-cycle-day-planning-context.test.ts`
 
 #### Scope
@@ -263,8 +263,8 @@ Session index in week must be explicit. The same week should not generate the sa
 #### Files
 
 - `src/screens/session/application/build-auto-plan-for-cycle-day.ts`
-- [src/screens/session/application/build-pedagogical-input-from-context.ts](src/screens/session/application/build-pedagogical-input-from-context.ts)
-- [app/class/[id]/session.tsx](app/class/[id]/session.tsx)
+- [src/screens/session/application/build-pedagogical-input-from-context.ts](../src/screens/session/application/build-pedagogical-input-from-context.ts)
+- [app/class/[id]/session.tsx](../app/class/[id]/session.tsx)
 - `src/core/__tests__/build-auto-plan-for-cycle-day.test.ts`
 
 #### Scope
@@ -285,7 +285,7 @@ Session index in week must be explicit. The same week should not generate the sa
 
 - `src/core/cycle-day-planning/build-plan-fingerprint.ts`
 - `src/core/cycle-day-planning/apply-plan-guards.ts`
-- [src/core/training-plan-factory.ts](src/core/training-plan-factory.ts)
+- [src/core/training-plan-factory.ts](../src/core/training-plan-factory.ts)
 - `src/core/__tests__/apply-plan-guards.test.ts`
 
 #### Scope
@@ -311,8 +311,8 @@ Session index in week must be explicit. The same week should not generate the sa
 #### Files
 
 - `src/core/cycle-day-planning/resolve-teacher-override-weight.ts`
-- [src/core/override-learning.ts](src/core/override-learning.ts)
-- [src/db/knowledge-base.ts](src/db/knowledge-base.ts)
+- [src/core/override-learning.ts](../src/core/override-learning.ts)
+- [src/db/knowledge-base.ts](../src/db/knowledge-base.ts)
 - `src/core/__tests__/teacher-override-weight.test.ts`
 
 #### Scope
@@ -336,9 +336,9 @@ Teacher override should influence the next decisions, not redefine the macro pha
 #### Files
 
 - `src/screens/session/application/build-recent-session-summary.ts`
-- [src/db/training-sessions.ts](src/db/training-sessions.ts)
-- [src/db/session.ts](src/db/session.ts)
-- [src/db/students.ts](src/db/students.ts)
+- [src/db/training-sessions.ts](../src/db/training-sessions.ts)
+- [src/db/session.ts](../src/db/session.ts)
+- [src/db/students.ts](../src/db/students.ts)
 
 #### Scope
 
@@ -355,9 +355,9 @@ Teacher override should influence the next decisions, not redefine the macro pha
 
 #### Files
 
-- [app/class/[id]/session.tsx](app/class/[id]/session.tsx)
-- [src/observability/breadcrumbs.ts](src/observability/breadcrumbs.ts)
-- [src/observability/perf.ts](src/observability/perf.ts)
+- [app/class/[id]/session.tsx](../app/class/[id]/session.tsx)
+- [src/observability/breadcrumbs.ts](../src/observability/breadcrumbs.ts)
+- [src/observability/perf.ts](../src/observability/perf.ts)
 - optionally `src/core/cycle-day-planning/format-generation-explanation.ts`
 
 #### Scope

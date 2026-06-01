@@ -27,6 +27,7 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+.expo-web.log
 
 # macOS
 .DS_Store
@@ -57,3 +58,6 @@ supabase/.temp/
 # Local preview artifacts
 tmp/
 scripts/preview-roster.ts
+tmp-*-check.ts
+tatus
+testvoleiapp

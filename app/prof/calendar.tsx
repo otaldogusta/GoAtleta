@@ -1,8 +1,8 @@
-import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
+import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const ProfCalendarRoute = createLazyRoute(
   () => import("../calendar"),
-  <RouteScreenFallback title="Carregando" subtitle="Carregando calendário..." />
+  createLoadingFallback("Carregando calendário...")
 );
 
 export default ProfCalendarRoute;

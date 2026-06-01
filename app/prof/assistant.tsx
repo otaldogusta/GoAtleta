@@ -1,8 +1,8 @@
-import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
+import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const ProfAssistantRoute = createLazyRoute(
   () => import("../assistant"),
-  <RouteScreenFallback title="Carregando" subtitle="Carregando assistente..." />
+  createLoadingFallback("Carregando assistente...")
 );
 
 export default ProfAssistantRoute;

@@ -132,7 +132,7 @@ npx expo start --web       # Run on web (dev)
   - **Fix:** `loopStartedRef` guard prevents re-entry (LIVE)
 - **PII Exposure:** Sentry `sendDefaultPii: true` violated GDPR
   - **Fix:** `beforeSend` masking hook in Sentry init (LIVE)
-- See [NFC_ARCHITECTURE_AND_FIXES.md](NFC_ARCHITECTURE_AND_FIXES.md) for 15 issues + 8 fixes
+- See [NFC_ARCHITECTURE_AND_FIXES.md](../NFC_ARCHITECTURE_AND_FIXES.md) for 15 issues + 8 fixes
 
 **Session & Auth:**
 - Sessions persist to AsyncStorage (key: `auth-session`)
@@ -150,7 +150,7 @@ npx expo start --web       # Run on web (dev)
 - Loaded from `app.config.js` and environment (prefix: `EXPO_PUBLIC_*`)
 - Required: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_SENTRY_DSN`
 - Optional: `EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN`, `EXPO_PUBLIC_ENABLE_MANUAL_LINKING`
-- See [src/api/config.ts](src/api/config.ts) for loading logic
+- See [src/api/config.ts](../src/api/config.ts) for loading logic
 
 **Performance & Memory:**
 - All new screens in `app/*` + `src/screens/*` must include:

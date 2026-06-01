@@ -53,9 +53,9 @@ Make automatic periodization generation use the real cycle-day context as the ac
 
 ### Files
 
-- [app/periodization/index.tsx](app/periodization/index.tsx)
-- [src/screens/periodization/hooks/useGeneratePlansMode.ts](src/screens/periodization/hooks/useGeneratePlansMode.ts)
-- [src/screens/periodization/resolve-periodization-screen-context.ts](src/screens/periodization/resolve-periodization-screen-context.ts)
+- [app/periodization/index.tsx](../app/periodization/index.tsx)
+- [src/screens/periodization/hooks/useGeneratePlansMode.ts](../src/screens/periodization/hooks/useGeneratePlansMode.ts)
+- [src/screens/periodization/resolve-periodization-screen-context.ts](../src/screens/periodization/resolve-periodization-screen-context.ts)
 - new: `src/screens/periodization/application/build-cycle-day-planning-context.ts`
 - new: `src/screens/periodization/application/build-auto-plan-for-cycle-day.ts`
 
@@ -128,9 +128,9 @@ Guarantee coherent generation for new classes or weak-history classes without bl
 
 ### Files
 
-- [src/core/cycle-day-planning/resolve-historical-confidence.ts](src/core/cycle-day-planning/resolve-historical-confidence.ts)
-- [src/core/cycle-day-planning/build-cycle-day-planning-context.ts](src/core/cycle-day-planning/build-cycle-day-planning-context.ts)
-- [src/screens/session/application/build-recent-session-summary.ts](src/screens/session/application/build-recent-session-summary.ts)
+- [src/core/cycle-day-planning/resolve-historical-confidence.ts](../src/core/cycle-day-planning/resolve-historical-confidence.ts)
+- [src/core/cycle-day-planning/build-cycle-day-planning-context.ts](../src/core/cycle-day-planning/build-cycle-day-planning-context.ts)
+- [src/screens/session/application/build-recent-session-summary.ts](../src/screens/session/application/build-recent-session-summary.ts)
 - tests around confidence and context bootstrap behavior
 
 ### Checklist
@@ -165,10 +165,10 @@ Make dominant block a true strategic input instead of descriptive text.
 
 ### Files
 
-- [src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts](src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts)
+- [src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts](../src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts)
 - new: `src/core/cycle-day-planning/resolve-block-dominant-strategy.ts`
 - tests for block-to-strategy mapping
-- [src/core/cycle-day-planning/format-generation-explanation.ts](src/core/cycle-day-planning/format-generation-explanation.ts)
+- [src/core/cycle-day-planning/format-generation-explanation.ts](../src/core/cycle-day-planning/format-generation-explanation.ts)
 
 ### Checklist
 
@@ -202,8 +202,8 @@ Make planned load, demand, and target PSE alter density, pressure, and transfer 
 ### Files
 
 - new: `src/core/cycle-day-planning/resolve-load-modulation.ts`
-- [src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts](src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts)
-- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](src/screens/session/application/build-auto-plan-for-cycle-day.ts)
+- [src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts](../src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts)
+- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](../src/screens/session/application/build-auto-plan-for-cycle-day.ts)
 - tests for load modulation
 
 ### Checklist
@@ -238,9 +238,9 @@ Reduce dumb repetition without breaking cycle continuity.
 
 ### Files
 
-- [src/core/cycle-day-planning/apply-plan-guards.ts](src/core/cycle-day-planning/apply-plan-guards.ts)
-- [src/core/cycle-day-planning/build-plan-fingerprint.ts](src/core/cycle-day-planning/build-plan-fingerprint.ts)
-- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](src/screens/session/application/build-auto-plan-for-cycle-day.ts)
+- [src/core/cycle-day-planning/apply-plan-guards.ts](../src/core/cycle-day-planning/apply-plan-guards.ts)
+- [src/core/cycle-day-planning/build-plan-fingerprint.ts](../src/core/cycle-day-planning/build-plan-fingerprint.ts)
+- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](../src/screens/session/application/build-auto-plan-for-cycle-day.ts)
 - tests for repetition guards
 
 ### Checklist
@@ -273,10 +273,10 @@ Use teacher edits as a high-value local learning signal that influences the next
 
 ### Files
 
-- [src/core/cycle-day-planning/resolve-teacher-override-weight.ts](src/core/cycle-day-planning/resolve-teacher-override-weight.ts)
-- [src/screens/session/application/build-recent-session-summary.ts](src/screens/session/application/build-recent-session-summary.ts)
-- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](src/screens/session/application/build-auto-plan-for-cycle-day.ts)
-- [src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts](src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts)
+- [src/core/cycle-day-planning/resolve-teacher-override-weight.ts](../src/core/cycle-day-planning/resolve-teacher-override-weight.ts)
+- [src/screens/session/application/build-recent-session-summary.ts](../src/screens/session/application/build-recent-session-summary.ts)
+- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](../src/screens/session/application/build-auto-plan-for-cycle-day.ts)
+- [src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts](../src/core/cycle-day-planning/resolve-session-strategy-from-cycle-context.ts)
 - tests for override weighting
 
 ### Checklist
@@ -310,8 +310,8 @@ Expose a short, coach-readable explanation so generation is auditable and not pe
 
 ### Files
 
-- [src/core/cycle-day-planning/format-generation-explanation.ts](src/core/cycle-day-planning/format-generation-explanation.ts)
-- [app/class/[id]/session.tsx](app/class/[id]/session.tsx)
+- [src/core/cycle-day-planning/format-generation-explanation.ts](../src/core/cycle-day-planning/format-generation-explanation.ts)
+- [app/class/[id]/session.tsx](../app/class/[id]/session.tsx)
 - optionally periodization preview UI if a compact surface exists
 
 ### Checklist
@@ -345,10 +345,10 @@ Ensure the plan generated from the cycle arrives coherently in the session scree
 
 ### Files
 
-- [app/periodization/index.tsx](app/periodization/index.tsx)
-- [app/class/[id]/session.tsx](app/class/[id]/session.tsx)
-- [src/screens/session/application/build-recent-session-summary.ts](src/screens/session/application/build-recent-session-summary.ts)
-- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](src/screens/session/application/build-auto-plan-for-cycle-day.ts)
+- [app/periodization/index.tsx](../app/periodization/index.tsx)
+- [app/class/[id]/session.tsx](../app/class/[id]/session.tsx)
+- [src/screens/session/application/build-recent-session-summary.ts](../src/screens/session/application/build-recent-session-summary.ts)
+- [src/screens/session/application/build-auto-plan-for-cycle-day.ts](../src/screens/session/application/build-auto-plan-for-cycle-day.ts)
 - any DB helpers needed to persist linkage between generated cycle plan and applied session plan
 
 ### Checklist

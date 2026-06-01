@@ -1,8 +1,11 @@
-# 📚 DOCUMENTAÇÃO GUIDE — GoAtleta
+# Documentation Guide — GoAtleta
 
-**Status:** ✅ Clean & Organized
-**Total MDs:** 8 (essenciais apenas)
-**Last Update:** 2026-02-18
+**Status:** histórico funcional, não é mais o índice canônico.
+**Índice canônico:** `docs/README.md`
+**Last Update:** 2026-06-01
+
+Este arquivo preserva a memória funcional das fases de observabilidade e QA.
+Para navegar pela documentação atual, comece por `docs/README.md`.
 
 ---
 
@@ -337,7 +340,7 @@ Ler em ordem:
 Estes documentos ainda podem ser úteis, mas nao definem mais o norte do produto:
 
 - `docs/NFC_ARCHITECTURE_REFACTOR.md`
-- `PRODUCTION_READINESS_SUMMARY.md`
+- `PRODUCTION_READINESS.md`
 - `RELEASE_CHECKLIST.md`
 - `POST_DEPLOY_MONITORING.md`
 - `SIGN_OFF_PRODUCTION.md`
@@ -379,7 +382,7 @@ Tempo: ~30-40 min
 
 Leia em ordem:
 
-1. `PRODUCTION_READINESS_SUMMARY.md`
+1. `PRODUCTION_READINESS.md`
 2. `RELEASE_CHECKLIST.md`
 3. `POST_DEPLOY_MONITORING.md`
 4. `SIGN_OFF_PRODUCTION.md`
@@ -414,11 +417,10 @@ O bloco antigo de NFC, deploy e operacao continua disponivel no repositório, ma
 **Passou?** → Docs estão limpas!
 
 - [x] Nenhum MD duplicado
-- [x] Nenhum MD legado em root
-- [x] MDs organizados por função (dev/ops/deploy)
-- [x] Índice claro em README
-- [x] Crosslinks funcionam
-- [x] Nenhum MB de docs extras
+- [ ] Reduzir gradualmente MDs legados na raiz
+- [x] Índice canônico criado em `docs/README.md`
+- [x] README aponta para o índice canônico
+- [ ] Mover ou consolidar docs históricos apenas em fatias revisáveis
 - [x] Tamanho total < 60KB
 - [x] Onboarding < 30 min
 

@@ -1,9 +1,9 @@
 import { markRender } from "../../src/observability/perf";
-import { RouteScreenFallback, createLazyRoute } from "../../src/ui/lazy-screen";
+import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
 
 const StudentHomeScreen = createLazyRoute(
   () => import("../student-home"),
-  <RouteScreenFallback title="Carregando" subtitle="Carregando painel..." />
+  createLoadingFallback("Carregando painel...")
 );
 
 export default function StudentHomeTab() {
