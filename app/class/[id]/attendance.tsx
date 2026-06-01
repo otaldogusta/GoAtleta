@@ -74,6 +74,7 @@ export default function AttendanceScreen() {
   const [painById, setPainById] = useState<Record<string, number | undefined>>({});
   const [loadMessage, setLoadMessage] = useState("");
   const [hasSaved, setHasSaved] = useState(false);
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false);
   const [baseline, setBaseline] = useState<{
     status: Record<string, "presente" | "faltou" | undefined>;
     note: Record<string, string>;
@@ -191,6 +192,8 @@ export default function AttendanceScreen() {
 
   const handleSave = async () => {
     if (!cls) return;
+    if (isSavingAttendance) return;
+    setIsSavingAttendance(true);
     try {
       const createdAt = new Date().toISOString();
       const records = items
@@ -261,6 +264,8 @@ export default function AttendanceScreen() {
         error,
         variant: "error",
       });
+    } finally {
+      setIsSavingAttendance(false);
     }
   };
 
@@ -694,14 +699,15 @@ export default function AttendanceScreen() {
         ListFooterComponent={
           <View style={{ marginTop: 8, gap: 8 }}>
             <Button
-              label="Salvar chamada"
+              label={isSavingAttendance ? "Salvando chamada..." : "Salvar chamada"}
               onPress={handleSave}
-              disabled={!isClassDay || !hasChanges}
+              disabled={!isClassDay || !hasChanges || isSavingAttendance}
+              loading={isSavingAttendance}
             />
             <Button
               label="Abrir relatório"
               variant="secondary"
-              disabled={!isClassDay || !hasSaved}
+              disabled={!isClassDay || !hasSaved || isSavingAttendance}
               onPress={() => {
                 router.push({
                   pathname: "/class/[id]/session",
@@ -730,6 +736,5 @@ export default function AttendanceScreen() {
     </SafeAreaView>
   );
 }
-
 
 
