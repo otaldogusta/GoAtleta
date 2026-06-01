@@ -35,10 +35,7 @@ import {
     buildSessionObjectiveFromPlanContent,
     resolveSessionObjectiveText,
 } from "../../../src/screens/session/application/session-objective-summary";
-import {
-    buildPedagogicalPlanDraft,
-    convertPedagogicalPackageToTrainingPlan,
-} from "../../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
+import { convertPedagogicalPackageToTrainingPlan } from "../../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
 import {
     BlockEditModal,
     type BlockEditPayload,
@@ -262,18 +259,6 @@ const dedupeByNormalizedText = (items: string[]) => {
     map.set(key, cleaned);
   }
   return Array.from(map.values());
-};
-
-const dedupeActivitiesForDisplay = (items: TrainingPlanActivity[]) => {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    const name = sanitizePlanDisplayItem(item.name) || "atividade";
-    const desc = sanitizePlanDisplayItem(item.description ?? "");
-    const key = `${normalizePedagogicalText(name)}|${normalizePedagogicalText(desc)}`;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 };
 
 const buildSimpleActivityFromPlan = (plan: TrainingPlan | null) => {
@@ -601,11 +586,11 @@ const resolveActivityDescription = (options: {
 };
 
 const buildPedagogicalApproachInput = (
-  parts: Array<string | null | undefined>
+  parts: (string | null | undefined)[]
 ) => buildSessionPedagogicalApproachInput(parts);
 
 const detectSessionPedagogicalApproach = (
-  parts: Array<string | null | undefined>
+  parts: (string | null | undefined)[]
 ): SessionPedagogicalApproach => detectSessionPedagogicalApproachCore(parts);
 
 const buildApproachAwareGeneralObjective = (
@@ -626,32 +611,6 @@ const buildApproachAwareBlockDescription = (options: {
   detailText?: string;
 }) => buildSessionApproachAwareBlockDescription(options);
 
-const criterionTypeLabels: Record<TrainingPlanCriterion["type"], string> = {
-  consistencia: "Consistência",
-  precisao: "Precisão",
-  decisao: "Decisão",
-  eficiencia: "Eficiência",
-};
-
-const formatCriterionTypeLabel = (type: TrainingPlanCriterion["type"] | undefined) =>
-  (type ? criterionTypeLabels[type] : "Critério");
-
-const formatCriterionSummary = (criterion: TrainingPlanCriterion) => {
-  const typeLabel = formatCriterionTypeLabel(criterion.type);
-  if (typeof criterion.threshold === "number") {
-    return `${typeLabel} >= ${criterion.threshold}`;
-  }
-  return typeLabel;
-};
-
-const getActivityAiBadge = (activity: TrainingPlanActivity) => {
-  if (activity.source !== "ai") return null;
-  const score = typeof activity.confidence === "number" ? activity.confidence : 0;
-  if (score >= 0.84) return { label: "Assistido", tone: "strong" as const };
-  if (score >= 0.68) return { label: "Sugestão", tone: "soft" as const };
-  return null;
-};
-
 const buildTrainingPlanDraftFromPlan = (plan: TrainingPlan) => ({
   title: plan.title,
   tags: plan.tags,
@@ -662,12 +621,6 @@ const buildTrainingPlanDraftFromPlan = (plan: TrainingPlan) => ({
   mainTime: plan.mainTime,
   cooldownTime: plan.cooldownTime,
 });
-
-const splitMaterials = (value: string) =>
-  String(value ?? "")
-    .split(/[\n,;/|]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 
 const parseAgeBandStart = (value: string) => {
   const match = String(value ?? "").match(/(\d{1,2})/);
@@ -1067,7 +1020,7 @@ const toStructuredActivitiesWithAiFallback = async (
   const scoreAiStructuredActivitySemanticQuality = (value: {
     description: string;
     objective: string;
-    criteria: Array<{ description: string }>;
+    criteria: { description: string }[];
   }) => {
     const descriptionLength = value.description.length;
     const objectiveLength = value.objective.length;
@@ -1599,14 +1552,6 @@ const normalizePlanningPhase = (phase?: string): PlanningPhase | undefined => {
   return undefined;
 };
 
-const parseRpeTarget = (rpeTarget?: string): number | undefined => {
-  if (!rpeTarget) return undefined;
-  const match = rpeTarget.match(/(\d+)/);
-  if (!match) return undefined;
-  const value = Number(match[1]);
-  return Number.isFinite(value) && value > 0 ? value : undefined;
-};
-
 const toDimensionPhase = (
   phase?: PlanningPhase
 ): "fundamentos" | "consolidacao" | "especializacao" | "competicao" => {
@@ -1638,25 +1583,6 @@ const computeBaseDimensionGuidelines = (
   } catch {
     return [];
   }
-};
-
-const buildPedagogicalAiDraft = (pkg: PedagogicalPlanPackage) =>
-  JSON.stringify(buildPedagogicalPlanDraft(pkg));
-
-const applyEditedDraftToPackage = (
-  pkg: PedagogicalPlanPackage,
-  editedDraft?: LessonPlanDraft
-): PedagogicalPlanPackage => {
-  if (!editedDraft) return pkg;
-  return {
-    ...pkg,
-    final: {
-      ...pkg.final,
-      ...editedDraft,
-      edited: true,
-      finalizedAt: new Date().toISOString(),
-    },
-  };
 };
 
 const waitForInteractionIdle = () =>
@@ -1740,7 +1666,7 @@ export default function SessionScreen() {
   const router = useRouter();
   const { config: pedagogicalConfig } = usePedagogicalConfig();
   const insets = useSafeAreaInsets();
-  const { colors, mode } = useAppTheme();
+  const { colors } = useAppTheme();
   const { confirm } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const [scoutingCounts, setScoutingCounts] = useState(createEmptyCounts());
@@ -1939,15 +1865,6 @@ export default function SessionScreen() {
     const end = String(endHour).padStart(2, "0") + ":" + String(endMinute).padStart(2, "0");
     return start + " - " + end;
   };
-  const generationExplanation = plan?.pedagogy?.generationExplanation;
-  const generationHistoryLabel =
-    generationExplanation?.historyMode === "bootstrap"
-      ? "Bootstrap do ciclo"
-      : generationExplanation?.historyMode === "strong_history"
-        ? "Historico forte"
-        : generationExplanation?.historyMode === "partial_history"
-          ? "Historico parcial"
-          : null;
   const planGenerationPulse = useMemo(
     () =>
       planGenerationAnim.interpolate({
@@ -2310,7 +2227,7 @@ export default function SessionScreen() {
     try {
       await saveReport({ activityFallback: autoActivity });
       showSaveToast({ message: ptBR.session.success.reportSaved, variant: "success" });
-    } catch (error) {
+    } catch {
       showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
       Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
     }
@@ -2320,7 +2237,7 @@ export default function SessionScreen() {
     try {
       await saveReport({ activityFallback: autoActivity });
       await handleExportReportPdf();
-    } catch (error) {
+    } catch {
       showSaveToast({ message: ptBR.session.errors.reportSaveFailed, variant: "error" });
       Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
     }
@@ -2328,9 +2245,6 @@ export default function SessionScreen() {
 
   const title = ptBR.session.title;
   const block = plan?.title ?? "";
-  const warmup = (plan?.warmup ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
-  const main = (plan?.main ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
-  const cooldown = (plan?.cooldown ?? []).map((item) => sanitizePlanDisplayItem(item)).filter(Boolean);
   const defaultBlockTimes = getLessonBlockTimes(cls?.durationMinutes ?? 60);
   const warmupLabel = plan?.warmupTime
     ? `${ptBR.session.warmup} • ` + formatDuration(plan.warmupTime)
@@ -2342,7 +2256,6 @@ export default function SessionScreen() {
     ? `${ptBR.session.cooldown} • ` + formatDuration(plan.cooldownTime)
     : `${ptBR.session.cooldown} • ${defaultBlockTimes.cooldownMinutes} min`;
   const showNoPlanNotice = !plan;
-  const className = cls?.name ?? "";
   const classAgeBand = cls?.ageBand ?? "";
   const classGender = cls?.gender ?? "misto";
   const classPalette = getClassPalette(cls?.colorKey ?? null, colors, cls?.unit ?? "");
@@ -2807,57 +2720,6 @@ export default function SessionScreen() {
     [scoutingCounts]
   );
 
-  const studentsSignature = useMemo(
-    () => sessionStudents.map((student) => student.id).sort().join(","),
-    [sessionStudents]
-  );
-  const scoutingSignature = useMemo(() => JSON.stringify(scoutingCounts), [scoutingCounts]);
-  const recentPlansSignature = useMemo(
-    () =>
-      savedClassPlans
-        .slice(0, 5)
-        .map((item) => [
-          item.id,
-          item.inputHash ?? "",
-          item.pedagogy?.focus?.skill ?? "",
-          item.pedagogy?.progression?.dimension ?? "",
-          item.pedagogy?.sessionObjective ?? "",
-        ].join("|"))
-        .join("||"),
-    [savedClassPlans]
-  );
-  const classPedagogicalSignature = useMemo(
-    () =>
-      cls
-        ? [
-            cls.id,
-            cls.goal,
-            cls.modality,
-            cls.equipment,
-            cls.durationMinutes,
-            currentClassPlan?.id,
-            currentClassPlan?.phase,
-            currentClassPlan?.theme,
-            currentClassPlan?.technicalFocus,
-            currentClassPlan?.physicalFocus,
-            currentClassPlan?.rpeTarget,
-          ].join("|")
-        : "",
-    [
-      cls?.id,
-      cls?.goal,
-      cls?.modality,
-      cls?.equipment,
-      cls?.durationMinutes,
-      currentClassPlan?.id,
-      currentClassPlan?.phase,
-      currentClassPlan?.theme,
-      currentClassPlan?.technicalFocus,
-      currentClassPlan?.physicalFocus,
-      currentClassPlan?.rpeTarget,
-    ]
-  );
-
   const buildAutoPlanResultFromSessionContext = useCallback(
     (variationSeed?: number, dimensionGuidelines?: string[]): AutoPlanForCycleDayResult | null => {
       if (!cls) return null;
@@ -2874,35 +2736,6 @@ export default function SessionScreen() {
     },
     [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents]
   );
-
-  const buildPedagogicalPackageFromSessionContext = useCallback(
-    (variationSeed?: number, dimensionGuidelines?: string[]) =>
-      buildAutoPlanResultFromSessionContext(variationSeed, dimensionGuidelines)?.package ?? null,
-    [buildAutoPlanResultFromSessionContext]
-  );
-
-  const memoizedPedagogicalPackage = useMemo(() => {
-    if (!cls) return null;
-    const startedAt = Date.now();
-    const guidelines = computeBaseDimensionGuidelines(cls, currentClassPlan, pedagogicalConfig);
-    const pkg = buildPedagogicalPackageFromSessionContext(undefined, guidelines);
-    if (__DEV__) {
-      logAction("buildPedagogicalPlan memo", {
-        classId: cls.id,
-        students: sessionStudents.length,
-        guidelines: guidelines.length,
-        ms: Date.now() - startedAt,
-      });
-    }
-    return pkg;
-  }, [
-    buildPedagogicalPackageFromSessionContext,
-    classPedagogicalSignature,
-    pedagogicalConfig,
-    recentPlansSignature,
-    scoutingSignature,
-    studentsSignature,
-  ]);
 
   const buildFreshAutoPlanResult = async (
     variationSeed?: number,
@@ -3114,13 +2947,11 @@ export default function SessionScreen() {
   };
 
   const {
-    pedagogicalPlanPackage,
     setPedagogicalPlanPackage,
     planGenerationPhase,
     isGeneratingPedagogicalPlan,
     isSavingPedagogicalPlan,
     isPlanGenerationBusy,
-    buildFreshPedagogicalPackage,
     generatePedagogicalPlanAndSave,
     handleGeneratePedagogicalPlan,
   } = useSessionPlanGeneration({
@@ -3188,23 +3019,6 @@ export default function SessionScreen() {
       planGenerationAnim.setValue(0);
     };
   }, [isPlanGenerationBusy, planGenerationAnim]);
-
-  const handleEditPedagogicalPlan = async () => {
-    if (!cls) return;
-    const pkg =
-      pedagogicalPlanPackage ?? (await buildFreshPedagogicalPackage(undefined, "cycle_based"));
-    if (!pkg) return;
-    setPedagogicalPlanPackage(pkg);
-    router.push({
-      pathname: "/prof/planning",
-      params: {
-        targetClassId: cls.id,
-        targetDate: sessionDate,
-        openForm: "1",
-        aiDraft: buildPedagogicalAiDraft(pkg),
-      },
-    });
-  };
 
   const handleSaveBlockEdit = async (payload: BlockEditPayload) => {
     if (!plan || !cls || !selectedBlockKey) return false;
@@ -3409,7 +3223,6 @@ export default function SessionScreen() {
 
   const handleExportPdf = async () => {
     if (!plan || !cls) return;
-    const dateLabel = sessionDate.split("-").reverse().join("/");
     const dateObj = new Date(sessionDate + "T00:00:00");
     const weekdayLabel = dateObj.toLocaleDateString("pt-BR", {
       weekday: "long",
@@ -3470,7 +3283,7 @@ export default function SessionScreen() {
       );
       logAction("Exportar PDF", { classId: cls.id, date: sessionDate });
       showSaveToast({ message: ptBR.session.success.pdfGenerated, variant: "success" });
-    } catch (error) {
+    } catch {
       showSaveToast({ message: ptBR.session.errors.pdfGenerateFailed, variant: "error" });
       Alert.alert(ptBR.session.alerts.exportPdfFailedTitle, ptBR.session.alerts.tryAgain);
     }
@@ -3528,7 +3341,7 @@ export default function SessionScreen() {
       );
       logAction("Exportar relatório PDF", { classId: cls.id, date: sessionDate });
       showSaveToast({ message: ptBR.session.success.reportGenerated, variant: "success" });
-    } catch (error) {
+    } catch {
       showSaveToast({ message: ptBR.session.errors.reportGenerateFailed, variant: "error" });
       Alert.alert(ptBR.session.alerts.exportPdfFailedTitle, ptBR.session.alerts.tryAgain);
     }
@@ -3556,7 +3369,7 @@ export default function SessionScreen() {
       setScoutingLog(saved);
       setScoutingBaseline(countsFromLog(saved));
       showSaveToast({ message: ptBR.session.success.scoutingSaved, variant: "success" });
-    } catch (error) {
+    } catch {
       showSaveToast({ message: ptBR.session.errors.scoutingSaveFailed, variant: "error" });
       Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
     } finally {
