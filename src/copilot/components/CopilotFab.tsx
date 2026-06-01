@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Animated, StyleSheet, Text, View } from "react-native";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
@@ -12,19 +13,6 @@ type CopilotFabProps = {
   hintMessage: string | null;
   onPress: () => void;
 };
-
-function ChatBubbleIcon() {
-  return (
-    <View style={styles.chatIcon} pointerEvents="none">
-      <View style={styles.chatBubble}>
-        <View style={styles.chatDot} />
-        <View style={styles.chatDot} />
-        <View style={styles.chatDot} />
-      </View>
-      <View style={styles.chatTail} />
-    </View>
-  );
-}
 
 export const CopilotFab = memo(function CopilotFab({
   showPulse,
@@ -105,7 +93,7 @@ export const CopilotFab = memo(function CopilotFab({
           elevation: 7,
         }}
       >
-        <ChatBubbleIcon />
+        <Ionicons name="chatbubble-ellipses-outline" size={28} color="#FFFFFF" />
         {showPulse ? (
           <View
             style={{
@@ -139,39 +127,5 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     borderWidth: 2,
-  },
-  chatIcon: {
-    width: 28,
-    height: 26,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chatBubble: {
-    width: 24,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 3,
-  },
-  chatTail: {
-    position: "absolute",
-    left: 7,
-    bottom: 2,
-    width: 8,
-    height: 8,
-    borderLeftWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: "#FFFFFF",
-    transform: [{ rotate: "-28deg" }],
-  },
-  chatDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: "#FFFFFF",
   },
 });

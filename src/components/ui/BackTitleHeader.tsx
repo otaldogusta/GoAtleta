@@ -22,10 +22,12 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
         onPress={onBack}
         style={{
           alignSelf: "flex-start",
+          maxWidth: "100%",
           flexDirection: "row",
           alignItems: "center",
           gap: 6,
           borderRadius: 16,
+          paddingVertical: 2,
         }}
       >
         <View
@@ -39,7 +41,10 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
         >
           <Ionicons name="chevron-back" size={20} color={colors.text} />
         </View>
-        <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+        <Text
+          numberOfLines={2}
+          style={{ flexShrink: 1, fontSize: 26, fontWeight: "700", color: colors.text }}
+        >
           {title}
         </Text>
       </Pressable>

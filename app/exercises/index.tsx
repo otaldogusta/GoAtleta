@@ -26,6 +26,7 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { getValidAccessToken } from "../../src/auth/session";
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import type { Exercise } from "../../src/core/models";
 import {
     deleteExercise,
@@ -299,21 +300,16 @@ export default function ExercisesScreen() {
         }
       >
         <View style={{ gap: 6 }}>
-          <Pressable
-            onPress={() => {
+          <BackTitleHeader
+            title="Exercícios"
+            onBack={() => {
               if (router.canGoBack()) {
                 router.back();
                 return;
               }
               router.replace("/");
             }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              Exercícios
-            </Text>
-          </Pressable>
+          />
           <Text style={{ color: colors.muted }}>
             Biblioteca com vídeos e links
           </Text>
@@ -338,9 +334,7 @@ export default function ExercisesScreen() {
             onChangeText={setSearchText}
             style={{ flex: 1, paddingVertical: 2, color: colors.inputText }}
           />
-          <Text style={{ color: colors.text, fontSize: 16, marginLeft: 6 }}>
-            {"\uD83D\uDD0D"}
-          </Text>
+          <Ionicons name="search-outline" size={18} color={colors.muted} />
         </View>
 
         <View
@@ -354,7 +348,7 @@ export default function ExercisesScreen() {
           }}
         >
             <TextInput
-              placeholder="Link do video (YouTube, Instagram, etc.)"
+              placeholder="Link do vídeo (YouTube, Instagram, etc.)"
               placeholderTextColor={colors.placeholder}
               value={videoUrl}
               onChangeText={setVideoUrl}

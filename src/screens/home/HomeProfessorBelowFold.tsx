@@ -39,10 +39,10 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
         elevation: 0,
       } as const)
     : ({
-        backgroundColor: mode === "dark" ? "rgba(255,255,255,0.04)" : colors.secondaryBg,
+        backgroundColor: colors.secondaryBg,
         overflow: "hidden",
         borderWidth: 1,
-        borderColor: mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.06)",
+        borderColor: colors.border,
         shadowColor: "#000",
         shadowOpacity: mode === "dark" ? 0.08 : 0.03,
         shadowRadius: mode === "dark" ? 6 : 3,

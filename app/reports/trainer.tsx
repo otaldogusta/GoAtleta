@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -10,6 +10,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
@@ -286,13 +287,13 @@ export default function ReportsScreen() {
               },
             },
           ],
-          dialogTitle: "Exportar relatorio",
+          dialogTitle: "Exportar relatório",
         });
       });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Falha ao exportar relatorio XLSX.";
-      Alert.alert("Relatorios", message);
+        error instanceof Error ? error.message : "Falha ao exportar relatório XLSX.";
+      Alert.alert("Relatórios", message);
     }
   };
 
@@ -350,23 +351,18 @@ export default function ReportsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
         <View style={{ gap: 6 }}>
-          <Pressable
-            onPress={() => {
+          <BackTitleHeader
+            title="Relatórios"
+            onBack={() => {
               if (router.canGoBack()) {
                 router.back();
                 return;
               }
               router.replace("/");
             }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              Relatórios
-            </Text>
-          </Pressable>
+          />
           <Text style={{ color: colors.muted }}>
-            Dashboard de presença e desempenho
+            Painel de presença e desempenho
           </Text>
         </View>
 
@@ -382,7 +378,7 @@ export default function ReportsScreen() {
             }}
           >
             <Text style={{ color: colors.dangerText, fontWeight: "800" }}>
-              Nao foi possivel carregar tudo
+              Não foi possível carregar tudo
             </Text>
             <Text style={{ color: colors.muted, lineHeight: 20 }}>{loadError}</Text>
           </View>
@@ -532,7 +528,7 @@ export default function ReportsScreen() {
           </View>
 
           <View style={insetCardStyle}>
-            <Text style={sectionTitleStyle}>Team intelligence (comparativo)</Text>
+            <Text style={sectionTitleStyle}>Comparativo da equipe</Text>
             <Text style={{ color: colors.muted }}>
               Presença média global: {(teamIntelligence.globalAvgAttendance * 100).toFixed(0)}% • PSE médio global: {teamIntelligence.globalAvgPse.toFixed(1)}
             </Text>
@@ -602,7 +598,7 @@ export default function ReportsScreen() {
             </View>
             <View style={dividerStyle} />
             <View style={{ gap: 8 }}>
-              <Text style={sectionTitleStyle}>Evolucao semanal</Text>
+              <Text style={sectionTitleStyle}>Evolução semanal</Text>
               <View
                 style={{
                   flexDirection: "row",
@@ -1009,7 +1005,7 @@ export default function ReportsScreen() {
                           }}
                         >
                           { slot.rank === 1 ? (
-                            <MaterialCommunityIcons name="crown" size={30} color={ringColor} />
+                            <Ionicons name="trophy" size={30} color={ringColor} />
                           ) : (
                             <View style={{ height: 28 }} />
                           )}
@@ -1064,7 +1060,7 @@ export default function ReportsScreen() {
                             {row.student.name}
                           </Text>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <MaterialCommunityIcons name="star-four-points" size={12} color={ringColor} />
+                            <Ionicons name="star" size={12} color={ringColor} />
                             <Text style={{ color: ringColor, fontWeight: "700" }}>
                               {row.score} pts
                             </Text>
@@ -1151,8 +1147,8 @@ export default function ReportsScreen() {
                           </Text>
                         </View>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <MaterialCommunityIcons
-                            name="star-four-points"
+                          <Ionicons
+                            name="star"
                             size={12}
                             color={highlight ? colors.primaryText : colors.primaryBg}
                           />

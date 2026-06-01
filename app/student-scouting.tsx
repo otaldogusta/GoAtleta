@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRole } from "../src/auth/role";
+import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
 import type { ClassGroup } from "../src/core/models";
 import {
     createEmptyCounts,
@@ -144,13 +144,16 @@ export default function StudentScouting() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-        <Pressable
-          onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Meu scouting</Text>
-        </Pressable>
+        <BackTitleHeader
+          title="Meu scouting"
+          onBack={() => {
+            if (router.canGoBack()) {
+              router.back();
+              return;
+            }
+            router.replace("/");
+          }}
+        />
 
         <View style={{ padding: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 6 }}>
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turma</Text>

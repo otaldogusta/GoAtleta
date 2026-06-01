@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useCallback,
@@ -491,7 +491,7 @@ export default function AttendanceScreen() {
               marginTop: 2,
             }}
           >
-            <MaterialCommunityIcons
+            <Ionicons
               name="alert-circle-outline"
               size={14}
               color={colors.warningText}
@@ -636,8 +636,8 @@ export default function AttendanceScreen() {
                     borderColor: colors.borderSubtle,
                   }}
                 >
-                  <MaterialCommunityIcons
-                    name={expandedById[item.student.id] ? "chevron-down" : "chevron-right"}
+                  <Ionicons
+                    name={expandedById[item.student.id] ? "chevron-down" : "chevron-forward"}
                     size={16}
                     color={colors.textMuted}
                   />

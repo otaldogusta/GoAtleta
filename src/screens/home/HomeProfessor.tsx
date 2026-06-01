@@ -974,10 +974,10 @@ export function HomeProfessorScreen({
   const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
   const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
-  const ux2CPageBackground = mode === "dark" ? colors.background : "#F3F5F7";
-  const ux2CShortcutSurface = mode === "dark" ? colors.card : "#FFFFFF";
-  const ux2CShortcutBorder = mode === "dark" ? colors.border : "rgba(15,23,42,0.06)";
-  const ux2CShortcutShadow = mode === "dark" ? 0.12 : 0.05;
+  const ux2CPageBackground = colors.background;
+  const ux2CShortcutSurface = colors.card;
+  const ux2CShortcutBorder = colors.border;
+  const ux2CShortcutShadow = mode === "dark" ? 0.12 : 0.04;
 
   const agendaCardGap = isWebHome ? 8 : 10;
 

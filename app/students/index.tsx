@@ -83,6 +83,7 @@ import { StudentEditModal } from "../../src/screens/students/modals/StudentEditM
 import { StudentsFormsSyncModal } from "../../src/screens/students/modals/StudentsFormsSyncModal";
 import { StudentsImportModal } from "../../src/screens/students/modals/StudentsImportModal";
 import { WhatsAppModal } from "../../src/screens/students/modals/WhatsAppModal";
+import { StudentsListTab } from "../../src/screens/students/StudentsListTab";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
@@ -122,12 +123,6 @@ const StudentRegistrationTab = lazy(() =>
 const BirthdaysTab = lazy(() =>
   import("../../src/screens/students/BirthdaysTab").then((module) => ({
     default: module.BirthdaysTab,
-  }))
-);
-
-const StudentsListTab = lazy(() =>
-  import("../../src/screens/students/StudentsListTab").then((module) => ({
-    default: module.StudentsListTab,
   }))
 );
 

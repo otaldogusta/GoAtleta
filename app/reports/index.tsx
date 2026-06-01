@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Platform, Text, View } from "react-native";
@@ -12,6 +11,7 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../../src/api/reports";
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -307,21 +307,16 @@ export default function ReportsScreen() {
   const header = (
     <View style={{ gap: 12, paddingBottom: 12 }}>
       <View style={{ gap: 4 }}>
-        <Pressable
-          onPress={() => {
+        <BackTitleHeader
+          title="Painel de Coordenação"
+          onBack={() => {
             if (router.canGoBack()) {
               router.back();
               return;
             }
             router.replace("/");
           }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
-          <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>
-            Dashboard de Coordenação
-          </Text>
-        </Pressable>
+        />
         <Text style={{ color: colors.muted }}>
           Pendências e atividade recente da organização{" "}
           {activeOrganization?.name ? `• ${activeOrganization.name}` : ""}

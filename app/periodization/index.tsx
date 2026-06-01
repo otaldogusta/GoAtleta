@@ -13,6 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { Pressable } from "../../src/ui/Pressable";
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 
 
 import { useCopilotActions, useCopilotContext } from "../../src/copilot/CopilotProvider";
@@ -3842,21 +3843,17 @@ export default function PeriodizationScreen() {
 
         <View style={{ gap: 10, position: "relative", zIndex: 40 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, position: "relative", zIndex: 40 }}>
-            <Pressable
-              onPress={() => {
+            <BackTitleHeader
+              title={normalizeText("Periodização")}
+              onBack={() => {
                 if (router.canGoBack()) {
                   router.back();
                   return;
                 }
                 router.replace("/");
               }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-                {normalizeText("Periodização")}
-              </Text>
-            </Pressable>
+              style={{ flexShrink: 1, marginBottom: 0 }}
+            />
 
             {selectedClass ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, position: "relative" }}>
